@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="xposed_scope">
+        <item>android</item>
+        <item>com.android.systemui</item>
+        <item>com.takekazex.hypertweak</item>
+        <item>com.android.settings</item>
+        <item>com.miui.aod</item>
+    </string-array>
+</resources>

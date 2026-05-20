@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Semi-transparent white circular accent ring -->
+    <path
+        android:strokeColor="#70FFFFFF"
+        android:strokeWidth="3"
+        android:pathData="M 54,54 m -28,0 a 28,28 0 1,1 56,0 a 28,28 0 1,1 -56,0" />
+
+    <!-- Centered wrench / spanner vector -->
+    <group
+        android:translateX="34.8"
+        android:translateY="34.8"
+        android:scaleX="1.6"
+        android:scaleY="1.6">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M22.7,19l-9.1-9.1c0.9-2.3,0.4-5-1.5-6.9c-2-2-5.1-2.4-7.5-1.3L8.2,5.4L5.4,8.2L1.7,4.5C0.6,6.9,1,10,3,12c1.9,1.9,4.6,2.4,6.9,1.5l9.1,9.1c0.4,0.4,1,0.4,1.4,0l2.3-2.3C23.1,20,23.1,19.4,22.7,19z" />
+    </group>
+</vector>

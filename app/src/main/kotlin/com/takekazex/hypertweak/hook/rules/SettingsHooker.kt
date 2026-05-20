@@ -1,0 +1,124 @@
+package com.takekazex.hypertweak.hook.rules
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.drawable.Icon
+import android.os.Bundle
+import android.os.UserHandle
+import android.view.View
+import android.widget.ImageView
+import com.highcapable.kavaref.KavaRef.Companion.resolve
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.StaticHooker
+
+object SettingsHooker : StaticHooker() {
+    private const val HEADER_ID = 9641L
+
+    override fun onHook() {
+        val clzMiuiSettings = "com.android.settings.MiuiSettings".toClassOrNull() ?: return
+        val clzHeaderAdapter = "com.android.settings.MiuiSettings\$HeaderAdapter".toClassOrNull()
+        val clzHeader = "com.android.settingslib.miuisettings.preference.PreferenceActivity\$Header".toClassOrNull()
+
+        // 1. Hook updateHeaderList to inject our custom entry in MiuiSettings
+        clzMiuiSettings.resolve().firstMethodOrNull {
+            name = "updateHeaderList"
+            parameters("java.util.List")
+        }?.hook {
+            val ori = proceed()
+            if (!Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) {
+                return@hook result(ori)
+            }
+
+            val list = args[0] as? MutableList<Any?> ?: return@hook result(ori)
+            val activity = thisObject as? Activity ?: return@hook result(ori)
+
+            try {
+                // Check if already injected
+                val alreadyInjected = list.any { head ->
+                    val idField = head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
+                    idField?.get(head) == HEADER_ID
+                }
+                if (alreadyInjected) return@hook result(ori)
+
+                // Instantiate new Header object
+                val headerCtor = clzHeader?.getDeclaredConstructor()?.apply { isAccessible = true }
+                val header = headerCtor?.newInstance()
+
+                if (header != null) {
+                    header.javaClass.getDeclaredField("id").apply { isAccessible = true }.set(header, HEADER_ID)
+                    
+                    val intent = Intent().apply {
+                        putExtra("isDisplayHomeAsUpEnabled", true)
+                        setClassName("com.takekazex.hypertweak", "com.takekazex.hypertweak.MainActivity")
+                    }
+                    header.javaClass.getDeclaredField("intent").apply { isAccessible = true }.set(header, intent)
+                    header.javaClass.getDeclaredField("title").apply { isAccessible = true }.set(header, "Ink Tweaks")
+                    header.javaClass.getDeclaredField("iconRes").apply { isAccessible = true }.set(header, 0)
+
+                    val bundle = Bundle().apply {
+                        val ctorUserHandle = UserHandle::class.java.getDeclaredConstructor(Int::class.java).apply { isAccessible = true }
+                        val users = arrayListOf(ctorUserHandle.newInstance(0))
+                        putParcelableArrayList("header_user", users)
+                    }
+                    header.javaClass.getDeclaredField("extras").apply { isAccessible = true }.set(header, bundle)
+
+                    // Find index of "wifi_settings" to insert right after it
+                    var targetIndex = -1
+                    for (i in list.indices) {
+                        val head = list[i]
+                        val idField = head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
+                        val id = idField?.get(head) as? Long
+                        val intentField = head?.javaClass?.getDeclaredField("intent")?.apply { isAccessible = true }
+                        val headIntent = intentField?.get(head) as? Intent
+                        if (headIntent?.action == "android.settings.WIFI_SETTINGS" || 
+                            headIntent?.component?.className?.contains("WifiSettings", ignoreCase = true) == true) {
+                            targetIndex = i
+                            break
+                        }
+                    }
+
+                    if (targetIndex != -1) {
+                        list.add(targetIndex + 1, header)
+                    } else {
+                        if (list.size > 2) {
+                            list.add(2, header)
+                        } else {
+                            list.add(header)
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                // Ignore
+            }
+
+            result(ori)
+        }
+
+        // 2. Hook setIcon in HeaderAdapter to set our custom icon from module resources
+        clzHeaderAdapter?.resolve()?.firstMethodOrNull {
+            name = "setIcon"
+        }?.hook {
+            val headerViewHolder = args[0]
+            val header = args[1]
+
+            try {
+                val idField = header?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
+                val identifier = idField?.get(header) as? Long
+                if (identifier == HEADER_ID) {
+                    val iconField = headerViewHolder?.javaClass?.getDeclaredField("icon")?.apply { isAccessible = true }
+                    val iconView = iconField?.get(headerViewHolder) as? ImageView
+                    if (iconView != null) {
+                        iconView.visibility = View.VISIBLE
+                        val moduleIcon = Icon.createWithResource("com.takekazex.hypertweak", R.mipmap.ic_launcher).loadDrawable(iconView.context)
+                        iconView.setImageDrawable(moduleIcon)
+                    }
+                    return@hook result(null)
+                }
+            } catch (t: Throwable) {
+                // Ignore
+            }
+            result(proceed())
+        }
+    }
+}
