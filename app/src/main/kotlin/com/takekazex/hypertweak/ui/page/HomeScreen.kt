@@ -1,24 +1,20 @@
 package com.takekazex.hypertweak.ui.page
 
 import android.os.Build
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -26,6 +22,11 @@ import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun HomeScreenContent(
@@ -60,18 +61,19 @@ fun HomeScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
-                .padding(horizontal = 16.dp)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
             // Large Status Card
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -116,41 +118,28 @@ fun HomeScreenContent(
                 }
             }
 
-            // Section Title & Card Group
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "Diagnostics Details",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.primary
-                    )
-                }
+            // SmallTitle - proper 28dp left indent like miuix
+            SmallTitle(text = "Diagnostics Details")
 
-                // Diagnostics Card using BasicComponent
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        BasicComponent(
-                            title = "Module Package",
-                            summary = packageName
-                        )
-                        BasicComponent(
-                            title = "Target SDK",
-                            summary = targetSdk.toString()
-                        )
-                        BasicComponent(
-                            title = "Device System",
-                            summary = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
-                        )
-                    }
+            // Diagnostics Card using BasicComponent
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    BasicComponent(
+                        title = "Module Package",
+                        summary = packageName
+                    )
+                    BasicComponent(
+                        title = "Target SDK",
+                        summary = targetSdk.toString()
+                    )
+                    BasicComponent(
+                        title = "Device System",
+                        summary = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+                    )
                 }
             }
 

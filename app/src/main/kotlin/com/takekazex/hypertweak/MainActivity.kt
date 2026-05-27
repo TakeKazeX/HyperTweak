@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
@@ -430,31 +431,34 @@ class MainActivity : ComponentActivity() {
                         backInfo = previousSceneInfos
                     )
 
+                    // Standard BackHandler to definitively intercept back on sub-pages
+                    // (NavigationBackHandler alone does not reliably prevent exiting to desktop)
+                    BackHandler(enabled = backStack.size > 1) {
+                        android.util.Log.d("HyperTweak", "BackHandler fired. backStack size = ${backStack.size}")
+                        if (predictiveBackStyle == 2 && inPredictiveBackAnimation) {
+                            coroutineScope.launch {
+                                exitingPageKey = backStack.lastOrNull()?.toString()
+                                exitAnimatable.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(
+                                        durationMillis = 200,
+                                        easing = FastOutSlowInEasing
+                                    )
+                                )
+                                exitAnimatable.snapTo(0f)
+                                if (backStack.size > 1) backStack.removeLast()
+                            }
+                        } else {
+                            if (backStack.size > 1) backStack.removeLast()
+                        }
+                    }
+
                     NavigationBackHandler(
                         state = gestureState!!,
                         isBackEnabled = backStack.size > 1,
                         onBackCompleted = {
-                            android.util.Log.d("HyperTweak", "Second back completed. backStack size = ${backStack.size}, style = $predictiveBackStyle")
-                            if (predictiveBackStyle == 2 && inPredictiveBackAnimation) {
-                                coroutineScope.launch {
-                                    exitingPageKey = backStack.lastOrNull()?.toString()
-                                    exitAnimatable.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(
-                                            durationMillis = 200,
-                                            easing = FastOutSlowInEasing
-                                        )
-                                    )
-                                    exitAnimatable.snapTo(0f)
-                                    if (backStack.size > 1) {
-                                        backStack.removeLast()
-                                    }
-                                }
-                            } else {
-                                if (backStack.size > 1) {
-                                    backStack.removeLast()
-                                }
-                            }
+                            android.util.Log.d("HyperTweak", "Second NavigationBackHandler completed. backStack size = ${backStack.size}")
+                            if (backStack.size > 1) backStack.removeLast()
                         }
                     )
 

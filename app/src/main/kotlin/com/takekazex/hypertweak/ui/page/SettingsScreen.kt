@@ -22,6 +22,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -69,97 +70,77 @@ fun SettingsScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
-                .padding(horizontal = 16.dp)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Section Title: Theme Settings & Card Group
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Theme Settings
+            SmallTitle(text = "Theme Settings")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "Theme Settings",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.primary
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OverlayDropdownPreference(
+                        title = "Theme Mode",
+                        items = listOf("Follow System", "Light", "Dark"),
+                        selectedIndex = themeMode,
+                        onSelectedIndexChange = onThemeModeChange
                     )
-                }
 
-                // Theme Settings Card
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
+                    SwitchPreference(
+                        checked = useMonet,
+                        onCheckedChange = onUseMonetChange,
+                        title = "Use Monet Accent Color",
+                        summary = "Enable dynamic colors based on selected accent color"
+                    )
+
+                    SwitchPreference(
+                        checked = useFloatingBottomBar,
+                        onCheckedChange = onUseFloatingBottomBarChange,
+                        title = "Floating Bottom Bar",
+                        summary = "Enable floating style bottom navigation bar"
+                    )
+
+                    AnimatedVisibility(
+                        visible = useFloatingBottomBar,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
                     ) {
                         OverlayDropdownPreference(
-                            title = "Theme Mode",
-                            items = listOf("Follow System", "Light", "Dark"),
-                            selectedIndex = themeMode,
-                            onSelectedIndexChange = onThemeModeChange
+                            title = "Floating Bottom Bar Style",
+                            items = listOf("Miuix", "iOS-like"),
+                            selectedIndex = floatingBarStyle,
+                            onSelectedIndexChange = onFloatingBarStyleChange
                         )
+                    }
 
+                    OverlayDropdownPreference(
+                        title = "Predictive Back Style",
+                        items = listOf("Disabled", "Miuix", "Scale"),
+                        selectedIndex = predictiveBackStyle,
+                        onSelectedIndexChange = onPredictiveBackStyleChange
+                    )
+
+                    AnimatedVisibility(
+                        visible = predictiveBackStyle == 2,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
                         SwitchPreference(
-                            checked = useMonet,
-                            onCheckedChange = onUseMonetChange,
-                            title = "Use Monet Accent Color",
-                            summary = "Enable dynamic colors based on selected accent color"
+                            checked = predictiveBackFollowGesture,
+                            onCheckedChange = onPredictiveBackFollowGestureChange,
+                            title = "Follow Gesture Direction",
+                            summary = "Adjust scale pivot and exit animation translation based on swipe edge"
                         )
-
-                        SwitchPreference(
-                            checked = useFloatingBottomBar,
-                            onCheckedChange = onUseFloatingBottomBarChange,
-                            title = "Floating Bottom Bar",
-                            summary = "Enable floating style bottom navigation bar"
-                        )
-
-                        AnimatedVisibility(
-                            visible = useFloatingBottomBar,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            OverlayDropdownPreference(
-                                title = "Floating Bottom Bar Style",
-                                items = listOf("Miuix", "iOS-like"),
-                                selectedIndex = floatingBarStyle,
-                                onSelectedIndexChange = onFloatingBarStyleChange
-                            )
-                        }
-
-                        OverlayDropdownPreference(
-                            title = "Predictive Back Style",
-                            items = listOf("Disabled", "Miuix", "Scale"),
-                            selectedIndex = predictiveBackStyle,
-                            onSelectedIndexChange = onPredictiveBackStyleChange
-                        )
-
-                        AnimatedVisibility(
-                            visible = predictiveBackStyle == 2,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            SwitchPreference(
-                                checked = predictiveBackFollowGesture,
-                                onCheckedChange = onPredictiveBackFollowGestureChange,
-                                title = "Follow Gesture Direction",
-                                summary = "Adjust scale pivot and exit animation translation based on swipe edge"
-                            )
-                        }
                     }
                 }
             }
 
-            // Accent Color Selection Row
+            // Accent Color Selection
             AnimatedVisibility(
                 visible = useMonet,
                 enter = fadeIn() + expandVertically(),
@@ -167,22 +148,10 @@ fun SettingsScreenContent(
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            text = "Accent Color Selection",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.primary
-                        )
-                    }
-
+                    SmallTitle(text = "Accent Color Selection")
                     Card(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -210,9 +179,7 @@ fun SettingsScreenContent(
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(18.dp))
                                         .background(displayColor)
-                                        .clickable {
-                                            onSeedColorChange(colorVal)
-                                        },
+                                        .clickable { onSeedColorChange(colorVal) },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (isSelected) {
@@ -237,73 +204,38 @@ fun SettingsScreenContent(
                 }
             }
 
-            // Settings Header & Card Group
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Module Preferences
+            SmallTitle(text = "Module Preferences")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "Module Preferences",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.primary
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = showInSettings,
+                        onCheckedChange = onShowInSettingsChange,
+                        title = "Show Entry in System Settings",
+                        summary = "Inject an entry point for Ink Tweaks in the system Settings app"
                     )
-                }
 
-                // Module Preferences Card
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        SwitchPreference(
-                            checked = showInSettings,
-                            onCheckedChange = onShowInSettingsChange,
-                            title = "Show Entry in System Settings",
-                            summary = "Inject an entry point for Ink Tweaks in the system Settings app"
-                        )
-
-                        SwitchPreference(
-                            checked = hideLauncherIcon,
-                            onCheckedChange = onHideLauncherIconChange,
-                            title = "Hide Desktop Icon",
-                            summary = "Hide launcher icon (access module via LSPosed or system settings)"
-                        )
-                    }
+                    SwitchPreference(
+                        checked = hideLauncherIcon,
+                        onCheckedChange = onHideLauncherIconChange,
+                        title = "Hide Desktop Icon",
+                        summary = "Hide launcher icon (access module via LSPosed or system settings)"
+                    )
                 }
             }
 
-            // Section Title: Other & Card Group
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Other
+            SmallTitle(text = "Other")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "Other",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.primary
-                    )
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    ArrowPreference(
-                        title = "About",
-                        summary = "Ink Tweaks v1.0",
-                        onClick = onNavigateToAbout
-                    )
-                }
+                ArrowPreference(
+                    title = "About",
+                    summary = "Ink Tweaks v1.0",
+                    onClick = onNavigateToAbout
+                )
             }
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))

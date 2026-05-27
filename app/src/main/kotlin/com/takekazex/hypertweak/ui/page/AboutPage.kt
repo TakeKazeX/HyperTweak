@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,6 +17,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -61,89 +60,72 @@ fun AboutPage(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                        .verticalScroll(scrollState),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(150.dp))
+                    // Push content below back button safe area
+                    Spacer(modifier = Modifier.height(72.dp))
 
-                    // Large App Logo & Title
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Favorites,
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(48.dp),
-                            contentDescription = null
-                        )
-                    }
+                    // App icon
+                    Icon(
+                        imageVector = MiuixIcons.Favorites,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(80.dp),
+                        contentDescription = null
+                    )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
+                    // Large app name title (like InstallerX title2 style)
                     Text(
                         text = "Ink Tweaks",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
                         color = MiuixTheme.colorScheme.onSurface
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Version subtitle with reduced opacity
                     Text(
                         text = "Version 1.0 (1)",
                         color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                        fontSize = 14.sp
+                        fontSize = 15.sp
                     )
 
-                    // PROJECT Header & Card Group
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Text(
-                                text = "PROJECT",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MiuixTheme.colorScheme.primary
-                            )
-                        }
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                        // Card with View Source Code & Credits links
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .textureBlur(
-                                    backdrop = localBackdrop,
-                                    shape = RoundedCornerShape(16.dp),
-                                    blurRadius = 25f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
-                                        ),
-                                    )
-                                ),
-                            colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                ArrowPreference(
-                                    title = "View Source Code",
-                                    summary = "Check the GitHub repository",
-                                    onClick = onViewSourceCode
+                    // SmallTitle uses PaddingValues(28.dp, 8.dp) so it has proper left indent
+                    SmallTitle(text = "PROJECT")
+
+                    // Card with View Source Code & Credits links
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .textureBlur(
+                                backdrop = localBackdrop,
+                                shape = RoundedCornerShape(16.dp),
+                                blurRadius = 25f,
+                                colors = BlurDefaults.blurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
+                                    ),
                                 )
-                                ArrowPreference(
-                                    title = "Credits & Acknowledgements",
-                                    summary = "View open source libraries and contributors",
-                                    onClick = onNavigateToCredits
-                                )
-                            }
+                            ),
+                        colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "View Source Code",
+                                summary = "Check the GitHub repository",
+                                onClick = onViewSourceCode
+                            )
+                            ArrowPreference(
+                                title = "Credits & Acknowledgements",
+                                summary = "View open source libraries and contributors",
+                                onClick = onNavigateToCredits
+                            )
                         }
                     }
 
