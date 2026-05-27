@@ -1,0 +1,267 @@
+package com.takekazex.hypertweak.ui.page
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.HorizontalSplit
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
+
+@Composable
+fun MainPagerScreen(
+    pagerState: PagerState,
+    useFloatingBottomBar: Boolean,
+    floatingBarStyle: Int,
+    backdrop: LayerBackdrop,
+    moduleActive: Boolean,
+    aodFullscreen: Boolean,
+    onAodFullscreenChange: (Boolean) -> Unit,
+    removeGms: Boolean,
+    onRemoveGmsChange: (Boolean) -> Unit,
+    hideFingerprint: Boolean,
+    onHideFingerprintChange: (Boolean) -> Unit,
+    sliderShowPercentage: Boolean,
+    onSliderShowPercentageChange: (Boolean) -> Unit,
+    sliderSamePercentageStyle: Boolean,
+    onSliderSamePercentageChange: (Boolean) -> Unit,
+    showInSettings: Boolean,
+    onShowInSettingsChange: (Boolean) -> Unit,
+    hideLauncherIcon: Boolean,
+    onHideLauncherIconChange: (Boolean) -> Unit,
+    themeMode: Int,
+    onThemeModeChange: (Int) -> Unit,
+    useMonet: Boolean,
+    onUseMonetChange: (Boolean) -> Unit,
+    seedColorHex: Int,
+    onSeedColorChange: (Int) -> Unit,
+    onUseFloatingBottomBarChange: (Boolean) -> Unit,
+    onFloatingBarStyleChange: (Int) -> Unit,
+    predictiveBackStyle: Int,
+    onPredictiveBackStyleChange: (Int) -> Unit,
+    predictiveBackFollowGesture: Boolean,
+    onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
+    onNavigateToAbout: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val isDark = isSystemInDarkTheme()
+    val blurActive = true
+    val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
+    val floatingBarColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+    val floatingBarShape = RoundedCornerShape(top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults.CornerRadius)
+    val floatingHighlight = remember(isDark) {
+        if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+    }
+
+    Scaffold(
+        bottomBar = {
+            if (useFloatingBottomBar) {
+                if (floatingBarStyle == 1) {
+                    val items = remember {
+                        listOf(
+                            NavigationItem("Home", MiuixIcons.HorizontalSplit),
+                            NavigationItem("Tweaks", MiuixIcons.Favorites),
+                            NavigationItem("Settings", MiuixIcons.Settings)
+                        )
+                    }
+                    IosLiquidGlassNavigationBar(
+                        items = items,
+                        pagerState = pagerState,
+                        onItemClick = { index ->
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(index)
+                            }
+                        },
+                        backdrop = backdrop,
+                        isBlurActive = blurActive
+                    )
+                } else {
+                    FloatingNavigationBar(
+                        modifier = if (blurActive) {
+                            Modifier.textureBlur(
+                                backdrop = backdrop,
+                                shape = floatingBarShape,
+                                blurRadius = 25f,
+                                colors = BlurDefaults.blurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
+                                    ),
+                                ),
+                                highlight = floatingHighlight,
+                            )
+                        } else {
+                            Modifier
+                        },
+                        color = floatingBarColor,
+                    ) {
+                        FloatingNavigationBarItem(
+                            selected = pagerState.currentPage == 0,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.scrollToPage(0)
+                                }
+                            },
+                            icon = MiuixIcons.HorizontalSplit,
+                            label = "Home"
+                        )
+                        FloatingNavigationBarItem(
+                            selected = pagerState.currentPage == 1,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.scrollToPage(1)
+                                }
+                            },
+                            icon = MiuixIcons.Favorites,
+                            label = "Tweaks"
+                        )
+                        FloatingNavigationBarItem(
+                            selected = pagerState.currentPage == 2,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.scrollToPage(2)
+                                }
+                            },
+                            icon = MiuixIcons.Settings,
+                            label = "Settings"
+                        )
+                    }
+                }
+            } else {
+                NavigationBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (blurActive) {
+                                Modifier.textureBlur(
+                                    backdrop = backdrop,
+                                    shape = RectangleShape,
+                                    blurRadius = 25f,
+                                    colors = BlurDefaults.blurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f)),
+                                        ),
+                                    ),
+                                )
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    color = barColor
+                ) {
+                    NavigationBarItem(
+                        selected = pagerState.currentPage == 0,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(0)
+                            }
+                        },
+                        icon = MiuixIcons.HorizontalSplit,
+                        label = "Home"
+                    )
+                    NavigationBarItem(
+                        selected = pagerState.currentPage == 1,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(1)
+                            }
+                        },
+                        icon = MiuixIcons.Favorites,
+                        label = "Tweaks"
+                    )
+                    NavigationBarItem(
+                        selected = pagerState.currentPage == 2,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(2)
+                            }
+                        },
+                        icon = MiuixIcons.Settings,
+                        label = "Settings"
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = true,
+                beyondViewportPageCount = 2
+            ) { page ->
+                when (page) {
+                    0 -> {
+                        HomeScreenContent(
+                            padding = padding,
+                            moduleActive = moduleActive,
+                            packageName = "com.takekazex.hypertweak",
+                            targetSdk = 37
+                        )
+                    }
+                    1 -> {
+                        TweaksScreenContent(
+                            padding = padding,
+                            aodFullscreen = aodFullscreen,
+                            onAodFullscreenChange = onAodFullscreenChange,
+                            removeGms = removeGms,
+                            onRemoveGmsChange = onRemoveGmsChange,
+                            hideFingerprint = hideFingerprint,
+                            onHideFingerprintChange = onHideFingerprintChange,
+                            sliderShowPercentage = sliderShowPercentage,
+                            onSliderShowPercentageChange = onSliderShowPercentageChange,
+                            sliderSamePercentageStyle = sliderSamePercentageStyle,
+                            onSliderSamePercentageChange = onSliderSamePercentageChange
+                        )
+                    }
+                    2 -> {
+                        SettingsScreenContent(
+                            padding = padding,
+                            showInSettings = showInSettings,
+                            onShowInSettingsChange = onShowInSettingsChange,
+                            hideLauncherIcon = hideLauncherIcon,
+                            onHideLauncherIconChange = onHideLauncherIconChange,
+                            themeMode = themeMode,
+                            onThemeModeChange = onThemeModeChange,
+                            useMonet = useMonet,
+                            onUseMonetChange = onUseMonetChange,
+                            seedColorHex = seedColorHex,
+                            onSeedColorChange = onSeedColorChange,
+                            useFloatingBottomBar = useFloatingBottomBar,
+                            onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
+                            floatingBarStyle = floatingBarStyle,
+                            onFloatingBarStyleChange = onFloatingBarStyleChange,
+                            predictiveBackStyle = predictiveBackStyle,
+                            onPredictiveBackStyleChange = onPredictiveBackStyleChange,
+                            predictiveBackFollowGesture = predictiveBackFollowGesture,
+                            onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
+                            onNavigateToAbout = onNavigateToAbout
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
