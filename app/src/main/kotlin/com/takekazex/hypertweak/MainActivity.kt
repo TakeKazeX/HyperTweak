@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -111,6 +112,7 @@ import androidx.navigationevent.NavigationEvent
 import androidx.navigation3.ui.defaultPopTransitionSpec
 import androidx.navigation3.ui.defaultPredictivePopTransitionSpec
 import androidx.compose.ui.draw.drawWithContent
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 enum class Screen {
     HOME,
@@ -393,7 +395,6 @@ class MainActivity : ComponentActivity() {
                             }
                             entry<Route.About> {
                                 AboutPage(
-                                    backdrop = backdrop,
                                     onBack = {
                                         if (backStack.size > 1) backStack.removeLast()
                                     },
@@ -462,8 +463,8 @@ class MainActivity : ComponentActivity() {
                         sceneDecoratorStrategies = emptyList(),
                         sharedTransitionScope = null,
                         onBack = {
-                            coroutineScope.launch {
-                                if (predictiveBackStyle == 1 && inPredictiveBackAnimation) {
+                            if (predictiveBackStyle == 1 && inPredictiveBackAnimation) {
+                                coroutineScope.launch {
                                     exitingPageKey = backStack.lastOrNull()?.toString()
                                     exitAnimatable.animateTo(
                                         targetValue = 1f,
@@ -473,7 +474,11 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                     exitAnimatable.snapTo(0f)
+                                    if (backStack.size > 1) {
+                                        backStack.removeLast()
+                                    }
                                 }
+                            } else {
                                 if (backStack.size > 1) {
                                     backStack.removeLast()
                                 }
@@ -492,8 +497,8 @@ class MainActivity : ComponentActivity() {
                         state = gestureState!!,
                         isBackEnabled = backStack.size > 1,
                         onBackCompleted = {
-                            coroutineScope.launch {
-                                if (predictiveBackStyle == 1 && inPredictiveBackAnimation) {
+                            if (predictiveBackStyle == 1 && inPredictiveBackAnimation) {
+                                coroutineScope.launch {
                                     exitingPageKey = backStack.lastOrNull()?.toString()
                                     exitAnimatable.animateTo(
                                         targetValue = 1f,
@@ -503,7 +508,11 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                     exitAnimatable.snapTo(0f)
+                                    if (backStack.size > 1) {
+                                        backStack.removeLast()
+                                    }
                                 }
+                            } else {
                                 if (backStack.size > 1) {
                                     backStack.removeLast()
                                 }
@@ -619,7 +628,7 @@ fun MainPagerScreen(
                         selectedIndex = pagerState.currentPage,
                         onItemClick = { index ->
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(index)
+                                pagerState.scrollToPage(index)
                             }
                         },
                         backdrop = backdrop,
@@ -648,7 +657,7 @@ fun MainPagerScreen(
                             selected = pagerState.currentPage == 0,
                             onClick = {
                                 coroutineScope.launch {
-                                    pagerState.animateScrollToPage(0)
+                                    pagerState.scrollToPage(0)
                                 }
                             },
                             icon = MiuixIcons.HorizontalSplit,
@@ -658,7 +667,7 @@ fun MainPagerScreen(
                             selected = pagerState.currentPage == 1,
                             onClick = {
                                 coroutineScope.launch {
-                                    pagerState.animateScrollToPage(1)
+                                    pagerState.scrollToPage(1)
                                 }
                             },
                             icon = MiuixIcons.Favorites,
@@ -668,7 +677,7 @@ fun MainPagerScreen(
                             selected = pagerState.currentPage == 2,
                             onClick = {
                                 coroutineScope.launch {
-                                    pagerState.animateScrollToPage(2)
+                                    pagerState.scrollToPage(2)
                                 }
                             },
                             icon = MiuixIcons.Settings,
@@ -702,7 +711,7 @@ fun MainPagerScreen(
                         selected = pagerState.currentPage == 0,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(0)
+                                pagerState.scrollToPage(0)
                             }
                         },
                         icon = MiuixIcons.HorizontalSplit,
@@ -712,7 +721,7 @@ fun MainPagerScreen(
                         selected = pagerState.currentPage == 1,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(1)
+                                pagerState.scrollToPage(1)
                             }
                         },
                         icon = MiuixIcons.Favorites,
@@ -722,7 +731,7 @@ fun MainPagerScreen(
                         selected = pagerState.currentPage == 2,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(2)
+                                pagerState.scrollToPage(2)
                             }
                         },
                         icon = MiuixIcons.Settings,
@@ -735,7 +744,9 @@ fun MainPagerScreen(
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = false,
+                beyondViewportPageCount = 2
             ) { page ->
                 when (page) {
                     0 -> {
@@ -831,6 +842,7 @@ fun HomeScreenContent(
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
                 .padding(horizontal = 16.dp)
+                .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -951,6 +963,7 @@ fun TweaksScreenContent(
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
                 .padding(horizontal = 16.dp)
+                .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -1088,6 +1101,7 @@ fun SettingsScreenContent(
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
                 .padding(horizontal = 16.dp)
+                .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -1129,13 +1143,11 @@ fun SettingsScreenContent(
                         summary = "Enable dynamic colors based on selected accent color"
                     )
 
-                    OverlayDropdownPreference(
+                    SwitchPreference(
+                        checked = useFloatingBottomBar,
+                        onCheckedChange = onUseFloatingBottomBarChange,
                         title = "Floating Bottom Bar",
-                        items = listOf("Disabled", "Enabled"),
-                        selectedIndex = if (useFloatingBottomBar) 1 else 0,
-                        onSelectedIndexChange = { index ->
-                            onUseFloatingBottomBarChange(index == 1)
-                        }
+                        summary = "Enable floating style bottom navigation bar"
                     )
 
                     AnimatedVisibility(
@@ -1317,7 +1329,6 @@ fun SettingsScreenContent(
 
 @Composable
 fun AboutPage(
-    backdrop: LayerBackdrop,
     onBack: () -> Unit,
     onViewSourceCode: () -> Unit,
     onNavigateToCredits: () -> Unit
@@ -1327,11 +1338,19 @@ fun AboutPage(
         (scrollState.value.toFloat() / 600f).coerceIn(0f, 1f)
     }
 
+    val localBackdrop = rememberLayerBackdrop {
+        drawContent()
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(localBackdrop)
+        ) {
             BgEffectBackground(
                 dynamicBackground = true,
                 modifier = Modifier.fillMaxSize(),
@@ -1345,7 +1364,7 @@ fun AboutPage(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(120.dp))
 
                     // Large App Logo & Title
                     Box(
@@ -1380,17 +1399,22 @@ fun AboutPage(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    SmallTitle(
+                        text = "PROJECT",
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+
                     // Card with View Source Code & Credits links
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .textureBlur(
-                                backdrop = backdrop,
+                                backdrop = localBackdrop,
                                 shape = RoundedCornerShape(16.dp),
                                 blurRadius = 25f,
                                 colors = BlurDefaults.blurColors(
                                     blendColors = listOf(
-                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
+                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
                                     ),
                                 )
                             ),
@@ -1465,6 +1489,7 @@ fun CreditsPage(
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
                 .padding(horizontal = 16.dp)
+                .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -1581,7 +1606,7 @@ fun Modifier.scalePredictiveBackDecorator(
             }
         }
 
-        LaunchedEffect(animatedScale) {
+        SideEffect {
             onInPredictiveBackChanged(animatedScale != 1f)
         }
 
