@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules
 
 import android.content.ComponentName
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import java.util.concurrent.ConcurrentHashMap
@@ -63,7 +65,30 @@ object SystemUIPluginHooker : StaticHooker() {
                             }
 
                             if (!activePluginHookers.containsKey(pluginInstance)) {
-                                val hooker = SliderPercentageHooker()
+                                val mAppContext = runCatching {
+                                    pluginInstance.javaClass.getDeclaredField("mAppContext")
+                                        .apply { isAccessible = true }.get(pluginInstance) as? Context
+                                }.getOrNull()
+                                val mPluginFactory = runCatching {
+                                    pluginInstance.javaClass.getDeclaredField("mPluginFactory")
+                                        .apply { isAccessible = true }.get(pluginInstance)
+                                }.getOrNull()
+                                val mAppInfo = runCatching {
+                                    mPluginFactory?.javaClass?.getDeclaredField("mAppInfo")
+                                        ?.apply { isAccessible = true }?.get(mPluginFactory) as? ApplicationInfo
+                                }.getOrNull()
+                                
+                                val pluginApkPath = mAppInfo?.sourceDir ?: ""
+                                val mainApkPath = this@SystemUIPluginHooker.hookParam.appInfo?.sourceDir ?: ""
+                                
+                                val hooker = if (mAppContext != null && pluginApkPath.isNotEmpty() && mainApkPath.isNotEmpty()) {
+                                    Log.d("HyperTweak", "SystemUIPluginHooker: Instantiating SliderPercentageHooker with DexKit support")
+                                    SliderPercentageHooker(mAppContext, pluginApkPath, mainApkPath)
+                                } else {
+                                    Log.w("HyperTweak", "SystemUIPluginHooker: Missing context or APK paths, instantiating with default fallback")
+                                    SliderPercentageHooker()
+                                }
+                                
                                 activePluginHookers[pluginInstance] = hooker
                                 attach(hooker, classLoader)
                                 Log.d("HyperTweak", "SystemUIPluginHooker: Attached SliderPercentageHooker to plugin ClassLoader")

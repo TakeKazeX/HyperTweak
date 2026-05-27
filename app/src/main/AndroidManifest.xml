@@ -7,7 +7,8 @@
         android:icon="@mipmap/ic_launcher"
         android:label="Ink Tweaks"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+        android:enableOnBackInvokedCallback="true">
         
         <!-- Xposed Module Configuration -->
         <meta-data

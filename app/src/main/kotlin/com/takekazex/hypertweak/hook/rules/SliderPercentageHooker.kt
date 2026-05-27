@@ -7,9 +7,135 @@ import android.widget.SeekBar
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
+import com.takekazex.hypertweak.hook.base.DexKitManager
+import org.luckypray.dexkit.query.enums.StringMatchType
+import com.highcapable.kavaref.extension.toClassOrNull
 import java.util.WeakHashMap
 
-class SliderPercentageHooker : DynamicHooker() {
+class SliderPercentageHooker(
+    private val pluginContext: android.content.Context? = null,
+    private val pluginApkPath: String = "",
+    private val mainApkPath: String = ""
+) : DynamicHooker() {
+
+    private fun String.resolveClass(initialize: Boolean = false): Class<Any>? {
+        val resolvedClass = resolveViaDexKit(this)
+        if (resolvedClass != null) {
+            @Suppress("UNCHECKED_CAST")
+            return resolvedClass as Class<Any>
+        }
+        return this.toClassOrNull(initialize = initialize)
+    }
+
+    private fun resolveViaDexKit(className: String): Class<*>? {
+        if (pluginContext == null) return null
+        
+        return when (className) {
+            "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController" -> {
+                resolvePluginClass("BrightnessSliderController") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("BrightnessSliderController", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController" -> {
+                resolvePluginClass("VolumeSliderController") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("VolumeSliderController", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder" -> {
+                resolvePluginClass("ToggleSliderViewHolder") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("ToggleSliderViewHolder", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "miui.systemui.controlcenter.widget.AnimateColorView" -> {
+                resolvePluginClass("AnimateColorView") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("AnimateColorView", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator" -> {
+                resolvePluginClass("BrightnessPanelAnimator") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("BrightnessPanelAnimator", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate" -> {
+                resolvePluginClass("BrightnessPanelSliderDelegate") { bridge ->
+                    bridge.findClass {
+                        searchPackages("miui.systemui.controlcenter")
+                        matcher { className("BrightnessPanelSliderDelegate", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1" -> {
+                resolveMainClass("iconColorTransition") { bridge ->
+                    bridge.findClass {
+                        searchPackages("com.android.systemui")
+                        matcher { className("VolumeColumn\$iconColorTransition\$2\$1", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1" -> {
+                resolveMainClass("iconBlendColorTransition") { bridge ->
+                    bridge.findClass {
+                        searchPackages("com.android.systemui")
+                        matcher { className("VolumeColumn\$iconBlendColorTransition\$2\$1", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "com.android.systemui.miui.volume.VolumeColumn" -> {
+                resolveMainClass("VolumeColumn") { bridge ->
+                    bridge.findClass {
+                        searchPackages("com.android.systemui")
+                        matcher { className("VolumeColumn", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            "com.android.systemui.miui.volume.VolumePanelViewController" -> {
+                resolveMainClass("VolumePanelViewController") { bridge ->
+                    bridge.findClass {
+                        searchPackages("com.android.systemui")
+                        matcher { className("VolumePanelViewController", StringMatchType.EndsWith) }
+                    }.singleOrNull()?.name
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun resolvePluginClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
+        if (pluginApkPath.isEmpty()) return null
+        val resolved = DexKitManager.resolveClasses(
+            context = pluginContext!!,
+            apkPath = pluginApkPath,
+            classLoader = classLoader,
+            queries = mapOf(key to query)
+        )
+        return resolved[key]
+    }
+
+    private fun resolveMainClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
+        if (mainApkPath.isEmpty()) return null
+        val resolved = DexKitManager.resolveClasses(
+            context = pluginContext!!,
+            apkPath = mainApkPath,
+            classLoader = classLoader,
+            queries = mapOf(key to query)
+        )
+        return resolved[key]
+    }
 
     private val tags = WeakHashMap<Any, HashMap<String, Any?>>()
     private var brightnessColor: Int = 0
@@ -318,8 +444,8 @@ class SliderPercentageHooker : DynamicHooker() {
         Log.d("HyperTweak", "SliderPercentageHooker attaching hooks")
 
         // ─── Slider Controllers ────────────────────────────────────────────────
-        val clzBrightnessSlider = "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController".toClassOrNull()
-        val clzVolumeSlider = "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController".toClassOrNull()
+        val clzBrightnessSlider = "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController".resolveClass()
+        val clzVolumeSlider = "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController".resolveClass()
 
         Log.d("HyperTweak", "clzBrightnessSlider: ${clzBrightnessSlider?.name}")
         Log.d("HyperTweak", "clzVolumeSlider: ${clzVolumeSlider?.name}")
@@ -392,7 +518,7 @@ class SliderPercentageHooker : DynamicHooker() {
         // ─── ToggleSliderViewHolder: updateBlendBlur ───────────────────────────
         // OShape: after updateBlendBlur, re-apply topText blur/color style.
         // This ensures the topText style is always correct after any blur update.
-        val clzViewHolder = "miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder".toClassOrNull()
+        val clzViewHolder = "miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder".resolveClass()
         Log.d("HyperTweak", "clzViewHolder: ${clzViewHolder?.name}")
         clzViewHolder?.let { clz ->
             // updateBlendBlur is defined in parent MainPanelItemViewHolder, but overridden in ToggleSliderViewHolder
@@ -570,7 +696,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find Brightness setInMirror")
 
         // ─── Brightness Panel Animator Hooks (Transition Positions) ───────────
-        val clzBrightnessAnimator = "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator".toClassOrNull()
+        val clzBrightnessAnimator = "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator".resolveClass()
         Log.d("HyperTweak", "clzBrightnessAnimator: ${clzBrightnessAnimator?.name}")
 
         clzBrightnessAnimator?.declaredMethods?.firstOrNull { it.name == "calculateViewValues" }?.let { method ->
@@ -624,7 +750,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find BrightnessAnimator frameCallback")
 
         // ─── AnimateColorView Hooks ────────────────────────────────────────────
-        val clzAnimateColorView = "miui.systemui.controlcenter.widget.AnimateColorView".toClassOrNull()
+        val clzAnimateColorView = "miui.systemui.controlcenter.widget.AnimateColorView".resolveClass()
         Log.d("HyperTweak", "clzAnimateColorView: ${clzAnimateColorView?.name}")
 
         clzAnimateColorView?.declaredMethods?.firstOrNull { it.name == "recycle" }?.let { method ->
@@ -773,7 +899,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find AnimateColorView updateIconColor")
 
         // ─── Volume Column Color & Blend Transitions ───────────────────────────
-        val transitionClass = "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1".toClassOrNull()
+        val transitionClass = "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1".resolveClass()
         Log.d("HyperTweak", "transitionClass: ${transitionClass?.name}")
 
         transitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
@@ -796,7 +922,7 @@ class SliderPercentageHooker : DynamicHooker() {
             }
         } ?: Log.e("HyperTweak", "Could not find iconColorTransition")
 
-        val blendTransitionClass = "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1".toClassOrNull()
+        val blendTransitionClass = "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1".resolveClass()
         Log.d("HyperTweak", "blendTransitionClass: ${blendTransitionClass?.name}")
 
         blendTransitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
@@ -823,7 +949,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find iconBlendColorTransition")
 
         // ─── VolumeColumn initColumn ───────────────────────────────────────────
-        val clzVolumeColumn = "com.android.systemui.miui.volume.VolumeColumn".toClassOrNull()
+        val clzVolumeColumn = "com.android.systemui.miui.volume.VolumeColumn".resolveClass()
         Log.d("HyperTweak", "clzVolumeColumn: ${clzVolumeColumn?.name}")
 
         clzVolumeColumn?.declaredMethods?.firstOrNull { method ->
@@ -866,7 +992,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find VolumeColumn initColumn(6 params)")
 
         // ─── VolumePanelViewController ─────────────────────────────────────────
-        val clzVolumeViewController = "com.android.systemui.miui.volume.VolumePanelViewController".toClassOrNull()
+        val clzVolumeViewController = "com.android.systemui.miui.volume.VolumePanelViewController".resolveClass()
         Log.d("HyperTweak", "clzVolumeViewController: ${clzVolumeViewController?.name}")
 
         // ─── updateVolumeColumnH ─────────────────────────────────────
@@ -1026,7 +1152,7 @@ class SliderPercentageHooker : DynamicHooker() {
         } ?: Log.e("HyperTweak", "Could not find VolumeViewController updateSuperVolumeView")
 
         // ─── BrightnessPanelSliderDelegate (Expanded Brightness) ────────────────
-        val clzBrightnessPanelDelegate = "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate".toClassOrNull()
+        val clzBrightnessPanelDelegate = "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate".resolveClass()
         clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "prepareShow" }?.let { method ->
             Log.d("HyperTweak", "Hooking BrightnessPanelSliderDelegate prepareShow")
             method.hook {

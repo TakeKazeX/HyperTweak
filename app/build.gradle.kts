@@ -9,12 +9,16 @@ android {
 
     defaultConfig {
         applicationId = "com.takekazex.hypertweak"
-        minSdk = 28
+        minSdk = 35
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     signingConfigs {
@@ -62,7 +66,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
     // Miuix UI
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.0")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.1")
 
     // libxposed
     compileOnly("io.github.libxposed:api:101.0.1")
@@ -74,4 +78,7 @@ dependencies {
 
     // HiddenApiBypass
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
+
+    // DexKit
+    implementation("org.luckypray:dexkit:2.2.0")
 }

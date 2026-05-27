@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.*
@@ -31,6 +31,15 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.flow.collect
+
+
 
 enum class Screen {
     MAIN,
@@ -66,6 +75,23 @@ class MainActivity : ComponentActivity() {
                 var sliderSamePercentageStyle by remember { mutableStateOf(false) }
 
                 var currentScreen by remember { mutableStateOf(Screen.MAIN) }
+                var backProgress by remember { mutableStateOf(0f) }
+                var isPredictiveBackInProgress by remember { mutableStateOf(false) }
+
+                PredictiveBackHandler(enabled = currentScreen == Screen.SETTINGS) { progressFlow ->
+                    try {
+                        isPredictiveBackInProgress = true
+                        progressFlow.collect { backEvent ->
+                            backProgress = backEvent.progress
+                        }
+                        currentScreen = Screen.MAIN
+                    } catch (e: CancellationException) {
+                        // Gesture cancelled
+                    } finally {
+                        isPredictiveBackInProgress = false
+                        backProgress = 0f
+                    }
+                }
 
                 // Sync UI state when Preferences are initialized or service binds
                 LaunchedEffect(serviceConnected) {
@@ -92,7 +118,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = { currentScreen = Screen.MAIN }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.ArrowBack,
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                             contentDescription = "Back",
                                             tint = MiuixTheme.colorScheme.onSurfaceSecondary
                                         )
@@ -115,53 +141,91 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 ) { padding ->
-                    if (currentScreen == Screen.MAIN) {
-                        MainScreenContent(
-                            padding = padding,
-                            moduleActive = moduleActive,
-                            aodFullscreen = aodFullscreen,
-                            onAodFullscreenChange = { checked: Boolean ->
-                                aodFullscreen = checked
-                                Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
-                            },
-                            removeGms = removeGms,
-                            onRemoveGmsChange = { checked: Boolean ->
-                                removeGms = checked
-                                Preferences.putBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, checked)
-                            },
-                            hideFingerprint = hideFingerprint,
-                            onHideFingerprintChange = { checked: Boolean ->
-                                hideFingerprint = checked
-                                Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
-                            },
-                            sliderShowPercentage = sliderShowPercentage,
-                            onSliderShowPercentageChange = { checked: Boolean ->
-                                sliderShowPercentage = checked
-                                Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
-                            },
-                            sliderSamePercentageStyle = sliderSamePercentageStyle,
-                            onSliderSamePercentageChange = { checked: Boolean ->
-                                sliderSamePercentageStyle = checked
-                                Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            if (targetState == Screen.SETTINGS) {
+                                (slideInHorizontally { width -> width } + fadeIn())
+                                    .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
+                            } else {
+                                (slideInHorizontally { width -> -width } + fadeIn())
+                                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut())
                             }
-                        )
-                    } else {
-                        SettingsScreenContent(
-                            padding = padding,
-                            showInSettings = showInSettings,
-                            onShowInSettingsChange = { checked: Boolean ->
-                                showInSettings = checked
-                                Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
-                            },
-                            hideLauncherIcon = hideLauncherIcon,
-                            onHideLauncherIconChange = { checked: Boolean ->
-                                hideLauncherIcon = checked
-                                Preferences.putBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, checked)
-                                setLauncherIconVisible(this@MainActivity, !checked)
-                            },
-                            packageName = packageName,
-                            targetSdk = applicationInfo.targetSdkVersion
-                        )
+                        },
+                        label = "ScreenTransition"
+                    ) { screen ->
+                        when (screen) {
+                            Screen.MAIN -> {
+                                MainScreenContent(
+                                    padding = padding,
+                                    moduleActive = moduleActive,
+                                    aodFullscreen = aodFullscreen,
+                                    onAodFullscreenChange = { checked: Boolean ->
+                                        aodFullscreen = checked
+                                        Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
+                                    },
+                                    removeGms = removeGms,
+                                    onRemoveGmsChange = { checked: Boolean ->
+                                        removeGms = checked
+                                        Preferences.putBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, checked)
+                                    },
+                                    hideFingerprint = hideFingerprint,
+                                    onHideFingerprintChange = { checked: Boolean ->
+                                        hideFingerprint = checked
+                                        Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
+                                    },
+                                    sliderShowPercentage = sliderShowPercentage,
+                                    onSliderShowPercentageChange = { checked: Boolean ->
+                                        sliderShowPercentage = checked
+                                        Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
+                                    },
+                                    sliderSamePercentageStyle = sliderSamePercentageStyle,
+                                    onSliderSamePercentageChange = { checked: Boolean ->
+                                        sliderSamePercentageStyle = checked
+                                        Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
+                                    }
+                                )
+                            }
+                            Screen.SETTINGS -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(
+                                            if (isPredictiveBackInProgress) {
+                                                Modifier.graphicsLayer {
+                                                    val scale = 1f - (backProgress * 0.08f)
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                    translationX = backProgress * 180.dp.toPx()
+                                                    shape = RoundedCornerShape(
+                                                        (backProgress * 24.dp.toPx()).coerceAtLeast(0f)
+                                                    )
+                                                    clip = true
+                                                }
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                ) {
+                                    SettingsScreenContent(
+                                        padding = padding,
+                                        showInSettings = showInSettings,
+                                        onShowInSettingsChange = { checked: Boolean ->
+                                            showInSettings = checked
+                                            Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
+                                        },
+                                        hideLauncherIcon = hideLauncherIcon,
+                                        onHideLauncherIconChange = { checked: Boolean ->
+                                            hideLauncherIcon = checked
+                                            Preferences.putBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, checked)
+                                            setLauncherIconVisible(this@MainActivity, !checked)
+                                        },
+                                        packageName = packageName,
+                                        targetSdk = applicationInfo.targetSdkVersion
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
