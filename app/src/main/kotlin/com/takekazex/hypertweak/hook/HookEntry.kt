@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook
 
 import android.util.Log
 import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.hook.base.HookParam
+import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.AODHooker
 import com.takekazex.hypertweak.hook.rules.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.ModuleStatusHooker
@@ -11,6 +11,8 @@ import com.takekazex.hypertweak.hook.rules.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.SystemUIPluginHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
+import io.github.lingqiqi5211.ezhooktool.core.EzReflect
+import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
@@ -21,6 +23,8 @@ class HookEntry : XposedModule() {
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
+        // Initialize EzXposed with the module interface
+        EzXposed.initOnModuleLoaded(this, param)
         try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
@@ -30,18 +34,20 @@ class HookEntry : XposedModule() {
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
-        val hookParam = HookParam(
+        EzXposed.initOnSystemServerStarting(param)
+        val ctx = ModuleContext(
             processName = processName,
             packageName = "system",
             isSystemServer = isSystemServer
         )
-        attachHooker(SystemConfigHooker, param.classLoader, hookParam)
+        attachHooker(SystemConfigHooker, param.classLoader, ctx)
     }
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
         if (!injectedPackages.add(param.packageName)) return
+        EzXposed.initOnPackageLoaded(param)
 
-        val hookParam = HookParam(
+        val ctx = ModuleContext(
             processName = processName,
             packageName = param.packageName,
             isSystemServer = isSystemServer,
@@ -50,21 +56,23 @@ class HookEntry : XposedModule() {
             appInfo = param.applicationInfo
         )
 
+        EzReflect.init(param.defaultClassLoader)
+
         when (param.packageName) {
             "com.android.systemui" -> {
-                attachHooker(AODHooker, param.defaultClassLoader, hookParam)
-                attachHooker(HideFingerprintIcon, param.defaultClassLoader, hookParam)
-                attachHooker(SystemUIPluginHooker, param.defaultClassLoader, hookParam)
+                attachHooker(AODHooker, param.defaultClassLoader, ctx)
+                attachHooker(HideFingerprintIcon, param.defaultClassLoader, ctx)
+                attachHooker(SystemUIPluginHooker, param.defaultClassLoader, ctx)
             }
             "com.miui.aod" -> {
-                attachHooker(AODHooker, param.defaultClassLoader, hookParam)
+                attachHooker(AODHooker, param.defaultClassLoader, ctx)
             }
             "com.android.settings" -> {
-                attachHooker(SettingsHooker, param.defaultClassLoader, hookParam)
-                attachHooker(AODHooker, param.defaultClassLoader, hookParam)
+                attachHooker(SettingsHooker, param.defaultClassLoader, ctx)
+                attachHooker(AODHooker, param.defaultClassLoader, ctx)
             }
             "com.takekazex.hypertweak" -> {
-                attachHooker(ModuleStatusHooker, param.defaultClassLoader, hookParam)
+                attachHooker(ModuleStatusHooker, param.defaultClassLoader, ctx)
             }
         }
     }
@@ -72,12 +80,12 @@ class HookEntry : XposedModule() {
     private fun attachHooker(
         hooker: BaseHooker,
         targetClassLoader: ClassLoader,
-        param: HookParam
+        ctx: ModuleContext
     ) {
         try {
             hooker.module = this
             hooker.classLoader = targetClassLoader
-            hooker.hookParam = param
+            hooker.hookParam = ctx
 
             hooker.performInit()
             hooker.updateParentState(true)

@@ -72,9 +72,9 @@ dependencies {
     compileOnly("io.github.libxposed:api:101.0.1")
     implementation("io.github.libxposed:service:101.0.0")
 
-    // KavaRef
-    implementation("com.highcapable.kavaref:kavaref-core:1.0.2")
-    implementation("com.highcapable.kavaref:kavaref-extension:1.0.2")
+    // EzHookTool
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.0.4")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-101:1.0.4")
 
     // HiddenApiBypass
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")

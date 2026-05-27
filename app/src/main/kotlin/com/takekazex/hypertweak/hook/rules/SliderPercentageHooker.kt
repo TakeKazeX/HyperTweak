@@ -9,7 +9,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import org.luckypray.dexkit.query.enums.StringMatchType
-import com.highcapable.kavaref.extension.toClassOrNull
+import io.github.libxposed.api.XposedInterface
 import java.util.WeakHashMap
 
 class SliderPercentageHooker(
@@ -453,43 +453,11 @@ class SliderPercentageHooker(
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
             Log.d("HyperTweak", "Hooking Brightness onBindViewHolder (for initTopText)")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    runCatching {
-                        val holder = findHolder(thisObject) ?: return@runCatching
-                        val topText = getTopTextFromHolder(holder) ?: return@runCatching
-                        initTopText(topText)
-
-                        // Link AnimateColorView for coloring
-                        val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }
-                            .recoverCatching { holder.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(holder) }
-                            .getOrNull() ?: return@runCatching
-                        val icon = runCatching { binding.javaClass.getField("icon").get(binding) as? View }
-                            .recoverCatching { binding.javaClass.getDeclaredField("icon").apply { isAccessible = true }.get(binding) as? View }
-                            .getOrNull()
-                        if (icon != null) {
-                            putTag(icon, "topText", topText)
-                            putTag(icon, "sliderType", "BrightnessSliderController")
-                            runCatching {
-                                thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
-                            }
-                        }
-                    }
-                }
-                result(res)
-            }
-        } ?: Log.e("HyperTweak", "Could not find Brightness onBindViewHolder")
-
-        clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
-            Log.d("HyperTweak", "Hooking Volume onBindViewHolder (for initTopText)")
-            method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                    runCatching {
-                        val holder = findHolder(thisObject) ?: return@runCatching
-                        val topText = getTopTextFromHolder(holder) ?: return@runCatching
-                        if (sameStyle) {
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val holder = findHolder(param.thisObject) ?: return@runCatching
+                            val topText = getTopTextFromHolder(holder) ?: return@runCatching
                             initTopText(topText)
 
                             // Link AnimateColorView for coloring
@@ -501,17 +469,49 @@ class SliderPercentageHooker(
                                 .getOrNull()
                             if (icon != null) {
                                 putTag(icon, "topText", topText)
-                                putTag(icon, "sliderType", "VolumeSliderController")
+                                putTag(icon, "sliderType", "BrightnessSliderController")
                                 runCatching {
-                                    thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
+                                    param.thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(param.thisObject, true)
                                 }
                             }
-                        } else {
-                            topText.post { topText.visibility = View.GONE }
                         }
                     }
                 }
-                result(res)
+            }
+        } ?: Log.e("HyperTweak", "Could not find Brightness onBindViewHolder")
+
+        clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
+            Log.d("HyperTweak", "Hooking Volume onBindViewHolder (for initTopText)")
+            method.hook {
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        runCatching {
+                            val holder = findHolder(param.thisObject) ?: return@runCatching
+                            val topText = getTopTextFromHolder(holder) ?: return@runCatching
+                            if (sameStyle) {
+                                initTopText(topText)
+
+                                // Link AnimateColorView for coloring
+                                val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }
+                                    .recoverCatching { holder.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(holder) }
+                                    .getOrNull() ?: return@runCatching
+                                val icon = runCatching { binding.javaClass.getField("icon").get(binding) as? View }
+                                    .recoverCatching { binding.javaClass.getDeclaredField("icon").apply { isAccessible = true }.get(binding) as? View }
+                                    .getOrNull()
+                                if (icon != null) {
+                                    putTag(icon, "topText", topText)
+                                    putTag(icon, "sliderType", "VolumeSliderController")
+                                    runCatching {
+                                        param.thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(param.thisObject, true)
+                                    }
+                                }
+                            } else {
+                                topText.post { topText.visibility = View.GONE }
+                            }
+                        }
+                    }
+                }
             }
         } ?: Log.e("HyperTweak", "Could not find Volume onBindViewHolder")
 
@@ -527,44 +527,27 @@ class SliderPercentageHooker(
             updateBlendBlurMethod?.let { method ->
                 Log.d("HyperTweak", "Hooking ToggleSliderViewHolder updateBlendBlur")
                 method.hook {
-                    val res = proceed()
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                        runCatching {
-                            val topText = getTopTextFromHolder(thisObject) ?: return@runCatching
-                            applyTopTextStyle(topText)
+                    after { param ->
+                        if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                            runCatching {
+                                val topText = getTopTextFromHolder(param.thisObject) ?: return@runCatching
+                                applyTopTextStyle(topText)
+                            }
                         }
                     }
-                    result(res)
                 }
             } ?: Log.e("HyperTweak", "Could not find updateBlendBlur method")
         }
-
-        // ─── ToggleSliderViewHolder: setTopTextVisible ─────────────────────────
-        // Force topText visible when percentage is enabled (for brightness + sameStyle volume)
-        clzViewHolder?.declaredMethods?.firstOrNull { it.name == "setTopTextVisible" }?.let { method ->
-            Log.d("HyperTweak", "Hooking ToggleSliderViewHolder setTopTextVisible")
-            method.hook {
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                    // If sameStyle is false, volume slider calls this with z2=true because of SuperVolume
-                    // But we want it to be false! Wait, Brightness doesn't call this.
-                    // Actually, if we hooked onBindViewHolder, we don't even need this hook!
-                    // Let's just override it: if sameStyle is false, we force it to false for Volume.
-                    // But wait, the system might need it for accessibility label. 
-                    // Let's just NOT hook it, as we manage visibility ourselves in onBindViewHolder.
-                }
-                result(proceed())
-            }
-        } ?: Log.e("HyperTweak", "Could not find setTopTextVisible")
 
         // ─── Brightness: updateIconProgress ───────────────────────────────────
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             Log.d("HyperTweak", "Hooking Brightness updateIconProgress")
             method.hook {
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    updatePercentageText(thisObject, "BrightnessSliderController")
+                before { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        updatePercentageText(param.thisObject, "BrightnessSliderController")
+                    }
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find Brightness updateIconProgress")
 
@@ -572,10 +555,11 @@ class SliderPercentageHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             Log.d("HyperTweak", "Hooking Volume updateIconProgress")
             method.hook {
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    updatePercentageText(thisObject, "VolumeSliderController")
+                before { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        updatePercentageText(param.thisObject, "VolumeSliderController")
+                    }
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find Volume updateIconProgress")
 
@@ -585,24 +569,24 @@ class SliderPercentageHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "syncSystemVolume" }?.let { method ->
             Log.d("HyperTweak", "Hooking Volume syncSystemVolume")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    val controller = thisObject
-                    runCatching {
-                        val topText = getTag(controller, "cached_topText") as? TextView
-                            ?: run {
-                                val holder = findHolder(controller) ?: return@runCatching
-                                val tt = getTopTextFromHolder(holder) ?: return@runCatching
-                                putTag(controller, "cached_topText", tt)
-                                tt
-                            }
-                        val pct = calcVolumePercent(controller)
-                        topText.post { topText.text = "$pct%" }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error in syncSystemVolume hook", t)
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val controller = param.thisObject
+                        runCatching {
+                            val topText = getTag(controller, "cached_topText") as? TextView
+                                ?: run {
+                                    val holder = findHolder(controller) ?: return@runCatching
+                                    val tt = getTopTextFromHolder(holder) ?: return@runCatching
+                                    putTag(controller, "cached_topText", tt)
+                                    tt
+                                }
+                            val pct = calcVolumePercent(controller)
+                            topText.post { topText.text = "$pct%" }
+                        }.onFailure { t ->
+                            Log.e("HyperTweak", "Error in syncSystemVolume hook", t)
+                        }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find Volume syncSystemVolume")
 
@@ -618,28 +602,28 @@ class SliderPercentageHooker(
         }?.let { method ->
             Log.d("HyperTweak", "Hooking Volume updateSliderValue")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    val isOriginalVolumeCallback = args[1] as Boolean
-                    if (!isOriginalVolumeCallback) {
-                        val controller = thisObject
-                        val sliderValue = args[0] as Int
-                        runCatching {
-                            val topText = getTag(controller, "cached_topText") as? TextView
-                                ?: run {
-                                    val holder = findHolder(controller) ?: return@runCatching
-                                    val tt = getTopTextFromHolder(holder) ?: return@runCatching
-                                    putTag(controller, "cached_topText", tt)
-                                    tt
-                                }
-                            val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
-                            topText.text = "$pct%"
-                        }.onFailure { t ->
-                            Log.e("HyperTweak", "Error in updateSliderValue hook", t)
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val isOriginalVolumeCallback = param.args[1] as Boolean
+                        if (!isOriginalVolumeCallback) {
+                            val controller = param.thisObject
+                            val sliderValue = param.args[0] as Int
+                            runCatching {
+                                val topText = getTag(controller, "cached_topText") as? TextView
+                                    ?: run {
+                                        val holder = findHolder(controller) ?: return@runCatching
+                                        val tt = getTopTextFromHolder(holder) ?: return@runCatching
+                                        putTag(controller, "cached_topText", tt)
+                                        tt
+                                    }
+                                val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
+                                topText.text = "$pct%"
+                            }.onFailure { t ->
+                                Log.e("HyperTweak", "Error in updateSliderValue hook", t)
+                            }
                         }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find Volume updateSliderValue(int, boolean)")
 
@@ -649,49 +633,53 @@ class SliderPercentageHooker(
         }?.let { method ->
             Log.d("HyperTweak", "Hooking Brightness setInMirror")
             method.hook {
-                val inMirrorArg = args[0] as Boolean
-                val currentInMirror = runCatching {
-                    thisObject.javaClass.getDeclaredField("inMirror").apply { isAccessible = true }.get(thisObject) as Boolean
-                }.getOrDefault(false)
+                intercept { chain ->
+                    val param = chain.args
+                    val inMirrorArg = param[0] as Boolean
+                    val thisObject = chain.thisObject
+                    val currentInMirror = runCatching {
+                        thisObject.javaClass.getDeclaredField("inMirror").apply { isAccessible = true }.get(thisObject) as Boolean
+                    }.getOrDefault(false)
 
-                if (inMirrorArg == currentInMirror) {
-                    return@hook result(proceed())
-                }
-
-                runCatching {
-                    val holder = thisObject.javaClass.getMethod("getHolder").invoke(thisObject)
-                        ?: return@runCatching
-                    val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }.getOrNull()
-                        ?: holder
-                    val mirrorBlurProvider = runCatching {
-                        binding.javaClass.getDeclaredField("mirrorBlurProvider").apply { isAccessible = true }.get(binding) as? View
-                    }.getOrNull()
-                    val topText = runCatching { binding.javaClass.getField("topText").get(binding) as? TextView }.getOrNull()
-                        ?: runCatching { binding.javaClass.getMethod("getTopText").invoke(binding) as? TextView }.getOrNull()
-                        ?: return@runCatching
-
-                    val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                    if (sameStyle && isBlurSupported(topText.context)) {
-                        if (inMirrorArg) {
-                            topText.chooseBackgroundBlurContainer(mirrorBlurProvider)
-                        } else {
-                            topText.chooseBackgroundBlurContainer(null)
-                        }
-                        if (brightnessBlendToken != null) {
-                            topText.setMiViewBlurMode(3)
-                            val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                            val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                            clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
-                               .invoke(null, topText, brightnessBlendToken)
-                        }
-                    } else {
-                        topText.clearMiBlur()
-                        topText.setTextColor(brightnessColor)
+                    if (inMirrorArg == currentInMirror) {
+                        return@intercept chain.proceed()
                     }
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in BrightnessSliderController.setInMirror hook", t)
+
+                    runCatching {
+                        val holder = thisObject.javaClass.getMethod("getHolder").invoke(thisObject)
+                            ?: return@runCatching
+                        val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }.getOrNull()
+                            ?: holder
+                        val mirrorBlurProvider = runCatching {
+                            binding.javaClass.getDeclaredField("mirrorBlurProvider").apply { isAccessible = true }.get(binding) as? View
+                        }.getOrNull()
+                        val topText = runCatching { binding.javaClass.getField("topText").get(binding) as? TextView }.getOrNull()
+                            ?: runCatching { binding.javaClass.getMethod("getTopText").invoke(binding) as? TextView }.getOrNull()
+                            ?: return@runCatching
+
+                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        if (sameStyle && isBlurSupported(topText.context)) {
+                            if (inMirrorArg) {
+                                topText.chooseBackgroundBlurContainer(mirrorBlurProvider)
+                            } else {
+                                topText.chooseBackgroundBlurContainer(null)
+                            }
+                            if (brightnessBlendToken != null) {
+                                topText.setMiViewBlurMode(3)
+                                val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                                val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                                clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
+                                   .invoke(null, topText, brightnessBlendToken)
+                            }
+                        } else {
+                            topText.clearMiBlur()
+                            topText.setTextColor(brightnessColor)
+                        }
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Error in BrightnessSliderController.setInMirror hook", t)
+                    }
+                    chain.proceed()
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find Brightness setInMirror")
 
@@ -702,50 +690,52 @@ class SliderPercentageHooker(
         clzBrightnessAnimator?.declaredMethods?.firstOrNull { it.name == "calculateViewValues" }?.let { method ->
             Log.d("HyperTweak", "Hooking BrightnessAnimator calculateViewValues")
             method.hook {
-                val res = proceed()
-                runCatching {
-                    val fromView = thisObject.javaClass.getDeclaredField("fromView").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
-                    val fromText = fromView.javaClass.getMethod("getTopText").invoke(fromView) as? TextView ?: return@runCatching
-                    fromLeft = fromText.left
-                    fromTop = fromText.top
-                    fromWidth = fromText.width
-                    fromHeight = fromText.height
+                after { param ->
+                    runCatching {
+                        val thisObject = param.thisObject
+                        val fromView = thisObject.javaClass.getDeclaredField("fromView").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
+                        val fromText = fromView.javaClass.getMethod("getTopText").invoke(fromView) as? TextView ?: return@runCatching
+                        fromLeft = fromText.left
+                        fromTop = fromText.top
+                        fromWidth = fromText.width
+                        fromHeight = fromText.height
 
-                    val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
-                    val toView = getToView.invoke(thisObject) ?: return@runCatching
-                    val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
-                    val toText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
-                    toLeft = toText.left
-                    toTop = toText.top
-                    toWidth = toText.width
-                    toHeight = toText.height
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in calculateViewValues hook", t)
+                        val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
+                        val toView = getToView.invoke(thisObject) ?: return@runCatching
+                        val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
+                        val toText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
+                        toLeft = toText.left
+                        toTop = toText.top
+                        toWidth = toText.width
+                        toHeight = toText.height
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Error in calculateViewValues hook", t)
+                    }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find BrightnessAnimator calculateViewValues")
 
         clzBrightnessAnimator?.declaredMethods?.firstOrNull { it.name == "frameCallback" }?.let { method ->
             Log.d("HyperTweak", "Hooking BrightnessAnimator frameCallback")
             method.hook {
-                val res = proceed()
-                runCatching {
-                    val fraction = thisObject.javaClass.getDeclaredField("size").apply { isAccessible = true }.get(thisObject) as Float
-                    val left = fromLeft + (toLeft - fromLeft) * fraction
-                    val top = fromTop + (toTop - fromTop) * fraction
-                    val width = fromWidth + (toWidth - fromWidth) * fraction
-                    val height = fromHeight + (toHeight - fromHeight) * fraction
+                after { param ->
+                    runCatching {
+                        val thisObject = param.thisObject
+                        val fraction = thisObject.javaClass.getDeclaredField("size").apply { isAccessible = true }.get(thisObject) as Float
+                        val left = fromLeft + (toLeft - fromLeft) * fraction
+                        val top = fromTop + (toTop - fromTop) * fraction
+                        val width = fromWidth + (toWidth - fromWidth) * fraction
+                        val height = fromHeight + (toHeight - fromHeight) * fraction
 
-                    val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
-                    val toView = getToView.invoke(thisObject) ?: return@runCatching
-                    val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
-                    val topText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
-                    topText.setLeftTopRightBottom(left.toInt(), top.toInt(), (left + width).toInt(), (top + height).toInt())
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in frameCallback hook", t)
+                        val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
+                        val toView = getToView.invoke(thisObject) ?: return@runCatching
+                        val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
+                        val topText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
+                        topText.setLeftTopRightBottom(left.toInt(), top.toInt(), (left + width).toInt(), (top + height).toInt())
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Error in frameCallback hook", t)
+                    }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find BrightnessAnimator frameCallback")
 
@@ -756,12 +746,13 @@ class SliderPercentageHooker(
         clzAnimateColorView?.declaredMethods?.firstOrNull { it.name == "recycle" }?.let { method ->
             Log.d("HyperTweak", "Hooking AnimateColorView recycle")
             method.hook {
-                val view = thisObject as View
-                removeTag(view, "topText")
-                removeTag(view, "sliderType")
-                val anim = removeTag(view, "topTextAnimator") as? android.animation.ValueAnimator
-                anim?.cancel()
-                result(proceed())
+                before { param ->
+                    val view = param.thisObject as View
+                    removeTag(view, "topText")
+                    removeTag(view, "sliderType")
+                    val anim = removeTag(view, "topTextAnimator") as? android.animation.ValueAnimator
+                    anim?.cancel()
+                }
             }
         } ?: Log.e("HyperTweak", "Could not find AnimateColorView recycle")
 
@@ -770,131 +761,127 @@ class SliderPercentageHooker(
         }?.let { method ->
             Log.d("HyperTweak", "Hooking AnimateColorView updateIconColor")
             method.hook {
-                if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    return@hook result(proceed())
-                }
-                val view = thisObject as View
-                var topText = getTag(view, "topText") as? TextView
-                var sliderType = getTag(view, "sliderType") as? String
+                before { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val view = param.thisObject as View
+                        var topText = getTag(view, "topText") as? TextView
+                        var sliderType = getTag(view, "sliderType") as? String
 
-                if (topText == null) {
-                    var p = view.parent as? View
-                    while (p != null && p is android.view.ViewGroup) {
-                        val id = p.context.resources.getIdentifier("top_text", "id", p.context.packageName)
-                        if (id != 0) {
-                            val tv = p.findViewById<View>(id) as? TextView
-                            if (tv != null) {
-                                topText = tv
-                                putTag(view, "topText", tv)
-                                if (sliderType == null) {
-                                    var isBrightness = false
-                                    var currentParent: View? = p
-                                    while (currentParent != null) {
-                                        val parentClass = currentParent.javaClass.name
-                                        if (parentClass.contains("brightness", ignoreCase = true)) {
-                                            isBrightness = true
-                                            break
-                                        } else if (parentClass.contains("volume", ignoreCase = true)) {
-                                            break
+                        if (topText == null) {
+                            var p = view.parent as? View
+                            while (p != null && p is android.view.ViewGroup) {
+                                val id = p.context.resources.getIdentifier("top_text", "id", p.context.packageName)
+                                if (id != 0) {
+                                    val tv = p.findViewById<View>(id) as? TextView
+                                    if (tv != null) {
+                                        topText = tv
+                                        putTag(view, "topText", tv)
+                                        if (sliderType == null) {
+                                            var isBrightness = false
+                                            var currentParent: View? = p
+                                            while (currentParent != null) {
+                                                val parentClass = currentParent.javaClass.name
+                                                if (parentClass.contains("brightness", ignoreCase = true)) {
+                                                    isBrightness = true
+                                                    break
+                                                } else if (parentClass.contains("volume", ignoreCase = true)) {
+                                                    break
+                                                }
+                                                val parentId = currentParent.id
+                                                if (parentId != View.NO_ID) {
+                                                    val entryName = runCatching { currentParent.context.resources.getResourceEntryName(parentId) }.getOrNull() ?: ""
+                                                    if (entryName.contains("brightness", ignoreCase = true)) {
+                                                        isBrightness = true
+                                                        break
+                                                    } else if (entryName.contains("volume", ignoreCase = true)) {
+                                                        break
+                                                    }
+                                                }
+                                                currentParent = currentParent.parent as? View
+                                            }
+                                            sliderType = if (isBrightness) "BrightnessSliderController" else "VolumeSliderController"
+                                            putTag(view, "sliderType", sliderType)
                                         }
-                                        val parentId = currentParent.id
-                                        if (parentId != View.NO_ID) {
-                                            val entryName = runCatching { currentParent.context.resources.getResourceEntryName(parentId) }.getOrNull() ?: ""
-                                            if (entryName.contains("brightness", ignoreCase = true)) {
-                                                isBrightness = true
-                                                break
-                                            } else if (entryName.contains("volume", ignoreCase = true)) {
-                                                break
+                                        break
+                                    }
+                                }
+                                p = p.parent as? View
+                            }
+                        }
+
+                        if (topText != null && sliderType != null) {
+                            val fromToken = param.args[0]
+                            val toToken = param.args[1]
+                            val fromColorResId = param.args[2] as Int
+                            val toColorResId = param.args[3] as Int
+                            val animate = param.args[4] as Boolean
+
+                            val resolvedFromColor = runCatching { view.context.getColor(fromColorResId) }.getOrDefault(0xFFFFFFFF.toInt())
+                            val resolvedToColor = runCatching { view.context.getColor(toColorResId) }.getOrDefault(0xFFFFFFFF.toInt())
+
+                            val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                            
+                            // If sameStyle is false, the volume topText uses plain text and should not be blended
+                            if (sameStyle || sliderType != "VolumeSliderController") {
+                                if (sliderType == "BrightnessSliderController") {
+                                    brightnessColor = resolvedToColor
+                                    brightnessBlendToken = toToken
+                                } else if (sliderType == "VolumeSliderController") {
+                                    volumeColor = resolvedToColor
+                                    volumeBlendToken = toToken
+                                }
+
+                                (getTag(view, "topTextAnimator") as? android.animation.ValueAnimator)?.cancel()
+
+                                runCatching {
+                                    if (sameStyle && isBlurSupported(view.context)) {
+                                        topText.setMiViewBlurMode(3)
+                                        if (animate) {
+                                            val animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                                                duration = 200
+                                                addUpdateListener { anim ->
+                                                    val fraction = anim.animatedValue as Float
+                                                    runCatching {
+                                                        val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                                                        val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                                                        clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
+                                                           .invoke(null, topText, fromToken, toToken, fraction)
+                                                    }
+                                                }
+                                            }
+                                            putTag(view, "topTextAnimator", animator)
+                                            animator.start()
+                                        } else {
+                                            runCatching {
+                                                val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                                                val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                                                clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
+                                                   .invoke(null, topText, toToken)
                                             }
                                         }
-                                        currentParent = currentParent.parent as? View
+                                    } else {
+                                        // Plain style: animate real ARGB color
+                                        topText.clearMiBlur()
+                                        if (animate) {
+                                            val animator = android.animation.ValueAnimator.ofArgb(resolvedFromColor, resolvedToColor).apply {
+                                                duration = 200
+                                                addUpdateListener { anim ->
+                                                    topText.setTextColor(anim.animatedValue as Int)
+                                                }
+                                            }
+                                            putTag(view, "topTextAnimator", animator)
+                                            animator.start()
+                                        } else {
+                                            topText.setTextColor(resolvedToColor)
+                                        }
                                     }
-                                    sliderType = if (isBrightness) "BrightnessSliderController" else "VolumeSliderController"
-                                    putTag(view, "sliderType", sliderType)
+                                }.onFailure { t ->
+                                    Log.e("HyperTweak", "Error in updateIconColor hook", t)
                                 }
-                                break
                             }
                         }
-                        p = p.parent as? View
                     }
                 }
-
-                if (topText == null || sliderType == null) {
-                    return@hook result(proceed())
-                }
-
-                val fromToken = args[0]
-                val toToken = args[1]
-                val fromColorResId = args[2] as Int
-                val toColorResId = args[3] as Int
-                val animate = args[4] as Boolean
-
-                val resolvedFromColor = runCatching { view.context.getColor(fromColorResId) }.getOrDefault(0xFFFFFFFF.toInt())
-                val resolvedToColor = runCatching { view.context.getColor(toColorResId) }.getOrDefault(0xFFFFFFFF.toInt())
-
-                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                
-                // If sameStyle is false, the volume topText uses plain text and should not be blended
-                if (!sameStyle && sliderType == "VolumeSliderController") {
-                    return@hook result(proceed())
-                }
-
-                if (sliderType == "BrightnessSliderController") {
-                    brightnessColor = resolvedToColor
-                    brightnessBlendToken = toToken
-                } else if (sliderType == "VolumeSliderController") {
-                    volumeColor = resolvedToColor
-                    volumeBlendToken = toToken
-                }
-
-                (getTag(view, "topTextAnimator") as? android.animation.ValueAnimator)?.cancel()
-
-                runCatching {
-                    if (sameStyle && isBlurSupported(view.context)) {
-                        topText.setMiViewBlurMode(3)
-                        if (animate) {
-                            val animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                                duration = 200
-                                addUpdateListener { anim ->
-                                    val fraction = anim.animatedValue as Float
-                                    runCatching {
-                                        val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                                        val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                                        clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
-                                           .invoke(null, topText, fromToken, toToken, fraction)
-                                    }
-                                }
-                            }
-                            putTag(view, "topTextAnimator", animator)
-                            animator.start()
-                        } else {
-                            runCatching {
-                                val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                                val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                                clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
-                                   .invoke(null, topText, toToken)
-                            }
-                        }
-                    } else {
-                        // Plain style: animate real ARGB color
-                        topText.clearMiBlur()
-                        if (animate) {
-                            val animator = android.animation.ValueAnimator.ofArgb(resolvedFromColor, resolvedToColor).apply {
-                                duration = 200
-                                addUpdateListener { anim ->
-                                    topText.setTextColor(anim.animatedValue as Int)
-                                }
-                            }
-                            putTag(view, "topTextAnimator", animator)
-                            animator.start()
-                        } else {
-                            topText.setTextColor(resolvedToColor)
-                        }
-                    }
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in updateIconColor hook", t)
-                }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find AnimateColorView updateIconColor")
 
@@ -905,20 +892,22 @@ class SliderPercentageHooker(
         transitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
             Log.d("HyperTweak", "Hooking iconColorTransition")
             method.hook {
-                val fromColorList = args[0] as android.content.res.ColorStateList
-                val toColorList = args[1] as android.content.res.ColorStateList
-                val fraction = args[2] as Float
+                before { param ->
+                    val fromColorList = param.args[0] as android.content.res.ColorStateList
+                    val toColorList = param.args[1] as android.content.res.ColorStateList
+                    val fraction = param.args[2] as Float
 
-                runCatching {
-                    val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
-                    val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
+                    runCatching {
+                        val thisObject = param.thisObject
+                        val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
+                        val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
 
-                    val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
-                    superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in VolumeColumn.iconColorTransition hook", t)
+                        val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
+                        superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Error in VolumeColumn.iconColorTransition hook", t)
+                    }
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find iconColorTransition")
 
@@ -928,23 +917,25 @@ class SliderPercentageHooker(
         blendTransitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
             Log.d("HyperTweak", "Hooking iconBlendColorTransition")
             method.hook {
-                val fromToken = args[0]
-                val toToken = args[1]
-                val fraction = args[2] as Float
+                before { param ->
+                    val fromToken = param.args[0]
+                    val toToken = param.args[1]
+                    val fraction = param.args[2] as Float
 
-                runCatching {
-                    val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
-                    val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
+                    runCatching {
+                        val thisObject = param.thisObject
+                        val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
+                        val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
 
-                    superVolume.setMiViewBlurMode(3)
-                    val clzMiBlurCompat = superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                    val clzColorBlendToken = superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                    clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
-                       .invoke(null, superVolume, fromToken, toToken, fraction)
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in VolumeColumn.iconBlendColorTransition hook", t)
+                        superVolume.setMiViewBlurMode(3)
+                        val clzMiBlurCompat = superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                        val clzColorBlendToken = superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                        clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
+                           .invoke(null, superVolume, fromToken, toToken, fraction)
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Error in VolumeColumn.iconBlendColorTransition hook", t)
+                    }
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find iconBlendColorTransition")
 
@@ -957,37 +948,38 @@ class SliderPercentageHooker(
         }?.let { method ->
             Log.d("HyperTweak", "Hooking VolumeColumn initColumn")
             method.hook {
-                val res = proceed()
-                val showPct = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                if (showPct) {
-                    val isExpanded = args[5] as? Boolean ?: false
-                    val isInCCMainPage = runCatching {
-                        thisObject.javaClass.getMethod("isInCCMainPage").invoke(thisObject) as Boolean
-                    }.getOrDefault(true)
-                    // We show the badge if it's not in CC (e.g. physical volume popup), OR badge mode (!sameStyle), OR if we are expanded
-                    val shouldShowBadge = !isInCCMainPage || !sameStyle || isExpanded
-                    if (shouldShowBadge) {
-                        runCatching {
-                            val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
-                                .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
-                            if (superVolume.visibility != View.VISIBLE) {
-                                superVolume.post {
-                                    superVolume.visibility = View.VISIBLE
-                                    superVolume.typeface = Typeface.DEFAULT_BOLD
+                after { param ->
+                    val showPct = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+                    val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    if (showPct) {
+                        val isExpanded = param.args[5] as? Boolean ?: false
+                        val thisObject = param.thisObject
+                        val isInCCMainPage = runCatching {
+                            thisObject.javaClass.getMethod("isInCCMainPage").invoke(thisObject) as Boolean
+                        }.getOrDefault(true)
+                        // We show the badge if it's not in CC (e.g. physical volume popup), OR badge mode (!sameStyle), OR if we are expanded
+                        val shouldShowBadge = !isInCCMainPage || !sameStyle || isExpanded
+                        if (shouldShowBadge) {
+                            runCatching {
+                                val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
+                                    .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
+                                if (superVolume.visibility != View.VISIBLE) {
+                                    superVolume.post {
+                                        superVolume.visibility = View.VISIBLE
+                                        superVolume.typeface = Typeface.DEFAULT_BOLD
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        // sameStyle and NOT expanded -> hide badge
-                        runCatching {
-                            val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
-                                .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
-                            superVolume.post { superVolume.visibility = View.GONE }
+                        } else {
+                            // sameStyle and NOT expanded -> hide badge
+                            runCatching {
+                                val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
+                                    .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
+                                superVolume.post { superVolume.visibility = View.GONE }
+                            }
                         }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find VolumeColumn initColumn(6 params)")
 
@@ -1003,55 +995,56 @@ class SliderPercentageHooker(
         }?.let { method ->
             Log.d("HyperTweak", "Hooking VolumeViewController updateVolumeColumnH")
             method.hook {
-                val res = proceed() // run AFTER original
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    runCatching {
-                        val mState = thisObject.javaClass.getDeclaredField("mState").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
-                        val mExpanded = thisObject.javaClass.getDeclaredField("mExpanded").apply { isAccessible = true }.get(thisObject) as Boolean
-                        val activeStream = thisObject.javaClass.getDeclaredField("mActiveStream").apply { isAccessible = true }.get(thisObject) as Int
-                        val column = args[0] ?: return@runCatching
-                        
-                        val stream = runCatching {
-                            column.javaClass.getDeclaredField("stream").apply { isAccessible = true }.get(column) as Int
-                        }.recoverCatching {
-                            column.javaClass.getMethod("getStream").invoke(column) as Int
-                        }.getOrDefault(-1)
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val mState = thisObject.javaClass.getDeclaredField("mState").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
+                            val mExpanded = thisObject.javaClass.getDeclaredField("mExpanded").apply { isAccessible = true }.get(thisObject) as Boolean
+                            val activeStream = thisObject.javaClass.getDeclaredField("mActiveStream").apply { isAccessible = true }.get(thisObject) as Int
+                            val column = param.args[0] ?: return@runCatching
+                            
+                            val stream = runCatching {
+                                column.javaClass.getDeclaredField("stream").apply { isAccessible = true }.get(column) as Int
+                            }.recoverCatching {
+                                column.javaClass.getMethod("getStream").invoke(column) as Int
+                            }.getOrDefault(-1)
 
-                        if (stream >= 0) {
-                            val states = mState.javaClass.getDeclaredField("states").apply { isAccessible = true }.get(mState)
-                            val getMethod = states.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
-                            val streamState = getMethod.invoke(states, stream) ?: return@runCatching
+                            if (stream >= 0) {
+                                val states = mState.javaClass.getDeclaredField("states").apply { isAccessible = true }.get(mState)
+                                val getMethod = states.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
+                                val streamState = getMethod.invoke(states, stream) ?: return@runCatching
 
-                            val level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }.get(streamState) as Int
-                            val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
-                            val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
+                                val level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }.get(streamState) as Int
+                                val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
+                                val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
 
-                            val columnSuperVolume = column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(column) as? TextView
-                            if (columnSuperVolume != null) {
-                                columnSuperVolume.text = "$pct%"
-                                columnSuperVolume.visibility = if (mExpanded) View.VISIBLE else View.GONE
-                                if (mExpanded) {
-                                    columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                                    applyTopTextStyle(columnSuperVolume)
+                                val columnSuperVolume = column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(column) as? TextView
+                                if (columnSuperVolume != null) {
+                                    columnSuperVolume.text = "$pct%"
+                                    columnSuperVolume.visibility = if (mExpanded) View.VISIBLE else View.GONE
+                                    if (mExpanded) {
+                                        columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                                        applyTopTextStyle(columnSuperVolume)
+                                    }
                                 }
-                            }
 
-                            if (!mExpanded) {
-                                val isNeedShowDialog = thisObject.javaClass.getDeclaredField("mNeedShowDialog").apply { isAccessible = true }.get(thisObject) as Boolean
-                                if (isNeedShowDialog && stream == activeStream) {
-                                    val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView
-                                    if (mSuperVolume != null) {
-                                        mSuperVolume.text = "$pct%"
-                                        mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                                if (!mExpanded) {
+                                    val isNeedShowDialog = thisObject.javaClass.getDeclaredField("mNeedShowDialog").apply { isAccessible = true }.get(thisObject) as Boolean
+                                    if (isNeedShowDialog && stream == activeStream) {
+                                        val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView
+                                        if (mSuperVolume != null) {
+                                            mSuperVolume.text = "$pct%"
+                                            mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                                        }
                                     }
                                 }
                             }
+                        }.onFailure { t ->
+                            Log.e("HyperTweak", "Error in updateVolumeColumnH hook", t)
                         }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error in updateVolumeColumnH hook", t)
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find VolumeViewController updateVolumeColumnH")
 
@@ -1059,55 +1052,61 @@ class SliderPercentageHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeText" }?.let { method ->
             Log.d("HyperTweak", "Hooking VolumeViewController updateSuperVolumeText")
             method.hook {
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    val textView = args[0] as? TextView
-                    if (textView != null) {
-                        runCatching {
-                            val mState = thisObject.javaClass.getDeclaredField("mState").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
-                            val mColumns = thisObject.javaClass.getDeclaredField("mColumns").apply { isAccessible = true }.get(thisObject) as List<*>
-                            
-                            // Find which stream/column this textView belongs to
-                            var foundStream = -1
-                            val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView
-                            
-                            if (textView === mSuperVolume) {
-                                foundStream = thisObject.javaClass.getDeclaredField("mActiveStream").apply { isAccessible = true }.get(thisObject) as Int
-                            } else {
-                                for (col in mColumns) {
-                                    if (col != null) {
-                                        val sv = col.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(col)
-                                        if (sv === textView) {
-                                            foundStream = runCatching {
-                                                col.javaClass.getDeclaredField("stream").apply { isAccessible = true }.get(col) as Int
-                                            }.recoverCatching {
-                                                col.javaClass.getMethod("getStream").invoke(col) as Int
-                                            }.getOrDefault(-1)
-                                            break
+                intercept { chain ->
+                    val param = chain.args
+                    val thisObject = chain.thisObject
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val textView = param[0] as? TextView
+                        if (textView != null) {
+                            val skipped = runCatching {
+                                val mState = thisObject.javaClass.getDeclaredField("mState").apply { isAccessible = true }.get(thisObject) ?: return@runCatching false
+                                val mColumns = thisObject.javaClass.getDeclaredField("mColumns").apply { isAccessible = true }.get(thisObject) as List<*>
+                                
+                                // Find which stream/column this textView belongs to
+                                var foundStream = -1
+                                val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView
+                                
+                                if (textView === mSuperVolume) {
+                                    foundStream = thisObject.javaClass.getDeclaredField("mActiveStream").apply { isAccessible = true }.get(thisObject) as Int
+                                } else {
+                                    for (col in mColumns) {
+                                        if (col != null) {
+                                            val sv = col.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(col)
+                                            if (sv === textView) {
+                                                foundStream = runCatching {
+                                                    col.javaClass.getDeclaredField("stream").apply { isAccessible = true }.get(col) as Int
+                                                }.recoverCatching {
+                                                    col.javaClass.getMethod("getStream").invoke(col) as Int
+                                                }.getOrDefault(-1)
+                                                break
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if (foundStream >= 0) {
-                                val states = mState.javaClass.getDeclaredField("states").apply { isAccessible = true }.get(mState)
-                                val getMethod = states.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
-                                val streamState = getMethod.invoke(states, foundStream) ?: return@runCatching
-                                val level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }.get(streamState) as Int
-                                val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
-                                val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
+                                if (foundStream >= 0) {
+                                    val states = mState.javaClass.getDeclaredField("states").apply { isAccessible = true }.get(mState)
+                                    val getMethod = states.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
+                                    val streamState = getMethod.invoke(states, foundStream) ?: return@runCatching false
+                                    val level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }.get(streamState) as Int
+                                    val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
+                                    val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
 
-                                textView.text = "$pct%"
-                                textView.visibility = View.VISIBLE
-                                textView.typeface = Typeface.DEFAULT_BOLD
-                                result(null) // skip original
-                                return@hook result(null)
+                                    textView.text = "$pct%"
+                                    textView.visibility = View.VISIBLE
+                                    textView.typeface = Typeface.DEFAULT_BOLD
+                                    true
+                                } else {
+                                    false
+                                }
+                            }.getOrDefault(false)
+                            if (skipped) {
+                                return@intercept null
                             }
-                        }.onFailure { t ->
-                            Log.e("HyperTweak", "Error in updateSuperVolumeText hook", t)
                         }
                     }
+                    chain.proceed()
                 }
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find VolumeViewController updateSuperVolumeText")
 
@@ -1116,14 +1115,15 @@ class SliderPercentageHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeViewColor" }?.let { method ->
             Log.d("HyperTweak", "Hooking VolumeViewController updateSuperVolumeViewColor")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    runCatching {
-                        val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
-                        mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
+                            mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                        }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find VolumeViewController updateSuperVolumeViewColor")
 
@@ -1132,22 +1132,20 @@ class SliderPercentageHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeView" }?.let { method ->
             Log.d("HyperTweak", "Hooking VolumeViewController updateSuperVolumeView (BEFORE)")
             method.hook {
-                if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    return@hook result(proceed())
+                before { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val mExpanded = thisObject.javaClass.getDeclaredField("mExpanded").apply { isAccessible = true }.get(thisObject) as Boolean
+                            val mSuperVolumeBg = thisObject.javaClass.getDeclaredField("mSuperVolumeBg").apply { isAccessible = true }.get(thisObject) as? View
+
+                            // Badge mode & collapsed physical volume dialog show the badge background
+                            mSuperVolumeBg?.visibility = if (mExpanded) View.GONE else View.VISIBLE
+                        }.onFailure { t ->
+                            Log.e("HyperTweak", "Error in VolumePanelViewController.updateSuperVolumeView BEFORE hook", t)
+                        }
+                    }
                 }
-
-                runCatching {
-                    val mExpanded = thisObject.javaClass.getDeclaredField("mExpanded").apply { isAccessible = true }.get(thisObject) as Boolean
-                    val mSuperVolumeBg = thisObject.javaClass.getDeclaredField("mSuperVolumeBg").apply { isAccessible = true }.get(thisObject) as? View
-
-                    // Badge mode & collapsed physical volume dialog show the badge background
-                    mSuperVolumeBg?.visibility = if (mExpanded) View.GONE else View.VISIBLE
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in VolumePanelViewController.updateSuperVolumeView BEFORE hook", t)
-                }
-
-                // Proceed with the original method — it manages the actual superVolume text/state
-                result(proceed())
             }
         } ?: Log.e("HyperTweak", "Could not find VolumeViewController updateSuperVolumeView")
 
@@ -1156,50 +1154,52 @@ class SliderPercentageHooker(
         clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "prepareShow" }?.let { method ->
             Log.d("HyperTweak", "Hooking BrightnessPanelSliderDelegate prepareShow")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    runCatching {
-                        val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
-                        val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                        val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
-                        val icon = toggleSlider.javaClass.getField("icon").apply { isAccessible = true }.get(toggleSlider) as View
-                        
-                        initTopText(topText)
-                        applyTopTextStyle(topText)
-                        
-                        putTag(icon, "topText", topText)
-                        putTag(icon, "sliderType", "BrightnessSliderController")
-                        
-                        // Re-trigger updateIconProgress to apply colors immediately!
-                        thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error in BrightnessPanelSliderDelegate.prepareShow hook", t)
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
+                            val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
+                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
+                            val icon = toggleSlider.javaClass.getField("icon").apply { isAccessible = true }.get(toggleSlider) as View
+                            
+                            initTopText(topText)
+                            applyTopTextStyle(topText)
+                            
+                            putTag(icon, "topText", topText)
+                            putTag(icon, "sliderType", "BrightnessSliderController")
+                            
+                            // Re-trigger updateIconProgress to apply colors immediately!
+                            thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
+                        }.onFailure { t ->
+                            Log.e("HyperTweak", "Error in BrightnessPanelSliderDelegate.prepareShow hook", t)
+                        }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find BrightnessPanelSliderDelegate prepareShow")
 
         clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             Log.d("HyperTweak", "Hooking BrightnessPanelSliderDelegate updateIconProgress")
             method.hook {
-                val res = proceed()
-                if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                    runCatching {
-                        val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
-                        val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                        val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
-                        val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as android.widget.SeekBar
-                        
-                        val level = slider.progress
-                        val maxLevel = slider.max
-                        val pct = if (maxLevel > 0) Math.round(level * 1f / maxLevel * 100f).coerceIn(0, 100) else 0
-                        topText.text = "$pct%"
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error updating BrightnessPanelSliderDelegate percentage", t)
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
+                            val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
+                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
+                            val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as android.widget.SeekBar
+                            
+                            val level = slider.progress
+                            val maxLevel = slider.max
+                            val pct = if (maxLevel > 0) Math.round(level * 1f / maxLevel * 100f).coerceIn(0, 100) else 0
+                            topText.text = "$pct%"
+                        }.onFailure { t ->
+                            Log.e("HyperTweak", "Error updating BrightnessPanelSliderDelegate percentage", t)
+                        }
                     }
                 }
-                result(res)
             }
         } ?: Log.e("HyperTweak", "Could not find BrightnessPanelSliderDelegate updateIconProgress")
     }
