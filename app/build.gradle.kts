@@ -65,8 +65,14 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core:1.7.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
-    // Miuix UI
+    // Miuix UI & Preferences
     implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.1")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.1")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.1")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.1")
+    implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
+    implementation("androidx.navigation3:navigation3-runtime:1.1.2")
+    implementation("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.1.0")
 
     // libxposed
     compileOnly("io.github.libxposed:api:101.0.1")
