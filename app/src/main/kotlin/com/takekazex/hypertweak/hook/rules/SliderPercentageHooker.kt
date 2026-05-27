@@ -118,7 +118,7 @@ class SliderPercentageHooker(
     private fun resolvePluginClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
         if (pluginApkPath.isEmpty()) return null
         val resolved = DexKitManager.resolveClasses(
-            context = pluginContext!!,
+            cacheDir = pluginContext?.cacheDir,
             apkPath = pluginApkPath,
             classLoader = classLoader,
             queries = mapOf(key to query)
@@ -129,7 +129,7 @@ class SliderPercentageHooker(
     private fun resolveMainClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
         if (mainApkPath.isEmpty()) return null
         val resolved = DexKitManager.resolveClasses(
-            context = pluginContext!!,
+            cacheDir = pluginContext?.cacheDir,
             apkPath = mainApkPath,
             classLoader = classLoader,
             queries = mapOf(key to query)

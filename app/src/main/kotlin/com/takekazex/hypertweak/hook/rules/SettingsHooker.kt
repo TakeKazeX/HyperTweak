@@ -11,14 +11,79 @@ import com.highcapable.kavaref.KavaRef.Companion.resolve
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.DexKitManager
+import org.luckypray.dexkit.query.enums.StringMatchType
+import java.io.File
 
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 9641L
 
+    private fun String.resolveClass(initialize: Boolean = false): Class<Any>? {
+        val resolvedClass = resolveViaDexKit(this)
+        if (resolvedClass != null) {
+            @Suppress("UNCHECKED_CAST")
+            return resolvedClass as Class<Any>
+        }
+        return this.toClassOrNull(initialize = initialize)
+    }
+
+    private fun resolveViaDexKit(className: String): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        val cacheDir = File(baseDir, "cache")
+        val apkPath = appInfo.sourceDir ?: return null
+
+        return when (className) {
+            "com.android.settings.MiuiSettings" -> {
+                val resolved = DexKitManager.resolveClasses(
+                    cacheDir = cacheDir,
+                    apkPath = apkPath,
+                    classLoader = classLoader,
+                    queries = mapOf("MiuiSettings" to { bridge ->
+                        bridge.findClass {
+                            searchPackages("com.android.settings")
+                            matcher { className("MiuiSettings", StringMatchType.EndsWith) }
+                        }.singleOrNull()?.name
+                    })
+                )
+                resolved["MiuiSettings"]
+            }
+            "com.android.settings.MiuiSettings\$HeaderAdapter" -> {
+                val resolved = DexKitManager.resolveClasses(
+                    cacheDir = cacheDir,
+                    apkPath = apkPath,
+                    classLoader = classLoader,
+                    queries = mapOf("HeaderAdapter" to { bridge ->
+                        bridge.findClass {
+                            searchPackages("com.android.settings")
+                            matcher { className("MiuiSettings\$HeaderAdapter", StringMatchType.EndsWith) }
+                        }.singleOrNull()?.name
+                    })
+                )
+                resolved["HeaderAdapter"]
+            }
+            "com.android.settingslib.miuisettings.preference.PreferenceActivity\$Header" -> {
+                val resolved = DexKitManager.resolveClasses(
+                    cacheDir = cacheDir,
+                    apkPath = apkPath,
+                    classLoader = classLoader,
+                    queries = mapOf("PreferenceActivityHeader" to { bridge ->
+                        bridge.findClass {
+                            searchPackages("com.android.settingslib.miuisettings.preference")
+                            matcher { className("PreferenceActivity\$Header", StringMatchType.EndsWith) }
+                        }.singleOrNull()?.name
+                    })
+                )
+                resolved["PreferenceActivityHeader"]
+            }
+            else -> null
+        }
+    }
+
     override fun onHook() {
-        val clzMiuiSettings = "com.android.settings.MiuiSettings".toClassOrNull() ?: return
-        val clzHeaderAdapter = "com.android.settings.MiuiSettings\$HeaderAdapter".toClassOrNull()
-        val clzHeader = "com.android.settingslib.miuisettings.preference.PreferenceActivity\$Header".toClassOrNull()
+        val clzMiuiSettings = "com.android.settings.MiuiSettings".resolveClass() ?: return
+        val clzHeaderAdapter = "com.android.settings.MiuiSettings\$HeaderAdapter".resolveClass()
+        val clzHeader = "com.android.settingslib.miuisettings.preference.PreferenceActivity\$Header".resolveClass()
 
         // 1. Hook updateHeaderList to inject our custom entry in MiuiSettings
         clzMiuiSettings.resolve().firstMethodOrNull {
