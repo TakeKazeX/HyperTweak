@@ -745,7 +745,7 @@ fun MainPagerScreen(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = false,
+                userScrollEnabled = true,
                 beyondViewportPageCount = 2
             ) { page ->
                 when (page) {
@@ -1346,14 +1346,11 @@ fun AboutPage(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(localBackdrop)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             BgEffectBackground(
                 dynamicBackground = true,
                 modifier = Modifier.fillMaxSize(),
+                bgModifier = Modifier.layerBackdrop(localBackdrop),
                 alpha = { 1f - scrollProgress },
             ) {
                 Column(
