@@ -11,6 +11,8 @@ object Preferences {
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
+    const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
+    const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
 
     private lateinit var remotePrefs: SharedPreferences
 

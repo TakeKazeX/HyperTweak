@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
                 var hideFingerprint by remember { mutableStateOf(false) }
                 var showInSettings by remember { mutableStateOf(false) }
                 var hideLauncherIcon by remember { mutableStateOf(false) }
+                var sliderShowPercentage by remember { mutableStateOf(false) }
+                var sliderSamePercentageStyle by remember { mutableStateOf(false) }
 
                 var currentScreen by remember { mutableStateOf(Screen.MAIN) }
 
@@ -73,10 +75,12 @@ class MainActivity : ComponentActivity() {
                         hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                         showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                         hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
+                        sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+                        sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     }
                 }
 
-                val moduleActive = isModuleActive()
+                val moduleActive = isModuleActive() || serviceConnected != null
 
                 Scaffold(
                     topBar = {
@@ -129,6 +133,16 @@ class MainActivity : ComponentActivity() {
                             onHideFingerprintChange = { checked: Boolean ->
                                 hideFingerprint = checked
                                 Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
+                            },
+                            sliderShowPercentage = sliderShowPercentage,
+                            onSliderShowPercentageChange = { checked: Boolean ->
+                                sliderShowPercentage = checked
+                                Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
+                            },
+                            sliderSamePercentageStyle = sliderSamePercentageStyle,
+                            onSliderSamePercentageChange = { checked: Boolean ->
+                                sliderSamePercentageStyle = checked
+                                Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                             }
                         )
                     } else {
@@ -179,7 +193,11 @@ fun MainScreenContent(
     removeGms: Boolean,
     onRemoveGmsChange: (Boolean) -> Unit,
     hideFingerprint: Boolean,
-    onHideFingerprintChange: (Boolean) -> Unit
+    onHideFingerprintChange: (Boolean) -> Unit,
+    sliderShowPercentage: Boolean,
+    onSliderShowPercentageChange: (Boolean) -> Unit,
+    sliderSamePercentageStyle: Boolean,
+    onSliderSamePercentageChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -210,7 +228,7 @@ fun MainScreenContent(
                     text = if (moduleActive) 
                         "Native libxposed module loaded successfully." 
                     else 
-                        "Please enable the module in LSPosed manager and reboot your device.",
+                        "Please enable the module in LSPosed manager, ensure 'Ink Tweaks' itself is checked in the scope, and reboot or restart SystemUI.",
                     color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
                     fontSize = 13.sp
                 )
@@ -259,6 +277,23 @@ fun MainScreenContent(
                     summary = "Completely remove the fingerprint sensor circle icon on lockscreen",
                     checked = hideFingerprint,
                     onCheckedChange = onHideFingerprintChange
+                )
+
+                // Toggle 4: CC Slider Show Percentage
+                SettingSwitchRow(
+                    title = "Slider Show Percentage Value",
+                    summary = "Show percentage values on the brightness and volume sliders",
+                    checked = sliderShowPercentage,
+                    onCheckedChange = onSliderShowPercentageChange
+                )
+
+                // Toggle 5: CC Slider Unify Percentage Style
+                SettingSwitchRow(
+                    title = "Unify Percentage Style",
+                    summary = "Always keep the volume slider percentage text visible to match the brightness style",
+                    checked = sliderSamePercentageStyle && sliderShowPercentage,
+                    enabled = sliderShowPercentage,
+                    onCheckedChange = onSliderSamePercentageChange
                 )
             }
         }
@@ -362,6 +397,7 @@ fun SettingSwitchRow(
     title: String,
     summary: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -377,18 +413,20 @@ fun SettingSwitchRow(
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                fontSize = 16.sp,
+                color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.5f)
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = summary,
-                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                color = if (enabled) MiuixTheme.colorScheme.onSurfaceContainerVariant else MiuixTheme.colorScheme.onSurfaceContainerVariant.copy(alpha = 0.5f),
                 fontSize = 12.sp
             )
         }
         Spacer(modifier = Modifier.width(16.dp))
         Switch(
             checked = checked,
+            enabled = enabled,
             onCheckedChange = onCheckedChange
         )
     }

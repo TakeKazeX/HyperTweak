@@ -100,6 +100,12 @@ sealed class BaseHooker {
         hooker.updateParentState(isEffectiveEnabled)
     }
 
+    fun detach(hooker: BaseHooker) {
+        if (childHookers.remove(hooker)) {
+            hooker.updateParentState(false)
+        }
+    }
+
     fun Executable.hook(
         managed: Boolean = true,
         callback: HookScope.() -> HookResult

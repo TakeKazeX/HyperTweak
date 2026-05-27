@@ -13,3 +13,6 @@
 *.apk
 *.keystore
 *.jks
+
+/decompiled_classes
+/scratch

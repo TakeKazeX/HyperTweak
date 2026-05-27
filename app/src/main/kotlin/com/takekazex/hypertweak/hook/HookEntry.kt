@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.rules.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.SystemConfigHooker
+import com.takekazex.hypertweak.hook.rules.SystemUIPluginHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import java.util.concurrent.ConcurrentHashMap
@@ -53,6 +54,7 @@ class HookEntry : XposedModule() {
             "com.android.systemui" -> {
                 attachHooker(AODHooker, param.defaultClassLoader, hookParam)
                 attachHooker(HideFingerprintIcon, param.defaultClassLoader, hookParam)
+                attachHooker(SystemUIPluginHooker, param.defaultClassLoader, hookParam)
             }
             "com.miui.aod" -> {
                 attachHooker(AODHooker, param.defaultClassLoader, hookParam)
