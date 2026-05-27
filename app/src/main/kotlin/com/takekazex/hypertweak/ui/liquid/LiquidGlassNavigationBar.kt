@@ -161,7 +161,7 @@ private fun rememberGravityRotatedHighlight(
 @Composable
 fun IosLiquidGlassNavigationBar(
     items: List<NavigationItem>,
-    selectedIndex: Int,
+    pagerState: androidx.compose.foundation.pager.PagerState,
     onItemClick: (Int) -> Unit,
     backdrop: LayerBackdrop?,
     isBlurActive: Boolean,
@@ -196,7 +196,7 @@ fun IosLiquidGlassNavigationBar(
         }
     }
 
-    var currentIndex by remember { mutableIntStateOf(selectedIndex) }
+    var currentIndex by remember { mutableIntStateOf(pagerState.currentPage) }
 
     class DampedDragHolder {
         var instance: DampedDragAnimation? = null
@@ -207,7 +207,7 @@ fun IosLiquidGlassNavigationBar(
     val dampedDrag = remember(animationScope, tabsCount, density, isLtr) {
         DampedDragAnimation(
             animationScope = animationScope,
-            initialValue = selectedIndex.toFloat(),
+            initialValue = pagerState.currentPage.toFloat(),
             valueRange = 0f..(tabsCount - 1).toFloat(),
             visibilityThreshold = 0.001f,
             initialScale = 1f,
@@ -251,14 +251,23 @@ fun IosLiquidGlassNavigationBar(
         ).also { holder.instance = it }
     }
 
-    LaunchedEffect(selectedIndex) {
-        if (currentIndex != selectedIndex) currentIndex = selectedIndex
-    }
     val onItemClickUpdated by rememberUpdatedState(onItemClick)
     LaunchedEffect(dampedDrag) {
         snapshotFlow { currentIndex }.drop(1).collectLatest { index ->
             dampedDrag.animateToValue(index.toFloat())
             onItemClickUpdated(index)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage, pagerState.currentPageOffsetFraction, pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) {
+            val progress = pagerState.currentPage + pagerState.currentPageOffsetFraction
+            dampedDrag.snapToValue(progress)
+        } else {
+            dampedDrag.animateToValue(pagerState.currentPage.toFloat())
+            if (currentIndex != pagerState.currentPage) {
+                currentIndex = pagerState.currentPage
+            }
         }
     }
 

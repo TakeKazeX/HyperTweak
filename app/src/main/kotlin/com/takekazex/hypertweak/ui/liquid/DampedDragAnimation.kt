@@ -132,6 +132,19 @@ internal class DampedDragAnimation(
         }
     }
 
+    fun snapToValue(value: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                val targetValue = value.coerceIn(valueRange)
+                valueAnimation.snapTo(targetValue)
+                if (velocity != 0f) {
+                    velocityAnimation.snapTo(0f)
+                }
+            }
+        }
+    }
+
+
     fun animateToValue(value: Float) {
         animationScope.launch {
             mutatorMutex.mutate {
