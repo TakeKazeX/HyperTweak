@@ -107,6 +107,7 @@ fun HyperTweakNavContainer(
 
     // Scale predictive back states
     var exitingPageKey by remember { mutableStateOf<String?>(null) }
+    val exitAnimatable = remember { Animatable(0f) }
 
     var gestureState: NavigationEventState<SceneInfo<Route>>? = null
 
@@ -188,7 +189,8 @@ fun HyperTweakNavContainer(
                     contentPageKey = content.contentKey,
                     currentPageKey = backStack.lastOrNull(),
                     exitFollowGesture = predictiveBackFollowGesture,
-                    exitingPageKey = exitingPageKey
+                    exitingPageKey = exitingPageKey,
+                    exitProgress = exitAnimatable.value
                 )
             } else {
                 Modifier
@@ -206,13 +208,23 @@ fun HyperTweakNavContainer(
     )
 
     val onBack: (() -> Unit) -> Unit = { callBack ->
-        val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
-        if (predictiveBackStyle == 2 && isPredictiveInProgress) {
-            exitingPageKey = backStack.lastOrNull()?.toString()
-        }
-        callBack()
-        if (backStack.size > 1) {
-            backStack.removeLast()
+        coroutineScope.launch {
+            val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
+            if (predictiveBackStyle == 2 && isPredictiveInProgress) {
+                exitingPageKey = backStack.lastOrNull()?.toString()
+                exitAnimatable.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 200,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                exitAnimatable.snapTo(0f)
+            }
+            callBack()
+            if (backStack.size > 1) {
+                backStack.removeLast()
+            }
         }
     }
 

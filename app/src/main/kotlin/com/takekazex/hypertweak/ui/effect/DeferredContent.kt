@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 
@@ -15,7 +16,7 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 fun rememberContentReady(): Boolean {
     val scope = LocalNavAnimatedContentScope.current
     val transitionRunning = scope.transition.isRunning
-    val ready = remember { mutableStateOf(false) }
+    val ready = rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(transitionRunning) {
         if (!transitionRunning && !ready.value) {

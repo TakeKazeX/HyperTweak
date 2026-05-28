@@ -55,7 +55,8 @@ fun Modifier.scalePredictiveBackDecorator(
     contentPageKey: Any,
     currentPageKey: NavKey?,
     exitFollowGesture: Boolean,
-    exitingPageKey: String?
+    exitingPageKey: String?,
+    exitProgress: Float
 ): Modifier {
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -98,20 +99,17 @@ fun Modifier.scalePredictiveBackDecorator(
             1f
         }
 
-        val exitProgress = if (pageKey != currentPageKey.toString()) {
+        val exitProgressVal = if (pageKey != currentPageKey.toString()) {
             1f
         } else {
-            // Note: we could use an Animatable for the translation, but InstallerX uses
-            // translation mapping to exit progress. To avoid jumps, we use animatedScale mapping.
-            val mappedProgress = if (animatedScale < 1f) (1f - animatedScale) / 0.15f else 0f
-            if (exitingPageKey != null) mappedProgress else 0f
+            exitProgress
         }
 
         // Slide slightly during active swipe, and interpolate to screen edge during exit
         val maxSlidePx = remember(density) { with(density) { 32.dp.toPx() } }
         val translationX = if (exitingPageKey != null) {
             // we use the mapped exitProgress to drive the translation out
-            val fraction = exitProgress.coerceIn(0f, 1f)
+            val fraction = exitProgressVal.coerceIn(0f, 1f)
             val startTrans = (progressInProgress?.latestEvent?.progress ?: 0f) * maxSlidePx * directionMultiplier
             val endTrans = containerWidthPx * directionMultiplier
             startTrans + (endTrans - startTrans) * fraction

@@ -80,19 +80,14 @@ import top.yukonga.miuix.kmp.blur.highlight.LightPosition
 import top.yukonga.miuix.kmp.blur.highlight.LightSource
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.Platform
 import top.yukonga.miuix.kmp.utils.platform
 import androidx.compose.foundation.isSystemInDarkTheme
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sign
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 private val LocalIosTabScale = staticCompositionLocalOf { { 1f } }
 
@@ -116,47 +111,22 @@ private val iosIndicatorSpecular: Highlight = Highlight(
     ),
 )
 
-// Mirrors HighlightStyle.kt's LIGHT_REF — keep in sync.
-private const val LIGHT_REF_X = 0.5f
-private const val LIGHT_REF_Y = 0.7f
-private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f // |g_xy| > 0.1, ≈ 6° tilt
-
-/** Tracks gravity for a `dualPeak` highlight's primary light, with an extra UV-clockwise offset on top. */
-@Composable
-private fun rememberGravityRotatedHighlight(
-    base: Highlight,
-    extraDegrees: Float = 0f,
-): Highlight {
-    val baseStyle = base.style as BloomStroke
-    val tilt by rememberDeviceTilt()
-    val rotatedPrimary = remember(tilt, baseStyle.primaryLight, extraDegrees) {
-        val basePrimary = baseStyle.primaryLight
-        val gx = tilt.gravityX
-        val gy = tilt.gravityY
-        val gMagSq = gx * gx + gy * gy
-        val (lx0, ly0) = if (gMagSq > GRAVITY_DIR_THRESHOLD_SQ) {
-            val invMag = 1f / sqrt(gMagSq)
-            (gx * invMag) to (gy * invMag)
-        } else {
-            0f to -1f
-        }
-        val rad = extraDegrees * PI / 180.0
-        val c = cos(rad).toFloat()
-        val s = sin(rad).toFloat()
-        val lx = c * lx0 - s * ly0
-        val ly = s * lx0 + c * ly0
-        basePrimary.copy(
-            position = LightPosition(
-                x = LIGHT_REF_X + lx,
-                y = LIGHT_REF_Y + ly,
-                z = basePrimary.position.z,
-            ),
+private val baseHighlight: Highlight = iosIndicatorSpecular.copy(
+    style = (iosIndicatorSpecular.style as BloomStroke).copy(
+        primaryLight = (iosIndicatorSpecular.style as BloomStroke).primaryLight.copy(
+            position = LightPosition(-0.2071f, -0.0071f, -0.05f)
         )
-    }
-    return remember(base, rotatedPrimary) {
-        base.copy(style = baseStyle.copy(primaryLight = rotatedPrimary))
-    }
-}
+    )
+)
+
+private val pillHighlight: Highlight = iosIndicatorSpecular.copy(
+    style = (iosIndicatorSpecular.style as BloomStroke).copy(
+        primaryLight = (iosIndicatorSpecular.style as BloomStroke).primaryLight.copy(
+            position = LightPosition(1.5f, 0.7f, -0.05f)
+        )
+    )
+)
+
 
 @Composable
 fun IosLiquidGlassNavigationBar(
@@ -289,9 +259,6 @@ fun IosLiquidGlassNavigationBar(
             },
         )
     }
-
-    val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
-    val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
     val combinedBackdrop = backdrop?.let { rememberCombinedBackdrop(it, tabsBackdrop) }
 
