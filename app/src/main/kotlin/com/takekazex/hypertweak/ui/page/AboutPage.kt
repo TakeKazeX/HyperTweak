@@ -10,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,29 +85,10 @@ fun AboutPage(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         topBar = {
-            SmallTopAppBar(
-                title = "About",
-                scrollBehavior = topAppBarScrollBehavior,
-                color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
-                titleColor = MiuixTheme.colorScheme.onSurface.copy(
-                    alpha = ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)
-                ),
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        val layoutDirection = LocalLayoutDirection.current
-                        Icon(
-                            modifier = Modifier.graphicsLayer {
-                                if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-                            },
-                            imageVector = MiuixIcons.Back,
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            contentDescription = "Back"
-                        )
-                    }
-                }
+            AboutTopBar(
+                scrollProgressProvider = { scrollProgress },
+                onBack = onBack,
+                topAppBarScrollBehavior = topAppBarScrollBehavior
             )
         }
     ) { innerPadding ->
@@ -196,7 +179,7 @@ fun AboutPage(
             BgEffectBackground(
                 dynamicBackground = true,
                 modifier = Modifier.fillMaxSize(),
-                bgModifier = if (contentReady) Modifier.layerBackdrop(localBackdrop) else Modifier,
+                bgModifier = Modifier.layerBackdrop(localBackdrop),
                 alpha = { 1f - scrollProgress },
             ) {
                 // Logo area
@@ -217,7 +200,7 @@ fun AboutPage(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(100.dp)
-                            .clipToBounds()
+                            .clip(CircleShape)
                             .graphicsLayer {
                                 alpha = 1f - iconProgress
                                 scaleX = 1f - (iconProgress * 0.05f)
@@ -233,14 +216,14 @@ fun AboutPage(
                         Image(
                             modifier = Modifier
                                 .requiredSize(245.dp)
-                                .then(if (contentReady) Modifier.textureBlur(
+                                .then(Modifier.textureBlur(
                                     backdrop = localBackdrop,
                                     shape = RoundedCornerShape(0.dp),
-                                    blurRadius = 150f,
+                                    blurRadius = 0f,
                                     colors = BlurColors(blendColors = logoBlend),
                                     contentBlendMode = ComposeBlendMode.DstIn,
                                     enabled = true,
-                                ) else Modifier),
+                                )),
                             painter = painterResource(id = com.takekazex.hypertweak.R.drawable.ic_launcher_foreground),
                             colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onBackground),
                             contentDescription = null,
@@ -260,15 +243,15 @@ fun AboutPage(
                                 scaleX = 1f - (projectNameProgress * 0.05f)
                                 scaleY = 1f - (projectNameProgress * 0.05f)
                             }
-                            .then(if (contentReady) Modifier.textureBlur(
+                            .then(Modifier.textureBlur(
                                 backdrop = localBackdrop,
                                 shape = RoundedCornerShape(0.dp),
-                                blurRadius = 150f,
+                                blurRadius = 0f,
                                 colors = BlurColors(blendColors = logoBlend),
                                 contentBlendMode = ComposeBlendMode.DstIn,
                                 enabled = true,
-                            ) else Modifier),
-                        text = "Ink Tweaks",
+                            )),
+                        text = "HyperTweak",
                         color = MiuixTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                         fontSize = 35.sp,
@@ -363,4 +346,37 @@ fun AboutPage(
             }
         }
     }
+}
+
+@Composable
+private fun AboutTopBar(
+    scrollProgressProvider: () -> Float,
+    onBack: () -> Unit,
+    topAppBarScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior
+) {
+    val scrollProgress = scrollProgressProvider()
+    val layoutDirection = LocalLayoutDirection.current
+    SmallTopAppBar(
+        title = "About",
+        scrollBehavior = topAppBarScrollBehavior,
+        color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
+        titleColor = MiuixTheme.colorScheme.onSurface.copy(
+            alpha = ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)
+        ),
+        navigationIcon = {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    modifier = Modifier.graphicsLayer {
+                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                    },
+                    imageVector = MiuixIcons.Back,
+                    tint = MiuixTheme.colorScheme.onSurface,
+                    contentDescription = "Back"
+                )
+            }
+        }
+    )
 }

@@ -213,7 +213,7 @@ fun MainPagerScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = true,
-                beyondViewportPageCount = if (contentReady) 2 else 0
+                beyondViewportPageCount = 2
             ) { page ->
                 val isCurrent = page == pagerState.currentPage
                 when (page) {

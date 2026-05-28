@@ -144,11 +144,17 @@ fun IosLiquidGlassNavigationBar(
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
     val containerColor = if (isBlurActive) surfaceContainer.copy(alpha = 0.4f) else surfaceContainer
 
-    val tabsBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val animationScope = rememberCoroutineScope()
     val tabsCount = items.size
+
+    val tabsBackdrop = if (isBlurActive) rememberLayerBackdrop() else null
+    val combinedBackdrop = if (isBlurActive && backdrop != null && tabsBackdrop != null) {
+        rememberCombinedBackdrop(backdrop, tabsBackdrop)
+    } else {
+        null
+    }
 
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
@@ -260,7 +266,7 @@ fun IosLiquidGlassNavigationBar(
         )
     }
 
-    val combinedBackdrop = backdrop?.let { rememberCombinedBackdrop(it, tabsBackdrop) }
+
 
     val navBarBottomPadding = WindowInsets.navigationBars.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     val bottomPaddingValue = when (platform()) {
@@ -339,9 +345,6 @@ fun IosLiquidGlassNavigationBar(
                             indication = null,
                             onClick = {},
                         )
-                        // Capture this pill's rendered output for the indicator's combinedBackdrop.
-                        // Must come BEFORE drawBackdrop so the capture sees the blurred surface.
-                        .then(if (isBlurActive) Modifier.layerBackdrop(tabsBackdrop) else Modifier)
                         .then(
                             if (isBlurActive && backdrop != null) {
                                 Modifier.drawBackdrop(
@@ -378,6 +381,27 @@ fun IosLiquidGlassNavigationBar(
                     verticalAlignment = Alignment.CenterVertically,
                     content = tabsContent,
                 )
+            }
+
+            if (isBlurActive && tabsBackdrop != null) {
+                CompositionLocalProvider(
+                    LocalIosTabScale provides {
+                        lerp(1f, 1.2f, dampedDrag.pressProgress)
+                    },
+                    LocalContentColor provides accentColor
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clearAndSetSemantics {}
+                            .alpha(0f)
+                            .layerBackdrop(tabsBackdrop)
+                            .graphicsLayer { translationX = panelOffset }
+                            .height(56.dp)
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        content = tabsContent,
+                    )
+                }
             }
 
             if (tabWidthPx > 0f) {

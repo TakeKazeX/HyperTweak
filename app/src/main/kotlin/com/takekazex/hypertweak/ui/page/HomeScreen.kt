@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -67,7 +68,7 @@ fun HomeScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Ink Tweaks",
+                title = "HyperTweak",
                 modifier = if (contentReady) {
                     Modifier.textureBlur(
                         backdrop = topBarBackdrop,
@@ -139,7 +140,7 @@ fun HomeScreenContent(
                             text = if (moduleActive)
                                 "Native libxposed module loaded successfully."
                             else
-                                "Please enable the module in LSPosed manager, ensure 'Ink Tweaks' itself is checked in the scope, and reboot or restart SystemUI.",
+                                "Please enable the module in LSPosed manager, ensure 'HyperTweak' itself is checked in the scope, and reboot or restart SystemUI.",
                             color = contentColor.copy(alpha = 0.8f),
                             fontSize = 13.sp
                         )

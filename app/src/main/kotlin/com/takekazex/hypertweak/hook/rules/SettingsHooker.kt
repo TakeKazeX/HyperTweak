@@ -115,7 +115,7 @@ object SettingsHooker : StaticHooker() {
                             setClassName("com.takekazex.hypertweak", "com.takekazex.hypertweak.MainActivity")
                         }
                         header.javaClass.getDeclaredField("intent").apply { isAccessible = true }.set(header, intent)
-                        header.javaClass.getDeclaredField("title").apply { isAccessible = true }.set(header, "Ink Tweaks")
+                        header.javaClass.getDeclaredField("title").apply { isAccessible = true }.set(header, "HyperTweak")
                         header.javaClass.getDeclaredField("iconRes").apply { isAccessible = true }.set(header, 0)
 
                         val bundle = Bundle().apply {

@@ -6,7 +6,7 @@
         android:name=".HyperTweakApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Ink Tweaks"
+        android:label="HyperTweak"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:enableOnBackInvokedCallback="true">
@@ -43,7 +43,7 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Ink Tweaks"
+            android:label="HyperTweak"
             android:targetActivity="com.takekazex.hypertweak.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>

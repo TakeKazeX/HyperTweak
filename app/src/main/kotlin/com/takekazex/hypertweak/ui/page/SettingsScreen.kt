@@ -298,7 +298,7 @@ fun SettingsScreenContent(
                         checked = showInSettings,
                         onCheckedChange = onShowInSettingsChange,
                         title = "Show Entry in System Settings",
-                        summary = "Inject an entry point for Ink Tweaks in the system Settings app"
+                        summary = "Inject an entry point for HyperTweak in the system Settings app"
                     )
 
                     SwitchPreference(
@@ -324,7 +324,7 @@ fun SettingsScreenContent(
             ) {
                 ArrowPreference(
                     title = "About",
-                    summary = "Ink Tweaks v1.0",
+                    summary = "HyperTweak v1.0",
                     onClick = onNavigateToAbout
                 )
             }

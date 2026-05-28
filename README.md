@@ -1,4 +1,4 @@
-# HyperTweak (Ink Tweaks)
+# HyperTweak
 
 一个基于原生 `libxposed` (API 101) 构建的高性能、模块化 HyperOS 锁屏与系统优化 Xposed 模块。
 
