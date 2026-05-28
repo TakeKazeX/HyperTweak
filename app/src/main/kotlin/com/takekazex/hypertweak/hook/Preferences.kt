@@ -22,6 +22,8 @@ object Preferences {
     const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
 
+    const val KEY_PAGE_SCALE = "page_scale"
+
     private lateinit var remotePrefs: SharedPreferences
     private var isLocalOnly = false
 
@@ -48,6 +50,11 @@ object Preferences {
         return remotePrefs.getInt(key, default)
     }
 
+    fun getFloat(key: String, default: Float = 1f): Float {
+        if (!isInitialized) return default
+        return remotePrefs.getFloat(key, default)
+    }
+
     fun putBoolean(key: String, value: Boolean) {
         if (isInitialized) {
             remotePrefs.edit().putBoolean(key, value).apply()
@@ -57,6 +64,12 @@ object Preferences {
     fun putInt(key: String, value: Int) {
         if (isInitialized) {
             remotePrefs.edit().putInt(key, value).apply()
+        }
+    }
+
+    fun putFloat(key: String, value: Float) {
+        if (isInitialized) {
+            remotePrefs.edit().putFloat(key, value).apply()
         }
     }
 }

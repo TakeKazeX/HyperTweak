@@ -40,6 +40,10 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AspectRatio
 
 @Composable
 fun SettingsScreenContent(
@@ -64,6 +68,8 @@ fun SettingsScreenContent(
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
     allowLandscape: Boolean,
     onAllowLandscapeChange: (Boolean) -> Unit,
+    pageScale: Float,
+    onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -162,6 +168,53 @@ fun SettingsScreenContent(
                             summary = "Adjust scale pivot and exit animation translation based on swipe edge"
                         )
                     }
+
+                    var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
+                    var showScaleDialog by remember { mutableStateOf(false) }
+
+                    ArrowPreference(
+                        title = "Interface Scale",
+                        summary = "Adjust the size of application interface elements",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.AspectRatio,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Interface Scale",
+                                tint = MiuixTheme.colorScheme.onBackground
+                            )
+                        },
+                        endActions = {
+                            Text(
+                                text = "${(sliderValue * 100).toInt()}%",
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        onClick = { showScaleDialog = !showScaleDialog },
+                        holdDownState = showScaleDialog,
+                        bottomAction = {
+                            Slider(
+                                value = sliderValue,
+                                onValueChange = {
+                                    sliderValue = it
+                                },
+                                onValueChangeFinished = {
+                                    onPageScaleChange(sliderValue)
+                                },
+                                valueRange = 0.85f..1.15f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0.85f, 1.0f, 1.15f),
+                                magnetThreshold = 0.01f,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            )
+                        }
+                    )
+
+                    ScaleDialog(
+                        show = showScaleDialog,
+                        onDismissRequest = { showScaleDialog = false },
+                        volumeState = { pageScale },
+                        onVolumeChange = onPageScaleChange
+                    )
                 }
             }
 

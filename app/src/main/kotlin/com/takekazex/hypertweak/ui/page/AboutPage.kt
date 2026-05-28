@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -7,12 +9,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.onEach
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -23,16 +35,17 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.BlurBlendMode
+import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.takekazex.hypertweak.ui.effect.BgEffectBackground
+import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 
 @Composable
 fun AboutPage(
@@ -41,11 +54,17 @@ fun AboutPage(
     onNavigateToCredits: () -> Unit
 ) {
     val lazyListState = rememberLazyListState()
+    var logoHeightPx by remember { mutableIntStateOf(0) }
+
     val scrollProgress by remember {
         derivedStateOf {
-            val index = lazyListState.firstVisibleItemIndex
-            val offset = lazyListState.firstVisibleItemScrollOffset
-            if (index > 0) 1f else (offset.toFloat() / 400f).coerceIn(0f, 1f)
+            if (logoHeightPx <= 0) {
+                0f
+            } else {
+                val index = lazyListState.firstVisibleItemIndex
+                val offset = lazyListState.firstVisibleItemScrollOffset
+                if (index > 0) 1f else (offset.toFloat() / logoHeightPx).coerceIn(0f, 1f)
+            }
         }
     }
 
@@ -63,13 +82,19 @@ fun AboutPage(
                 title = "About",
                 scrollBehavior = topAppBarScrollBehavior,
                 color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
-                titleColor = MiuixTheme.colorScheme.onSurface.copy(alpha = scrollProgress),
+                titleColor = MiuixTheme.colorScheme.onSurface.copy(
+                    alpha = ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)
+                ),
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier.size(40.dp)
                     ) {
+                        val layoutDirection = LocalLayoutDirection.current
                         Icon(
+                            modifier = Modifier.graphicsLayer {
+                                if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                            },
                             imageVector = MiuixIcons.Back,
                             tint = MiuixTheme.colorScheme.onSurface,
                             contentDescription = "Back"
@@ -79,6 +104,89 @@ fun AboutPage(
             )
         }
     ) { innerPadding ->
+        val layoutDirection = LocalLayoutDirection.current
+        val density = LocalDensity.current
+
+        val isInDark = isSystemInDarkTheme()
+        val primaryColor = MiuixTheme.colorScheme.primary
+        val logoBlend = remember(isInDark, primaryColor) {
+            if (isInDark) {
+                listOf(
+                    BlendColorEntry(Color(0xe6a1a1a1), BlurBlendMode.ColorDodge),
+                    BlendColorEntry(Color(0x4de6e6e6), BlurBlendMode.LinearLight),
+                    BlendColorEntry(primaryColor, BlurBlendMode.Lab),
+                )
+            } else {
+                listOf(
+                    BlendColorEntry(Color(0xcc4a4a4a), BlurBlendMode.ColorBurn),
+                    BlendColorEntry(Color(0xff4f4f4f), BlurBlendMode.LinearLight),
+                    BlendColorEntry(primaryColor, BlurBlendMode.Lab),
+                )
+            }
+        }
+
+        val containerColor = MiuixTheme.colorScheme.surfaceContainer
+        val cardBlendColors = remember(isInDark, containerColor) {
+            if (isInDark) {
+                listOf(BlendColorEntry(containerColor.copy(0.4f)))
+            } else {
+                listOf(BlendColorEntry(containerColor.copy(0.3f)))
+            }
+        }
+
+        // Logo parallax/fade tracking
+        var logoHeightDp by remember { mutableStateOf(300.dp) }
+        var logoAreaY by remember { mutableFloatStateOf(0f) }
+        var iconY by remember { mutableFloatStateOf(0f) }
+        var projectNameY by remember { mutableFloatStateOf(0f) }
+        var versionCodeY by remember { mutableFloatStateOf(0f) }
+
+        var iconProgress by remember { mutableFloatStateOf(0f) }
+        var projectNameProgress by remember { mutableFloatStateOf(0f) }
+        var versionCodeProgress by remember { mutableFloatStateOf(0f) }
+        var initialLogoAreaY by remember { mutableFloatStateOf(0f) }
+
+        LaunchedEffect(lazyListState) {
+            snapshotFlow { lazyListState.firstVisibleItemScrollOffset }
+                .onEach { offset ->
+                    if (lazyListState.firstVisibleItemIndex > 0) {
+                        if (iconProgress != 1f) iconProgress = 1f
+                        if (projectNameProgress != 1f) projectNameProgress = 1f
+                        if (versionCodeProgress != 1f) versionCodeProgress = 1f
+                        return@onEach
+                    }
+
+                    if (initialLogoAreaY == 0f && logoAreaY > 0f) {
+                        initialLogoAreaY = logoAreaY
+                    }
+                    val refLogoAreaY = if (initialLogoAreaY > 0f) initialLogoAreaY else logoAreaY
+
+                    val stage1TotalLength = refLogoAreaY - versionCodeY
+                    val stage2TotalLength = versionCodeY - projectNameY
+                    val stage3TotalLength = projectNameY - iconY
+
+                    val versionCodeDelay = stage1TotalLength * 0.5f
+                    versionCodeProgress = ((offset.toFloat() - versionCodeDelay) / (stage1TotalLength - versionCodeDelay).coerceAtLeast(1f))
+                        .coerceIn(0f, 1f)
+                    projectNameProgress = ((offset.toFloat() - stage1TotalLength) / stage2TotalLength.coerceAtLeast(1f))
+                        .coerceIn(0f, 1f)
+                    iconProgress = ((offset.toFloat() - stage1TotalLength - stage2TotalLength) / stage3TotalLength.coerceAtLeast(1f))
+                        .coerceIn(0f, 1f)
+                }
+                .collect { }
+        }
+
+        val scrollPadding = PaddingValues(
+            top = innerPadding.calculateTopPadding(),
+            start = innerPadding.calculateStartPadding(layoutDirection),
+            end = innerPadding.calculateEndPadding(layoutDirection),
+        )
+        val logoPadding = PaddingValues(
+            top = innerPadding.calculateTopPadding() + 40.dp,
+            start = innerPadding.calculateStartPadding(layoutDirection),
+            end = innerPadding.calculateEndPadding(layoutDirection),
+        )
+
         Box(modifier = Modifier.fillMaxSize()) {
             BgEffectBackground(
                 dynamicBackground = true,
@@ -86,81 +194,132 @@ fun AboutPage(
                 bgModifier = Modifier.layerBackdrop(localBackdrop),
                 alpha = { 1f - scrollProgress },
             ) {
+                // Logo area
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(top = 56.dp)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .graphicsLayer {
-                            alpha = 1f - scrollProgress
-                            val scale = 1f - (scrollProgress * 0.08f)
-                            scaleX = scale
-                            scaleY = scale
-                            translationY = -scrollProgress * 120f
+                        .padding(
+                            top = logoPadding.calculateTopPadding() + 52.dp,
+                            start = logoPadding.calculateStartPadding(layoutDirection),
+                            end = logoPadding.calculateEndPadding(layoutDirection),
+                        )
+                        .onSizeChanged { size ->
+                            with(density) { logoHeightDp = size.height.toDp() }
                         },
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // App icon with premium glassmorphic background box
                     Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(88.dp)
-                            .textureBlur(
-                                backdrop = localBackdrop,
-                                shape = RoundedCornerShape(20.dp),
-                                blurRadius = 25f,
-                                colors = BlurDefaults.blurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.4f))
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
+                            .size(100.dp)
+                            .clipToBounds()
+                            .graphicsLayer {
+                                alpha = 1f - iconProgress
+                                scaleX = 1f - (iconProgress * 0.05f)
+                                scaleY = 1f - (iconProgress * 0.05f)
+                            }
+                            .onGloballyPositioned { coordinates ->
+                                if (iconY != 0f) return@onGloballyPositioned
+                                val y = coordinates.positionInWindow().y
+                                val size = coordinates.size
+                                iconY = y + size.height
+                            },
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.Favorites,
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(44.dp),
-                            contentDescription = null
+                        Image(
+                            modifier = Modifier
+                                .requiredSize(245.dp)
+                                .textureBlur(
+                                    backdrop = localBackdrop,
+                                    shape = RoundedCornerShape(0.dp),
+                                    blurRadius = 150f,
+                                    colors = BlurColors(blendColors = logoBlend),
+                                    contentBlendMode = ComposeBlendMode.DstIn,
+                                    enabled = true,
+                                ),
+                            painter = painterResource(id = com.takekazex.hypertweak.R.drawable.ic_launcher_foreground),
+                            colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onBackground),
+                            contentDescription = null,
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Large app title (sharp and crisp)
                     Text(
+                        modifier = Modifier
+                            .padding(top = 12.dp, bottom = 5.dp)
+                            .onGloballyPositioned { coordinates ->
+                                if (projectNameY != 0f) return@onGloballyPositioned
+                                val y = coordinates.positionInWindow().y
+                                val size = coordinates.size
+                                projectNameY = y + size.height
+                            }
+                            .graphicsLayer {
+                                alpha = 1f - projectNameProgress
+                                scaleX = 1f - (projectNameProgress * 0.05f)
+                                scaleY = 1f - (projectNameProgress * 0.05f)
+                            }
+                            .textureBlur(
+                                backdrop = localBackdrop,
+                                shape = RoundedCornerShape(0.dp),
+                                blurRadius = 150f,
+                                colors = BlurColors(blendColors = logoBlend),
+                                contentBlendMode = ComposeBlendMode.DstIn,
+                                enabled = true,
+                            ),
                         text = "Ink Tweaks",
+                        color = MiuixTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
-                        color = MiuixTheme.colorScheme.onSurface
+                        fontSize = 35.sp,
                     )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Version subtitle
                     Text(
-                        text = "Version 1.0 (1)",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                alpha = 1f - versionCodeProgress
+                                scaleX = 1f - (versionCodeProgress * 0.05f)
+                                scaleY = 1f - (versionCodeProgress * 0.05f)
+                            }
+                            .onGloballyPositioned { coordinates ->
+                                if (versionCodeY != 0f) return@onGloballyPositioned
+                                val y = coordinates.positionInWindow().y
+                                val size = coordinates.size
+                                versionCodeY = y + size.height
+                            },
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        fontSize = 14.sp
+                        text = "Version 1.0 (1)",
+                        fontSize = 14.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                 }
 
-                // Scrollable content on top
+                // Scrollable content
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                     contentPadding = PaddingValues(
-                        bottom = innerPadding.calculateBottomPadding() + 48.dp
+                        top = scrollPadding.calculateTopPadding(),
+                        start = scrollPadding.calculateStartPadding(layoutDirection),
+                        end = scrollPadding.calculateEndPadding(layoutDirection),
+                        bottom = scrollPadding.calculateBottomPadding() + 48.dp
                     )
                 ) {
-                    item {
-                        // Spacer overlay matching the height of the parallax logo header
-                        Spacer(modifier = Modifier.height(280.dp))
+                    item(key = "logoSpacer") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(
+                                    logoHeightDp + 52.dp + logoPadding.calculateTopPadding() - scrollPadding.calculateTopPadding() + 126.dp,
+                                )
+                                .onSizeChanged { size ->
+                                    logoHeightPx = size.height
+                                }
+                                .onGloballyPositioned { coordinates ->
+                                    val y = coordinates.positionInWindow().y
+                                    val size = coordinates.size
+                                    logoAreaY = y + size.height
+                                },
+                            contentAlignment = Alignment.TopCenter,
+                            content = { },
+                        )
                     }
 
                     item {
@@ -176,11 +335,8 @@ fun AboutPage(
                                     backdrop = localBackdrop,
                                     shape = RoundedCornerShape(16.dp),
                                     blurRadius = 25f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
-                                        ),
-                                    )
+                                    colors = BlurColors(blendColors = cardBlendColors),
+                                    enabled = true
                                 ),
                             colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
                         ) {

@@ -73,6 +73,10 @@ fun HyperTweakNavContainer(
     // Backdrop
     backdrop: LayerBackdrop,
 
+    // Scaling
+    pageScale: Float,
+    onPageScaleChange: (Float) -> Unit,
+
     // Actions
     onViewSourceCode: () -> Unit
 ) {
@@ -141,6 +145,8 @@ fun HyperTweakNavContainer(
                 onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
                 allowLandscape = allowLandscape,
                 onAllowLandscapeChange = onAllowLandscapeChange,
+                pageScale = pageScale,
+                onPageScaleChange = onPageScaleChange,
                 onNavigateToAbout = {
                     backStack.add(Route.About)
                 }

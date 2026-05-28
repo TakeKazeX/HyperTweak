@@ -12,6 +12,8 @@ import androidx.annotation.Keep
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
             var predictiveBackStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
+            var pageScale by remember { mutableStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
 
@@ -110,14 +113,22 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            MiuixTheme(controller = controller) {
-                val surfaceColor = MiuixTheme.colorScheme.surface
-                val backdrop = rememberLayerBackdrop {
-                    drawRect(surfaceColor)
-                    drawContent()
-                }
+            val systemDensity = LocalDensity.current
+            val density = remember(systemDensity, pageScale) {
+                Density(systemDensity.density * pageScale, systemDensity.fontScale)
+            }
 
-                HyperTweakNavContainer(
+            CompositionLocalProvider(
+                LocalDensity provides density
+            ) {
+                MiuixTheme(controller = controller) {
+                    val surfaceColor = MiuixTheme.colorScheme.surface
+                    val backdrop = rememberLayerBackdrop {
+                        drawRect(surfaceColor)
+                        drawContent()
+                    }
+
+                    HyperTweakNavContainer(
                     themeMode = themeMode,
                     onThemeModeChange = { mode ->
                         themeMode = mode
@@ -226,6 +237,13 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     backdrop = backdrop,
+                    pageScale = pageScale,
+                    onPageScaleChange = { scale ->
+                        pageScale = scale
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putFloat(Preferences.KEY_PAGE_SCALE, scale)
+                        }
+                    },
                     onViewSourceCode = {
                         try {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/takekazex/HyperTweak"))
@@ -238,6 +256,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
 
     private fun setLauncherIconVisible(context: Context, visible: Boolean) {
         try {

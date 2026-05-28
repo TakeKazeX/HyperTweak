@@ -30,6 +30,7 @@ import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.HorizontalSplit
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
+import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
 fun MainPagerScreen(
@@ -66,9 +67,12 @@ fun MainPagerScreen(
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
     allowLandscape: Boolean,
     onAllowLandscapeChange: (Boolean) -> Unit,
+    pageScale: Float,
+    onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val contentReady = rememberContentReady()
     val isDark = isSystemInDarkTheme()
     val blurActive = true
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
@@ -212,57 +216,66 @@ fun MainPagerScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = true,
-                beyondViewportPageCount = 0
+                beyondViewportPageCount = if (contentReady) 2 else 0
             ) { page ->
+                val isCurrent = page == pagerState.currentPage
                 when (page) {
                     0 -> {
-                        HomeScreenContent(
-                            padding = padding,
-                            moduleActive = moduleActive,
-                            packageName = "com.takekazex.hypertweak",
-                            targetSdk = 37
-                        )
+                        if (isCurrent || contentReady) {
+                            HomeScreenContent(
+                                padding = padding,
+                                moduleActive = moduleActive,
+                                packageName = "com.takekazex.hypertweak",
+                                targetSdk = 37
+                            )
+                        }
                     }
                     1 -> {
-                        TweaksScreenContent(
-                            padding = padding,
-                            aodFullscreen = aodFullscreen,
-                            onAodFullscreenChange = onAodFullscreenChange,
-                            removeGms = removeGms,
-                            onRemoveGmsChange = onRemoveGmsChange,
-                            hideFingerprint = hideFingerprint,
-                            onHideFingerprintChange = onHideFingerprintChange,
-                            sliderShowPercentage = sliderShowPercentage,
-                            onSliderShowPercentageChange = onSliderShowPercentageChange,
-                            sliderSamePercentageStyle = sliderSamePercentageStyle,
-                            onSliderSamePercentageChange = onSliderSamePercentageChange
-                        )
+                        if (isCurrent || contentReady) {
+                            TweaksScreenContent(
+                                padding = padding,
+                                aodFullscreen = aodFullscreen,
+                                onAodFullscreenChange = onAodFullscreenChange,
+                                removeGms = removeGms,
+                                onRemoveGmsChange = onRemoveGmsChange,
+                                hideFingerprint = hideFingerprint,
+                                onHideFingerprintChange = onHideFingerprintChange,
+                                sliderShowPercentage = sliderShowPercentage,
+                                onSliderShowPercentageChange = onSliderShowPercentageChange,
+                                sliderSamePercentageStyle = sliderSamePercentageStyle,
+                                onSliderSamePercentageChange = onSliderSamePercentageChange
+                            )
+                        }
                     }
                     2 -> {
-                        SettingsScreenContent(
-                            padding = padding,
-                            showInSettings = showInSettings,
-                            onShowInSettingsChange = onShowInSettingsChange,
-                            hideLauncherIcon = hideLauncherIcon,
-                            onHideLauncherIconChange = onHideLauncherIconChange,
-                            themeMode = themeMode,
-                            onThemeModeChange = onThemeModeChange,
-                            useMonet = useMonet,
-                            onUseMonetChange = onUseMonetChange,
-                            seedColorHex = seedColorHex,
-                            onSeedColorChange = onSeedColorChange,
-                            useFloatingBottomBar = useFloatingBottomBar,
-                            onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
-                            floatingBarStyle = floatingBarStyle,
-                            onFloatingBarStyleChange = onFloatingBarStyleChange,
-                            predictiveBackStyle = predictiveBackStyle,
-                            onPredictiveBackStyleChange = onPredictiveBackStyleChange,
-                            predictiveBackFollowGesture = predictiveBackFollowGesture,
-                            onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
-                            allowLandscape = allowLandscape,
-                            onAllowLandscapeChange = onAllowLandscapeChange,
-                            onNavigateToAbout = onNavigateToAbout
-                        )
+                        if (isCurrent || contentReady) {
+                            SettingsScreenContent(
+                                padding = padding,
+                                showInSettings = showInSettings,
+                                onShowInSettingsChange = onShowInSettingsChange,
+                                hideLauncherIcon = hideLauncherIcon,
+                                onHideLauncherIconChange = onHideLauncherIconChange,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
+                                useMonet = useMonet,
+                                onUseMonetChange = onUseMonetChange,
+                                seedColorHex = seedColorHex,
+                                onSeedColorChange = onSeedColorChange,
+                                useFloatingBottomBar = useFloatingBottomBar,
+                                onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
+                                floatingBarStyle = floatingBarStyle,
+                                onFloatingBarStyleChange = onFloatingBarStyleChange,
+                                predictiveBackStyle = predictiveBackStyle,
+                                onPredictiveBackStyleChange = onPredictiveBackStyleChange,
+                                predictiveBackFollowGesture = predictiveBackFollowGesture,
+                                onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
+                                allowLandscape = allowLandscape,
+                                onAllowLandscapeChange = onAllowLandscapeChange,
+                                pageScale = pageScale,
+                                onPageScaleChange = onPageScaleChange,
+                                onNavigateToAbout = onNavigateToAbout
+                            )
+                        }
                     }
                 }
             }
