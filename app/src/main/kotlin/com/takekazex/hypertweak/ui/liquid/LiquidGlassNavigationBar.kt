@@ -387,8 +387,7 @@ fun IosLiquidGlassNavigationBar(
                 CompositionLocalProvider(
                     LocalIosTabScale provides {
                         lerp(1f, 1.2f, dampedDrag.pressProgress)
-                    },
-                    LocalContentColor provides accentColor
+                    }
                 ) {
                     Row(
                         modifier = Modifier
@@ -396,8 +395,32 @@ fun IosLiquidGlassNavigationBar(
                             .alpha(0f)
                             .layerBackdrop(tabsBackdrop)
                             .graphicsLayer { translationX = panelOffset }
+                            .then(
+                                if (isBlurActive && backdrop != null) {
+                                    Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { pillShape },
+                                        effects = {
+                                            vibrancy()
+                                            blur(
+                                                4.dp.toPx(),
+                                                4.dp.toPx(),
+                                            )
+                                            lens(
+                                                refractionHeight = 24.dp.toPx(),
+                                                refractionAmount = 24.dp.toPx(),
+                                            )
+                                        },
+                                        onDrawSurface = { drawRect(containerColor) },
+                                    )
+                                } else {
+                                    Modifier.background(containerColor, pillShape)
+                                }
+                            )
+                            .then(interactiveHighlight.modifier)
                             .height(56.dp)
-                            .padding(horizontal = 4.dp),
+                            .padding(horizontal = 4.dp)
+                            .graphicsLayer(colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)),
                         verticalAlignment = Alignment.CenterVertically,
                         content = tabsContent,
                     )
@@ -440,7 +463,7 @@ fun IosLiquidGlassNavigationBar(
                                 onDrawSurface = {
                                     val progress = dampedDrag.pressProgress
                                     drawRect(
-                                        color = if (!isDark) Color.Black.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.1f),
+                                        color = if (!isDark) Color.Black.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.18f),
                                         alpha = 1f - progress,
                                     )
                                     drawRect(Color.Black.copy(alpha = 0.03f * progress))

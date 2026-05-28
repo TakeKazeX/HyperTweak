@@ -12,6 +12,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -103,23 +104,25 @@ fun HomeScreenContent(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
+                    .padding(horizontal = 12.dp),
+                colors = CardDefaults.defaultColors(
+                    color = containerColor,
+                    contentColor = contentColor
+                )
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(containerColor)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .offset(x = 24.dp, y = 24.dp),
+                            .offset(x = 38.dp, y = 45.dp),
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         Icon(
                             imageVector = if (moduleActive) MiuixIcons.Basic.Check else MiuixIcons.Info,
                             tint = contentColor.copy(alpha = 0.12f),
-                            modifier = Modifier.size(120.dp),
+                            modifier = Modifier.size(170.dp),
                             contentDescription = null
                         )
                     }
