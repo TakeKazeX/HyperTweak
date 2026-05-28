@@ -74,7 +74,8 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
     implementation("androidx.navigation3:navigation3-runtime:1.1.2")
     implementation("androidx.navigationevent:navigationevent:1.1.0") {
-        exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
+        exclude(group = "androidx.navigationevent", module = "navigationevent-compose")
+        exclude(group = "androidx.navigationevent", module = "navigationevent-compose-android")
     }
 
     // libxposed
@@ -93,5 +94,6 @@ dependencies {
 }
 
 configurations.all {
-    exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
+    exclude(group = "androidx.navigationevent", module = "navigationevent-compose")
+    exclude(group = "androidx.navigationevent", module = "navigationevent-compose-android")
 }
