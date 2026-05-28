@@ -88,135 +88,135 @@ class MainActivity : ComponentActivity() {
         // Init connection to LSPosed preferences
         XposedServiceManager.init()
 
+        // Synchronously initialize local preferences to prevent theme flash on cold start
+        val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
+        Preferences.init(localPrefs)
+
         setContent {
-            val dispatcherOwner = rememberNavigationEventDispatcherOwner(parent = null)
-            CompositionLocalProvider(
-                LocalNavigationEventDispatcherOwner provides dispatcherOwner
-            ) {
-                // Theme settings states
-                var themeMode by remember { mutableStateOf(0) } // 0 = System, 1 = Light, 2 = Dark
-                var useMonet by remember { mutableStateOf(false) }
-                var seedColorHex by remember { mutableStateOf(0xFF007AFF.toInt()) }
-                var useFloatingBottomBar by remember { mutableStateOf(false) }
-                var floatingBarStyle by remember { mutableStateOf(0) } // 0 = Miuix, 1 = iOS-like
-                var predictiveBackStyle by remember { mutableStateOf(0) } // 0 = Miuix, 1 = Scale
-                var predictiveBackFollowGesture by remember { mutableStateOf(true) }
+            // Theme settings states
+            var themeMode by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
+            var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
+            var seedColorHex by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())) }
+            var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
+            var floatingBarStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
+            var predictiveBackStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
+            var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
 
-                val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
+            val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
 
-                // State variables for toggles
-                var aodFullscreen by remember { mutableStateOf(false) }
-                var removeGms by remember { mutableStateOf(false) }
-                var hideFingerprint by remember { mutableStateOf(false) }
-                var showInSettings by remember { mutableStateOf(false) }
-                var hideLauncherIcon by remember { mutableStateOf(false) }
-                var sliderShowPercentage by remember { mutableStateOf(false) }
-                var sliderSamePercentageStyle by remember { mutableStateOf(false) }
+            // State variables for toggles
+            var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
+            var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
+            var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
+            var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
+            var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
+            var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
+            var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
 
-                val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
-                val coroutineScope = rememberCoroutineScope()
+            val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
+            val coroutineScope = rememberCoroutineScope()
 
-                // Sync UI state when Preferences are initialized or service binds (All reads asynchronous)
-                LaunchedEffect(serviceConnected) {
-                    if (Preferences.isInitialized) {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val aod = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
-                            val removeGmsVal = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
-                            val hideFingerprintVal = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
-                            val showInSettingsVal = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
-                            val hideLauncherIconVal = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
-                            val sliderShowVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-                            val sliderSameStyleVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+            // Sync UI state when Preferences are initialized or service binds (All reads asynchronous)
+            LaunchedEffect(serviceConnected) {
+                if (Preferences.isInitialized) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        val aod = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
+                        val removeGmsVal = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
+                        val hideFingerprintVal = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
+                        val showInSettingsVal = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
+                        val hideLauncherIconVal = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
+                        val sliderShowVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+                        val sliderSameStyleVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
 
-                            val themeModeVal = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
-                            val useMonetVal = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
-                            val seedColorHexVal = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
-                            val useFloatingBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)
-                            val floatingBarStyleVal = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
-                            val predictiveStyleVal = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
-                            val predictiveFollowVal = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
+                        val themeModeVal = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
+                        val useMonetVal = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
+                        val seedColorHexVal = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
+                        val useFloatingBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)
+                        val floatingBarStyleVal = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
+                        val predictiveStyleVal = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
+                        val predictiveFollowVal = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
 
-                            withContext(Dispatchers.Main) {
-                                aodFullscreen = aod
-                                removeGms = removeGmsVal
-                                hideFingerprint = hideFingerprintVal
-                                showInSettings = showInSettingsVal
-                                hideLauncherIcon = hideLauncherIconVal
-                                sliderShowPercentage = sliderShowVal
-                                sliderSamePercentageStyle = sliderSameStyleVal
+                        withContext(Dispatchers.Main) {
+                            aodFullscreen = aod
+                            removeGms = removeGmsVal
+                            hideFingerprint = hideFingerprintVal
+                            showInSettings = showInSettingsVal
+                            hideLauncherIcon = hideLauncherIconVal
+                            sliderShowPercentage = sliderShowVal
+                            sliderSamePercentageStyle = sliderSameStyleVal
 
-                                themeMode = themeModeVal
-                                useMonet = useMonetVal
-                                seedColorHex = seedColorHexVal
-                                useFloatingBottomBar = useFloatingBar
-                                floatingBarStyle = floatingBarStyleVal
-                                predictiveBackStyle = predictiveStyleVal
-                                predictiveBackFollowGesture = predictiveFollowVal
-                            }
+                            themeMode = themeModeVal
+                            useMonet = useMonetVal
+                            seedColorHex = seedColorHexVal
+                            useFloatingBottomBar = useFloatingBar
+                            floatingBarStyle = floatingBarStyleVal
+                            predictiveBackStyle = predictiveStyleVal
+                            predictiveBackFollowGesture = predictiveFollowVal
                         }
                     }
                 }
+            }
 
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val moduleActive = isModuleActive() || serviceConnected != null
-                val isDark = isSystemInDarkTheme()
-                val resolvedSeedColorHex = remember(seedColorHex, context) {
-                    if (seedColorHex == 0) {
-                        getSystemAccentColor(context)
-                    } else {
-                        seedColorHex
-                    }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val moduleActive = isModuleActive() || serviceConnected != null
+            val isDark = isSystemInDarkTheme()
+            val resolvedSeedColorHex = remember(seedColorHex, context) {
+                if (seedColorHex == 0) {
+                    getSystemAccentColor(context)
+                } else {
+                    seedColorHex
                 }
+            }
 
-                val controller = remember(themeMode, useMonet, resolvedSeedColorHex, isDark) {
-                    val mode = when (themeMode) {
-                        1 -> if (useMonet) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
-                        2 -> if (useMonet) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
-                        else -> if (useMonet) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
-                    }
-                    ThemeController(
-                        colorSchemeMode = mode,
-                        keyColor = Color(resolvedSeedColorHex),
-                        isDark = when (themeMode) {
-                            1 -> false
-                            2 -> true
-                            else -> null
-                        }
-                    )
+            val controller = remember(themeMode, useMonet, resolvedSeedColorHex, isDark) {
+                val mode = when (themeMode) {
+                    1 -> if (useMonet) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
+                    2 -> if (useMonet) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
+                    else -> if (useMonet) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
                 }
-
-                val backStack = remember { mutableStateListOf<Route>(Route.Main) }
-
-                val isPagerBackHandlerEnabled by remember(backStack, pagerState.currentPage) {
-                    derivedStateOf {
-                        backStack.lastOrNull() is Route.Main && backStack.size == 1 && pagerState.currentPage != 0
-                    }
-                }
-
-                val navEventState = rememberNavigationEventState(NavigationEventInfo.None)
-
-                NavigationBackHandler(
-                    state = navEventState,
-                    isBackEnabled = isPagerBackHandlerEnabled,
-                    onBackCompleted = {
-                        android.util.Log.d("HyperTweak", "First back completed. Pager scrolling to 0.")
-                        coroutineScope.launch {
-                            pagerState.scrollToPage(0)
-                        }
+                ThemeController(
+                    colorSchemeMode = mode,
+                    keyColor = Color(resolvedSeedColorHex),
+                    isDark = when (themeMode) {
+                        1 -> false
+                        2 -> true
+                        else -> null
                     }
                 )
+            }
 
-                // Scale predictive back states
-                var exitingPageKey by remember { mutableStateOf<String?>(null) }
-                val exitAnimatable = remember { Animatable(0f) }
-                var inPredictiveBackAnimation by remember { mutableStateOf(false) }
+            val backStack = remember { mutableStateListOf<Route>(Route.Main) }
 
-                MiuixTheme(controller = controller) {
-                    val surfaceColor = MiuixTheme.colorScheme.surface
-                    val backdrop = rememberLayerBackdrop {
-                        drawRect(surfaceColor)
-                        drawContent()
+            val isPagerBackHandlerEnabled by remember(backStack, pagerState.currentPage) {
+                derivedStateOf {
+                    backStack.lastOrNull() is Route.Main && backStack.size == 1 && pagerState.currentPage != 0
+                }
+            }
+
+            val navEventState = rememberNavigationEventState(NavigationEventInfo.None)
+
+            NavigationBackHandler(
+                state = navEventState,
+                isBackEnabled = isPagerBackHandlerEnabled,
+                onBackCompleted = {
+                    android.util.Log.d("HyperTweak", "First back completed. Pager scrolling to 0.")
+                    coroutineScope.launch {
+                        pagerState.scrollToPage(0)
                     }
+                }
+            )
+
+            // Scale predictive back states
+            var exitingPageKey by remember { mutableStateOf<String?>(null) }
+            val exitAnimatable = remember { Animatable(0f) }
+            var inPredictiveBackAnimation by remember { mutableStateOf(false) }
+
+            MiuixTheme(controller = controller) {
+                val surfaceColor = MiuixTheme.colorScheme.surface
+                val backdrop = rememberLayerBackdrop {
+                    drawRect(surfaceColor)
+                    drawContent()
+                }
 
                     var gestureState: NavigationEventState<SceneInfo<Route>>? = null
 
@@ -395,46 +395,7 @@ class MainActivity : ComponentActivity() {
                         entryProvider = entryProvider
                     )
 
-                    val sceneState = rememberSceneState(
-                        entries = entries,
-                        sceneStrategies = listOf(SinglePaneSceneStrategy()),
-                        sceneDecoratorStrategies = emptyList(),
-                        sharedTransitionScope = null,
-                        onBack = {
-                            if (predictiveBackStyle == 2 && inPredictiveBackAnimation) {
-                                coroutineScope.launch {
-                                    exitingPageKey = backStack.lastOrNull()?.toString()
-                                    exitAnimatable.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(
-                                            durationMillis = 200,
-                                            easing = FastOutSlowInEasing
-                                        )
-                                    )
-                                    exitAnimatable.snapTo(0f)
-                                    if (backStack.size > 1) {
-                                        backStack.removeLast()
-                                    }
-                                }
-                            } else {
-                                if (backStack.size > 1) {
-                                    backStack.removeLast()
-                                }
-                            }
-                        }
-                    )
-
-                    val currentInfo = SceneInfo(sceneState.currentScene)
-                    val previousSceneInfos = sceneState.previousScenes.map { SceneInfo(it) }
-                    gestureState = rememberNavigationEventState(
-                        currentInfo = currentInfo,
-                        backInfo = previousSceneInfos
-                    )
-
-                    // Standard BackHandler to definitively intercept back on sub-pages
-                    // (NavigationBackHandler alone does not reliably prevent exiting to desktop)
-                    BackHandler(enabled = backStack.size > 1) {
-                        android.util.Log.d("HyperTweak", "BackHandler fired. backStack size = ${backStack.size}")
+                    val onBack: () -> Unit = {
                         if (predictiveBackStyle == 2 && inPredictiveBackAnimation) {
                             coroutineScope.launch {
                                 exitingPageKey = backStack.lastOrNull()?.toString()
@@ -446,19 +407,44 @@ class MainActivity : ComponentActivity() {
                                     )
                                 )
                                 exitAnimatable.snapTo(0f)
-                                if (backStack.size > 1) backStack.removeLast()
+                                if (backStack.size > 1) {
+                                    backStack.removeLast()
+                                }
                             }
                         } else {
-                            if (backStack.size > 1) backStack.removeLast()
+                            if (backStack.size > 1) {
+                                backStack.removeLast()
+                            }
                         }
+                    }
+
+                    val sceneState = rememberSceneState(
+                        entries = entries,
+                        sceneStrategies = listOf(SinglePaneSceneStrategy()),
+                        sceneDecoratorStrategies = emptyList(),
+                        sharedTransitionScope = null,
+                        onBack = onBack
+                    )
+
+                    val currentInfo = SceneInfo(sceneState.currentScene)
+                    val previousSceneInfos = sceneState.previousScenes.map { SceneInfo(it) }
+                    gestureState = rememberNavigationEventState(
+                        currentInfo = currentInfo,
+                        backInfo = previousSceneInfos
+                    )
+
+                    // Standard BackHandler to definitively intercept back on sub-pages
+                    BackHandler(enabled = backStack.size > 1 && predictiveBackStyle == 0) {
+                        android.util.Log.d("HyperTweak", "BackHandler fired. backStack size = ${backStack.size}")
+                        onBack()
                     }
 
                     NavigationBackHandler(
                         state = gestureState!!,
-                        isBackEnabled = backStack.size > 1,
+                        isBackEnabled = backStack.size > 1 && predictiveBackStyle != 0,
                         onBackCompleted = {
                             android.util.Log.d("HyperTweak", "Second NavigationBackHandler completed. backStack size = ${backStack.size}")
-                            if (backStack.size > 1) backStack.removeLast()
+                            onBack()
                         }
                     )
 
@@ -491,7 +477,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
 
     private fun setLauncherIconVisible(context: Context, visible: Boolean) {
         try {

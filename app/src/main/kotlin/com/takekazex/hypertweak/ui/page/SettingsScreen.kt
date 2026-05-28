@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,12 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.getSystemAccentColor
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.textureBlur
 
 @Composable
 fun SettingsScreenContent(
@@ -57,11 +64,26 @@ fun SettingsScreenContent(
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
+
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Settings",
+                modifier = Modifier.textureBlur(
+                    backdrop = topBarBackdrop,
+                    shape = RectangleShape,
+                    blurRadius = 25f,
+                    colors = BlurDefaults.blurColors(blendColors = listOf(
+                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                    ))
+                ),
+                color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
         }
@@ -69,13 +91,13 @@ fun SettingsScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
+                .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Theme Settings

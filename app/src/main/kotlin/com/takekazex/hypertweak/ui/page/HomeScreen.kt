@@ -25,8 +25,15 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.textureBlur
 
 @Composable
 fun HomeScreenContent(
@@ -48,11 +55,26 @@ fun HomeScreenContent(
         if (isDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C)
     }
 
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
+
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Ink Tweaks",
+                modifier = Modifier.textureBlur(
+                    backdrop = topBarBackdrop,
+                    shape = RectangleShape,
+                    blurRadius = 25f,
+                    colors = BlurDefaults.blurColors(blendColors = listOf(
+                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                    ))
+                ),
+                color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
         }
@@ -60,13 +82,13 @@ fun HomeScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
+                .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Large Status Card

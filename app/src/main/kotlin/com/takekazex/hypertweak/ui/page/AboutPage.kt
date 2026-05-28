@@ -60,38 +60,42 @@ fun AboutPage(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .verticalScroll(scrollState)
                 ) {
                     // Push content below back button safe area
                     Spacer(modifier = Modifier.height(72.dp))
 
-                    // App icon
-                    Icon(
-                        imageVector = MiuixIcons.Favorites,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(80.dp),
-                        contentDescription = null
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // App icon
+                        Icon(
+                            imageVector = MiuixIcons.Favorites,
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(80.dp),
+                            contentDescription = null
+                        )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    // Large app name title (like InstallerX title2 style)
-                    Text(
-                        text = "Ink Tweaks",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
+                        // Large app name title (like InstallerX title2 style)
+                        Text(
+                            text = "Ink Tweaks",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                    // Version subtitle with reduced opacity
-                    Text(
-                        text = "Version 1.0 (1)",
-                        color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                        fontSize = 15.sp
-                    )
+                        // Version subtitle with reduced opacity
+                        Text(
+                            text = "Version 1.0 (1)",
+                            color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                            fontSize = 15.sp
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 

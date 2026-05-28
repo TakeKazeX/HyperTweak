@@ -210,7 +210,7 @@ fun MainPagerScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = true,
-                beyondViewportPageCount = 2
+                beyondViewportPageCount = 0
             ) { page ->
                 when (page) {
                     0 -> {

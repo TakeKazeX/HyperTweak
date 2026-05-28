@@ -15,6 +15,15 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.textureBlur
 
 @Composable
 fun TweaksScreenContent(
@@ -30,11 +39,26 @@ fun TweaksScreenContent(
     sliderSamePercentageStyle: Boolean,
     onSliderSamePercentageChange: (Boolean) -> Unit
 ) {
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
+
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Features",
+                modifier = Modifier.textureBlur(
+                    backdrop = topBarBackdrop,
+                    shape = RectangleShape,
+                    blurRadius = 25f,
+                    colors = BlurDefaults.blurColors(blendColors = listOf(
+                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                    ))
+                ),
+                color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
         }
@@ -42,13 +66,13 @@ fun TweaksScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
+                .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Scope 1: Lockscreen & Display
