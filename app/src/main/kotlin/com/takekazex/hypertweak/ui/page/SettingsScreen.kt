@@ -62,6 +62,8 @@ fun SettingsScreenContent(
     onPredictiveBackStyleChange: (Int) -> Unit,
     predictiveBackFollowGesture: Boolean,
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
+    allowLandscape: Boolean,
+    onAllowLandscapeChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -91,6 +93,7 @@ fun SettingsScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                 .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
@@ -244,6 +247,13 @@ fun SettingsScreenContent(
                         onCheckedChange = onHideLauncherIconChange,
                         title = "Hide Desktop Icon",
                         summary = "Hide launcher icon (access module via LSPosed or system settings)"
+                    )
+
+                    SwitchPreference(
+                        checked = allowLandscape,
+                        onCheckedChange = onAllowLandscapeChange,
+                        title = "Allow Landscape Mode",
+                        summary = "Enable rotation to horizontal screen orientation"
                     )
                 }
             }

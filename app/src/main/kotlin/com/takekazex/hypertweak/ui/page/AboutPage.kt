@@ -62,7 +62,7 @@ fun AboutPage(
             SmallTopAppBar(
                 title = "About",
                 scrollBehavior = topAppBarScrollBehavior,
-                color = MiuixTheme.colorScheme.surface.copy(alpha = scrollProgress),
+                color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
                 titleColor = MiuixTheme.colorScheme.onSurface.copy(alpha = scrollProgress),
                 navigationIcon = {
                     IconButton(
@@ -86,12 +86,12 @@ fun AboutPage(
                 bgModifier = Modifier.layerBackdrop(localBackdrop),
                 alpha = { 1f - scrollProgress },
             ) {
-                // Fixed/Parallax Logo Header
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(top = 56.dp)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .graphicsLayer {
                             alpha = 1f - scrollProgress
                             val scale = 1f - (scrollProgress * 0.08f)
@@ -103,46 +103,37 @@ fun AboutPage(
                 ) {
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    // App icon with premium texture blur background
-                    Box(contentAlignment = Alignment.Center) {
+                    // App icon with premium glassmorphic background box
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .textureBlur(
+                                backdrop = localBackdrop,
+                                shape = RoundedCornerShape(20.dp),
+                                blurRadius = 25f,
+                                colors = BlurDefaults.blurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.4f))
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
                             imageVector = MiuixIcons.Favorites,
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .size(88.dp)
-                                .textureBlur(
-                                    backdrop = localBackdrop,
-                                    shape = RoundedCornerShape(18.dp),
-                                    blurRadius = 150f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(color = MiuixTheme.colorScheme.primary.copy(0.2f))
-                                        )
-                                    ),
-                                    enabled = true
-                                ),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(44.dp),
                             contentDescription = null
                         )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Large app title with glassmorphism texture blur
+                    // Large app title (sharp and crisp)
                     Text(
-                        modifier = Modifier.textureBlur(
-                            backdrop = localBackdrop,
-                            shape = RoundedCornerShape(8.dp),
-                            blurRadius = 100f,
-                            colors = BlurDefaults.blurColors(
-                                blendColors = listOf(
-                                    BlendColorEntry(color = MiuixTheme.colorScheme.onSurface.copy(0.05f))
-                                )
-                            ),
-                            enabled = true
-                        ),
                         text = "Ink Tweaks",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 35.sp,
+                        fontSize = 32.sp,
                         color = MiuixTheme.colorScheme.onSurface
                     )
 
@@ -161,6 +152,7 @@ fun AboutPage(
                     state = lazyListState,
                     modifier = Modifier
                         .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                     contentPadding = PaddingValues(
                         bottom = innerPadding.calculateBottomPadding() + 48.dp

@@ -64,6 +64,8 @@ fun MainPagerScreen(
     onPredictiveBackStyleChange: (Int) -> Unit,
     predictiveBackFollowGesture: Boolean,
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
+    allowLandscape: Boolean,
+    onAllowLandscapeChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -257,6 +259,8 @@ fun MainPagerScreen(
                             onPredictiveBackStyleChange = onPredictiveBackStyleChange,
                             predictiveBackFollowGesture = predictiveBackFollowGesture,
                             onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
+                            allowLandscape = allowLandscape,
+                            onAllowLandscapeChange = onAllowLandscapeChange,
                             onNavigateToAbout = onNavigateToAbout
                         )
                     }

@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
             var floatingBarStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
+            var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
 
@@ -108,6 +109,14 @@ class MainActivity : ComponentActivity() {
 
             val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
             val coroutineScope = rememberCoroutineScope()
+
+            LaunchedEffect(allowLandscape) {
+                requestedOrientation = if (allowLandscape) {
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                } else {
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                }
+            }
 
             val context = androidx.compose.ui.platform.LocalContext.current
             val moduleActive = isModuleActive() || serviceConnected != null
@@ -275,6 +284,13 @@ class MainActivity : ComponentActivity() {
                                         predictiveBackFollowGesture = follow
                                         coroutineScope.launch(Dispatchers.IO) {
                                             Preferences.putBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, follow)
+                                        }
+                                    },
+                                    allowLandscape = allowLandscape,
+                                    onAllowLandscapeChange = { allowed ->
+                                        allowLandscape = allowed
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            Preferences.putBoolean(Preferences.KEY_ALLOW_LANDSCAPE, allowed)
                                         }
                                     },
                                     onNavigateToAbout = {
