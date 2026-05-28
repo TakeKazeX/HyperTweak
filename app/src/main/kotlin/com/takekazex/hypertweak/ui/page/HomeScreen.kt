@@ -57,12 +57,17 @@ fun HomeScreenContent(
     }
 
     val topAppBarScrollBehavior = MiuixScrollBehavior()
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Ink Tweaks",
                 modifier = Modifier.textureBlur(
-                    backdrop = backdrop,
+                    backdrop = topBarBackdrop,
                     shape = RectangleShape,
                     blurRadius = 25f,
                     colors = BlurDefaults.blurColors(blendColors = listOf(
@@ -78,7 +83,7 @@ fun HomeScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .layerBackdrop(backdrop)
+                .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),

@@ -16,7 +16,6 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -29,7 +28,6 @@ import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.HorizontalSplit
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
@@ -85,75 +83,60 @@ fun MainPagerScreen(
     Scaffold(
         bottomBar = {
             if (useFloatingBottomBar) {
-                if (floatingBarStyle == 1) {
-                    val items = remember {
-                        listOf(
-                            NavigationItem("Home", MiuixIcons.HorizontalSplit),
-                            NavigationItem("Tweaks", MiuixIcons.Favorites),
-                            NavigationItem("Settings", MiuixIcons.Settings)
+                // floatingBarStyle 1 (LiquidGlass) is disabled due to a MIUI HWUI bug:
+                // MiBackgroundBlurBlend::preUpdateInfo recursively traverses the RenderNode
+                // tree for every blur node, causing a stack overflow when the Compose UI
+                // tree depth is large. textureBlur uses Android's native RenderEffect
+                // (createBlurEffect) and does not go through the MIUI HWUI extension,
+                // so it is safe on all MIUI/HyperOS devices.
+                FloatingNavigationBar(
+                    modifier = if (blurActive) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = floatingBarShape,
+                            blurRadius = 25f,
+                            colors = BlurDefaults.blurColors(
+                                blendColors = listOf(
+                                    BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
+                                ),
+                            ),
+                            highlight = floatingHighlight,
                         )
-                    }
-                    IosLiquidGlassNavigationBar(
-                        items = items,
-                        pagerState = pagerState,
-                        onItemClick = { index ->
+                    } else {
+                        Modifier
+                    },
+                    color = floatingBarColor,
+                ) {
+                    FloatingNavigationBarItem(
+                        selected = pagerState.currentPage == 0,
+                        onClick = {
                             coroutineScope.launch {
-                                pagerState.scrollToPage(index)
+                                pagerState.scrollToPage(0)
                             }
                         },
-                        backdrop = backdrop,
-                        isBlurActive = blurActive
+                        icon = MiuixIcons.HorizontalSplit,
+                        label = "Home"
                     )
-                } else {
-                    FloatingNavigationBar(
-                        modifier = if (blurActive) {
-                            Modifier.textureBlur(
-                                backdrop = backdrop,
-                                shape = floatingBarShape,
-                                blurRadius = 25f,
-                                colors = BlurDefaults.blurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
-                                    ),
-                                ),
-                                highlight = floatingHighlight,
-                            )
-                        } else {
-                            Modifier
+                    FloatingNavigationBarItem(
+                        selected = pagerState.currentPage == 1,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(1)
+                            }
                         },
-                        color = floatingBarColor,
-                    ) {
-                        FloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 0,
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(0)
-                                }
-                            },
-                            icon = MiuixIcons.HorizontalSplit,
-                            label = "Home"
-                        )
-                        FloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 1,
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(1)
-                                }
-                            },
-                            icon = MiuixIcons.Favorites,
-                            label = "Tweaks"
-                        )
-                        FloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 2,
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(2)
-                                }
-                            },
-                            icon = MiuixIcons.Settings,
-                            label = "Settings"
-                        )
-                    }
+                        icon = MiuixIcons.Favorites,
+                        label = "Tweaks"
+                    )
+                    FloatingNavigationBarItem(
+                        selected = pagerState.currentPage == 2,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.scrollToPage(2)
+                            }
+                        },
+                        icon = MiuixIcons.Settings,
+                        label = "Settings"
+                    )
                 }
             } else {
                 NavigationBar(

@@ -73,13 +73,18 @@ fun SettingsScreenContent(
     onNavigateToAbout: () -> Unit,
     backdrop: LayerBackdrop
 ) {
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Settings",
                 modifier = Modifier.textureBlur(
-                    backdrop = backdrop,
+                    backdrop = topBarBackdrop,
                     shape = RectangleShape,
                     blurRadius = 25f,
                     colors = BlurDefaults.blurColors(blendColors = listOf(
@@ -95,7 +100,7 @@ fun SettingsScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .layerBackdrop(backdrop)
+                .layerBackdrop(topBarBackdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),

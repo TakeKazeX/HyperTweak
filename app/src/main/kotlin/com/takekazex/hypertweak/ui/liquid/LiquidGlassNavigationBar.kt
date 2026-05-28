@@ -372,6 +372,9 @@ fun IosLiquidGlassNavigationBar(
                             indication = null,
                             onClick = {},
                         )
+                        // Capture this pill's rendered output for the indicator's combinedBackdrop.
+                        // Must come BEFORE drawBackdrop so the capture sees the blurred surface.
+                        .then(if (isBlurActive) Modifier.layerBackdrop(tabsBackdrop) else Modifier)
                         .then(
                             if (isBlurActive && backdrop != null) {
                                 Modifier.drawBackdrop(
@@ -408,39 +411,6 @@ fun IosLiquidGlassNavigationBar(
                     verticalAlignment = Alignment.CenterVertically,
                     content = tabsContent,
                 )
-            }
-
-            if (isBlurActive && backdrop != null) {
-                CompositionLocalProvider(
-                    LocalIosTabScale provides { lerp(1f, 1.2f, dampedDrag.pressProgress) },
-                    LocalContentColor provides accentColor,
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .clearAndSetSemantics {}
-                            .alpha(0f)
-                            .layerBackdrop(tabsBackdrop)
-                            .graphicsLayer { translationX = panelOffset }
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { pillShape },
-                                effects = {
-                                    vibrancy()
-                                    blur(4.dp.toPx(), 4.dp.toPx())
-                                    lens(
-                                        refractionHeight = 24.dp.toPx(),
-                                        refractionAmount = 24.dp.toPx(),
-                                    )
-                                },
-                                onDrawSurface = { drawRect(containerColor) },
-                            )
-                            .then(interactiveHighlight.modifier)
-                            .height(56.dp)
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        content = tabsContent,
-                    )
-                }
             }
 
             if (tabWidthPx > 0f) {
