@@ -22,9 +22,16 @@ object Preferences {
     const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
 
     private lateinit var remotePrefs: SharedPreferences
+    private var isLocalOnly = false
 
-    fun init(prefs: SharedPreferences) {
+    fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
+        if (isLocalOnly && !useLocalOnly) {
+            return
+        }
         remotePrefs = prefs
+        if (useLocalOnly) {
+            isLocalOnly = true
+        }
     }
 
     val isInitialized: Boolean

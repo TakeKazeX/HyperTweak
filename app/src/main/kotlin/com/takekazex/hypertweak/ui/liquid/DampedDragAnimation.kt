@@ -144,6 +144,17 @@ internal class DampedDragAnimation(
         }
     }
 
+    fun updatePressProgress(progress: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                pressProgressAnimation.snapTo(progress)
+                val targetScale = initialScale + (pressedScale - initialScale) * progress
+                scaleXAnimation.snapTo(targetScale)
+                scaleYAnimation.snapTo(targetScale)
+            }
+        }
+    }
+
 
     fun animateToValue(value: Float) {
         animationScope.launch {

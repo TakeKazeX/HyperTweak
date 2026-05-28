@@ -263,6 +263,9 @@ fun IosLiquidGlassNavigationBar(
         if (pagerState.isScrollInProgress) {
             val progress = pagerState.currentPage + pagerState.currentPageOffsetFraction
             dampedDrag.snapToValue(progress)
+            val diff = progress - progress.roundToInt()
+            val swipeProgress = (2f * abs(diff)).coerceIn(0f, 1f)
+            dampedDrag.updatePressProgress(swipeProgress)
         } else {
             dampedDrag.animateToValue(pagerState.currentPage.toFloat())
             if (currentIndex != pagerState.currentPage) {

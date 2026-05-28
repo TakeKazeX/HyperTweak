@@ -1,14 +1,15 @@
 package com.takekazex.hypertweak.ui.page
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,8 +17,10 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -37,18 +40,44 @@ fun AboutPage(
     onViewSourceCode: () -> Unit,
     onNavigateToCredits: () -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    val scrollProgress = remember(scrollState.value) {
-        (scrollState.value.toFloat() / 600f).coerceIn(0f, 1f)
+    val lazyListState = rememberLazyListState()
+    val scrollProgress by remember {
+        derivedStateOf {
+            val index = lazyListState.firstVisibleItemIndex
+            val offset = lazyListState.firstVisibleItemScrollOffset
+            if (index > 0) 1f else (offset.toFloat() / 400f).coerceIn(0f, 1f)
+        }
     }
 
     val localBackdrop = rememberLayerBackdrop {
         drawContent()
     }
 
+    val topAppBarScrollBehavior = MiuixScrollBehavior()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
+        topBar = {
+            SmallTopAppBar(
+                title = "About",
+                scrollBehavior = topAppBarScrollBehavior,
+                color = MiuixTheme.colorScheme.surface.copy(alpha = scrollProgress),
+                titleColor = MiuixTheme.colorScheme.onSurface.copy(alpha = scrollProgress),
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             BgEffectBackground(
@@ -57,103 +86,126 @@ fun AboutPage(
                 bgModifier = Modifier.layerBackdrop(localBackdrop),
                 alpha = { 1f - scrollProgress },
             ) {
+                // Fixed/Parallax Logo Header
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 56.dp)
+                        .graphicsLayer {
+                            alpha = 1f - scrollProgress
+                            val scale = 1f - (scrollProgress * 0.08f)
+                            scaleX = scale
+                            scaleY = scale
+                            translationY = -scrollProgress * 120f
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Push content below back button safe area
-                    Spacer(modifier = Modifier.height(72.dp))
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // App icon
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // App icon with premium texture blur background
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = MiuixIcons.Favorites,
                             tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(80.dp),
+                            modifier = Modifier
+                                .size(88.dp)
+                                .textureBlur(
+                                    backdrop = localBackdrop,
+                                    shape = RoundedCornerShape(18.dp),
+                                    blurRadius = 150f,
+                                    colors = BlurDefaults.blurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(color = MiuixTheme.colorScheme.primary.copy(0.2f))
+                                        )
+                                    ),
+                                    enabled = true
+                                ),
                             contentDescription = null
                         )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Large app name title (like InstallerX title2 style)
-                        Text(
-                            text = "Ink Tweaks",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 28.sp,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Version subtitle with reduced opacity
-                        Text(
-                            text = "Version 1.0 (1)",
-                            color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                            fontSize = 15.sp
-                        )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // SmallTitle uses PaddingValues(28.dp, 8.dp) so it has proper left indent
-                    SmallTitle(text = "PROJECT")
-
-                    // Card with View Source Code & Credits links
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .textureBlur(
-                                backdrop = localBackdrop,
-                                shape = RoundedCornerShape(16.dp),
-                                blurRadius = 25f,
-                                colors = BlurDefaults.blurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
-                                    ),
+                    // Large app title with glassmorphism texture blur
+                    Text(
+                        modifier = Modifier.textureBlur(
+                            backdrop = localBackdrop,
+                            shape = RoundedCornerShape(8.dp),
+                            blurRadius = 100f,
+                            colors = BlurDefaults.blurColors(
+                                blendColors = listOf(
+                                    BlendColorEntry(color = MiuixTheme.colorScheme.onSurface.copy(0.05f))
                                 )
                             ),
-                        colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = "View Source Code",
-                                summary = "Check the GitHub repository",
-                                onClick = onViewSourceCode
-                            )
-                            ArrowPreference(
-                                title = "Credits & Acknowledgements",
-                                summary = "View open source libraries and contributors",
-                                onClick = onNavigateToCredits
-                            )
-                        }
+                            enabled = true
+                        ),
+                        text = "Ink Tweaks",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 35.sp,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Version subtitle
+                    Text(
+                        text = "Version 1.0 (1)",
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // Scrollable content on top
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+                    contentPadding = PaddingValues(
+                        bottom = innerPadding.calculateBottomPadding() + 48.dp
+                    )
+                ) {
+                    item {
+                        // Spacer overlay matching the height of the parallax logo header
+                        Spacer(modifier = Modifier.height(280.dp))
                     }
 
-                    Spacer(modifier = Modifier.height(48.dp))
-                }
-            }
+                    item {
+                        SmallTitle(text = "PROJECT")
+                    }
 
-            // Floating Top-Left Back Button with Status Bar Padding
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                contentAlignment = Alignment.TopStart
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Back,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        contentDescription = "Back"
-                    )
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                                .textureBlur(
+                                    backdrop = localBackdrop,
+                                    shape = RoundedCornerShape(16.dp),
+                                    blurRadius = 25f,
+                                    colors = BlurDefaults.blurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.3f)),
+                                        ),
+                                    )
+                                ),
+                            colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                ArrowPreference(
+                                    title = "View Source Code",
+                                    summary = "Check the GitHub repository",
+                                    onClick = onViewSourceCode
+                                )
+                                ArrowPreference(
+                                    title = "Credits & Acknowledgements",
+                                    summary = "View open source libraries and contributors",
+                                    onClick = onNavigateToCredits
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

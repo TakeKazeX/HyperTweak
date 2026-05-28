@@ -85,13 +85,6 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
-        // Init connection to LSPosed preferences
-        XposedServiceManager.init()
-
-        // Synchronously initialize local preferences to prevent theme flash on cold start
-        val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
-        Preferences.init(localPrefs)
-
         setContent {
             // Theme settings states
             var themeMode by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
@@ -115,47 +108,6 @@ class MainActivity : ComponentActivity() {
 
             val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
             val coroutineScope = rememberCoroutineScope()
-
-            // Sync UI state when Preferences are initialized or service binds (All reads asynchronous)
-            LaunchedEffect(serviceConnected) {
-                if (Preferences.isInitialized) {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        val aod = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
-                        val removeGmsVal = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
-                        val hideFingerprintVal = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
-                        val showInSettingsVal = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
-                        val hideLauncherIconVal = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
-                        val sliderShowVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-                        val sliderSameStyleVal = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-
-                        val themeModeVal = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
-                        val useMonetVal = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
-                        val seedColorHexVal = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
-                        val useFloatingBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)
-                        val floatingBarStyleVal = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
-                        val predictiveStyleVal = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
-                        val predictiveFollowVal = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
-
-                        withContext(Dispatchers.Main) {
-                            aodFullscreen = aod
-                            removeGms = removeGmsVal
-                            hideFingerprint = hideFingerprintVal
-                            showInSettings = showInSettingsVal
-                            hideLauncherIcon = hideLauncherIconVal
-                            sliderShowPercentage = sliderShowVal
-                            sliderSamePercentageStyle = sliderSameStyleVal
-
-                            themeMode = themeModeVal
-                            useMonet = useMonetVal
-                            seedColorHex = seedColorHexVal
-                            useFloatingBottomBar = useFloatingBar
-                            floatingBarStyle = floatingBarStyleVal
-                            predictiveBackStyle = predictiveStyleVal
-                            predictiveBackFollowGesture = predictiveFollowVal
-                        }
-                    }
-                }
-            }
 
             val context = androidx.compose.ui.platform.LocalContext.current
             val moduleActive = isModuleActive() || serviceConnected != null
@@ -209,7 +161,6 @@ class MainActivity : ComponentActivity() {
             // Scale predictive back states
             var exitingPageKey by remember { mutableStateOf<String?>(null) }
             val exitAnimatable = remember { Animatable(0f) }
-            var inPredictiveBackAnimation by remember { mutableStateOf(false) }
 
             MiuixTheme(controller = controller) {
                 val surfaceColor = MiuixTheme.colorScheme.surface
@@ -375,10 +326,7 @@ class MainActivity : ComponentActivity() {
                                     currentPageKey = backStack.lastOrNull(),
                                     exitFollowGesture = predictiveBackFollowGesture,
                                     exitAnimatableValue = exitAnimatable.value,
-                                    exitingPageKey = exitingPageKey,
-                                    onInPredictiveBackChanged = { inAnim ->
-                                        inPredictiveBackAnimation = inAnim
-                                    }
+                                    exitingPageKey = exitingPageKey
                                 )
                             } else {
                                 Modifier
@@ -396,9 +344,13 @@ class MainActivity : ComponentActivity() {
                     )
 
                     val onBack: () -> Unit = {
-                        if (predictiveBackStyle == 2 && inPredictiveBackAnimation) {
+                        val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
+                        if (predictiveBackStyle == 2 && isPredictiveInProgress) {
                             coroutineScope.launch {
+                                val currentProgress = (gestureState?.transitionState as? NavigationEventTransitionState.InProgress)
+                                    ?.latestEvent?.progress ?: 0f
                                 exitingPageKey = backStack.lastOrNull()?.toString()
+                                exitAnimatable.snapTo(currentProgress)
                                 exitAnimatable.animateTo(
                                     targetValue = 1f,
                                     animationSpec = tween(

@@ -109,12 +109,15 @@ fun Modifier.scalePredictiveBackDecorator(
             )
     } else {
         val progressInProgress = (transitionState as? NavigationEventTransitionState.InProgress)
-        if (progressInProgress != null) {
-            val progress = if (exitingPageKey == null) {
-                progressInProgress.latestEvent.progress
-            } else {
-                exitAnimatableValue
-            }
+        val progress = if (exitingPageKey != null) {
+            exitAnimatableValue
+        } else if (progressInProgress != null) {
+            progressInProgress.latestEvent.progress
+        } else {
+            null
+        }
+
+        if (progress != null) {
             val dynamicScale = 0.85f + 0.15f * progress
             val dynamicAlpha = 0.5f * (1f - progress)
 
