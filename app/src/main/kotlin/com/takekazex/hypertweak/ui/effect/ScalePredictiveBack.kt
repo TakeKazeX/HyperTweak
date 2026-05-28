@@ -54,8 +54,7 @@ fun Modifier.scalePredictiveBackDecorator(
     currentPageKey: NavKey?,
     exitFollowGesture: Boolean,
     exitAnimatableValue: Float,
-    exitingPageKey: String?,
-    onInPredictiveBackChanged: (Boolean) -> Unit
+    exitingPageKey: String?
 ): Modifier {
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val navContent = LocalNavAnimatedContentScope.current
@@ -75,10 +74,6 @@ fun Modifier.scalePredictiveBackDecorator(
                 androidx.compose.animation.EnterExitState.PostExit -> 0.85f
                 else -> 1f
             }
-        }
-
-        SideEffect {
-            onInPredictiveBackChanged(animatedScale != 1f)
         }
 
         val progressInProgress = (transitionState as? NavigationEventTransitionState.InProgress)
@@ -113,12 +108,21 @@ fun Modifier.scalePredictiveBackDecorator(
                 else RectangleShape
             )
     } else {
-        if (transitionState is NavigationEventTransitionState.InProgress) {
-            val progress = if (exitingPageKey == null) 1f else exitAnimatableValue
+        val progressInProgress = (transitionState as? NavigationEventTransitionState.InProgress)
+        if (progressInProgress != null) {
+            val progress = if (exitingPageKey == null) {
+                progressInProgress.latestEvent.progress
+            } else {
+                exitAnimatableValue
+            }
+            val dynamicScale = 0.85f + 0.15f * progress
             val dynamicAlpha = 0.5f * (1f - progress)
 
             return this
-                .graphicsLayer()
+                .graphicsLayer {
+                    scaleX = dynamicScale
+                    scaleY = dynamicScale
+                }
                 .drawWithContent {
                     drawContent()
                     drawRect(color = Color.Black.copy(alpha = dynamicAlpha))
