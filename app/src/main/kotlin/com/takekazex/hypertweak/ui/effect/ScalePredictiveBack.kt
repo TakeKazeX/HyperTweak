@@ -55,52 +55,36 @@ fun Modifier.scalePredictiveBackDecorator(
     contentPageKey: Any,
     currentPageKey: NavKey?,
     exitFollowGesture: Boolean,
-    exitAnimatableValue: Float,
     exitingPageKey: String?
 ): Modifier {
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val density = androidx.compose.ui.platform.LocalDensity.current
+    val navContent = LocalNavAnimatedContentScope.current
 
     val containerHeightPx = windowInfo.containerSize.height
     val containerWidthPx = windowInfo.containerSize.width.toFloat()
     val pageKey = contentPageKey.toString()
+    val transition = navContent.transition
     val deviceCornerRadius = rememberDeviceCornerRadius()
 
-    // Remember last gesture states to avoid sudden jumps when transitionState is cleared to Idle
-    var lastGestureProgress by remember { mutableStateOf(0f) }
-    var lastSwipeEdge by remember { mutableStateOf(0) }
-    var lastTouchY by remember { mutableStateOf<Float?>(null) }
+    var inPredictiveBackAnimation by remember { mutableStateOf(false) }
 
-    if (transitionState is NavigationEventTransitionState.InProgress) {
-        val event = transitionState.latestEvent
-        lastGestureProgress = event.progress
-        lastSwipeEdge = event.swipeEdge
-        lastTouchY = event.touchY
-    }
-
-    val isExiting = exitingPageKey == pageKey
-
-    if (pageKey == currentPageKey.toString() || isExiting) {
-        // Foreground page (being swiped or exiting)
-        val progress = if (isExiting) {
-            exitAnimatableValue
-        } else if (transitionState is NavigationEventTransitionState.InProgress) {
-            transitionState.latestEvent.progress
-        } else {
-            0f
+    if (pageKey == currentPageKey.toString() || exitingPageKey == pageKey) {
+        val animatedScale by transition.animateFloat(
+            transitionSpec = { tween(300) },
+            label = "PredictiveScale"
+        ) { state ->
+            when (state) {
+                androidx.compose.animation.EnterExitState.PostExit -> 0.85f
+                else -> 1f
+            }
         }
 
-        val edge = if (transitionState is NavigationEventTransitionState.InProgress) {
-            transitionState.latestEvent.swipeEdge
-        } else {
-            lastSwipeEdge
-        }
+        inPredictiveBackAnimation = animatedScale != 1f
 
-        val touchY = if (transitionState is NavigationEventTransitionState.InProgress) {
-            transitionState.latestEvent.touchY
-        } else {
-            lastTouchY
-        }
+        val progressInProgress = (transitionState as? NavigationEventTransitionState.InProgress)
+        val edge = progressInProgress?.latestEvent?.swipeEdge ?: 0
+        val touchY = progressInProgress?.latestEvent?.touchY
 
         val currentPivotY = if (touchY != null && containerHeightPx > 0) {
             (touchY / containerHeightPx).coerceIn(0.1f, 0.9f)
@@ -114,29 +98,34 @@ fun Modifier.scalePredictiveBackDecorator(
             1f
         }
 
+        val exitProgress = if (pageKey != currentPageKey.toString()) {
+            1f
+        } else {
+            // Note: we could use an Animatable for the translation, but InstallerX uses
+            // translation mapping to exit progress. To avoid jumps, we use animatedScale mapping.
+            val mappedProgress = if (animatedScale < 1f) (1f - animatedScale) / 0.15f else 0f
+            if (exitingPageKey != null) mappedProgress else 0f
+        }
+
         // Slide slightly during active swipe, and interpolate to screen edge during exit
         val maxSlidePx = remember(density) { with(density) { 32.dp.toPx() } }
-        val translationX = if (isExiting) {
-            val releaseProgress = lastGestureProgress
-            val fraction = if (releaseProgress < 1f) {
-                ((progress - releaseProgress) / (1f - releaseProgress)).coerceIn(0f, 1f)
-            } else {
-                1f
-            }
-            val startTrans = releaseProgress * maxSlidePx * directionMultiplier
+        val translationX = if (exitingPageKey != null) {
+            // we use the mapped exitProgress to drive the translation out
+            val fraction = exitProgress.coerceIn(0f, 1f)
+            val startTrans = (progressInProgress?.latestEvent?.progress ?: 0f) * maxSlidePx * directionMultiplier
             val endTrans = containerWidthPx * directionMultiplier
             startTrans + (endTrans - startTrans) * fraction
         } else {
+            val progress = progressInProgress?.latestEvent?.progress ?: 0f
             progress * maxSlidePx * directionMultiplier
         }
 
-        val scale = 1.0f - (0.1f * progress)
-        val needsClip = progress > 0f || isExiting
+        val needsClip = inPredictiveBackAnimation || exitingPageKey != null
 
         return this
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                scaleX = animatedScale
+                scaleY = animatedScale
                 this.translationX = translationX
                 transformOrigin = TransformOrigin(currentPivotX, currentPivotY)
             }
@@ -145,25 +134,21 @@ fun Modifier.scalePredictiveBackDecorator(
                 else RectangleShape
             )
     } else {
-        // Background page (revealed underneath)
-        val progress = if (exitingPageKey != null) {
-            exitAnimatableValue
-        } else if (transitionState is NavigationEventTransitionState.InProgress) {
-            transitionState.latestEvent.progress
-        } else {
-            null
-        }
-
-        if (progress != null) {
+        val renderModifier = if (transitionState is NavigationEventTransitionState.InProgress) {
+            val progress = if (!inPredictiveBackAnimation) 1f else {
+                val mappedProgress = if (transition.currentState == androidx.compose.animation.EnterExitState.PostExit) 1f else 0f
+                mappedProgress
+            }
             val dynamicAlpha = 0.5f * (1f - progress)
 
-            return this
+            this
                 .graphicsLayer()
                 .drawWithContent {
                     drawContent()
                     drawRect(color = Color.Black.copy(alpha = dynamicAlpha))
                 }
-        }
-        return this
+        } else Modifier
+
+        return this.then(renderModifier)
     }
 }

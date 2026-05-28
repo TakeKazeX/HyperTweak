@@ -37,9 +37,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurColors
+import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -68,9 +70,12 @@ fun AboutPage(
         }
     }
 
+    val surfaceColor = MiuixTheme.colorScheme.surface
     val localBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
         drawContent()
     }
+    val contentReady = rememberContentReady()
 
     val topAppBarScrollBehavior = MiuixScrollBehavior()
 
@@ -191,7 +196,7 @@ fun AboutPage(
             BgEffectBackground(
                 dynamicBackground = true,
                 modifier = Modifier.fillMaxSize(),
-                bgModifier = Modifier.layerBackdrop(localBackdrop),
+                bgModifier = if (contentReady) Modifier.layerBackdrop(localBackdrop) else Modifier,
                 alpha = { 1f - scrollProgress },
             ) {
                 // Logo area
@@ -228,14 +233,14 @@ fun AboutPage(
                         Image(
                             modifier = Modifier
                                 .requiredSize(245.dp)
-                                .textureBlur(
+                                .then(if (contentReady) Modifier.textureBlur(
                                     backdrop = localBackdrop,
                                     shape = RoundedCornerShape(0.dp),
                                     blurRadius = 150f,
                                     colors = BlurColors(blendColors = logoBlend),
                                     contentBlendMode = ComposeBlendMode.DstIn,
                                     enabled = true,
-                                ),
+                                ) else Modifier),
                             painter = painterResource(id = com.takekazex.hypertweak.R.drawable.ic_launcher_foreground),
                             colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onBackground),
                             contentDescription = null,
@@ -255,14 +260,14 @@ fun AboutPage(
                                 scaleX = 1f - (projectNameProgress * 0.05f)
                                 scaleY = 1f - (projectNameProgress * 0.05f)
                             }
-                            .textureBlur(
+                            .then(if (contentReady) Modifier.textureBlur(
                                 backdrop = localBackdrop,
                                 shape = RoundedCornerShape(0.dp),
                                 blurRadius = 150f,
                                 colors = BlurColors(blendColors = logoBlend),
                                 contentBlendMode = ComposeBlendMode.DstIn,
                                 enabled = true,
-                            ),
+                            ) else Modifier),
                         text = "Ink Tweaks",
                         color = MiuixTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,

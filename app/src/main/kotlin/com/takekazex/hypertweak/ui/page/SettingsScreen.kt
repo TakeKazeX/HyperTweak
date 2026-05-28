@@ -40,6 +40,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import androidx.compose.material.icons.Icons
@@ -78,19 +79,24 @@ fun SettingsScreenContent(
         drawRect(surfaceColor)
         drawContent()
     }
+    val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Settings",
-                modifier = Modifier.textureBlur(
-                    backdrop = topBarBackdrop,
-                    shape = RectangleShape,
-                    blurRadius = 25f,
-                    colors = BlurDefaults.blurColors(blendColors = listOf(
-                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
-                    ))
-                ),
+                modifier = if (contentReady) {
+                    Modifier.textureBlur(
+                        backdrop = topBarBackdrop,
+                        shape = RectangleShape,
+                        blurRadius = 25f,
+                        colors = BlurDefaults.blurColors(blendColors = listOf(
+                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                        ))
+                    )
+                } else {
+                    Modifier
+                },
                 color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
@@ -100,7 +106,7 @@ fun SettingsScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .layerBackdrop(topBarBackdrop)
+                .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),

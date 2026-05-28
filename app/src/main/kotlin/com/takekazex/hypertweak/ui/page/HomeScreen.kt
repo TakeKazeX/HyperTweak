@@ -34,6 +34,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
 fun HomeScreenContent(
@@ -56,6 +57,7 @@ fun HomeScreenContent(
         if (isDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C)
     }
 
+    val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     val surfaceColor = MiuixTheme.colorScheme.surface
     val topBarBackdrop = rememberLayerBackdrop {
@@ -66,14 +68,18 @@ fun HomeScreenContent(
         topBar = {
             TopAppBar(
                 title = "Ink Tweaks",
-                modifier = Modifier.textureBlur(
-                    backdrop = topBarBackdrop,
-                    shape = RectangleShape,
-                    blurRadius = 25f,
-                    colors = BlurDefaults.blurColors(blendColors = listOf(
-                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
-                    ))
-                ),
+                modifier = if (contentReady) {
+                    Modifier.textureBlur(
+                        backdrop = topBarBackdrop,
+                        shape = RectangleShape,
+                        blurRadius = 25f,
+                        colors = BlurDefaults.blurColors(blendColors = listOf(
+                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                        ))
+                    )
+                } else {
+                    Modifier
+                },
                 color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
@@ -83,7 +89,7 @@ fun HomeScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .layerBackdrop(topBarBackdrop)
+                .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
