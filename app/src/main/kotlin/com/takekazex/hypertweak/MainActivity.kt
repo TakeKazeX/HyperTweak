@@ -33,6 +33,7 @@ import androidx.navigation3.scene.rememberSceneState
 import androidx.navigation3.ui.NavDisplay
 import androidx.navigation3.ui.defaultPopTransitionSpec
 import androidx.navigation3.ui.defaultPredictivePopTransitionSpec
+import androidx.navigation3.ui.defaultTransitionSpec
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigationevent.NavigationEventInfo
@@ -419,6 +420,17 @@ class MainActivity : ComponentActivity() {
                     NavDisplay(
                         sceneState = sceneState,
                         navigationEventState = gestureState!!,
+                        transitionSpec = {
+                            if (predictiveBackStyle == 2) {
+                                ContentTransform(
+                                    targetContentEnter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                                    initialContentExit = slideOutHorizontally(targetOffsetX = { -it / 4 }) + fadeOut(),
+                                    sizeTransform = null
+                                )
+                            } else {
+                                defaultTransitionSpec<Route>().invoke(this)
+                            }
+                        },
                         predictivePopTransitionSpec = { swipeEdge ->
                             if (predictiveBackStyle == 2 || predictiveBackStyle == 0) {
                                 ContentTransform(
