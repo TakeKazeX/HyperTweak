@@ -226,7 +226,8 @@ fun MainPagerScreen(
                                 padding = padding,
                                 moduleActive = moduleActive,
                                 packageName = "com.takekazex.hypertweak",
-                                targetSdk = 37
+                                targetSdk = 37,
+                                backdrop = backdrop
                             )
                         }
                     }
@@ -243,7 +244,8 @@ fun MainPagerScreen(
                                 sliderShowPercentage = sliderShowPercentage,
                                 onSliderShowPercentageChange = onSliderShowPercentageChange,
                                 sliderSamePercentageStyle = sliderSamePercentageStyle,
-                                onSliderSamePercentageChange = onSliderSamePercentageChange
+                                onSliderSamePercentageChange = onSliderSamePercentageChange,
+                                backdrop = backdrop
                             )
                         }
                     }
@@ -273,7 +275,8 @@ fun MainPagerScreen(
                                 onAllowLandscapeChange = onAllowLandscapeChange,
                                 pageScale = pageScale,
                                 onPageScaleChange = onPageScaleChange,
-                                onNavigateToAbout = onNavigateToAbout
+                                onNavigateToAbout = onNavigateToAbout,
+                                backdrop = backdrop
                             )
                         }
                     }

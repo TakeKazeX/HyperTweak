@@ -92,15 +92,17 @@ fun HyperTweakNavContainer(
 
     val navEventState = rememberNavigationEventState(NavigationEventInfo.None)
 
+    val firstBackCompleted: () -> Unit = {
+        android.util.Log.d("HyperTweak", "First back completed. Pager scrolling to 0.")
+        coroutineScope.launch {
+            pagerState.scrollToPage(0)
+        }
+    }
+
     NavigationBackHandler(
         state = navEventState,
         isBackEnabled = isPagerBackHandlerEnabled,
-        onBackCompleted = {
-            android.util.Log.d("HyperTweak", "First back completed. Pager scrolling to 0.")
-            coroutineScope.launch {
-                pagerState.scrollToPage(0)
-            }
-        }
+        onBackCompleted = firstBackCompleted
     )
 
     // Scale predictive back states
@@ -205,7 +207,7 @@ fun HyperTweakNavContainer(
         entryProvider = entryProvider
     )
 
-    val onBack: () -> Unit = {
+    val onBack: (() -> Unit) -> Unit = { callBack ->
         val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
         if (predictiveBackStyle == 2 && isPredictiveInProgress) {
             coroutineScope.launch {
@@ -213,6 +215,7 @@ fun HyperTweakNavContainer(
                     ?.latestEvent?.progress ?: 0f
                 exitingPageKey = backStack.lastOrNull()?.toString()
                 exitAnimatable.snapTo(currentProgress)
+                callBack()
                 exitAnimatable.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
@@ -226,6 +229,7 @@ fun HyperTweakNavContainer(
                 }
             }
         } else {
+            callBack()
             if (backStack.size > 1) {
                 backStack.removeLast()
             }
@@ -237,7 +241,7 @@ fun HyperTweakNavContainer(
         sceneStrategies = listOf(SinglePaneSceneStrategy()),
         sceneDecoratorStrategies = emptyList(),
         sharedTransitionScope = null,
-        onBack = onBack
+        onBack = { onBack {} }
     )
 
     val currentInfo = SceneInfo(sceneState.currentScene)
@@ -250,15 +254,18 @@ fun HyperTweakNavContainer(
     // Standard BackHandler to definitively intercept back on sub-pages
     BackHandler(enabled = backStack.size > 1 && predictiveBackStyle == 0) {
         android.util.Log.d("HyperTweak", "BackHandler fired. backStack size = ${backStack.size}")
-        onBack()
+        onBack {}
     }
 
     NavigationBackHandler(
         state = gestureState!!,
         isBackEnabled = backStack.size > 1 && predictiveBackStyle != 0,
-        onBackCompleted = {
+        onBackCompleted = { callBack ->
             android.util.Log.d("HyperTweak", "Second NavigationBackHandler completed. backStack size = ${backStack.size}")
-            onBack()
+            onBack(callBack)
+        },
+        onBackCancelled = { callBack ->
+            callBack()
         }
     )
 

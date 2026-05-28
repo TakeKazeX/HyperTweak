@@ -155,14 +155,10 @@ fun Modifier.scalePredictiveBackDecorator(
         }
 
         if (progress != null) {
-            val dynamicScale = 0.9f + 0.1f * progress
             val dynamicAlpha = 0.5f * (1f - progress)
 
             return this
-                .graphicsLayer {
-                    scaleX = dynamicScale
-                    scaleY = dynamicScale
-                }
+                .graphicsLayer()
                 .drawWithContent {
                     drawContent()
                     drawRect(color = Color.Black.copy(alpha = dynamicAlpha))

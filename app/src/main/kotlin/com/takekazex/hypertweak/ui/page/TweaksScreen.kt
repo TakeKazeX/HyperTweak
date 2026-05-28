@@ -37,21 +37,16 @@ fun TweaksScreenContent(
     sliderShowPercentage: Boolean,
     onSliderShowPercentageChange: (Boolean) -> Unit,
     sliderSamePercentageStyle: Boolean,
-    onSliderSamePercentageChange: (Boolean) -> Unit
+    onSliderSamePercentageChange: (Boolean) -> Unit,
+    backdrop: LayerBackdrop
 ) {
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val topBarBackdrop = rememberLayerBackdrop {
-        drawRect(surfaceColor)
-        drawContent()
-    }
-
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "Features",
                 modifier = Modifier.textureBlur(
-                    backdrop = topBarBackdrop,
+                    backdrop = backdrop,
                     shape = RectangleShape,
                     blurRadius = 25f,
                     colors = BlurDefaults.blurColors(blendColors = listOf(
@@ -67,7 +62,7 @@ fun TweaksScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .layerBackdrop(topBarBackdrop)
+                .layerBackdrop(backdrop)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),

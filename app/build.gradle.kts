@@ -73,7 +73,9 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.1")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
     implementation("androidx.navigation3:navigation3-runtime:1.1.2")
-    implementation("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.1.0")
+    implementation("androidx.navigationevent:navigationevent:1.1.0") {
+        exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
+    }
 
     // libxposed
     compileOnly("io.github.libxposed:api:101.0.1")
@@ -88,4 +90,8 @@ dependencies {
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
+}
+
+configurations.all {
+    exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
 }
