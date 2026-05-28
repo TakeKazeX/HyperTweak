@@ -105,7 +105,25 @@ fun HyperTweakNavContainer(
 
     var gestureState: NavigationEventState<SceneInfo<Route>>? = null
 
-    val entryProvider = remember(backStack) {
+    val entryProvider = remember(
+        backStack,
+        themeMode,
+        useMonet,
+        seedColorHex,
+        useFloatingBottomBar,
+        floatingBarStyle,
+        predictiveBackStyle,
+        predictiveBackFollowGesture,
+        allowLandscape,
+        moduleActive,
+        aodFullscreen,
+        removeGms,
+        hideFingerprint,
+        sliderShowPercentage,
+        sliderSamePercentageStyle,
+        showInSettings,
+        hideLauncherIcon
+    ) {
         entryProvider<Route> {
             entry<Route.Main> {
                 MainPagerScreen(
