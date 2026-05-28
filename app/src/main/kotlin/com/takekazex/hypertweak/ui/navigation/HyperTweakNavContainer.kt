@@ -105,84 +105,64 @@ fun HyperTweakNavContainer(
 
     var gestureState: NavigationEventState<SceneInfo<Route>>? = null
 
-    val entryProvider = remember(
-        backStack,
-        themeMode,
-        useMonet,
-        seedColorHex,
-        useFloatingBottomBar,
-        floatingBarStyle,
-        predictiveBackStyle,
-        predictiveBackFollowGesture,
-        allowLandscape,
-        moduleActive,
-        aodFullscreen,
-        removeGms,
-        hideFingerprint,
-        sliderShowPercentage,
-        sliderSamePercentageStyle,
-        showInSettings,
-        hideLauncherIcon
-    ) {
-        entryProvider<Route> {
-            entry<Route.Main> {
-                MainPagerScreen(
-                    pagerState = pagerState,
-                    useFloatingBottomBar = useFloatingBottomBar,
-                    floatingBarStyle = floatingBarStyle,
-                    backdrop = backdrop,
-                    moduleActive = moduleActive,
-                    aodFullscreen = aodFullscreen,
-                    onAodFullscreenChange = onAodFullscreenChange,
-                    removeGms = removeGms,
-                    onRemoveGmsChange = onRemoveGmsChange,
-                    hideFingerprint = hideFingerprint,
-                    onHideFingerprintChange = onHideFingerprintChange,
-                    sliderShowPercentage = sliderShowPercentage,
-                    onSliderShowPercentageChange = onSliderShowPercentageChange,
-                    sliderSamePercentageStyle = sliderSamePercentageStyle,
-                    onSliderSamePercentageChange = onSliderSamePercentageChange,
-                    showInSettings = showInSettings,
-                    onShowInSettingsChange = onShowInSettingsChange,
-                    hideLauncherIcon = hideLauncherIcon,
-                    onHideLauncherIconChange = onHideLauncherIconChange,
-                    themeMode = themeMode,
-                    onThemeModeChange = onThemeModeChange,
-                    useMonet = useMonet,
-                    onUseMonetChange = onUseMonetChange,
-                    seedColorHex = seedColorHex,
-                    onSeedColorChange = onSeedColorChange,
-                    onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
-                    onFloatingBarStyleChange = onFloatingBarStyleChange,
-                    predictiveBackStyle = predictiveBackStyle,
-                    onPredictiveBackStyleChange = onPredictiveBackStyleChange,
-                    predictiveBackFollowGesture = predictiveBackFollowGesture,
-                    onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
-                    allowLandscape = allowLandscape,
-                    onAllowLandscapeChange = onAllowLandscapeChange,
-                    onNavigateToAbout = {
-                        backStack.add(Route.About)
-                    }
-                )
-            }
-            entry<Route.About> {
-                AboutPage(
-                    onBack = {
-                        if (backStack.size > 1) backStack.removeLast()
-                    },
-                    onViewSourceCode = onViewSourceCode,
-                    onNavigateToCredits = {
-                        backStack.add(Route.Credits)
-                    }
-                )
-            }
-            entry<Route.Credits> {
-                CreditsPage(
-                    onBack = {
-                        if (backStack.size > 1) backStack.removeLast()
-                    }
-                )
-            }
+    val entryProvider = entryProvider<Route> {
+        entry<Route.Main> {
+            MainPagerScreen(
+                pagerState = pagerState,
+                useFloatingBottomBar = useFloatingBottomBar,
+                floatingBarStyle = floatingBarStyle,
+                backdrop = backdrop,
+                moduleActive = moduleActive,
+                aodFullscreen = aodFullscreen,
+                onAodFullscreenChange = onAodFullscreenChange,
+                removeGms = removeGms,
+                onRemoveGmsChange = onRemoveGmsChange,
+                hideFingerprint = hideFingerprint,
+                onHideFingerprintChange = onHideFingerprintChange,
+                sliderShowPercentage = sliderShowPercentage,
+                onSliderShowPercentageChange = onSliderShowPercentageChange,
+                sliderSamePercentageStyle = sliderSamePercentageStyle,
+                onSliderSamePercentageChange = onSliderSamePercentageChange,
+                showInSettings = showInSettings,
+                onShowInSettingsChange = onShowInSettingsChange,
+                hideLauncherIcon = hideLauncherIcon,
+                onHideLauncherIconChange = onHideLauncherIconChange,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+                useMonet = useMonet,
+                onUseMonetChange = onUseMonetChange,
+                seedColorHex = seedColorHex,
+                onSeedColorChange = onSeedColorChange,
+                onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
+                onFloatingBarStyleChange = onFloatingBarStyleChange,
+                predictiveBackStyle = predictiveBackStyle,
+                onPredictiveBackStyleChange = onPredictiveBackStyleChange,
+                predictiveBackFollowGesture = predictiveBackFollowGesture,
+                onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
+                allowLandscape = allowLandscape,
+                onAllowLandscapeChange = onAllowLandscapeChange,
+                onNavigateToAbout = {
+                    backStack.add(Route.About)
+                }
+            )
+        }
+        entry<Route.About> {
+            AboutPage(
+                onBack = {
+                    if (backStack.size > 1) backStack.removeLast()
+                },
+                onViewSourceCode = onViewSourceCode,
+                onNavigateToCredits = {
+                    backStack.add(Route.Credits)
+                }
+            )
+        }
+        entry<Route.Credits> {
+            CreditsPage(
+                onBack = {
+                    if (backStack.size > 1) backStack.removeLast()
+                }
+            )
         }
     }
 
