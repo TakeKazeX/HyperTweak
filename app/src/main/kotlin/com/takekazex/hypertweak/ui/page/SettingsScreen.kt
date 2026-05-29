@@ -34,6 +34,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.getSystemAccentColor
+import com.takekazex.hypertweak.BuildConfig
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -325,7 +326,7 @@ fun SettingsScreenContent(
             ) {
                 ArrowPreference(
                     title = "About",
-                    summary = "HyperTweak v1.0",
+                    summary = "HyperTweak v${BuildConfig.VERSION_NAME}",
                     onClick = onNavigateToAbout
                 )
             }
