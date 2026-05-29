@@ -14,18 +14,15 @@ android {
         applicationId = "com.takekazex.hypertweak"
         minSdk = 35
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.2"
+        val commitCount = providers.exec {
+            commandLine("git", "rev-list", "--count", "HEAD")
+        }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
+
+        versionCode = commitCount
+        versionName = "1.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val commitCount = try {
-            val process = Runtime.getRuntime().exec("git rev-list --count HEAD")
-            process.waitFor()
-            process.inputStream.bufferedReader().readText().trim()
-        } catch (e: Exception) {
-            "0"
-        }
         buildConfigField("String", "GIT_COMMIT_COUNT", "\"$commitCount\"")
 
         ndk {

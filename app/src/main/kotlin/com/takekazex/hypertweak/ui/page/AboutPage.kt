@@ -272,7 +272,7 @@ fun AboutPage(
                                 versionCodeY = y + size.height
                             },
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        text = "Version v1.2 (${BuildConfig.GIT_COMMIT_COUNT})",
+                        text = "Version v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
