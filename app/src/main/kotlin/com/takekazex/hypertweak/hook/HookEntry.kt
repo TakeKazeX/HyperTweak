@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.SystemUIPluginHooker
+import com.takekazex.hypertweak.hook.rules.RestartBroadcastHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -62,15 +63,18 @@ class HookEntry : XposedModule() {
 
         when (param.packageName) {
             "com.android.systemui" -> {
+                attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
                 attachHooker(HideFingerprintIcon, param.defaultClassLoader, ctx)
                 attachHooker(SystemUIPluginHooker, param.defaultClassLoader, ctx)
                 attachHooker(HideBottomBarHooker, param.defaultClassLoader, ctx)
             }
             "com.miui.aod" -> {
+                attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
             }
             "com.android.settings" -> {
+                attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
                 attachHooker(SettingsHooker, param.defaultClassLoader, ctx)
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
             }

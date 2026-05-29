@@ -72,7 +72,8 @@ fun MainPagerScreen(
     onAllowLandscapeChange: (Boolean) -> Unit,
     pageScale: Float,
     onPageScaleChange: (Float) -> Unit,
-    onNavigateToAbout: () -> Unit
+    onNavigateToAbout: () -> Unit,
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val contentReady = rememberContentReady()
@@ -228,7 +229,8 @@ fun MainPagerScreen(
                                 moduleActive = moduleActive,
                                 packageName = "com.takekazex.hypertweak",
                                 targetSdk = 37,
-                                backdrop = backdrop
+                                backdrop = backdrop,
+                                onRestartScope = onRestartScope
                             )
                         }
                     }

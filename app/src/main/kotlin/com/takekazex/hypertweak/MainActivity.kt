@@ -23,6 +23,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.takekazex.hypertweak.util.RestartUtils
 
 internal fun getSystemAccentColor(context: Context): Int {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -267,6 +268,9 @@ class MainActivity : ComponentActivity() {
                         } catch (e: Exception) {
                             // Ignore
                         }
+                    },
+                    onRestartScope = { systemUi, settings, aod ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod)
                     }
                 )
             }

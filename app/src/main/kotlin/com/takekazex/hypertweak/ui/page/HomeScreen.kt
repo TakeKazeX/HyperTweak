@@ -4,8 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -22,6 +21,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import androidx.compose.foundation.background
@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Refresh
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -49,7 +50,8 @@ fun HomeScreenContent(
     moduleActive: Boolean,
     packageName: String,
     targetSdk: Int,
-    backdrop: LayerBackdrop
+    backdrop: LayerBackdrop,
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val containerColor = if (moduleActive) {
@@ -68,6 +70,9 @@ fun HomeScreenContent(
         drawRect(surfaceColor)
         drawContent()
     }
+    
+    var showRestartDialog by remember { mutableStateOf(false) }
+    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -179,7 +184,35 @@ fun HomeScreenContent(
                 }
             }
 
+            // Quick Actions
+            SmallTitle(text = "Quick Actions")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            ) {
+                ArrowPreference(
+                    title = "Restart Scoped Apps",
+                    summary = "Restart SystemUI, Settings, and Always-On Display to apply tweaks",
+                    startAction = {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            modifier = Modifier.padding(end = 6.dp),
+                            contentDescription = "Restart Scope",
+                            tint = MiuixTheme.colorScheme.primary
+                        )
+                    },
+                    onClick = { showRestartDialog = true }
+                )
+            }
+
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
+
+        RestartScopeDialog(
+            show = showRestartDialog,
+            onDismissRequest = { showRestartDialog = false },
+            onConfirm = onRestartScope
+        )
     }
 }

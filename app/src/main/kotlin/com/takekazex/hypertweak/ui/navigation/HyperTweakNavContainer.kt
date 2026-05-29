@@ -83,7 +83,8 @@ fun HyperTweakNavContainer(
     onPageScaleChange: (Float) -> Unit,
 
     // Actions
-    onViewSourceCode: () -> Unit
+    onViewSourceCode: () -> Unit,
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
@@ -163,7 +164,8 @@ fun HyperTweakNavContainer(
                 onPageScaleChange = onPageScaleChange,
                 onNavigateToAbout = {
                     backStack.add(Route.About)
-                }
+                },
+                onRestartScope = onRestartScope
             )
         }
         entry<Route.About> {
