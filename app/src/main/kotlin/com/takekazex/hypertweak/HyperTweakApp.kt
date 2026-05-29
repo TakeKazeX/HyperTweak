@@ -13,13 +13,8 @@ class HyperTweakApp : Application() {
         // Init connection to LSPosed preferences as early as possible
         XposedServiceManager.init()
 
-        // Synchronously initialize local preferences from device protected storage context to match Xposed remote prefs
-        val deContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            createDeviceProtectedStorageContext()
-        } else {
-            this
-        }
-        val localPrefs = deContext.getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
+        // Synchronously initialize local preferences
+        val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
     }
 }

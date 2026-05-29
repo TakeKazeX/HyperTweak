@@ -71,6 +71,8 @@ class MainActivity : ComponentActivity() {
             var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
+            var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
+            var gestureBarKeepHeight by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)) }
             var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
@@ -205,6 +207,20 @@ class MainActivity : ComponentActivity() {
                         hideFingerprint = checked
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
+                        }
+                    },
+                    hideGestureBar = hideGestureBar,
+                    onHideGestureBarChange = { checked ->
+                        hideGestureBar = checked
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
+                        }
+                    },
+                    gestureBarKeepHeight = gestureBarKeepHeight,
+                    onGestureBarKeepHeightChange = { checked ->
+                        gestureBarKeepHeight = checked
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, checked)
                         }
                     },
                     sliderShowPercentage = sliderShowPercentage,

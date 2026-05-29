@@ -40,6 +40,10 @@ fun TweaksScreenContent(
     onSliderShowPercentageChange: (Boolean) -> Unit,
     sliderSamePercentageStyle: Boolean,
     onSliderSamePercentageChange: (Boolean) -> Unit,
+    hideGestureBar: Boolean,
+    onHideGestureBarChange: (Boolean) -> Unit,
+    gestureBarKeepHeight: Boolean,
+    onGestureBarKeepHeightChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -122,7 +126,27 @@ fun TweaksScreenContent(
                 }
             }
 
-            // Scope 3: System Core
+            // Scope 3: Navigation Bar
+            SmallTitle(text = "Navigation Bar")
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = hideGestureBar,
+                        onCheckedChange = onHideGestureBarChange,
+                        title = "Hide Bottom Gesture Bar",
+                        summary = "Hide the bottom gesture line and multitasking split-screen bar"
+                    )
+                    SwitchPreference(
+                        checked = gestureBarKeepHeight && hideGestureBar,
+                        onCheckedChange = onGestureBarKeepHeightChange,
+                        title = "Raise Layout / Keep Space",
+                        summary = "Keep the navigation bar height space when hidden to avoid keyboard overlapping",
+                        enabled = hideGestureBar
+                    )
+                }
+            }
+
+            // Scope 4: System Core
             SmallTitle(text = "System Core")
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {

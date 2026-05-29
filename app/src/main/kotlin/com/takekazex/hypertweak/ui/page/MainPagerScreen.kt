@@ -52,6 +52,10 @@ fun MainPagerScreen(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
+    hideGestureBar: Boolean,
+    onHideGestureBarChange: (Boolean) -> Unit,
+    gestureBarKeepHeight: Boolean,
+    onGestureBarKeepHeightChange: (Boolean) -> Unit,
     themeMode: Int,
     onThemeModeChange: (Int) -> Unit,
     useMonet: Boolean,
@@ -242,6 +246,10 @@ fun MainPagerScreen(
                                 onSliderShowPercentageChange = onSliderShowPercentageChange,
                                 sliderSamePercentageStyle = sliderSamePercentageStyle,
                                 onSliderSamePercentageChange = onSliderSamePercentageChange,
+                                hideGestureBar = hideGestureBar,
+                                onHideGestureBarChange = onHideGestureBarChange,
+                                gestureBarKeepHeight = gestureBarKeepHeight,
+                                onGestureBarKeepHeightChange = onGestureBarKeepHeightChange,
                                 backdrop = backdrop
                             )
                         }

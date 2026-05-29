@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.AODHooker
 import com.takekazex.hypertweak.hook.rules.HideFingerprintIcon
+import com.takekazex.hypertweak.hook.rules.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.SystemConfigHooker
@@ -28,6 +29,7 @@ class HookEntry : XposedModule() {
         try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
+            Log.d("HyperTweak", "HookEntry: processName=$processName, loaded remotePrefs keys=${remotePrefs.all.keys}")
         } catch (t: Throwable) {
             Log.e("HyperTweak", "Failed to init Preferences in HookEntry.onModuleLoaded", t)
         }
@@ -63,6 +65,7 @@ class HookEntry : XposedModule() {
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
                 attachHooker(HideFingerprintIcon, param.defaultClassLoader, ctx)
                 attachHooker(SystemUIPluginHooker, param.defaultClassLoader, ctx)
+                attachHooker(HideBottomBarHooker, param.defaultClassLoader, ctx)
             }
             "com.miui.aod" -> {
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
