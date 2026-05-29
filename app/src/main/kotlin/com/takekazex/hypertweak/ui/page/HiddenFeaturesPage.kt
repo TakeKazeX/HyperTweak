@@ -51,7 +51,7 @@ fun HiddenFeaturesPage(
                 }
             }
             if (!launched) {
-                Toast.makeText(context, "无法打开该设置界面", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Unable to open this settings page", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -59,11 +59,11 @@ fun HiddenFeaturesPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "隐藏特性",
+                title = "Hidden Features",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "返回")
+                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
                     }
                 }
             )
@@ -87,13 +87,13 @@ fun HiddenFeaturesPage(
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "极暗",
-                        summary = "打开系统级极暗设置 (降低屏幕最低亮度)",
+                        title = "Extra Dim",
+                        summary = "Open system-level extra dim settings (reduce screen minimum brightness)",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.BrightnessMedium,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "极暗",
+                                contentDescription = "Extra Dim",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -107,13 +107,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "电池优化",
-                        summary = "管理应用电池优化与后台限制",
+                        title = "Battery Optimization",
+                        summary = "Manage app battery optimization and background restrictions",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.BatteryChargingFull,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "电池优化",
+                                contentDescription = "Battery Optimization",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -124,13 +124,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "正在运行的服务",
-                        summary = "查看当前正在运行的后台服务和内存占用",
+                        title = "Running Services",
+                        summary = "View currently running background services and RAM usage",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Memory,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "正在运行的服务",
+                                contentDescription = "Running Services",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -151,13 +151,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "通知设置",
-                        summary = "查看高级通知设置和通知历史",
+                        title = "Notification Settings",
+                        summary = "View advanced notification settings and notification history",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "通知设置",
+                                contentDescription = "Notification Settings",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -171,13 +171,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "应用管理",
-                        summary = "管理已安装的所有应用和系统应用",
+                        title = "Manage Applications",
+                        summary = "Manage all installed and system applications",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Apps,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "应用管理",
+                                contentDescription = "Manage Applications",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -197,13 +197,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "默认应用",
-                        summary = "配置系统的默认助手、浏览器、主屏幕等应用",
+                        title = "Default Apps",
+                        summary = "Configure default assistant, browser, home screen, and other apps",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.SettingsSuggest,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "默认应用",
+                                contentDescription = "Default Apps",
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },

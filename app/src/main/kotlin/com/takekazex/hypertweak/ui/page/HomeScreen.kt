@@ -195,8 +195,8 @@ fun HomeScreenContent(
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "隐藏特性",
-                        summary = "快捷打开被隐藏的原生系统设置界面",
+                        title = "Hidden Features",
+                        summary = "Quick access to hidden native system settings",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Extension,
