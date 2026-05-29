@@ -19,11 +19,23 @@ android {
         }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
 
         versionCode = commitCount
-        versionName = "1.3.2"
+
+        val isStableRelease = project.hasProperty("stable") ||
+                (System.getenv("BUILD_CHANNEL") == "stable") ||
+                (System.getenv("GITHUB_REF_NAME")?.matches(Regex("^v[0-9.]+$")) == true)
+        val isCI = System.getenv("GITHUB_ACTIONS") == "true"
+
+        val baseVersion = "1.3.2"
+        versionName = when {
+            isStableRelease -> baseVersion
+            isCI -> "$baseVersion-dev"
+            else -> "$baseVersion-beta"
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "GIT_COMMIT_COUNT", "\"$commitCount\"")
+        buildConfigField("boolean", "IS_BETA", (!isStableRelease).toString())
 
         ndk {
             abiFilters.add("arm64-v8a")
