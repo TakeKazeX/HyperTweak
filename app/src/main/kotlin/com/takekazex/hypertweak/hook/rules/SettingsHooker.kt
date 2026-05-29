@@ -15,7 +15,7 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
 
 object SettingsHooker : StaticHooker() {
-    private const val HEADER_ID = 9641L
+    private const val HEADER_ID = 10777L
 
     private fun String.resolveClass(initialize: Boolean = false): Class<Any>? {
         val resolvedClass = resolveViaDexKit(this)
@@ -90,10 +90,26 @@ object SettingsHooker : StaticHooker() {
                 m.parameterTypes[0].name == "java.util.List"
         }?.hook {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) return@after
-
+                @Suppress("UNCHECKED_CAST")
                 val list = param.args[0] as? MutableList<Any?> ?: return@after
                 val activity = param.thisObject as? Activity ?: return@after
+
+                val showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
+                if (!showInSettings) {
+                    val iterator = list.iterator()
+                    while (iterator.hasNext()) {
+                        val head = iterator.next()
+                        val idField = try {
+                            head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
+                        } catch (t: Throwable) {
+                            null
+                        }
+                        if (idField?.get(head) == HEADER_ID) {
+                            iterator.remove()
+                        }
+                    }
+                    return@after
+                }
 
                 try {
                     // Check if already injected
