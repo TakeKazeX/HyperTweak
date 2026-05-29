@@ -82,9 +82,11 @@ jobs:
           if [ -z "$COMMIT_RANGE" ]; then
             echo "No previous release tag found or checking full history."
             git log --oneline --pretty=format:"%s (%h)" > raw_commits.txt
+            COMMIT_COUNT=$(git rev-list --count HEAD)
           else
             echo "Listing commits for range: $COMMIT_RANGE"
             git log $COMMIT_RANGE --oneline --pretty=format:"%s (%h)" > raw_commits.txt
+            COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE)
           fi
 
           touch feats.txt fixes.txt perfs.txt refactors.txt docs.txt builds.txt others.txt
@@ -122,7 +124,11 @@ jobs:
             fi
           done < raw_commits.txt
 
-          echo "### Changelog (since last release)" > changelog.txt
+          if [ "$COMMIT_COUNT" -eq 1 ]; then
+            echo "### Changelog (1 commit since last release)" > changelog.txt
+          else
+            echo "### Changelog ($COMMIT_COUNT commits since last release)" > changelog.txt
+          fi
           echo "" >> changelog.txt
 
           if [ -s feats.txt ]; then
