@@ -89,7 +89,31 @@ class MainActivity : ComponentActivity() {
             }
 
             val context = androidx.compose.ui.platform.LocalContext.current
-            val moduleActive = isModuleActive() || serviceConnected != null
+            val localPrefs = remember { getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE) }
+            val lastActive = remember { localPrefs.getBoolean("last_known_module_activated", false) }
+            val initialActive = isModuleActive() || lastActive
+            var moduleActive by remember { mutableStateOf(initialActive) }
+
+            LaunchedEffect(serviceConnected) {
+                if (isModuleActive()) {
+                    moduleActive = true
+                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
+                    return@LaunchedEffect
+                }
+
+                if (serviceConnected != null) {
+                    moduleActive = true
+                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
+                } else {
+                    // Wait 500ms to allow the Xposed service binding to finish
+                    kotlinx.coroutines.delay(500)
+                    if (XposedServiceManager.currentService == null) {
+                        moduleActive = false
+                        localPrefs.edit().putBoolean("last_known_module_activated", false).apply()
+                    }
+                }
+            }
+
             val isDark = isSystemInDarkTheme()
             val resolvedSeedColorHex = remember(seedColorHex, context) {
                 if (seedColorHex == 0) {
