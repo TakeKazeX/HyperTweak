@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -32,10 +35,27 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = "hypertweak"
-            keyPassword = "123456"
-            storeFile = file("release.keystore")
-            storePassword = "123456"
+            val keystoreFile = file("release.keystore")
+            if (keystoreFile.exists()) {
+                val properties = Properties()
+                val localPropertiesFile = rootProject.file("local.properties")
+                if (localPropertiesFile.exists()) {
+                    FileInputStream(localPropertiesFile).use { stream ->
+                        properties.load(stream)
+                    }
+                }
+
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    ?: properties.getProperty("keystore.password")
+                    ?: ""
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: properties.getProperty("key.alias")
+                    ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD")
+                    ?: properties.getProperty("key.password")
+                    ?: ""
+            }
         }
     }
 
@@ -47,7 +67,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val keystoreFile = file("release.keystore")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 
