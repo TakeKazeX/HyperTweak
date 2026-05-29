@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.ui.page.MainPagerScreen
 import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
+import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.launch
 
@@ -108,6 +109,9 @@ fun HyperTweakNavContainer(
     // Scale predictive back states
     var exitingPageKey by remember { mutableStateOf<String?>(null) }
     val exitAnimatable = remember { Animatable(0f) }
+    // Non-Compose-state ref — avoids recomposition racing when navigating back
+    // during an active enter transition (matches InstallerX's approach)
+    val predictiveBackAnimState = remember { PredictiveBackAnimState() }
 
     var gestureState: NavigationEventState<SceneInfo<Route>>? = null
 
@@ -190,7 +194,8 @@ fun HyperTweakNavContainer(
                     currentPageKey = backStack.lastOrNull(),
                     exitFollowGesture = predictiveBackFollowGesture,
                     exitingPageKey = exitingPageKey,
-                    exitProgress = exitAnimatable.value
+                    exitProgress = exitAnimatable.value,
+                    animState = predictiveBackAnimState
                 )
             } else {
                 Modifier
@@ -210,7 +215,9 @@ fun HyperTweakNavContainer(
     val onBack: (() -> Unit) -> Unit = { callBack ->
         coroutineScope.launch {
             val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
-            if (predictiveBackStyle == 2 && isPredictiveInProgress) {
+            // Gate exitingPageKey exactly like InstallerX:
+            // only trigger the exit slide animation when a real predictive gesture was actually running
+            if (predictiveBackStyle == 2 && isPredictiveInProgress && predictiveBackAnimState.inPredictiveBackAnimation) {
                 exitingPageKey = backStack.lastOrNull()?.toString()
                 exitAnimatable.animateTo(
                     targetValue = 1f,

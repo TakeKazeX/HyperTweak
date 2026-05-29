@@ -12,9 +12,18 @@ android {
         minSdk = 35
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val commitCount = try {
+            val process = Runtime.getRuntime().exec("git rev-list --count HEAD")
+            process.waitFor()
+            process.inputStream.bufferedReader().readText().trim()
+        } catch (e: Exception) {
+            "0"
+        }
+        buildConfigField("String", "GIT_COMMIT_COUNT", "\"$commitCount\"")
 
         ndk {
             abiFilters.add("arm64-v8a")

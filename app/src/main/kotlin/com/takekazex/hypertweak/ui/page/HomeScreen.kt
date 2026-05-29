@@ -28,8 +28,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.ErrorOutline
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -48,16 +53,13 @@ fun HomeScreenContent(
 ) {
     val isDark = isSystemInDarkTheme()
     val containerColor = if (moduleActive) {
-        if (isDark) Color(0xFF1B5E20) else Color(0xFFE8F5E9)
+        if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
     } else {
-        if (isDark) Color(0xFFB71C1C) else Color(0xFFFFEBEE)
+        if (isDark) Color(0xFF381A1A) else Color(0xFFFAEEEE)
     }
 
-    val contentColor = if (moduleActive) {
-        if (isDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20)
-    } else {
-        if (isDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C)
-    }
+    val textContentColor = MiuixTheme.colorScheme.onSurface
+    val descTextColor = textContentColor.copy(alpha = 0.8f)
 
     val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
@@ -104,10 +106,11 @@ fun HomeScreenContent(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 12.dp)
+                    .clip(RoundedCornerShape(24.dp)),
                 colors = CardDefaults.defaultColors(
                     color = containerColor,
-                    contentColor = contentColor
+                    contentColor = textContentColor
                 )
             ) {
                 Box(
@@ -116,12 +119,12 @@ fun HomeScreenContent(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .offset(x = 38.dp, y = 45.dp),
+                            .offset(x = 50.dp, y = 38.dp),
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         Icon(
-                            imageVector = if (moduleActive) MiuixIcons.Basic.Check else MiuixIcons.Info,
-                            tint = contentColor.copy(alpha = 0.12f),
+                            imageVector = if (moduleActive) Icons.Rounded.CheckCircleOutline else Icons.Rounded.ErrorOutline,
+                            tint = if (moduleActive) Color(0xFF36D167) else Color(0xFFD13636),
                             modifier = Modifier.size(170.dp),
                             contentDescription = null
                         )
@@ -134,7 +137,7 @@ fun HomeScreenContent(
                     ) {
                         Text(
                             text = if (moduleActive) "Module is ACTIVE" else "Module is NOT ACTIVE",
-                            color = contentColor,
+                            color = textContentColor,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
@@ -144,7 +147,7 @@ fun HomeScreenContent(
                                 "Native libxposed module loaded successfully."
                             else
                                 "Please enable the module in LSPosed manager, ensure 'HyperTweak' itself is checked in the scope, and reboot or restart SystemUI.",
-                            color = contentColor.copy(alpha = 0.8f),
+                            color = descTextColor,
                             fontSize = 13.sp
                         )
                     }

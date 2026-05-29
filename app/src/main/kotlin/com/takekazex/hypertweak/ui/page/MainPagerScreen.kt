@@ -25,10 +25,10 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Favorites
-import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.icon.extended.HorizontalSplit
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -86,9 +86,9 @@ fun MainPagerScreen(
             if (useFloatingBottomBar) {
                 if (floatingBarStyle == 1) {
                     val items = listOf(
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Home", MiuixIcons.HorizontalSplit),
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Tweaks", MiuixIcons.Favorites),
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Settings", MiuixIcons.Settings)
+                        top.yukonga.miuix.kmp.basic.NavigationItem("Home", Icons.Rounded.Home),
+                        top.yukonga.miuix.kmp.basic.NavigationItem("Tweaks", Icons.Rounded.Extension),
+                        top.yukonga.miuix.kmp.basic.NavigationItem("Settings", Icons.Rounded.Settings)
                     )
                     IosLiquidGlassNavigationBar(
                         items = items,
@@ -127,7 +127,7 @@ fun MainPagerScreen(
                                     pagerState.scrollToPage(0)
                                 }
                             },
-                            icon = MiuixIcons.HorizontalSplit,
+                            icon = Icons.Rounded.Home,
                             label = "Home"
                         )
                         FloatingNavigationBarItem(
@@ -137,7 +137,7 @@ fun MainPagerScreen(
                                     pagerState.scrollToPage(1)
                                 }
                             },
-                            icon = MiuixIcons.Favorites,
+                            icon = Icons.Rounded.Extension,
                             label = "Tweaks"
                         )
                         FloatingNavigationBarItem(
@@ -147,7 +147,7 @@ fun MainPagerScreen(
                                     pagerState.scrollToPage(2)
                                 }
                             },
-                            icon = MiuixIcons.Settings,
+                            icon = Icons.Rounded.Settings,
                             label = "Settings"
                         )
                     }
@@ -181,7 +181,7 @@ fun MainPagerScreen(
                                 pagerState.scrollToPage(0)
                             }
                         },
-                        icon = MiuixIcons.HorizontalSplit,
+                        icon = Icons.Rounded.Home,
                         label = "Home"
                     )
                     NavigationBarItem(
@@ -191,7 +191,7 @@ fun MainPagerScreen(
                                 pagerState.scrollToPage(1)
                             }
                         },
-                        icon = MiuixIcons.Favorites,
+                        icon = Icons.Rounded.Extension,
                         label = "Tweaks"
                     )
                     NavigationBarItem(
@@ -201,7 +201,7 @@ fun MainPagerScreen(
                                 pagerState.scrollToPage(2)
                             }
                         },
-                        icon = MiuixIcons.Settings,
+                        icon = Icons.Rounded.Settings,
                         label = "Settings"
                     )
                 }

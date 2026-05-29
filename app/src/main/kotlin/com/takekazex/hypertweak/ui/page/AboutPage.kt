@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.BuildConfig
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -271,7 +272,7 @@ fun AboutPage(
                                 versionCodeY = y + size.height
                             },
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        text = "Version 1.0 (1)",
+                        text = "Version v1.2 (${BuildConfig.GIT_COMMIT_COUNT})",
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
