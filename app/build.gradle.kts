@@ -84,6 +84,15 @@ android {
     }
 }
 
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val mainOutput = output as? com.android.build.api.variant.impl.VariantOutputImpl
+            mainOutput?.outputFileName?.set("HyperTweak-v${variant.outputs.first().versionName.get()}-${variant.name}.apk")
+        }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
