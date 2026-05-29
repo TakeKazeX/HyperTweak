@@ -127,19 +127,36 @@ object SettingsHooker : StaticHooker() {
 
                         // Find index of "wifi_settings" to insert right after it
                         var targetIndex = -1
+                        val wifiSettingsId = try {
+                            activity.resources.getIdentifier("wifi_settings", "id", "com.android.settings").toLong()
+                        } catch (t: Throwable) {
+                            0L
+                        }
+
                         for (i in list.indices) {
-                            val head = list[i]
-                            val intentField = head?.javaClass?.getDeclaredField("intent")?.apply { isAccessible = true }
-                            val headIntent = intentField?.get(head) as? Intent
-                            if (headIntent?.action == "android.settings.WIFI_SETTINGS" ||
-                                headIntent?.component?.className?.contains("WifiSettings", ignoreCase = true) == true) {
-                                targetIndex = i
-                                break
+                            val head = list[i] ?: continue
+                            try {
+                                val idField = head.javaClass.getDeclaredField("id").apply { isAccessible = true }
+                                val id = (idField.get(head) as? Number)?.toLong() ?: -1L
+                                if (wifiSettingsId != 0L && id == wifiSettingsId) {
+                                    targetIndex = i
+                                    break
+                                }
+
+                                val intentField = head.javaClass.getDeclaredField("intent").apply { isAccessible = true }
+                                val headIntent = intentField.get(head) as? Intent
+                                if (headIntent?.action == "android.settings.WIFI_SETTINGS" ||
+                                    headIntent?.component?.className?.contains("WifiSettings", ignoreCase = true) == true) {
+                                    targetIndex = i
+                                    break
+                                }
+                            } catch (t: Throwable) {
+                                // Ignore
                             }
                         }
 
                         if (targetIndex != -1) {
-                            list.add(targetIndex + 1, header)
+                            list.add(targetIndex, header)
                         } else {
                             if (list.size > 2) list.add(2, header) else list.add(header)
                         }
