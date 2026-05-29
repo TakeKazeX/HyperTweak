@@ -240,8 +240,9 @@ fun SettingsScreenContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             val context = LocalContext.current
                             val systemAccentColor = remember(context) { getSystemAccentColor(context) }
@@ -260,8 +261,8 @@ fun SettingsScreenContent(
                                 val displayColor = if (colorVal == 0) Color(systemAccentColor) else Color(colorVal)
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(18.dp))
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(16.dp))
                                         .background(displayColor)
                                         .clickable { onSeedColorChange(colorVal) },
                                     contentAlignment = Alignment.Center
@@ -270,7 +271,7 @@ fun SettingsScreenContent(
                                         Icon(
                                             imageVector = MiuixIcons.Basic.Check,
                                             tint = Color.White,
-                                            modifier = Modifier.size(18.dp),
+                                            modifier = Modifier.size(16.dp),
                                             contentDescription = "Selected"
                                         )
                                     } else if (colorVal == 0) {
@@ -278,7 +279,7 @@ fun SettingsScreenContent(
                                             text = "D",
                                             color = Color.White,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
+                                            fontSize = 12.sp
                                         )
                                     }
                                 }
