@@ -199,7 +199,33 @@ object SettingsHooker : StaticHooker() {
                         if (iconView != null) {
                             iconView.visibility = View.VISIBLE
                             val moduleIcon = Icon.createWithResource("com.takekazex.hypertweak", R.mipmap.ic_launcher).loadDrawable(iconView.context)
-                            iconView.setImageDrawable(moduleIcon)
+                            if (moduleIcon != null) {
+                                val headerIconSizeResId = try {
+                                    iconView.context.resources.getIdentifier("header_icon_size", "dimen", "com.android.settings")
+                                } catch (t: Throwable) {
+                                    0
+                                }
+                                val size = if (headerIconSizeResId != 0) {
+                                    iconView.context.resources.getDimensionPixelSize(headerIconSizeResId)
+                                } else {
+                                    val density = iconView.context.resources.displayMetrics.density
+                                    (24 * density).toInt()
+                                }
+
+                                // Enforce exact dimension limits on ImageView to prevent overflow
+                                iconView.layoutParams = iconView.layoutParams?.apply {
+                                    width = size
+                                    height = size
+                                }
+                                iconView.scaleType = ImageView.ScaleType.FIT_CENTER
+
+                                // Render the drawable onto a bitmap of exact size for a clean look
+                                val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+                                val canvas = android.graphics.Canvas(bitmap)
+                                moduleIcon.setBounds(0, 0, size, size)
+                                moduleIcon.draw(canvas)
+                                iconView.setImageBitmap(bitmap)
+                            }
                         }
                         return@intercept null
                     }
