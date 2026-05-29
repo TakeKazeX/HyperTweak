@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -51,6 +52,7 @@ fun HomeScreenContent(
     packageName: String,
     targetSdk: Int,
     backdrop: LayerBackdrop,
+    onNavigateToHiddenFeatures: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
@@ -191,19 +193,34 @@ fun HomeScreenContent(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp)
             ) {
-                ArrowPreference(
-                    title = "Restart Scoped Apps",
-                    summary = "Restart SystemUI, Settings, and Always-On Display to apply tweaks",
-                    startAction = {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            modifier = Modifier.padding(end = 6.dp),
-                            contentDescription = "Restart Scope",
-                            tint = MiuixTheme.colorScheme.primary
-                        )
-                    },
-                    onClick = { showRestartDialog = true }
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = "隐藏特性",
+                        summary = "快捷打开被隐藏的原生系统设置界面",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.Extension,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Hidden Features",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = onNavigateToHiddenFeatures
+                    )
+                    ArrowPreference(
+                        title = "Restart Scoped Apps",
+                        summary = "Restart SystemUI, Settings, and Always-On Display to apply tweaks",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Restart Scope",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = { showRestartDialog = true }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))

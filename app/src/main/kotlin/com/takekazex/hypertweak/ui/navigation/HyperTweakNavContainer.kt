@@ -29,6 +29,7 @@ import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.MainPagerScreen
 import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
+import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -165,6 +166,9 @@ fun HyperTweakNavContainer(
                 onNavigateToAbout = {
                     backStack.add(Route.About)
                 },
+                onNavigateToHiddenFeatures = {
+                    backStack.add(Route.HiddenFeatures)
+                },
                 onRestartScope = onRestartScope
             )
         }
@@ -181,6 +185,13 @@ fun HyperTweakNavContainer(
         }
         entry<Route.Credits> {
             CreditsPage(
+                onBack = {
+                    if (backStack.size > 1) backStack.removeLast()
+                }
+            )
+        }
+        entry<Route.HiddenFeatures> {
+            HiddenFeaturesPage(
                 onBack = {
                     if (backStack.size > 1) backStack.removeLast()
                 }
