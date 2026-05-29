@@ -107,7 +107,7 @@ fun HomeScreenContent(
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Large Status Card
             Card(
@@ -157,6 +157,21 @@ fun HomeScreenContent(
                             color = descTextColor,
                             fontSize = 13.sp
                         )
+                        if (moduleActive) {
+                            Spacer(modifier = Modifier.height(36.dp))
+                            val service = com.takekazex.hypertweak.hook.XposedServiceManager.currentService
+                            val frameworkDetail = if (service != null) {
+                                "${service.frameworkName} ${service.frameworkVersion} (API ${service.apiVersion})"
+                            } else {
+                                "Xposed Framework"
+                            }
+                            Text(
+                                text = frameworkDetail,
+                                color = descTextColor,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
