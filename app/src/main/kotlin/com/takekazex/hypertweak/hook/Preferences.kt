@@ -36,8 +36,10 @@ object Preferences {
                 isLocalOnly = true
             }
         } else {
-            remotePrefs = prefs
-            isLocalOnly = false
+            if (!isLocalOnly) {
+                remotePrefs = prefs
+                isLocalOnly = false
+            }
         }
     }
 
