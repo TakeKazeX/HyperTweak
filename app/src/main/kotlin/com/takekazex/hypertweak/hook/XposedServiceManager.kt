@@ -24,12 +24,6 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     override fun onServiceBind(service: XposedService) {
         Log.d("HyperTweak", "XposedServiceManager: onServiceBind")
         _serviceFlow.value = service
-        try {
-            val remotePrefs = service.getRemotePreferences(Preferences.NAME)
-            Preferences.init(remotePrefs)
-        } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to init Preferences from XposedService", t)
-        }
     }
 
     override fun onServiceDied(service: XposedService) {
