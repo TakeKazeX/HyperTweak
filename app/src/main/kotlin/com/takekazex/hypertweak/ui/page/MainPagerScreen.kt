@@ -8,16 +8,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
-import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.layout.layout
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.unit.offset
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -126,7 +138,7 @@ fun MainPagerScreen(
                         },
                         color = floatingBarColor,
                     ) {
-                        FloatingNavigationBarItem(
+                        MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 0,
                             onClick = {
                                 coroutineScope.launch {
@@ -136,7 +148,7 @@ fun MainPagerScreen(
                             icon = Icons.Rounded.Home,
                             label = "Home"
                         )
-                        FloatingNavigationBarItem(
+                        MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 1,
                             onClick = {
                                 coroutineScope.launch {
@@ -146,7 +158,7 @@ fun MainPagerScreen(
                             icon = Icons.Rounded.Extension,
                             label = "Tweaks"
                         )
-                        FloatingNavigationBarItem(
+                        MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 2,
                             onClick = {
                                 coroutineScope.launch {
@@ -180,7 +192,7 @@ fun MainPagerScreen(
                         ),
                     color = barColor
                 ) {
-                    NavigationBarItem(
+                    MyNavigationBarItem(
                         selected = pagerState.currentPage == 0,
                         onClick = {
                             coroutineScope.launch {
@@ -190,7 +202,7 @@ fun MainPagerScreen(
                         icon = Icons.Rounded.Home,
                         label = "Home"
                     )
-                    NavigationBarItem(
+                    MyNavigationBarItem(
                         selected = pagerState.currentPage == 1,
                         onClick = {
                             coroutineScope.launch {
@@ -200,7 +212,7 @@ fun MainPagerScreen(
                         icon = Icons.Rounded.Extension,
                         label = "Tweaks"
                     )
-                    NavigationBarItem(
+                    MyNavigationBarItem(
                         selected = pagerState.currentPage == 2,
                         onClick = {
                             coroutineScope.launch {
@@ -291,6 +303,219 @@ fun MainPagerScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun RowScope.MyNavigationBarItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val itemHeight = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.ItemHeight
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val onSurfaceContainerColor = MiuixTheme.colorScheme.onSurfaceContainer
+    val tint = when {
+        isPressed -> if (selected) {
+            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.SelectedPressedAlpha)
+        } else {
+            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedPressedAlpha)
+        }
+
+        selected -> onSurfaceContainerColor
+
+        else -> onSurfaceContainerColor.copy(top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedAlpha)
+    }
+    val fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+    val mode = top.yukonga.miuix.kmp.basic.LocalNavigationBarDisplayMode.current
+
+    // Adjust size based on label for optical balance
+    val customIconSize = when (label) {
+        "Home" -> 30.dp      // Visually smallest, scale up from 26.dp
+        "Tweaks" -> 26.0.dp  // Normal/average, original defaults to 26.dp
+        "Settings" -> 24.5.dp // Solid icon, scale down slightly from 26.dp
+        else -> top.yukonga.miuix.kmp.basic.NavigationBarDefaults.IconSize
+    }
+
+    Column(
+        modifier = modifier
+            .height(itemHeight)
+            .weight(1f)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                enabled = enabled,
+                role = androidx.compose.ui.semantics.Role.Tab,
+                interactionSource = interactionSource,
+                indication = null,
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = if (mode == top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.IconAndText || mode == top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.IconWithSelectedLabel) Arrangement.Top else Arrangement.Center,
+    ) {
+        when (mode) {
+            top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.IconAndText -> {
+                Box(
+                    modifier = Modifier
+                        .padding(top = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.IconTopPadding)
+                        .size(30.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Image(
+                        modifier = Modifier.size(customIconSize),
+                        imageVector = icon,
+                        contentDescription = label,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tint),
+                    )
+                }
+                top.yukonga.miuix.kmp.basic.Text(
+                    modifier = Modifier.padding(bottom = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.BottomPadding),
+                    text = label,
+                    color = tint,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontSize = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.LabelFontSize,
+                    fontWeight = fontWeight,
+                )
+            }
+
+            top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.IconWithSelectedLabel -> {
+                val defaultPadding = (itemHeight - 30.dp) / 2
+                val iconTopPadding by animateDpAsState(
+                    targetValue = if (selected) top.yukonga.miuix.kmp.basic.NavigationBarDefaults.IconTopPadding else defaultPadding,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 300),
+                    label = "iconTopPadding",
+                )
+                val textAlpha by animateFloatAsState(
+                    targetValue = if (selected) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 300),
+                    label = "textAlpha",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .layout { measurable, constraints ->
+                            val topPaddingPx = iconTopPadding.roundToPx()
+                            val placeable = measurable.measure(constraints.offset(vertical = -topPaddingPx))
+                            layout(placeable.width, placeable.height + topPaddingPx) {
+                                placeable.placeRelative(0, topPaddingPx)
+                            }
+                        }
+                        .size(30.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Image(
+                        modifier = Modifier.size(customIconSize),
+                        imageVector = icon,
+                        contentDescription = label,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tint),
+                    )
+                }
+                top.yukonga.miuix.kmp.basic.Text(
+                    modifier = Modifier
+                        .padding(bottom = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.BottomPadding)
+                        .graphicsLayer { alpha = textAlpha },
+                    text = label,
+                    color = tint,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontSize = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.LabelFontSize,
+                    fontWeight = fontWeight,
+                )
+            }
+
+            top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.TextOnly -> {
+                top.yukonga.miuix.kmp.basic.Text(
+                    modifier = Modifier
+                        .padding(vertical = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.BottomPadding),
+                    text = label,
+                    color = tint,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontSize = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.TextFontSize,
+                    fontWeight = fontWeight,
+                )
+            }
+
+            else -> {
+                Box(
+                    modifier = Modifier.size(30.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Image(
+                        modifier = Modifier.size(customIconSize),
+                        imageVector = icon,
+                        contentDescription = label,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tint),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MyFloatingNavigationBarItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val onSurfaceContainerColor = MiuixTheme.colorScheme.onSurfaceContainer
+    val tint = when {
+        isPressed -> if (selected) {
+            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.SelectedPressedAlpha)
+        } else {
+            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.UnselectedPressedAlpha)
+        }
+
+        selected -> onSurfaceContainerColor
+
+        else -> onSurfaceContainerColor.copy(top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.UnselectedAlpha)
+    }
+
+    // Adjust size based on label for optical balance
+    val customIconSize = when (label) {
+        "Home" -> 32.dp      // Visually smallest, scale up from 28.dp
+        "Tweaks" -> 28.0.dp  // Normal/average, original defaults to 28.dp
+        "Settings" -> 26.5.dp // Solid icon, scale down slightly from 28.dp
+        else -> top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconSize
+    }
+
+    Column(
+        modifier = modifier
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                enabled = enabled,
+                role = androidx.compose.ui.semantics.Role.Tab,
+                interactionSource = interactionSource,
+                indication = null,
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(
+                    vertical = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconPadding,
+                    horizontal = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconPadding,
+                )
+                .size(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.Image(
+                modifier = Modifier.size(customIconSize),
+                imageVector = icon,
+                contentDescription = label,
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tint),
+            )
         }
     }
 }

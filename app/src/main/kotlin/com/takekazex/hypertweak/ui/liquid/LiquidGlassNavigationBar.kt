@@ -298,11 +298,22 @@ fun IosLiquidGlassNavigationBar(
                 verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
                 horizontalAlignment = CenterHorizontally,
             ) {
-                Icon(
-                    modifier = Modifier.size(22.dp),
-                    imageVector = item.icon,
-                    contentDescription = item.label,
-                )
+                val iconSize = when (item.label) {
+                    "Home" -> 25.dp
+                    "Tweaks" -> 22.dp
+                    "Settings" -> 20.5.dp
+                    else -> 22.dp
+                }
+                Box(
+                    modifier = Modifier.size(26.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        modifier = Modifier.size(iconSize),
+                        imageVector = item.icon,
+                        contentDescription = item.label,
+                    )
+                }
                 Text(
                     text = item.label,
                     fontSize = 11.sp,
