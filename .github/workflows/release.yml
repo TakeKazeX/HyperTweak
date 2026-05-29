@@ -70,20 +70,105 @@ jobs:
           PREV_TAG=$(git tag --sort=-creatordate | grep -v "^$CURRENT_TAG$" | head -n 1)
           echo "Previous tag: $PREV_TAG"
           
+          # Determine commit range
+          if [ -z "$PREV_TAG" ]; then
+            COMMIT_RANGE=""
+          elif git rev-parse "$CURRENT_TAG" >/dev/null 2>&1; then
+            COMMIT_RANGE="$PREV_TAG..$CURRENT_TAG"
+          else
+            COMMIT_RANGE="$PREV_TAG..HEAD"
+          fi
+
+          if [ -z "$COMMIT_RANGE" ]; then
+            echo "No previous release tag found or checking full history."
+            git log --oneline --pretty=format:"%s (%h)" > raw_commits.txt
+          else
+            echo "Listing commits for range: $COMMIT_RANGE"
+            git log $COMMIT_RANGE --oneline --pretty=format:"%s (%h)" > raw_commits.txt
+          fi
+
+          touch feats.txt fixes.txt perfs.txt refactors.txt docs.txt builds.txt others.txt
+
+          while IFS= read -r line; do
+            if [ -z "$line" ]; then continue; fi
+            prefix=$(echo "$line" | grep -oE "^[a-zA-Z0-9_-]+(\([^)]+\))?:")
+            if [ -n "$prefix" ]; then
+              type=$(echo "$prefix" | grep -oE "^[a-zA-Z0-9_-]+")
+              case "$type" in
+                feat)
+                  echo "* $line" >> feats.txt
+                  ;;
+                fix)
+                  echo "* $line" >> fixes.txt
+                  ;;
+                perf)
+                  echo "* $line" >> perfs.txt
+                  ;;
+                refactor|style)
+                  echo "* $line" >> refactors.txt
+                  ;;
+                docs)
+                  echo "* $line" >> docs.txt
+                  ;;
+                build|ci|chore)
+                  echo "* $line" >> builds.txt
+                  ;;
+                *)
+                  echo "* $line" >> others.txt
+                  ;;
+              esac
+            else
+              echo "* $line" >> others.txt
+            fi
+          done < raw_commits.txt
+
           echo "### Changelog (since last release)" > changelog.txt
           echo "" >> changelog.txt
-          
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous release tag found. Listing all commits:"
-            git log --oneline --pretty=format:"* %s (%h)" >> changelog.txt
-          elif git rev-parse "$CURRENT_TAG" >/dev/null 2>&1; then
-            echo "Listing commits between $PREV_TAG and $CURRENT_TAG:"
-            git log $PREV_TAG..$CURRENT_TAG --oneline --pretty=format:"* %s (%h)" >> changelog.txt
-          else
-            echo "Tag $CURRENT_TAG not pushed yet. Listing commits from $PREV_TAG to HEAD:"
-            git log $PREV_TAG..HEAD --oneline --pretty=format:"* %s (%h)" >> changelog.txt
+
+          if [ -s feats.txt ]; then
+            echo "#### 🚀 Features" >> changelog.txt
+            cat feats.txt >> changelog.txt
+            echo "" >> changelog.txt
           fi
-          
+
+          if [ -s fixes.txt ]; then
+            echo "#### 🐛 Bug Fixes" >> changelog.txt
+            cat fixes.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          if [ -s perfs.txt ]; then
+            echo "#### ⚡ Performance" >> changelog.txt
+            cat perfs.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          if [ -s refactors.txt ]; then
+            echo "#### 🛠️ Refactoring & Style" >> changelog.txt
+            cat refactors.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          if [ -s docs.txt ]; then
+            echo "#### 📝 Documentation" >> changelog.txt
+            cat docs.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          if [ -s builds.txt ]; then
+            echo "#### ⚙️ Build & Chore" >> changelog.txt
+            cat builds.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          if [ -s others.txt ]; then
+            echo "#### ❓ Other Changes" >> changelog.txt
+            cat others.txt >> changelog.txt
+            echo "" >> changelog.txt
+          fi
+
+          rm -f raw_commits.txt feats.txt fixes.txt perfs.txt refactors.txt docs.txt builds.txt others.txt
+
           echo "Generated changelog:"
           cat changelog.txt
 
