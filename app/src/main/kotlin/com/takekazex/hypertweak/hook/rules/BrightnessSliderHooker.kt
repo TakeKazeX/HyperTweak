@@ -29,6 +29,8 @@ class BrightnessSliderHooker(
         val clzBrightnessSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController")
         Log.d("HyperTweak", "BrightnessSliderHooker onHook - clzBrightnessSlider: ${clzBrightnessSlider?.name}")
 
+
+
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
             Log.d("HyperTweak", "Hooking Brightness onBindViewHolder")
             method.hook {
@@ -182,7 +184,7 @@ class BrightnessSliderHooker(
             }
         }
 
-        clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
+        clzBrightnessPanelDelegate?.declaredMethods?.filter { it.name == "updateIconProgress" }?.forEach { method ->
             method.hook {
                 after { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
@@ -192,11 +194,12 @@ class BrightnessSliderHooker(
                             val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
                             val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
                             val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as android.widget.SeekBar
-                            
+
                             val level = slider.progress
                             val maxLevel = slider.max
                             val pct = if (maxLevel > 0) Math.round(level * 1f / maxLevel * 100f).coerceIn(0, 100) else 0
                             topText.text = "$pct%"
+                            applyTopTextStyle(topText, sliderType = "BrightnessSliderController")
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error updating BrightnessPanelSliderDelegate percentage", t)
                         }

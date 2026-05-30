@@ -54,6 +54,10 @@ fun View.clearMiBlur() {
     clearMiBackgroundBlendColor()
 }
 
+object ColorOverrideLock {
+    val isSettingColor = ThreadLocal.withInitial { false }
+}
+
 // ─── Shared Slider Hooker Helper ───────────────────────────────────────────
 
 object SliderHookHelper {
@@ -114,12 +118,12 @@ object SliderHookHelper {
                 val hsv = FloatArray(3)
                 var bestColor = csl.defaultColor
                 var maxSaturation = -1f
-                
+
                 android.graphics.Color.colorToHSV(bestColor, hsv)
                 if (hsv[1] > 0.15f) {
                     maxSaturation = hsv[1]
                 }
-                
+
                 for (states in stateSets) {
                     val color = csl.getColorForState(states, csl.defaultColor)
                     android.graphics.Color.colorToHSV(color, hsv)
@@ -128,7 +132,9 @@ object SliderHookHelper {
                         bestColor = color
                     }
                 }
-                return bestColor
+                if (maxSaturation >= 0.15f) {
+                    return bestColor
+                }
             }
             android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00)
         }.getOrDefault(android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00))
@@ -140,62 +146,76 @@ object SliderHookHelper {
         val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
         val resolvedType = sliderType ?: getTag(topText, "sliderType") as? String
 
-        if (sameStyle && blurSupported) {
-            if (!force) {
-                val currentMode = runCatching {
-                    topText.javaClass.getMethod("getMiViewBlurMode").invoke(topText) as? Int
-                }.getOrNull() ?: 0
-                if (currentMode == 3) return
-            }
+        if (resolvedType != null) {
+            putTag(topText, "sliderType", resolvedType)
+        }
 
-            topText.clearMiBlur()
+        Log.d("HyperTweak", "applyTopTextStyle: sameStyle=$sameStyle blurSupported=$blurSupported force=$force resolvedType=$resolvedType pkg=${context.packageName}")
+
+        if (sameStyle && blurSupported) {
             topText.isActivated = true
             topText.isSelected = true
             runCatching {
-                if (resolvedType == "BrightnessSliderController") {
-                    val activeColor = getActiveColor(context)
-                    topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
-                } else {
-                    val colorStateListResId = context.resources.getIdentifier(
-                        "toggle_slider_icon_color", "color", context.packageName)
-                    if (colorStateListResId != 0) {
-                        topText.setTextColor(context.resources.getColorStateList(colorStateListResId, context.theme))
-                    }
-                }
+                val activeColor = getActiveColor(context)
+                Log.d("HyperTweak", "applyTopTextStyle: activeColor=#$activeColor")
+                ColorOverrideLock.isSettingColor.set(true)
+                topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
+            }.onFailure { t ->
+                Log.e("HyperTweak", "applyTopTextStyle: color set failed", t)
             }
-            topText.setMiViewBlurMode(3)
-            runCatching {
-                val blendColorsResId = context.resources.getIdentifier(
-                    "toggle_slider_icon_blend_colors", "array", context.packageName)
-                if (blendColorsResId != 0) {
-                    val blendColors = context.resources.getIntArray(blendColorsResId)
-                    val clzMiBlurCompat = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                    clzMiBlurCompat.getMethod(
-                        "setMiBackgroundBlendColors",
-                        View::class.java,
-                        IntArray::class.java,
-                        Float::class.javaPrimitiveType
-                    ).invoke(null, topText, blendColors, 1f)
+            ColorOverrideLock.isSettingColor.set(false)
+
+            val currentMode = runCatching {
+                topText.javaClass.getMethod("getMiViewBlurMode").invoke(topText) as? Int
+            }.getOrNull() ?: 0
+
+            if (currentMode != 3 || force) {
+                topText.clearMiBlur()
+                topText.setMiViewBlurMode(3)
+                runCatching {
+                    val blendColorsResId = context.resources.getIdentifier(
+                        "toggle_slider_icon_blend_colors", "array", context.packageName)
+                    if (blendColorsResId != 0) {
+                        val blendColors = context.resources.getIntArray(blendColorsResId)
+                        val clzMiBlurCompat = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                        clzMiBlurCompat.getMethod(
+                            "setMiBackgroundBlendColors",
+                            View::class.java,
+                            IntArray::class.java,
+                            Float::class.javaPrimitiveType
+                        ).invoke(null, topText, blendColors, 1f)
+                    }
                 }
             }
         } else {
             topText.clearMiBlur()
             runCatching {
-                val colorResId = context.resources.getIdentifier(
-                    "toggle_slider_top_text_color", "color", context.packageName)
-                if (colorResId != 0) {
-                    topText.setTextColor(context.resources.getColor(colorResId, context.theme))
+                if (sameStyle) {
+                    val activeColor = getActiveColor(context)
+                    Log.d("HyperTweak", "applyTopTextStyle: no-blur activeColor=#$activeColor")
+                    ColorOverrideLock.isSettingColor.set(true)
+                    topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
                 } else {
-                    topText.setTextColor(android.graphics.Color.argb(0xFF, 0x99, 0x99, 0x99))
+                    val colorResId = context.resources.getIdentifier(
+                        "toggle_slider_top_text_color", "color", context.packageName)
+                    ColorOverrideLock.isSettingColor.set(true)
+                    if (colorResId != 0) {
+                        topText.setTextColor(context.resources.getColor(colorResId, context.theme))
+                    } else {
+                        topText.setTextColor(android.graphics.Color.argb(0xFF, 0x99, 0x99, 0x99))
+                    }
                 }
+            }.onFailure { t ->
+                Log.e("HyperTweak", "applyTopTextStyle: no-blur color set failed", t)
             }
+            ColorOverrideLock.isSettingColor.set(false)
         }
     }
 
     fun initTopText(topText: TextView) {
+        topText.visibility = View.VISIBLE
+        topText.typeface = Typeface.DEFAULT_BOLD
         topText.post {
-            topText.visibility = View.VISIBLE
-            topText.typeface = Typeface.DEFAULT_BOLD
             if (topText.text == "200%") {
                 topText.text = "0%"
             }

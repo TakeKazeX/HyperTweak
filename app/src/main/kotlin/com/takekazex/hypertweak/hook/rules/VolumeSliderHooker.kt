@@ -72,7 +72,13 @@ class VolumeSliderHooker(
                                     tt
                                 }
                             val pct = calcVolumePercent(controller)
-                            topText.post { topText.text = "$pct%" }
+                            topText.post {
+                                topText.text = "$pct%"
+                                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                if (sameStyle) {
+                                    applyTopTextStyle(topText, sliderType = "VolumeSliderController")
+                                }
+                            }
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error in syncSystemVolume hook", t)
                         }
@@ -104,6 +110,10 @@ class VolumeSliderHooker(
                                     }
                                 val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
                                 topText.text = "$pct%"
+                                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                if (sameStyle) {
+                                    applyTopTextStyle(topText, sliderType = "VolumeSliderController")
+                                }
                             }.onFailure { t ->
                                 Log.e("HyperTweak", "Error in updateSliderValue hook", t)
                             }
@@ -234,13 +244,16 @@ class VolumeSliderHooker(
                                 val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
                                 val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
 
+                                val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                                 val columnSuperVolume = column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(column) as? TextView
                                 if (columnSuperVolume != null) {
                                     columnSuperVolume.text = "$pct%"
                                     columnSuperVolume.visibility = if (mExpanded) View.VISIBLE else View.GONE
                                     if (mExpanded) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                                        applyTopTextStyle(columnSuperVolume)
+                                        if (sameStyleVolume) {
+                                            applyTopTextStyle(columnSuperVolume)
+                                        }
                                     }
                                 }
 
@@ -251,6 +264,9 @@ class VolumeSliderHooker(
                                         if (mSuperVolume != null) {
                                             mSuperVolume.text = "$pct%"
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                                            if (sameStyleVolume) {
+                                                applyTopTextStyle(mSuperVolume, sliderType = "VolumeSliderController")
+                                            }
                                         }
                                     }
                                 }
@@ -307,6 +323,10 @@ class VolumeSliderHooker(
                                     textView.text = "$pct%"
                                     textView.visibility = View.VISIBLE
                                     textView.typeface = Typeface.DEFAULT_BOLD
+                                    val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                    if (sameStyleSuper) {
+                                        applyTopTextStyle(textView, sliderType = "VolumeSliderController")
+                                    }
                                     true
                                 } else {
                                     false
