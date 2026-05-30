@@ -93,12 +93,20 @@ jobs:
 
           if [ -z "$COMMIT_RANGE" ]; then
             echo "No previous release tag found or checking full history."
-            git log --oneline --pretty=format:"%s (%h)" > raw_commits.txt
-            COMMIT_COUNT=$(git rev-list --count HEAD)
+            git log --oneline --pretty=format:"%s (%h)" > raw_commits.txt || touch raw_commits.txt
+            COMMIT_COUNT=$(git rev-list --count HEAD || echo "0")
           else
             echo "Listing commits for range: $COMMIT_RANGE"
-            git log $COMMIT_RANGE --oneline --pretty=format:"%s (%h)" > raw_commits.txt
-            COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE)
+            if ! git log $COMMIT_RANGE --oneline --pretty=format:"%s (%h)" > raw_commits.txt 2>log_err.txt; then
+              echo "WARNING: git log failed with error:"
+              cat log_err.txt
+              echo "Falling back to full history."
+              git log --oneline --pretty=format:"%s (%h)" > raw_commits.txt || touch raw_commits.txt
+              COMMIT_COUNT=$(git rev-list --count HEAD || echo "0")
+            else
+              COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "0")
+            fi
+            rm -f log_err.txt
           fi
 
           touch feats.txt fixes.txt perfs.txt refactors.txt docs.txt builds.txt others.txt
