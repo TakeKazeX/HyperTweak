@@ -27,6 +27,7 @@ object Preferences {
     const val KEY_PAGE_SCALE = "page_scale"
 
     private lateinit var remotePrefs: SharedPreferences
+    private var localCachePrefs: SharedPreferences? = null
     private var isLocalOnly = false
 
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
@@ -43,22 +44,49 @@ object Preferences {
         }
     }
 
+    private fun getLocalCache(): SharedPreferences? {
+        if (localCachePrefs != null) return localCachePrefs
+        val app = runCatching {
+            val at = Class.forName("android.app.ActivityThread")
+            at.getMethod("currentApplication").invoke(null) as? android.content.Context
+        }.getOrNull()
+        if (app != null) {
+            localCachePrefs = app.getSharedPreferences("hypertweak_cache", android.content.Context.MODE_PRIVATE)
+        }
+        return localCachePrefs
+    }
+
     val isInitialized: Boolean
         get() = this::remotePrefs.isInitialized
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
         if (!isInitialized) return default
-        return remotePrefs.getBoolean(key, default)
+        if (remotePrefs.contains(key)) {
+            val value = remotePrefs.getBoolean(key, default)
+            getLocalCache()?.edit()?.putBoolean(key, value)?.apply()
+            return value
+        }
+        return getLocalCache()?.getBoolean(key, default) ?: default
     }
 
     fun getInt(key: String, default: Int = 0): Int {
         if (!isInitialized) return default
-        return remotePrefs.getInt(key, default)
+        if (remotePrefs.contains(key)) {
+            val value = remotePrefs.getInt(key, default)
+            getLocalCache()?.edit()?.putInt(key, value)?.apply()
+            return value
+        }
+        return getLocalCache()?.getInt(key, default) ?: default
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
         if (!isInitialized) return default
-        return remotePrefs.getFloat(key, default)
+        if (remotePrefs.contains(key)) {
+            val value = remotePrefs.getFloat(key, default)
+            getLocalCache()?.edit()?.putFloat(key, value)?.apply()
+            return value
+        }
+        return getLocalCache()?.getFloat(key, default) ?: default
     }
 
     fun putBoolean(key: String, value: Boolean) {
