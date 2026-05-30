@@ -16,3 +16,8 @@
 
 /decompiled_classes
 /scratch
+
+# SQLite runtime artifacts
+modules_config.db
+modules_config.db-shm
+modules_config.db-wal

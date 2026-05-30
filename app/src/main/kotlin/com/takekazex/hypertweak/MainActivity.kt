@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
-            var gestureBarKeepHeight by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)) }
+            var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
             var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                    gestureBarKeepHeight = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)
+                    gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                    gestureBarKeepHeight = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)
+                    gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -279,11 +279,11 @@ class MainActivity : ComponentActivity() {
                             Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         }
                     },
-                    gestureBarKeepHeight = gestureBarKeepHeight,
-                    onGestureBarKeepHeightChange = { checked ->
-                        gestureBarKeepHeight = checked
+                    gestureBarRaiseLayout = gestureBarRaiseLayout,
+                    onGestureBarRaiseLayoutChange = { checked ->
+                        gestureBarRaiseLayout = checked
                         coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, checked)
+                            Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         }
                     },
                     sliderShowPercentage = sliderShowPercentage,
