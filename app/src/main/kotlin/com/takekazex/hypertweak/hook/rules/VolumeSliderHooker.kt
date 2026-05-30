@@ -16,8 +16,6 @@ import com.takekazex.hypertweak.hook.rules.SliderHookHelper.getTopTextFromHolder
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.initTopText
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.putTag
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.updatePercentageText
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.volumeColor
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.volumeBlendToken
 
 class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
@@ -38,20 +36,9 @@ class VolumeSliderHooker(
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
                             if (sameStyle) {
                                 initTopText(topText)
-
-                                val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }
-                                    .recoverCatching { holder.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(holder) }
-                                    .getOrNull() ?: return@runCatching
-                                val icon = runCatching { binding.javaClass.getField("icon").get(binding) as? View }
-                                    .recoverCatching { binding.javaClass.getDeclaredField("icon").apply { isAccessible = true }.get(binding) as? View }
-                                    .getOrNull()
-                                if (icon != null) {
-                                    putTag(icon, "topText", topText)
-                                    putTag(icon, "sliderType", "VolumeSliderController")
-                                    runCatching {
-                                        param.thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(param.thisObject, true)
-                                    }
-                                }
+                                putTag(topText, "sliderType", "VolumeSliderController")
+                                applyTopTextStyle(topText, force = true, sliderType = "VolumeSliderController")
+                                updatePercentageText(param.thisObject, "VolumeSliderController")
                             } else {
                                 topText.post { topText.visibility = View.GONE }
                             }
@@ -63,7 +50,7 @@ class VolumeSliderHooker(
 
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
-                before { param ->
+                after { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
                         updatePercentageText(param.thisObject, "VolumeSliderController")
                     }
@@ -242,7 +229,7 @@ class VolumeSliderHooker(
                                 val states = mState.javaClass.getDeclaredField("states").apply { isAccessible = true }.get(mState)
                                 val getMethod = states.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
                                 val streamState = getMethod.invoke(states, stream) ?: return@runCatching
-
+ 
                                 val level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }.get(streamState) as Int
                                 val levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }.get(streamState) as Int
                                 val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0

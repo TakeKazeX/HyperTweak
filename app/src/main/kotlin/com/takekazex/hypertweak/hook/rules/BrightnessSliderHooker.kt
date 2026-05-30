@@ -6,7 +6,6 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.applyTopTextStyle
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.brightnessColor
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.findHolder
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromHeight
 import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromLeft
@@ -39,20 +38,9 @@ class BrightnessSliderHooker(
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
                             initTopText(topText)
-
-                            val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }
-                                .recoverCatching { holder.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(holder) }
-                                .getOrNull() ?: return@runCatching
-                            val icon = runCatching { binding.javaClass.getField("icon").get(binding) as? View }
-                                .recoverCatching { binding.javaClass.getDeclaredField("icon").apply { isAccessible = true }.get(binding) as? View }
-                                .getOrNull()
-                            if (icon != null) {
-                                putTag(icon, "topText", topText)
-                                putTag(icon, "sliderType", "BrightnessSliderController")
-                                runCatching {
-                                    param.thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(param.thisObject, true)
-                                }
-                            }
+                            putTag(topText, "sliderType", "BrightnessSliderController")
+                            applyTopTextStyle(topText, force = true)
+                            updatePercentageText(param.thisObject, "BrightnessSliderController")
                         }
                     }
                 }
@@ -61,7 +49,7 @@ class BrightnessSliderHooker(
 
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
-                before { param ->
+                after { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
                         updatePercentageText(param.thisObject, "BrightnessSliderController")
                     }
@@ -105,11 +93,10 @@ class BrightnessSliderHooker(
                                 topText.chooseBackgroundBlurContainer(null)
                             }
                             topText.setMiViewBlurMode(3)
-                            applyTopTextStyle(topText, force = true)
                         } else {
                             topText.clearMiBlur()
-                            topText.setTextColor(brightnessColor)
                         }
+                        applyTopTextStyle(topText, force = true)
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in BrightnessSliderController.setInMirror hook", t)
                     }
@@ -181,13 +168,10 @@ class BrightnessSliderHooker(
                             val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
                             val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
                             val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
-                            val icon = toggleSlider.javaClass.getField("icon").apply { isAccessible = true }.get(toggleSlider) as View
                             
                             initTopText(topText)
-                            applyTopTextStyle(topText)
-                            
-                            putTag(icon, "topText", topText)
-                            putTag(icon, "sliderType", "BrightnessSliderController")
+                            putTag(topText, "sliderType", "BrightnessSliderController")
+                            applyTopTextStyle(topText, force = true)
                             
                             thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
                         }.onFailure { t ->

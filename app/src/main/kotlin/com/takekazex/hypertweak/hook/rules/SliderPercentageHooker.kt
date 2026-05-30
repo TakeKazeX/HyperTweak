@@ -48,14 +48,7 @@ class SliderPercentageHooker(
                     }.singleOrNull()?.name
                 }
             }
-            "miui.systemui.controlcenter.widget.AnimateColorView" -> {
-                resolvePluginClass("AnimateColorView") { bridge ->
-                    bridge.findClass {
-                        searchPackages("miui.systemui.controlcenter")
-                        matcher { className("AnimateColorView", StringMatchType.EndsWith) }
-                    }.singleOrNull()?.name
-                }
-            }
+
             "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator" -> {
                 resolvePluginClass("BrightnessPanelAnimator") { bridge ->
                     bridge.findClass {
