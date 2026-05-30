@@ -74,4 +74,4 @@ Special thanks to the following open-source projects for their support and inspi
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GNU General Public License v3](LICENSE).

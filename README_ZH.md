@@ -74,4 +74,4 @@ app/build/outputs/apk/release/HyperTweak-v1.3.1-release.apk
 
 ## 📄 许可证
 
-本项目基于 [MIT License](LICENSE) 许可协议开源。
+本项目基于 [GNU General Public License v3](LICENSE) 许可协议开源。
