@@ -55,8 +55,12 @@ jobs:
 
       - name: Generate Changelog
         run: |
-          # Fetch all tags to retrieve history
-          git fetch --tags --unshallow || git fetch --tags
+          # Fetch all tags safely to retrieve history
+          if git rev-parse --is-shallow-repository | grep -q true; then
+            git fetch --tags --unshallow
+          else
+            git fetch --tags
+          fi
           
           # Determine current tag
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -69,6 +73,14 @@ jobs:
           # Find the previous tag
           PREV_TAG=$(git tag --sort=-creatordate | grep -v "^$CURRENT_TAG$" | head -n 1)
           echo "Previous tag: $PREV_TAG"
+          
+          # Verify if the previous tag is a valid commit/ref
+          if [ -n "$PREV_TAG" ] && git rev-parse --verify "$PREV_TAG" >/dev/null 2>&1; then
+            echo "Previous tag is valid: $PREV_TAG"
+          else
+            echo "Previous tag $PREV_TAG is invalid or missing. Falling back to full history."
+            PREV_TAG=""
+          fi
           
           # Determine commit range
           if [ -z "$PREV_TAG" ]; then
