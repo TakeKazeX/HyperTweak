@@ -31,15 +31,15 @@ object Preferences {
 
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         if (useLocalOnly) {
+            // Only apply local prefs as fallback if remote prefs haven't been set yet
             if (!this::remotePrefs.isInitialized || isLocalOnly) {
                 remotePrefs = prefs
                 isLocalOnly = true
             }
         } else {
-            if (!isLocalOnly) {
-                remotePrefs = prefs
-                isLocalOnly = false
-            }
+            // Remote prefs always win and can upgrade a local-only instance
+            remotePrefs = prefs
+            isLocalOnly = false
         }
     }
 
