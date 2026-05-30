@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules
 
 import android.util.Log
+import android.widget.TextView
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -130,5 +132,42 @@ class SliderPercentageHooker(
         attach(BrightnessSliderHooker(this))
         attach(VolumeSliderHooker(this))
         attach(CommonSliderHooker(this))
+
+        // Hook TextView.setTextColor to intercept and force color state when unified style is active
+        runCatching {
+            val mSetTextColorCsl = TextView::class.java.getDeclaredMethod("setTextColor", android.content.res.ColorStateList::class.java)
+            mSetTextColorCsl.hook {
+                before { param ->
+                    val textView = param.thisObject as TextView
+                    val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
+                    if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
+                        if (ColorOverrideLock.isSettingColor.get() != true) {
+                            val activeColor = SliderHookHelper.getActiveColor(textView.context)
+                            param.args[0] = android.content.res.ColorStateList.valueOf(activeColor)
+                        }
+                    }
+                }
+            }
+        }.onFailure { t ->
+            Log.e("HyperTweak", "Failed to hook TextView.setTextColor(ColorStateList)", t)
+        }
+
+        runCatching {
+            val mSetTextColorInt = TextView::class.java.getDeclaredMethod("setTextColor", Int::class.javaPrimitiveType)
+            mSetTextColorInt.hook {
+                before { param ->
+                    val textView = param.thisObject as TextView
+                    val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
+                    if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
+                        if (ColorOverrideLock.isSettingColor.get() != true) {
+                            val activeColor = SliderHookHelper.getActiveColor(textView.context)
+                            param.args[0] = activeColor
+                        }
+                    }
+                }
+            }
+        }.onFailure { t ->
+            Log.e("HyperTweak", "Failed to hook TextView.setTextColor(int)", t)
+        }
     }
 }
