@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules
+package com.takekazex.hypertweak.hook.rules.module
 
 import android.app.Activity
 import android.content.Intent

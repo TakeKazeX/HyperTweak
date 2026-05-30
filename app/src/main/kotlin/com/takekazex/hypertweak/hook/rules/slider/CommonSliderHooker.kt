@@ -1,11 +1,11 @@
-package com.takekazex.hypertweak.hook.rules
+package com.takekazex.hypertweak.hook.rules.slider
 
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.applyTopTextStyle
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.getTag
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.getTopTextFromHolder
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 
 class CommonSliderHooker(
     private val parent: SliderPercentageHooker

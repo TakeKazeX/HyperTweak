@@ -1,25 +1,25 @@
-package com.takekazex.hypertweak.hook.rules
-
+package com.takekazex.hypertweak.hook.rules.slider
+ 
 import android.util.Log
 import android.view.View
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.applyTopTextStyle
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.findHolder
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromHeight
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromLeft
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromTop
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.fromWidth
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.getTopTextFromHolder
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.initTopText
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.isBlurSupported
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.putTag
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.toHeight
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.toLeft
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.toTop
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.toWidth
-import com.takekazex.hypertweak.hook.rules.SliderHookHelper.updatePercentageText
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromHeight
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromLeft
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromTop
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromWidth
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.isBlurSupported
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toHeight
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toLeft
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toTop
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toWidth
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
 class BrightnessSliderHooker(
     private val parent: SliderPercentageHooker

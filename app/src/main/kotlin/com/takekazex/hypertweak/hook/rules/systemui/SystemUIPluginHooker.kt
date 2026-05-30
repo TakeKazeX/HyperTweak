@@ -1,10 +1,11 @@
-package com.takekazex.hypertweak.hook.rules
+package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
 import java.util.concurrent.ConcurrentHashMap
 
 object SystemUIPluginHooker : StaticHooker() {

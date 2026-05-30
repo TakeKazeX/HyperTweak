@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules
+package com.takekazex.hypertweak.hook.rules.slider
 
 import android.graphics.Typeface
 import android.util.Log
