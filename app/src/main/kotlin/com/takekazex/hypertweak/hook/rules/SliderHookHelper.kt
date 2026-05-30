@@ -123,6 +123,8 @@ object SliderHookHelper {
             }
 
             topText.clearMiBlur()
+            topText.isActivated = true
+            topText.isSelected = true
             runCatching {
                 val colorStateListResId = context.resources.getIdentifier(
                     "toggle_slider_icon_color", "color", context.packageName)
@@ -144,8 +146,6 @@ object SliderHookHelper {
                         Float::class.javaPrimitiveType
                     ).invoke(null, topText, blendColors, 1f)
                 }
-            }.onFailure { t ->
-                Log.w("HyperTweak", "applyTopTextStyle: blend color failed", t)
             }
         } else {
             topText.clearMiBlur()
@@ -157,8 +157,6 @@ object SliderHookHelper {
                 } else {
                     topText.setTextColor(android.graphics.Color.argb(0xFF, 0x99, 0x99, 0x99))
                 }
-            }.onFailure {
-                topText.setTextColor(android.graphics.Color.argb(0xFF, 0x99, 0x99, 0x99))
             }
         }
     }
@@ -280,20 +278,30 @@ object SliderHookHelper {
 
             val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
             if (sameStyle && isBlurSupported(topText.context)) {
-                topText.setMiViewBlurMode(3)
                 runCatching {
-                    val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                    val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                    
-                    val activeToken = if (type == "BrightnessSliderController") brightnessActiveBlendToken else volumeActiveBlendToken
-                    val inactiveToken = if (type == "BrightnessSliderController") brightnessInactiveBlendToken else volumeInactiveBlendToken
-                    
-                    val tokenToUse = if (pct >= 50) inactiveToken else activeToken
-                    if (tokenToUse != null) {
-                        clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
-                            .invoke(null, topText, tokenToUse)
-                    } else {
+                    if (type == "BrightnessSliderController") {
                         applyTopTextStyle(topText)
+                    } else {
+                        val currentMode = runCatching {
+                            topText.javaClass.getMethod("getMiViewBlurMode").invoke(topText) as? Int
+                        }.getOrNull() ?: 0
+                        if (currentMode != 3) {
+                            topText.setMiViewBlurMode(3)
+                        }
+
+                        val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiuiColorBlendToken")
+                        val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                        
+                        val activeToken = volumeActiveBlendToken
+                        val inactiveToken = volumeInactiveBlendToken
+                        
+                        val tokenToUse = if (pct >= 50) inactiveToken else activeToken
+                        if (tokenToUse != null) {
+                            clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
+                                .invoke(null, topText, tokenToUse)
+                        } else {
+                            applyTopTextStyle(topText)
+                        }
                     }
                 }.onFailure { t ->
                     Log.e("HyperTweak", "Error in updatePercentageText blend color update", t)
