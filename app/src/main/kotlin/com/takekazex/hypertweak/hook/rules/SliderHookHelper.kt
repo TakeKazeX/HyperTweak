@@ -103,41 +103,31 @@ object SliderHookHelper {
         }.getOrDefault(false)
     }
 
+    private val activeColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
     fun getActiveColor(context: android.content.Context, sliderType: String? = null): Int {
-        val isVolume = sliderType?.contains("Volume") == true
-        if (isVolume) {
-            return runCatching {
-                val sysUiContext = context.createPackageContext("com.android.systemui", 0)
-                val colorStateListResId = sysUiContext.resources.getIdentifier("toggle_slider_icon_color", "color", "com.android.systemui")
-                if (colorStateListResId != 0) {
-                    val csl = sysUiContext.resources.getColorStateList(colorStateListResId, sysUiContext.theme)
-                    var bestColor = csl.defaultColor
-                    var maxSaturation = -1f
-                    val hsv = FloatArray(3)
-                    val stateSets = listOf(
-                        intArrayOf(android.R.attr.state_activated),
-                        intArrayOf(android.R.attr.state_selected),
-                        intArrayOf(android.R.attr.state_checked)
-                    )
-                    for (states in stateSets) {
-                        val color = csl.getColorForState(states, csl.defaultColor)
-                        android.graphics.Color.colorToHSV(color, hsv)
-                        if (hsv[1] > maxSaturation) {
-                            maxSaturation = hsv[1]
-                            bestColor = color
-                        }
-                    }
-                    if (maxSaturation >= 0.15f) return@runCatching bestColor
-                }
-                android.graphics.Color.parseColor("#3482FF")
-            }.getOrDefault(android.graphics.Color.parseColor("#3482FF"))
+        val cacheKey = sliderType ?: "default"
+        val cachedColor = activeColorCache[cacheKey]
+        if (cachedColor != null) {
+            return cachedColor
         }
 
-        return runCatching {
-            val colorStateListResId = context.resources.getIdentifier(
-                "toggle_slider_icon_color", "color", context.packageName)
-            if (colorStateListResId != 0) {
-                val csl = context.resources.getColorStateList(colorStateListResId, context.theme)
+        val color = runCatching {
+            if (sliderType != null && sliderType.contains("Volume")) {
+                val sysUiContext = context.createPackageContext("com.android.systemui", 0)
+                val colorResId = sysUiContext.resources.getIdentifier(
+                    "miui_volume_icon_color_blue", "color", "com.android.systemui"
+                )
+                if (colorResId != 0) {
+                    return@runCatching sysUiContext.getColor(colorResId)
+                }
+                return@runCatching android.graphics.Color.parseColor("#3482FF")
+            }
+            
+            val colorResId = context.resources.getIdentifier(
+                "toggle_slider_active_color", "color", context.packageName)
+            if (colorResId != 0) {
+                val csl = context.resources.getColorStateList(colorResId, context.theme)
                 val stateSets = listOf(
                     intArrayOf(android.R.attr.state_activated),
                     intArrayOf(android.R.attr.state_selected),
@@ -154,19 +144,22 @@ object SliderHookHelper {
                 }
 
                 for (states in stateSets) {
-                    val color = csl.getColorForState(states, csl.defaultColor)
-                    android.graphics.Color.colorToHSV(color, hsv)
+                    val c = csl.getColorForState(states, csl.defaultColor)
+                    android.graphics.Color.colorToHSV(c, hsv)
                     if (hsv[1] > maxSaturation) {
                         maxSaturation = hsv[1]
-                        bestColor = color
+                        bestColor = c
                     }
                 }
                 if (maxSaturation >= 0.15f) {
-                    return bestColor
+                    return@runCatching bestColor
                 }
             }
             android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00)
         }.getOrDefault(android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00))
+
+        activeColorCache[cacheKey] = color
+        return color
     }
 
     fun applyTopTextStyle(topText: TextView, force: Boolean = false, sliderType: String? = null) {
@@ -207,34 +200,43 @@ object SliderHookHelper {
                         val blendColorsResId = context.resources.getIdentifier(
                             "toggle_slider_icon_blend_colors", "array", context.packageName)
                         if (blendColorsResId != 0) {
-                            val originalBlendColors = context.resources.getIntArray(blendColorsResId)
-                            
-                            var bestBlendColor = originalBlendColors.firstOrNull() ?: activeColor
-                            var maxSat = -1f
-                            val hsv = FloatArray(3)
-                            for (c in originalBlendColors) {
-                                android.graphics.Color.colorToHSV(c, hsv)
-                                if (hsv[1] > maxSat) {
-                                    maxSat = hsv[1]
-                                    bestBlendColor = c
+                            var forcedBlendColors = getTag(topText, "cached_forcedBlendColors_$activeColor") as? IntArray
+                            if (forcedBlendColors == null) {
+                                val originalBlendColors = context.resources.getIntArray(blendColorsResId)
+                                
+                                var bestBlendColor = originalBlendColors.firstOrNull() ?: activeColor
+                                var maxSat = -1f
+                                val hsv = FloatArray(3)
+                                for (c in originalBlendColors) {
+                                    android.graphics.Color.colorToHSV(c, hsv)
+                                    if (hsv[1] > maxSat) {
+                                        maxSat = hsv[1]
+                                        bestBlendColor = c
+                                    }
                                 }
+                                
+                                val a = android.graphics.Color.alpha(bestBlendColor)
+                                val r = android.graphics.Color.red(activeColor)
+                                val g = android.graphics.Color.green(activeColor)
+                                val b = android.graphics.Color.blue(activeColor)
+                                val finalBlendColor = android.graphics.Color.argb(a, r, g, b)
+                                
+                                forcedBlendColors = IntArray(originalBlendColors.size) { finalBlendColor }
+                                putTag(topText, "cached_forcedBlendColors_$activeColor", forcedBlendColors)
                             }
                             
-                            val a = android.graphics.Color.alpha(bestBlendColor)
-                            val r = android.graphics.Color.red(activeColor)
-                            val g = android.graphics.Color.green(activeColor)
-                            val b = android.graphics.Color.blue(activeColor)
-                            val finalBlendColor = android.graphics.Color.argb(a, r, g, b)
-                            
-                            val forcedBlendColors = IntArray(originalBlendColors.size) { finalBlendColor }
-                            
-                            val clzMiBlurCompat = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                            clzMiBlurCompat.getMethod(
-                                "setMiBackgroundBlendColors",
-                                View::class.java,
-                                IntArray::class.java,
-                                Float::class.javaPrimitiveType
-                            ).invoke(null, topText, forcedBlendColors, 1f)
+                            var setBlendMethod = getTag(topText, "cached_setBlendMethod") as? java.lang.reflect.Method
+                            if (setBlendMethod == null) {
+                                val clzMiBlurCompat = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                                setBlendMethod = clzMiBlurCompat.getMethod(
+                                    "setMiBackgroundBlendColors",
+                                    View::class.java,
+                                    IntArray::class.java,
+                                    Float::class.javaPrimitiveType
+                                )
+                                putTag(topText, "cached_setBlendMethod", setBlendMethod)
+                            }
+                            setBlendMethod.invoke(null, topText, forcedBlendColors, 1f)
                         } else {
                             topText.clearMiBlur()
                         }
