@@ -20,8 +20,8 @@ object HideBottomBarHooker : StaticHooker() {
             Resources::class.java.getMethod("getDimensionPixelSize", Int::class.javaPrimitiveType).hook {
                 before { param ->
                     val hideBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                    val keepHeight = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)
-                    if (!hideBar || keepHeight) return@before
+                    val raiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+                    if (!hideBar || !raiseLayout) return@before
                     val resources = param.thisObject as? Resources ?: return@before
                     val id = param.args[0] as? Int ?: return@before
                     try {
@@ -57,8 +57,8 @@ object HideBottomBarHooker : StaticHooker() {
 
                 // Log pref values at this moment in the SystemUI process
                 val hideBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                val keepHeight = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)
-                Log.d("HyperTweak", "HideBottomBarHooker: prefs at attach time → hide_gesture_bar=$hideBar, gesture_bar_keep_height=$keepHeight")
+                val raiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+                Log.d("HyperTweak", "HideBottomBarHooker: prefs at attach time → hide_gesture_bar=$hideBar, gesture_bar_raise_layout=$raiseLayout")
 
                 applyDynamicHooks(cl)
             }
@@ -105,7 +105,7 @@ object HideBottomBarHooker : StaticHooker() {
                     method.hook {
                         after { param ->
                             if (Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false) &&
-                                !Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_KEEP_HEIGHT, false)
+                                Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                             ) {
                                 param.result = 0
                             }

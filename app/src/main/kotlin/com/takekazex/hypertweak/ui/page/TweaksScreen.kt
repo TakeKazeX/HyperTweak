@@ -42,8 +42,8 @@ fun TweaksScreenContent(
     onSliderSamePercentageChange: (Boolean) -> Unit,
     hideGestureBar: Boolean,
     onHideGestureBarChange: (Boolean) -> Unit,
-    gestureBarKeepHeight: Boolean,
-    onGestureBarKeepHeightChange: (Boolean) -> Unit,
+    gestureBarRaiseLayout: Boolean,
+    onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -137,10 +137,10 @@ fun TweaksScreenContent(
                         summary = "Hide the bottom gesture line and multitasking split-screen bar"
                     )
                     SwitchPreference(
-                        checked = gestureBarKeepHeight && hideGestureBar,
-                        onCheckedChange = onGestureBarKeepHeightChange,
-                        title = "Raise Layout / Keep Space",
-                        summary = "Keep the navigation bar height space when hidden to avoid keyboard overlapping",
+                        checked = gestureBarRaiseLayout && hideGestureBar,
+                        onCheckedChange = onGestureBarRaiseLayoutChange,
+                        title = "Raise Layout",
+                        summary = "Remove the reserved navigation bar space so content extends to the bottom edge (keyboard may overlap)",
                         enabled = hideGestureBar
                     )
                 }

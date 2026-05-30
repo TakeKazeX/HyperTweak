@@ -10,7 +10,7 @@ object Preferences {
     const val KEY_REMOVE_GMS_RESTRICTION = "remove_gms_restriction"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
-    const val KEY_GESTURE_BAR_KEEP_HEIGHT = "gesture_bar_keep_height"
+    const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"

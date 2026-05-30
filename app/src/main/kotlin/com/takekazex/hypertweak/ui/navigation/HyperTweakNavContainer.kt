@@ -73,8 +73,8 @@ fun HyperTweakNavContainer(
     onHideLauncherIconChange: (Boolean) -> Unit,
     hideGestureBar: Boolean,
     onHideGestureBarChange: (Boolean) -> Unit,
-    gestureBarKeepHeight: Boolean,
-    onGestureBarKeepHeightChange: (Boolean) -> Unit,
+    gestureBarRaiseLayout: Boolean,
+    onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
 
     // Backdrop
     backdrop: LayerBackdrop,
@@ -145,8 +145,8 @@ fun HyperTweakNavContainer(
                 onHideLauncherIconChange = onHideLauncherIconChange,
                 hideGestureBar = hideGestureBar,
                 onHideGestureBarChange = onHideGestureBarChange,
-                gestureBarKeepHeight = gestureBarKeepHeight,
-                onGestureBarKeepHeightChange = onGestureBarKeepHeightChange,
+                gestureBarRaiseLayout = gestureBarRaiseLayout,
+                onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,
