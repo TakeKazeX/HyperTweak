@@ -113,7 +113,7 @@ jobs:
 
           while IFS= read -r line; do
             if [ -z "$line" ]; then continue; fi
-            prefix=$(echo "$line" | grep -oE "^[a-zA-Z0-9_-]+(\([^)]+\))?:")
+            prefix=$(echo "$line" | grep -oE "^[a-zA-Z0-9_-]+(\([^)]+\))?:" || true)
             if [ -n "$prefix" ]; then
               type=$(echo "$prefix" | grep -oE "^[a-zA-Z0-9_-]+")
               case "$type" in
