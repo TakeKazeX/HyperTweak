@@ -142,7 +142,7 @@ class SliderPercentageHooker(
                     val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
                     if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
                         if (ColorOverrideLock.isSettingColor.get() != true) {
-                            val activeColor = SliderHookHelper.getActiveColor(textView.context)
+                            val activeColor = SliderHookHelper.getActiveColor(textView.context, sliderType)
                             param.args[0] = android.content.res.ColorStateList.valueOf(activeColor)
                         }
                     }
@@ -160,7 +160,7 @@ class SliderPercentageHooker(
                     val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
                     if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
                         if (ColorOverrideLock.isSettingColor.get() != true) {
-                            val activeColor = SliderHookHelper.getActiveColor(textView.context)
+                            val activeColor = SliderHookHelper.getActiveColor(textView.context, sliderType)
                             param.args[0] = activeColor
                         }
                     }

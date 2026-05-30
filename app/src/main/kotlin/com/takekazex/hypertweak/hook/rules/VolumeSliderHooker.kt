@@ -252,7 +252,7 @@ class VolumeSliderHooker(
                                     if (mExpanded) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                         if (sameStyleVolume) {
-                                            applyTopTextStyle(columnSuperVolume)
+                                            applyTopTextStyle(columnSuperVolume, sliderType = "VolumePanelViewController")
                                         }
                                     }
                                 }
@@ -265,7 +265,7 @@ class VolumeSliderHooker(
                                             mSuperVolume.text = "$pct%"
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                             if (sameStyleVolume) {
-                                                applyTopTextStyle(mSuperVolume, sliderType = "VolumeSliderController")
+                                                applyTopTextStyle(mSuperVolume, sliderType = "VolumePanelViewController")
                                             }
                                         }
                                     }
@@ -325,7 +325,7 @@ class VolumeSliderHooker(
                                     textView.typeface = Typeface.DEFAULT_BOLD
                                     val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                                     if (sameStyleSuper) {
-                                        applyTopTextStyle(textView, sliderType = "VolumeSliderController")
+                                        applyTopTextStyle(textView, sliderType = "VolumePanelViewController")
                                     }
                                     true
                                 } else {
