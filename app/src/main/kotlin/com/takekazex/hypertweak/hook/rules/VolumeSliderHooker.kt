@@ -203,7 +203,7 @@ class VolumeSliderHooker(
                             runCatching {
                                 val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
                                     .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
-                                superVolume.post { superVolume.visibility = View.GONE }
+                                superVolume.post { superVolume.visibility = View.INVISIBLE }
                             }
                         }
                     }
@@ -248,7 +248,7 @@ class VolumeSliderHooker(
                                 val columnSuperVolume = column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(column) as? TextView
                                 if (columnSuperVolume != null) {
                                     columnSuperVolume.text = "$pct%"
-                                    columnSuperVolume.visibility = if (mExpanded) View.VISIBLE else View.GONE
+                                    columnSuperVolume.visibility = if (mExpanded) View.VISIBLE else View.INVISIBLE
                                     if (mExpanded) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                         if (sameStyleVolume) {
