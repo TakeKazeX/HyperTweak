@@ -58,11 +58,6 @@ fun View.clearMiBlur() {
 
 object SliderHookHelper {
     val tags = WeakHashMap<Any, HashMap<String, Any?>>()
-    
-    var brightnessColor: Int = 0
-    var volumeColor: Int = 0
-    var brightnessBlendToken: Any? = null
-    var volumeBlendToken: Any? = null
 
     // Animator cache coordinates
     var fromLeft = 0
@@ -73,11 +68,6 @@ object SliderHookHelper {
     var toTop = 0
     var toWidth = 0
     var toHeight = 0
-
-    @Volatile var brightnessActiveBlendToken: Any? = null
-    @Volatile var brightnessInactiveBlendToken: Any? = null
-    @Volatile var volumeActiveBlendToken: Any? = null
-    @Volatile var volumeInactiveBlendToken: Any? = null
 
     @Synchronized
     fun getTag(obj: Any, key: String): Any? {
@@ -109,10 +99,46 @@ object SliderHookHelper {
         }.getOrDefault(false)
     }
 
-    fun applyTopTextStyle(topText: TextView, force: Boolean = false) {
+    fun getActiveColor(context: android.content.Context): Int {
+        return runCatching {
+            val colorStateListResId = context.resources.getIdentifier(
+                "toggle_slider_icon_color", "color", context.packageName)
+            if (colorStateListResId != 0) {
+                val csl = context.resources.getColorStateList(colorStateListResId, context.theme)
+                val stateSets = listOf(
+                    intArrayOf(android.R.attr.state_activated),
+                    intArrayOf(android.R.attr.state_selected),
+                    intArrayOf(android.R.attr.state_activated, android.R.attr.state_selected),
+                    intArrayOf(android.R.attr.state_checked)
+                )
+                val hsv = FloatArray(3)
+                var bestColor = csl.defaultColor
+                var maxSaturation = -1f
+                
+                android.graphics.Color.colorToHSV(bestColor, hsv)
+                if (hsv[1] > 0.15f) {
+                    maxSaturation = hsv[1]
+                }
+                
+                for (states in stateSets) {
+                    val color = csl.getColorForState(states, csl.defaultColor)
+                    android.graphics.Color.colorToHSV(color, hsv)
+                    if (hsv[1] > maxSaturation) {
+                        maxSaturation = hsv[1]
+                        bestColor = color
+                    }
+                }
+                return bestColor
+            }
+            android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00)
+        }.getOrDefault(android.graphics.Color.argb(0xFF, 0xFF, 0x98, 0x00))
+    }
+
+    fun applyTopTextStyle(topText: TextView, force: Boolean = false, sliderType: String? = null) {
         val context = topText.context
         val blurSupported = isBlurSupported(context)
         val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        val resolvedType = sliderType ?: getTag(topText, "sliderType") as? String
 
         if (sameStyle && blurSupported) {
             if (!force) {
@@ -126,10 +152,15 @@ object SliderHookHelper {
             topText.isActivated = true
             topText.isSelected = true
             runCatching {
-                val colorStateListResId = context.resources.getIdentifier(
-                    "toggle_slider_icon_color", "color", context.packageName)
-                if (colorStateListResId != 0) {
-                    topText.setTextColor(context.resources.getColorStateList(colorStateListResId, context.theme))
+                if (resolvedType == "BrightnessSliderController") {
+                    val activeColor = getActiveColor(context)
+                    topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
+                } else {
+                    val colorStateListResId = context.resources.getIdentifier(
+                        "toggle_slider_icon_color", "color", context.packageName)
+                    if (colorStateListResId != 0) {
+                        topText.setTextColor(context.resources.getColorStateList(colorStateListResId, context.theme))
+                    }
                 }
             }
             topText.setMiViewBlurMode(3)
@@ -275,38 +306,7 @@ object SliderHookHelper {
             }
 
             topText.text = "$pct%"
-
-            val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-            if (sameStyle && isBlurSupported(topText.context)) {
-                runCatching {
-                    if (type == "BrightnessSliderController") {
-                        applyTopTextStyle(topText)
-                    } else {
-                        val currentMode = runCatching {
-                            topText.javaClass.getMethod("getMiViewBlurMode").invoke(topText) as? Int
-                        }.getOrNull() ?: 0
-                        if (currentMode != 3) {
-                            topText.setMiViewBlurMode(3)
-                        }
-
-                        val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiuiColorBlendToken")
-                        val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                        
-                        val activeToken = volumeActiveBlendToken
-                        val inactiveToken = volumeInactiveBlendToken
-                        
-                        val tokenToUse = if (pct >= 50) inactiveToken else activeToken
-                        if (tokenToUse != null) {
-                            clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken)
-                                .invoke(null, topText, tokenToUse)
-                        } else {
-                            applyTopTextStyle(topText)
-                        }
-                    }
-                }.onFailure { t ->
-                    Log.e("HyperTweak", "Error in updatePercentageText blend color update", t)
-                }
-            }
+            applyTopTextStyle(topText, sliderType = type)
         }
 
         result.onFailure { t ->
