@@ -23,6 +23,17 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
 
     override fun onServiceBind(service: XposedService) {
         Log.d("HyperTweak", "XposedServiceManager: onServiceBind")
+        try {
+            // IMPORTANT: init Preferences BEFORE emitting to serviceFlow.
+            // LaunchedEffect(serviceConnected) in MainActivity reads from Preferences immediately
+            // after observing the flow update, so RemotePreferences must be ready first.
+            val remotePrefs = service.getRemotePreferences(Preferences.NAME)
+            Preferences.init(remotePrefs)
+            Log.d("HyperTweak", "XposedServiceManager: switched Preferences to RemotePreferences (IPC-backed)")
+        } catch (t: Throwable) {
+            Log.e("HyperTweak", "Failed to init Preferences from XposedService", t)
+        }
+        // Emit after Preferences is ready so UI observers reload from the correct source
         _serviceFlow.value = service
     }
 
