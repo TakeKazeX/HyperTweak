@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules
+package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.content.Context
 import android.content.res.Resources
