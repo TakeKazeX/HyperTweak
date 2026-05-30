@@ -140,7 +140,7 @@ fun TweaksScreenContent(
                         checked = gestureBarRaiseLayout && hideGestureBar,
                         onCheckedChange = onGestureBarRaiseLayoutChange,
                         title = "Raise Layout",
-                        summary = "Remove the reserved navigation bar space so content extends to the bottom edge (keyboard may overlap)",
+                        summary = "Keep the reserved navigation bar space so app content sits above the gesture area",
                         enabled = hideGestureBar
                     )
                 }

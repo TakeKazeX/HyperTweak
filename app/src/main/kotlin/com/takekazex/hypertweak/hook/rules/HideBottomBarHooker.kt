@@ -21,7 +21,7 @@ object HideBottomBarHooker : StaticHooker() {
                 before { param ->
                     val hideBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     val raiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-                    if (!hideBar || !raiseLayout) return@before
+                    if (!hideBar || raiseLayout) return@before
                     val resources = param.thisObject as? Resources ?: return@before
                     val id = param.args[0] as? Int ?: return@before
                     try {
@@ -105,7 +105,7 @@ object HideBottomBarHooker : StaticHooker() {
                     method.hook {
                         after { param ->
                             if (Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false) &&
-                                Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+                                !Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                             ) {
                                 param.result = 0
                             }
