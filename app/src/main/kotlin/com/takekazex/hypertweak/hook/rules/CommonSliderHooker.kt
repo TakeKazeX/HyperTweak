@@ -163,23 +163,19 @@ class CommonSliderHooker(
 
                                 runCatching {
                                     if (sameStyle && isBlurSupported(view.context)) {
+                                        if (sliderType == "BrightnessSliderController") {
+                                            applyTopTextStyle(topText)
+                                            return@runCatching
+                                        }
+
                                         topText.setMiViewBlurMode(3)
                                         
                                         val pct = runCatching {
                                             topText.text.toString().removeSuffix("%").toInt()
                                         }.getOrDefault(0)
 
-                                        val targetFromToken = if (pct >= 50) {
-                                            if (sliderType == "BrightnessSliderController") brightnessInactiveBlendToken else volumeInactiveBlendToken
-                                        } else {
-                                            fromToken
-                                        }
-                                        
-                                        val targetToToken = if (pct >= 50) {
-                                            if (sliderType == "BrightnessSliderController") brightnessInactiveBlendToken else volumeInactiveBlendToken
-                                        } else {
-                                            toToken
-                                        }
+                                        val targetFromToken = if (pct >= 50) volumeInactiveBlendToken else fromToken
+                                        val targetToToken = if (pct >= 50) volumeInactiveBlendToken else toToken
 
                                         val clzMiBlurCompat = topText.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
                                         val clzColorBlendToken = topText.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
