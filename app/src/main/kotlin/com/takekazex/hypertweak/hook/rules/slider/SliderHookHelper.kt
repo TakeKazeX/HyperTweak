@@ -123,6 +123,26 @@ object SliderHookHelper {
 
     private val activeColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
+    // Cached blendColors resource lookup (avoids getIdentifier + createPackageContext per call)
+    @Volatile
+    private var cachedBlendColorsResId: Int = -1  // -1 = not resolved, 0 = not found
+    @Volatile
+    private var cachedBlendColorsContext: android.content.Context? = null
+    @Volatile
+    private var cachedOriginalBlendColors: IntArray? = null
+
+    // Cached getMiViewBlurMode method (avoids getMethod per call)
+    @Volatile
+    private var getMiViewBlurModeMethod: java.lang.reflect.Method? = null
+    @Volatile
+    private var getMiViewBlurModeMethodLoaded = false
+
+    // Cached setMiBackgroundBlendColors method (static, not per-view)
+    @Volatile
+    private var setBlendMethod: java.lang.reflect.Method? = null
+    @Volatile
+    private var setBlendMethodLoaded = false
+
     fun getActiveColor(context: android.content.Context, sliderType: String? = null): Int {
         val cacheKey = sliderType ?: "default"
         val cachedColor = activeColorCache[cacheKey]
@@ -190,29 +210,37 @@ object SliderHookHelper {
             putTag(topText, "sliderType", resolvedType)
         }
 
-        Log.d("HyperTweak", "applyTopTextStyle: sameStyle=$sameStyle blurSupported=$blurSupported force=$force resolvedType=$resolvedType pkg=${context.packageName}")
-
         if (sameStyle) {
             val activeColor = getActiveColor(context, resolvedType)
-            Log.d("HyperTweak", "applyTopTextStyle: activeColor=#$activeColor for type=$resolvedType")
             topText.isActivated = true
             topText.isSelected = true
-            
-            var blendColorsResId = context.resources.getIdentifier(
-                "toggle_slider_icon_blend_colors", "array", context.packageName)
-            var resContext = context
-            if (blendColorsResId == 0) {
-                runCatching {
-                    val pluginCtx = context.createPackageContext("miui.systemui.plugin", 0)
-                    val id = pluginCtx.resources.getIdentifier("toggle_slider_icon_blend_colors", "array", "miui.systemui.plugin")
-                    if (id != 0) {
-                        blendColorsResId = id
-                        resContext = pluginCtx
+
+            // Cached resource lookup — only resolves once
+            val blendColorsResId: Int
+            val resContext: android.content.Context
+            val cached = cachedBlendColorsResId
+            if (cached >= 0) {
+                blendColorsResId = cached
+                resContext = cachedBlendColorsContext ?: context
+            } else {
+                var resId = context.resources.getIdentifier(
+                    "toggle_slider_icon_blend_colors", "array", context.packageName)
+                var ctx: android.content.Context = context
+                if (resId == 0) {
+                    runCatching {
+                        val pluginCtx = context.createPackageContext("miui.systemui.plugin", 0)
+                        val id = pluginCtx.resources.getIdentifier("toggle_slider_icon_blend_colors", "array", "miui.systemui.plugin")
+                        if (id != 0) {
+                            resId = id
+                            ctx = pluginCtx
+                        }
                     }
                 }
+                cachedBlendColorsResId = resId
+                cachedBlendColorsContext = ctx
+                blendColorsResId = resId
+                resContext = ctx
             }
-
-            Log.d("HyperTweak", "applyTopTextStyle: blendColorsResId=$blendColorsResId (resContext pkg=${resContext.packageName})")
 
             if (blurSupported && blendColorsResId != 0) {
                 ColorOverrideLock.isSettingColor.set(true)
@@ -223,16 +251,33 @@ object SliderHookHelper {
                 }
                 ColorOverrideLock.isSettingColor.set(false)
 
-                val currentMode = runCatching {
-                    topText.javaClass.getMethod("getMiViewBlurMode").invoke(topText) as? Int
-                }.getOrNull() ?: 0
+                // Cached getMiViewBlurMode method
+                val blurModeMethod = synchronized(this) {
+                    if (getMiViewBlurModeMethodLoaded) {
+                        getMiViewBlurModeMethod
+                    } else {
+                        val m = runCatching {
+                            topText.javaClass.getMethod("getMiViewBlurMode")
+                        }.getOrNull()
+                        getMiViewBlurModeMethod = m
+                        getMiViewBlurModeMethodLoaded = true
+                        m
+                    }
+                }
+                val currentMode = if (blurModeMethod != null) {
+                    runCatching { blurModeMethod.invoke(topText) as? Int }.getOrNull() ?: 0
+                } else 0
 
                 if (currentMode != 3 || force) {
                     topText.clearMiBlur()
                     topText.setMiViewBlurMode(3)
                     runCatching {
-                        val originalBlendColors = resContext.resources.getIntArray(blendColorsResId)
-                        Log.d("HyperTweak", "applyTopTextStyle: originalBlendColors size=${originalBlendColors.size} content=${originalBlendColors.joinToString { String.format("#%08X", it) }}")
+                        // Cached original blend colors array
+                        val originalBlendColors = cachedOriginalBlendColors ?: run {
+                            val arr = resContext.resources.getIntArray(blendColorsResId)
+                            cachedOriginalBlendColors = arr
+                            arr
+                        }
                         var forcedBlendColors = getTag(topText, "cached_forcedBlendColors_$activeColor") as? IntArray
                         if (forcedBlendColors == null) {
                             val hsv = FloatArray(3)
@@ -251,20 +296,27 @@ object SliderHookHelper {
                             }
                             putTag(topText, "cached_forcedBlendColors_$activeColor", forcedBlendColors)
                         }
-                        Log.d("HyperTweak", "applyTopTextStyle: forcedBlendColors content=${forcedBlendColors.joinToString { String.format("#%08X", it) }}")
-                        
-                        var setBlendMethod = getTag(topText, "cached_setBlendMethod") as? java.lang.reflect.Method
-                        if (setBlendMethod == null) {
-                            val clzMiBlurCompat = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                            setBlendMethod = clzMiBlurCompat.getMethod(
-                                "setMiBackgroundBlendColors",
-                                View::class.java,
-                                IntArray::class.java,
-                                Float::class.javaPrimitiveType
-                            )
-                            putTag(topText, "cached_setBlendMethod", setBlendMethod)
+
+                        // Cached setMiBackgroundBlendColors method (static, not per-view)
+                        val blendMethod = synchronized(this) {
+                            if (setBlendMethodLoaded) {
+                                setBlendMethod
+                            } else {
+                                val m = runCatching {
+                                    val clz = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                                    clz.getMethod(
+                                        "setMiBackgroundBlendColors",
+                                        View::class.java,
+                                        IntArray::class.java,
+                                        Float::class.javaPrimitiveType
+                                    )
+                                }.getOrNull()
+                                setBlendMethod = m
+                                setBlendMethodLoaded = true
+                                m
+                            }
                         }
-                        setBlendMethod.invoke(null, topText, forcedBlendColors, 1f)
+                        blendMethod?.invoke(null, topText, forcedBlendColors, 1f)
                     }.onFailure { t ->
                         Log.e("HyperTweak", "applyTopTextStyle: failed to setMiBackgroundBlendColors", t)
                         topText.clearMiBlur()
