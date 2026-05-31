@@ -44,6 +44,8 @@ fun TweaksScreenContent(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    unlockPasskey: Boolean,
+    onUnlockPasskeyChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -155,6 +157,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onRemoveGmsChange,
                         title = "Bypass GMS China ROM Restrictions",
                         summary = "Remove Google Play Services installation restrictions on Chinese firmware"
+                    )
+                    SwitchPreference(
+                        checked = unlockPasskey,
+                        onCheckedChange = onUnlockPasskeyChange,
+                        title = "Unlock Google Passkey / Credential Manager",
+                        summary = "Allow using Google Passkey and third-party credential managers on domestic MIUI/HyperOS"
                     )
                 }
             }

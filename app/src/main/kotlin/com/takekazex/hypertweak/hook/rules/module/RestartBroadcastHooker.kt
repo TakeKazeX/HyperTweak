@@ -31,11 +31,15 @@ object RestartBroadcastHooker : StaticHooker() {
                                 val restartSystemUi = intent.getBooleanExtra("systemui", false)
                                 val restartSettings = intent.getBooleanExtra("settings", false)
                                 val restartAod = intent.getBooleanExtra("aod", false)
+                                val restartSecurityCenter = intent.getBooleanExtra("securitycenter", false)
+                                val restartScanner = intent.getBooleanExtra("scanner", false)
 
                                 val shouldRestart = when (pkgName) {
                                     "com.android.systemui" -> restartSystemUi
                                     "com.android.settings" -> restartSettings
                                     "com.miui.aod" -> restartAod
+                                    "com.miui.securitycenter" -> restartSecurityCenter
+                                    "com.xiaomi.scanner" -> restartScanner
                                     else -> false
                                 }
 

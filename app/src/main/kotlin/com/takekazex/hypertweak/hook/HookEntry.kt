@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
+import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import io.github.libxposed.api.XposedModule
@@ -44,6 +45,7 @@ class HookEntry : XposedModule() {
             isSystemServer = isSystemServer
         )
         attachHooker(SystemConfigHooker, param.classLoader, ctx)
+        attachHooker(PasskeyHooker, param.classLoader, ctx)
     }
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
@@ -77,6 +79,15 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
                 attachHooker(SettingsHooker, param.defaultClassLoader, ctx)
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
+                attachHooker(PasskeyHooker, param.defaultClassLoader, ctx)
+            }
+            "com.miui.securitycenter" -> {
+                attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
+                attachHooker(PasskeyHooker, param.defaultClassLoader, ctx)
+            }
+            "com.xiaomi.scanner" -> {
+                attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
+                attachHooker(PasskeyHooker, param.defaultClassLoader, ctx)
             }
             "com.takekazex.hypertweak" -> {
                 attachHooker(ModuleStatusHooker, param.defaultClassLoader, ctx)

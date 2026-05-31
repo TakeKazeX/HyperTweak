@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
             var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
+            var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
 
             val coroutineScope = rememberCoroutineScope()
 
@@ -117,6 +118,7 @@ class MainActivity : ComponentActivity() {
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
                     return@LaunchedEffect
                 }
 
@@ -315,6 +317,13 @@ class MainActivity : ComponentActivity() {
                             setLauncherIconVisible(this@MainActivity, !checked)
                         }
                     },
+                    unlockPasskey = unlockPasskey,
+                    onUnlockPasskeyChange = { checked ->
+                        unlockPasskey = checked
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
+                        }
+                    },
                     backdrop = backdrop,
                     pageScale = pageScale,
                     onPageScaleChange = { scale ->
@@ -331,8 +340,8 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onRestartScope = { systemUi, settings, aod ->
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod)
+                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner)
                     }
                 )
             }
