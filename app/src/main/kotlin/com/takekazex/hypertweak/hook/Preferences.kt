@@ -52,7 +52,9 @@ object Preferences {
             at.getMethod("currentApplication").invoke(null) as? android.content.Context
         }.getOrNull()
         if (app != null) {
-            localCachePrefs = app.getSharedPreferences("hypertweak_cache", android.content.Context.MODE_PRIVATE)
+            localCachePrefs = runCatching {
+                app.getSharedPreferences("hypertweak_cache", android.content.Context.MODE_PRIVATE)
+            }.getOrNull()
         }
         return localCachePrefs
     }
