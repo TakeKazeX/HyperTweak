@@ -132,7 +132,11 @@ class VolumeSliderHooker(
                         val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         if (sameStyleVolume) {
                             val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
-                            superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
+                            ColorOverrideLock.isSettingColor.set(true)
+                            runCatching {
+                                superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
+                            }
+                            ColorOverrideLock.isSettingColor.set(false)
                         } else {
                             val context = superVolume.context
                             val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -197,7 +201,15 @@ class VolumeSliderHooker(
                                 .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
                             superVolume.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
                             superVolume.typeface = Typeface.DEFAULT_BOLD
-                            if (!sameStyle) {
+                            if (sameStyle) {
+                                putTag(superVolume, "sliderType", "VolumePanelViewController")
+                                val activeColor = SliderHookHelper.getActiveColor(superVolume.context, "VolumePanelViewController")
+                                ColorOverrideLock.isSettingColor.set(true)
+                                runCatching {
+                                    superVolume.setTextColor(activeColor)
+                                }
+                                ColorOverrideLock.isSettingColor.set(false)
+                            } else {
                                 val context = superVolume.context
                                 val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                                 val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
@@ -250,8 +262,19 @@ class VolumeSliderHooker(
 
                     // Style text color and typeface
                     mSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                    val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
-                    mSuperVolume.setTextColor(textColor)
+                    val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    if (sameStyleVolume) {
+                        putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
+                        val activeColor = SliderHookHelper.getActiveColor(context, "VolumePanelViewController")
+                        ColorOverrideLock.isSettingColor.set(true)
+                        runCatching {
+                            mSuperVolume.setTextColor(activeColor)
+                        }
+                        ColorOverrideLock.isSettingColor.set(false)
+                    } else {
+                        val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                        mSuperVolume.setTextColor(textColor)
+                    }
 
                     // Maintain visibility based on expanded state
                     val badgeVisibility = if (mExpanded) View.GONE else View.VISIBLE
@@ -381,7 +404,15 @@ class VolumeSliderHooker(
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                                        if (!sameStyleVolume) {
+                                        if (sameStyleVolume) {
+                                            putTag(columnSuperVolume, "sliderType", "VolumePanelViewController")
+                                            val activeColor = SliderHookHelper.getActiveColor(columnSuperVolume.context, "VolumePanelViewController")
+                                            ColorOverrideLock.isSettingColor.set(true)
+                                            runCatching {
+                                                columnSuperVolume.setTextColor(activeColor)
+                                            }
+                                            ColorOverrideLock.isSettingColor.set(false)
+                                        } else {
                                             val context = columnSuperVolume.context
                                             val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                                             val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
@@ -398,7 +429,15 @@ class VolumeSliderHooker(
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                             mSuperVolume.visibility = View.VISIBLE
 
-                                            if (!sameStyleVolume) {
+                                            if (sameStyleVolume) {
+                                                putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
+                                                val activeColor = SliderHookHelper.getActiveColor(mSuperVolume.context, "VolumePanelViewController")
+                                                ColorOverrideLock.isSettingColor.set(true)
+                                                runCatching {
+                                                    mSuperVolume.setTextColor(activeColor)
+                                                }
+                                                ColorOverrideLock.isSettingColor.set(false)
+                                            } else {
                                                 val context = mSuperVolume.context
                                                 val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                                                 val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
@@ -498,7 +537,15 @@ class VolumeSliderHooker(
 
                                     textView.typeface = Typeface.DEFAULT_BOLD
                                     val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                                    if (!sameStyleSuper) {
+                                    if (sameStyleSuper) {
+                                        putTag(textView, "sliderType", "VolumePanelViewController")
+                                        val activeColor = SliderHookHelper.getActiveColor(textView.context, "VolumePanelViewController")
+                                        ColorOverrideLock.isSettingColor.set(true)
+                                        runCatching {
+                                            textView.setTextColor(activeColor)
+                                        }
+                                        ColorOverrideLock.isSettingColor.set(false)
+                                    } else {
                                         val context = textView.context
                                         val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
                                         val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
