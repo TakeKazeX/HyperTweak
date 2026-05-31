@@ -35,6 +35,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.getSystemAccentColor
 import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.R
+import androidx.compose.ui.res.stringResource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -73,7 +76,9 @@ fun SettingsScreenContent(
     pageScale: Float,
     onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit,
-    backdrop: LayerBackdrop
+    backdrop: LayerBackdrop,
+    appLanguage: Int,
+    onAppLanguageChange: (Int) -> Unit
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
     val topBarBackdrop = rememberLayerBackdrop {
@@ -316,6 +321,17 @@ fun SettingsScreenContent(
                         title = "Allow Landscape Mode",
                         summary = "Enable rotation to horizontal screen orientation"
                     )
+
+                    OverlayDropdownPreference(
+                        title = stringResource(id = R.string.pref_language_title),
+                        items = listOf(
+                            stringResource(id = R.string.pref_language_device_default),
+                            stringResource(id = R.string.pref_language_zh_cn),
+                            stringResource(id = R.string.pref_language_en)
+                        ),
+                        selectedIndex = appLanguage,
+                        onSelectedIndexChange = onAppLanguageChange
+                    )
                 }
             }
 
@@ -335,3 +351,5 @@ fun SettingsScreenContent(
         }
     }
 }
+
+

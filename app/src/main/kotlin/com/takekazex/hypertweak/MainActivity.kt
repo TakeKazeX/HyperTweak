@@ -24,6 +24,8 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.takekazex.hypertweak.util.RestartUtils
+import com.takekazex.hypertweak.util.LocaleHelper
+import androidx.compose.ui.platform.LocalContext
 
 internal fun getSystemAccentColor(context: Context): Int {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
             var pageScale by remember { mutableStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
+            var appLanguage by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
 
@@ -109,6 +112,7 @@ class MainActivity : ComponentActivity() {
                     predictiveBackFollowGesture = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
                     allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
                     pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
+                    appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
                     aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
@@ -135,6 +139,7 @@ class MainActivity : ComponentActivity() {
                     predictiveBackFollowGesture = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
                     allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
                     pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
+                    appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
                     aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
@@ -184,8 +189,12 @@ class MainActivity : ComponentActivity() {
             val density = remember(systemDensity, pageScale) {
                 Density(systemDensity.density * pageScale, systemDensity.fontScale)
             }
+            val localizedContext = remember(context, appLanguage) {
+                LocaleHelper.getLocalizedContext(context, appLanguage)
+            }
 
             CompositionLocalProvider(
+                LocalContext provides localizedContext,
                 LocalDensity provides density
             ) {
                 MiuixTheme(controller = controller) {
@@ -342,6 +351,13 @@ class MainActivity : ComponentActivity() {
                     },
                     onRestartScope = { systemUi, settings, aod, securityCenter, scanner ->
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner)
+                    },
+                    appLanguage = appLanguage,
+                    onAppLanguageChange = { lang ->
+                        appLanguage = lang
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putInt(Preferences.KEY_LANGUAGE, lang)
+                        }
                     }
                 )
             }

@@ -87,7 +87,9 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit,
+    appLanguage: Int,
+    onAppLanguageChange: (Int) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
@@ -173,7 +175,9 @@ fun HyperTweakNavContainer(
                 onNavigateToHiddenFeatures = {
                     backStack.add(Route.HiddenFeatures)
                 },
-                onRestartScope = onRestartScope
+                onRestartScope = onRestartScope,
+                appLanguage = appLanguage,
+                onAppLanguageChange = onAppLanguageChange
             )
         }
         entry<Route.About> {
