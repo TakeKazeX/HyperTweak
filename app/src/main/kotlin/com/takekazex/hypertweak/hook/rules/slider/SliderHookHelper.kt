@@ -10,39 +10,50 @@ import java.util.WeakHashMap
 
 // ─── Package-Level View Extensions ─────────────────────────────────────────
 
+private object MiBlurMethodCache {
+    private val methodCache = java.util.concurrent.ConcurrentHashMap<String, java.lang.reflect.Method?>()
+
+    fun getMethod(view: View, name: String, vararg paramTypes: Class<*>): java.lang.reflect.Method? {
+        val key = "${view.javaClass.name}#$name"
+        return methodCache.getOrPut(key) {
+            runCatching { view.javaClass.getMethod(name, *paramTypes) }.getOrNull()
+        }
+    }
+}
+
 fun View.setMiViewBlurMode(mode: Int) {
     runCatching {
-        this.javaClass.getMethod("setMiViewBlurMode", Int::class.javaPrimitiveType).invoke(this, mode)
+        MiBlurMethodCache.getMethod(this, "setMiViewBlurMode", Int::class.javaPrimitiveType!!)?.invoke(this, mode)
     }
 }
 
 fun View.clearMiBackgroundBlendColor() {
     runCatching {
-        this.javaClass.getMethod("clearMiBackgroundBlendColor").invoke(this)
+        MiBlurMethodCache.getMethod(this, "clearMiBackgroundBlendColor")?.invoke(this)
     }
 }
 
 fun View.setMiBackgroundBlurRadius(radius: Int) {
     runCatching {
-        this.javaClass.getMethod("setMiBackgroundBlurRadius", Int::class.javaPrimitiveType).invoke(this, radius)
+        MiBlurMethodCache.getMethod(this, "setMiBackgroundBlurRadius", Int::class.javaPrimitiveType!!)?.invoke(this, radius)
     }
 }
 
 fun View.setMiBackgroundBlurMode(mode: Int) {
     runCatching {
-        this.javaClass.getMethod("setMiBackgroundBlurMode", Int::class.javaPrimitiveType).invoke(this, mode)
+        MiBlurMethodCache.getMethod(this, "setMiBackgroundBlurMode", Int::class.javaPrimitiveType!!)?.invoke(this, mode)
     }
 }
 
 fun View.chooseBackgroundBlurContainer(container: View?) {
     runCatching {
-        this.javaClass.getMethod("chooseBackgroundBlurContainer", View::class.java).invoke(this, container)
+        MiBlurMethodCache.getMethod(this, "chooseBackgroundBlurContainer", View::class.java)?.invoke(this, container)
     }
 }
 
 fun View.setPassWindowBlurEnabled(enabled: Boolean) {
     runCatching {
-        this.javaClass.getMethod("setPassWindowBlurEnabled", Boolean::class.javaPrimitiveType).invoke(this, enabled)
+        MiBlurMethodCache.getMethod(this, "setPassWindowBlurEnabled", Boolean::class.javaPrimitiveType!!)?.invoke(this, enabled)
     }
 }
 
@@ -363,21 +374,45 @@ object SliderHookHelper {
         }
     }
 
+    private val holderMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method?>()
+    private val holderMethodNames = listOf("getSliderHolder", "getHolder", "getViewHolder", "getSliderViewHolder", "getItemViewHolder")
+
     fun findHolder(sliderController: Any): Any? {
-        for (name in listOf("getSliderHolder", "getHolder", "getViewHolder", "getSliderViewHolder", "getItemViewHolder")) {
-            val r = runCatching { 
-                val m = sliderController.javaClass.getDeclaredMethod(name).also { it.isAccessible = true }
-                m.invoke(sliderController) 
+        val clazz = sliderController.javaClass
+        val cached = holderMethodCache[clazz]
+        if (cached != null) {
+            return runCatching { cached.invoke(sliderController) }.getOrNull()
+        }
+        for (name in holderMethodNames) {
+            val r = runCatching {
+                val m = clazz.getDeclaredMethod(name).also { it.isAccessible = true }
+                val result = m.invoke(sliderController)
+                if (result != null) holderMethodCache[clazz] = m
+                result
             }.recoverCatching {
-                sliderController.javaClass.getMethod(name).invoke(sliderController)
+                val m = clazz.getMethod(name)
+                val result = m.invoke(sliderController)
+                if (result != null) holderMethodCache[clazz] = m
+                result
             }.getOrNull()
             if (r != null) return r
         }
         return null
     }
 
+    private val topTextMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method?>()
+
     fun getTopTextFromHolder(holder: Any): TextView? {
-        return runCatching { holder.javaClass.getMethod("getTopText").invoke(holder) as? TextView }.getOrNull()
+        val clazz = holder.javaClass
+        val cached = topTextMethodCache[clazz]
+        if (cached != null) {
+            return runCatching { cached.invoke(holder) as? TextView }.getOrNull()
+        }
+        return runCatching {
+            val m = clazz.getMethod("getTopText")
+            topTextMethodCache[clazz] = m
+            m.invoke(holder) as? TextView
+        }.getOrNull()
     }
 
     fun calcVolumePercent(sliderController: Any): Int {
