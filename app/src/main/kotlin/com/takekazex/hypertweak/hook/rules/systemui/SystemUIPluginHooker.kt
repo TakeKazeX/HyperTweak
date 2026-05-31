@@ -80,11 +80,10 @@ object SystemUIPluginHooker : StaticHooker() {
                                     }.getOrNull()
                                     
                                     val pluginApkPath = mAppInfo?.sourceDir ?: ""
-                                    val mainApkPath = this@SystemUIPluginHooker.hookParam.appInfo?.sourceDir ?: ""
-                                    
-                                    val hooker = if (mAppContext != null && pluginApkPath.isNotEmpty() && mainApkPath.isNotEmpty()) {
+
+                                    val hooker = if (mAppContext != null && pluginApkPath.isNotEmpty()) {
                                         Log.d("HyperTweak", "SystemUIPluginHooker: Instantiating SliderPercentageHooker with DexKit support")
-                                        SliderPercentageHooker(mAppContext, pluginApkPath, mainApkPath)
+                                        SliderPercentageHooker(mAppContext, pluginApkPath)
                                     } else {
                                         Log.w("HyperTweak", "SystemUIPluginHooker: Missing context or APK paths, instantiating with default fallback")
                                         SliderPercentageHooker()
