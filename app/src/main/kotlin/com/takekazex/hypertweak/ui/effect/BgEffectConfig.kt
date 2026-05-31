@@ -60,14 +60,11 @@ internal object BgEffectConfig {
         pointOffset = 0.1f,
     )
 
-    private val OS2_PAD_DARK_COLORS = floatArrayOf(
-        0.0f, 0.31f, 0.58f, 1.0f, 0.53f, 0.29f, 0.15f, 1.0f, 0.46f, 0.06f, 0.27f, 1.0f, 0.16f, 0.12f, 0.45f, 1.0f,
-    )
     private val OS2_PAD_DARK = Config(
         points = floatArrayOf(0.55f, 0.42f, 1.0f, 0.56f, 0.75f, 1.0f, 0.40f, 0.59f, 0.71f, 0.43f, 0.09f, 0.75f),
-        colors1 = OS2_PAD_DARK_COLORS,
-        colors2 = OS2_PAD_DARK_COLORS,
-        colors3 = OS2_PAD_DARK_COLORS,
+        colors1 = OS2_PHONE_DARK_COLORS,
+        colors2 = OS2_PHONE_DARK_COLORS,
+        colors3 = OS2_PHONE_DARK_COLORS,
         colorInterpPeriod = 100f,
         lightOffset = -0.1f,
         saturateOffset = 0.2f,
