@@ -32,8 +32,6 @@ android {
             else -> "$baseVersion-beta"
         }
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
         buildConfigField("String", "GIT_COMMIT_COUNT", "\"$commitCount\"")
         buildConfigField("boolean", "IS_BETA", (!isStableRelease).toString())
 
@@ -125,10 +123,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.1")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
     implementation("androidx.navigation3:navigation3-runtime:1.1.2")
-    implementation("androidx.navigationevent:navigationevent:1.1.0") {
-        exclude(group = "androidx.navigationevent", module = "navigationevent-compose")
-        exclude(group = "androidx.navigationevent", module = "navigationevent-compose-android")
-    }
+    implementation("androidx.navigationevent:navigationevent:1.1.0")
 
     // libxposed
     compileOnly("io.github.libxposed:api:101.0.1")
@@ -137,9 +132,6 @@ dependencies {
     // EzHookTool
     implementation("io.github.lingqiqi5211.ezhooktool:core:1.0.4")
     implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-101:1.0.4")
-
-    // HiddenApiBypass
-    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
