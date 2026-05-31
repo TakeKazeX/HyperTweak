@@ -4,9 +4,7 @@ import android.content.Context
 import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import org.luckypray.dexkit.query.enums.StringMatchType
-import java.io.File
 import java.lang.reflect.Field
 
 object HideFingerprintIcon : StaticHooker() {
@@ -15,59 +13,27 @@ object HideFingerprintIcon : StaticHooker() {
     private var aod: Int? = null
     private var cachedField: Field? = null
 
-    private fun String.resolveClass(initialize: Boolean = false): Class<Any>? {
-        val resolvedClass = resolveViaDexKit(this)
-        if (resolvedClass != null) {
-            @Suppress("UNCHECKED_CAST")
-            return resolvedClass as Class<Any>
-        }
-        return this.toClassOrNull(initialize = initialize)
-    }
-
-    private fun resolveViaDexKit(className: String): Class<*>? {
-        val appInfo = hookParam.appInfo ?: return null
-        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        val cacheDir = File(baseDir, "cache")
-        val apkPath = appInfo.sourceDir ?: return null
-
-        return when (className) {
-            "com.miui.keyguard.biometrics.fod.MiuiGxzwFrameAnimation" -> {
-                val resolved = DexKitManager.resolveClasses(
-                    cacheDir = cacheDir,
-                    apkPath = apkPath,
-                    classLoader = classLoader,
-                    queries = mapOf("MiuiGxzwFrameAnimation" to { bridge ->
-                        bridge.findClass {
-                            searchPackages("com.miui.keyguard.biometrics.fod")
-                            matcher { className("MiuiGxzwFrameAnimation", StringMatchType.EndsWith) }
-                        }.singleOrNull()?.name
-                    })
-                )
-                resolved["MiuiGxzwFrameAnimation"]
-            }
-            "com.miui.keyguard.biometrics.fod.MiuiGxzwIconView" -> {
-                val resolved = DexKitManager.resolveClasses(
-                    cacheDir = cacheDir,
-                    apkPath = apkPath,
-                    classLoader = classLoader,
-                    queries = mapOf("MiuiGxzwIconView" to { bridge ->
-                        bridge.findClass {
-                            searchPackages("com.miui.keyguard.biometrics.fod")
-                            matcher { className("MiuiGxzwIconView", StringMatchType.EndsWith) }
-                        }.singleOrNull()?.name
-                    })
-                )
-                resolved["MiuiGxzwIconView"]
-            }
-            else -> null
-        }
-    }
-
     private val shouldHideCache = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
 
     override fun onHook() {
-        val clzAnimation = "com.miui.keyguard.biometrics.fod.MiuiGxzwFrameAnimation".resolveClass()
-        val clzIconView = "com.miui.keyguard.biometrics.fod.MiuiGxzwIconView".resolveClass()
+        val clzAnimation = resolveAppClass(
+            "com.miui.keyguard.biometrics.fod.MiuiGxzwFrameAnimation",
+            mapOf("MiuiGxzwFrameAnimation" to { bridge ->
+                bridge.findClass {
+                    searchPackages("com.miui.keyguard.biometrics.fod")
+                    matcher { className("MiuiGxzwFrameAnimation", StringMatchType.EndsWith) }
+                }.singleOrNull()?.name
+            })
+        )
+        val clzIconView = resolveAppClass(
+            "com.miui.keyguard.biometrics.fod.MiuiGxzwIconView",
+            mapOf("MiuiGxzwIconView" to { bridge ->
+                bridge.findClass {
+                    searchPackages("com.miui.keyguard.biometrics.fod")
+                    matcher { className("MiuiGxzwIconView", StringMatchType.EndsWith) }
+                }.singleOrNull()?.name
+            })
+        )
 
         // 1. Hook the FrameAnimation draw method to substitute fingerprint circle frame drawables with a transparent drawable
         clzAnimation?.findMethodOrNull {

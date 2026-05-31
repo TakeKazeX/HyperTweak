@@ -207,6 +207,28 @@ sealed class BaseHooker {
             try { ctor.hook(block = block) } catch (t: Throwable) { /* ignore */ }
         }
     }
+
+    /**
+     * Resolve a class via DexKit first, falling back to classLoader lookup.
+     * Requires [hookParam.appInfo] to be available for cache/APK path resolution.
+     */
+    fun resolveAppClass(
+        className: String,
+        queries: Map<String, (org.luckypray.dexkit.DexKitBridge) -> String?>
+    ): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return className.toClassOrNull()
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return className.toClassOrNull()
+        val cacheDir = java.io.File(baseDir, "cache")
+        val apkPath = appInfo.sourceDir ?: return className.toClassOrNull()
+
+        val resolved = DexKitManager.resolveClasses(
+            cacheDir = cacheDir,
+            apkPath = apkPath,
+            classLoader = classLoader,
+            queries = queries
+        )
+        return resolved.values.firstOrNull() ?: className.toClassOrNull()
+    }
 }
 
 abstract class StaticHooker : BaseHooker()

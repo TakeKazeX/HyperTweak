@@ -3,7 +3,7 @@
 
 package com.takekazex.hypertweak.ui.effect
 
-const val OS3_BG_FRAG = """
+private const val BG_FRAG = """
     uniform vec2 uResolution;
     uniform float uAnimTime;
     uniform vec4 uBound;
@@ -39,10 +39,13 @@ const val OS3_BG_FRAG = """
     }
 
     float perlin(vec2 x) {
-        vec2 i = floor(x); vec2 f = fract(x);
+        vec2 i = floor(x);
+        vec2 f = fract(x);
 
-        float a = hash(i); float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0)); float d = hash(i + vec2(1.0, 1.0));
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
 
         vec2 u = f * f * (3.0 - 2.0 * f);
         return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
@@ -89,3 +92,6 @@ const val OS3_BG_FRAG = """
         return vec4(color.rgb * color.a, color.a);
     }
     """
+
+const val OS2_BG_FRAG = BG_FRAG
+const val OS3_BG_FRAG = BG_FRAG
