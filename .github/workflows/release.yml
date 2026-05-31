@@ -83,11 +83,10 @@ jobs:
             PREV_TAG=""
           fi
           
-          # Determine commit range
+          # Determine commit range — always use HEAD since the tag may have been
+          # created before the PR was merged, making the tag point to an old commit.
           if [ -z "$PREV_TAG" ]; then
             COMMIT_RANGE=""
-          elif git rev-parse "$CURRENT_TAG" >/dev/null 2>&1; then
-            COMMIT_RANGE="$PREV_TAG..$CURRENT_TAG"
           else
             COMMIT_RANGE="$PREV_TAG..HEAD"
           fi
