@@ -68,7 +68,7 @@ class SliderPercentageHooker(
                 }
             }
             "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1" -> {
-                resolveMainClass("iconColorTransition") { bridge ->
+                resolvePluginClass("iconColorTransition") { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn\$iconColorTransition\$2\$1", StringMatchType.EndsWith) }
@@ -76,7 +76,7 @@ class SliderPercentageHooker(
                 }
             }
             "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1" -> {
-                resolveMainClass("iconBlendColorTransition") { bridge ->
+                resolvePluginClass("iconBlendColorTransition") { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn\$iconBlendColorTransition\$2\$1", StringMatchType.EndsWith) }
@@ -84,7 +84,7 @@ class SliderPercentageHooker(
                 }
             }
             "com.android.systemui.miui.volume.VolumeColumn" -> {
-                resolveMainClass("VolumeColumn") { bridge ->
+                resolvePluginClass("VolumeColumn") { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn", StringMatchType.EndsWith) }
@@ -92,7 +92,7 @@ class SliderPercentageHooker(
                 }
             }
             "com.android.systemui.miui.volume.VolumePanelViewController" -> {
-                resolveMainClass("VolumePanelViewController") { bridge ->
+                resolvePluginClass("VolumePanelViewController") { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumePanelViewController", StringMatchType.EndsWith) }
