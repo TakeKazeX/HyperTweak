@@ -24,11 +24,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun RestartScopeDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
-    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
+    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
 ) {
     var systemUiChecked by remember(show) { mutableStateOf(false) }
     var settingsChecked by remember(show) { mutableStateOf(false) }
     var aodChecked by remember(show) { mutableStateOf(false) }
+    var securityCenterChecked by remember(show) { mutableStateOf(false) }
+    var scannerChecked by remember(show) { mutableStateOf(false) }
 
     OverlayDialog(
         show = show,
@@ -58,6 +60,18 @@ fun RestartScopeDialog(
                     checked = aodChecked,
                     onCheckedChange = { aodChecked = !aodChecked }
                 )
+
+                AppRestartRow(
+                    packageName = "com.miui.securitycenter",
+                    checked = securityCenterChecked,
+                    onCheckedChange = { securityCenterChecked = !securityCenterChecked }
+                )
+
+                AppRestartRow(
+                    packageName = "com.xiaomi.scanner",
+                    checked = scannerChecked,
+                    onCheckedChange = { scannerChecked = !scannerChecked }
+                )
             }
 
             Row(
@@ -73,7 +87,7 @@ fun RestartScopeDialog(
                 TextButton(
                     text = "Restart",
                     onClick = {
-                        onConfirm(systemUiChecked, settingsChecked, aodChecked)
+                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked)
                         onDismissRequest()
                     },
                     modifier = Modifier.weight(1f),
@@ -111,6 +125,8 @@ fun AppRestartRow(
                     "com.android.systemui" -> "System UI"
                     "com.android.settings" -> "Settings"
                     "com.miui.aod" -> "Always-On Display"
+                    "com.miui.securitycenter" -> "Security"
+                    "com.xiaomi.scanner" -> "Scanner"
                     else -> packageName
                 }
             }
@@ -119,6 +135,8 @@ fun AppRestartRow(
                 "com.android.systemui" -> "System UI"
                 "com.android.settings" -> "Settings"
                 "com.miui.aod" -> "Always-On Display"
+                "com.miui.securitycenter" -> "Security"
+                "com.xiaomi.scanner" -> "Scanner"
                 else -> packageName
             }
         }

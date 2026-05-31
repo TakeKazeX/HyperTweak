@@ -30,6 +30,7 @@
 - **🖼️ Fullscreen Always-On Display (AOD)**: Bypasses system limits to enable full-screen wallpaper support for standard AOD styles.
 - **🔘 Lock Screen Fingerprint Hiding**: Automatically hides the under-display fingerprint icon/aura during wake-up transitions while maintaining complete touch unlocking functionality.
 - **🌍 GMS Restriction Bypass**: Overrides limitations on domestic (China) ROMs to enable trouble-free Google Mobile Services and Play Store installation.
+- **🔑 Google Passkey Unlock**: Bypasses system-level restrictions to enable Google Passkey and third-party Credential Managers on domestic HyperOS/MIUI ROMs.
 - **⚙️ Settings Entry Injection**: Seamlessly injects the module configuration entry directly below the Wi-Fi listing in the system Settings app.
 - **🙈 Launcher Icon Hiding**: Hides the module's app icon from the launcher home screen; access remains available through the LSPosed manager or system Settings.
 
@@ -69,6 +70,7 @@ Special thanks to the following open-source projects for their support and inspi
 * **[InstallerX Revived](https://github.com/wxxsfxyzm/InstallerX-Revived)** - Inspiration for themes and UI/UX layout.
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - Reference logic for fingerprint icon rendering bypass.
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - Reference implementations for Settings entry injection.
+* **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
 
 ---
 

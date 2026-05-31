@@ -75,6 +75,8 @@ fun HyperTweakNavContainer(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    unlockPasskey: Boolean,
+    onUnlockPasskeyChange: (Boolean) -> Unit,
 
     // Backdrop
     backdrop: LayerBackdrop,
@@ -85,7 +87,7 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean) -> Unit
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
@@ -147,6 +149,8 @@ fun HyperTweakNavContainer(
                 onHideGestureBarChange = onHideGestureBarChange,
                 gestureBarRaiseLayout = gestureBarRaiseLayout,
                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
+                unlockPasskey = unlockPasskey,
+                onUnlockPasskeyChange = onUnlockPasskeyChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,

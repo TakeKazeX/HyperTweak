@@ -23,6 +23,7 @@ object Preferences {
     const val KEY_PREDICTIVE_BACK_STYLE = "predictive_back_style"
     const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
+    const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
 
     const val KEY_PAGE_SCALE = "page_scale"
 

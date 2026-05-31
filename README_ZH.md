@@ -30,6 +30,7 @@
 - **🖼️ 全屏息屏显示 (AOD)**：动态解除系统限制，使普通息屏样式支持全屏壁纸显示。
 - **🔘 智能隐藏锁屏指纹**：唤醒过渡时隐藏屏幕下指纹图标/光圈，同时保留完整的指纹解锁功能。
 - **🌍 谷歌服务 (GMS) 解锁**：绕过国内版固件限制，支持安装并使用谷歌移动服务与 Google Play。
+- **🔑 谷歌密钥 (Passkey) 解锁**：动态解锁系统级限制，支持在国内版 HyperOS/MIUI 系统上激活使用谷歌密钥（Passkey）与第三方凭据管理器。
 - **⚙️ 原生系统设置项注入**：以无感注入的方式，将模块入口动态插入在系统「设置」的 Wi-Fi 列表下方。
 - **🙈 桌面图标动态隐藏**：支持隐藏桌面图标，可通过 LSPosed 管理器或系统设置内的注入入口随时唤起。
 
@@ -69,6 +70,7 @@ app/build/outputs/apk/release/HyperTweak-v1.3.1-release.apk
 * **[InstallerX Revived](https://github.com/wxxsfxyzm/InstallerX-Revived)** - 启发了模块的主题与 UI/UX 布局设计。
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - 绕过指纹图标绘制的基本实现逻辑参考。
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - 系统设置项注入实现参考。
+* **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
 
 ---
 

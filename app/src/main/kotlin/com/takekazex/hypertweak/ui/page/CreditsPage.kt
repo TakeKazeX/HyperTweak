@@ -96,6 +96,10 @@ fun CreditsPage(
                         title = "XiaomiHelper / HyperCeiler",
                         summary = "References for Settings preference injection"
                     )
+                    BasicComponent(
+                        title = "HyperPasskey",
+                        summary = "Unlock Google Passkey / Credential Manager by howard20181"
+                    )
                 }
             }
 

@@ -14,9 +14,11 @@ object RestartUtils {
         coroutineScope: CoroutineScope,
         systemUi: Boolean,
         settings: Boolean,
-        aod: Boolean
+        aod: Boolean,
+        securityCenter: Boolean,
+        scanner: Boolean
     ) {
-        if (!systemUi && !settings && !aod) return
+        if (!systemUi && !settings && !aod && !securityCenter && !scanner) return
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
@@ -25,6 +27,8 @@ object RestartUtils {
                 putExtra("systemui", systemUi)
                 putExtra("settings", settings)
                 putExtra("aod", aod)
+                putExtra("securitycenter", securityCenter)
+                putExtra("scanner", scanner)
             }
             context.sendBroadcast(intent)
 
@@ -42,6 +46,12 @@ object RestartUtils {
                         if (aod) {
                             writer.write("am force-stop com.miui.aod\n")
                         }
+                        if (securityCenter) {
+                            writer.write("am force-stop com.miui.securitycenter\n")
+                        }
+                        if (scanner) {
+                            writer.write("am force-stop com.xiaomi.scanner\n")
+                        }
                         writer.write("exit\n")
                         writer.flush()
                     }
@@ -57,6 +67,8 @@ object RestartUtils {
                     if (systemUi) add("SystemUI")
                     if (settings) add("Settings")
                     if (aod) add("AOD")
+                    if (securityCenter) add("Security")
+                    if (scanner) add("Scanner")
                 }.joinToString(", ")
 
                 if (rootSuccess) {
