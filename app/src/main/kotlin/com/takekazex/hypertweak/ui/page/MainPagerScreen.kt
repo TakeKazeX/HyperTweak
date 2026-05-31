@@ -88,7 +88,9 @@ fun MainPagerScreen(
     onUnlockPasskeyChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit,
+    appLanguage: Int,
+    onAppLanguageChange: (Int) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val contentReady = rememberContentReady()
@@ -301,7 +303,9 @@ fun MainPagerScreen(
                                 pageScale = pageScale,
                                 onPageScaleChange = onPageScaleChange,
                                 onNavigateToAbout = onNavigateToAbout,
-                                backdrop = backdrop
+                                backdrop = backdrop,
+                                appLanguage = appLanguage,
+                                onAppLanguageChange = onAppLanguageChange
                             )
                         }
                     }
