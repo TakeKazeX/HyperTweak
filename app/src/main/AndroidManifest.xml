@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <queries>
+        <package android:name="com.android.systemui" />
+        <package android:name="com.android.settings" />
+        <package android:name="com.miui.aod" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.xiaomi.scanner" />
+    </queries>
+
     <application
         android:name=".HyperTweakApp"
         android:allowBackup="true"
