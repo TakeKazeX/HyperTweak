@@ -170,6 +170,8 @@ class VolumeSliderHooker(
                         val svField = cachedSuperVolumeField ?: volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedSuperVolumeField = it }
                         val superVolume = svField.get(volumeColumn) as TextView
 
+                        if (superVolume.visibility != View.VISIBLE) return@before
+
                         val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         if (sameStyleVolume) {
                             val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
@@ -205,6 +207,8 @@ class VolumeSliderHooker(
                         val volumeColumn = this0Field.get(thisObject)
                         val svField = cachedSuperVolumeField ?: volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedSuperVolumeField = it }
                         val superVolume = svField.get(volumeColumn) as TextView
+
+                        if (superVolume.visibility != View.VISIBLE) return@before
 
                         val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         if (sameStyleVolume) {
@@ -251,7 +255,7 @@ class VolumeSliderHooker(
                             superVolume.typeface = Typeface.DEFAULT_BOLD
                             if (sameStyle) {
                                 putTag(superVolume, "sliderType", "VolumePanelViewController")
-                                val activeColor = SliderHookHelper.getActiveColor(superVolume.context, "VolumePanelViewController")
+                                val activeColor = android.graphics.Color.parseColor("#3482FF")
                                 ColorOverrideLock.isSettingColor.set(true)
                                 runCatching {
                                     superVolume.setTextColor(activeColor)
@@ -335,6 +339,12 @@ class VolumeSliderHooker(
                     }
                     mSuperVolumeBg.backgroundTintList = null
 
+                    // Add subtle stroke border
+                    (mSuperVolumeBg.background as? android.graphics.drawable.GradientDrawable)?.setStroke(
+                        (1 * context.resources.displayMetrics.density).toInt(),
+                        if (isDark) android.graphics.Color.parseColor("#33FFFFFF") else android.graphics.Color.parseColor("#33000000")
+                    )
+
                     // Clear the TextView's background/tint to let the capsule's background show through
                     val paddingLeft = mSuperVolume.paddingLeft
                     val paddingTop = mSuperVolume.paddingTop
@@ -349,10 +359,9 @@ class VolumeSliderHooker(
                     val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     if (sameStyleVolume) {
                         putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                        val activeColor = SliderHookHelper.getActiveColor(context, "VolumePanelViewController")
                         ColorOverrideLock.isSettingColor.set(true)
                         runCatching {
-                            mSuperVolume.setTextColor(activeColor)
+                            mSuperVolume.setTextColor(android.graphics.Color.parseColor("#3482FF"))
                         }
                         ColorOverrideLock.isSettingColor.set(false)
                     } else {
@@ -516,7 +525,7 @@ class VolumeSliderHooker(
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                         if (sameStyleVolume) {
                                             putTag(columnSuperVolume, "sliderType", "VolumePanelViewController")
-                                            val activeColor = SliderHookHelper.getActiveColor(columnSuperVolume.context, "VolumePanelViewController")
+                                            val activeColor = android.graphics.Color.parseColor("#3482FF")
                                             ColorOverrideLock.isSettingColor.set(true)
                                             runCatching {
                                                 columnSuperVolume.setTextColor(activeColor)
@@ -544,10 +553,9 @@ class VolumeSliderHooker(
 
                                             if (sameStyleVolume) {
                                                 putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                                                val activeColor = SliderHookHelper.getActiveColor(mSuperVolume.context, "VolumePanelViewController")
                                                 ColorOverrideLock.isSettingColor.set(true)
                                                 runCatching {
-                                                    mSuperVolume.setTextColor(activeColor)
+                                                    mSuperVolume.setTextColor(android.graphics.Color.parseColor("#3482FF"))
                                                 }
                                                 ColorOverrideLock.isSettingColor.set(false)
                                             } else {
@@ -671,7 +679,7 @@ class VolumeSliderHooker(
                                     textView.typeface = Typeface.DEFAULT_BOLD
                                     if (sameStyleSuper) {
                                         putTag(textView, "sliderType", "VolumePanelViewController")
-                                        val activeColor = SliderHookHelper.getActiveColor(textView.context, "VolumePanelViewController")
+                                        val activeColor = android.graphics.Color.parseColor("#3482FF")
                                         ColorOverrideLock.isSettingColor.set(true)
                                         runCatching {
                                             textView.setTextColor(activeColor)
@@ -701,7 +709,10 @@ class VolumeSliderHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeViewColor" }?.let { method ->
             method.hook {
                 intercept { chain ->
-                    applyBadgeThemeColors(chain.thisObject)
+                    if (!badgeThemeApplied) {
+                        applyBadgeThemeColors(chain.thisObject)
+                        badgeThemeApplied = true
+                    }
                     null
                 }
             }
