@@ -21,6 +21,9 @@ class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
 
+    @Volatile
+    private var isVolumeViewHooked = false
+
     override fun onHook() {
         val clzVolumeSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController")
         Log.d("HyperTweak", "VolumeSliderHooker onHook - clzVolumeSlider: ${clzVolumeSlider?.name}")
@@ -30,18 +33,13 @@ class VolumeSliderHooker(
             method.hook {
                 after { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
-                            if (sameStyle) {
-                                initTopText(topText)
-                                putTag(topText, "sliderType", "VolumeSliderController")
-                                applyTopTextStyle(topText, force = true, sliderType = "VolumeSliderController")
-                                updatePercentageText(param.thisObject, "VolumeSliderController")
-                            } else {
-                                topText.post { topText.visibility = View.GONE }
-                            }
+                            initTopText(topText)
+                            putTag(topText, "sliderType", "VolumeSliderController")
+                            applyTopTextStyle(topText, force = true, sliderType = "VolumeSliderController")
+                            updatePercentageText(param.thisObject, "VolumeSliderController")
                         }
                     }
                 }
@@ -74,10 +72,7 @@ class VolumeSliderHooker(
                             val pct = calcVolumePercent(controller)
                             topText.post {
                                 topText.text = "$pct%"
-                                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                                if (sameStyle) {
-                                    applyTopTextStyle(topText, sliderType = "VolumeSliderController")
-                                }
+                                applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error in syncSystemVolume hook", t)
@@ -110,10 +105,7 @@ class VolumeSliderHooker(
                                     }
                                 val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
                                 topText.text = "$pct%"
-                                val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                                if (sameStyle) {
-                                    applyTopTextStyle(topText, sliderType = "VolumeSliderController")
-                                }
+                                applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }.onFailure { t ->
                                 Log.e("HyperTweak", "Error in updateSliderValue hook", t)
                             }
@@ -137,8 +129,16 @@ class VolumeSliderHooker(
                         val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
                         val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
 
-                        val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
-                        superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
+                        val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        if (sameStyleVolume) {
+                            val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
+                            superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
+                        } else {
+                            val context = superVolume.context
+                            val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                            val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                            superVolume.setTextColor(textColor)
+                        }
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in VolumeColumn.iconColorTransition hook", t)
                     }
@@ -159,11 +159,16 @@ class VolumeSliderHooker(
                         val volumeColumn = thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(thisObject)
                         val superVolume = volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(volumeColumn) as TextView
 
-                        superVolume.setMiViewBlurMode(3)
-                        val clzMiBlurCompat = superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                        val clzColorBlendToken = superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
-                        clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
-                           .invoke(null, superVolume, fromToken, toToken, fraction)
+                        val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        if (sameStyleVolume) {
+                            superVolume.setMiViewBlurMode(3)
+                            val clzMiBlurCompat = superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                            val clzColorBlendToken = superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
+                            clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType)
+                               .invoke(null, superVolume, fromToken, toToken, fraction)
+                        } else {
+                            superVolume.clearMiBlur()
+                        }
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in VolumeColumn.iconBlendColorTransition hook", t)
                     }
@@ -192,6 +197,12 @@ class VolumeSliderHooker(
                                 .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
                             superVolume.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
                             superVolume.typeface = Typeface.DEFAULT_BOLD
+                            if (!sameStyle) {
+                                val context = superVolume.context
+                                val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                superVolume.setTextColor(textColor)
+                            }
                         }
                     }
                 }
@@ -211,7 +222,7 @@ class VolumeSliderHooker(
                 if (mSuperVolumeBg != null && mSuperVolume != null) {
                     val context = mSuperVolumeBg.context
                     val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                    val bgColor = if (isDark) android.graphics.Color.parseColor("#2C2C2C") else android.graphics.Color.parseColor("#FFFFFF")
+                    val bgColor = if (isDark) android.graphics.Color.parseColor("#3A3A3C") else android.graphics.Color.parseColor("#E5E5E5")
 
                     // Retrieve exact volume radius from system resources via reflection
                     val radius = runCatching {
@@ -226,7 +237,7 @@ class VolumeSliderHooker(
                         cornerRadius = radius
                     }
                     mSuperVolumeBg.background = newBg
-                    mSuperVolumeBg.backgroundTintList = android.content.res.ColorStateList.valueOf(bgColor)
+                    mSuperVolumeBg.backgroundTintList = null
 
                     // Clear the TextView's background/tint to let the capsule's background show through
                     val paddingLeft = mSuperVolume.paddingLeft
@@ -239,11 +250,47 @@ class VolumeSliderHooker(
 
                     // Style text color and typeface
                     mSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                    val textColor = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                    val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
                     mSuperVolume.setTextColor(textColor)
 
                     // Maintain visibility based on expanded state
-                    mSuperVolumeBg.visibility = if (mExpanded) View.GONE else View.VISIBLE
+                    val badgeVisibility = if (mExpanded) View.GONE else View.VISIBLE
+                    mSuperVolumeBg.visibility = badgeVisibility
+                    mSuperVolume.visibility = badgeVisibility
+
+                    // Dynamic fallback hook for updateSuperVolumeVisibility
+                    if (!isVolumeViewHooked) {
+                        runCatching {
+                            val mVolumeView = thisObject.javaClass.getDeclaredField("mVolumeView").apply { isAccessible = true }.get(thisObject)
+                            if (mVolumeView != null) {
+                                val clz = mVolumeView.javaClass
+                                clz.declaredMethods.firstOrNull {
+                                    it.name == "updateSuperVolumeVisibility" &&
+                                    it.parameterTypes.size == 1 &&
+                                    it.parameterTypes[0] == Boolean::class.javaPrimitiveType
+                                }?.let { method ->
+                                    method.hook {
+                                        before { param ->
+                                            if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                                                val view = param.thisObject
+                                                val isExpanded = runCatching {
+                                                    view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
+                                                }.getOrDefault(false)
+                                                val inCCMainPage = runCatching {
+                                                    view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
+                                                }.getOrNull()
+                                                if (inCCMainPage != true) {
+                                                    param.args[0] = !isExpanded
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Log.d("HyperTweak", "Successfully hooked updateSuperVolumeVisibility dynamically at runtime")
+                                }
+                                isVolumeViewHooked = true
+                            }
+                        }
+                    }
                 }
             }.onFailure { t ->
                 Log.e("HyperTweak", "Error applying badge theme colors", t)
@@ -275,8 +322,9 @@ class VolumeSliderHooker(
         // Apply at init so the color is ready before the first show
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "initSuperVolumeColor" }?.let { method ->
             method.hook {
-                after { param ->
-                    applyBadgeThemeColors(param.thisObject)
+                intercept { chain ->
+                    applyBadgeThemeColors(chain.thisObject)
+                    null
                 }
             }
         }
@@ -333,22 +381,28 @@ class VolumeSliderHooker(
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                                        if (sameStyleVolume) {
-                                            applyTopTextStyle(columnSuperVolume, sliderType = "VolumePanelViewController")
+                                        if (!sameStyleVolume) {
+                                            val context = columnSuperVolume.context
+                                            val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                            val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                            columnSuperVolume.setTextColor(textColor)
                                         }
                                     }
                                 }
 
                                 if (!mExpanded) {
-                                    val isNeedShowDialog = thisObject.javaClass.getDeclaredField("mNeedShowDialog").apply { isAccessible = true }.get(thisObject) as Boolean
-                                    if (isNeedShowDialog && stream == activeStream) {
+                                    if (stream == activeStream) {
                                         val mSuperVolume = thisObject.javaClass.getDeclaredField("mSuperVolume").apply { isAccessible = true }.get(thisObject) as? TextView
                                         if (mSuperVolume != null) {
                                             mSuperVolume.text = "$pct%"
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
+                                            mSuperVolume.visibility = View.VISIBLE
 
-                                            if (sameStyleVolume) {
-                                                applyTopTextStyle(mSuperVolume, sliderType = "VolumePanelViewController")
+                                            if (!sameStyleVolume) {
+                                                val context = mSuperVolume.context
+                                                val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                                val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                                mSuperVolume.setTextColor(textColor)
                                             }
                                         }
                                         // Ensure badge background follows system theme on every state update
@@ -358,6 +412,34 @@ class VolumeSliderHooker(
                             }
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error in updateVolumeColumnH hook", t)
+                        }
+                    }
+                }
+            }
+        }
+
+        clzVolumeViewController?.declaredMethods?.firstOrNull {
+            it.name == "updateSuperVolumeView" &&
+            it.parameterTypes.size == 1 &&
+            it.parameterTypes[0].name.endsWith("VolumeColumn")
+        }?.let { method ->
+            method.hook {
+                after { param ->
+                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        runCatching {
+                            val thisObject = param.thisObject
+                            val column = param.args[0] ?: return@runCatching
+                            val mExpanded = thisObject.javaClass.getDeclaredField("mExpanded").apply { isAccessible = true }.get(thisObject) as Boolean
+                            
+                            val superVolume = column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.get(column) as? TextView
+                            if (superVolume != null) {
+                                val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                val isControlCenter = runCatching {
+                                    thisObject.javaClass.getDeclaredField("isControlCenterPanel").apply { isAccessible = true }.get(thisObject) as Boolean
+                                }.getOrDefault(false)
+                                val shouldShowInner = if (isControlCenter) !sameStyleVolume else mExpanded
+                                superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
+                            }
                         }
                     }
                 }
@@ -416,8 +498,11 @@ class VolumeSliderHooker(
 
                                     textView.typeface = Typeface.DEFAULT_BOLD
                                     val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
-                                    if (sameStyleSuper) {
-                                        applyTopTextStyle(textView, sliderType = "VolumePanelViewController")
+                                    if (!sameStyleSuper) {
+                                        val context = textView.context
+                                        val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                        val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                        textView.setTextColor(textColor)
                                     }
                                     true
                                 } else {
@@ -436,8 +521,9 @@ class VolumeSliderHooker(
 
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeViewColor" }?.let { method ->
             method.hook {
-                after { param ->
-                    applyBadgeThemeColors(param.thisObject)
+                intercept { chain ->
+                    applyBadgeThemeColors(chain.thisObject)
+                    null
                 }
             }
         }

@@ -32,7 +32,7 @@ object SystemUIPluginHooker : StaticHooker() {
 
                         Log.d("HyperTweak", "SystemUIPluginHooker: loadPlugin called for component: $componentName")
 
-                        if (componentName != null && componentName.className == "miui.systemui.controlcenter.MiuiControlCenter") {
+                        if (componentName != null && (componentName.packageName == "miui.systemui.plugin" || componentName.className == "miui.systemui.controlcenter.MiuiControlCenter")) {
                             Log.d("HyperTweak", "SystemUIPluginHooker: Control Center plugin loaded: $componentName")
                             
                             val mPluginFactory = pluginInstance.javaClass.getDeclaredField("mPluginFactory")
