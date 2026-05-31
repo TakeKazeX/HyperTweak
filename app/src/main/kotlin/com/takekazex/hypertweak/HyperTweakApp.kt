@@ -2,7 +2,6 @@ package com.takekazex.hypertweak
 
 import android.app.Application
 import android.content.Context
-import android.os.Build
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 
