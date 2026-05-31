@@ -76,6 +76,7 @@ fun SettingsScreenContent(
     pageScale: Float,
     onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit,
+    onNavigateToAppShortcuts: () -> Unit,
     backdrop: LayerBackdrop,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -313,6 +314,12 @@ fun SettingsScreenContent(
                         onCheckedChange = onHideLauncherIconChange,
                         title = "Hide Desktop Icon",
                         summary = "Hide launcher icon (access module via LSPosed or system settings)"
+                    )
+
+                    ArrowPreference(
+                        title = "App Shortcuts",
+                        summary = "Choose shortcuts shown in long-press app icon menu",
+                        onClick = onNavigateToAppShortcuts
                     )
 
                     SwitchPreference(

@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.ui.page.MainPagerScreen
 import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
+import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -88,6 +89,7 @@ fun HyperTweakNavContainer(
     // Actions
     onViewSourceCode: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit,
+    onShortcutsChanged: () -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {
@@ -175,6 +177,9 @@ fun HyperTweakNavContainer(
                 onNavigateToHiddenFeatures = {
                     backStack.add(Route.HiddenFeatures)
                 },
+                onNavigateToAppShortcuts = {
+                    backStack.add(Route.AppShortcuts)
+                },
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
                 onAppLanguageChange = onAppLanguageChange
@@ -203,6 +208,14 @@ fun HyperTweakNavContainer(
                 onBack = {
                     if (backStack.size > 1) backStack.removeLast()
                 }
+            )
+        }
+        entry<Route.AppShortcuts> {
+            AppShortcutsPage(
+                onBack = {
+                    if (backStack.size > 1) backStack.removeLast()
+                },
+                onShortcutsChanged = onShortcutsChanged
             )
         }
     }

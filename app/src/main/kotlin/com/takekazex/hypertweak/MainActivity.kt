@@ -51,6 +51,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
@@ -341,6 +343,11 @@ class MainActivity : ComponentActivity() {
                         appLanguage = lang
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putInt(Preferences.KEY_LANGUAGE, lang)
+                        }
+                    },
+                    onShortcutsChanged = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this@MainActivity) }
                         }
                     }
                 )
