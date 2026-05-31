@@ -9,8 +9,7 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 
 class SliderPercentageHooker(
     private val pluginContext: android.content.Context? = null,
-    private val pluginApkPath: String = "",
-    private val mainApkPath: String = ""
+    private val pluginApkPath: String = ""
 ) : DynamicHooker() {
 
     fun resolveClass(className: String, initialize: Boolean = false): Class<Any>? {
@@ -108,17 +107,6 @@ class SliderPercentageHooker(
         val resolved = DexKitManager.resolveClasses(
             cacheDir = pluginContext?.cacheDir,
             apkPath = pluginApkPath,
-            classLoader = classLoader,
-            queries = mapOf(key to query)
-        )
-        return resolved[key]
-    }
-
-    private fun resolveMainClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
-        if (mainApkPath.isEmpty()) return null
-        val resolved = DexKitManager.resolveClasses(
-            cacheDir = pluginContext?.cacheDir,
-            apkPath = mainApkPath,
             classLoader = classLoader,
             queries = mapOf(key to query)
         )

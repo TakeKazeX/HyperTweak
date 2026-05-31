@@ -728,7 +728,6 @@ class VolumeSliderHooker(
             method.hook {
                 before { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         val view = param.thisObject
                         val isExpanded = runCatching {
                             view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
@@ -737,11 +736,7 @@ class VolumeSliderHooker(
                             view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
                         }.getOrNull()
                         if (inCCMainPage != true) {
-                            if (sameStyle) {
-                                param.args[0] = !isExpanded
-                            } else {
-                                param.args[0] = !isExpanded
-                            }
+                            param.args[0] = !isExpanded
                         }
                     }
                 }

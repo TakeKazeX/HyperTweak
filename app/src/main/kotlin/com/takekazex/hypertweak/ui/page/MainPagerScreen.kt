@@ -95,9 +95,6 @@ fun MainPagerScreen(
     val coroutineScope = rememberCoroutineScope()
     val contentReady = rememberContentReady()
     val isDark = isSystemInDarkTheme()
-    val blurActive = true
-    val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
-    val floatingBarColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
     val floatingBarShape = RoundedCornerShape(top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults.CornerRadius)
     val floatingHighlight = remember(isDark) {
         if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
@@ -121,26 +118,22 @@ fun MainPagerScreen(
                             }
                         },
                         backdrop = backdrop,
-                        isBlurActive = blurActive
+                        isBlurActive = true
                     )
                 } else {
                     FloatingNavigationBar(
-                        modifier = if (blurActive) {
-                            Modifier.textureBlur(
-                                backdrop = backdrop,
-                                shape = floatingBarShape,
-                                blurRadius = 25f,
-                                colors = BlurDefaults.blurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
-                                    ),
+                        modifier = Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = floatingBarShape,
+                            blurRadius = 25f,
+                            colors = BlurDefaults.blurColors(
+                                blendColors = listOf(
+                                    BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
                                 ),
-                                highlight = floatingHighlight,
-                            )
-                        } else {
-                            Modifier
-                        },
-                        color = floatingBarColor,
+                            ),
+                            highlight = floatingHighlight,
+                        ),
+                        color = Color.Transparent,
                     ) {
                         MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 0,
@@ -178,23 +171,17 @@ fun MainPagerScreen(
                 NavigationBar(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(
-                            if (blurActive) {
-                                Modifier.textureBlur(
-                                    backdrop = backdrop,
-                                    shape = RectangleShape,
-                                    blurRadius = 25f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f)),
-                                        ),
-                                    ),
-                                )
-                            } else {
-                                Modifier
-                            }
+                        .textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            blurRadius = 25f,
+                            colors = BlurDefaults.blurColors(
+                                blendColors = listOf(
+                                    BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f)),
+                                ),
+                            ),
                         ),
-                    color = barColor
+                    color = Color.Transparent
                 ) {
                     MyNavigationBarItem(
                         selected = pagerState.currentPage == 0,

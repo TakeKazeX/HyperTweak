@@ -99,10 +99,7 @@ class MainActivity : ComponentActivity() {
             var moduleActive by remember { mutableStateOf(initialActive) }
 
             LaunchedEffect(serviceConnected) {
-                if (isModuleActive()) {
-                    moduleActive = true
-                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
-                    // Reload all states from the now-IPC-backed RemotePreferences
+                fun reloadAllPreferences() {
                     themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
                     useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
                     seedColorHex = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
@@ -123,32 +120,19 @@ class MainActivity : ComponentActivity() {
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
+                }
+
+                if (isModuleActive()) {
+                    moduleActive = true
+                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
+                    reloadAllPreferences()
                     return@LaunchedEffect
                 }
 
                 if (serviceConnected != null) {
                     moduleActive = true
                     localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
-                    // Reload all states from the now-IPC-backed RemotePreferences
-                    themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
-                    useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
-                    seedColorHex = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
-                    useFloatingBottomBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)
-                    floatingBarStyle = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
-                    predictiveBackStyle = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
-                    predictiveBackFollowGesture = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
-                    allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
-                    pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
-                    appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
-                    aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
-                    removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
-                    hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
-                    showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
-                    hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                    gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-                    hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
-                    sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-                    sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    reloadAllPreferences()
                 } else {
                     // Wait 500ms to allow the Xposed service binding to finish
                     kotlinx.coroutines.delay(500)
