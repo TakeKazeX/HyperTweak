@@ -1,9 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -21,6 +18,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -73,17 +71,138 @@ fun HiddenFeaturesPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
-                .padding(horizontal = 16.dp)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            SmallTitle(text = "Quick Shortcuts")
+
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = "Developer Settings",
+                        summary = "Open developer options and USB debugging settings",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.Code,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Developer Settings",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            val intent = Intent("android.settings.APPLICATION_DEVELOPMENT_SETTINGS")
+                            launchSafe(intent, emptyList())
+                        }
+                    )
+
+                    ArrowPreference(
+                        title = "Google Services",
+                        summary = "Open Google Play Services settings and account management",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.AccountCircle,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Google Services",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            val intent = Intent().apply {
+                                component = ComponentName("com.google.android.gms", "com.google.android.gms.app.settings.GoogleSettingsIALink")
+                            }
+                            val fallback = Intent("com.google.android.gms.settings.SETTINGS")
+                            launchSafe(intent, listOf(fallback))
+                        }
+                    )
+
+                    ArrowPreference(
+                        title = "FCM Debug",
+                        summary = "Open Firebase Cloud Messaging diagnostic and registration status",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.BugReport,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "FCM Debug",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            val intent1 = Intent().apply {
+                                component = ComponentName("com.google.android.gms", "com.google.android.gms.gcm.GcmDiagnostics")
+                            }
+                            val intent2 = Intent().apply {
+                                component = ComponentName("com.google.android.gms", "com.google.android.gms.chimera.GmsIntentOperationService")
+                            }
+                            launchSafe(intent1, listOf(intent2))
+                        }
+                    )
+                }
+            }
+
+            SmallTitle(text = "App Shortcuts")
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = "LSPosed Manager",
+                        summary = "Open LSPosed framework manager (*#*#5776733#*#*)",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.Extension,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "LSPosed Manager",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            Thread {
+                                try {
+                                    val action = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) "android.telephony.action.SECRET_CODE" else "android.provider.Telephony.SECRET_CODE"
+                                    Runtime.getRuntime().exec("su").outputStream.bufferedWriter().use { w ->
+                                        w.write("am broadcast -a $action -d android_secret_code://5776733\nexit\n")
+                                        w.flush()
+                                    }
+                                } catch (e: Exception) {
+                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                        Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }.start()
+                        }
+                    )
+
+                    ArrowPreference(
+                        title = "InstallerX Revived",
+                        summary = "Open InstallerX package installer",
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.InstallMobile,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "InstallerX Revived",
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            val intent1 = Intent().setClassName("com.android.packageinstaller", "com.rosan.installer.ui.activity.SettingsActivity")
+                            val intent2 = Intent().setClassName("com.rosan.installer.x.revived", "com.rosan.installer.ui.activity.SettingsActivity")
+                            launchSafe(intent1, listOf(intent2))
+                        }
+                    )
+                }
+            }
+
+            SmallTitle(text = "Hidden Features")
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
