@@ -27,6 +27,8 @@ object Preferences {
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"
+    const val KEY_APP_SHORTCUTS = "app_shortcuts"
+    const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
 
     private lateinit var remotePrefs: SharedPreferences
     private var localCachePrefs: SharedPreferences? = null
@@ -122,6 +124,44 @@ object Preferences {
     fun putFloat(key: String, value: Float) {
         if (isInitialized) {
             remotePrefs.edit().putFloat(key, value).apply()
+        }
+    }
+
+    fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
+        if (!isInitialized) return default
+        if (remotePrefs.contains(key)) {
+            val value = remotePrefs.getStringSet(key, default) ?: default
+            val cache = getLocalCache()
+            if (cache != null && (!cache.contains(key) || cache.getStringSet(key, emptySet()) != value)) {
+                cache.edit().putStringSet(key, value).apply()
+            }
+            return value
+        }
+        return getLocalCache()?.getStringSet(key, default) ?: default
+    }
+
+    fun putStringSet(key: String, value: Set<String>) {
+        if (isInitialized) {
+            remotePrefs.edit().putStringSet(key, value).apply()
+        }
+    }
+
+    fun getString(key: String, default: String = ""): String {
+        if (!isInitialized) return default
+        if (remotePrefs.contains(key)) {
+            val value = remotePrefs.getString(key, default) ?: default
+            val cache = getLocalCache()
+            if (cache != null && (!cache.contains(key) || cache.getString(key, "") != value)) {
+                cache.edit().putString(key, value).apply()
+            }
+            return value
+        }
+        return getLocalCache()?.getString(key, default) ?: default
+    }
+
+    fun putString(key: String, value: String) {
+        if (isInitialized) {
+            remotePrefs.edit().putString(key, value).apply()
         }
     }
 }

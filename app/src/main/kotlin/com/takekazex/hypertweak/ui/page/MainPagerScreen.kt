@@ -88,6 +88,7 @@ fun MainPagerScreen(
     onUnlockPasskeyChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
+    onNavigateToAppShortcuts: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -290,6 +291,7 @@ fun MainPagerScreen(
                                 pageScale = pageScale,
                                 onPageScaleChange = onPageScaleChange,
                                 onNavigateToAbout = onNavigateToAbout,
+                                onNavigateToAppShortcuts = onNavigateToAppShortcuts,
                                 backdrop = backdrop,
                                 appLanguage = appLanguage,
                                 onAppLanguageChange = onAppLanguageChange

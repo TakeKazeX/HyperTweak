@@ -71,6 +71,7 @@ Special thanks to the following open-source projects for their support and inspi
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - Reference logic for fingerprint icon rendering bypass.
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - Reference implementations for Settings entry injection.
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
+* **[HighLight Icons](https://t.me/HighLightIcons)** - App shortcut icons by [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221).
 
 ---
 

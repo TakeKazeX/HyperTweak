@@ -118,6 +118,11 @@ fun CreditsPage(
                         summary = "Unlock Google Passkey / Credential Manager by howard20181",
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperPasskey") }
                     )
+                    ArrowPreference(
+                        title = "HighLight Icons",
+                        summary = "App shortcut icons by @GotohHitoriBocchi0221",
+                        onClick = { uriHandler.openUri("https://t.me/HighLightIcons") }
+                    )
                 }
             }
 
