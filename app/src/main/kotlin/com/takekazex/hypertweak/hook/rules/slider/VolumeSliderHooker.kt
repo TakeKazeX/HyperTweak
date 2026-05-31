@@ -60,6 +60,9 @@ class VolumeSliderHooker(
     private var cachedVolumeRadiusMethod: java.lang.reflect.Method? = null
     private var cachedVolumeRadiusLoaded = false
 
+    // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
+    private val textViewToStreamCache = java.util.WeakHashMap<TextView, Int>()
+
     override fun onHook() {
         val clzVolumeSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController")
         Log.d("HyperTweak", "VolumeSliderHooker onHook - clzVolumeSlider: ${clzVolumeSlider?.name}")
@@ -205,13 +208,18 @@ class VolumeSliderHooker(
 
                         val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         if (sameStyleVolume) {
-                            superVolume.setMiViewBlurMode(3)
+                            val cachedBlurMode = SliderHookHelper.getTag(superVolume, "cached_blurMode") as? Int
+                            if (cachedBlurMode != 3) {
+                                superVolume.setMiViewBlurMode(3)
+                                SliderHookHelper.putTag(superVolume, "cached_blurMode", 3)
+                            }
                             val clzMiBlurCompat = cachedMiBlurCompatClass ?: superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat").also { cachedMiBlurCompatClass = it }
                             val clzColorBlendToken = cachedColorBlendTokenClass ?: superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken").also { cachedColorBlendTokenClass = it }
                             val blendMethod = cachedTokenBlendMethod ?: clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType).also { cachedTokenBlendMethod = it }
                             blendMethod.invoke(null, superVolume, fromToken, toToken, fraction)
                         } else {
                             superVolume.clearMiBlur()
+                            SliderHookHelper.putTag(superVolume, "cached_blurMode", 0)
                         }
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in VolumeColumn.iconBlendColorTransition hook", t)
@@ -235,7 +243,7 @@ class VolumeSliderHooker(
                             thisObject.javaClass.getMethod("isInCCMainPage").invoke(thisObject) as Boolean
                         }.getOrDefault(true)
                         
-                        val shouldShow = if (isInCCMainPage) !sameStyle else isExpanded
+                        val shouldShow = isExpanded || (isInCCMainPage && !sameStyle)
                         runCatching {
                             val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
                                 .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
@@ -263,6 +271,9 @@ class VolumeSliderHooker(
 
         // ─── VolumePanelViewController ─────────────────────────────────────────
         val clzVolumeViewController = parent.resolveClass("com.android.systemui.miui.volume.VolumePanelViewController")
+
+        // Track whether badge theme has been applied since last show, to avoid re-applying on every update
+        var badgeThemeApplied = false
 
         // Helper: apply badge theme colors. Called both at init, update, and show.
         fun loadVpcFields(thisObject: Any) {
@@ -449,6 +460,7 @@ class VolumeSliderHooker(
                 before { param ->
                     val activeStream = param.args[0] as Int
                     updateBadgeText(param.thisObject, activeStream)
+                    badgeThemeApplied = false
                     applyBadgeThemeColors(param.thisObject)
                 }
             }
@@ -498,7 +510,7 @@ class VolumeSliderHooker(
                                 if (columnSuperVolume != null) {
                                     columnSuperVolume.text = "$pct%"
                                     val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
-                                    val shouldShowInner = if (isControlCenter) !sameStyleVolume else mExpanded
+                                    val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
@@ -516,6 +528,9 @@ class VolumeSliderHooker(
                                             val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
                                             columnSuperVolume.setTextColor(textColor)
                                         }
+                                    } else {
+                                        // Badge not visible — skip expensive theme work
+                                        badgeThemeApplied = false
                                     }
                                 }
 
@@ -542,8 +557,11 @@ class VolumeSliderHooker(
                                                 mSuperVolume.setTextColor(textColor)
                                             }
                                         }
-                                        // Ensure badge background follows system theme on every state update
-                                        applyBadgeThemeColors(thisObject)
+                                        // Only re-apply badge theme if not already applied (avoids per-update overhead)
+                                        if (!badgeThemeApplied) {
+                                            applyBadgeThemeColors(thisObject)
+                                            badgeThemeApplied = true
+                                        }
                                     }
                                 }
                             }
@@ -574,7 +592,7 @@ class VolumeSliderHooker(
                             if (superVolume != null) {
                                 val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                                 val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
-                                val shouldShowInner = if (isControlCenter) !sameStyleVolume else mExpanded
+                                val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
                                 superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                             }
                         }
@@ -603,24 +621,32 @@ class VolumeSliderHooker(
                                 if (textView === mSuperVolume) {
                                     foundStream = vpcField_mActiveStream?.get(thisObject) as Int
                                 } else {
-                                    val colSuperVolField = cachedVolumeColumnField
-                                    for (col in mColumns) {
-                                        if (col != null) {
-                                            val sv = colSuperVolField?.get(col) ?: col.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }.get(col)
-                                            if (sv === textView) {
-                                                val colStreamField = cachedColumnStreamField ?: runCatching {
-                                                    col.javaClass.getDeclaredField("stream").apply { isAccessible = true }.also { cachedColumnStreamField = it }
-                                                }.getOrNull()
-                                                val colStreamGetter = if (colStreamField == null && cachedColumnStreamGetter == null) {
-                                                    runCatching { col.javaClass.getMethod("getStream").also { cachedColumnStreamGetter = it } }.getOrNull()
-                                                } else cachedColumnStreamGetter
-                                                foundStream = if (colStreamField != null) {
-                                                    runCatching { colStreamField.get(col) as Int }.getOrDefault(-1)
-                                                } else if (colStreamGetter != null) {
-                                                    runCatching { colStreamGetter.invoke(col) as Int }.getOrDefault(-1)
-                                                } else -1
-                                                break
+                                    val cached = textViewToStreamCache[textView]
+                                    if (cached != null) {
+                                        foundStream = cached
+                                    } else {
+                                        val colSuperVolField = cachedVolumeColumnField
+                                        for (col in mColumns) {
+                                            if (col != null) {
+                                                val sv = colSuperVolField?.get(col) ?: col.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }.get(col)
+                                                if (sv === textView) {
+                                                    val colStreamField = cachedColumnStreamField ?: runCatching {
+                                                        col.javaClass.getDeclaredField("stream").apply { isAccessible = true }.also { cachedColumnStreamField = it }
+                                                    }.getOrNull()
+                                                    val colStreamGetter = if (colStreamField == null && cachedColumnStreamGetter == null) {
+                                                        runCatching { col.javaClass.getMethod("getStream").also { cachedColumnStreamGetter = it } }.getOrNull()
+                                                    } else cachedColumnStreamGetter
+                                                    foundStream = if (colStreamField != null) {
+                                                        runCatching { colStreamField.get(col) as Int }.getOrDefault(-1)
+                                                    } else if (colStreamGetter != null) {
+                                                        runCatching { colStreamGetter.invoke(col) as Int }.getOrDefault(-1)
+                                                    } else -1
+                                                    break
+                                                }
                                             }
+                                        }
+                                        if (foundStream >= 0) {
+                                            textViewToStreamCache[textView] = foundStream
                                         }
                                     }
                                 }
@@ -635,14 +661,14 @@ class VolumeSliderHooker(
                                     textView.text = "$pct%"
 
                                     val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
+                                    val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                                     if (textView === mSuperVolume) {
-                                        textView.visibility = if (mExpanded) View.GONE else View.VISIBLE
+                                        textView.visibility = if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
                                     } else {
                                         textView.visibility = if (mExpanded) View.VISIBLE else View.INVISIBLE
                                     }
 
                                     textView.typeface = Typeface.DEFAULT_BOLD
-                                    val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                                     if (sameStyleSuper) {
                                         putTag(textView, "sliderType", "VolumePanelViewController")
                                         val activeColor = SliderHookHelper.getActiveColor(textView.context, "VolumePanelViewController")
@@ -691,6 +717,7 @@ class VolumeSliderHooker(
             method.hook {
                 before { param ->
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                         val view = param.thisObject
                         val isExpanded = runCatching {
                             view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
@@ -699,7 +726,11 @@ class VolumeSliderHooker(
                             view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
                         }.getOrNull()
                         if (inCCMainPage != true) {
-                            param.args[0] = !isExpanded
+                            if (sameStyle) {
+                                param.args[0] = !isExpanded
+                            } else {
+                                param.args[0] = !isExpanded
+                            }
                         }
                     }
                 }
