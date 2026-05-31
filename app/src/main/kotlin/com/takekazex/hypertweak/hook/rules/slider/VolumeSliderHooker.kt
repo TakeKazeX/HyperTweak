@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
 class VolumeSliderHooker(
@@ -182,8 +183,7 @@ class VolumeSliderHooker(
                             ColorOverrideLock.isSettingColor.set(false)
                         } else {
                             val context = superVolume.context
-                            val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                            val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                            val textColor = getSliderTextColor(context)
                             superVolume.setTextColor(textColor)
                         }
                     }.onFailure { t ->
@@ -263,8 +263,7 @@ class VolumeSliderHooker(
                                 ColorOverrideLock.isSettingColor.set(false)
                             } else {
                                 val context = superVolume.context
-                                val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                                val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                val textColor = getSliderTextColor(context)
                                 superVolume.setTextColor(textColor)
                             }
                         }
@@ -365,7 +364,7 @@ class VolumeSliderHooker(
                         }
                         ColorOverrideLock.isSettingColor.set(false)
                     } else {
-                        val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                        val textColor = getSliderTextColor(context)
                         mSuperVolume.setTextColor(textColor)
                     }
 
@@ -533,8 +532,7 @@ class VolumeSliderHooker(
                                             ColorOverrideLock.isSettingColor.set(false)
                                         } else {
                                             val context = columnSuperVolume.context
-                                            val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                                            val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                            val textColor = getSliderTextColor(context)
                                             columnSuperVolume.setTextColor(textColor)
                                         }
                                     } else {
@@ -560,8 +558,7 @@ class VolumeSliderHooker(
                                                 ColorOverrideLock.isSettingColor.set(false)
                                             } else {
                                                 val context = mSuperVolume.context
-                                                val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                                                val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                                val textColor = getSliderTextColor(context)
                                                 mSuperVolume.setTextColor(textColor)
                                             }
                                         }
@@ -687,8 +684,7 @@ class VolumeSliderHooker(
                                         ColorOverrideLock.isSettingColor.set(false)
                                     } else {
                                         val context = textView.context
-                                        val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                                        val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
+                                        val textColor = getSliderTextColor(context)
                                         textView.setTextColor(textColor)
                                     }
                                     true

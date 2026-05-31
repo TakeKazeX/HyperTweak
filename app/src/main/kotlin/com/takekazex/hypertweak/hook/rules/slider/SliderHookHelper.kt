@@ -107,6 +107,14 @@ object SliderHookHelper {
         return (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
     }
 
+    private val DARK_TEXT_COLOR = android.graphics.Color.parseColor("#B3FFFFFF")
+    private val LIGHT_TEXT_COLOR = android.graphics.Color.parseColor("#B3000000")
+
+    fun getSliderTextColor(context: android.content.Context): Int {
+        val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        return if (isDark) DARK_TEXT_COLOR else LIGHT_TEXT_COLOR
+    }
+
     @Volatile
     private var isBlurSupportedMethod: java.lang.reflect.Method? = null
     @Volatile
@@ -353,10 +361,8 @@ object SliderHookHelper {
         } else {
             topText.clearMiBlur()
             runCatching {
-                val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                val textColor = if (isDark) android.graphics.Color.parseColor("#B3FFFFFF") else android.graphics.Color.parseColor("#B3000000")
                 ColorOverrideLock.isSettingColor.set(true)
-                topText.setTextColor(textColor)
+                topText.setTextColor(getSliderTextColor(context))
             }.onFailure { t ->
                 Log.e("HyperTweak", "applyTopTextStyle: no-blur color set failed", t)
             }

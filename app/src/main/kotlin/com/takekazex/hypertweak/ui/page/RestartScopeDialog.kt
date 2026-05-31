@@ -134,28 +134,22 @@ fun AppRestartPreference(
     }
 
     val appName = remember(appInfo, packageName) {
+        fun fallbackName(pkg: String) = when (pkg) {
+            "com.android.systemui" -> "System UI"
+            "com.android.settings" -> "Settings"
+            "com.miui.aod" -> "Always-On Display"
+            "com.miui.securitycenter" -> "Security"
+            "com.xiaomi.scanner" -> "Scanner"
+            else -> pkg
+        }
         if (appInfo != null) {
             try {
                 packageManager.getApplicationLabel(appInfo).toString()
             } catch (e: Exception) {
-                when (packageName) {
-                    "com.android.systemui" -> "System UI"
-                    "com.android.settings" -> "Settings"
-                    "com.miui.aod" -> "Always-On Display"
-                    "com.miui.securitycenter" -> "Security"
-                    "com.xiaomi.scanner" -> "Scanner"
-                    else -> packageName
-                }
+                fallbackName(packageName)
             }
         } else {
-            when (packageName) {
-                "com.android.systemui" -> "System UI"
-                "com.android.settings" -> "Settings"
-                "com.miui.aod" -> "Always-On Display"
-                "com.miui.securitycenter" -> "Security"
-                "com.xiaomi.scanner" -> "Scanner"
-                else -> packageName
-            }
+            fallbackName(packageName)
         }
     }
 
