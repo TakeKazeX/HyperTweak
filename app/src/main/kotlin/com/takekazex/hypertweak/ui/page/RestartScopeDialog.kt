@@ -1,24 +1,28 @@
 package com.takekazex.hypertweak.ui.page
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+
+private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageName: String): Boolean {
+    return try {
+        pm.getPackageInfo(packageName, 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
 
 @Composable
 fun RestartScopeDialog(
@@ -32,46 +36,59 @@ fun RestartScopeDialog(
     var securityCenterChecked by remember(show) { mutableStateOf(false) }
     var scannerChecked by remember(show) { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val packageManager = context.packageManager
+
+    val installedApps = remember(show) {
+        buildList {
+            if (isPackageInstalled(packageManager, "com.android.systemui")) add("com.android.systemui")
+            if (isPackageInstalled(packageManager, "com.android.settings")) add("com.android.settings")
+            if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
+            if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
+            if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
+        }
+    }
+
     OverlayDialog(
         show = show,
         title = "Restart Scoped Apps",
         onDismissRequest = onDismissRequest,
         content = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AppRestartRow(
-                    packageName = "com.android.systemui",
-                    checked = systemUiChecked,
-                    onCheckedChange = { systemUiChecked = !systemUiChecked }
-                )
-
-                AppRestartRow(
-                    packageName = "com.android.settings",
-                    checked = settingsChecked,
-                    onCheckedChange = { settingsChecked = !settingsChecked }
-                )
-
-                AppRestartRow(
-                    packageName = "com.miui.aod",
-                    checked = aodChecked,
-                    onCheckedChange = { aodChecked = !aodChecked }
-                )
-
-                AppRestartRow(
-                    packageName = "com.miui.securitycenter",
-                    checked = securityCenterChecked,
-                    onCheckedChange = { securityCenterChecked = !securityCenterChecked }
-                )
-
-                AppRestartRow(
-                    packageName = "com.xiaomi.scanner",
-                    checked = scannerChecked,
-                    onCheckedChange = { scannerChecked = !scannerChecked }
-                )
+            if (installedApps.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        installedApps.forEach { pkg ->
+                            val checked = when (pkg) {
+                                "com.android.systemui" -> systemUiChecked
+                                "com.android.settings" -> settingsChecked
+                                "com.miui.aod" -> aodChecked
+                                "com.miui.securitycenter" -> securityCenterChecked
+                                "com.xiaomi.scanner" -> scannerChecked
+                                else -> false
+                            }
+                            val onCheckedChange: (Boolean) -> Unit = { newVal ->
+                                when (pkg) {
+                                    "com.android.systemui" -> systemUiChecked = newVal
+                                    "com.android.settings" -> settingsChecked = newVal
+                                    "com.miui.aod" -> aodChecked = newVal
+                                    "com.miui.securitycenter" -> securityCenterChecked = newVal
+                                    "com.xiaomi.scanner" -> scannerChecked = newVal
+                                }
+                            }
+                            AppRestartPreference(
+                                packageName = pkg,
+                                checked = checked,
+                                onCheckedChange = onCheckedChange
+                            )
+                        }
+                    }
+                }
             }
 
             Row(
@@ -99,10 +116,10 @@ fun RestartScopeDialog(
 }
 
 @Composable
-fun AppRestartRow(
+fun AppRestartPreference(
     packageName: String,
     checked: Boolean,
-    onCheckedChange: () -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -145,61 +162,36 @@ fun AppRestartRow(
     val appIcon = remember(packageName) {
         try {
             val drawable = packageManager.getApplicationIcon(packageName)
-            drawable.toBitmap(120, 120).asImageBitmap()
+            drawable.toBitmap(100, 100).asImageBitmap()
         } catch (e: Exception) {
             try {
-                val drawable = packageManager.defaultActivityIcon
-                drawable.toBitmap(120, 120).asImageBitmap()
+                val drawable = context.getDrawable(com.takekazex.hypertweak.R.mipmap.ic_launcher)
+                drawable?.toBitmap(100, 100)?.asImageBitmap()
             } catch (e2: Exception) {
                 null
             }
         }
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange() }
-            .padding(vertical = 4.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (appIcon != null) {
-            Image(
-                bitmap = appIcon,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(44.dp)
-                    .padding(end = 12.dp)
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .padding(end = 12.dp)
-            )
+    CheckboxPreference(
+        modifier = modifier,
+        title = appName,
+        summary = packageName,
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        checkboxLocation = CheckboxLocation.End,
+        startAction = {
+            if (appIcon != null) {
+                Image(
+                    bitmap = appIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
-
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = appName,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Normal,
-                color = MiuixTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = packageName,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Light,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
-        }
-
-        Checkbox(
-            state = if (checked) ToggleableState.On else ToggleableState.Off,
-            onClick = { onCheckedChange() }
-        )
-    }
+    )
 }
