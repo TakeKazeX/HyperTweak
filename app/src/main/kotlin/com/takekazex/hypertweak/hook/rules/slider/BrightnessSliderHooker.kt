@@ -169,12 +169,12 @@ class BrightnessSliderHooker(
                             val thisObject = param.thisObject
                             val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
                             val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
-                            
+                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as? TextView ?: return@runCatching
+
                             initTopText(topText)
                             putTag(topText, "sliderType", "BrightnessSliderController")
                             applyTopTextStyle(topText, force = true)
-                            
+
                             thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error in BrightnessPanelSliderDelegate.prepareShow hook", t)
@@ -192,8 +192,8 @@ class BrightnessSliderHooker(
                             val thisObject = param.thisObject
                             val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
                             val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as TextView
-                            val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as android.widget.SeekBar
+                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as? TextView ?: return@runCatching
+                            val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as? android.widget.SeekBar ?: return@runCatching
 
                             val level = slider.progress
                             val maxLevel = slider.max

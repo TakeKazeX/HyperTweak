@@ -123,6 +123,13 @@ object SliderHookHelper {
 
     private val activeColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
+    fun clearActiveColorCache() {
+        activeColorCache.clear()
+        cachedBlendColorsResId = -1
+        cachedBlendColorsContext = null
+        cachedOriginalBlendColors = null
+    }
+
     // Cached blendColors resource lookup (avoids getIdentifier + createPackageContext per call)
     @Volatile
     private var cachedBlendColorsResId: Int = -1  // -1 = not resolved, 0 = not found
@@ -389,9 +396,9 @@ object SliderHookHelper {
                 putTag(sliderController, "cached_fSliderMinValue", fSliderMinValue)
             }
 
-            val systemVolume = fSystemVolume!!.get(sliderController) as Int
-            val sliderMaxValue = fSliderMaxValue!!.get(sliderController) as Int
-            val sliderMinValue = fSliderMinValue!!.get(sliderController) as Int
+            val systemVolume = fSystemVolume?.get(sliderController) as? Int ?: return@runCatching 0
+            val sliderMaxValue = fSliderMaxValue?.get(sliderController) as? Int ?: return@runCatching 0
+            val sliderMinValue = fSliderMinValue?.get(sliderController) as? Int ?: return@runCatching 0
 
             Math.round((systemVolume * 1000f - sliderMinValue) / (sliderMaxValue - sliderMinValue) * 100f).coerceIn(0, 100)
         }.getOrDefault(0)
@@ -413,9 +420,9 @@ object SliderHookHelper {
                 putTag(sliderController, "cached_fStreamMinVolume", fStreamMinVolume)
             }
 
-            val level = mValueToVolume!!.invoke(sliderController, sliderValue) as Int
-            val maxLevel = fStreamMaxVolume!!.get(sliderController) as Int
-            val minLevel = fStreamMinVolume!!.get(sliderController) as Int
+            val level = mValueToVolume?.invoke(sliderController, sliderValue) as? Int ?: return@runCatching 0
+            val maxLevel = fStreamMaxVolume?.get(sliderController) as? Int ?: return@runCatching 0
+            val minLevel = fStreamMinVolume?.get(sliderController) as? Int ?: return@runCatching 0
 
             if (maxLevel <= 0) 0
             else Math.round((level - minLevel).toFloat() / (maxLevel - minLevel) * 100f).coerceIn(0, 100)
