@@ -25,6 +25,116 @@ class BrightnessSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
 
+    // Cached fields for BrightnessPanelAnimator (frameCallback hot path)
+    private var animatorSizeField: java.lang.reflect.Field? = null
+    private var animatorGetToViewMethod: java.lang.reflect.Method? = null
+    private var animatorFromViewField: java.lang.reflect.Field? = null
+    private var viewGetTopTextMethod: java.lang.reflect.Method? = null
+    private var viewGetSliderBindingMethod: java.lang.reflect.Method? = null
+    private var bindingTopTextField: java.lang.reflect.Field? = null
+
+    // Cached fields for BrightnessSliderController (setInMirror)
+    private var inMirrorField: java.lang.reflect.Field? = null
+    private var mirrorBlurProviderField: java.lang.reflect.Field? = null
+
+    // Cached fields for BrightnessPanelSliderDelegate (prepareShow / updateIconProgress)
+    private var delegateBindingField: java.lang.reflect.Field? = null
+    private var delegateToggleSliderField: java.lang.reflect.Field? = null
+    private var delegateTopTextField: java.lang.reflect.Field? = null
+    private var delegateSliderField: java.lang.reflect.Field? = null
+    private var delegateUpdateProgressMethod: java.lang.reflect.Method? = null
+
+    private fun getOrCacheAnimatorSizeField(clazz: Class<*>): java.lang.reflect.Field? {
+        animatorSizeField?.let { return it }
+        val f = clazz.getDeclaredField("size").apply { isAccessible = true }
+        animatorSizeField = f
+        return f
+    }
+
+    private fun getOrCacheAnimatorGetToViewMethod(clazz: Class<*>): java.lang.reflect.Method? {
+        animatorGetToViewMethod?.let { return it }
+        val m = clazz.getDeclaredMethod("getToView").apply { isAccessible = true }
+        animatorGetToViewMethod = m
+        return m
+    }
+
+    private fun getOrCacheAnimatorFromViewField(clazz: Class<*>): java.lang.reflect.Field? {
+        animatorFromViewField?.let { return it }
+        val f = clazz.getDeclaredField("fromView").apply { isAccessible = true }
+        animatorFromViewField = f
+        return f
+    }
+
+    private fun getOrCacheViewGetTopTextMethod(clazz: Class<*>): java.lang.reflect.Method? {
+        viewGetTopTextMethod?.let { return it }
+        val m = clazz.getMethod("getTopText")
+        viewGetTopTextMethod = m
+        return m
+    }
+
+    private fun getOrCacheViewGetSliderBindingMethod(clazz: Class<*>): java.lang.reflect.Method? {
+        viewGetSliderBindingMethod?.let { return it }
+        val m = clazz.getMethod("getSliderBinding")
+        viewGetSliderBindingMethod = m
+        return m
+    }
+
+    private fun getOrCacheBindingTopTextField(clazz: Class<*>): java.lang.reflect.Field? {
+        bindingTopTextField?.let { return it }
+        val f = clazz.getField("topText")
+        bindingTopTextField = f
+        return f
+    }
+
+    private fun getOrCacheInMirrorField(clazz: Class<*>): java.lang.reflect.Field? {
+        inMirrorField?.let { return it }
+        val f = clazz.getDeclaredField("inMirror").apply { isAccessible = true }
+        inMirrorField = f
+        return f
+    }
+
+    private fun getOrCacheMirrorBlurProviderField(clazz: Class<*>): java.lang.reflect.Field? {
+        mirrorBlurProviderField?.let { return it }
+        val f = runCatching { clazz.getDeclaredField("mirrorBlurProvider").apply { isAccessible = true } }.getOrNull()
+        mirrorBlurProviderField = f
+        return f
+    }
+
+    private fun getOrCacheDelegateBindingField(clazz: Class<*>): java.lang.reflect.Field? {
+        delegateBindingField?.let { return it }
+        val f = clazz.getDeclaredField("binding").apply { isAccessible = true }
+        delegateBindingField = f
+        return f
+    }
+
+    private fun getOrCacheDelegateToggleSliderField(clazz: Class<*>): java.lang.reflect.Field? {
+        delegateToggleSliderField?.let { return it }
+        val f = clazz.getField("toggleSlider").apply { isAccessible = true }
+        delegateToggleSliderField = f
+        return f
+    }
+
+    private fun getOrCacheDelegateTopTextField(clazz: Class<*>): java.lang.reflect.Field? {
+        delegateTopTextField?.let { return it }
+        val f = clazz.getField("topText").apply { isAccessible = true }
+        delegateTopTextField = f
+        return f
+    }
+
+    private fun getOrCacheDelegateSliderField(clazz: Class<*>): java.lang.reflect.Field? {
+        delegateSliderField?.let { return it }
+        val f = clazz.getField("slider").apply { isAccessible = true }
+        delegateSliderField = f
+        return f
+    }
+
+    private fun getOrCacheDelegateUpdateProgressMethod(clazz: Class<*>): java.lang.reflect.Method? {
+        delegateUpdateProgressMethod?.let { return it }
+        val m = clazz.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        delegateUpdateProgressMethod = m
+        return m
+    }
+
     override fun onHook() {
         val clzBrightnessSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController")
         Log.d("HyperTweak", "BrightnessSliderHooker onHook - clzBrightnessSlider: ${clzBrightnessSlider?.name}")
@@ -68,8 +178,8 @@ class BrightnessSliderHooker(
                     val inMirrorArg = param[0] as Boolean
                     val thisObject = chain.thisObject
                     val currentInMirror = runCatching {
-                        thisObject.javaClass.getDeclaredField("inMirror").apply { isAccessible = true }.get(thisObject) as Boolean
-                    }.getOrDefault(false)
+                        getOrCacheInMirrorField(thisObject.javaClass)?.get(thisObject) as? Boolean
+                    }.getOrDefault(false) ?: false
 
                     if (inMirrorArg == currentInMirror) {
                         return@intercept chain.proceed()
@@ -80,11 +190,11 @@ class BrightnessSliderHooker(
                     runCatching {
                         val holder = thisObject.javaClass.getMethod("getHolder").invoke(thisObject) ?: return@runCatching
                         val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }.getOrNull() ?: holder
-                        val mirrorBlurProvider = runCatching {
-                            binding.javaClass.getDeclaredField("mirrorBlurProvider").apply { isAccessible = true }.get(binding) as? View
-                        }.getOrNull()
-                        val topText = runCatching { binding.javaClass.getField("topText").get(binding) as? TextView }.getOrNull()
-                            ?: runCatching { binding.javaClass.getMethod("getTopText").invoke(binding) as? TextView }.getOrNull()
+                        val mirrorBlurProvider = getOrCacheMirrorBlurProviderField(binding.javaClass)?.let { f ->
+                            runCatching { f.get(binding) as? View }.getOrNull()
+                        }
+                        val topText = runCatching { getOrCacheBindingTopTextField(binding.javaClass)?.get(binding) as? TextView }.getOrNull()
+                            ?: runCatching { getOrCacheViewGetTopTextMethod(binding.javaClass)?.invoke(binding) as? TextView }.getOrNull()
                             ?: return@runCatching
 
                         val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -114,17 +224,17 @@ class BrightnessSliderHooker(
                 after { param ->
                     runCatching {
                         val thisObject = param.thisObject
-                        val fromView = thisObject.javaClass.getDeclaredField("fromView").apply { isAccessible = true }.get(thisObject) ?: return@runCatching
-                        val fromText = fromView.javaClass.getMethod("getTopText").invoke(fromView) as? TextView ?: return@runCatching
+                        val fromView = getOrCacheAnimatorFromViewField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
+                        val fromText = getOrCacheViewGetTopTextMethod(fromView.javaClass)?.invoke(fromView) as? TextView ?: return@runCatching
                         fromLeft = fromText.left
                         fromTop = fromText.top
                         fromWidth = fromText.width
                         fromHeight = fromText.height
 
-                        val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
+                        val getToView = getOrCacheAnimatorGetToViewMethod(thisObject.javaClass) ?: return@runCatching
                         val toView = getToView.invoke(thisObject) ?: return@runCatching
-                        val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
-                        val toText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
+                        val sliderBinding = getOrCacheViewGetSliderBindingMethod(toView.javaClass)?.invoke(toView) ?: return@runCatching
+                        val toText = getOrCacheBindingTopTextField(sliderBinding.javaClass)?.get(sliderBinding) as? TextView ?: return@runCatching
                         toLeft = toText.left
                         toTop = toText.top
                         toWidth = toText.width
@@ -141,16 +251,16 @@ class BrightnessSliderHooker(
                 after { param ->
                     runCatching {
                         val thisObject = param.thisObject
-                        val fraction = thisObject.javaClass.getDeclaredField("size").apply { isAccessible = true }.get(thisObject) as Float
+                        val fraction = getOrCacheAnimatorSizeField(thisObject.javaClass)?.get(thisObject) as? Float ?: return@runCatching
                         val left = fromLeft + (toLeft - fromLeft) * fraction
                         val top = fromTop + (toTop - fromTop) * fraction
                         val width = fromWidth + (toWidth - fromWidth) * fraction
                         val height = fromHeight + (toHeight - fromHeight) * fraction
 
-                        val getToView = thisObject.javaClass.getDeclaredMethod("getToView").apply { isAccessible = true }
+                        val getToView = getOrCacheAnimatorGetToViewMethod(thisObject.javaClass) ?: return@runCatching
                         val toView = getToView.invoke(thisObject) ?: return@runCatching
-                        val sliderBinding = toView.javaClass.getMethod("getSliderBinding").invoke(toView) ?: return@runCatching
-                        val topText = sliderBinding.javaClass.getField("topText").get(sliderBinding) as? TextView ?: return@runCatching
+                        val sliderBinding = getOrCacheViewGetSliderBindingMethod(toView.javaClass)?.invoke(toView) ?: return@runCatching
+                        val topText = getOrCacheBindingTopTextField(sliderBinding.javaClass)?.get(sliderBinding) as? TextView ?: return@runCatching
                         topText.setLeftTopRightBottom(left.toInt(), top.toInt(), (left + width).toInt(), (top + height).toInt())
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in frameCallback hook", t)
@@ -167,15 +277,15 @@ class BrightnessSliderHooker(
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
                         runCatching {
                             val thisObject = param.thisObject
-                            val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
-                            val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as? TextView ?: return@runCatching
+                            val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
+                            val toggleSlider = getOrCacheDelegateToggleSliderField(binding.javaClass)?.get(binding) ?: return@runCatching
+                            val topText = getOrCacheDelegateTopTextField(toggleSlider.javaClass)?.get(toggleSlider) as? TextView ?: return@runCatching
 
                             initTopText(topText)
                             putTag(topText, "sliderType", "BrightnessSliderController")
                             applyTopTextStyle(topText, force = true)
 
-                            thisObject.javaClass.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(thisObject, true)
+                            getOrCacheDelegateUpdateProgressMethod(thisObject.javaClass)?.invoke(thisObject, true)
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error in BrightnessPanelSliderDelegate.prepareShow hook", t)
                         }
@@ -190,10 +300,10 @@ class BrightnessSliderHooker(
                     if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
                         runCatching {
                             val thisObject = param.thisObject
-                            val binding = thisObject.javaClass.getDeclaredField("binding").apply { isAccessible = true }.get(thisObject)
-                            val toggleSlider = binding.javaClass.getField("toggleSlider").apply { isAccessible = true }.get(binding)
-                            val topText = toggleSlider.javaClass.getField("topText").apply { isAccessible = true }.get(toggleSlider) as? TextView ?: return@runCatching
-                            val slider = toggleSlider.javaClass.getField("slider").apply { isAccessible = true }.get(toggleSlider) as? android.widget.SeekBar ?: return@runCatching
+                            val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
+                            val toggleSlider = getOrCacheDelegateToggleSliderField(binding.javaClass)?.get(binding) ?: return@runCatching
+                            val topText = getOrCacheDelegateTopTextField(toggleSlider.javaClass)?.get(toggleSlider) as? TextView ?: return@runCatching
+                            val slider = getOrCacheDelegateSliderField(toggleSlider.javaClass)?.get(toggleSlider) as? android.widget.SeekBar ?: return@runCatching
 
                             val level = slider.progress
                             val maxLevel = slider.max
