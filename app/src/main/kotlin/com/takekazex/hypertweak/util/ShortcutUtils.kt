@@ -73,13 +73,20 @@ object ShortcutUtils {
         val iconCache = mutableMapOf<String, IconCompat>()
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null
-            val intent = Intent(def.intentAction ?: Intent.ACTION_VIEW).apply {
-                if (def.intentComponent != null) {
-                    val parts = def.intentComponent.split("/")
-                    setClassName(parts[0], parts[1])
+            val intent = if (def.id == "lsposed") {
+                Intent(Intent.ACTION_MAIN, null, context, com.takekazex.hypertweak.MainActivity::class.java).apply {
+                    putExtra("shortcut_target", def.id)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
-                if (def.intentData != null) data = Uri.parse(def.intentData)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            } else {
+                Intent(def.intentAction ?: Intent.ACTION_VIEW).apply {
+                    if (def.intentComponent != null) {
+                        val parts = def.intentComponent.split("/")
+                        setClassName(parts[0], parts[1])
+                    }
+                    if (def.intentData != null) data = Uri.parse(def.intentData)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             }
             val icon = iconCache.getOrPut(def.id) { loadAppIcon(context, def) }
             ShortcutInfoCompat.Builder(context, def.id)

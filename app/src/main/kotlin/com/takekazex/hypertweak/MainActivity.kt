@@ -49,6 +49,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val shortcutTarget = intent?.getStringExtra("shortcut_target")
+        if (shortcutTarget == "lsposed") {
+            Thread {
+                try {
+                    val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                        "android.telephony.action.SECRET_CODE"
+                    else "android.provider.Telephony.SECRET_CODE"
+                    Runtime.getRuntime().exec("su").outputStream.bufferedWriter().use { w ->
+                        w.write("am broadcast -a $action -d android_secret_code://5776733\nexit\n")
+                        w.flush()
+                    }
+                } catch (_: Exception) {}
+            }.start()
+            finish()
+            return
+        }
+
         enableEdgeToEdge()
 
         com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this)
