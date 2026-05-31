@@ -25,7 +25,7 @@ android {
                 (System.getenv("GITHUB_REF_NAME")?.matches(Regex("^v[0-9.]+$")) == true)
         val isCI = System.getenv("GITHUB_ACTIONS") == "true"
 
-        val baseVersion = "1.3.3"
+        val baseVersion = "1.3.4"
         versionName = when {
             isStableRelease -> baseVersion
             isCI -> "$baseVersion-dev"
