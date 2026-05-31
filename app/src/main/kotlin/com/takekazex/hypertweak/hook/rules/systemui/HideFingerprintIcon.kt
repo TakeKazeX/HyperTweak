@@ -63,6 +63,8 @@ object HideFingerprintIcon : StaticHooker() {
         }
     }
 
+    private val shouldHideCache = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
+
     override fun onHook() {
         val clzAnimation = "com.miui.keyguard.biometrics.fod.MiuiGxzwFrameAnimation".resolveClass()
         val clzIconView = "com.miui.keyguard.biometrics.fod.MiuiGxzwIconView".resolveClass()
@@ -75,6 +77,14 @@ object HideFingerprintIcon : StaticHooker() {
             before { param ->
                 val resID = param.args[0] as Int
                 if (!Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) return@before
+
+                val cached = shouldHideCache[resID]
+                if (cached != null) {
+                    if (cached) {
+                        param.args[0] = android.R.color.transparent
+                    }
+                    return@before
+                }
 
                 val anim = param.thisObject ?: return@before
                 try {
@@ -97,6 +107,8 @@ object HideFingerprintIcon : StaticHooker() {
                     } else {
                         resID == normal || resID == light || resID == aod
                     }
+
+                    shouldHideCache[resID] = shouldHide
 
                     if (shouldHide) {
                         param.args[0] = android.R.color.transparent

@@ -32,6 +32,9 @@ object Preferences {
     private var localCachePrefs: SharedPreferences? = null
     private var isLocalOnly = false
 
+    @Volatile
+    private var localCacheChecked = false
+
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         if (useLocalOnly) {
             // Only apply local prefs as fallback if remote prefs haven't been set yet
@@ -46,8 +49,9 @@ object Preferences {
         }
     }
 
+    @Synchronized
     private fun getLocalCache(): SharedPreferences? {
-        if (localCachePrefs != null) return localCachePrefs
+        if (localCacheChecked) return localCachePrefs
         val app = runCatching {
             val at = Class.forName("android.app.ActivityThread")
             at.getMethod("currentApplication").invoke(null) as? android.content.Context
@@ -57,6 +61,7 @@ object Preferences {
                 app.getSharedPreferences("hypertweak_cache", android.content.Context.MODE_PRIVATE)
             }.getOrNull()
         }
+        localCacheChecked = true
         return localCachePrefs
     }
 
@@ -67,7 +72,10 @@ object Preferences {
         if (!isInitialized) return default
         if (remotePrefs.contains(key)) {
             val value = remotePrefs.getBoolean(key, default)
-            getLocalCache()?.edit()?.putBoolean(key, value)?.apply()
+            val cache = getLocalCache()
+            if (cache != null && (!cache.contains(key) || cache.getBoolean(key, !value) != value)) {
+                cache.edit().putBoolean(key, value).apply()
+            }
             return value
         }
         return getLocalCache()?.getBoolean(key, default) ?: default
@@ -77,7 +85,10 @@ object Preferences {
         if (!isInitialized) return default
         if (remotePrefs.contains(key)) {
             val value = remotePrefs.getInt(key, default)
-            getLocalCache()?.edit()?.putInt(key, value)?.apply()
+            val cache = getLocalCache()
+            if (cache != null && (!cache.contains(key) || cache.getInt(key, value - 1) != value)) {
+                cache.edit().putInt(key, value).apply()
+            }
             return value
         }
         return getLocalCache()?.getInt(key, default) ?: default
@@ -87,7 +98,10 @@ object Preferences {
         if (!isInitialized) return default
         if (remotePrefs.contains(key)) {
             val value = remotePrefs.getFloat(key, default)
-            getLocalCache()?.edit()?.putFloat(key, value)?.apply()
+            val cache = getLocalCache()
+            if (cache != null && (!cache.contains(key) || cache.getFloat(key, value - 1f) != value)) {
+                cache.edit().putFloat(key, value).apply()
+            }
             return value
         }
         return getLocalCache()?.getFloat(key, default) ?: default

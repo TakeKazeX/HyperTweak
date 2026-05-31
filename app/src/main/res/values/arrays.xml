@@ -6,5 +6,7 @@
         <item>com.takekazex.hypertweak</item>
         <item>com.android.settings</item>
         <item>com.miui.aod</item>
+        <item>com.miui.securitycenter</item>
+        <item>com.xiaomi.scanner</item>
     </string-array>
 </resources>

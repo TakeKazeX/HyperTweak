@@ -96,11 +96,29 @@ object SliderHookHelper {
         return (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
     }
 
+    @Volatile
+    private var isBlurSupportedMethod: java.lang.reflect.Method? = null
+    @Volatile
+    private var isBlurSupportedMethodLoaded = false
+
     fun isBlurSupported(context: android.content.Context): Boolean {
-        return runCatching {
-            val clz = context.classLoader.loadClass("miui.systemui.controlcenter.utils.ControlCenterUtils")
-            clz.getMethod("getBackgroundBlurOpenedInDefaultTheme", android.content.Context::class.java).invoke(null, context) as Boolean
-        }.getOrDefault(false)
+        val method = synchronized(this) {
+            if (isBlurSupportedMethodLoaded) {
+                isBlurSupportedMethod
+            } else {
+                val m = runCatching {
+                    val clz = context.classLoader.loadClass("miui.systemui.controlcenter.utils.ControlCenterUtils")
+                    clz.getMethod("getBackgroundBlurOpenedInDefaultTheme", android.content.Context::class.java)
+                }.getOrNull()
+                isBlurSupportedMethod = m
+                isBlurSupportedMethodLoaded = true
+                m
+            }
+        }
+        if (method != null) {
+            return runCatching { method.invoke(null, context) as Boolean }.getOrDefault(false)
+        }
+        return false
     }
 
     private val activeColorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
