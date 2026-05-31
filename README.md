@@ -51,7 +51,7 @@ Run the following command in the root directory to compile a release build:
 ```
 The build script automatically retrieves the git commit count as the `versionCode` at build-time. The generated APK will be outputted to:
 ```
-app/build/outputs/apk/release/HyperTweak-v1.3.1-release.apk
+app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 ```
 
 ---

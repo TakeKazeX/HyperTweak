@@ -51,7 +51,7 @@
 ```
 编译成功后，脚本会自动读取您的 Git 提交数作为编译的 `versionCode`，生成的安装包将存放于：
 ```
-app/build/outputs/apk/release/HyperTweak-v1.3.1-release.apk
+app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 ```
 
 ---
