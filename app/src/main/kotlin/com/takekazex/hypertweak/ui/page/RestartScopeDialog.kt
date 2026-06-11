@@ -28,13 +28,15 @@ private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageNam
 fun RestartScopeDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
-    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
+    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit
 ) {
     var systemUiChecked by remember(show) { mutableStateOf(false) }
     var settingsChecked by remember(show) { mutableStateOf(false) }
     var aodChecked by remember(show) { mutableStateOf(false) }
     var securityCenterChecked by remember(show) { mutableStateOf(false) }
     var scannerChecked by remember(show) { mutableStateOf(false) }
+    var milinkChecked by remember(show) { mutableStateOf(false) }
+    var bluetoothChecked by remember(show) { mutableStateOf(false) }
 
     val context = LocalContext.current
     val packageManager = context.packageManager
@@ -46,6 +48,8 @@ fun RestartScopeDialog(
             if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
             if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
             if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
+            if (isPackageInstalled(packageManager, "com.milink.service")) add("com.milink.service")
+            if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
         }
     }
 
@@ -70,6 +74,8 @@ fun RestartScopeDialog(
                                 "com.miui.aod" -> aodChecked
                                 "com.miui.securitycenter" -> securityCenterChecked
                                 "com.xiaomi.scanner" -> scannerChecked
+                                "com.milink.service" -> milinkChecked
+                                "com.xiaomi.bluetooth" -> bluetoothChecked
                                 else -> false
                             }
                             val onCheckedChange: (Boolean) -> Unit = { newVal ->
@@ -79,6 +85,8 @@ fun RestartScopeDialog(
                                     "com.miui.aod" -> aodChecked = newVal
                                     "com.miui.securitycenter" -> securityCenterChecked = newVal
                                     "com.xiaomi.scanner" -> scannerChecked = newVal
+                                    "com.milink.service" -> milinkChecked = newVal
+                                    "com.xiaomi.bluetooth" -> bluetoothChecked = newVal
                                 }
                             }
                             AppRestartPreference(
@@ -104,7 +112,7 @@ fun RestartScopeDialog(
                 TextButton(
                     text = "Restart",
                     onClick = {
-                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked)
+                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked, milinkChecked, bluetoothChecked)
                         onDismissRequest()
                     },
                     modifier = Modifier.weight(1f),
@@ -140,6 +148,8 @@ fun AppRestartPreference(
             "com.miui.aod" -> "Always-On Display"
             "com.miui.securitycenter" -> "Security"
             "com.xiaomi.scanner" -> "Scanner"
+            "com.milink.service" -> "MiLink Service"
+            "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
             else -> pkg
         }
         if (appInfo != null) {
