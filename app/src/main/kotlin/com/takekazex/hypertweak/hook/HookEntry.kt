@@ -52,6 +52,7 @@ class HookEntry : XposedModule() {
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
         if (!injectedPackages.add(param.packageName)) return
+        if (param.defaultClassLoader == null) return
         EzXposed.initOnPackageLoaded(param)
 
         val ctx = ModuleContext(
