@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
+            var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
 
             val coroutineScope = rememberCoroutineScope()
 
@@ -140,6 +141,7 @@ class MainActivity : ComponentActivity() {
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
+                    disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                 }
 
                 if (isModuleActive()) {
@@ -335,6 +337,13 @@ class MainActivity : ComponentActivity() {
                         unlockPasskey = checked
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
+                        }
+                    },
+                    disableSpatialAudio = disableSpatialAudio,
+                    onDisableSpatialAudioChange = { checked ->
+                        disableSpatialAudio = checked
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         }
                     },
                     backdrop = backdrop,

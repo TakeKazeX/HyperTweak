@@ -46,6 +46,8 @@ fun TweaksScreenContent(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
+    disableSpatialAudio: Boolean,
+    onDisableSpatialAudioChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -163,6 +165,19 @@ fun TweaksScreenContent(
                         onCheckedChange = onUnlockPasskeyChange,
                         title = "Unlock Google Passkey / Credential Manager",
                         summary = "Allow using Google Passkey and third-party credential managers on domestic MIUI/HyperOS"
+                    )
+                }
+            }
+
+            // Scope 5: Bluetooth
+            SmallTitle(text = "Bluetooth")
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = disableSpatialAudio,
+                        onCheckedChange = onDisableSpatialAudioChange,
+                        title = "Block Spatial Audio",
+                        summary = "Prevent spatial audio from being enabled on Bluetooth earbuds"
                     )
                 }
             }

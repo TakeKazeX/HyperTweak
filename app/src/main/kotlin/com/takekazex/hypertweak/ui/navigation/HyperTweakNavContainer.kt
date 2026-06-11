@@ -78,6 +78,8 @@ fun HyperTweakNavContainer(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
+    disableSpatialAudio: Boolean,
+    onDisableSpatialAudioChange: (Boolean) -> Unit,
 
     // Backdrop
     backdrop: LayerBackdrop,
@@ -155,6 +157,8 @@ fun HyperTweakNavContainer(
                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
                 unlockPasskey = unlockPasskey,
                 onUnlockPasskeyChange = onUnlockPasskeyChange,
+                disableSpatialAudio = disableSpatialAudio,
+                onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,
