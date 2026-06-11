@@ -30,6 +30,7 @@ object Preferences {
     const val KEY_APP_SHORTCUTS = "app_shortcuts"
     const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
+    const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
 
     private lateinit var remotePrefs: SharedPreferences
     private var localCachePrefs: SharedPreferences? = null

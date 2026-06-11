@@ -88,6 +88,8 @@ fun MainPagerScreen(
     onUnlockPasskeyChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
+    forceAdaptiveAnc: Boolean,
+    onForceAdaptiveAncChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
@@ -264,6 +266,8 @@ fun MainPagerScreen(
                                 onUnlockPasskeyChange = onUnlockPasskeyChange,
                                 disableSpatialAudio = disableSpatialAudio,
                                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
+                                forceAdaptiveAnc = forceAdaptiveAnc,
+                                onForceAdaptiveAncChange = onForceAdaptiveAncChange,
                                 backdrop = backdrop
                             )
                         }
