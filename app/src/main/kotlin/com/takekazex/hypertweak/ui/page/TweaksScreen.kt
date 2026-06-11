@@ -48,6 +48,8 @@ fun TweaksScreenContent(
     onUnlockPasskeyChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
+    forceAdaptiveAnc: Boolean,
+    onForceAdaptiveAncChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -178,6 +180,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onDisableSpatialAudioChange,
                         title = "Block Spatial Audio",
                         summary = "Prevent spatial audio from being enabled on Bluetooth earbuds"
+                    )
+                    SwitchPreference(
+                        checked = forceAdaptiveAnc,
+                        onCheckedChange = onForceAdaptiveAncChange,
+                        title = "Force Adaptive ANC",
+                        summary = "Replace Off mode with Adaptive noise cancellation"
                     )
                 }
             }
