@@ -29,6 +29,7 @@ object Preferences {
     const val KEY_PAGE_SCALE = "page_scale"
     const val KEY_APP_SHORTCUTS = "app_shortcuts"
     const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
+    const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
 
     private lateinit var remotePrefs: SharedPreferences
     private var localCachePrefs: SharedPreferences? = null

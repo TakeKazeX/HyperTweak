@@ -10,8 +10,10 @@ import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
+import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
+import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -80,6 +82,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SettingsHooker, param.defaultClassLoader, ctx)
                 attachHooker(AODHooker, param.defaultClassLoader, ctx)
                 attachHooker(PasskeyHooker, param.defaultClassLoader, ctx)
+                attachHooker(BluetoothPluginHooker, param.defaultClassLoader, ctx)
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
@@ -88,6 +91,9 @@ class HookEntry : XposedModule() {
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, param.defaultClassLoader, ctx)
                 attachHooker(PasskeyHooker, param.defaultClassLoader, ctx)
+            }
+            "com.milink.service" -> {
+                attachHooker(SpatialAudioBlockerHooker, param.defaultClassLoader, ctx)
             }
             "com.takekazex.hypertweak" -> {
                 attachHooker(ModuleStatusHooker, param.defaultClassLoader, ctx)

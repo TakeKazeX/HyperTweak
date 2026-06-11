@@ -86,6 +86,8 @@ fun MainPagerScreen(
     onPageScaleChange: (Float) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
+    disableSpatialAudio: Boolean,
+    onDisableSpatialAudioChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
@@ -260,6 +262,8 @@ fun MainPagerScreen(
                                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
                                 unlockPasskey = unlockPasskey,
                                 onUnlockPasskeyChange = onUnlockPasskeyChange,
+                                disableSpatialAudio = disableSpatialAudio,
+                                onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                                 backdrop = backdrop
                             )
                         }
