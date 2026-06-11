@@ -117,11 +117,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
 
     // Miuix UI & Preferences
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.1")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.1")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.1")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.1")
-    implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.2")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.2")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.2")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.2")
+    implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.2")
     implementation("androidx.navigation3:navigation3-runtime:1.1.2")
     implementation("androidx.navigationevent:navigationevent:1.1.1")
 
