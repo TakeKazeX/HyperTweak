@@ -104,8 +104,8 @@ androidComponents {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.activity:activity-compose:1.13.0")
     
     // Compose Runtime & UI
     implementation("androidx.compose.ui:ui:1.11.2")
@@ -123,7 +123,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.1")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.1")
     implementation("androidx.navigation3:navigation3-runtime:1.1.2")
-    implementation("androidx.navigationevent:navigationevent:1.1.0")
+    implementation("androidx.navigationevent:navigationevent:1.1.1")
 
     // libxposed
     compileOnly("io.github.libxposed:api:101.0.1")
