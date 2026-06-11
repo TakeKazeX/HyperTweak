@@ -16,9 +16,11 @@ object RestartUtils {
         settings: Boolean,
         aod: Boolean,
         securityCenter: Boolean,
-        scanner: Boolean
+        scanner: Boolean,
+        milink: Boolean,
+        bluetooth: Boolean
     ) {
-        if (!systemUi && !settings && !aod && !securityCenter && !scanner) return
+        if (!systemUi && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth) return
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
@@ -29,6 +31,8 @@ object RestartUtils {
                 putExtra("aod", aod)
                 putExtra("securitycenter", securityCenter)
                 putExtra("scanner", scanner)
+                putExtra("milink", milink)
+                putExtra("bluetooth", bluetooth)
             }
             context.sendBroadcast(intent)
 
@@ -52,6 +56,12 @@ object RestartUtils {
                         if (scanner) {
                             writer.write("am force-stop com.xiaomi.scanner\n")
                         }
+                        if (milink) {
+                            writer.write("am force-stop com.milink.service\n")
+                        }
+                        if (bluetooth) {
+                            writer.write("am force-stop com.xiaomi.bluetooth\n")
+                        }
                         writer.write("exit\n")
                         writer.flush()
                     }
@@ -69,6 +79,8 @@ object RestartUtils {
                     if (aod) add("AOD")
                     if (securityCenter) add("Security")
                     if (scanner) add("Scanner")
+                    if (milink) add("MiLink")
+                    if (bluetooth) add("Bluetooth")
                 }.joinToString(", ")
 
                 if (rootSuccess) {

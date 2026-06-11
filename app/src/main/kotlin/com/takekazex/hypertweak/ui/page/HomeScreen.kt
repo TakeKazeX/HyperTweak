@@ -53,7 +53,7 @@ fun HomeScreenContent(
     targetSdk: Int,
     backdrop: LayerBackdrop,
     onNavigateToHiddenFeatures: () -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean) -> Unit
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val containerColor = if (moduleActive) {

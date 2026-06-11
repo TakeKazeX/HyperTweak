@@ -371,8 +371,8 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner ->
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner)
+                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth)
                     },
                     appLanguage = appLanguage,
                     onAppLanguageChange = { lang ->
