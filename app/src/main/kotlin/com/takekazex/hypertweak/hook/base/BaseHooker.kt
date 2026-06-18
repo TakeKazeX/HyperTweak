@@ -127,13 +127,13 @@ sealed class BaseHooker {
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
         val target = formatExecutable(this)
+        val hookId = defaultHookId(this)
         return try {
-            val handle = this.createHook(block = block)
-            DebugLog.hookRegistered(hookerName, target)
-            if (!managed) return handle
-            val managedHandle = wrapHandle(handle)
-            hookHandles.add(managedHandle)
-            managedHandle
+            val handle = this.createHook {
+                id(hookId)
+                block()
+            }
+            registerHandle(handle, target, managed)
         } catch (t: Throwable) {
             DebugLog.hookFailed(hookerName, target, t)
             throw t
@@ -148,13 +148,13 @@ sealed class BaseHooker {
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
         val target = formatExecutable(this)
+        val hookId = defaultHookId(this)
         return try {
-            val handle = this.createHook(block = block)
-            DebugLog.hookRegistered(hookerName, target)
-            if (!managed) return handle
-            val managedHandle = wrapHandle(handle)
-            hookHandles.add(managedHandle)
-            managedHandle
+            val handle = this.createHook {
+                id(hookId)
+                block()
+            }
+            registerHandle(handle, target, managed)
         } catch (t: Throwable) {
             DebugLog.hookFailed(hookerName, target, t)
             throw t
@@ -179,6 +179,22 @@ sealed class BaseHooker {
         block: HookFactory.() -> Unit
     ) = mapNotNull { it?.hookExecutable(managed, block) }
 
+    fun collectManagedHookHandles(): List<XposedInterface.HookHandle> {
+        return hookHandles.toList() + childHookers.flatMap { it.collectManagedHookHandles() }
+    }
+
+    private fun registerHandle(
+        handle: XposedInterface.HookHandle,
+        target: String,
+        managed: Boolean
+    ): XposedInterface.HookHandle {
+        DebugLog.hookRegistered(hookerName, "$target id=${handle.id}")
+        if (!managed) return handle
+        val managedHandle = wrapHandle(handle)
+        hookHandles.add(managedHandle)
+        return managedHandle
+    }
+
     private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle {
         return object : XposedInterface.HookHandle {
             override fun getExecutable(): Executable = original.executable
@@ -195,6 +211,10 @@ sealed class BaseHooker {
                 return managed
             }
         }
+    }
+
+    private fun defaultHookId(executable: Executable): String {
+        return "$hookerName:${formatExecutable(executable)}"
     }
 
     // ─── Reflection helpers (scoped to this hooker's classLoader) ─────────────

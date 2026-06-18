@@ -121,9 +121,10 @@ class HookEntry : XposedModule() {
         EzXposed.initOnModuleLoaded(this, param)
         initPreferences()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
+        val oldHandleIds = param.oldHookHandles.mapNotNull { it.id }.toSet()
         DebugLog.d(
             "HookEntry",
-            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }}"
+            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }} oldHandles=${param.oldHookHandles.size} oldIds=${oldHandleIds.size}"
         )
 
         var unhookedCount = 0
@@ -185,6 +186,14 @@ class HookEntry : XposedModule() {
                 onRestoredPackageReady(state)
             }
         }
+
+        val newHandleIds = rootHookers.flatMap { it.collectManagedHookHandles() }
+            .mapNotNull { it.id }
+            .toSet()
+        DebugLog.d(
+            "HookEntry",
+            "hot reload registered new handles=${newHandleIds.size} matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} removed=${oldHandleIds.minus(newHandleIds).size}"
+        )
     }
 
     private fun recordPackageState(

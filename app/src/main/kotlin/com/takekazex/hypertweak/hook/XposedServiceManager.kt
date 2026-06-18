@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 object XposedServiceManager : XposedServiceHelper.OnServiceListener {
+    private val hotReloadBlockedProcesses = setOf("system", "system_server")
+
     private val _serviceFlow = MutableStateFlow<XposedService?>(null)
     val serviceFlow = _serviceFlow.asStateFlow()
 
@@ -85,12 +87,20 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             return
         }
 
-        val targets = _staleTargetsFlow.value.ifEmpty {
+        val staleTargets = _staleTargetsFlow.value.ifEmpty {
             refreshHotReloadTargets()
             _staleTargetsFlow.value
         }
+        val blockedTargets = staleTargets.filter { it.processName in hotReloadBlockedProcesses }
+        if (blockedTargets.isNotEmpty()) {
+            DebugLog.w(
+                "XposedService",
+                "skip hot reload for restart-required targets=${blockedTargets.map { it.processName }}"
+            )
+        }
+        val targets = staleTargets.filterNot { it.processName in hotReloadBlockedProcesses }
         if (targets.isEmpty()) {
-            DebugLog.w("XposedService", "hot reload requested but no stale targets")
+            DebugLog.w("XposedService", "hot reload requested but no reloadable stale targets")
             onFinished(false)
             return
         }
