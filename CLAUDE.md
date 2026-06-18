@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-HyperTweak is an Xposed module for Xiaomi HyperOS 3 / MIUI that provides system-level customizations not available through standard settings UI. Built with Jetpack Compose + Miuix UI, targeting the native libxposed API 101.
+HyperTweak is an Xposed module for Xiaomi HyperOS 3 / MIUI that provides system-level customizations not available through standard settings UI. Built with Jetpack Compose + Miuix UI, targeting the native libxposed API 102.
 
 ## Build & Test
 

@@ -5,7 +5,7 @@ This file documents the AI developer's contributions, architectural decisions, a
 ## AI Assistant Role & Context
 
 HyperTweak was refactored and built in collaboration with AI coding assistants. The primary objectives were:
-1. Re-architect the codebase to completely remove YukiHook and migrate to native `libxposed` (API 101).
+1. Re-architect the codebase to completely remove YukiHook and migrate to native `libxposed` (API 102).
 2. Establish a modular design pattern inspired by projects like `XiaomiHelper` and `HyperCeiler`.
 3. Resolve system-specific issues such as fingerprint icon hiding and always-on display fullscreen configurations in HyperOS settings.
 4. Redesign the UI using Compose & Miuix UI.
@@ -14,7 +14,7 @@ HyperTweak was refactored and built in collaboration with AI coding assistants. 
 
 ## Architectural Changes & Transformations
 
-### 1. Framework Migration (YukiHook -> libxposed API 101)
+### 1. Framework Migration (YukiHook -> libxposed API 102)
 - **Problem**: The original codebase relied on the YukiHook library, which added dependency bloat and is less flexible for low-level platform APIs.
 - **Solution**: Re-implemented the module entry using pure `libxposed` APIs. Designed a custom `BaseHooker` pattern wrapping classes dynamically, making hooks modular and standalone.
 - **IPC SharedPreferences**: Bound the settings screen preferences seamlessly across different hooked processes via standard `io.github.libxposed:service` IPC shared preferences, solving key sync latency issues.
@@ -49,8 +49,8 @@ HyperTweak was refactored and built in collaboration with AI coding assistants. 
 - **API Level Support**: minSdk 35 (Android 15), compileSdk 37 (Android 16)
 - **Architecture**: arm64-v8a only
 - **Core Dependencies**:
-  - `io.github.libxposed:api:101.0.1` / `io.github.libxposed:service:101.0.0`
-  - `io.github.lingqiqi5211.ezhooktool:core:1.0.4` / `hook-xposed-101:1.0.4`
+- `io.github.libxposed:api:102.0.0` / `io.github.libxposed:service:102.0.0`
+- `io.github.lingqiqi5211.ezhooktool:core:1.1.0-rc04` / `hook-xposed-102:1.1.0-rc04`
   - `org.luckypray:dexkit:2.2.0`
   - `top.yukonga.miuix.kmp:miuix-*:0.9.1`
   - `androidx.compose.material:material-icons-*:1.7.6`

@@ -8,5 +8,6 @@
         <item>com.miui.aod</item>
         <item>com.miui.securitycenter</item>
         <item>com.xiaomi.scanner</item>
+        <item>com.milink.service</item>
     </string-array>
 </resources>

@@ -15,5 +15,6 @@ class HyperTweakApp : Application() {
         // Synchronously initialize local preferences
         val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
+        Preferences.initLocalCache(this)
     }
 }

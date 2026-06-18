@@ -11,6 +11,7 @@ import androidx.core.graphics.createBitmap
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ResourceLookup
 import org.luckypray.dexkit.query.enums.StringMatchType
 
 object SettingsHooker : StaticHooker() {
@@ -105,7 +106,7 @@ object SettingsHooker : StaticHooker() {
                         // Find index of "wifi_settings" to insert right after it
                         var targetIndex = -1
                         val wifiSettingsId = try {
-                            activity.resources.getIdentifier("wifi_settings", "id", "com.android.settings").toLong()
+                            ResourceLookup.identifier(activity.resources, "wifi_settings", "id", "com.android.settings").toLong()
                         } catch (t: Throwable) {
                             0L
                         }
@@ -162,7 +163,7 @@ object SettingsHooker : StaticHooker() {
                             val moduleIcon = Icon.createWithResource("com.takekazex.hypertweak", R.mipmap.ic_launcher).loadDrawable(iconView.context)
                             if (moduleIcon != null) {
                                 val headerIconSizeResId = try {
-                                    iconView.context.resources.getIdentifier("header_icon_size", "dimen", "com.android.settings")
+                                    ResourceLookup.identifier(iconView.context.resources, "header_icon_size", "dimen", "com.android.settings")
                                 } catch (t: Throwable) {
                                     0
                                 }

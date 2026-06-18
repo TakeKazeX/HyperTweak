@@ -6,7 +6,7 @@
   <img src="app/src/main/res/mipmap-xxhdpi/ic_launcher.png" alt="HyperTweak Logo" width="96" height="96" style="border-radius: 20%;" onerror="this.src='app/src/main/kotlin/com/takekazex/hypertweak/ui/page/AboutPage.kt'; this.style.display='none';" />
   
   <p align="center">
-    <strong>A high-performance, modular lock screen and system customization framework for Xiaomi HyperOS and MIUI, built on native libxposed (API 101)</strong>
+    <strong>A high-performance, modular lock screen and system customization framework for Xiaomi HyperOS and MIUI, built on native libxposed (API 102)</strong>
   </p>
 
   <p align="center">
@@ -21,7 +21,7 @@
 
 ## 📖 Introduction
 
-**HyperTweak** is a customized Xposed module for HyperOS 3. Built on native **libxposed (API 101)**, its main interface is written using the modern **Miuix UI** Compose framework, providing a system-level visual texture and smooth interaction experience that fits perfectly with HyperOS.
+**HyperTweak** is a customized Xposed module for HyperOS 3. Built on native **libxposed (API 102)**, its main interface is written using the modern **Miuix UI** Compose framework, providing a system-level visual texture and smooth interaction experience that fits perfectly with HyperOS.
 
 ---
 
@@ -60,7 +60,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 
 Special thanks to the following open-source projects for their support and inspiration:
 
-* **[libxposed](https://github.com/libxposed/api)** - The native Xposed API 101 specification standard.
+* **[libxposed](https://github.com/libxposed/api)** - The native Xposed API 102 specification standard.
 * **[LSPosed](https://github.com/LSPosed/LSPosed)** - The mainstream Xposed framework runtime environment.
 * **[KavaRef](https://github.com/HighCapable/KavaRef)** - Elegant Kotlin reflection library.
 * **[EzHookTool](https://github.com/lingqiqi5211/EzHookTool)** - Kotlin Xposed helper library by lingqiqi5211.

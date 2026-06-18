@@ -38,31 +38,20 @@ object HideBottomBarHooker : StaticHooker() {
             Log.e("HyperTweak", "HideBottomBarHooker: failed to hook Resources.getDimensionPixelSize", t)
         }
 
-        // Hook 2: Application.attach(Context) to capture the real SystemUI ClassLoader
-        val clzApplication = "android.app.Application".toClassOrNull()
-        if (clzApplication == null) {
-            Log.e("HyperTweak", "HideBottomBarHooker: android.app.Application not found")
-            return
+        // Dynamic SystemUI classes are hooked from HookEntry.onPackageReady.
+    }
+
+    fun onPackageReady(context: Context?, readyClassLoader: ClassLoader) {
+        if (hooksApplied.getAndSet(true)) return
+        if (context != null) {
+            Preferences.initLocalCache(context)
         }
 
-        clzApplication.findMethodOrNull {
-            name("attach")
-            parameterTypes(Context::class.java)
-        }?.hook {
-            after { param ->
-                if (hooksApplied.getAndSet(true)) return@after
-                val context = param.args[0] as? Context ?: return@after
-                val cl = context.classLoader ?: return@after
-                Log.d("HyperTweak", "HideBottomBarHooker: Application.attach fired, classLoader=$cl")
+        val hideBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
+        val raiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+        Log.d("HyperTweak", "HideBottomBarHooker: package ready, hide_gesture_bar=$hideBar, gesture_bar_raise_layout=$raiseLayout")
 
-                // Log pref values at this moment in the SystemUI process
-                val hideBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-                val raiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-                Log.d("HyperTweak", "HideBottomBarHooker: prefs at attach time → hide_gesture_bar=$hideBar, gesture_bar_raise_layout=$raiseLayout")
-
-                applyDynamicHooks(cl)
-            }
-        } ?: Log.e("HyperTweak", "HideBottomBarHooker: Application.attach not found")
+        applyDynamicHooks(readyClassLoader)
     }
 
     private fun applyDynamicHooks(cl: ClassLoader) {

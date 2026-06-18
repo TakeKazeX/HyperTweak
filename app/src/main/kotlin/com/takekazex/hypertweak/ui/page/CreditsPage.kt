@@ -60,7 +60,7 @@ fun CreditsPage(
                 ) {
                     ArrowPreference(
                         title = "libxposed",
-                        summary = "Native Xposed API 101 framework",
+                        summary = "Native Xposed API 102 framework",
                         onClick = { uriHandler.openUri("https://github.com/libxposed/api") }
                     )
                     ArrowPreference(

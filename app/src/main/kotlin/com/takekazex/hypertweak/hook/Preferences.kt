@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 
@@ -37,9 +38,6 @@ object Preferences {
     private var localCachePrefs: SharedPreferences? = null
     private var isLocalOnly = false
 
-    @Volatile
-    private var localCacheChecked = false
-
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         if (useLocalOnly) {
             // Only apply local prefs as fallback if remote prefs haven't been set yet
@@ -55,18 +53,12 @@ object Preferences {
     }
 
     @Synchronized
+    fun initLocalCache(context: Context) {
+        localCachePrefs = context.getSharedPreferences("hypertweak_cache", Context.MODE_PRIVATE)
+    }
+
+    @Synchronized
     private fun getLocalCache(): SharedPreferences? {
-        if (localCacheChecked) return localCachePrefs
-        val app = runCatching {
-            val at = Class.forName("android.app.ActivityThread")
-            at.getMethod("currentApplication").invoke(null) as? android.content.Context
-        }.getOrNull()
-        if (app != null) {
-            localCachePrefs = runCatching {
-                app.getSharedPreferences("hypertweak_cache", android.content.Context.MODE_PRIVATE)
-            }.getOrNull()
-        }
-        localCacheChecked = true
         return localCachePrefs
     }
 

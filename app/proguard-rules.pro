@@ -1,6 +1,9 @@
-# Keep the Xposed entry class
--keep class com.takekazex.hypertweak.hook.HookEntry { *; }
--keep class * extends io.github.libxposed.api.XposedModule { *; }
+# libxposed API 102
+-dontwarn io.github.libxposed.annotation.**
+-adaptresourcefilecontents META-INF/xposed/java_init.list
+-keep,allowoptimization,allowobfuscation public class * extends io.github.libxposed.api.XposedModule {
+    public <init>();
+}
 
 # Keep MainActivity status checker method
 -keep class com.takekazex.hypertweak.MainActivity {

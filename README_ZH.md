@@ -6,7 +6,7 @@
   <img src="app/src/main/res/mipmap-xxhdpi/ic_launcher.png" alt="HyperTweak Logo" width="96" height="96" style="border-radius: 20%;" onerror="this.src='app/src/main/kotlin/com/takekazex/hypertweak/ui/page/AboutPage.kt'; this.style.display='none';" />
   
   <p align="center">
-    <strong>基于原生 libxposed (API 101) 构建的高性能、模块化 HyperOS 锁屏与系统定制优化框架</strong>
+    <strong>基于原生 libxposed (API 102) 构建的高性能、模块化 HyperOS 锁屏与系统定制优化框架</strong>
   </p>
 
   <p align="center">
@@ -21,7 +21,7 @@
 
 ## 📖 简介
 
-**HyperTweak** 是一款 HyperOS 3 定制的 Xposed 模块。基于原生的 **libxposed (API 101)** 构建。主界面使用现代化 **Miuix UI** Compose 架构编写，提供与 HyperOS 高度契合的系统级视觉质感与平滑交互体验。
+**HyperTweak** 是一款 HyperOS 3 定制的 Xposed 模块。基于原生的 **libxposed (API 102)** 构建。主界面使用现代化 **Miuix UI** Compose 架构编写，提供与 HyperOS 高度契合的系统级视觉质感与平滑交互体验。
 
 ---
 
@@ -60,7 +60,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 
 感谢以下优秀项目及库的启发与支持：
 
-* **[libxposed](https://github.com/libxposed/api)** - 原生 Xposed API 101 框架标准。
+* **[libxposed](https://github.com/libxposed/api)** - 原生 Xposed API 102 框架标准。
 * **[LSPosed](https://github.com/LSPosed/LSPosed)** - 主流 Xposed 框架运行环境实现。
 * **[KavaRef](https://github.com/HighCapable/KavaRef)** - Kotlin 强类型反射库。
 * **[EzHookTool](https://github.com/lingqiqi5211/EzHookTool)** - lingqiqi5211 编写的 Kotlin Xposed 辅助库。

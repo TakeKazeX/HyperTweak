@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ResourceLookup
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 
@@ -59,14 +60,15 @@ object HideFingerprintIcon : StaticHooker() {
                         cachedField = this
                     }
                     val context = field.get(anim) as? Context ?: return@before
+                    Preferences.initLocalCache(context)
                     val resources = context.resources
                     val pkgName = context.packageName
 
                     val resName = try { resources.getResourceEntryName(resID) } catch (t: Throwable) { null }
 
-                    if (normal == null) normal = resources.getIdentifier("finger_circle_image_normal", "drawable", pkgName)
-                    if (light == null)  light  = resources.getIdentifier("finger_circle_image_light",  "drawable", pkgName)
-                    if (aod == null)    aod    = resources.getIdentifier("finger_circle_image_aod",    "drawable", pkgName)
+                    if (normal == null) normal = ResourceLookup.identifier(resources, "finger_circle_image_normal", "drawable", pkgName)
+                    if (light == null)  light  = ResourceLookup.identifier(resources, "finger_circle_image_light",  "drawable", pkgName)
+                    if (aod == null)    aod    = ResourceLookup.identifier(resources, "finger_circle_image_aod",    "drawable", pkgName)
 
                     val shouldHide = if (resName != null) {
                         resName.startsWith("finger_circle") || resName.contains("fingerprint_circle")

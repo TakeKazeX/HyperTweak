@@ -55,6 +55,16 @@ class HookEntry : XposedModule() {
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
         // Establishes the target snapshot required for hot reload state restore.
         EzXposed.initOnPackageReady(param)
+
+        val appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
+        if (appContext != null) {
+            Preferences.initLocalCache(appContext)
+            RestartBroadcastHooker.register(appContext)
+        }
+
+        if (param.packageName == "com.android.systemui") {
+            HideBottomBarHooker.onPackageReady(appContext, param.classLoader)
+        }
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {

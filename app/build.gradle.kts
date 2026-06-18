@@ -98,6 +98,12 @@ android {
             enableSplit = false
         }
     }
+
+    packaging {
+        resources {
+            merges += "META-INF/xposed/*"
+        }
+    }
 }
 
 androidComponents {

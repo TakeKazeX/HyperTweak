@@ -7,6 +7,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.ResourceLookup
 import java.util.WeakHashMap
 
 // ─── Package-Level View Extensions ─────────────────────────────────────────
@@ -182,18 +183,17 @@ object SliderHookHelper {
 
         val color = runCatching {
             if (sliderType != null && sliderType.contains("Volume")) {
-                val sysUiContext = context.createPackageContext("com.android.systemui", 0)
-                val colorResId = sysUiContext.resources.getIdentifier(
-                    "miui_volume_icon_color_blue", "color", "com.android.systemui"
-                )
-                if (colorResId != 0) {
+                val sysUiContext = ResourceLookup.packageContext(context, "com.android.systemui")
+                val colorResId = sysUiContext?.let {
+                    ResourceLookup.identifier(it, "miui_volume_icon_color_blue", "color", "com.android.systemui")
+                } ?: 0
+                if (colorResId != 0 && sysUiContext != null) {
                     return@runCatching sysUiContext.getColor(colorResId)
                 }
                 return@runCatching ACTIVE_BLUE_COLOR
             }
             
-            val colorResId = context.resources.getIdentifier(
-                "toggle_slider_active_color", "color", context.packageName)
+            val colorResId = ResourceLookup.identifier(context, "toggle_slider_active_color", "color", context.packageName)
             if (colorResId != 0) {
                 val csl = context.resources.getColorStateList(colorResId, context.theme)
                 val stateSets = listOf(
@@ -253,16 +253,17 @@ object SliderHookHelper {
                 blendColorsResId = cached
                 blendColorsResources = cachedBlendColorsResources ?: context.resources
             } else {
-                var resId = context.resources.getIdentifier(
-                    "toggle_slider_icon_blend_colors", "array", context.packageName)
+                var resId = ResourceLookup.identifier(context, "toggle_slider_icon_blend_colors", "array", context.packageName)
                 var resources = context.resources
                 if (resId == 0) {
                     runCatching {
-                        val pluginCtx = context.createPackageContext("miui.systemui.plugin", 0)
-                        val id = pluginCtx.resources.getIdentifier("toggle_slider_icon_blend_colors", "array", "miui.systemui.plugin")
-                        if (id != 0) {
+                        val pluginResources = ResourceLookup.packageResources(context, "miui.systemui.plugin")
+                        val id = pluginResources?.let {
+                            ResourceLookup.identifier(it, "toggle_slider_icon_blend_colors", "array", "miui.systemui.plugin")
+                        } ?: 0
+                        if (id != 0 && pluginResources != null) {
                             resId = id
-                            resources = pluginCtx.resources
+                            resources = pluginResources
                         }
                     }
                 }
