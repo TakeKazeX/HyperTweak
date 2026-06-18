@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.Canvas
@@ -8,6 +9,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import java.util.concurrent.atomic.AtomicBoolean
 
+@SuppressLint("PrivateApi")
 object HideBottomBarHooker : StaticHooker() {
 
     private val hooksApplied = AtomicBoolean(false)

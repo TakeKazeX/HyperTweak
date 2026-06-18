@@ -1,23 +1,33 @@
 package com.takekazex.hypertweak.hook.rules.slider
- 
+
+import android.annotation.SuppressLint
 import android.graphics.Typeface
 import android.util.Log
 import android.view.View
 import android.widget.TextView
+import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.blendColors
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercentFromSliderValue
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
+private val DARK_BADGE_BG_COLOR = "#3A3A3C".toColorInt()
+private val LIGHT_BADGE_BG_COLOR = "#E5E5E5".toColorInt()
+private val DARK_BADGE_STROKE_COLOR = "#33FFFFFF".toColorInt()
+private val LIGHT_BADGE_STROKE_COLOR = "#33000000".toColorInt()
+
+@SuppressLint("PrivateApi")
 class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
@@ -111,7 +121,7 @@ class VolumeSliderHooker(
                                 }
                             val pct = calcVolumePercent(controller)
                             topText.post {
-                                topText.text = "$pct%"
+                                topText.text = formatPercent(pct)
                                 applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }
                         }.onFailure { t ->
@@ -144,7 +154,7 @@ class VolumeSliderHooker(
                                         tt
                                     }
                                 val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
-                                topText.text = "$pct%"
+                                topText.text = formatPercent(pct)
                                 applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }.onFailure { t ->
                                 Log.e("HyperTweak", "Error in updateSliderValue hook", t)
@@ -255,7 +265,7 @@ class VolumeSliderHooker(
                             superVolume.typeface = Typeface.DEFAULT_BOLD
                             if (sameStyle) {
                                 putTag(superVolume, "sliderType", "VolumePanelViewController")
-                                val activeColor = android.graphics.Color.parseColor("#3482FF")
+                                val activeColor = ACTIVE_BLUE_COLOR
                                 ColorOverrideLock.isSettingColor.set(true)
                                 runCatching {
                                     superVolume.setTextColor(activeColor)
@@ -303,7 +313,7 @@ class VolumeSliderHooker(
                 if (mSuperVolumeBg != null && mSuperVolume != null) {
                     val context = mSuperVolumeBg.context
                     val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                    val bgColor = if (isDark) android.graphics.Color.parseColor("#3A3A3C") else android.graphics.Color.parseColor("#E5E5E5")
+                    val bgColor = if (isDark) DARK_BADGE_BG_COLOR else LIGHT_BADGE_BG_COLOR
 
                     // Cached radius method and reusable GradientDrawable
                     val radiusMethod = cachedVolumeRadiusMethod ?: run {
@@ -341,7 +351,7 @@ class VolumeSliderHooker(
                     // Add subtle stroke border
                     (mSuperVolumeBg.background as? android.graphics.drawable.GradientDrawable)?.setStroke(
                         (1 * context.resources.displayMetrics.density).toInt(),
-                        if (isDark) android.graphics.Color.parseColor("#33FFFFFF") else android.graphics.Color.parseColor("#33000000")
+                        if (isDark) DARK_BADGE_STROKE_COLOR else LIGHT_BADGE_STROKE_COLOR
                     )
 
                     // Clear the TextView's background/tint to let the capsule's background show through
@@ -360,7 +370,7 @@ class VolumeSliderHooker(
                         putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
                         ColorOverrideLock.isSettingColor.set(true)
                         runCatching {
-                            mSuperVolume.setTextColor(android.graphics.Color.parseColor("#3482FF"))
+                            mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
                         }
                         ColorOverrideLock.isSettingColor.set(false)
                     } else {
@@ -445,7 +455,7 @@ class VolumeSliderHooker(
 
                 val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
                 if (mSuperVolume != null) {
-                    mSuperVolume.text = "$pct%"
+                    mSuperVolume.text = formatPercent(pct)
                 }
             }.onFailure { t ->
                 Log.e("HyperTweak", "Error updating badge text", t)
@@ -516,7 +526,7 @@ class VolumeSliderHooker(
                                 val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
                                 val columnSuperVolume = colSuperVolField.get(column) as? TextView
                                 if (columnSuperVolume != null) {
-                                    columnSuperVolume.text = "$pct%"
+                                    columnSuperVolume.text = formatPercent(pct)
                                     val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
                                     val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
@@ -524,7 +534,7 @@ class VolumeSliderHooker(
                                         columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                         if (sameStyleVolume) {
                                             putTag(columnSuperVolume, "sliderType", "VolumePanelViewController")
-                                            val activeColor = android.graphics.Color.parseColor("#3482FF")
+                                            val activeColor = ACTIVE_BLUE_COLOR
                                             ColorOverrideLock.isSettingColor.set(true)
                                             runCatching {
                                                 columnSuperVolume.setTextColor(activeColor)
@@ -545,7 +555,7 @@ class VolumeSliderHooker(
                                     if (stream == activeStream) {
                                         val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
                                         if (mSuperVolume != null) {
-                                            mSuperVolume.text = "$pct%"
+                                            mSuperVolume.text = formatPercent(pct)
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                             mSuperVolume.visibility = View.VISIBLE
 
@@ -553,7 +563,7 @@ class VolumeSliderHooker(
                                                 putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
                                                 ColorOverrideLock.isSettingColor.set(true)
                                                 runCatching {
-                                                    mSuperVolume.setTextColor(android.graphics.Color.parseColor("#3482FF"))
+                                                    mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
                                                 }
                                                 ColorOverrideLock.isSettingColor.set(false)
                                             } else {
@@ -663,7 +673,7 @@ class VolumeSliderHooker(
                                     val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
                                     val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
 
-                                    textView.text = "$pct%"
+                                    textView.text = formatPercent(pct)
 
                                     val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
                                     val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -676,7 +686,7 @@ class VolumeSliderHooker(
                                     textView.typeface = Typeface.DEFAULT_BOLD
                                     if (sameStyleSuper) {
                                         putTag(textView, "sliderType", "VolumePanelViewController")
-                                        val activeColor = android.graphics.Color.parseColor("#3482FF")
+                                        val activeColor = ACTIVE_BLUE_COLOR
                                         ColorOverrideLock.isSettingColor.set(true)
                                         runCatching {
                                             textView.setTextColor(activeColor)

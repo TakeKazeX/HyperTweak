@@ -1,10 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import android.annotation.SuppressLint
 import android.graphics.Typeface
 import android.util.Log
 import android.view.View
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.Preferences
 import java.util.WeakHashMap
 
@@ -71,6 +73,7 @@ object ColorOverrideLock {
 
 // ─── Shared Slider Hooker Helper ───────────────────────────────────────────
 
+@SuppressLint("DiscouragedApi")
 object SliderHookHelper {
     val tags = WeakHashMap<Any, HashMap<String, Any?>>()
 
@@ -107,8 +110,11 @@ object SliderHookHelper {
         return (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
     }
 
-    private val DARK_TEXT_COLOR = android.graphics.Color.parseColor("#B3FFFFFF")
-    private val LIGHT_TEXT_COLOR = android.graphics.Color.parseColor("#B3000000")
+    val ACTIVE_BLUE_COLOR = "#3482FF".toColorInt()
+    private val DARK_TEXT_COLOR = "#B3FFFFFF".toColorInt()
+    private val LIGHT_TEXT_COLOR = "#B3000000".toColorInt()
+
+    fun formatPercent(percent: Int): String = "$percent%"
 
     fun getSliderTextColor(context: android.content.Context): Int {
         val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -145,7 +151,7 @@ object SliderHookHelper {
     fun clearActiveColorCache() {
         activeColorCache.clear()
         cachedBlendColorsResId = -1
-        cachedBlendColorsContext = null
+        cachedBlendColorsResources = null
         cachedOriginalBlendColors = null
     }
 
@@ -153,7 +159,7 @@ object SliderHookHelper {
     @Volatile
     private var cachedBlendColorsResId: Int = -1  // -1 = not resolved, 0 = not found
     @Volatile
-    private var cachedBlendColorsContext: android.content.Context? = null
+    private var cachedBlendColorsResources: android.content.res.Resources? = null
     @Volatile
     private var cachedOriginalBlendColors: IntArray? = null
 
@@ -185,7 +191,7 @@ object SliderHookHelper {
                 if (colorResId != 0) {
                     return@runCatching sysUiContext.getColor(colorResId)
                 }
-                return@runCatching android.graphics.Color.parseColor("#3482FF")
+                return@runCatching ACTIVE_BLUE_COLOR
             }
             
             val colorResId = context.resources.getIdentifier(
@@ -243,29 +249,29 @@ object SliderHookHelper {
 
             // Cached resource lookup — only resolves once
             val blendColorsResId: Int
-            val resContext: android.content.Context
+            val blendColorsResources: android.content.res.Resources
             val cached = cachedBlendColorsResId
             if (cached >= 0) {
                 blendColorsResId = cached
-                resContext = cachedBlendColorsContext ?: context
+                blendColorsResources = cachedBlendColorsResources ?: context.resources
             } else {
                 var resId = context.resources.getIdentifier(
                     "toggle_slider_icon_blend_colors", "array", context.packageName)
-                var ctx: android.content.Context = context
+                var resources = context.resources
                 if (resId == 0) {
                     runCatching {
                         val pluginCtx = context.createPackageContext("miui.systemui.plugin", 0)
                         val id = pluginCtx.resources.getIdentifier("toggle_slider_icon_blend_colors", "array", "miui.systemui.plugin")
                         if (id != 0) {
                             resId = id
-                            ctx = pluginCtx
+                            resources = pluginCtx.resources
                         }
                     }
                 }
                 cachedBlendColorsResId = resId
-                cachedBlendColorsContext = ctx
+                cachedBlendColorsResources = resources
                 blendColorsResId = resId
-                resContext = ctx
+                blendColorsResources = resources
             }
 
             if (blurSupported && blendColorsResId != 0) {
@@ -300,7 +306,7 @@ object SliderHookHelper {
                     runCatching {
                         // Cached original blend colors array
                         val originalBlendColors = cachedOriginalBlendColors ?: run {
-                            val arr = resContext.resources.getIntArray(blendColorsResId)
+                            val arr = blendColorsResources.getIntArray(blendColorsResId)
                             cachedOriginalBlendColors = arr
                             arr
                         }
@@ -507,7 +513,7 @@ object SliderHookHelper {
                 calcBrightnessPercent(slider)
             }
 
-            topText.text = "$pct%"
+                topText.text = formatPercent(pct)
             applyTopTextStyle(topText, sliderType = type)
         }
 

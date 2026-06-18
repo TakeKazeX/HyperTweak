@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.effect
 
-import android.os.Build
 import android.view.RoundedCorner
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
@@ -29,18 +28,16 @@ fun rememberDeviceCornerRadius(defaultRadius: Dp = 16.dp): Dp {
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     return remember(view, density) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val insets = view.rootWindowInsets
-            if (insets != null) {
-                val corner = insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
-                    ?: insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)
-                    ?: insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)
-                    ?: insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)
+        val insets = view.rootWindowInsets
+        if (insets != null) {
+            val corner = insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
+                ?: insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)
+                ?: insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)
+                ?: insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)
 
-                if (corner != null) {
-                    with(density) {
-                        return@remember corner.radius.toDp()
-                    }
+            if (corner != null) {
+                with(density) {
+                    return@remember corner.radius.toDp()
                 }
             }
         }

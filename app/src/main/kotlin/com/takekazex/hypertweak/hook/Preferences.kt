@@ -1,7 +1,10 @@
 package com.takekazex.hypertweak.hook
 
+import android.annotation.SuppressLint
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
+@SuppressLint("PrivateApi")
 object Preferences {
     const val NAME = "hypertweak_settings"
 
@@ -78,7 +81,7 @@ object Preferences {
             val value = remotePrefs.getBoolean(key, default)
             val cache = getLocalCache()
             if (cache != null && (!cache.contains(key) || cache.getBoolean(key, !value) != value)) {
-                cache.edit().putBoolean(key, value).apply()
+                cache.edit { putBoolean(key, value) }
             }
             return value
         }
@@ -91,7 +94,7 @@ object Preferences {
             val value = remotePrefs.getInt(key, default)
             val cache = getLocalCache()
             if (cache != null && (!cache.contains(key) || cache.getInt(key, value - 1) != value)) {
-                cache.edit().putInt(key, value).apply()
+                cache.edit { putInt(key, value) }
             }
             return value
         }
@@ -104,7 +107,7 @@ object Preferences {
             val value = remotePrefs.getFloat(key, default)
             val cache = getLocalCache()
             if (cache != null && (!cache.contains(key) || cache.getFloat(key, value - 1f) != value)) {
-                cache.edit().putFloat(key, value).apply()
+                cache.edit { putFloat(key, value) }
             }
             return value
         }
@@ -113,19 +116,19 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         if (isInitialized) {
-            remotePrefs.edit().putBoolean(key, value).apply()
+            remotePrefs.edit { putBoolean(key, value) }
         }
     }
 
     fun putInt(key: String, value: Int) {
         if (isInitialized) {
-            remotePrefs.edit().putInt(key, value).apply()
+            remotePrefs.edit { putInt(key, value) }
         }
     }
 
     fun putFloat(key: String, value: Float) {
         if (isInitialized) {
-            remotePrefs.edit().putFloat(key, value).apply()
+            remotePrefs.edit { putFloat(key, value) }
         }
     }
 
@@ -135,7 +138,7 @@ object Preferences {
             val value = remotePrefs.getStringSet(key, default) ?: default
             val cache = getLocalCache()
             if (cache != null && (!cache.contains(key) || cache.getStringSet(key, emptySet()) != value)) {
-                cache.edit().putStringSet(key, value).apply()
+                cache.edit { putStringSet(key, value) }
             }
             return value
         }
@@ -144,7 +147,7 @@ object Preferences {
 
     fun putStringSet(key: String, value: Set<String>) {
         if (isInitialized) {
-            remotePrefs.edit().putStringSet(key, value).apply()
+            remotePrefs.edit { putStringSet(key, value) }
         }
     }
 
@@ -154,7 +157,7 @@ object Preferences {
             val value = remotePrefs.getString(key, default) ?: default
             val cache = getLocalCache()
             if (cache != null && (!cache.contains(key) || cache.getString(key, "") != value)) {
-                cache.edit().putString(key, value).apply()
+                cache.edit { putString(key, value) }
             }
             return value
         }
@@ -163,7 +166,7 @@ object Preferences {
 
     fun putString(key: String, value: String) {
         if (isInitialized) {
-            remotePrefs.edit().putString(key, value).apply()
+            remotePrefs.edit { putString(key, value) }
         }
     }
 }

@@ -2,12 +2,12 @@ package com.takekazex.hypertweak.util
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.net.Uri
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 
 object ShortcutUtils {
@@ -56,10 +56,9 @@ object ShortcutUtils {
         val pm = context.packageManager
         val drawable = runCatching { pm.getApplicationIcon(def.iconPackage ?: "") }.getOrNull()
             ?: pm.defaultActivityIcon
-        val bitmap = Bitmap.createBitmap(
+        val bitmap = createBitmap(
             drawable.intrinsicWidth.coerceAtLeast(1),
-            drawable.intrinsicHeight.coerceAtLeast(1),
-            Bitmap.Config.ARGB_8888
+            drawable.intrinsicHeight.coerceAtLeast(1)
         )
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, canvas.width, canvas.height)
@@ -84,7 +83,7 @@ object ShortcutUtils {
                         val parts = def.intentComponent.split("/")
                         setClassName(parts[0], parts[1])
                     }
-                    if (def.intentData != null) data = Uri.parse(def.intentData)
+                    if (def.intentData != null) data = def.intentData.toUri()
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             }
@@ -97,5 +96,8 @@ object ShortcutUtils {
                 .build()
         }
         ShortcutManagerCompat.setDynamicShortcuts(context, shortcuts)
+        shortcuts.forEach { shortcut ->
+            ShortcutManagerCompat.reportShortcutUsed(context, shortcut.id)
+        }
     }
 }

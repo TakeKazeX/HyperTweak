@@ -22,6 +22,20 @@ object DexKitManager {
             Log.e("HyperTweak", "Failed to load DexKit native library", t)
         }
     }
+
+    @Synchronized
+    fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
+        loadLibrary()
+        if (!isLoaded) {
+            Log.e("HyperTweak", "DexKit not loaded. Cannot create bridge.")
+            return null
+        }
+        return runCatching {
+            DexKitBridge.create(apkPath).use(block)
+        }.onFailure { t ->
+            Log.e("HyperTweak", "Failed to run DexKitBridge for APK $apkPath", t)
+        }.getOrNull()
+    }
     
     /**
      * Resolves the required classes either from cache or by performing a DexKit scan.
@@ -93,37 +107,33 @@ object DexKitManager {
         if (missingQueries.isNotEmpty()) {
             Log.d("HyperTweak", "Performing DexKit scan for ${missingQueries.size} classes...")
             val startTime = System.currentTimeMillis()
-            runCatching {
-                DexKitBridge.create(apkPath).use { bridge ->
-                    var cacheUpdated = false
-                    for ((key, queryFunc) in missingQueries) {
-                        val className = queryFunc(bridge)
-                        if (className != null) {
-                            runCatching {
-                                val clazz = classLoader.loadClass(className)
-                                resolvedMap[key] = clazz
-                                properties.setProperty(key, className)
-                                cacheUpdated = true
-                                Log.d("HyperTweak", "DexKit successfully resolved $key -> $className")
-                            }.onFailure { t ->
-                                Log.e("HyperTweak", "DexKit resolved $className for key $key but class load failed", t)
-                            }
-                        } else {
-                            Log.e("HyperTweak", "DexKit query returned null for key $key")
-                        }
-                    }
-                    if (cacheUpdated && cacheFile != null && cacheDir != null) {
-                        properties.setProperty(KEY_LAST_MODIFIED, currentLastModified.toString())
+            withBridge(apkPath) { bridge ->
+                var cacheUpdated = false
+                for ((key, queryFunc) in missingQueries) {
+                    val className = queryFunc(bridge)
+                    if (className != null) {
                         runCatching {
-                            if (!cacheDir.exists()) cacheDir.mkdirs()
-                            cacheFile.outputStream().use { properties.store(it, "HyperTweak DexKit Cache") }
+                            val clazz = classLoader.loadClass(className)
+                            resolvedMap[key] = clazz
+                            properties.setProperty(key, className)
+                            cacheUpdated = true
+                            Log.d("HyperTweak", "DexKit successfully resolved $key -> $className")
                         }.onFailure { t ->
-                            Log.e("HyperTweak", "Failed to write properties cache", t)
+                            Log.e("HyperTweak", "DexKit resolved $className for key $key but class load failed", t)
                         }
+                    } else {
+                        Log.e("HyperTweak", "DexKit query returned null for key $key")
                     }
                 }
-            }.onFailure { t ->
-                Log.e("HyperTweak", "Failed to run DexKitBridge for APK $apkPath", t)
+                if (cacheUpdated && cacheFile != null && cacheDir != null) {
+                    properties.setProperty(KEY_LAST_MODIFIED, currentLastModified.toString())
+                    runCatching {
+                        if (!cacheDir.exists()) cacheDir.mkdirs()
+                        cacheFile.outputStream().use { properties.store(it, "HyperTweak DexKit Cache") }
+                    }.onFailure { t ->
+                        Log.e("HyperTweak", "Failed to write properties cache", t)
+                    }
+                }
             }
             Log.d("HyperTweak", "DexKit scan completed in ${System.currentTimeMillis() - startTime} ms")
         }

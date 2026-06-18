@@ -235,17 +235,21 @@ fun IosLiquidGlassNavigationBar(
         }
     }
 
-    LaunchedEffect(pagerState.currentPage, pagerState.currentPageOffsetFraction, pagerState.isScrollInProgress) {
-        if (pagerState.isScrollInProgress) {
-            val progress = pagerState.currentPage + pagerState.currentPageOffsetFraction
-            dampedDrag.snapToValue(progress)
-            val diff = progress - progress.roundToInt()
-            val swipeProgress = (2f * abs(diff)).coerceIn(0f, 1f)
-            dampedDrag.updatePressProgress(swipeProgress)
-        } else {
-            dampedDrag.animateToValue(pagerState.currentPage.toFloat())
-            if (currentIndex != pagerState.currentPage) {
-                currentIndex = pagerState.currentPage
+    LaunchedEffect(pagerState) {
+        snapshotFlow {
+            Triple(pagerState.currentPage, pagerState.currentPageOffsetFraction, pagerState.isScrollInProgress)
+        }.collectLatest { (page, offsetFraction, isScrollInProgress) ->
+            if (isScrollInProgress) {
+                val progress = page + offsetFraction
+                dampedDrag.snapToValue(progress)
+                val diff = progress - progress.roundToInt()
+                val swipeProgress = (2f * abs(diff)).coerceIn(0f, 1f)
+                dampedDrag.updatePressProgress(swipeProgress)
+            } else {
+                dampedDrag.animateToValue(page.toFloat())
+                if (currentIndex != page) {
+                    currentIndex = page
+                }
             }
         }
     }

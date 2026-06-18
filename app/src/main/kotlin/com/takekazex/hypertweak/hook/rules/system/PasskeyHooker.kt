@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.system
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
@@ -83,25 +82,14 @@ object PasskeyHooker : StaticHooker() {
         val aClass = "com.android.server.credentials.RequestSession\$SessionLifetime".toClassOrNull() ?: return
         val callingAppInfoClass = "android.service.credentials.CallingAppInfo".toClassOrNull() ?: return
         
-        val constructorRequestSession = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            runCatching {
-                cRequestSession.getDeclaredConstructor(
-                    Context::class.java, aClass, Any::class.java, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
-                    Any::class.java, Any::class.java, String::class.java,
-                    callingAppInfoClass,
-                    Set::class.java, android.os.CancellationSignal::class.java, Long::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!
-                )
-            }.getOrNull()
-        } else {
-            runCatching {
-                cRequestSession.getDeclaredConstructor(
-                    Context::class.java, aClass, Any::class.java, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
-                    Any::class.java, Any::class.java, String::class.java,
-                    callingAppInfoClass,
-                    Set::class.java, android.os.CancellationSignal::class.java, Long::class.javaPrimitiveType!!
-                )
-            }.getOrNull()
-        }
+        val constructorRequestSession = runCatching {
+            cRequestSession.getDeclaredConstructor(
+                Context::class.java, aClass, Any::class.java, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
+                Any::class.java, Any::class.java, String::class.java,
+                callingAppInfoClass,
+                Set::class.java, android.os.CancellationSignal::class.java, Long::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!
+            )
+        }.getOrNull()
 
         constructorRequestSession?.hook {
             after { param ->
@@ -111,71 +99,62 @@ object PasskeyHooker : StaticHooker() {
             }
         }
 
-        // IntentFactory hook (Android 15+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            val classIntentFactory = "android.credentials.selection.IntentFactory".toClassOrNull() ?: return
-            val classIntentCreationResultBuilder = "android.credentials.selection.IntentCreationResult\$Builder".toClassOrNull() ?: return
-            
-            val isBaklavaOrAbove = Build.VERSION.SDK_INT >= 36
-            val mGetOemOverrideComponentName = if (isBaklavaOrAbove) {
-                runCatching {
-                    classIntentFactory.getDeclaredMethod(
-                        "getOemOverrideComponentName",
-                        Context::class.java, classIntentCreationResultBuilder, Int::class.javaPrimitiveType!!
-                    )
-                }.getOrNull()
-            } else {
-                runCatching {
-                    classIntentFactory.getDeclaredMethod(
-                        "getOemOverrideComponentName",
-                        Context::class.java, classIntentCreationResultBuilder
-                    )
-                }.getOrNull()
-            }
+        val classIntentFactory = "android.credentials.selection.IntentFactory".toClassOrNull() ?: return
+        val classIntentCreationResultBuilder = "android.credentials.selection.IntentCreationResult\$Builder".toClassOrNull() ?: return
+        val mGetOemOverrideComponentName = runCatching {
+            classIntentFactory.getDeclaredMethod(
+                "getOemOverrideComponentName",
+                Context::class.java, classIntentCreationResultBuilder, Int::class.javaPrimitiveType!!
+            )
+        }.getOrNull() ?: runCatching {
+            classIntentFactory.getDeclaredMethod(
+                "getOemOverrideComponentName",
+                Context::class.java, classIntentCreationResultBuilder
+            )
+        }.getOrNull()
 
-            mGetOemOverrideComponentName?.hook {
-                intercept { chain ->
-                    if (!Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
-                        return@intercept chain.proceed()
-                    }
-                    val args = chain.args
-                    if (args.size >= 2 && args[0] is Context && args[1] != null) {
-                        val context = args[0] as Context
-                        val intentResultBuilder = args[1]
-                        val oemComponentString = "com.google.android.gms/.identitycredentials.ui.CredentialChooserActivity"
-                        runCatching {
-                            val oemComponentName = ComponentName.unflattenFromString(oemComponentString)
-                            if (oemComponentName != null) {
-                                val info = context.packageManager.getActivityInfo(
-                                    oemComponentName,
-                                    PackageManager.ComponentInfoFlags.of(PackageManager.MATCH_SYSTEM_ONLY.toLong())
-                                )
-                                var oemComponentEnabled = info.enabled
-                                val runtimeComponentEnabledState = context.packageManager.getComponentEnabledSetting(oemComponentName)
-                                if (runtimeComponentEnabledState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
-                                    oemComponentEnabled = true
-                                } else if (runtimeComponentEnabledState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
-                                    oemComponentEnabled = false
-                                }
-                                if (oemComponentEnabled && info.exported) {
-                                    runCatching {
-                                        val setOemUiPackageNameMethod = intentResultBuilder.javaClass.getMethod("setOemUiPackageName", String::class.java)
-                                        setOemUiPackageNameMethod.invoke(intentResultBuilder, oemComponentName.packageName)
-                                        
-                                        val oemUiUsageStatusClass = "android.credentials.selection.IntentCreationResult\$OemUiUsageStatus".toClass()
-                                        val successValue = oemUiUsageStatusClass.getField("SUCCESS").get(null)
-                                        val setOemUiUsageStatusMethod = intentResultBuilder.javaClass.getMethod("setOemUiUsageStatus", oemUiUsageStatusClass)
-                                        setOemUiUsageStatusMethod.invoke(intentResultBuilder, successValue)
-                                    }
-                                    return@intercept oemComponentName
-                                }
-                            }
-                        }.onFailure { t ->
-                            Log.e(TAG, "Failed to override oem CredMan UI component", t)
-                        }
-                    }
-                    chain.proceed()
+        mGetOemOverrideComponentName?.hook {
+            intercept { chain ->
+                if (!Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                    return@intercept chain.proceed()
                 }
+                val args = chain.args
+                if (args.size >= 2 && args[0] is Context && args[1] != null) {
+                    val context = args[0] as Context
+                    val intentResultBuilder = args[1]
+                    val oemComponentString = "com.google.android.gms/.identitycredentials.ui.CredentialChooserActivity"
+                    runCatching {
+                        val oemComponentName = ComponentName.unflattenFromString(oemComponentString)
+                        if (oemComponentName != null) {
+                            val info = context.packageManager.getActivityInfo(
+                                oemComponentName,
+                                PackageManager.ComponentInfoFlags.of(PackageManager.MATCH_SYSTEM_ONLY.toLong())
+                            )
+                            var oemComponentEnabled = info.enabled
+                            val runtimeComponentEnabledState = context.packageManager.getComponentEnabledSetting(oemComponentName)
+                            if (runtimeComponentEnabledState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                                oemComponentEnabled = true
+                            } else if (runtimeComponentEnabledState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                                oemComponentEnabled = false
+                            }
+                            if (oemComponentEnabled && info.exported) {
+                                runCatching {
+                                    val setOemUiPackageNameMethod = intentResultBuilder.javaClass.getMethod("setOemUiPackageName", String::class.java)
+                                    setOemUiPackageNameMethod.invoke(intentResultBuilder, oemComponentName.packageName)
+
+                                    val oemUiUsageStatusClass = "android.credentials.selection.IntentCreationResult\$OemUiUsageStatus".toClass()
+                                    val successValue = oemUiUsageStatusClass.getField("SUCCESS").get(null)
+                                    val setOemUiUsageStatusMethod = intentResultBuilder.javaClass.getMethod("setOemUiUsageStatus", oemUiUsageStatusClass)
+                                    setOemUiUsageStatusMethod.invoke(intentResultBuilder, successValue)
+                                }
+                                return@intercept oemComponentName
+                            }
+                        }
+                    }.onFailure { t ->
+                        Log.e(TAG, "Failed to override oem CredMan UI component", t)
+                    }
+                }
+                chain.proceed()
             }
         }
     }
@@ -204,21 +183,6 @@ object PasskeyHooker : StaticHooker() {
             }
         }
 
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val defaultAppPreferenceControllerClass = "com.android.settings.applications.defaultapps.DefaultAppPreferenceController".toClassOrNull()
-            val preferenceClass = "androidx.preference.Preference".toClassOrNull()
-            if (defaultAppPreferenceControllerClass != null && preferenceClass != null) {
-                defaultAppPreferenceControllerClass.findMethodOrNull {
-                    name("updateState")
-                    parameterTypes(preferenceClass)
-                }?.hook {
-                    intercept { chain ->
-                        handleIsInternationalBuild(chain)
-                    }
-                }
-            }
-        }
-
         val resolved = DexKitManager.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
@@ -234,7 +198,7 @@ object PasskeyHooker : StaticHooker() {
                     .matcher(org.luckypray.dexkit.query.matchers.ClassMatcher.create().methods(
                         org.luckypray.dexkit.query.matchers.MethodsMatcher.create().add(onLeftSideClickedMatcher)
                     ))
-                ).firstOrNull()?.name
+                ).getOrNull(0)?.name
             })
         )
 
@@ -253,11 +217,8 @@ object PasskeyHooker : StaticHooker() {
 
     private fun hookSecurityCenter(apkPath: String) {
         val appClass = "com.miui.securitycenter.Application".toClassOrNull() ?: return
-        DexKitManager.loadLibrary()
-
-        runCatching {
-            org.luckypray.dexkit.DexKitBridge.create(apkPath).use { bridge ->
-                val cApplication = bridge.getClassData("Lcom/miui/securitycenter/Application;") ?: return@use
+        DexKitManager.withBridge(apkPath) bridgeBlock@ { bridge ->
+                val cApplication = bridge.getClassData("Lcom/miui/securitycenter/Application;") ?: return@bridgeBlock
                 
                 val mSetStringResourceConfigIfNeed = runCatching {
                     cApplication.findMethod(org.luckypray.dexkit.query.FindMethod.create()
@@ -330,9 +291,6 @@ object PasskeyHooker : StaticHooker() {
                         }
                     }
                 }
-            }
-        }.onFailure { t ->
-            Log.e(TAG, "DexKit error in hookSecurityCenter", t)
         }
     }
 

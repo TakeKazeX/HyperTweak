@@ -307,7 +307,7 @@ fun HyperTweakNavContainer(
     }
 
     NavigationBackHandler(
-        state = gestureState!!,
+        state = gestureState,
         isBackEnabled = backStack.size > 1 && predictiveBackStyle != 0,
         onBackCompleted = { callBack ->
             android.util.Log.d("HyperTweak", "Second NavigationBackHandler completed. backStack size = ${backStack.size}")
@@ -320,7 +320,7 @@ fun HyperTweakNavContainer(
 
     NavDisplay(
         sceneState = sceneState,
-        navigationEventState = gestureState!!,
+        navigationEventState = gestureState,
         transitionSpec = {
             if (predictiveBackStyle == 2) {
                 ContentTransform(

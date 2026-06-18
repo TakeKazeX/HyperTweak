@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromHeight
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromLeft
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromTop
@@ -308,7 +309,7 @@ class BrightnessSliderHooker(
                             val level = slider.progress
                             val maxLevel = slider.max
                             val pct = if (maxLevel > 0) Math.round(level * 1f / maxLevel * 100f).coerceIn(0, 100) else 0
-                            topText.text = "$pct%"
+                            topText.text = formatPercent(pct)
                             applyTopTextStyle(topText, sliderType = "BrightnessSliderController")
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error updating BrightnessPanelSliderDelegate percentage", t)

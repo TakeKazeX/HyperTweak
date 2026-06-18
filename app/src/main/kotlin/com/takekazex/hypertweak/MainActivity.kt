@@ -3,7 +3,6 @@ package com.takekazex.hypertweak
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
@@ -28,13 +29,9 @@ import com.takekazex.hypertweak.util.LocaleHelper
 import androidx.compose.ui.platform.LocalContext
 
 internal fun getSystemAccentColor(context: Context): Int {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        try {
-            context.getColor(android.R.color.system_accent1_500)
-        } catch (e: Throwable) {
-            0xFF007AFF.toInt()
-        }
-    } else {
+    return try {
+        context.getColor(android.R.color.system_accent1_500)
+    } catch (e: Throwable) {
         0xFF007AFF.toInt()
     }
 }
@@ -54,11 +51,8 @@ class MainActivity : ComponentActivity() {
         if (shortcutTarget == "lsposed") {
             Thread {
                 try {
-                    val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                        "android.telephony.action.SECRET_CODE"
-                    else "android.provider.Telephony.SECRET_CODE"
                     Runtime.getRuntime().exec("su").outputStream.bufferedWriter().use { w ->
-                        w.write("am broadcast -a $action -d android_secret_code://5776733\nexit\n")
+                        w.write("am broadcast -a android.telephony.action.SECRET_CODE -d android_secret_code://5776733\nexit\n")
                         w.flush()
                     }
                 } catch (_: Exception) {}
@@ -71,22 +65,20 @@ class MainActivity : ComponentActivity() {
 
         com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-        }
+        window.isNavigationBarContrastEnforced = false
 
         setContent {
             // Theme settings states
-            var themeMode by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
+            var themeMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
             var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
-            var seedColorHex by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())) }
+            var seedColorHex by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())) }
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
-            var floatingBarStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
-            var predictiveBackStyle by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
+            var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
+            var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
-            var pageScale by remember { mutableStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
-            var appLanguage by remember { mutableStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
+            var pageScale by remember { mutableFloatStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
+            var appLanguage by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
 
@@ -148,21 +140,21 @@ class MainActivity : ComponentActivity() {
 
                 if (isModuleActive()) {
                     moduleActive = true
-                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
+                    localPrefs.edit { putBoolean("last_known_module_activated", true) }
                     reloadAllPreferences()
                     return@LaunchedEffect
                 }
 
                 if (serviceConnected != null) {
                     moduleActive = true
-                    localPrefs.edit().putBoolean("last_known_module_activated", true).apply()
+                    localPrefs.edit { putBoolean("last_known_module_activated", true) }
                     reloadAllPreferences()
                 } else {
                     // Wait 500ms to allow the Xposed service binding to finish
                     kotlinx.coroutines.delay(500)
                     if (XposedServiceManager.currentService == null) {
                         moduleActive = false
-                        localPrefs.edit().putBoolean("last_known_module_activated", false).apply()
+                        localPrefs.edit { putBoolean("last_known_module_activated", false) }
                     }
                 }
             }
@@ -365,7 +357,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onViewSourceCode = {
                         try {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/takekazex/HyperTweak"))
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://github.com/takekazex/HyperTweak".toUri())
                             this@MainActivity.startActivity(intent)
                         } catch (e: Exception) {
                             // Ignore

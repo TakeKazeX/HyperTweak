@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.Icon
@@ -7,11 +8,13 @@ import android.os.Bundle
 import android.os.UserHandle
 import android.view.View
 import android.widget.ImageView
+import androidx.core.graphics.createBitmap
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import org.luckypray.dexkit.query.enums.StringMatchType
 
+@SuppressLint("DiscouragedApi")
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 10777L
 
@@ -180,7 +183,7 @@ object SettingsHooker : StaticHooker() {
                                 iconView.scaleType = ImageView.ScaleType.FIT_CENTER
 
                                 // Render the drawable onto a bitmap of exact size for a clean look
-                                val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+                                val bitmap = createBitmap(size, size)
                                 val canvas = android.graphics.Canvas(bitmap)
                                 moduleIcon.setBounds(0, 0, size, size)
                                 moduleIcon.draw(canvas)

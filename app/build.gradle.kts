@@ -92,6 +92,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 androidComponents {
@@ -126,11 +132,13 @@ dependencies {
     implementation("androidx.navigationevent:navigationevent:1.1.2")
 
     // libxposed
+    //noinspection NewerVersionAvailable
     compileOnly("io.github.libxposed:api:101.0.1")
+    //noinspection NewerVersionAvailable
     implementation("io.github.libxposed:service:101.0.0")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.0-rc01")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.0-rc04")
     implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-101:1.1.0-rc01")
 
     // DexKit

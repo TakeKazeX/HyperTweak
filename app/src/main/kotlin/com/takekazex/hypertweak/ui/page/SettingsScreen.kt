@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page
 
-import android.os.Build
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -254,7 +253,7 @@ fun SettingsScreenContent(
                             val context = LocalContext.current
                             val systemAccentColor = remember(context) { getSystemAccentColor(context) }
                             val colors = buildList {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(0) // Device color
+                                add(0) // Device color
                                 add(0xFF007AFF.toInt()) // Blue
                                 add(0xFF4CAF50.toInt()) // Green
                                 add(0xFFFF9800.toInt()) // Orange
@@ -358,5 +357,4 @@ fun SettingsScreenContent(
         }
     }
 }
-
 

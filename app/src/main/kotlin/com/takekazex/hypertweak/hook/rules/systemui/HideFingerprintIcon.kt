@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
@@ -7,6 +8,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 
+@SuppressLint("DiscouragedApi")
 object HideFingerprintIcon : StaticHooker() {
     private var normal: Int? = null
     private var light: Int? = null
@@ -52,7 +54,7 @@ object HideFingerprintIcon : StaticHooker() {
                     return@before
                 }
 
-                val anim = param.thisObject ?: return@before
+                val anim = param.thisObject
                 try {
                     val field = cachedField ?: anim.javaClass.getDeclaredField("mContext").apply {
                         isAccessible = true

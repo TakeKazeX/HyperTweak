@@ -165,9 +165,8 @@ fun HiddenFeaturesPage(
                         onClick = {
                             Thread {
                                 try {
-                                    val action = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) "android.telephony.action.SECRET_CODE" else "android.provider.Telephony.SECRET_CODE"
                                     Runtime.getRuntime().exec("su").outputStream.bufferedWriter().use { w ->
-                                        w.write("am broadcast -a $action -d android_secret_code://5776733\nexit\n")
+                                        w.write("am broadcast -a android.telephony.action.SECRET_CODE -d android_secret_code://5776733\nexit\n")
                                         w.flush()
                                     }
                                 } catch (e: Exception) {
