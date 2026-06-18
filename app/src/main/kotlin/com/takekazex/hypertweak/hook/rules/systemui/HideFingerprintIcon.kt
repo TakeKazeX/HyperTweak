@@ -20,6 +20,14 @@ object HideFingerprintIcon : StaticHooker() {
 
     private val shouldHideCache = ConcurrentHashMap<Int, Boolean>()
 
+    override fun onPrepareHotReload() {
+        normal = null
+        light = null
+        aod = null
+        cachedField = null
+        shouldHideCache.clear()
+    }
+
     override fun onHook() {
         hideFingerprintEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
         if (!hideFingerprintEnabled) {

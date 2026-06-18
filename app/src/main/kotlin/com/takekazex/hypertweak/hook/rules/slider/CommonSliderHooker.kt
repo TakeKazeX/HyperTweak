@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
 import com.takekazex.hypertweak.hook.base.DynamicHooker
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
@@ -8,6 +9,8 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFro
 class CommonSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
+    override val hotReloadMode = HotReloadMode.RECREATE
+
 
     override fun onHook() {
         val clzViewHolder = parent.resolveClass("miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder")

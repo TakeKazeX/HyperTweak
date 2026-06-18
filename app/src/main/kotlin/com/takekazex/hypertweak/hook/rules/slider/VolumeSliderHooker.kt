@@ -6,6 +6,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.base.DynamicHooker
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.blendColors
@@ -28,6 +29,8 @@ private val LIGHT_BADGE_STROKE_COLOR = "#33000000".toColorInt()
 class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
+    override val hotReloadMode = HotReloadMode.RECREATE
+
 
     @Volatile
     private var isVolumeViewHooked = false
@@ -70,6 +73,37 @@ class VolumeSliderHooker(
 
     // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
     private val textViewToStreamCache = java.util.WeakHashMap<TextView, Int>()
+
+    override fun onPrepareHotReload() {
+        isVolumeViewHooked = false
+        cachedThis0Field = null
+        cachedSuperVolumeField = null
+        cachedMiBlurCompatClass = null
+        cachedColorBlendTokenClass = null
+        cachedTokenBlendMethod = null
+        cachedVpcFieldsLoaded = false
+        vpcField_mState = null
+        vpcField_mExpanded = null
+        vpcField_mActiveStream = null
+        vpcField_mSuperVolume = null
+        vpcField_mSuperVolumeBg = null
+        vpcField_mVolumeView = null
+        vpcField_isControlCenterPanel = null
+        vpcField_mColumns = null
+        cachedStreamStateFieldsLoaded = false
+        ssField_states = null
+        ssField_level = null
+        ssField_levelMax = null
+        ssMethod_get = null
+        cachedVolumeColumnField = null
+        cachedColumnStreamField = null
+        cachedColumnStreamGetter = null
+        cachedBadgeBgColor = Int.MIN_VALUE
+        cachedBadgeDrawable = null
+        cachedVolumeRadiusMethod = null
+        cachedVolumeRadiusLoaded = false
+        textViewToStreamCache.clear()
+    }
 
     override fun onHook() {
         val clzVolumeSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController")

@@ -13,6 +13,10 @@ import java.util.concurrent.ConcurrentHashMap
 object SystemUIPluginHooker : StaticHooker() {
     private val activePluginHookers = ConcurrentHashMap<Any, SliderPercentageHooker>()
 
+    override fun onPrepareHotReload() {
+        activePluginHookers.clear()
+    }
+
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
             DebugLog.hookSkipped("SystemUIPlugin", "control center plugin hooks", "disabled")

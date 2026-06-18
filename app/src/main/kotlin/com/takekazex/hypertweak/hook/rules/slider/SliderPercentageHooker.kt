@@ -5,12 +5,15 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import org.luckypray.dexkit.query.enums.StringMatchType
 
 class SliderPercentageHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
 ) : DynamicHooker() {
+    override val hotReloadMode = HotReloadMode.RECREATE
+
     @Volatile
     var showPercentageEnabled: Boolean = false
         private set
@@ -118,6 +121,10 @@ class SliderPercentageHooker(
             queries = mapOf(key to query)
         )
         return resolved[key]
+    }
+
+    override fun onPrepareHotReload() {
+        SliderHookHelper.clearHotReloadCaches()
     }
 
     override fun onHook() {

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import java.io.File
 import java.lang.reflect.Field
@@ -13,6 +14,8 @@ import java.lang.reflect.Method
 import java.util.concurrent.locks.ReentrantLock
 
 object PasskeyHooker : StaticHooker() {
+    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+
     private const val TAG = "HyperPasskey"
     private var fIsInternationalBuildBoolean: Field? = null
 

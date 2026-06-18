@@ -20,6 +20,10 @@ private object MiBlurMethodCache {
             runCatching { view.javaClass.getMethod(name, *paramTypes) }.getOrNull()
         }
     }
+
+    fun clear() {
+        methodCache.clear()
+    }
 }
 
 fun View.setMiViewBlurMode(mode: Int) {
@@ -154,6 +158,30 @@ object SliderHookHelper {
         cachedBlendColorsResId = -1
         cachedBlendColorsResources = null
         cachedOriginalBlendColors = null
+    }
+
+    @Synchronized
+    fun clearHotReloadCaches() {
+        MiBlurMethodCache.clear()
+        tags.clear()
+        sameStyleEnabled = false
+        fromLeft = 0
+        fromTop = 0
+        fromWidth = 0
+        fromHeight = 0
+        toLeft = 0
+        toTop = 0
+        toWidth = 0
+        toHeight = 0
+        isBlurSupportedMethod = null
+        isBlurSupportedMethodLoaded = false
+        clearActiveColorCache()
+        getMiViewBlurModeMethod = null
+        getMiViewBlurModeMethodLoaded = false
+        setBlendMethod = null
+        setBlendMethodLoaded = false
+        holderMethodCache.clear()
+        topTextMethodCache.clear()
     }
 
     // Cached blendColors resource lookup (avoids getIdentifier + createPackageContext per call)

@@ -30,6 +30,8 @@ sealed class BaseHooker {
     open val hookerName: String
         get() = this::class.java.simpleName
 
+    open val hotReloadMode: HotReloadMode = HotReloadMode.RECREATE
+
     val isMainProcess: Boolean
         get() = hookParam.isMainProcess
 
@@ -77,8 +79,19 @@ sealed class BaseHooker {
 
     open fun onHook() {}
 
+    open fun onPrepareHotReload() {}
+
     internal fun performInit() {
         onInit()
+    }
+
+    fun prepareForHotReload() {
+        childHookers.forEach { it.prepareForHotReload() }
+        runCatching {
+            onPrepareHotReload()
+        }.onFailure { t ->
+            DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t)
+        }
     }
 
     fun attach(
@@ -271,3 +284,9 @@ sealed class BaseHooker {
 abstract class StaticHooker : BaseHooker()
 
 abstract class DynamicHooker : BaseHooker()
+
+enum class HotReloadMode {
+    RECREATE,
+    RESTART_RECOMMENDED,
+    UNSUPPORTED
+}

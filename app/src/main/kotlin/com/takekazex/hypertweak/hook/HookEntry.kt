@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook
 
 import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.base.BaseHooker
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
@@ -23,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
+    private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
@@ -95,7 +97,10 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
-        DebugLog.d("HookEntry", "hot reloading old generation process=$processName")
+        DebugLog.d(
+            "HookEntry",
+            "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
+        )
         param.setSavedInstanceState(
             HotReloadState.save(
                 processName = processName,
@@ -104,7 +109,8 @@ class HookEntry : XposedModule() {
                 packages = packageStates.values
             )
         )
-        RestartBroadcastHooker.unregisterAll()
+        rootHookers.forEach { it.prepareForHotReload() }
+        rootHookers.clear()
         DebugLog.prepareForHotReload()
         return true
     }
@@ -120,12 +126,24 @@ class HookEntry : XposedModule() {
             "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }}"
         )
 
+        var unhookedCount = 0
+        var unhookFailedCount = 0
         param.oldHookHandles.forEach { handle ->
-            runCatching { handle.unhook() }
-                .onFailure { DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it) }
+            runCatching {
+                handle.unhook()
+                unhookedCount++
+            }.onFailure {
+                unhookFailedCount++
+                DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it)
+            }
         }
+        DebugLog.d(
+            "HookEntry",
+            "hot reload removed old handles ok=$unhookedCount failed=$unhookFailedCount"
+        )
 
         injectedPackages.clear()
+        rootHookers.clear()
         packageStates.clear()
 
         if (restoredState == null) {
@@ -185,6 +203,16 @@ class HookEntry : XposedModule() {
             isFirstPackage = old?.isFirstPackage ?: isFirstPackage,
             isPackageReady = old?.isPackageReady == true || isPackageReady
         )
+    }
+
+    private fun hotReloadModeSummary(): String {
+        return HotReloadMode.entries.joinToString(prefix = "{", postfix = "}") { mode ->
+            val names = rootHookers
+                .filter { it.hotReloadMode == mode }
+                .map { it.hookerName }
+                .sorted()
+            "${mode.name}=$names"
+        }
     }
 
     private fun onRestoredPackageReady(state: HotReloadPackageState) {
@@ -286,6 +314,7 @@ class HookEntry : XposedModule() {
             hooker.classLoader = targetClassLoader
             hooker.hookParam = ctx
 
+            rootHookers.add(hooker)
             hooker.performInit()
             hooker.updateParentState(true)
         } catch (t: Throwable) {

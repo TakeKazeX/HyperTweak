@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.res.Resources
 import android.graphics.Canvas
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
 
 object HideBottomBarHooker : StaticHooker() {
+    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private val hooksApplied = AtomicBoolean(false)
     @Volatile

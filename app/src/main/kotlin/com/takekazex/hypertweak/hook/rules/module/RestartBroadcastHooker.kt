@@ -18,6 +18,10 @@ object RestartBroadcastHooker : StaticHooker() {
         // Registered from HookEntry.onPackageReady to avoid touching Application.attach.
     }
 
+    override fun onPrepareHotReload() {
+        unregisterAll()
+    }
+
     fun register(context: Context) {
         val appContext = context.applicationContext ?: context
         val pkgName = appContext.packageName ?: return

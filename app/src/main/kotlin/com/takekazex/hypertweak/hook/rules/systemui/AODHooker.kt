@@ -1,9 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 
 object AODHooker : StaticHooker() {
+    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+
     @Volatile
     private var fullscreenEnabled = false
 
