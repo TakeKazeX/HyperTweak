@@ -1,16 +1,30 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.content.ContextWrapper
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -18,14 +32,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.util.DebugLog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -35,17 +52,28 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val FIELD_SEPARATOR = "\u001F"
 
@@ -79,9 +107,40 @@ private data class DebugLogEntry(
 fun DebugLogPage(
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val topBarBackdrop = rememberLayerBackdrop {
+        drawRect(surfaceColor)
+        drawContent()
+    }
+    val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     var logText by remember { mutableStateOf(Preferences.getDebugLog()) }
     var selectedFilter by remember { mutableStateOf(LogFilter.All) }
+    var exportText by remember { mutableStateOf("") }
+    var exportStatus by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri: Uri? ->
+        if (uri == null) {
+            DebugLog.w("DebugLogPage", "log export cancelled")
+            exportStatus = "Export cancelled"
+            return@rememberLauncherForActivityResult
+        }
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                output.write(exportText.toByteArray(Charsets.UTF_8))
+            } ?: error("openOutputStream returned null")
+        }.onSuccess {
+            DebugLog.d("DebugLogPage", "logs exported to $uri")
+            exportStatus = "Exported ${exportText.lines().size} lines"
+            logText = Preferences.getDebugLog()
+        }.onFailure { t ->
+            DebugLog.e("DebugLogPage", "failed to export logs", t)
+            exportStatus = "Export failed"
+            logText = Preferences.getDebugLog()
+        }
+    }
     val entries = remember(logText) { parseLogEntries(logText).asReversed() }
     val filteredEntries = remember(entries, selectedFilter) {
         entries.filter { entry ->
@@ -97,8 +156,23 @@ fun DebugLogPage(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "Logs",
+                modifier = if (contentReady) {
+                    Modifier.textureBlur(
+                        backdrop = topBarBackdrop,
+                        shape = RectangleShape,
+                        blurRadius = 25f,
+                        colors = BlurDefaults.blurColors(
+                            blendColors = listOf(
+                                BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                            )
+                        )
+                    )
+                } else {
+                    Modifier
+                },
+                color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -119,6 +193,51 @@ fun DebugLogPage(
                         )
                     }
                     IconButton(
+                        enabled = logText.isNotBlank(),
+                        onClick = {
+                            val text = buildExportText(entries, LogFilter.All, entries.size)
+                            copyText(context, "HyperTweak Logs", text)
+                            exportStatus = "Copied all logs"
+                            DebugLog.d("DebugLogPage", "all logs copied from UI")
+                            logText = Preferences.getDebugLog()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Copy,
+                            contentDescription = "Copy all",
+                            tint = actionTint(enabled = logText.isNotBlank())
+                        )
+                    }
+                    IconButton(
+                        enabled = logText.isNotBlank(),
+                        onClick = {
+                            val text = buildExportText(entries, LogFilter.All, entries.size)
+                            shareText(context, "HyperTweak Logs", text)
+                            exportStatus = "Share sheet opened"
+                            DebugLog.d("DebugLogPage", "logs shared from UI")
+                            logText = Preferences.getDebugLog()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Share,
+                            contentDescription = "Share",
+                            tint = actionTint(enabled = logText.isNotBlank())
+                        )
+                    }
+                    IconButton(
+                        enabled = logText.isNotBlank(),
+                        onClick = {
+                            exportText = buildExportText(entries, LogFilter.All, entries.size)
+                            exportLauncher.launch(defaultLogFileName())
+                        }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Download,
+                            contentDescription = "Export",
+                            tint = actionTint(enabled = logText.isNotBlank())
+                        )
+                    }
+                    IconButton(
                         onClick = {
                             Preferences.clearDebugLog()
                             DebugLog.d("DebugLogPage", "logs cleared from UI")
@@ -135,40 +254,37 @@ fun DebugLogPage(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .overScrollVertical(),
-            contentPadding = PaddingValues(top = innerPadding.calculateTopPadding()),
+                .overScrollVertical()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item("top_spacer") { Spacer(modifier = Modifier.height(8.dp)) }
-            item("summary_title") { SmallTitle(text = "Overview") }
-            item("summary") {
-                SummaryCard(entries = entries)
-            }
-            item("filters_title") { SmallTitle(text = "Options") }
-            item("filters") {
-                FilterRow(
-                    selectedFilter = selectedFilter,
-                    shownCount = filteredEntries.size,
-                    onSelected = { selectedFilter = it }
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
+            Spacer(modifier = Modifier.height(8.dp))
+            SmallTitle(text = "Overview")
+            SummaryCard(entries = entries)
+            SmallTitle(text = "Options")
+            FilterCard(
+                selectedFilter = selectedFilter,
+                shownCount = filteredEntries.size,
+                exportStatus = exportStatus,
+                onSelected = { selectedFilter = it }
+            )
+            SmallTitle(text = "Runtime (${filteredEntries.size})")
+            if (filteredEntries.isEmpty()) {
+                EmptyLogCard()
+            } else {
+                LogEntriesCard(
+                    entries = filteredEntries,
+                    onEntryCopied = { exportStatus = "Copied 1 log entry" }
                 )
             }
-            item("runtime_title") {
-                SmallTitle(text = "Runtime (${filteredEntries.size})")
-            }
-            if (filteredEntries.isEmpty()) {
-                item("empty") {
-                    EmptyLogCard()
-                }
-            } else {
-                item("runtime") {
-                    LogEntriesCard(entries = filteredEntries)
-                }
-            }
-            item("bottom_spacer") { Spacer(modifier = Modifier.height(48.dp)) }
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
@@ -227,9 +343,10 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
 }
 
 @Composable
-private fun FilterRow(
+private fun FilterCard(
     selectedFilter: LogFilter,
     shownCount: Int,
+    exportStatus: String?,
     onSelected: (LogFilter) -> Unit
 ) {
     Card(
@@ -240,24 +357,48 @@ private fun FilterRow(
         OverlayDropdownPreference(
             title = "Log Filter",
             summary = "$shownCount records shown",
+            startAction = {
+                Icon(
+                    imageVector = MiuixIcons.Filter,
+                    contentDescription = "Filter",
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+            },
             items = logFilters.map { it.label },
             selectedIndex = logFilters.indexOf(selectedFilter),
             onSelectedIndexChange = { index ->
                 logFilters.getOrNull(index)?.let(onSelected)
             }
         )
+        if (exportStatus != null) {
+            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            BasicComponent(
+                title = "Export",
+                summary = exportStatus
+            )
+        }
     }
 }
 
 @Composable
-private fun LogEntriesCard(entries: List<DebugLogEntry>) {
+private fun LogEntriesCard(
+    entries: List<DebugLogEntry>,
+    onEntryCopied: () -> Unit
+) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
     ) {
         entries.forEachIndexed { index, entry ->
-            LogEntryRow(entry = entry)
+            LogEntryRow(
+                entry = entry,
+                onCopy = {
+                    copyText(context, "HyperTweak Log Entry", formatSingleEntry(entry))
+                    onEntryCopied()
+                }
+            )
             if (index != entries.lastIndex) {
                 HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
             }
@@ -266,11 +407,22 @@ private fun LogEntriesCard(entries: List<DebugLogEntry>) {
 }
 
 @Composable
-private fun LogEntryRow(entry: DebugLogEntry) {
+private fun LogEntryRow(
+    entry: DebugLogEntry,
+    onCopy: () -> Unit
+) {
     var expanded by remember(entry) { mutableStateOf(entry.isError || entry.isHookFailed) }
     val entryColor = entryColor(entry)
 
-    ArrowPreference(
+    BasicComponent(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { expanded = !expanded },
+                onLongClick = onCopy
+            ),
         title = entry.scope,
         titleColor = BasicComponentDefaults.titleColor(
             color = if (entry.isError) entryColor else MiuixTheme.colorScheme.onBackground
@@ -284,14 +436,7 @@ private fun LogEntryRow(entry: DebugLogEntry) {
                 maxLines = 1
             )
         },
-        bottomAction = if (expanded) {
-            {
-                LogEntryDetails(entry = entry)
-            }
-        } else {
-            null
-        },
-        onClick = { expanded = !expanded },
+        bottomAction = if (expanded) ({ LogEntryDetails(entry = entry) }) else null,
         holdDownState = expanded
     )
 }
@@ -365,6 +510,15 @@ private fun levelColor(level: String): Color {
     }
 }
 
+@Composable
+private fun actionTint(enabled: Boolean): Color {
+    return if (enabled) {
+        MiuixTheme.colorScheme.onSurfaceVariantActions
+    } else {
+        MiuixTheme.colorScheme.disabledOnSecondaryVariant
+    }
+}
+
 private fun buildPreviewText(entry: DebugLogEntry): String {
     val event = eventLabel(entry)
     val message = entry.message.trim()
@@ -373,6 +527,71 @@ private fun buildPreviewText(entry: DebugLogEntry): String {
         message == event -> event
         else -> "$event · $message"
     }
+}
+
+private fun buildExportText(
+    entries: List<DebugLogEntry>,
+    filter: LogFilter,
+    totalCount: Int
+): String {
+    val header = buildString {
+        append("HyperTweak Debug Logs\n")
+        append("Filter: ${filter.label}\n")
+        append("Shown: ${entries.size} / $totalCount\n")
+        append("Exported: ${formatExportTime()}\n\n")
+    }
+    val body = entries.joinToString("\n\n", transform = ::formatSingleEntry)
+    return header + body
+}
+
+private fun formatSingleEntry(entry: DebugLogEntry): String {
+    return buildString {
+        append("[${entry.level}] ${entry.time} ${entry.scope}")
+        append("\n")
+        append(entry.message)
+        if (entry.stack.isNotBlank()) {
+            append("\n")
+            append(entry.stack)
+        }
+    }
+}
+
+private fun copyText(context: Context, label: String, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+}
+
+private fun shareText(context: Context, title: String, text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, title)
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(intent, title)
+    if (context.findActivity() == null) {
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    context.startActivity(chooser)
+}
+
+private tailrec fun Context.findActivity(): android.app.Activity? {
+    return when (this) {
+        is android.app.Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
+}
+
+private fun defaultLogFileName(): String {
+    return "hyper-tweak-logs-${formatExportStamp()}.txt"
+}
+
+private fun formatExportTime(): String {
+    return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+}
+
+private fun formatExportStamp(): String {
+    return SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())
 }
 
 private fun DebugLogEntry.shortTime(): String {
