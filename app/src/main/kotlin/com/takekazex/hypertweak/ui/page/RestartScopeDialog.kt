@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -169,7 +170,7 @@ fun AppRestartPreference(
             drawable.toBitmap(100, 100).asImageBitmap()
         } catch (e: Exception) {
             try {
-                val drawable = context.getDrawable(com.takekazex.hypertweak.R.mipmap.ic_launcher)
+                val drawable = ContextCompat.getDrawable(context, com.takekazex.hypertweak.R.mipmap.ic_launcher)
                 drawable?.toBitmap(100, 100)?.asImageBitmap()
             } catch (e2: Exception) {
                 null

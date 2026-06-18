@@ -4,9 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.os.Process
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.base.StaticHooker
 
 object RestartBroadcastHooker : StaticHooker() {
@@ -50,11 +50,7 @@ object RestartBroadcastHooker : StaticHooker() {
                             }
                         }
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-                    } else {
-                        context.registerReceiver(receiver, filter)
-                    }
+                    ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
                     Log.d("HyperTweak", "RestartBroadcastHooker: registered restart receiver in $pkgName")
                 } catch (t: Throwable) {
                     Log.e("HyperTweak", "Failed to register restart receiver in $pkgName", t)
