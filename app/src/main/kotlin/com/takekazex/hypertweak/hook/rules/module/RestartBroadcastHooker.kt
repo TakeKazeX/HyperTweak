@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 object RestartBroadcastHooker : StaticHooker() {
     private val registeredPackages = ConcurrentHashMap.newKeySet<String>()
+    private val receivers = ConcurrentHashMap<String, Pair<Context, BroadcastReceiver>>()
 
     override fun onHook() {
         // Registered from HookEntry.onPackageReady to avoid touching Application.attach.
@@ -57,10 +58,24 @@ object RestartBroadcastHooker : StaticHooker() {
                 }
             }
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+            receivers[pkgName] = appContext to receiver
             DebugLog.d("RestartBroadcastHooker", "registered restart receiver in $pkgName")
         } catch (t: Throwable) {
             registeredPackages.remove(pkgName)
             DebugLog.e("RestartBroadcastHooker", "failed to register restart receiver in $pkgName", t)
         }
+    }
+
+    fun unregisterAll() {
+        receivers.forEach { (pkgName, entry) ->
+            runCatching {
+                entry.first.unregisterReceiver(entry.second)
+                DebugLog.d("RestartBroadcastHooker", "unregistered restart receiver in $pkgName")
+            }.onFailure { t ->
+                DebugLog.w("RestartBroadcastHooker", "failed to unregister restart receiver in $pkgName", t)
+            }
+        }
+        receivers.clear()
+        registeredPackages.clear()
     }
 }

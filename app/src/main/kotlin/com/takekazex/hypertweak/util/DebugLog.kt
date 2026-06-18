@@ -9,6 +9,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
@@ -21,11 +22,6 @@ object DebugLog {
         SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     }
     private val pendingLines = ConcurrentLinkedQueue<String>()
-    private val flushExecutor by lazy {
-        Executors.newSingleThreadScheduledExecutor { runnable ->
-            Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
-        }
-    }
 
     @Volatile
     private var xposed: XposedInterface? = null
@@ -33,9 +29,20 @@ object DebugLog {
     @Volatile
     private var pendingFlush: ScheduledFuture<*>? = null
 
+    @Volatile
+    private var flushExecutor: ScheduledExecutorService? = null
+
     fun bindXposed(interfaceRef: XposedInterface) {
         xposed = interfaceRef
         d("DebugLog", "bound LSPosed logger api=${interfaceRef.apiVersion}")
+    }
+
+    fun prepareForHotReload() {
+        pendingFlush?.cancel(false)
+        flushPendingLines()
+        flushExecutor?.shutdownNow()
+        flushExecutor = null
+        xposed = null
     }
 
     fun d(scope: String, message: String) {
@@ -99,8 +106,18 @@ object DebugLog {
 
         val delay = if (immediate) 0L else FLUSH_DELAY_MS
         pendingFlush = runCatching {
-            flushExecutor.schedule({ flushPendingLines() }, delay, TimeUnit.MILLISECONDS)
+            getFlushExecutor().schedule({ flushPendingLines() }, delay, TimeUnit.MILLISECONDS)
         }.getOrNull()
+    }
+
+    @Synchronized
+    private fun getFlushExecutor(): ScheduledExecutorService {
+        val current = flushExecutor
+        if (current != null && !current.isShutdown) return current
+
+        return Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
+        }.also { flushExecutor = it }
     }
 
     private fun flushPendingLines() {

@@ -23,8 +23,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
+    private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
+    private var systemServerClassLoader: ClassLoader? = null
 
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         processName = param.processName
@@ -38,6 +40,7 @@ class HookEntry : XposedModule() {
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
         EzXposed.initOnSystemServerStarting(param)
+        systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
         dispatchSystemServerHookers(param.classLoader)
     }
@@ -46,6 +49,13 @@ class HookEntry : XposedModule() {
         if (!injectedPackages.add(param.packageName)) return
         EzXposed.initOnPackageLoaded(param)
         EzReflect.init(param.defaultClassLoader)
+        recordPackageState(
+            packageName = param.packageName,
+            classLoader = param.defaultClassLoader,
+            appInfo = param.applicationInfo,
+            isFirstPackage = param.isFirstPackage,
+            isPackageReady = false
+        )
         DebugLog.d(
             "HookEntry",
             "package loaded package=${param.packageName} process=$processName first=${param.isFirstPackage}"
@@ -62,6 +72,13 @@ class HookEntry : XposedModule() {
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
         // Establishes the target snapshot required for hot reload state restore.
         EzXposed.initOnPackageReady(param)
+        recordPackageState(
+            packageName = param.packageName,
+            classLoader = param.classLoader,
+            appInfo = param.applicationInfo,
+            isFirstPackage = false,
+            isPackageReady = true
+        )
 
         val appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
         if (appContext != null) {
@@ -78,35 +95,107 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
-        // Runs in OLD code: save the target snapshot so the new generation can restore it.
         DebugLog.d("HookEntry", "hot reloading old generation process=$processName")
-        return EzXposed.handleHotReloading(param)
+        param.setSavedInstanceState(
+            HotReloadState.save(
+                processName = processName,
+                isSystemServer = isSystemServer,
+                systemServerClassLoader = systemServerClassLoader,
+                packages = packageStates.values
+            )
+        )
+        RestartBroadcastHooker.unregisterAll()
+        DebugLog.prepareForHotReload()
+        return true
     }
 
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
-        // Runs in NEW code: unhooks old handles, restores classLoader/package, then re-hooks.
-        EzXposed.handleHotReloaded(this, param)
+        processName = param.processName
+        isSystemServer = param.isSystemServer
+        EzXposed.initOnModuleLoaded(this, param)
         initPreferences()
-        DebugLog.d("HookEntry", "hot reloaded new generation package=${EzXposed.packageName}")
+        val restoredState = HotReloadState.restore(param.savedInstanceState)
+        DebugLog.d(
+            "HookEntry",
+            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }}"
+        )
 
-        val targetClassLoader = runCatching { EzReflect.classLoader }.getOrNull() ?: run {
-            DebugLog.w("HookEntry", "hot reloaded but target classLoader is unavailable")
+        param.oldHookHandles.forEach { handle ->
+            runCatching { handle.unhook() }
+                .onFailure { DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it) }
+        }
+
+        injectedPackages.clear()
+        packageStates.clear()
+
+        if (restoredState == null) {
+            DebugLog.w("HookEntry", "hot reloaded without restorable target state")
             return
         }
-        val packageName = EzXposed.packageName
-        injectedPackages.clear()
 
-        if (EzXposed.isSystemServer) {
+        processName = restoredState.processName
+        isSystemServer = restoredState.isSystemServer
+        systemServerClassLoader = restoredState.systemServerClassLoader
+
+        if (restoredState.isSystemServer) {
+            val targetClassLoader = restoredState.systemServerClassLoader ?: run {
+                DebugLog.w("HookEntry", "hot reloaded system_server without classLoader")
+                return
+            }
+            EzReflect.init(targetClassLoader)
             dispatchSystemServerHookers(targetClassLoader)
-        } else if (packageName.isNotEmpty()) {
-            injectedPackages.add(packageName)
-            val appInfo = runCatching { EzXposed.appContextOrNull?.applicationInfo }.getOrNull()
+            return
+        }
+
+        restoredState.packages.forEach { state ->
+            recordPackageState(
+                packageName = state.packageName,
+                classLoader = state.classLoader,
+                appInfo = state.appInfo,
+                isFirstPackage = state.isFirstPackage,
+                isPackageReady = state.isPackageReady
+            )
+            injectedPackages.add(state.packageName)
+            EzReflect.init(state.classLoader)
             dispatchPackageHookers(
-                packageName = packageName,
-                classLoader = targetClassLoader,
-                appInfo = appInfo,
+                packageName = state.packageName,
+                classLoader = state.classLoader,
+                appInfo = state.appInfo,
                 isFirstPackage = false
             )
+            if (state.isPackageReady) {
+                onRestoredPackageReady(state)
+            }
+        }
+    }
+
+    private fun recordPackageState(
+        packageName: String,
+        classLoader: ClassLoader,
+        appInfo: ApplicationInfo?,
+        isFirstPackage: Boolean,
+        isPackageReady: Boolean
+    ) {
+        val old = packageStates[packageName]
+        packageStates[packageName] = HotReloadPackageState(
+            packageName = packageName,
+            processName = processName,
+            classLoader = classLoader,
+            appInfo = appInfo ?: old?.appInfo,
+            isFirstPackage = old?.isFirstPackage ?: isFirstPackage,
+            isPackageReady = old?.isPackageReady == true || isPackageReady
+        )
+    }
+
+    private fun onRestoredPackageReady(state: HotReloadPackageState) {
+        val appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
+        if (appContext != null) {
+            Preferences.initLocalCache(appContext)
+            RestartBroadcastHooker.register(appContext)
+        }
+
+        if (state.packageName == "com.android.systemui") {
+            HideBottomBarHooker.onPackageReady(appContext, state.classLoader)
         }
     }
 
