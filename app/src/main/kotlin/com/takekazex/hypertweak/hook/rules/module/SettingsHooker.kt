@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.module
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.Icon
@@ -14,7 +13,6 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import org.luckypray.dexkit.query.enums.StringMatchType
 
-@SuppressLint("DiscouragedApi")
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 10777L
 

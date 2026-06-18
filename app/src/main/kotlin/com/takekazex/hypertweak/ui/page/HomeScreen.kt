@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -17,13 +18,12 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
@@ -37,29 +37,54 @@ import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.WarningAmber
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
 fun HomeScreenContent(
     padding: PaddingValues,
     moduleActive: Boolean,
+    hotReloadAvailable: Boolean,
+    hotReloading: Boolean,
     packageName: String,
     targetSdk: Int,
     backdrop: LayerBackdrop,
     onNavigateToHiddenFeatures: () -> Unit,
+    onHotReload: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
-    val containerColor = if (moduleActive) {
-        if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
-    } else {
-        if (isDark) Color(0xFF381A1A) else Color(0xFFFAEEEE)
+    val containerColor = when {
+        hotReloadAvailable -> if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
+        moduleActive -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
+        else -> if (isDark) Color(0xFF381A1A) else Color(0xFFFAEEEE)
+    }
+    val statusIcon = when {
+        hotReloadAvailable -> Icons.Rounded.WarningAmber
+        moduleActive -> Icons.Rounded.CheckCircleOutline
+        else -> Icons.Rounded.ErrorOutline
+    }
+    val statusTint = when {
+        hotReloadAvailable -> Color(0xFFFFB300)
+        moduleActive -> Color(0xFF36D167)
+        else -> Color(0xFFD13636)
+    }
+    val titleText = when {
+        hotReloadAvailable -> "Hot reload required"
+        moduleActive -> "Module is ACTIVE"
+        else -> "Module is NOT ACTIVE"
+    }
+    val summaryText = when {
+        hotReloadAvailable -> "The module is active, but running hooked processes are still using the previous code. Tap to hot reload with libxposed API 102."
+        moduleActive -> "Native libxposed module loaded successfully."
+        else -> "Please enable the module in LSPosed manager, ensure 'HyperTweak' itself is checked in the scope, and reboot or restart SystemUI."
     }
 
     val textContentColor = MiuixTheme.colorScheme.onSurface
@@ -74,6 +99,7 @@ fun HomeScreenContent(
     }
     
     var showRestartDialog by remember { mutableStateOf(false) }
+    var showHotReloadDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         topBar = {
@@ -118,7 +144,14 @@ fun HomeScreenContent(
                 colors = CardDefaults.defaultColors(
                     color = containerColor,
                     contentColor = textContentColor
-                )
+                ),
+                pressFeedbackType = PressFeedbackType.Tilt,
+                showIndication = hotReloadAvailable,
+                onClick = if (hotReloadAvailable && !hotReloading) {
+                    { showHotReloadDialog = true }
+                } else {
+                    null
+                }
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth()
@@ -130,8 +163,8 @@ fun HomeScreenContent(
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         Icon(
-                            imageVector = if (moduleActive) Icons.Rounded.CheckCircleOutline else Icons.Rounded.ErrorOutline,
-                            tint = if (moduleActive) Color(0xFF36D167) else Color(0xFFD13636),
+                            imageVector = statusIcon,
+                            tint = statusTint,
                             modifier = Modifier.size(170.dp),
                             contentDescription = null
                         )
@@ -143,17 +176,14 @@ fun HomeScreenContent(
                             .padding(20.dp)
                     ) {
                         Text(
-                            text = if (moduleActive) "Module is ACTIVE" else "Module is NOT ACTIVE",
+                            text = titleText,
                             color = textContentColor,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (moduleActive)
-                                "Native libxposed module loaded successfully."
-                            else
-                                "Please enable the module in LSPosed manager, ensure 'HyperTweak' itself is checked in the scope, and reboot or restart SystemUI.",
+                            text = summaryText,
                             color = descTextColor,
                             fontSize = 13.sp
                         )
@@ -246,5 +276,55 @@ fun HomeScreenContent(
             onDismissRequest = { showRestartDialog = false },
             onConfirm = onRestartScope
         )
+        HotReloadDialog(
+            show = showHotReloadDialog,
+            hotReloading = hotReloading,
+            onDismissRequest = { showHotReloadDialog = false },
+            onConfirm = {
+                showHotReloadDialog = false
+                onHotReload()
+            }
+        )
     }
+}
+
+@Composable
+private fun HotReloadDialog(
+    show: Boolean,
+    hotReloading: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    OverlayDialog(
+        show = show,
+        title = "Hot Reload Module",
+        onDismissRequest = onDismissRequest,
+        content = {
+            Text(
+                text = "Trigger libxposed API 102 hot reload for stale hooked processes?",
+                color = MiuixTheme.colorScheme.onSurface,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(
+                    text = "Cancel",
+                    onClick = onDismissRequest,
+                    modifier = Modifier.weight(1f),
+                    enabled = !hotReloading
+                )
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = if (hotReloading) "Reloading" else "Reload",
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(1f),
+                    enabled = !hotReloading,
+                    colors = ButtonDefaults.textButtonColorsPrimary()
+                )
+            }
+        }
+    )
 }

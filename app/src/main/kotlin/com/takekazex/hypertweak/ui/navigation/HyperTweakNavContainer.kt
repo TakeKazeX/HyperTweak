@@ -58,6 +58,8 @@ fun HyperTweakNavContainer(
 
     // Module Settings States
     moduleActive: Boolean,
+    hotReloadAvailable: Boolean,
+    hotReloading: Boolean,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
@@ -92,6 +94,7 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
+    onHotReload: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit,
     onShortcutsChanged: () -> Unit,
     appLanguage: Int,
@@ -139,6 +142,8 @@ fun HyperTweakNavContainer(
                 floatingBarStyle = floatingBarStyle,
                 backdrop = backdrop,
                 moduleActive = moduleActive,
+                hotReloadAvailable = hotReloadAvailable,
+                hotReloading = hotReloading,
                 aodFullscreen = aodFullscreen,
                 onAodFullscreenChange = onAodFullscreenChange,
                 removeGms = removeGms,
@@ -188,6 +193,7 @@ fun HyperTweakNavContainer(
                 onNavigateToAppShortcuts = {
                     backStack.add(Route.AppShortcuts)
                 },
+                onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
                 onAppLanguageChange = onAppLanguageChange

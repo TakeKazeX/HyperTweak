@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
             var appLanguage by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
+            val staleTargets by XposedServiceManager.staleTargetsFlow.collectAsState()
+            val hotReloading by XposedServiceManager.hotReloadingFlow.collectAsState()
 
             // State variables for toggles
             var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
@@ -142,6 +144,7 @@ class MainActivity : ComponentActivity() {
                     moduleActive = true
                     localPrefs.edit { putBoolean("last_known_module_activated", true) }
                     reloadAllPreferences()
+                    XposedServiceManager.refreshHotReloadTargets()
                     return@LaunchedEffect
                 }
 
@@ -149,6 +152,7 @@ class MainActivity : ComponentActivity() {
                     moduleActive = true
                     localPrefs.edit { putBoolean("last_known_module_activated", true) }
                     reloadAllPreferences()
+                    XposedServiceManager.refreshHotReloadTargets()
                 } else {
                     // Wait 500ms to allow the Xposed service binding to finish
                     kotlinx.coroutines.delay(500)
@@ -262,6 +266,8 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     moduleActive = moduleActive,
+                    hotReloadAvailable = staleTargets.isNotEmpty(),
+                    hotReloading = hotReloading,
                     aodFullscreen = aodFullscreen,
                     onAodFullscreenChange = { checked ->
                         aodFullscreen = checked
@@ -365,6 +371,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth ->
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth)
+                    },
+                    onHotReload = {
+                        XposedServiceManager.hotReloadStaleTargets()
                     },
                     appLanguage = appLanguage,
                     onAppLanguageChange = { lang ->

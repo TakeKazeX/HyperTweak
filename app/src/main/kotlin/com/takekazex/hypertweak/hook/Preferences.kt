@@ -1,10 +1,8 @@
 package com.takekazex.hypertweak.hook
 
-import android.annotation.SuppressLint
 import android.content.SharedPreferences
 import androidx.core.content.edit
 
-@SuppressLint("PrivateApi")
 object Preferences {
     const val NAME = "hypertweak_settings"
 

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
-import android.annotation.SuppressLint
 import android.graphics.Typeface
 import android.util.Log
 import android.view.View
@@ -73,7 +72,6 @@ object ColorOverrideLock {
 
 // ─── Shared Slider Hooker Helper ───────────────────────────────────────────
 
-@SuppressLint("DiscouragedApi")
 object SliderHookHelper {
     val tags = WeakHashMap<Any, HashMap<String, Any?>>()
 

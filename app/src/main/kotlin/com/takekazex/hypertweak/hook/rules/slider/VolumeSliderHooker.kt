@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
-import android.annotation.SuppressLint
 import android.graphics.Typeface
 import android.util.Log
 import android.view.View
@@ -27,7 +26,6 @@ private val LIGHT_BADGE_BG_COLOR = "#E5E5E5".toColorInt()
 private val DARK_BADGE_STROKE_COLOR = "#33FFFFFF".toColorInt()
 private val LIGHT_BADGE_STROKE_COLOR = "#33000000".toColorInt()
 
-@SuppressLint("PrivateApi")
 class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {

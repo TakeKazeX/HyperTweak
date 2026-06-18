@@ -50,6 +50,8 @@ fun MainPagerScreen(
     floatingBarStyle: Int,
     backdrop: LayerBackdrop,
     moduleActive: Boolean,
+    hotReloadAvailable: Boolean,
+    hotReloading: Boolean,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
@@ -93,6 +95,7 @@ fun MainPagerScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
+    onHotReload: () -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -236,10 +239,13 @@ fun MainPagerScreen(
                             HomeScreenContent(
                                 padding = padding,
                                 moduleActive = moduleActive,
+                                hotReloadAvailable = hotReloadAvailable,
+                                hotReloading = hotReloading,
                                 packageName = "com.takekazex.hypertweak",
                                 targetSdk = 37,
                                 backdrop = backdrop,
                                 onNavigateToHiddenFeatures = onNavigateToHiddenFeatures,
+                                onHotReload = onHotReload,
                                 onRestartScope = onRestartScope
                             )
                         }
