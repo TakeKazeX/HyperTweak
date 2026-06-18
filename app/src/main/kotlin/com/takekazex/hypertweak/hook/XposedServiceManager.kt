@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook
 
 import android.os.Bundle
-import android.util.Log
+import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.service.HookedTarget
 import io.github.libxposed.service.HotReloadResult
 import io.github.libxposed.service.XposedService
@@ -27,22 +27,23 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     fun init() {
         try {
             XposedServiceHelper.registerListener(this)
+            DebugLog.d("XposedService", "registered service listener")
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to register XposedServiceListener", t)
+            DebugLog.e("XposedService", "failed to register service listener", t)
         }
     }
 
     override fun onServiceBind(service: XposedService) {
-        Log.d("HyperTweak", "XposedServiceManager: onServiceBind")
+        DebugLog.d("XposedService", "bound service api=${service.apiVersion}")
         try {
             // IMPORTANT: init Preferences BEFORE emitting to serviceFlow.
             // LaunchedEffect(serviceConnected) in MainActivity reads from Preferences immediately
             // after observing the flow update, so RemotePreferences must be ready first.
             val remotePrefs = service.getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
-            Log.d("HyperTweak", "XposedServiceManager: switched Preferences to RemotePreferences (IPC-backed)")
+            DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to init Preferences from XposedService", t)
+            DebugLog.e("XposedService", "failed to init Preferences from service", t)
         }
         // Emit after Preferences is ready so UI observers reload from the correct source
         _serviceFlow.value = service
@@ -50,7 +51,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     }
 
     override fun onServiceDied(service: XposedService) {
-        Log.d("HyperTweak", "XposedServiceManager: onServiceDied")
+        DebugLog.w("XposedService", "service died")
         _serviceFlow.value = null
         _staleTargetsFlow.value = emptyList()
         _hotReloadingFlow.value = false
@@ -59,16 +60,19 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     fun refreshHotReloadTargets() {
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {
+            DebugLog.w("XposedService", "skip hot reload target query; service=${service != null} api=${service?.apiVersion}")
             _staleTargetsFlow.value = emptyList()
             return
         }
 
         _staleTargetsFlow.value = try {
-            service.runningTargets.filter { target ->
+            val stale = service.runningTargets.filter { target ->
                 target.state == HookedTarget.State.STALE
             }
+            DebugLog.d("XposedService", "stale hot reload targets=${stale.map { it.processName }}")
+            stale
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to query hot reload targets", t)
+            DebugLog.e("XposedService", "failed to query hot reload targets", t)
             emptyList()
         }
     }
@@ -76,6 +80,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     fun hotReloadStaleTargets(onFinished: (Boolean) -> Unit = {}) {
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {
+            DebugLog.w("XposedService", "hot reload unavailable; service=${service != null} api=${service?.apiVersion}")
             onFinished(false)
             return
         }
@@ -85,10 +90,12 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             _staleTargetsFlow.value
         }
         if (targets.isEmpty()) {
+            DebugLog.w("XposedService", "hot reload requested but no stale targets")
             onFinished(false)
             return
         }
 
+        DebugLog.d("XposedService", "requesting hot reload for ${targets.map { it.processName }}")
         _hotReloadingFlow.value = true
         val remaining = AtomicInteger(targets.size)
         val hasFailure = AtomicBoolean(false)
@@ -99,12 +106,9 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
                     val success = result.status() == HotReloadResult.Status.SUCCEEDED
                     if (!success) {
                         hasFailure.set(true)
-                        Log.e(
-                            "HyperTweak",
-                            "Hot reload failed for ${reloadedTarget.processName}: ${result.message()}"
-                        )
+                        DebugLog.e("XposedService", "hot reload failed for ${reloadedTarget.processName}: ${result.message()}")
                     } else {
-                        Log.d("HyperTweak", "Hot reload succeeded for ${reloadedTarget.processName}")
+                        DebugLog.d("XposedService", "hot reload succeeded for ${reloadedTarget.processName}")
                     }
 
                     if (remaining.decrementAndGet() == 0) {
@@ -115,7 +119,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
                 }
             } catch (t: Throwable) {
                 hasFailure.set(true)
-                Log.e("HyperTweak", "Failed to request hot reload for ${target.processName}", t)
+                DebugLog.e("XposedService", "failed to request hot reload for ${target.processName}", t)
                 if (remaining.decrementAndGet() == 0) {
                     _hotReloadingFlow.value = false
                     refreshHotReloadTargets()

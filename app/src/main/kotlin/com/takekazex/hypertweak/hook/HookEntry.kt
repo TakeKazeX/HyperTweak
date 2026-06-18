@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak.hook
 
 import android.content.pm.ApplicationInfo
-import android.util.Log
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
@@ -15,6 +14,7 @@ import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
+import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -31,11 +31,14 @@ class HookEntry : XposedModule() {
         isSystemServer = param.isSystemServer
         // Initialize EzXposed with the module interface
         EzXposed.initOnModuleLoaded(this, param)
+        DebugLog.bindXposed(this)
         initPreferences()
+        DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
         EzXposed.initOnSystemServerStarting(param)
+        DebugLog.d("HookEntry", "system_server starting")
         dispatchSystemServerHookers(param.classLoader)
     }
 
@@ -43,6 +46,10 @@ class HookEntry : XposedModule() {
         if (!injectedPackages.add(param.packageName)) return
         EzXposed.initOnPackageLoaded(param)
         EzReflect.init(param.defaultClassLoader)
+        DebugLog.d(
+            "HookEntry",
+            "package loaded package=${param.packageName} process=$processName first=${param.isFirstPackage}"
+        )
 
         dispatchPackageHookers(
             packageName = param.packageName,
@@ -60,6 +67,9 @@ class HookEntry : XposedModule() {
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
+            DebugLog.d("HookEntry", "package ready package=${param.packageName} context=${appContext.packageName}")
+        } else {
+            DebugLog.w("HookEntry", "package ready package=${param.packageName} without app context")
         }
 
         if (param.packageName == "com.android.systemui") {
@@ -69,6 +79,7 @@ class HookEntry : XposedModule() {
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
         // Runs in OLD code: save the target snapshot so the new generation can restore it.
+        DebugLog.d("HookEntry", "hot reloading old generation process=$processName")
         return EzXposed.handleHotReloading(param)
     }
 
@@ -76,8 +87,12 @@ class HookEntry : XposedModule() {
         // Runs in NEW code: unhooks old handles, restores classLoader/package, then re-hooks.
         EzXposed.handleHotReloaded(this, param)
         initPreferences()
+        DebugLog.d("HookEntry", "hot reloaded new generation package=${EzXposed.packageName}")
 
-        val targetClassLoader = runCatching { EzReflect.classLoader }.getOrNull() ?: return
+        val targetClassLoader = runCatching { EzReflect.classLoader }.getOrNull() ?: run {
+            DebugLog.w("HookEntry", "hot reloaded but target classLoader is unavailable")
+            return
+        }
         val packageName = EzXposed.packageName
         injectedPackages.clear()
 
@@ -99,9 +114,9 @@ class HookEntry : XposedModule() {
         try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
-            Log.d("HyperTweak", "HookEntry: processName=$processName, loaded remotePrefs keys=${remotePrefs.all.keys}")
+            DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to init Preferences in HookEntry", t)
+            DebugLog.e("HookEntry", "failed to init Preferences", t)
         }
     }
 
@@ -172,6 +187,7 @@ class HookEntry : XposedModule() {
         ctx: ModuleContext
     ) {
         try {
+            DebugLog.d("HookEntry", "attaching ${hooker::class.java.simpleName} package=${ctx.packageName}")
             hooker.module = this
             hooker.classLoader = targetClassLoader
             hooker.hookParam = ctx
@@ -179,7 +195,7 @@ class HookEntry : XposedModule() {
             hooker.performInit()
             hooker.updateParentState(true)
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to attach hooker: ${hooker::class.java.simpleName}", t)
+            DebugLog.e("HookEntry", "failed to attach hooker: ${hooker::class.java.simpleName}", t)
         }
     }
 }

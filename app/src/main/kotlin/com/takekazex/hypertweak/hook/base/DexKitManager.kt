@@ -1,9 +1,9 @@
 package com.takekazex.hypertweak.hook.base
 
 import android.content.Context
-import android.util.Log
 import org.luckypray.dexkit.DexKitBridge
 import java.io.File
+import com.takekazex.hypertweak.util.DebugLog
 
 object DexKitManager {
     private const val PREFS_NAME = "hypertweak_dexkit_cache"
@@ -17,9 +17,9 @@ object DexKitManager {
         try {
             System.loadLibrary("dexkit")
             isLoaded = true
-            Log.d("HyperTweak", "DexKit native library loaded successfully.")
+            DebugLog.d("DexKit", "native library loaded")
         } catch (t: Throwable) {
-            Log.e("HyperTweak", "Failed to load DexKit native library", t)
+            DebugLog.e("DexKit", "failed to load native library", t)
         }
     }
 
@@ -27,13 +27,13 @@ object DexKitManager {
     fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
         loadLibrary()
         if (!isLoaded) {
-            Log.e("HyperTweak", "DexKit not loaded. Cannot create bridge.")
+            DebugLog.e("DexKit", "not loaded; cannot create bridge")
             return null
         }
         return runCatching {
             DexKitBridge.create(apkPath).use(block)
         }.onFailure { t ->
-            Log.e("HyperTweak", "Failed to run DexKitBridge for APK $apkPath", t)
+            DebugLog.e("DexKit", "failed to run bridge for APK $apkPath", t)
         }.getOrNull()
     }
     
@@ -54,12 +54,12 @@ object DexKitManager {
     ): Map<String, Class<*>> {
         loadLibrary()
         if (!isLoaded) {
-            Log.e("HyperTweak", "DexKit not loaded. Falling back to default names.")
+            DebugLog.e("DexKit", "not loaded; falling back to default names")
             return emptyMap()
         }
 
         if (cacheDir == null) {
-            Log.e("HyperTweak", "DexKit cacheDir is null. Performing resolution without cache.")
+            DebugLog.w("DexKit", "cacheDir is null; resolving without cache")
         }
 
         val cacheFile = if (cacheDir != null) File(cacheDir, "hypertweak_dexkit_cache.properties") else null
@@ -69,7 +69,7 @@ object DexKitManager {
             runCatching {
                 cacheFile.inputStream().use { properties.load(it) }
             }.onFailure { t ->
-                Log.e("HyperTweak", "Failed to load properties cache", t)
+                DebugLog.e("DexKit", "failed to load properties cache", t)
             }
         }
 
@@ -83,7 +83,7 @@ object DexKitManager {
 
         // 1. Try reading from cache first
         if (isCacheValid) {
-            Log.d("HyperTweak", "DexKit cache is valid. Reading class names from cache.")
+            DebugLog.d("DexKit", "cache is valid; reading class names")
             for ((key, _) in queries) {
                 val cachedName = properties.getProperty(key)
                 if (cachedName != null) {
@@ -91,7 +91,7 @@ object DexKitManager {
                         val clazz = classLoader.loadClass(cachedName)
                         resolvedMap[key] = clazz
                     }.onFailure {
-                        Log.w("HyperTweak", "Failed to load cached class $cachedName for key $key")
+                        DebugLog.w("DexKit", "failed to load cached class $cachedName for key $key")
                         missingQueries[key] = queries[key]!!
                     }
                 } else {
@@ -99,13 +99,13 @@ object DexKitManager {
                 }
             }
         } else {
-            Log.d("HyperTweak", "DexKit cache is invalid or target APK updated. Will perform scan.")
+            DebugLog.d("DexKit", "cache invalid or target APK updated; scanning")
             missingQueries.putAll(queries)
         }
 
         // 2. Perform DexKit scan for missing keys
         if (missingQueries.isNotEmpty()) {
-            Log.d("HyperTweak", "Performing DexKit scan for ${missingQueries.size} classes...")
+            DebugLog.d("DexKit", "performing scan for ${missingQueries.size} classes")
             val startTime = System.currentTimeMillis()
             withBridge(apkPath) { bridge ->
                 var cacheUpdated = false
@@ -117,12 +117,12 @@ object DexKitManager {
                             resolvedMap[key] = clazz
                             properties.setProperty(key, className)
                             cacheUpdated = true
-                            Log.d("HyperTweak", "DexKit successfully resolved $key -> $className")
+                            DebugLog.d("DexKit", "resolved $key -> $className")
                         }.onFailure { t ->
-                            Log.e("HyperTweak", "DexKit resolved $className for key $key but class load failed", t)
+                            DebugLog.e("DexKit", "resolved $className for key $key but class load failed", t)
                         }
                     } else {
-                        Log.e("HyperTweak", "DexKit query returned null for key $key")
+                        DebugLog.e("DexKit", "query returned null for key $key")
                     }
                 }
                 if (cacheUpdated && cacheFile != null && cacheDir != null) {
@@ -131,11 +131,11 @@ object DexKitManager {
                         if (!cacheDir.exists()) cacheDir.mkdirs()
                         cacheFile.outputStream().use { properties.store(it, "HyperTweak DexKit Cache") }
                     }.onFailure { t ->
-                        Log.e("HyperTweak", "Failed to write properties cache", t)
+                        DebugLog.e("DexKit", "failed to write properties cache", t)
                     }
                 }
             }
-            Log.d("HyperTweak", "DexKit scan completed in ${System.currentTimeMillis() - startTime} ms")
+            DebugLog.d("DexKit", "scan completed in ${System.currentTimeMillis() - startTime} ms")
         }
 
         return resolvedMap

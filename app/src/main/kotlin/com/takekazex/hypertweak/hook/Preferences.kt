@@ -33,6 +33,8 @@ object Preferences {
     const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
+    private const val KEY_DEBUG_LOG = "debug_log"
+    private const val MAX_DEBUG_LOG_LENGTH = 80_000
 
     private lateinit var remotePrefs: SharedPreferences
     private var localCachePrefs: SharedPreferences? = null
@@ -157,6 +159,32 @@ object Preferences {
     fun putString(key: String, value: String) {
         if (isInitialized) {
             remotePrefs.edit { putString(key, value) }
+        }
+    }
+
+    @Synchronized
+    fun appendDebugLog(line: String) {
+        if (!isInitialized) return
+        val old = remotePrefs.getString(KEY_DEBUG_LOG, "").orEmpty()
+        var next = if (old.isEmpty()) line else "$old\n$line"
+        if (next.length > MAX_DEBUG_LOG_LENGTH) {
+            next = next.takeLast(MAX_DEBUG_LOG_LENGTH)
+            val firstNewLine = next.indexOf('\n')
+            if (firstNewLine >= 0 && firstNewLine < next.lastIndex) {
+                next = next.substring(firstNewLine + 1)
+            }
+        }
+        remotePrefs.edit(commit = true) { putString(KEY_DEBUG_LOG, next) }
+    }
+
+    fun getDebugLog(): String {
+        if (!isInitialized) return ""
+        return remotePrefs.getString(KEY_DEBUG_LOG, "").orEmpty()
+    }
+
+    fun clearDebugLog() {
+        if (isInitialized) {
+            remotePrefs.edit(commit = true) { remove(KEY_DEBUG_LOG) }
         }
     }
 }

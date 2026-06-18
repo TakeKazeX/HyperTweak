@@ -75,6 +75,7 @@ fun SettingsScreenContent(
     pageScale: Float,
     onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit,
+    onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
     backdrop: LayerBackdrop,
     appLanguage: Int,
@@ -347,6 +348,11 @@ fun SettingsScreenContent(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
+                    title = "Debug Logs",
+                    summary = "View module and hook runtime logs",
+                    onClick = onNavigateToDebugLogs
+                )
+                ArrowPreference(
                     title = "About",
                     summary = "HyperTweak v${BuildConfig.VERSION_NAME}",
                     onClick = onNavigateToAbout
@@ -357,4 +363,3 @@ fun SettingsScreenContent(
         }
     }
 }
-

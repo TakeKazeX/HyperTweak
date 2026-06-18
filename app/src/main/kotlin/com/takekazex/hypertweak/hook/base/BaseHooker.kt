@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
-import android.util.Log
+import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.lingqiqi5211.ezhooktool.core.findAllConstructors
@@ -57,13 +57,13 @@ sealed class BaseHooker {
         val newState = isEffectiveEnabled
         if (oldState != newState) {
             if (newState) {
-                Log.d("HyperTweak", "Hooking $hookerName")
+                DebugLog.d("BaseHooker", "hooking $hookerName")
                 if (!isHooked) onHook()
             } else {
                 when (this) {
                     is StaticHooker -> { /* Static hookers survive for the lifetime of the process */ }
                     is DynamicHooker -> {
-                        Log.d("HyperTweak", "Unhooking $hookerName")
+                        DebugLog.d("BaseHooker", "unhooking $hookerName")
                         hookHandles.forEach { it.unhook() }
                         hookHandles.clear()
                     }
@@ -113,11 +113,18 @@ sealed class BaseHooker {
         managed: Boolean = true,
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
-        val handle = this.createHook(block = block)
-        if (!managed) return handle
-        val managed = wrapHandle(handle)
-        hookHandles.add(managed)
-        return managed
+        val target = formatExecutable(this)
+        return try {
+            val handle = this.createHook(block = block)
+            DebugLog.hookRegistered(hookerName, target)
+            if (!managed) return handle
+            val managedHandle = wrapHandle(handle)
+            hookHandles.add(managedHandle)
+            managedHandle
+        } catch (t: Throwable) {
+            DebugLog.hookFailed(hookerName, target, t)
+            throw t
+        }
     }
 
     /**
@@ -127,11 +134,18 @@ sealed class BaseHooker {
         managed: Boolean = true,
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
-        val handle = this.createHook(block = block)
-        if (!managed) return handle
-        val managed = wrapHandle(handle)
-        hookHandles.add(managed)
-        return managed
+        val target = formatExecutable(this)
+        return try {
+            val handle = this.createHook(block = block)
+            DebugLog.hookRegistered(hookerName, target)
+            if (!managed) return handle
+            val managedHandle = wrapHandle(handle)
+            hookHandles.add(managedHandle)
+            managedHandle
+        } catch (t: Throwable) {
+            DebugLog.hookFailed(hookerName, target, t)
+            throw t
+        }
     }
 
     /**
@@ -212,8 +226,23 @@ sealed class BaseHooker {
     /** Hook all declared constructors of a class. */
     fun Class<*>.hookAllConstructors(block: HookFactory.() -> Unit) {
         findAllConstructors(this).forEach { ctor ->
-            try { ctor.hook(block = block) } catch (t: Throwable) { /* ignore */ }
+            try {
+                ctor.hook(block = block)
+            } catch (t: Throwable) {
+                DebugLog.hookFailed(hookerName, formatExecutable(ctor), t)
+            }
         }
+    }
+
+    private fun formatExecutable(executable: Executable): String {
+        val owner = executable.declaringClass.name
+        val name = when (executable) {
+            is Constructor<*> -> "<init>"
+            is Method -> executable.name
+            else -> executable.name
+        }
+        val params = executable.parameterTypes.joinToString(",") { it.simpleName }
+        return "$owner#$name($params)"
     }
 
     /**

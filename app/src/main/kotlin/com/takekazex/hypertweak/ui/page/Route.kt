@@ -8,4 +8,5 @@ sealed interface Route : NavKey {
     data object Credits : Route
     data object HiddenFeatures : Route
     data object AppShortcuts : Route
+    data object DebugLogs : Route
 }

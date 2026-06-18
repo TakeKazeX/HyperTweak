@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Process
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 
 object RestartBroadcastHooker : StaticHooker() {
@@ -46,17 +46,17 @@ object RestartBroadcastHooker : StaticHooker() {
                         }
 
                         if (shouldRestart) {
-                            Log.d("HyperTweak", "RestartBroadcastHooker: killing process $pkgName")
+                            DebugLog.w("RestartBroadcastHooker", "killing process $pkgName by restart broadcast")
                             Process.killProcess(Process.myPid())
                         }
                     }
                 }
             }
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
-            Log.d("HyperTweak", "RestartBroadcastHooker: registered restart receiver in $pkgName")
+            DebugLog.d("RestartBroadcastHooker", "registered restart receiver in $pkgName")
         } catch (t: Throwable) {
             registeredPackages.remove(pkgName)
-            Log.e("HyperTweak", "Failed to register restart receiver in $pkgName", t)
+            DebugLog.e("RestartBroadcastHooker", "failed to register restart receiver in $pkgName", t)
         }
     }
 }

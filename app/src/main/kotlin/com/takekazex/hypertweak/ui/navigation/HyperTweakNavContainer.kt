@@ -31,6 +31,7 @@ import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
+import com.takekazex.hypertweak.ui.page.DebugLogPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -187,6 +188,9 @@ fun HyperTweakNavContainer(
                 onNavigateToAbout = {
                     backStack.add(Route.About)
                 },
+                onNavigateToDebugLogs = {
+                    backStack.add(Route.DebugLogs)
+                },
                 onNavigateToHiddenFeatures = {
                     backStack.add(Route.HiddenFeatures)
                 },
@@ -230,6 +234,13 @@ fun HyperTweakNavContainer(
                     if (backStack.size > 1) backStack.removeLast()
                 },
                 onShortcutsChanged = onShortcutsChanged
+            )
+        }
+        entry<Route.DebugLogs> {
+            DebugLogPage(
+                onBack = {
+                    if (backStack.size > 1) backStack.removeLast()
+                }
             )
         }
     }

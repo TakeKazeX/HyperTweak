@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
+import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 
 object SystemUIPluginHooker : StaticHooker() {
@@ -16,6 +17,7 @@ object SystemUIPluginHooker : StaticHooker() {
 
         val clzPluginInstance = "com.android.systemui.shared.plugins.PluginInstance".toClassOrNull()
         if (clzPluginInstance == null) {
+            DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance", "class not found")
             Log.e("HyperTweak", "SystemUIPluginHooker: com.android.systemui.shared.plugins.PluginInstance class not found")
             return
         }
@@ -94,6 +96,7 @@ object SystemUIPluginHooker : StaticHooker() {
                                     Log.d("HyperTweak", "SystemUIPluginHooker: Attached SliderPercentageHooker to plugin ClassLoader")
                                 }
                             } else {
+                                DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
                                 Log.e("HyperTweak", "SystemUIPluginHooker: Failed to extract ClassLoader from mClassLoaderFactory")
                             }
                         }
@@ -102,7 +105,10 @@ object SystemUIPluginHooker : StaticHooker() {
                     }
                 }
             }
-        } ?: Log.e("HyperTweak", "SystemUIPluginHooker: loadPlugin method not found")
+        } ?: run {
+            DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance#loadPlugin", "method not found")
+            Log.e("HyperTweak", "SystemUIPluginHooker: loadPlugin method not found")
+        }
 
         // Hook unloadPlugin() to release hooks and prevent leaks when plugin is unloaded
         clzPluginInstance.declaredMethods.firstOrNull { it.name == "unloadPlugin" }?.let { method ->
@@ -121,6 +127,9 @@ object SystemUIPluginHooker : StaticHooker() {
                     }
                 }
             }
-        } ?: Log.e("HyperTweak", "SystemUIPluginHooker: unloadPlugin method not found")
+        } ?: run {
+            DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance#unloadPlugin", "method not found")
+            Log.e("HyperTweak", "SystemUIPluginHooker: unloadPlugin method not found")
+        }
     }
 }
