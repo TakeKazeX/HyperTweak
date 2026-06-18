@@ -132,14 +132,12 @@ dependencies {
     implementation("androidx.navigationevent:navigationevent:1.1.2")
 
     // libxposed
-    //noinspection NewerVersionAvailable
-    compileOnly("io.github.libxposed:api:101.0.1")
-    //noinspection NewerVersionAvailable
-    implementation("io.github.libxposed:service:101.0.0")
+    compileOnly("io.github.libxposed:api:102.0.0")
+    implementation("io.github.libxposed:service:102.0.0")
 
     // EzHookTool
     implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.0-rc04")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-101:1.1.0-rc01")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.1.0-rc04")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")

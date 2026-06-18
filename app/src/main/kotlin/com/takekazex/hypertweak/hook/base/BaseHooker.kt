@@ -155,9 +155,17 @@ sealed class BaseHooker {
     private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle {
         return object : XposedInterface.HookHandle {
             override fun getExecutable(): Executable = original.executable
+            override fun getId(): String? = original.getId()
             override fun unhook() {
                 original.unhook()
                 hookHandles.remove(this)
+            }
+            override fun replaceHook(hooker: XposedInterface.Hooker): XposedInterface.HookHandle {
+                val replaced = original.replaceHook(hooker)
+                hookHandles.remove(this)
+                val managed = wrapHandle(replaced)
+                hookHandles.add(managed)
+                return managed
             }
         }
     }
