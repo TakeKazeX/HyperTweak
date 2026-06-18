@@ -1,42 +1,117 @@
 package com.takekazex.hypertweak.hook.base
 
 import android.content.Context
+import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import java.io.File
-import com.takekazex.hypertweak.util.DebugLog
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 object DexKitManager {
     private const val PREFS_NAME = "hypertweak_dexkit_cache"
     private const val KEY_LAST_MODIFIED = "apk_last_modified"
-    
+    private val bridgeLock = ReentrantLock()
+    private val bridgeDrained = bridgeLock.newCondition()
+
+    @Volatile
     private var isLoaded = false
-    
-    @Synchronized
-    fun loadLibrary() {
-        if (isLoaded) return
-        try {
-            System.loadLibrary("dexkit")
-            isLoaded = true
-            DebugLog.d("DexKit", "native library loaded")
-        } catch (t: Throwable) {
-            DebugLog.e("DexKit", "failed to load native library", t)
+
+    @Volatile
+    private var activeBridgeUsers = 0
+
+    @Volatile
+    private var hotReloadPreparing = false
+
+    fun loadLibrary(): Boolean {
+        if (hotReloadPreparing) {
+            DebugLog.w("DexKit", "skip loading native library during hot reload preparation")
+            return false
+        }
+        bridgeLock.withLock {
+            if (hotReloadPreparing) {
+                DebugLog.w("DexKit", "skip loading native library during hot reload preparation")
+                return false
+            }
+            if (isLoaded) return true
+            try {
+                System.loadLibrary("dexkit")
+                isLoaded = true
+                DebugLog.d("DexKit", "native library loaded")
+            } catch (t: Throwable) {
+                DebugLog.e("DexKit", "failed to load native library", t)
+            }
+            return isLoaded
         }
     }
 
-    @Synchronized
+    fun prepareForHotReload(timeoutMs: Long = 1500L): Boolean {
+        bridgeLock.withLock {
+            hotReloadPreparing = true
+            if (activeBridgeUsers == 0) {
+                DebugLog.d("DexKit", "hot reload preparation complete; no active bridge users")
+                return true
+            }
+
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (activeBridgeUsers > 0) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0) break
+                runCatching { bridgeDrained.awaitNanos(remaining * 1_000_000L) }
+            }
+
+            val ready = activeBridgeUsers == 0
+            if (ready) {
+                DebugLog.d("DexKit", "hot reload preparation complete; active bridge users drained")
+            } else {
+                hotReloadPreparing = false
+                DebugLog.w("DexKit", "hot reload preparation timed out; activeBridgeUsers=$activeBridgeUsers")
+            }
+            return ready
+        }
+    }
+
+    fun cancelHotReloadPreparation() {
+        bridgeLock.withLock {
+            hotReloadPreparing = false
+            bridgeDrained.signalAll()
+        }
+    }
+
+    private fun enterBridgeSession(): Boolean {
+        bridgeLock.withLock {
+            if (hotReloadPreparing) return false
+            activeBridgeUsers++
+            return true
+        }
+    }
+
+    private fun exitBridgeSession() {
+        bridgeLock.withLock {
+            activeBridgeUsers = (activeBridgeUsers - 1).coerceAtLeast(0)
+            bridgeDrained.signalAll()
+        }
+    }
+
     fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
-        loadLibrary()
-        if (!isLoaded) {
-            DebugLog.e("DexKit", "not loaded; cannot create bridge")
+        if (!enterBridgeSession()) {
+            DebugLog.w("DexKit", "skip bridge creation during hot reload preparation")
             return null
         }
-        return runCatching {
-            DexKitBridge.create(apkPath).use(block)
-        }.onFailure { t ->
-            DebugLog.e("DexKit", "failed to run bridge for APK $apkPath", t)
-        }.getOrNull()
+        try {
+            if (!loadLibrary()) {
+                DebugLog.e("DexKit", "not loaded; cannot create bridge")
+                return null
+            }
+            return runCatching {
+                DexKitBridge.create(apkPath).use(block)
+            }.onFailure { t ->
+                DebugLog.e("DexKit", "failed to run bridge for APK $apkPath", t)
+            }.getOrNull()
+        } finally {
+            exitBridgeSession()
+        }
     }
-    
+
     /**
      * Resolves the required classes either from cache or by performing a DexKit scan.
      * @param cacheDir Cache directory of the target package (used to store properties cache)
@@ -52,8 +127,7 @@ object DexKitManager {
         classLoader: ClassLoader,
         queries: Map<String, (DexKitBridge) -> String?>
     ): Map<String, Class<*>> {
-        loadLibrary()
-        if (!isLoaded) {
+        if (!loadLibrary()) {
             DebugLog.e("DexKit", "not loaded; falling back to default names")
             return emptyMap()
         }

@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook
 
 import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.base.BaseHooker
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
@@ -101,18 +102,27 @@ class HookEntry : XposedModule() {
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
         )
-        param.setSavedInstanceState(
-            HotReloadState.save(
-                processName = processName,
-                isSystemServer = isSystemServer,
-                systemServerClassLoader = systemServerClassLoader,
-                packages = packageStates.values
+        val ready = runCatching {
+            param.setSavedInstanceState(
+                HotReloadState.save(
+                    processName = processName,
+                    isSystemServer = isSystemServer,
+                    systemServerClassLoader = systemServerClassLoader,
+                    packages = packageStates.values
+                )
             )
-        )
-        rootHookers.forEach { it.prepareForHotReload() }
-        rootHookers.clear()
-        DebugLog.prepareForHotReload()
-        return true
+            if (!DexKitManager.prepareForHotReload()) {
+                error("DexKit native bridge users are still active")
+            }
+            rootHookers.forEach { it.prepareForHotReload() }
+            rootHookers.clear()
+            DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
+            DebugLog.prepareForHotReload()
+        }.onFailure { t ->
+            DexKitManager.cancelHotReloadPreparation()
+            DebugLog.e("HookEntry", "hot reload preparation failed; keeping old generation active", t)
+        }.isSuccess
+        return ready
     }
 
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
