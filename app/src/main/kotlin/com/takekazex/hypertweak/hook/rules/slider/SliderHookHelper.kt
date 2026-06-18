@@ -6,7 +6,6 @@ import android.view.View
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.graphics.toColorInt
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.ResourceLookup
 import java.util.WeakHashMap
 
@@ -75,6 +74,9 @@ object ColorOverrideLock {
 
 object SliderHookHelper {
     val tags = WeakHashMap<Any, HashMap<String, Any?>>()
+
+    @Volatile
+    var sameStyleEnabled = false
 
     // Animator cache coordinates
     var fromLeft = 0
@@ -233,7 +235,7 @@ object SliderHookHelper {
     fun applyTopTextStyle(topText: TextView, force: Boolean = false, sliderType: String? = null) {
         val context = topText.context
         val blurSupported = isBlurSupported(context)
-        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        val sameStyle = sameStyleEnabled
         val resolvedType = sliderType ?: getTag(topText, "sliderType") as? String
 
         if (resolvedType != null) {

@@ -7,16 +7,31 @@ import io.github.libxposed.api.XposedInterface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 object DebugLog {
     private const val TAG = "HyperTweak"
     private const val FIELD_SEPARATOR = "\u001F"
+    private const val FLUSH_DELAY_MS = 750L
+    private const val MAX_PENDING_LINES = 64
     private val formatter = ThreadLocal.withInitial {
         SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
+    }
+    private val pendingLines = ConcurrentLinkedQueue<String>()
+    private val flushExecutor by lazy {
+        Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
+        }
     }
 
     @Volatile
     private var xposed: XposedInterface? = null
+
+    @Volatile
+    private var pendingFlush: ScheduledFuture<*>? = null
 
     fun bindXposed(interfaceRef: XposedInterface) {
         xposed = interfaceRef
@@ -66,8 +81,37 @@ object DebugLog {
             }
         }
 
+        enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+    }
+
+    private fun enqueueLine(line: String, urgent: Boolean) {
+        pendingLines.offer(line)
+        scheduleFlush(urgent || pendingLines.size >= MAX_PENDING_LINES)
+    }
+
+    @Synchronized
+    private fun scheduleFlush(immediate: Boolean) {
+        val current = pendingFlush
+        if (!immediate && current != null && !current.isDone) return
+        if (immediate && current != null && !current.isDone) {
+            current.cancel(false)
+        }
+
+        val delay = if (immediate) 0L else FLUSH_DELAY_MS
+        pendingFlush = runCatching {
+            flushExecutor.schedule({ flushPendingLines() }, delay, TimeUnit.MILLISECONDS)
+        }.getOrNull()
+    }
+
+    private fun flushPendingLines() {
+        val lines = mutableListOf<String>()
+        while (true) {
+            val line = pendingLines.poll() ?: break
+            lines.add(line)
+        }
+        if (lines.isEmpty()) return
         runCatching {
-            Preferences.appendDebugLog(formatLine(priority, scope, message, throwable))
+            Preferences.appendDebugLogs(lines)
         }
     }
 

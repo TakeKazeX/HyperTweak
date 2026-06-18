@@ -164,9 +164,16 @@ object Preferences {
 
     @Synchronized
     fun appendDebugLog(line: String) {
+        appendDebugLogs(listOf(line))
+    }
+
+    @Synchronized
+    fun appendDebugLogs(lines: List<String>) {
         if (!isInitialized) return
+        if (lines.isEmpty()) return
         val old = remotePrefs.getString(KEY_DEBUG_LOG, "").orEmpty()
-        var next = if (old.isEmpty()) line else "$old\n$line"
+        val appended = lines.joinToString("\n")
+        var next = if (old.isEmpty()) appended else "$old\n$appended"
         if (next.length > MAX_DEBUG_LOG_LENGTH) {
             next = next.takeLast(MAX_DEBUG_LOG_LENGTH)
             val firstNewLine = next.indexOf('\n')

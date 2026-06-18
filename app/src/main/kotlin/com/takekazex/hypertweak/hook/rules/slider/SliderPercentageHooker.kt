@@ -11,6 +11,13 @@ class SliderPercentageHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
 ) : DynamicHooker() {
+    @Volatile
+    var showPercentageEnabled: Boolean = false
+        private set
+
+    @Volatile
+    var sameStyleEnabled: Boolean = false
+        private set
 
     fun resolveClass(className: String, initialize: Boolean = false): Class<Any>? {
         val resolvedClass = resolveViaDexKit(className)
@@ -114,12 +121,17 @@ class SliderPercentageHooker(
     }
 
     override fun onHook() {
-        Log.d("HyperTweak", "SliderPercentageHooker dispatcher attaching child hookers")
+        showPercentageEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+        sameStyleEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        SliderHookHelper.sameStyleEnabled = sameStyleEnabled
+        if (!showPercentageEnabled) return
 
         // Attach child hookers which perform the actual hooks on the classes
         attach(BrightnessSliderHooker(this))
         attach(VolumeSliderHooker(this))
         attach(CommonSliderHooker(this))
+
+        if (!sameStyleEnabled) return
 
         // Hook TextView.setTextColor to intercept and force color state when unified style is active
         runCatching {
@@ -128,7 +140,7 @@ class SliderPercentageHooker(
                 before { param ->
                     val textView = param.thisObject as TextView
                     val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
-                    if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
+                    if (sliderType != null && sameStyleEnabled) {
                         if (ColorOverrideLock.isSettingColor.get() != true) {
                             val activeColor = SliderHookHelper.getActiveColor(textView.context, sliderType)
                             param.args[0] = android.content.res.ColorStateList.valueOf(activeColor)
@@ -146,7 +158,7 @@ class SliderPercentageHooker(
                 before { param ->
                     val textView = param.thisObject as TextView
                     val sliderType = SliderHookHelper.getTag(textView, "sliderType") as? String
-                    if (sliderType != null && Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) {
+                    if (sliderType != null && sameStyleEnabled) {
                         if (ColorOverrideLock.isSettingColor.get() != true) {
                             val activeColor = SliderHookHelper.getActiveColor(textView.context, sliderType)
                             param.args[0] = activeColor

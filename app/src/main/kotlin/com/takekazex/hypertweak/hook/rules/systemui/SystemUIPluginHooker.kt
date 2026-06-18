@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -13,7 +14,10 @@ object SystemUIPluginHooker : StaticHooker() {
     private val activePluginHookers = ConcurrentHashMap<Any, SliderPercentageHooker>()
 
     override fun onHook() {
-        Log.d("HyperTweak", "SystemUIPluginHooker: attaching hooks")
+        if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+            DebugLog.hookSkipped("SystemUIPlugin", "control center plugin hooks", "disabled")
+            return
+        }
 
         val clzPluginInstance = "com.android.systemui.shared.plugins.PluginInstance".toClassOrNull()
         if (clzPluginInstance == null) {
@@ -24,7 +28,6 @@ object SystemUIPluginHooker : StaticHooker() {
 
         // Hook loadPlugin() to capture the plugin ClassLoader after loading
         clzPluginInstance.declaredMethods.firstOrNull { it.name == "loadPlugin" }?.let { method ->
-            Log.d("HyperTweak", "SystemUIPluginHooker: Hooking loadPlugin")
             method.hook {
                 after { param ->
                     runCatching {
@@ -32,10 +35,7 @@ object SystemUIPluginHooker : StaticHooker() {
                         val componentName = pluginInstance.javaClass.getDeclaredField("mComponentName")
                             .apply { isAccessible = true }.get(pluginInstance) as? ComponentName
 
-                        Log.d("HyperTweak", "SystemUIPluginHooker: loadPlugin called for component: $componentName")
-
                         if (componentName != null && (componentName.packageName == "miui.systemui.plugin" || componentName.className == "miui.systemui.controlcenter.MiuiControlCenter")) {
-                            Log.d("HyperTweak", "SystemUIPluginHooker: Control Center plugin loaded: $componentName")
                             
                             val mPluginFactory = pluginInstance.javaClass.getDeclaredField("mPluginFactory")
                                 .apply { isAccessible = true }.get(pluginInstance)
@@ -45,27 +45,6 @@ object SystemUIPluginHooker : StaticHooker() {
                             val classLoader = (mClassLoaderFactory as? java.util.function.Supplier<*>)?.get() as? ClassLoader
 
                             if (classLoader != null) {
-                                Log.d("HyperTweak", "SystemUIPluginHooker: Extracted ClassLoader: $classLoader")
-                                
-                                runCatching {
-                                    val clz = classLoader.loadClass("miui.systemui.util.MiuiColorBlendToken")
-                                    Log.d("HyperTweak", "MiuiColorBlendToken methods in plugin:")
-                                    clz.declaredMethods.forEach { method ->
-                                        Log.d("HyperTweak", "  Method: ${method.name} with params: ${method.parameterTypes.map { it.name }}")
-                                    }
-                                }.onFailure { t ->
-                                    Log.e("HyperTweak", "Failed to dump MiuiColorBlendToken methods in plugin", t)
-                                }
-
-                                runCatching {
-                                    val clz = classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                                    Log.d("HyperTweak", "MiBlurCompat methods in plugin:")
-                                    clz.declaredMethods.forEach { method ->
-                                        Log.d("HyperTweak", "  Method: ${method.name} with params: ${method.parameterTypes.map { it.name }}")
-                                    }
-                                }.onFailure { t ->
-                                    Log.e("HyperTweak", "Failed to dump MiBlurCompat methods in plugin", t)
-                                }
 
                                 if (!activePluginHookers.containsKey(pluginInstance)) {
                                     val mAppContext = runCatching {
@@ -84,7 +63,6 @@ object SystemUIPluginHooker : StaticHooker() {
                                     val pluginApkPath = mAppInfo?.sourceDir ?: ""
 
                                     val hooker = if (mAppContext != null && pluginApkPath.isNotEmpty()) {
-                                        Log.d("HyperTweak", "SystemUIPluginHooker: Instantiating SliderPercentageHooker with DexKit support")
                                         SliderPercentageHooker(mAppContext, pluginApkPath)
                                     } else {
                                         Log.w("HyperTweak", "SystemUIPluginHooker: Missing context or APK paths, instantiating with default fallback")
@@ -93,7 +71,6 @@ object SystemUIPluginHooker : StaticHooker() {
                                     
                                     activePluginHookers[pluginInstance] = hooker
                                     attach(hooker, classLoader)
-                                    Log.d("HyperTweak", "SystemUIPluginHooker: Attached SliderPercentageHooker to plugin ClassLoader")
                                 }
                             } else {
                                 DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
@@ -112,14 +89,12 @@ object SystemUIPluginHooker : StaticHooker() {
 
         // Hook unloadPlugin() to release hooks and prevent leaks when plugin is unloaded
         clzPluginInstance.declaredMethods.firstOrNull { it.name == "unloadPlugin" }?.let { method ->
-            Log.d("HyperTweak", "SystemUIPluginHooker: Hooking unloadPlugin")
             method.hook {
                 before { param ->
                     runCatching {
                         val pluginInstance = param.thisObject
                         val hooker = activePluginHookers.remove(pluginInstance)
                         if (hooker != null) {
-                            Log.d("HyperTweak", "SystemUIPluginHooker: Control Center plugin unloaded, detaching and disabling hooker")
                             detach(hooker)
                         }
                     }.onFailure { t ->

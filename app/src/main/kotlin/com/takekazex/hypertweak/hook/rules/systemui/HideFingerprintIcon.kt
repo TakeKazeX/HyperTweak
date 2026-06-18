@@ -8,17 +8,25 @@ import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.ResourceLookup
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
+import java.util.concurrent.ConcurrentHashMap
 
 object HideFingerprintIcon : StaticHooker() {
     private var normal: Int? = null
     private var light: Int? = null
     private var aod: Int? = null
     private var cachedField: Field? = null
+    @Volatile
+    private var hideFingerprintEnabled = false
 
-    private val shouldHideCache = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
+    private val shouldHideCache = ConcurrentHashMap<Int, Boolean>()
 
     override fun onHook() {
-        DebugLog.d("HideFingerprint", "onHook called")
+        hideFingerprintEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
+        if (!hideFingerprintEnabled) {
+            DebugLog.hookSkipped("HideFingerprint", "fingerprint icon hooks", "disabled")
+            return
+        }
+
         val clzAnimation = resolveAppClass(
             "com.miui.keyguard.biometrics.fod.MiuiGxzwFrameAnimation",
             mapOf("MiuiGxzwFrameAnimation" to { bridge ->
@@ -39,13 +47,9 @@ object HideFingerprintIcon : StaticHooker() {
         )
         if (clzAnimation == null) {
             DebugLog.hookSkipped("HideFingerprint", "MiuiGxzwFrameAnimation", "class not found")
-        } else {
-            DebugLog.d("HideFingerprint", "resolved animation class=${clzAnimation.name}")
         }
         if (clzIconView == null) {
             DebugLog.hookSkipped("HideFingerprint", "MiuiGxzwIconView", "class not found")
-        } else {
-            DebugLog.d("HideFingerprint", "resolved icon view class=${clzIconView.name}")
         }
 
         // 1. Hook the FrameAnimation draw method to substitute fingerprint circle frame drawables with a transparent drawable
@@ -59,7 +63,6 @@ object HideFingerprintIcon : StaticHooker() {
         drawMethod?.hook {
             before { param ->
                 val resID = param.args[0] as Int
-                if (!Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) return@before
 
                 val cached = shouldHideCache[resID]
                 if (cached != null) {
@@ -76,7 +79,6 @@ object HideFingerprintIcon : StaticHooker() {
                         cachedField = this
                     }
                     val context = field.get(anim) as? Context ?: return@before
-                    Preferences.initLocalCache(context)
                     val resources = context.resources
                     val pkgName = context.packageName
 
@@ -95,7 +97,6 @@ object HideFingerprintIcon : StaticHooker() {
                     shouldHideCache[resID] = shouldHide
 
                     if (shouldHide) {
-                        DebugLog.d("HideFingerprint", "hide fingerprint frame resId=$resID resName=$resName")
                         param.args[0] = android.R.color.transparent
                     }
                 } catch (t: Throwable) {
@@ -111,10 +112,9 @@ object HideFingerprintIcon : StaticHooker() {
                 constructor.hook {
                     after { param ->
                         val view = param.thisObject as? View
-                        if (view != null && Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) {
+                        if (view != null) {
                             try {
                                 view.alpha = 0f
-                                DebugLog.d("HideFingerprint", "set icon view alpha to 0")
                             } catch (t: Throwable) {
                                 DebugLog.w("HideFingerprint", "failed to hide icon view", t)
                             }

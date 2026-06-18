@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.core.graphics.toColorInt
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
@@ -74,13 +73,11 @@ class VolumeSliderHooker(
 
     override fun onHook() {
         val clzVolumeSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController")
-        Log.d("HyperTweak", "VolumeSliderHooker onHook - clzVolumeSlider: ${clzVolumeSlider?.name}")
 
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
-            Log.d("HyperTweak", "Hooking Volume onBindViewHolder")
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
@@ -97,7 +94,7 @@ class VolumeSliderHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         updatePercentageText(param.thisObject, "VolumeSliderController")
                     }
                 }
@@ -107,7 +104,7 @@ class VolumeSliderHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "syncSystemVolume" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         val controller = param.thisObject
                         runCatching {
                             val topText = getTag(controller, "cached_topText") as? TextView
@@ -138,7 +135,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         val isOriginalVolumeCallback = param.args[1] as Boolean
                         if (!isOriginalVolumeCallback) {
                             val controller = param.thisObject
@@ -181,7 +178,7 @@ class VolumeSliderHooker(
 
                         if (superVolume.visibility != View.VISIBLE) return@before
 
-                        val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        val sameStyleVolume = parent.sameStyleEnabled
                         if (sameStyleVolume) {
                             val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
                             ColorOverrideLock.isSettingColor.set(true)
@@ -218,7 +215,7 @@ class VolumeSliderHooker(
 
                         if (superVolume.visibility != View.VISIBLE) return@before
 
-                        val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        val sameStyleVolume = parent.sameStyleEnabled
                         if (sameStyleVolume) {
                             val cachedBlurMode = SliderHookHelper.getTag(superVolume, "cached_blurMode") as? Int
                             if (cachedBlurMode != 3) {
@@ -247,8 +244,8 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
-                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    if (parent.showPercentageEnabled) {
+                        val sameStyle = parent.sameStyleEnabled
                         val isExpanded = param.args[5] as? Boolean ?: false
                         val thisObject = param.thisObject
                         val isInCCMainPage = runCatching {
@@ -302,7 +299,7 @@ class VolumeSliderHooker(
         }
 
         fun applyBadgeThemeColors(thisObject: Any) {
-            if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) return
+            if (!parent.showPercentageEnabled) return
             runCatching {
                 loadVpcFields(thisObject)
                 val mSuperVolumeBg = vpcField_mSuperVolumeBg?.get(thisObject) as? View
@@ -363,7 +360,7 @@ class VolumeSliderHooker(
 
                     // Style text color and typeface
                     mSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                    val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    val sameStyleVolume = parent.sameStyleEnabled
                     if (sameStyleVolume) {
                         putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
                         ColorOverrideLock.isSettingColor.set(true)
@@ -394,7 +391,7 @@ class VolumeSliderHooker(
                                 }?.let { method ->
                                     method.hook {
                                         before { param ->
-                                            if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                                            if (parent.showPercentageEnabled) {
                                                 val view = param.thisObject
                                                 val isExpanded = runCatching {
                                                     view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
@@ -408,7 +405,6 @@ class VolumeSliderHooker(
                                             }
                                         }
                                     }
-                                    Log.d("HyperTweak", "Successfully hooked updateSuperVolumeVisibility dynamically at runtime")
                                 }
                                 isVolumeViewHooked = true
                             }
@@ -439,7 +435,7 @@ class VolumeSliderHooker(
         }
 
         fun updateBadgeText(thisObject: Any, activeStream: Int) {
-            if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) return
+            if (!parent.showPercentageEnabled) return
             runCatching {
                 loadVpcFields(thisObject)
                 val mState = vpcField_mState?.get(thisObject) ?: return
@@ -489,7 +485,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val thisObject = param.thisObject
                             loadVpcFields(thisObject)
@@ -520,7 +516,7 @@ class VolumeSliderHooker(
                                 val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
                                 val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
 
-                                val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                val sameStyleVolume = parent.sameStyleEnabled
                                 val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
                                 val columnSuperVolume = colSuperVolField.get(column) as? TextView
                                 if (columnSuperVolume != null) {
@@ -593,7 +589,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val thisObject = param.thisObject
                             val column = param.args[0] ?: return@runCatching
@@ -603,7 +599,7 @@ class VolumeSliderHooker(
                             val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
                             val superVolume = colSuperVolField.get(column) as? TextView
                             if (superVolume != null) {
-                                val sameStyleVolume = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                val sameStyleVolume = parent.sameStyleEnabled
                                 val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
                                 val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
                                 superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
@@ -619,7 +615,7 @@ class VolumeSliderHooker(
                 intercept { chain ->
                     val param = chain.args
                     val thisObject = chain.thisObject
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         val textView = param[0] as? TextView
                         if (textView != null) {
                             val skipped = runCatching {
@@ -674,7 +670,7 @@ class VolumeSliderHooker(
                                     textView.text = formatPercent(pct)
 
                                     val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
-                                    val sameStyleSuper = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                                    val sameStyleSuper = parent.sameStyleEnabled
                                     if (textView === mSuperVolume) {
                                         textView.visibility = if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
                                     } else {
@@ -731,7 +727,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 before { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         val view = param.thisObject
                         val isExpanded = runCatching {
                             view.javaClass.getMethod("isExpanded").invoke(view) as Boolean

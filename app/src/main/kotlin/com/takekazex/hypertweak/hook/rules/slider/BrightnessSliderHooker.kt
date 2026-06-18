@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.slider
 import android.util.Log
 import android.view.View
 import android.widget.TextView
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
@@ -138,15 +137,11 @@ class BrightnessSliderHooker(
 
     override fun onHook() {
         val clzBrightnessSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController")
-        Log.d("HyperTweak", "BrightnessSliderHooker onHook - clzBrightnessSlider: ${clzBrightnessSlider?.name}")
-
-
 
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
-            Log.d("HyperTweak", "Hooking Brightness onBindViewHolder")
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
@@ -163,7 +158,7 @@ class BrightnessSliderHooker(
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         updatePercentageText(param.thisObject, "BrightnessSliderController")
                     }
                 }
@@ -198,7 +193,7 @@ class BrightnessSliderHooker(
                             ?: runCatching { getOrCacheViewGetTopTextMethod(binding.javaClass)?.invoke(binding) as? TextView }.getOrNull()
                             ?: return@runCatching
 
-                        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                        val sameStyle = parent.sameStyleEnabled
                         if (sameStyle && isBlurSupported(topText.context)) {
                             if (inMirrorArg) {
                                 topText.chooseBackgroundBlurContainer(mirrorBlurProvider)
@@ -275,7 +270,7 @@ class BrightnessSliderHooker(
         clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "prepareShow" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val thisObject = param.thisObject
                             val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
@@ -298,7 +293,7 @@ class BrightnessSliderHooker(
         clzBrightnessPanelDelegate?.declaredMethods?.filter { it.name == "updateIconProgress" }?.forEach { method ->
             method.hook {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+                    if (parent.showPercentageEnabled) {
                         runCatching {
                             val thisObject = param.thisObject
                             val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
