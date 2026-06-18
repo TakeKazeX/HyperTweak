@@ -173,6 +173,11 @@ class HookEntry : XposedModule() {
                 attachHooker(PasskeyHooker, classLoader, ctx)
             }
             "com.milink.service" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx)
+                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx)
+            }
+            "com.xiaomi.bluetooth" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx)
                 attachHooker(SpatialAudioBlockerHooker, classLoader, ctx)
             }
             "com.takekazex.hypertweak" -> {

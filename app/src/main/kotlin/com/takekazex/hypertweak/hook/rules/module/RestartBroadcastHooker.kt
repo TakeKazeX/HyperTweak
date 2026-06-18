@@ -35,6 +35,8 @@ object RestartBroadcastHooker : StaticHooker() {
                         val restartAod = intent.getBooleanExtra("aod", false)
                         val restartSecurityCenter = intent.getBooleanExtra("securitycenter", false)
                         val restartScanner = intent.getBooleanExtra("scanner", false)
+                        val restartMilink = intent.getBooleanExtra("milink", false)
+                        val restartBluetooth = intent.getBooleanExtra("bluetooth", false)
 
                         val shouldRestart = when (pkgName) {
                             "com.android.systemui" -> restartSystemUi
@@ -42,6 +44,8 @@ object RestartBroadcastHooker : StaticHooker() {
                             "com.miui.aod" -> restartAod
                             "com.miui.securitycenter" -> restartSecurityCenter
                             "com.xiaomi.scanner" -> restartScanner
+                            "com.milink.service" -> restartMilink
+                            "com.xiaomi.bluetooth" -> restartBluetooth
                             else -> false
                         }
 

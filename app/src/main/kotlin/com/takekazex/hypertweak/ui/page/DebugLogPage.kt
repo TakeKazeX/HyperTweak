@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,9 +35,9 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -96,8 +97,8 @@ fun DebugLogPage(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = "Debug Logs",
+            SmallTopAppBar(
+                title = "Logs",
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -122,8 +123,7 @@ fun DebugLogPage(
                             Preferences.clearDebugLog()
                             DebugLog.d("DebugLogPage", "logs cleared from UI")
                             logText = Preferences.getDebugLog()
-                        },
-                        modifier = Modifier.padding(end = 4.dp)
+                        }
                     ) {
                         Icon(
                             imageVector = MiuixIcons.Delete,
@@ -138,11 +138,12 @@ fun DebugLogPage(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
+                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .overScrollVertical(),
+            contentPadding = PaddingValues(top = innerPadding.calculateTopPadding()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item("top_spacer") { Spacer(modifier = Modifier.height(2.dp)) }
+            item("top_spacer") { Spacer(modifier = Modifier.height(8.dp)) }
             item("summary_title") { SmallTitle(text = "Overview") }
             item("summary") {
                 SummaryCard(entries = entries)
