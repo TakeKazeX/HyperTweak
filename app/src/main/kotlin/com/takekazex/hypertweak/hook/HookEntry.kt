@@ -84,7 +84,8 @@ class HookEntry : XposedModule() {
             appInfo = param.applicationInfo,
             isFirstPackage = false,
             isPackageReady = true,
-            appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
+            appContext = runCatching { EzXposed.appContextOrNull }.getOrNull(),
+            pluginStates = currentPluginStates(param.packageName)
         )
 
         val appContext = packageStates[param.packageName]?.appContext
@@ -107,6 +108,7 @@ class HookEntry : XposedModule() {
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
         )
         val ready = runCatching {
+            refreshHotReloadSnapshots()
             param.setSavedInstanceState(
                 HotReloadState.save(
                     processName = processName,
@@ -128,6 +130,14 @@ class HookEntry : XposedModule() {
             DebugLog.e("HookEntry", "hot reload preparation failed; keeping old generation active", t)
         }.isSuccess
         return ready
+    }
+
+    private fun refreshHotReloadSnapshots() {
+        packageStates["com.android.systemui"]?.let { state ->
+            packageStates["com.android.systemui"] = state.copy(
+                pluginStates = SystemUIPluginHooker.snapshotHotReloadPlugins()
+            )
+        }
     }
 
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
@@ -177,7 +187,8 @@ class HookEntry : XposedModule() {
                 appInfo = state.appInfo,
                 isFirstPackage = state.isFirstPackage,
                 isPackageReady = state.isPackageReady,
-                appContext = state.appContext
+                appContext = state.appContext,
+                pluginStates = state.pluginStates
             )
             injectedPackages.add(state.packageName)
             EzReflect.init(state.classLoader)
@@ -236,7 +247,8 @@ class HookEntry : XposedModule() {
         appInfo: ApplicationInfo?,
         isFirstPackage: Boolean,
         isPackageReady: Boolean,
-        appContext: Context?
+        appContext: Context?,
+        pluginStates: List<HotReloadPluginState> = emptyList()
     ) {
         val old = packageStates[packageName]
         packageStates[packageName] = HotReloadPackageState(
@@ -246,7 +258,8 @@ class HookEntry : XposedModule() {
             appInfo = appInfo ?: old?.appInfo,
             isFirstPackage = old?.isFirstPackage ?: isFirstPackage,
             isPackageReady = old?.isPackageReady == true || isPackageReady,
-            appContext = appContext ?: old?.appContext
+            appContext = appContext ?: old?.appContext,
+            pluginStates = if (pluginStates.isNotEmpty()) pluginStates else old?.pluginStates.orEmpty()
         )
     }
 
@@ -282,6 +295,22 @@ class HookEntry : XposedModule() {
             }.onFailure { t ->
                 DebugLog.e("HookEntry", "failed to restore SystemUI package ready hooks", t)
             }
+            SystemUIPluginHooker.setHotReloadReplacementHandles(replacementHandles)
+            runCatching {
+                SystemUIPluginHooker.restoreHotReloadPlugins(state.pluginStates)
+            }.also {
+                SystemUIPluginHooker.setHotReloadReplacementHandles(null)
+            }.onFailure { t ->
+                DebugLog.e("HookEntry", "failed to restore SystemUI plugin hooks", t)
+            }
+        }
+    }
+
+    private fun currentPluginStates(packageName: String): List<HotReloadPluginState> {
+        return if (packageName == "com.android.systemui") {
+            SystemUIPluginHooker.snapshotHotReloadPlugins()
+        } else {
+            emptyList()
         }
     }
 
