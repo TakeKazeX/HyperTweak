@@ -166,12 +166,12 @@ sealed class BaseHooker {
 
     fun String.toClass(initialize: Boolean = false): Class<Any> {
         @Suppress("UNCHECKED_CAST")
-        return io.github.lingqiqi5211.ezhooktool.core.findClass(this, classLoader) as Class<Any>
+        return io.github.lingqiqi5211.ezhooktool.core.loadClass(this, classLoader) as Class<Any>
     }
 
     fun String.toClassOrNull(initialize: Boolean = false): Class<Any>? {
         @Suppress("UNCHECKED_CAST")
-        return io.github.lingqiqi5211.ezhooktool.core.findClassOrNull(this, classLoader) as? Class<Any>
+        return io.github.lingqiqi5211.ezhooktool.core.loadClassOrNull(this, classLoader) as? Class<Any>
     }
 
     fun String.lazyClass(initialize: Boolean = false): Lazy<Class<Any>> = lazy {
@@ -183,11 +183,11 @@ sealed class BaseHooker {
     }
 
     /** Find a method on a [Class] using EzHookTool's DSL query. */
-    fun Class<*>.findMethod(findSuper: Boolean? = null, query: MethodQuery.() -> Unit): Method =
-        io.github.lingqiqi5211.ezhooktool.core.findMethod(this, findSuper, query)
+    fun Class<*>.findMethod(query: MethodQuery.() -> Unit): Method =
+        io.github.lingqiqi5211.ezhooktool.core.findMethod(this, query)
 
-    fun Class<*>.findMethodOrNull(findSuper: Boolean? = null, query: MethodQuery.() -> Unit): Method? =
-        io.github.lingqiqi5211.ezhooktool.core.findMethodOrNull(this, findSuper, query)
+    fun Class<*>.findMethodOrNull(query: MethodQuery.() -> Unit): Method? =
+        io.github.lingqiqi5211.ezhooktool.core.findMethodOrNull(this, query)
 
     fun Class<*>.findConstructor(query: ConstructorQuery.() -> Unit): Constructor<*> =
         io.github.lingqiqi5211.ezhooktool.core.findConstructor(this, query)
@@ -195,11 +195,11 @@ sealed class BaseHooker {
     fun Class<*>.findConstructorOrNull(query: ConstructorQuery.() -> Unit): Constructor<*>? =
         io.github.lingqiqi5211.ezhooktool.core.findConstructorOrNull(this, query)
 
-    fun Class<*>.findField(findSuper: Boolean? = null, query: FieldQuery.() -> Unit) =
-        io.github.lingqiqi5211.ezhooktool.core.findField(this, findSuper, query)
+    fun Class<*>.findField(query: FieldQuery.() -> Unit) =
+        io.github.lingqiqi5211.ezhooktool.core.findField(this, query)
 
-    fun Class<*>.findFieldOrNull(findSuper: Boolean? = null, query: FieldQuery.() -> Unit) =
-        io.github.lingqiqi5211.ezhooktool.core.findFieldOrNull(this, findSuper, query)
+    fun Class<*>.findFieldOrNull(query: FieldQuery.() -> Unit) =
+        io.github.lingqiqi5211.ezhooktool.core.findFieldOrNull(this, query)
 
     /** Hook all declared constructors of a class. */
     fun Class<*>.hookAllConstructors(block: HookFactory.() -> Unit) {
