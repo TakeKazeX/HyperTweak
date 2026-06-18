@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook
 
 import android.content.pm.ApplicationInfo
+import android.content.Context
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -17,6 +18,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.util.DebugLog
+import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -57,7 +59,8 @@ class HookEntry : XposedModule() {
             classLoader = param.defaultClassLoader,
             appInfo = param.applicationInfo,
             isFirstPackage = param.isFirstPackage,
-            isPackageReady = false
+            isPackageReady = false,
+            appContext = null
         )
         DebugLog.d(
             "HookEntry",
@@ -80,10 +83,11 @@ class HookEntry : XposedModule() {
             classLoader = param.classLoader,
             appInfo = param.applicationInfo,
             isFirstPackage = false,
-            isPackageReady = true
+            isPackageReady = true,
+            appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
         )
 
-        val appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
+        val appContext = packageStates[param.packageName]?.appContext
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
@@ -115,6 +119,7 @@ class HookEntry : XposedModule() {
                 error("DexKit native bridge users are still active")
             }
             rootHookers.forEach { it.prepareForHotReload() }
+            rootHookers.forEach { it.resetAfterHotReloadPrepared() }
             rootHookers.clear()
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
             DebugLog.prepareForHotReload()
@@ -131,26 +136,14 @@ class HookEntry : XposedModule() {
         EzXposed.initOnModuleLoaded(this, param)
         initPreferences()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
-        val oldHandleIds = param.oldHookHandles.mapNotNull { it.id }.toSet()
+        val oldHandlesById = param.oldHookHandles
+            .mapNotNull { handle -> handle.id?.let { it to handle } }
+            .toMap()
+            .toMutableMap()
+        val oldHandleIds = oldHandlesById.keys
         DebugLog.d(
             "HookEntry",
             "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }} oldHandles=${param.oldHookHandles.size} oldIds=${oldHandleIds.size}"
-        )
-
-        var unhookedCount = 0
-        var unhookFailedCount = 0
-        param.oldHookHandles.forEach { handle ->
-            runCatching {
-                handle.unhook()
-                unhookedCount++
-            }.onFailure {
-                unhookFailedCount++
-                DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it)
-            }
-        }
-        DebugLog.d(
-            "HookEntry",
-            "hot reload removed old handles ok=$unhookedCount failed=$unhookFailedCount"
         )
 
         injectedPackages.clear()
@@ -169,10 +162,13 @@ class HookEntry : XposedModule() {
         if (restoredState.isSystemServer) {
             val targetClassLoader = restoredState.systemServerClassLoader ?: run {
                 DebugLog.w("HookEntry", "hot reloaded system_server without classLoader")
+                unhookRemainingOldHandles(oldHandlesById)
                 return
             }
             EzReflect.init(targetClassLoader)
-            dispatchSystemServerHookers(targetClassLoader)
+            dispatchSystemServerHookers(targetClassLoader, oldHandlesById)
+            logHotReloadHandleDiff(oldHandleIds, oldHandlesById)
+            unhookRemainingOldHandles(oldHandlesById)
             return
         }
 
@@ -182,7 +178,8 @@ class HookEntry : XposedModule() {
                 classLoader = state.classLoader,
                 appInfo = state.appInfo,
                 isFirstPackage = state.isFirstPackage,
-                isPackageReady = state.isPackageReady
+                isPackageReady = state.isPackageReady,
+                appContext = state.appContext
             )
             injectedPackages.add(state.packageName)
             EzReflect.init(state.classLoader)
@@ -190,19 +187,48 @@ class HookEntry : XposedModule() {
                 packageName = state.packageName,
                 classLoader = state.classLoader,
                 appInfo = state.appInfo,
-                isFirstPackage = false
+                isFirstPackage = false,
+                replacementHandles = oldHandlesById
             )
             if (state.isPackageReady) {
-                onRestoredPackageReady(state)
+                onRestoredPackageReady(state, oldHandlesById)
             }
         }
 
+        logHotReloadHandleDiff(oldHandleIds, oldHandlesById)
+        unhookRemainingOldHandles(oldHandlesById)
+    }
+
+    private fun logHotReloadHandleDiff(
+        oldHandleIds: Set<String>,
+        remainingOldHandles: Map<String, XposedInterface.HookHandle>
+    ) {
         val newHandleIds = rootHookers.flatMap { it.collectManagedHookHandles() }
             .mapNotNull { it.id }
             .toSet()
+        val replacedCount = oldHandleIds.size - remainingOldHandles.size
         DebugLog.d(
             "HookEntry",
-            "hot reload registered new handles=${newHandleIds.size} matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} removed=${oldHandleIds.minus(newHandleIds).size}"
+            "hot reload registered new handles=${newHandleIds.size} replaced=$replacedCount matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} remainingOld=${remainingOldHandles.size}"
+        )
+    }
+
+    private fun unhookRemainingOldHandles(handles: MutableMap<String, XposedInterface.HookHandle>) {
+        var unhookedCount = 0
+        var unhookFailedCount = 0
+        handles.values.forEach { handle ->
+            runCatching {
+                handle.unhook()
+                unhookedCount++
+            }.onFailure {
+                unhookFailedCount++
+                DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it)
+            }
+        }
+        handles.clear()
+        DebugLog.d(
+            "HookEntry",
+            "hot reload removed unmatched old handles ok=$unhookedCount failed=$unhookFailedCount"
         )
     }
 
@@ -211,7 +237,8 @@ class HookEntry : XposedModule() {
         classLoader: ClassLoader,
         appInfo: ApplicationInfo?,
         isFirstPackage: Boolean,
-        isPackageReady: Boolean
+        isPackageReady: Boolean,
+        appContext: Context?
     ) {
         val old = packageStates[packageName]
         packageStates[packageName] = HotReloadPackageState(
@@ -220,7 +247,8 @@ class HookEntry : XposedModule() {
             classLoader = classLoader,
             appInfo = appInfo ?: old?.appInfo,
             isFirstPackage = old?.isFirstPackage ?: isFirstPackage,
-            isPackageReady = old?.isPackageReady == true || isPackageReady
+            isPackageReady = old?.isPackageReady == true || isPackageReady,
+            appContext = appContext ?: old?.appContext
         )
     }
 
@@ -234,15 +262,28 @@ class HookEntry : XposedModule() {
         }
     }
 
-    private fun onRestoredPackageReady(state: HotReloadPackageState) {
-        val appContext = runCatching { EzXposed.appContextOrNull }.getOrNull()
+    private fun onRestoredPackageReady(
+        state: HotReloadPackageState,
+        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+    ) {
+        val appContext = state.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
+            DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
+        } else {
+            DebugLog.w("HookEntry", "restored package ready package=${state.packageName} without app context")
         }
 
         if (state.packageName == "com.android.systemui") {
-            HideBottomBarHooker.onPackageReady(appContext, state.classLoader)
+            HideBottomBarHooker.setHotReloadReplacementHandles(replacementHandles)
+            runCatching {
+                HideBottomBarHooker.onPackageReady(appContext, state.classLoader)
+            }.also {
+                HideBottomBarHooker.setHotReloadReplacementHandles(null)
+            }.onFailure { t ->
+                DebugLog.e("HookEntry", "failed to restore SystemUI package ready hooks", t)
+            }
         }
     }
 
@@ -256,21 +297,26 @@ class HookEntry : XposedModule() {
         }
     }
 
-    private fun dispatchSystemServerHookers(classLoader: ClassLoader) {
+    private fun dispatchSystemServerHookers(
+        classLoader: ClassLoader,
+        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+    ) {
         val ctx = ModuleContext(
             processName = processName,
             packageName = "system",
-            isSystemServer = true
+            isSystemServer = true,
+            appContext = null
         )
-        attachHooker(SystemConfigHooker, classLoader, ctx)
-        attachHooker(PasskeyHooker, classLoader, ctx)
+        attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
+        attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
     }
 
     private fun dispatchPackageHookers(
         packageName: String,
         classLoader: ClassLoader,
         appInfo: ApplicationInfo?,
-        isFirstPackage: Boolean
+        isFirstPackage: Boolean,
+        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
     ) {
         val ctx = ModuleContext(
             processName = processName,
@@ -278,46 +324,47 @@ class HookEntry : XposedModule() {
             isSystemServer = isSystemServer,
             isFirstPackage = isFirstPackage,
             isPackageReady = false,
-            appInfo = appInfo
+            appInfo = appInfo,
+            appContext = null
         )
 
         when (packageName) {
             "com.android.systemui" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(AODHooker, classLoader, ctx)
-                attachHooker(HideFingerprintIcon, classLoader, ctx)
-                attachHooker(SystemUIPluginHooker, classLoader, ctx)
-                attachHooker(HideBottomBarHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
+                attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
+                attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
+                attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.aod" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(AODHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.settings" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(SettingsHooker, classLoader, ctx)
-                attachHooker(AODHooker, classLoader, ctx)
-                attachHooker(PasskeyHooker, classLoader, ctx)
-                attachHooker(BluetoothPluginHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SettingsHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
+                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
+                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycenter" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(PasskeyHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(PasskeyHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
             }
             "com.milink.service" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.bluetooth" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx)
-                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx)
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
             }
             "com.takekazex.hypertweak" -> {
-                attachHooker(ModuleStatusHooker, classLoader, ctx)
+                attachHooker(ModuleStatusHooker, classLoader, ctx, replacementHandles)
             }
         }
     }
@@ -325,18 +372,22 @@ class HookEntry : XposedModule() {
     private fun attachHooker(
         hooker: BaseHooker,
         targetClassLoader: ClassLoader,
-        ctx: ModuleContext
+        ctx: ModuleContext,
+        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
     ) {
         try {
             DebugLog.d("HookEntry", "attaching ${hooker::class.java.simpleName} package=${ctx.packageName}")
             hooker.module = this
             hooker.classLoader = targetClassLoader
             hooker.hookParam = ctx
+            hooker.setHotReloadReplacementHandles(replacementHandles)
 
             rootHookers.add(hooker)
             hooker.performInit()
             hooker.updateParentState(true)
+            hooker.setHotReloadReplacementHandles(null)
         } catch (t: Throwable) {
+            hooker.setHotReloadReplacementHandles(null)
             DebugLog.e("HookEntry", "failed to attach hooker: ${hooker::class.java.simpleName}", t)
         }
     }

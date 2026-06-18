@@ -5,6 +5,14 @@
     public <init>();
 }
 
+# BaseHooker rebuilds EzHookTool hookers for API 102 replaceHook during hot reload.
+-keepclassmembers class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory {
+    private java.util.List stages;
+}
+-keep class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt {
+    public static io.github.libxposed.api.XposedInterface$Hooker buildHooker(java.lang.reflect.Executable, java.util.List);
+}
+
 # Keep MainActivity status checker method
 -keep class com.takekazex.hypertweak.MainActivity {
     public boolean isModuleActive();

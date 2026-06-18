@@ -23,6 +23,12 @@ object PasskeyHooker : StaticHooker() {
     private val DEPTH = ThreadLocal.withInitial { 0 }
     private val PREV_VALUE = ThreadLocal<Boolean>()
 
+    override fun onPrepareHotReload() {
+        fIsInternationalBuildBoolean = null
+        DEPTH.remove()
+        PREV_VALUE.remove()
+    }
+
     override fun onHook() {
         val packageName = hookParam.packageName
 

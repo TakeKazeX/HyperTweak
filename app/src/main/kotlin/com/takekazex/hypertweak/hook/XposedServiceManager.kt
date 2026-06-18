@@ -8,7 +8,6 @@ import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 object XposedServiceManager : XposedServiceHelper.OnServiceListener {
@@ -20,6 +19,9 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
 
     private val _hotReloadingFlow = MutableStateFlow(false)
     val hotReloadingFlow = _hotReloadingFlow.asStateFlow()
+
+    private val _hotReloadReportFlow = MutableStateFlow<HotReloadReport?>(null)
+    val hotReloadReportFlow = _hotReloadReportFlow.asStateFlow()
 
     val currentService: XposedService?
         get() = _serviceFlow.value
@@ -55,6 +57,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         _serviceFlow.value = null
         _staleTargetsFlow.value = emptyList()
         _hotReloadingFlow.value = false
+        _hotReloadReportFlow.value = null
     }
 
     fun refreshHotReloadTargets() {
@@ -77,11 +80,22 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         }
     }
 
-    fun hotReloadStaleTargets(onFinished: (Boolean) -> Unit = {}) {
+    fun hotReloadStaleTargets(onFinished: (HotReloadReport) -> Unit = {}) {
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {
             DebugLog.w("XposedService", "hot reload unavailable; service=${service != null} api=${service?.apiVersion}")
-            onFinished(false)
+            val report = HotReloadReport(
+                requestedTargets = emptyList(),
+                results = listOf(
+                    HotReloadTargetReport(
+                        processName = "libxposed",
+                        succeeded = false,
+                        message = "Hot reload requires libxposed service API 102"
+                    )
+                )
+            )
+            _hotReloadReportFlow.value = report
+            onFinished(report)
             return
         }
 
@@ -92,40 +106,58 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         val targets = staleTargets
         if (targets.isEmpty()) {
             DebugLog.w("XposedService", "hot reload requested but no stale targets")
-            onFinished(false)
+            val report = HotReloadReport(
+                requestedTargets = emptyList(),
+                results = emptyList()
+            )
+            _hotReloadReportFlow.value = report
+            onFinished(report)
             return
         }
 
         DebugLog.d("XposedService", "requesting hot reload for ${targets.map { it.processName }}")
         _hotReloadingFlow.value = true
+        _hotReloadReportFlow.value = null
         val remaining = AtomicInteger(targets.size)
-        val hasFailure = AtomicBoolean(false)
+        val results = java.util.concurrent.ConcurrentLinkedQueue<HotReloadTargetReport>()
+        val requestedTargetNames = targets.map { it.processName }
+
+        fun finishIfComplete() {
+            if (remaining.decrementAndGet() != 0) return
+            val report = HotReloadReport(
+                requestedTargets = requestedTargetNames,
+                results = results.toList().sortedBy { requestedTargetNames.indexOf(it.processName) }
+            )
+            _hotReloadingFlow.value = false
+            _hotReloadReportFlow.value = report
+            refreshHotReloadTargets()
+            onFinished(report)
+        }
 
         targets.forEach { target ->
             try {
                 service.hotReloadModule(target, Bundle()) { reloadedTarget, result ->
                     val success = result.status() == HotReloadResult.Status.SUCCEEDED
                     if (!success) {
-                        hasFailure.set(true)
                         DebugLog.e("XposedService", "hot reload failed for ${reloadedTarget.processName}: ${result.message()}")
                     } else {
                         DebugLog.d("XposedService", "hot reload succeeded for ${reloadedTarget.processName}")
                     }
-
-                    if (remaining.decrementAndGet() == 0) {
-                        _hotReloadingFlow.value = false
-                        refreshHotReloadTargets()
-                        onFinished(!hasFailure.get())
-                    }
+                    results += HotReloadTargetReport(
+                        processName = reloadedTarget.processName,
+                        succeeded = success,
+                        message = result.message()
+                    )
+                    finishIfComplete()
                 }
             } catch (t: Throwable) {
-                hasFailure.set(true)
                 DebugLog.e("XposedService", "failed to request hot reload for ${target.processName}", t)
-                if (remaining.decrementAndGet() == 0) {
-                    _hotReloadingFlow.value = false
-                    refreshHotReloadTargets()
-                    onFinished(false)
-                }
+                results += HotReloadTargetReport(
+                    processName = target.processName,
+                    succeeded = false,
+                    message = t.message ?: t.javaClass.simpleName
+                )
+                finishIfComplete()
             }
         }
     }

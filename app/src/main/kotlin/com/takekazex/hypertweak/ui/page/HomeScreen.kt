@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
+import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.util.DebugLog
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -55,11 +56,13 @@ fun HomeScreenContent(
     moduleActive: Boolean,
     hotReloadAvailable: Boolean,
     hotReloading: Boolean,
+    hotReloadTargets: List<String>,
+    hotReloadReport: HotReloadReport?,
     packageName: String,
     targetSdk: Int,
     backdrop: LayerBackdrop,
     onNavigateToHiddenFeatures: () -> Unit,
-    onHotReload: () -> Unit,
+    onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
@@ -281,14 +284,13 @@ fun HomeScreenContent(
         HotReloadDialog(
             show = showHotReloadDialog,
             hotReloading = hotReloading,
+            targets = hotReloadTargets,
+            lastReport = hotReloadReport,
             onDismissRequest = { showHotReloadDialog = false },
             onConfirm = { restartAllScopes ->
                 showHotReloadDialog = false
                 DebugLog.d("HomeScreen", "hot reload confirmed restartAllScopes=$restartAllScopes")
-                onHotReload()
-                if (restartAllScopes) {
-                    onRestartScope(true, true, true, true, true, true, true)
-                }
+                onHotReload(restartAllScopes)
             }
         )
     }
@@ -298,6 +300,8 @@ fun HomeScreenContent(
 private fun HotReloadDialog(
     show: Boolean,
     hotReloading: Boolean,
+    targets: List<String>,
+    lastReport: HotReloadReport?,
     onDismissRequest: () -> Unit,
     onConfirm: (Boolean) -> Unit
 ) {
@@ -313,6 +317,14 @@ private fun HotReloadDialog(
                 color = MiuixTheme.colorScheme.onSurface,
                 fontSize = 14.sp
             )
+            if (targets.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HotReloadTargetsCard(targets)
+            }
+            if (lastReport != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HotReloadResultCard(lastReport)
+            }
             Spacer(modifier = Modifier.height(8.dp))
             SwitchPreference(
                 checked = restartAllScopes,
@@ -364,4 +376,89 @@ private fun HotReloadDialog(
             }
         }
     )
+}
+
+@Composable
+private fun HotReloadTargetsCard(targets: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = "Stale targets",
+                color = MiuixTheme.colorScheme.onSurface,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = targets.joinToString("\n") { "- ${friendlyProcessName(it)}" },
+                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HotReloadResultCard(report: HotReloadReport) {
+    val isDark = isSystemInDarkTheme()
+    val hasFailure = report.failedCount > 0
+    val container = when {
+        hasFailure -> if (isDark) Color(0xFF3A1F1F) else Color(0xFFFFECEC)
+        report.results.isEmpty() -> if (isDark) Color(0xFF2F2A1B) else Color(0xFFFFF6D9)
+        else -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
+    }
+    val content = when {
+        hasFailure -> if (isDark) Color(0xFFFFB4AB) else Color(0xFF8C1D18)
+        report.results.isEmpty() -> if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
+        else -> if (isDark) Color(0xFF9BE6B3) else Color(0xFF12622D)
+    }
+    val title = when {
+        hasFailure -> "Last hot reload: ${report.succeededCount} succeeded, ${report.failedCount} failed"
+        report.results.isEmpty() -> "Last hot reload: no stale targets"
+        else -> "Last hot reload: all targets succeeded"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(color = container, contentColor = content),
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = title,
+                color = content,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (report.results.isNotEmpty()) {
+                Text(
+                    text = report.results.joinToString("\n") { result ->
+                        val marker = if (result.succeeded) "OK" else "FAIL"
+                        val message = result.message?.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
+                        "$marker ${friendlyProcessName(result.processName)}$message"
+                    },
+                    color = content.copy(alpha = 0.86f),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+        }
+    }
+}
+
+private fun friendlyProcessName(processName: String): String {
+    return when (processName) {
+        "system", "system_server" -> "System Server"
+        "com.android.systemui" -> "System UI"
+        "com.android.settings" -> "Settings"
+        "com.miui.aod" -> "Always-On Display"
+        "com.miui.securitycenter" -> "Security"
+        "com.xiaomi.scanner" -> "Scanner"
+        "com.milink.service" -> "MiLink Service"
+        "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
+        else -> processName
+    }
 }

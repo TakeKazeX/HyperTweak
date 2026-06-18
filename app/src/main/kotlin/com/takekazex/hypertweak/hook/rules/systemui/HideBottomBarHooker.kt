@@ -18,6 +18,12 @@ object HideBottomBarHooker : StaticHooker() {
     @Volatile
     private var raiseLayoutEnabled = false
 
+    override fun onPrepareHotReload() {
+        hooksApplied.set(false)
+        hideGestureBarEnabled = false
+        raiseLayoutEnabled = false
+    }
+
     override fun onHook() {
         hideGestureBarEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
         raiseLayoutEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)

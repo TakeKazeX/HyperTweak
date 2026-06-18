@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
             val staleTargets by XposedServiceManager.staleTargetsFlow.collectAsState()
             val hotReloading by XposedServiceManager.hotReloadingFlow.collectAsState()
+            val hotReloadReport by XposedServiceManager.hotReloadReportFlow.collectAsState()
 
             // State variables for toggles
             var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
@@ -268,6 +269,8 @@ class MainActivity : ComponentActivity() {
                     moduleActive = moduleActive,
                     hotReloadAvailable = staleTargets.isNotEmpty(),
                     hotReloading = hotReloading,
+                    hotReloadTargets = staleTargets.map { it.processName },
+                    hotReloadReport = hotReloadReport,
                     aodFullscreen = aodFullscreen,
                     onAodFullscreenChange = { checked ->
                         aodFullscreen = checked
@@ -372,8 +375,12 @@ class MainActivity : ComponentActivity() {
                     onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth ->
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth)
                     },
-                    onHotReload = {
-                        XposedServiceManager.hotReloadStaleTargets()
+                    onHotReload = { restartAllScopes ->
+                        XposedServiceManager.hotReloadStaleTargets { report ->
+                            if (restartAllScopes && report.failedCount == 0) {
+                                RestartUtils.restartScope(this@MainActivity, coroutineScope, true, true, true, true, true, true, true)
+                            }
+                        }
                     },
                     appLanguage = appLanguage,
                     onAppLanguageChange = { lang ->

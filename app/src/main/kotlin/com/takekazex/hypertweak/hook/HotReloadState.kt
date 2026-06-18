@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook
 
 import android.content.pm.ApplicationInfo
+import android.content.Context
 
 data class HotReloadPackageState(
     val packageName: String,
@@ -8,7 +9,8 @@ data class HotReloadPackageState(
     val classLoader: ClassLoader,
     val appInfo: ApplicationInfo?,
     val isFirstPackage: Boolean,
-    val isPackageReady: Boolean
+    val isPackageReady: Boolean,
+    val appContext: Context?
 )
 
 data class HotReloadTargetState(
@@ -41,7 +43,8 @@ object HotReloadState {
                     pkg.classLoader,
                     pkg.appInfo,
                     pkg.isFirstPackage,
-                    pkg.isPackageReady
+                    pkg.isPackageReady,
+                    pkg.appContext
                 )
             }.toTypedArray()
         )
@@ -64,7 +67,8 @@ object HotReloadState {
                 classLoader = pkg.getOrNull(2) as? ClassLoader ?: return@mapNotNull null,
                 appInfo = pkg.getOrNull(3) as? ApplicationInfo,
                 isFirstPackage = pkg.getOrNull(4) as? Boolean ?: false,
-                isPackageReady = pkg.getOrNull(5) as? Boolean ?: false
+                isPackageReady = pkg.getOrNull(5) as? Boolean ?: false,
+                appContext = pkg.getOrNull(6) as? Context
             )
         }
 

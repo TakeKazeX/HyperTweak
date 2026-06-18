@@ -18,6 +18,7 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import top.yukonga.miuix.kmp.basic.NavigationBar
+import com.takekazex.hypertweak.hook.HotReloadReport
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.layout.layout
@@ -52,6 +53,8 @@ fun MainPagerScreen(
     moduleActive: Boolean,
     hotReloadAvailable: Boolean,
     hotReloading: Boolean,
+    hotReloadTargets: List<String>,
+    hotReloadReport: HotReloadReport?,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
@@ -96,7 +99,7 @@ fun MainPagerScreen(
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
-    onHotReload: () -> Unit,
+    onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -242,6 +245,8 @@ fun MainPagerScreen(
                                 moduleActive = moduleActive,
                                 hotReloadAvailable = hotReloadAvailable,
                                 hotReloading = hotReloading,
+                                hotReloadTargets = hotReloadTargets,
+                                hotReloadReport = hotReloadReport,
                                 packageName = "com.takekazex.hypertweak",
                                 targetSdk = 37,
                                 backdrop = backdrop,

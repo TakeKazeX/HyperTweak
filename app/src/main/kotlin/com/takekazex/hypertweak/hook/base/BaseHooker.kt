@@ -15,6 +15,24 @@ import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArraySet
 
 sealed class BaseHooker {
+    companion object {
+        private val hookFactoryConstructor by lazy {
+            HookFactory::class.java.getDeclaredConstructor(Executable::class.java).apply {
+                isAccessible = true
+            }
+        }
+        private val hookFactoryStagesField by lazy {
+            HookFactory::class.java.getDeclaredField("stages").apply {
+                isAccessible = true
+            }
+        }
+        private val buildHookerMethod by lazy {
+            Class.forName("io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt")
+                .getDeclaredMethod("buildHooker", Executable::class.java, List::class.java)
+                .apply { isAccessible = true }
+        }
+    }
+
     lateinit var module: XposedModule
     lateinit var classLoader: ClassLoader
 
@@ -23,6 +41,8 @@ sealed class BaseHooker {
 
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
+
+    private var replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
 
     val isHooked: Boolean
         get() = hookHandles.isNotEmpty()
@@ -94,6 +114,14 @@ sealed class BaseHooker {
         }
     }
 
+    fun resetAfterHotReloadPrepared() {
+        childHookers.forEach { it.resetAfterHotReloadPrepared() }
+        hookHandles.clear()
+        childHookers.clear()
+        isSelfEnabled = true
+        isParentEnabled = false
+    }
+
     fun attach(
         hooker: BaseHooker,
         customClassLoader: ClassLoader? = null,
@@ -104,10 +132,16 @@ sealed class BaseHooker {
         hooker.module = this.module
         hooker.classLoader = customClassLoader ?: this.classLoader
         hooker.hookParam = param ?: this.hookParam
+        hooker.replacementHandles = replacementHandles
 
         childHookers.add(hooker)
         hooker.performInit()
         hooker.updateParentState(isEffectiveEnabled)
+    }
+
+    fun setHotReloadReplacementHandles(handles: MutableMap<String, XposedInterface.HookHandle>?) {
+        replacementHandles = handles
+        childHookers.forEach { it.setHotReloadReplacementHandles(handles) }
     }
 
     fun detach(hooker: BaseHooker) {
@@ -129,7 +163,13 @@ sealed class BaseHooker {
         val target = formatExecutable(this)
         val hookId = defaultHookId(this)
         return try {
-            val handle = this.createHook {
+            val replacementMap = replacementHandles
+            val oldHandle = replacementMap?.get(hookId)
+            val handle = if (oldHandle != null) {
+                replaceOldHandle(oldHandle, target, hookId, block).also {
+                    replacementMap.remove(hookId)
+                }
+            } else this.createHook {
                 id(hookId)
                 block()
             }
@@ -150,7 +190,13 @@ sealed class BaseHooker {
         val target = formatExecutable(this)
         val hookId = defaultHookId(this)
         return try {
-            val handle = this.createHook {
+            val replacementMap = replacementHandles
+            val oldHandle = replacementMap?.get(hookId)
+            val handle = if (oldHandle != null) {
+                replaceOldHandle(oldHandle, target, hookId, block).also {
+                    replacementMap.remove(hookId)
+                }
+            } else this.createHook {
                 id(hookId)
                 block()
             }
@@ -193,6 +239,23 @@ sealed class BaseHooker {
         val managedHandle = wrapHandle(handle)
         hookHandles.add(managedHandle)
         return managedHandle
+    }
+
+    private fun replaceOldHandle(
+        oldHandle: XposedInterface.HookHandle,
+        target: String,
+        hookId: String,
+        block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle {
+        val factory = hookFactoryConstructor.newInstance(oldHandle.executable) as HookFactory
+        factory.id(hookId)
+        block(factory)
+        @Suppress("UNCHECKED_CAST")
+        val stages = hookFactoryStagesField.get(factory) as List<Any>
+        val hooker = buildHookerMethod.invoke(null, oldHandle.executable, stages) as XposedInterface.Hooker
+        val replacement = oldHandle.replaceHook(hooker)
+        DebugLog.hookRegistered(hookerName, "$target id=$hookId replaced=true")
+        return replacement
     }
 
     private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle {

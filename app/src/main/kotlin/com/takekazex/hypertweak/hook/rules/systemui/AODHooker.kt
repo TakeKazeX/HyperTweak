@@ -10,6 +10,10 @@ object AODHooker : StaticHooker() {
     @Volatile
     private var fullscreenEnabled = false
 
+    override fun onPrepareHotReload() {
+        fullscreenEnabled = false
+    }
+
     override fun onHook() {
         fullscreenEnabled = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
         if (!fullscreenEnabled) return

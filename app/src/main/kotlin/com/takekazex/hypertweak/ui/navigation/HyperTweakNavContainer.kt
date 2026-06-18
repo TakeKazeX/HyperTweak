@@ -34,6 +34,7 @@ import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.DebugLogPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
+import com.takekazex.hypertweak.hook.HotReloadReport
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.launch
 
@@ -61,6 +62,8 @@ fun HyperTweakNavContainer(
     moduleActive: Boolean,
     hotReloadAvailable: Boolean,
     hotReloading: Boolean,
+    hotReloadTargets: List<String>,
+    hotReloadReport: HotReloadReport?,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
@@ -95,7 +98,7 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
-    onHotReload: () -> Unit,
+    onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit,
     onShortcutsChanged: () -> Unit,
     appLanguage: Int,
@@ -145,6 +148,8 @@ fun HyperTweakNavContainer(
                 moduleActive = moduleActive,
                 hotReloadAvailable = hotReloadAvailable,
                 hotReloading = hotReloading,
+                hotReloadTargets = hotReloadTargets,
+                hotReloadReport = hotReloadReport,
                 aodFullscreen = aodFullscreen,
                 onAodFullscreenChange = onAodFullscreenChange,
                 removeGms = removeGms,
