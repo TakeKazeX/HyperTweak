@@ -42,7 +42,7 @@ sealed class BaseHooker {
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
 
-    private var replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+    private var replacementHandles: HotReloadHandleStore? = null
 
     val isHooked: Boolean
         get() = hookHandles.isNotEmpty()
@@ -106,11 +106,23 @@ sealed class BaseHooker {
     }
 
     fun prepareForHotReload() {
-        childHookers.forEach { it.prepareForHotReload() }
-        runCatching {
-            onPrepareHotReload()
-        }.onFailure { t ->
-            DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t)
+        val failures = mutableListOf<Throwable>()
+        childHookers.forEach { child ->
+            runCatching { child.prepareForHotReload() }
+                .onFailure { t ->
+                    failures += t
+                    DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t)
+                }
+        }
+        runCatching { onPrepareHotReload() }
+            .onFailure { t ->
+                failures += t
+                DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t)
+            }
+        if (failures.isNotEmpty()) {
+            val primary = failures.first()
+            failures.drop(1).forEach(primary::addSuppressed)
+            throw primary
         }
     }
 
@@ -139,7 +151,7 @@ sealed class BaseHooker {
         hooker.updateParentState(isEffectiveEnabled)
     }
 
-    fun setHotReloadReplacementHandles(handles: MutableMap<String, XposedInterface.HookHandle>?) {
+    fun setHotReloadReplacementHandles(handles: HotReloadHandleStore?) {
         replacementHandles = handles
         childHookers.forEach { it.setHotReloadReplacementHandles(handles) }
     }
@@ -164,10 +176,10 @@ sealed class BaseHooker {
         val hookId = defaultHookId(this)
         return try {
             val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.get(hookId)
+            val oldHandle = replacementMap?.firstForId(hookId)
             val handle = if (oldHandle != null) {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
-                    replacementMap.remove(hookId)
+                    replacementMap.markHandled(oldHandle)
                 }
             } else this.createHook {
                 id(hookId)
@@ -191,10 +203,10 @@ sealed class BaseHooker {
         val hookId = defaultHookId(this)
         return try {
             val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.get(hookId)
+            val oldHandle = replacementMap?.firstForId(hookId)
             val handle = if (oldHandle != null) {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
-                    replacementMap.remove(hookId)
+                    replacementMap.markHandled(oldHandle)
                 }
             } else this.createHook {
                 id(hookId)

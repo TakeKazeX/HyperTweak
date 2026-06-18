@@ -4,6 +4,7 @@ import android.content.pm.ApplicationInfo
 import android.content.Context
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
+import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
@@ -18,7 +19,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.util.DebugLog
-import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -136,14 +136,11 @@ class HookEntry : XposedModule() {
         EzXposed.initOnModuleLoaded(this, param)
         initPreferences()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
-        val oldHandlesById = param.oldHookHandles
-            .mapNotNull { handle -> handle.id?.let { it to handle } }
-            .toMap()
-            .toMutableMap()
-        val oldHandleIds = oldHandlesById.keys
+        val oldHandles = HotReloadHandleStore(param.oldHookHandles)
+        val oldHandleIds = oldHandles.ids
         DebugLog.d(
             "HookEntry",
-            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }} oldHandles=${param.oldHookHandles.size} oldIds=${oldHandleIds.size}"
+            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }} oldHandles=${oldHandles.totalCount} oldIds=${oldHandles.idCount} unnamed=${oldHandles.unnamedCount} duplicateIds=${oldHandles.duplicateIdCount}"
         )
 
         injectedPackages.clear()
@@ -152,6 +149,7 @@ class HookEntry : XposedModule() {
 
         if (restoredState == null) {
             DebugLog.w("HookEntry", "hot reloaded without restorable target state")
+            unhookRemainingOldHandles(oldHandles)
             return
         }
 
@@ -162,13 +160,13 @@ class HookEntry : XposedModule() {
         if (restoredState.isSystemServer) {
             val targetClassLoader = restoredState.systemServerClassLoader ?: run {
                 DebugLog.w("HookEntry", "hot reloaded system_server without classLoader")
-                unhookRemainingOldHandles(oldHandlesById)
+                unhookRemainingOldHandles(oldHandles)
                 return
             }
             EzReflect.init(targetClassLoader)
-            dispatchSystemServerHookers(targetClassLoader, oldHandlesById)
-            logHotReloadHandleDiff(oldHandleIds, oldHandlesById)
-            unhookRemainingOldHandles(oldHandlesById)
+            dispatchSystemServerHookers(targetClassLoader, oldHandles)
+            logHotReloadHandleDiff(oldHandleIds, oldHandles)
+            unhookRemainingOldHandles(oldHandles)
             return
         }
 
@@ -188,44 +186,44 @@ class HookEntry : XposedModule() {
                 classLoader = state.classLoader,
                 appInfo = state.appInfo,
                 isFirstPackage = false,
-                replacementHandles = oldHandlesById
+                replacementHandles = oldHandles
             )
             if (state.isPackageReady) {
-                onRestoredPackageReady(state, oldHandlesById)
+                onRestoredPackageReady(state, oldHandles)
             }
         }
 
-        logHotReloadHandleDiff(oldHandleIds, oldHandlesById)
-        unhookRemainingOldHandles(oldHandlesById)
+        logHotReloadHandleDiff(oldHandleIds, oldHandles)
+        unhookRemainingOldHandles(oldHandles)
     }
 
     private fun logHotReloadHandleDiff(
         oldHandleIds: Set<String>,
-        remainingOldHandles: Map<String, XposedInterface.HookHandle>
+        oldHandles: HotReloadHandleStore
     ) {
         val newHandleIds = rootHookers.flatMap { it.collectManagedHookHandles() }
             .mapNotNull { it.id }
             .toSet()
-        val replacedCount = oldHandleIds.size - remainingOldHandles.size
+        val replacedCount = oldHandles.totalCount - oldHandles.remainingCount
         DebugLog.d(
             "HookEntry",
-            "hot reload registered new handles=${newHandleIds.size} replaced=$replacedCount matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} remainingOld=${remainingOldHandles.size}"
+            "hot reload registered new handles=${newHandleIds.size} replaced=$replacedCount matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} remainingOld=${oldHandles.remainingCount}"
         )
     }
 
-    private fun unhookRemainingOldHandles(handles: MutableMap<String, XposedInterface.HookHandle>) {
+    private fun unhookRemainingOldHandles(handles: HotReloadHandleStore) {
         var unhookedCount = 0
         var unhookFailedCount = 0
-        handles.values.forEach { handle ->
+        handles.remainingHandles().forEach { handle ->
             runCatching {
                 handle.unhook()
+                handles.markHandled(handle)
                 unhookedCount++
             }.onFailure {
                 unhookFailedCount++
                 DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it)
             }
         }
-        handles.clear()
         DebugLog.d(
             "HookEntry",
             "hot reload removed unmatched old handles ok=$unhookedCount failed=$unhookFailedCount"
@@ -264,7 +262,7 @@ class HookEntry : XposedModule() {
 
     private fun onRestoredPackageReady(
         state: HotReloadPackageState,
-        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+        replacementHandles: HotReloadHandleStore? = null
     ) {
         val appContext = state.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
         if (appContext != null) {
@@ -299,7 +297,7 @@ class HookEntry : XposedModule() {
 
     private fun dispatchSystemServerHookers(
         classLoader: ClassLoader,
-        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+        replacementHandles: HotReloadHandleStore? = null
     ) {
         val ctx = ModuleContext(
             processName = processName,
@@ -316,7 +314,7 @@ class HookEntry : XposedModule() {
         classLoader: ClassLoader,
         appInfo: ApplicationInfo?,
         isFirstPackage: Boolean,
-        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+        replacementHandles: HotReloadHandleStore? = null
     ) {
         val ctx = ModuleContext(
             processName = processName,
@@ -373,7 +371,7 @@ class HookEntry : XposedModule() {
         hooker: BaseHooker,
         targetClassLoader: ClassLoader,
         ctx: ModuleContext,
-        replacementHandles: MutableMap<String, XposedInterface.HookHandle>? = null
+        replacementHandles: HotReloadHandleStore? = null
     ) {
         try {
             DebugLog.d("HookEntry", "attaching ${hooker::class.java.simpleName} package=${ctx.packageName}")
