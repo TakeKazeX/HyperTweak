@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.ResolveInfo
-import android.os.Build
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -270,61 +269,24 @@ object FcmLiveSystemHooker : StaticHooker() {
             val processRecordClass = "com.android.server.am.ProcessRecord".toClassOrNull() ?: return@runCatching
             val infoField = processRecordClass.getDeclaredField("info").apply { isAccessible = true }
 
-            val getRecordMethod = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                amsClass.getDeclaredMethod("getRecordForAppLOSP", appThreadClass)
-            } else {
-                amsClass.getDeclaredMethod("getRecordForAppLocked", appThreadClass)
-            }
+            // Use API 31+ method (minSdk is 35)
+            val getRecordMethod = amsClass.getDeclaredMethod("getRecordForAppLOSP", appThreadClass)
 
             val stringArrayClass = Array<String>::class.java
 
-            // Hook the appropriate broadcastIntent method based on Android version
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                    val method = amsClass.getDeclaredMethod(
-                        "broadcastIntentWithFeature",
-                        appThreadClass, String::class.java,
-                        Intent::class.java, String::class.java, receiverClass,
-                        Int::class.javaPrimitiveType, String::class.java, android.os.Bundle::class.java,
-                        stringArrayClass, stringArrayClass,
-                        stringArrayClass, Int::class.javaPrimitiveType, android.os.Bundle::class.java,
-                        Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
-                    )
-                    method.hook {
-                        before { param ->
-                            handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
-                        }
-                    }
-                }
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                    val method = amsClass.getDeclaredMethod(
-                        "broadcastIntentWithFeature",
-                        appThreadClass, String::class.java,
-                        Intent::class.java, String::class.java, receiverClass,
-                        Int::class.javaPrimitiveType, String::class.java, android.os.Bundle::class.java,
-                        stringArrayClass, stringArrayClass, Int::class.javaPrimitiveType, android.os.Bundle::class.java,
-                        Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
-                    )
-                    method.hook {
-                        before { param ->
-                            handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
-                        }
-                    }
-                }
-                else -> {
-                    val method = amsClass.getDeclaredMethod(
-                        "broadcastIntent",
-                        appThreadClass,
-                        Intent::class.java, String::class.java, receiverClass,
-                        Int::class.javaPrimitiveType, String::class.java, android.os.Bundle::class.java,
-                        stringArrayClass, Int::class.javaPrimitiveType, android.os.Bundle::class.java,
-                        Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
-                    )
-                    method.hook {
-                        before { param ->
-                            handleBroadcastIntent(param, 1, getRecordMethod, infoField, mContextField)
-                        }
-                    }
+            // Use API 33+ method signature (minSdk is 35)
+            val method = amsClass.getDeclaredMethod(
+                "broadcastIntentWithFeature",
+                appThreadClass, String::class.java,
+                Intent::class.java, String::class.java, receiverClass,
+                Int::class.javaPrimitiveType, String::class.java, android.os.Bundle::class.java,
+                stringArrayClass, stringArrayClass,
+                stringArrayClass, Int::class.javaPrimitiveType, android.os.Bundle::class.java,
+                Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
+            )
+            method.hook {
+                before { param ->
+                    handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
                 }
             }
 
@@ -355,9 +317,9 @@ object FcmLiveSystemHooker : StaticHooker() {
             val info = infoField.get(app) as? ApplicationInfo
 
             if (info?.packageName == GMS_PACKAGE_NAME) {
-                // Add to temporary allow list for push messaging
+                // Add to temporary allow list for push messaging (API 31+, minSdk is 35)
                 val packageName = intent.`package`
-                if (packageName != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (packageName != null) {
                     runCatching {
                         val context = mContextField.get(thisObject) as Context
                         val powerExemptionManager = context.getSystemService("power_exemption")
