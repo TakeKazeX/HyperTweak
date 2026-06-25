@@ -88,6 +88,8 @@ fun HyperTweakNavContainer(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    fcmLiveEnabled: Boolean,
+    onFcmLiveEnabledChange: (Boolean) -> Unit,
 
     // Backdrop
     backdrop: LayerBackdrop,
@@ -174,6 +176,8 @@ fun HyperTweakNavContainer(
                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                 forceAdaptiveAnc = forceAdaptiveAnc,
                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
+                fcmLiveEnabled = fcmLiveEnabled,
+                onFcmLiveEnabledChange = onFcmLiveEnabledChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,

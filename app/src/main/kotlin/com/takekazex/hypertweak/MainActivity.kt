@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
+            var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
 
             val coroutineScope = rememberCoroutineScope()
 
@@ -139,6 +140,7 @@ class MainActivity : ComponentActivity() {
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
+                    fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
                 }
 
                 if (isModuleActive()) {
@@ -354,6 +356,13 @@ class MainActivity : ComponentActivity() {
                         forceAdaptiveAnc = checked
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
+                        }
+                    },
+                    fcmLiveEnabled = fcmLiveEnabled,
+                    onFcmLiveEnabledChange = { checked ->
+                        fcmLiveEnabled = checked
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         }
                     },
                     backdrop = backdrop,
