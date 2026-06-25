@@ -29,7 +29,7 @@ private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageNam
 fun RestartScopeDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
-    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit
+    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean, systemServer: Boolean) -> Unit
 ) {
     var systemUiChecked by remember(show) { mutableStateOf(false) }
     var settingsChecked by remember(show) { mutableStateOf(false) }
@@ -38,6 +38,8 @@ fun RestartScopeDialog(
     var scannerChecked by remember(show) { mutableStateOf(false) }
     var milinkChecked by remember(show) { mutableStateOf(false) }
     var bluetoothChecked by remember(show) { mutableStateOf(false) }
+    var powerkeeperChecked by remember(show) { mutableStateOf(false) }
+    var systemServerChecked by remember(show) { mutableStateOf(false) }
 
     val context = LocalContext.current
     val packageManager = context.packageManager
@@ -51,6 +53,9 @@ fun RestartScopeDialog(
             if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
             if (isPackageInstalled(packageManager, "com.milink.service")) add("com.milink.service")
             if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
+            if (isPackageInstalled(packageManager, "com.miui.powerkeeper")) add("com.miui.powerkeeper")
+            // system_server always exists
+            add("system")
         }
     }
 
@@ -77,6 +82,8 @@ fun RestartScopeDialog(
                                 "com.xiaomi.scanner" -> scannerChecked
                                 "com.milink.service" -> milinkChecked
                                 "com.xiaomi.bluetooth" -> bluetoothChecked
+                                "com.miui.powerkeeper" -> powerkeeperChecked
+                                "system" -> systemServerChecked
                                 else -> false
                             }
                             val onCheckedChange: (Boolean) -> Unit = { newVal ->
@@ -88,6 +95,8 @@ fun RestartScopeDialog(
                                     "com.xiaomi.scanner" -> scannerChecked = newVal
                                     "com.milink.service" -> milinkChecked = newVal
                                     "com.xiaomi.bluetooth" -> bluetoothChecked = newVal
+                                    "com.miui.powerkeeper" -> powerkeeperChecked = newVal
+                                    "system" -> systemServerChecked = newVal
                                 }
                             }
                             AppRestartPreference(
@@ -113,7 +122,7 @@ fun RestartScopeDialog(
                 TextButton(
                     text = "Restart",
                     onClick = {
-                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked, milinkChecked, bluetoothChecked)
+                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked, milinkChecked, bluetoothChecked, powerkeeperChecked, systemServerChecked)
                         onDismissRequest()
                     },
                     modifier = Modifier.weight(1f),
@@ -151,9 +160,14 @@ fun AppRestartPreference(
             "com.xiaomi.scanner" -> "Scanner"
             "com.milink.service" -> "MiLink Service"
             "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
+            "com.miui.powerkeeper" -> "Power Keeper"
+            "system" -> "System Server"
             else -> pkg
         }
-        if (appInfo != null) {
+        // system_server is not a real package; always use fallback
+        if (packageName == "system") {
+            fallbackName(packageName)
+        } else if (appInfo != null) {
             try {
                 packageManager.getApplicationLabel(appInfo).toString()
             } catch (e: Exception) {

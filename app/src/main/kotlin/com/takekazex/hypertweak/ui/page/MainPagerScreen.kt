@@ -102,7 +102,7 @@ fun MainPagerScreen(
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean) -> Unit,
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean, systemServer: Boolean) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {

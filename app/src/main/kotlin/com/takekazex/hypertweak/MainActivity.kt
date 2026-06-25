@@ -364,20 +364,6 @@ class MainActivity : ComponentActivity() {
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         }
-                        // Restart system_server and powerkeeper to apply FCM Live changes
-                        RestartUtils.restartScope(
-                            this@MainActivity,
-                            coroutineScope,
-                            systemUi = false,
-                            settings = false,
-                            aod = false,
-                            securityCenter = false,
-                            scanner = false,
-                            milink = false,
-                            bluetooth = false,
-                            powerkeeper = true,
-                            systemServer = true
-                        )
                     },
                     backdrop = backdrop,
                     pageScale = pageScale,
@@ -395,8 +381,8 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth ->
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth)
+                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper, systemServer ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper, systemServer)
                     },
                     onHotReload = { restartAllScopes ->
                         XposedServiceManager.hotReloadStaleTargets { report ->
