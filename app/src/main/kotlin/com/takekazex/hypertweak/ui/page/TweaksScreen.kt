@@ -50,6 +50,8 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    fcmLiveEnabled: Boolean,
+    onFcmLiveEnabledChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -167,6 +169,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onUnlockPasskeyChange,
                         title = "Unlock Google Passkey / Credential Manager",
                         summary = "Allow using Google Passkey and third-party credential managers on domestic MIUI/HyperOS"
+                    )
+                    SwitchPreference(
+                        checked = fcmLiveEnabled,
+                        onCheckedChange = onFcmLiveEnabledChange,
+                        title = "Fix Google Push (FCM Live)",
+                        summary = "Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires system_server and PowerKeeper restart."
                     )
                 }
             }

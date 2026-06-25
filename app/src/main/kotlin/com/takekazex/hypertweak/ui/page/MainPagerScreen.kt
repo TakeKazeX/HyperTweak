@@ -282,6 +282,8 @@ fun MainPagerScreen(
                                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                                 forceAdaptiveAnc = forceAdaptiveAnc,
                                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
+                                fcmLiveEnabled = fcmLiveEnabled,
+                                onFcmLiveEnabledChange = onFcmLiveEnabledChange,
                                 backdrop = backdrop
                             )
                         }
@@ -312,8 +314,6 @@ fun MainPagerScreen(
                                 onAllowLandscapeChange = onAllowLandscapeChange,
                                 pageScale = pageScale,
                                 onPageScaleChange = onPageScaleChange,
-                                fcmLiveEnabled = fcmLiveEnabled,
-                                onFcmLiveEnabledChange = onFcmLiveEnabledChange,
                                 onNavigateToAbout = onNavigateToAbout,
                                 onNavigateToDebugLogs = onNavigateToDebugLogs,
                                 onNavigateToAppShortcuts = onNavigateToAppShortcuts,

@@ -364,6 +364,20 @@ class MainActivity : ComponentActivity() {
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         }
+                        // Restart system_server and powerkeeper to apply FCM Live changes
+                        RestartUtils.restartScope(
+                            this@MainActivity,
+                            coroutineScope,
+                            systemUi = false,
+                            settings = false,
+                            aod = false,
+                            securityCenter = false,
+                            scanner = false,
+                            milink = false,
+                            bluetooth = false,
+                            powerkeeper = true,
+                            systemServer = true
+                        )
                     },
                     backdrop = backdrop,
                     pageScale = pageScale,
