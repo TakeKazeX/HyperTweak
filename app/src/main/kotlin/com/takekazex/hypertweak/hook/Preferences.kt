@@ -33,6 +33,7 @@ object Preferences {
     const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
+    const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
     const val KEY_LOG_LEVEL = "debug_log_level"
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"

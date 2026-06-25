@@ -74,6 +74,8 @@ fun SettingsScreenContent(
     onAllowLandscapeChange: (Boolean) -> Unit,
     pageScale: Float,
     onPageScaleChange: (Float) -> Unit,
+    fcmLiveEnabled: Boolean,
+    onFcmLiveEnabledChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
@@ -340,6 +342,19 @@ fun SettingsScreenContent(
                         onSelectedIndexChange = onAppLanguageChange
                     )
                 }
+            }
+
+            // Google Services
+            SmallTitle(text = "Google Services")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                SwitchPreference(
+                    checked = fcmLiveEnabled,
+                    onCheckedChange = onFcmLiveEnabledChange,
+                    title = "Fix Google Push (FCM)",
+                    summary = "Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage."
+                )
             }
 
             // Other
