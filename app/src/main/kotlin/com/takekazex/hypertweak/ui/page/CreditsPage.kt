@@ -60,7 +60,7 @@ fun CreditsPage(
                 ) {
                     ArrowPreference(
                         title = "libxposed",
-                        summary = "Native Xposed API 102 framework",
+                        summary = "Native Xposed API 102 framework · v102.0.0",
                         onClick = { uriHandler.openUri("https://github.com/libxposed/api") }
                     )
                     ArrowPreference(
@@ -69,18 +69,13 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/LSPosed/LSPosed") }
                     )
                     ArrowPreference(
-                        title = "KavaRef",
-                        summary = "HighCapable Kotlin reflection library",
-                        onClick = { uriHandler.openUri("https://github.com/HighCapable/KavaRef") }
-                    )
-                    ArrowPreference(
                         title = "EzHookTool",
-                        summary = "Kotlin Xposed helper library by lingqiqi5211",
+                        summary = "Kotlin Xposed helper library by lingqiqi5211 · v1.1.0-rc04",
                         onClick = { uriHandler.openUri("https://github.com/lingqiqi5211/EzHookTool") }
                     )
                     ArrowPreference(
                         title = "DexKit",
-                        summary = "Powerful Dex analysis tool for finding hook points dynamically",
+                        summary = "Powerful Dex analysis tool for finding hook points dynamically · v2.2.0",
                         onClick = { uriHandler.openUri("https://github.com/LuckyPray/DexKit") }
                     )
                     ArrowPreference(
@@ -90,7 +85,7 @@ fun CreditsPage(
                     )
                     ArrowPreference(
                         title = "Miuix UI (compose-miuix-ui)",
-                        summary = "Modern MIUI/HyperOS style Compose components",
+                        summary = "Modern MIUI/HyperOS style Compose components · v0.9.2",
                         onClick = { uriHandler.openUri("https://github.com/compose-miuix-ui/miuix") }
                     )
                     ArrowPreference(
