@@ -1,9 +1,12 @@
 package com.takekazex.hypertweak.util
 
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
+import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
 import io.github.libxposed.api.XposedInterface
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -18,6 +21,10 @@ object DebugLog {
     private const val FIELD_SEPARATOR = "\u001F"
     private const val FLUSH_DELAY_MS = 750L
     private const val MAX_PENDING_LINES = 64
+
+    /** Default threshold: drop VERBOSE/DEBUG, keep INFO and above. */
+    const val DEFAULT_LEVEL = Log.INFO
+
     private val formatter = ThreadLocal.withInitial {
         SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     }
@@ -31,6 +38,29 @@ object DebugLog {
 
     @Volatile
     private var flushExecutor: ScheduledExecutorService? = null
+
+    @Volatile
+    private var processTag: String = "app"
+
+    fun setProcessTag(tag: String) {
+        processTag = tag
+    }
+
+    /**
+     * Drops stale logs when the session changes (app update / reinstall / device reboot) so
+     * records from separate runtimes don't pile up together. Requires [Preferences] to be ready.
+     */
+    fun ensureSession() {
+        runCatching { Preferences.rotateLogSessionIfNeeded(sessionToken()) }
+    }
+
+    private fun sessionToken(): String {
+        val bootId = runCatching {
+            File("/proc/sys/kernel/random/boot_id").readText().trim()
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?: ((System.currentTimeMillis() - SystemClock.elapsedRealtime()) / 1000L).toString()
+        return "v${BuildConfig.VERSION_CODE}_$bootId"
+    }
 
     fun bindXposed(interfaceRef: XposedInterface) {
         xposed = interfaceRef
@@ -49,6 +79,10 @@ object DebugLog {
         write(Log.DEBUG, scope, message, null)
     }
 
+    fun i(scope: String, message: String) {
+        write(Log.INFO, scope, message, null)
+    }
+
     fun w(scope: String, message: String, throwable: Throwable? = null) {
         write(Log.WARN, scope, message, throwable)
     }
@@ -58,7 +92,7 @@ object DebugLog {
     }
 
     fun hookRegistered(scope: String, target: String) {
-        d(scope, "HOOK_OK target=$target")
+        i(scope, "HOOK_OK target=$target")
     }
 
     fun hookFailed(scope: String, target: String, throwable: Throwable? = null) {
@@ -69,17 +103,31 @@ object DebugLog {
         w(scope, "HOOK_SKIPPED target=$target reason=$reason")
     }
 
+    private fun currentThreshold(): Int {
+        if (!Preferences.isInitialized) return DEFAULT_LEVEL
+        return runCatching { Preferences.getInt(Preferences.KEY_LOG_LEVEL, DEFAULT_LEVEL) }
+            .getOrDefault(DEFAULT_LEVEL)
+    }
+
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
+        if (priority < currentThreshold()) return
+
         val fullMessage = "$scope: $message"
         when (priority) {
             Log.ERROR -> Log.e(TAG, fullMessage, throwable)
             Log.WARN -> Log.w(TAG, fullMessage, throwable)
+            Log.INFO -> Log.i(TAG, fullMessage)
             else -> Log.d(TAG, fullMessage)
         }
 
-        runCatching {
-            val logger = xposed
-            if (logger != null) {
+        enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+        forwardToXposed(priority, fullMessage, throwable)
+    }
+
+    private fun forwardToXposed(priority: Int, fullMessage: String, throwable: Throwable?) {
+        val logger = xposed ?: return
+        val task = Runnable {
+            runCatching {
                 if (throwable != null) {
                     logger.log(priority, TAG, fullMessage, throwable)
                 } else {
@@ -87,8 +135,10 @@ object DebugLog {
                 }
             }
         }
-
-        enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+        val scheduled = runCatching {
+            getFlushExecutor().schedule(task, 0L, TimeUnit.MILLISECONDS)
+        }.getOrNull()
+        if (scheduled == null) task.run()
     }
 
     private fun enqueueLine(line: String, urgent: Boolean) {
@@ -128,7 +178,7 @@ object DebugLog {
         }
         if (lines.isEmpty()) return
         runCatching {
-            Preferences.appendDebugLogs(lines)
+            Preferences.appendDebugLogs(processTag, lines)
         }
     }
 

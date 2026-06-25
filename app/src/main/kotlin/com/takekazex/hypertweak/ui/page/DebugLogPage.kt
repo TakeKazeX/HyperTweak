@@ -8,11 +8,16 @@ import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -22,15 +27,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color
@@ -45,7 +53,6 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.util.DebugLog
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -70,6 +77,7 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -87,8 +95,24 @@ private enum class LogFilter(val label: String) {
 
 private val logFilters = LogFilter.entries.toList()
 
+private enum class LogLevelOption(val label: String, val priority: Int) {
+    Verbose("Verbose", android.util.Log.VERBOSE),
+    Debug("Debug", android.util.Log.DEBUG),
+    Info("Info", android.util.Log.INFO),
+    Warning("Warning", android.util.Log.WARN),
+    Error("Error", android.util.Log.ERROR),
+    Silent("Silent", android.util.Log.ASSERT + 1)
+}
+
+private val logLevelOptions = LogLevelOption.entries.toList()
+
+private fun logLevelFromPriority(priority: Int): LogLevelOption {
+    return logLevelOptions.firstOrNull { it.priority == priority } ?: LogLevelOption.Info
+}
+
 @Immutable
 private data class DebugLogEntry(
+    val index: Int,
     val time: String,
     val level: String,
     val pid: String,
@@ -101,6 +125,7 @@ private data class DebugLogEntry(
     val isWarning: Boolean = level == "W" || event == "MISSING" || event == "SKIPPED" || event == "HOOK_SKIPPED"
     val isHook: Boolean = event.startsWith("HOOK")
     val isHookFailed: Boolean = event == "HOOK_FAILED"
+    val id: String = "$index-$time-$pid-$scope"
 }
 
 @Composable
@@ -117,6 +142,9 @@ fun DebugLogPage(
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     var logText by remember { mutableStateOf(Preferences.getDebugLog()) }
     var selectedFilter by remember { mutableStateOf(LogFilter.All) }
+    var logLevel by remember {
+        mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
+    }
     var exportText by remember { mutableStateOf("") }
     var exportStatus by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
@@ -141,7 +169,9 @@ fun DebugLogPage(
             logText = Preferences.getDebugLog()
         }
     }
-    val entries = remember(logText) { parseLogEntries(logText).asReversed() }
+    val entries = remember(logText) {
+        parseLogEntries(logText).sortedBy { it.time }.asReversed()
+    }
     val filteredEntries = remember(entries, selectedFilter) {
         entries.filter { entry ->
             when (selectedFilter) {
@@ -254,37 +284,53 @@ fun DebugLogPage(
             )
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                 .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .overScrollVertical()
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .overScrollVertical(),
+            contentPadding = innerPadding
         ) {
-            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
-            Spacer(modifier = Modifier.height(8.dp))
-            SmallTitle(text = "Overview")
-            SummaryCard(entries = entries)
-            SmallTitle(text = "Options")
-            FilterCard(
-                selectedFilter = selectedFilter,
-                shownCount = filteredEntries.size,
-                exportStatus = exportStatus,
-                onSelected = { selectedFilter = it }
-            )
-            SmallTitle(text = "Runtime (${filteredEntries.size})")
-            if (filteredEntries.isEmpty()) {
-                EmptyLogCard()
-            } else {
-                LogEntriesCard(
-                    entries = filteredEntries,
-                    onEntryCopied = { exportStatus = "Copied 1 log entry" }
+            item(key = "overview") {
+                Spacer(modifier = Modifier.height(8.dp))
+                SmallTitle(text = "Overview")
+                SummaryCard(entries = entries)
+            }
+            item(key = "options") {
+                SmallTitle(text = "Options")
+                FilterCard(
+                    selectedFilter = selectedFilter,
+                    shownCount = filteredEntries.size,
+                    exportStatus = exportStatus,
+                    logLevel = logLevel,
+                    onSelected = { selectedFilter = it },
+                    onLogLevelSelected = {
+                        logLevel = it
+                        Preferences.putInt(Preferences.KEY_LOG_LEVEL, it.priority)
+                    }
                 )
             }
-            Spacer(modifier = Modifier.height(48.dp))
+            item(key = "runtime-title") {
+                SmallTitle(text = "Runtime (${filteredEntries.size})")
+            }
+            if (filteredEntries.isEmpty()) {
+                item(key = "runtime-empty") { EmptyLogCard() }
+            } else {
+                items(filteredEntries, key = { it.id }) { entry ->
+                    LogEntryCard(
+                        entry = entry,
+                        onCopy = {
+                            copyText(context, "HyperTweak Log Entry", formatSingleEntry(entry))
+                            exportStatus = "Copied 1 log entry"
+                        }
+                    )
+                }
+            }
+            item(key = "bottom-spacer") {
+                Spacer(modifier = Modifier.height(48.dp))
+            }
         }
     }
 }
@@ -347,13 +393,25 @@ private fun FilterCard(
     selectedFilter: LogFilter,
     shownCount: Int,
     exportStatus: String?,
-    onSelected: (LogFilter) -> Unit
+    logLevel: LogLevelOption,
+    onSelected: (LogFilter) -> Unit,
+    onLogLevelSelected: (LogLevelOption) -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
     ) {
+        OverlayDropdownPreference(
+            title = "Log Level",
+            summary = "Drop records below this level at the source",
+            items = logLevelOptions.map { it.label },
+            selectedIndex = logLevelOptions.indexOf(logLevel),
+            onSelectedIndexChange = { index ->
+                logLevelOptions.getOrNull(index)?.let(onLogLevelSelected)
+            }
+        )
+        HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
         OverlayDropdownPreference(
             title = "Log Filter",
             summary = "$shownCount records shown",
@@ -381,99 +439,101 @@ private fun FilterCard(
 }
 
 @Composable
-private fun LogEntriesCard(
-    entries: List<DebugLogEntry>,
-    onEntryCopied: () -> Unit
+private fun LogEntryCard(
+    entry: DebugLogEntry,
+    onCopy: () -> Unit
 ) {
-    val context = LocalContext.current
+    var expanded by remember(entry.id) { mutableStateOf(entry.isError || entry.isHookFailed) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        pressFeedbackType = PressFeedbackType.Sink,
+        onClick = { expanded = !expanded },
+        onLongPress = onCopy
     ) {
-        entries.forEachIndexed { index, entry ->
-            LogEntryRow(
-                entry = entry,
-                onCopy = {
-                    copyText(context, "HyperTweak Log Entry", formatSingleEntry(entry))
-                    onEntryCopied()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = entry.level,
+                            style = MiuixTheme.textStyles.footnote2.copy(fontWeight = FontWeight.Bold),
+                            color = levelBadgeColor(entry.level)
+                        )
+                    }
+                    Text(
+                        text = entry.scope,
+                        style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+                        color = if (entry.isError) levelColor("E") else MiuixTheme.colorScheme.onSurfaceContainer
+                    )
                 }
+                Text(
+                    text = entry.shortTime(),
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+            }
+
+            Text(
+                text = buildPreviewText(entry),
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis
             )
-            if (index != entries.lastIndex) {
-                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "${entry.event} · PID ${entry.pid}",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                    if (entry.stack.isNotBlank()) {
+                        Text(
+                            text = entry.stack,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            style = MiuixTheme.textStyles.footnote1.copy(fontFamily = FontFamily.Monospace),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun LogEntryRow(
-    entry: DebugLogEntry,
-    onCopy: () -> Unit
-) {
-    var expanded by remember(entry) { mutableStateOf(entry.isError || entry.isHookFailed) }
-    val entryColor = entryColor(entry)
-
-    BasicComponent(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { expanded = !expanded },
-                onLongClick = onCopy
-            ),
-        title = entry.scope,
-        titleColor = BasicComponentDefaults.titleColor(
-            color = if (entry.isError) entryColor else MiuixTheme.colorScheme.onBackground
-        ),
-        summary = buildPreviewText(entry),
-        endActions = {
-            Text(
-                text = entry.shortTime(),
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
-        },
-        bottomAction = if (expanded) ({ LogEntryDetails(entry = entry) }) else null,
-        holdDownState = expanded
-    )
-}
-
-@Composable
-private fun LogEntryDetails(entry: DebugLogEntry) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 32.dp, bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "${entry.event} · PID ${entry.pid} · ${entry.level}",
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = entry.message,
-            color = MiuixTheme.colorScheme.onSurface,
-            fontSize = 13.sp,
-            lineHeight = 18.sp
-        )
-        if (entry.stack.isNotBlank()) {
-            Text(
-                text = entry.stack,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        }
+private fun levelBadgeColor(level: String): Color {
+    return when (level) {
+        "E" -> Color(0xFFE5484D)
+        "W" -> Color(0xFFE6A700)
+        "I" -> Color(0xFF0091EA)
+        else -> MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.6f)
     }
 }
 
@@ -488,16 +548,6 @@ private fun EmptyLogCard() {
             title = "No logs",
             summary = "No records match the selected filter."
         )
-    }
-}
-
-@Composable
-private fun entryColor(entry: DebugLogEntry): Color {
-    return when {
-        entry.isError -> levelColor("E")
-        entry.isWarning -> levelColor("W")
-        entry.event == "HOOK_OK" -> MiuixTheme.colorScheme.onSurfaceVariantActions
-        else -> MiuixTheme.colorScheme.onSurfaceVariantActions
     }
 }
 
@@ -630,7 +680,7 @@ private fun parseLogEntries(raw: String): List<DebugLogEntry> {
         }
     }
     pending?.let(entries::add)
-    return entries
+    return entries.mapIndexed { index, entry -> entry.copy(index = index) }
 }
 
 private fun parseLogLine(line: String): DebugLogEntry? {
@@ -638,6 +688,7 @@ private fun parseLogLine(line: String): DebugLogEntry? {
         val parts = line.split(FIELD_SEPARATOR)
         if (parts.size >= 8) {
             return DebugLogEntry(
+                index = 0,
                 time = unescape(parts[1]),
                 level = unescape(parts[2]),
                 pid = parts[3],
@@ -663,6 +714,7 @@ private fun parseLogLine(line: String): DebugLogEntry? {
         else -> "INFO"
     }
     return DebugLogEntry(
+        index = 0,
         time = legacy.groupValues[1],
         level = legacy.groupValues[2],
         pid = legacy.groupValues[3],

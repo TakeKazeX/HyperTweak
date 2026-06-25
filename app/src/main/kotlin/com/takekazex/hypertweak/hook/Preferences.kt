@@ -33,8 +33,11 @@ object Preferences {
     const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
-    private const val KEY_DEBUG_LOG = "debug_log"
-    private const val MAX_DEBUG_LOG_LENGTH = 80_000
+    const val KEY_LOG_LEVEL = "debug_log_level"
+    private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
+    private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
+    private const val KEY_LOG_SESSION = "debug_log_session"
+    private const val MAX_DEBUG_LOG_LENGTH = 40_000
 
     private lateinit var remotePrefs: SharedPreferences
     private var localCachePrefs: SharedPreferences? = null
@@ -163,15 +166,16 @@ object Preferences {
     }
 
     @Synchronized
-    fun appendDebugLog(line: String) {
-        appendDebugLogs(listOf(line))
+    fun appendDebugLog(processTag: String, line: String) {
+        appendDebugLogs(processTag, listOf(line))
     }
 
     @Synchronized
-    fun appendDebugLogs(lines: List<String>) {
+    fun appendDebugLogs(processTag: String, lines: List<String>) {
         if (!isInitialized) return
         if (lines.isEmpty()) return
-        val old = remotePrefs.getString(KEY_DEBUG_LOG, "").orEmpty()
+        val key = debugLogKeyFor(processTag)
+        val old = remotePrefs.getString(key, "").orEmpty()
         val appended = lines.joinToString("\n")
         var next = if (old.isEmpty()) appended else "$old\n$appended"
         if (next.length > MAX_DEBUG_LOG_LENGTH) {
@@ -181,17 +185,45 @@ object Preferences {
                 next = next.substring(firstNewLine + 1)
             }
         }
-        remotePrefs.edit(commit = true) { putString(KEY_DEBUG_LOG, next) }
+        remotePrefs.edit(commit = true) { putString(key, next) }
     }
 
     fun getDebugLog(): String {
         if (!isInitialized) return ""
-        return remotePrefs.getString(KEY_DEBUG_LOG, "").orEmpty()
+        val blocks = remotePrefs.all.entries
+            .filter { it.key.startsWith(KEY_DEBUG_LOG_PREFIX) || it.key == LEGACY_KEY_DEBUG_LOG }
+            .mapNotNull { (it.value as? String)?.takeIf(String::isNotEmpty) }
+        return blocks.joinToString("\n")
     }
 
     fun clearDebugLog() {
-        if (isInitialized) {
-            remotePrefs.edit(commit = true) { remove(KEY_DEBUG_LOG) }
+        if (!isInitialized) return
+        val keys = remotePrefs.all.keys
+            .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+        if (keys.isEmpty()) return
+        remotePrefs.edit(commit = true) { keys.forEach(::remove) }
+    }
+
+    /**
+     * Clears all debug logs when the runtime session changes (app update / reinstall / reboot),
+     * so records from different sessions are not mixed together. No-op when the token is unchanged.
+     */
+    @Synchronized
+    fun rotateLogSessionIfNeeded(token: String) {
+        if (!isInitialized) return
+        if (remotePrefs.getString(KEY_LOG_SESSION, null) == token) return
+        val keys = remotePrefs.all.keys
+            .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+        remotePrefs.edit(commit = true) {
+            keys.forEach(::remove)
+            putString(KEY_LOG_SESSION, token)
         }
+    }
+
+    private fun debugLogKeyFor(processTag: String): String {
+        val sanitized = processTag.ifBlank { "unknown" }
+            .map { if (it.isLetterOrDigit()) it else '_' }
+            .joinToString("")
+        return "$KEY_DEBUG_LOG_PREFIX$sanitized"
     }
 }

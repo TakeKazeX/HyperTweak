@@ -38,8 +38,10 @@ class HookEntry : XposedModule() {
         isSystemServer = param.isSystemServer
         // Initialize EzXposed with the module interface
         EzXposed.initOnModuleLoaded(this, param)
+        DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
         initPreferences()
+        DebugLog.ensureSession()
         DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
     }
 
