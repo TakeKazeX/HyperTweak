@@ -63,7 +63,7 @@ fun HomeScreenContent(
     backdrop: LayerBackdrop,
     onNavigateToHiddenFeatures: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean, systemServer: Boolean) -> Unit
+    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val containerColor = when {
@@ -461,76 +461,4 @@ private fun friendlyProcessName(processName: String): String {
         "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
         else -> processName
     }
-}
-
-@Composable
-private fun HotReloadDialog(
-    show: Boolean,
-    hotReloading: Boolean,
-    onDismissRequest: () -> Unit,
-    onConfirm: (Boolean) -> Unit
-) {
-    var restartAllScopes by remember(show) { mutableStateOf(true) }
-
-    OverlayDialog(
-        show = show,
-        title = "Hot Reload Module",
-        onDismissRequest = onDismissRequest,
-        content = {
-            Text(
-                text = "Trigger libxposed API 102 hot reload for stale hooked processes?",
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            SwitchPreference(
-                checked = restartAllScopes,
-                onCheckedChange = { restartAllScopes = it },
-                title = "Restart all scoped apps",
-                summary = "Recommended for long-running targets like SystemUI"
-            )
-            if (!restartAllScopes) {
-                val isDark = isSystemInDarkTheme()
-                val warningContainer = if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
-                val warningText = if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    colors = CardDefaults.defaultColors(
-                        color = warningContainer,
-                        contentColor = warningText
-                    ),
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "Not restarting scoped apps may leave long-running processes on old hooks, so some hooks may not take effect.",
-                        color = warningText,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TextButton(
-                    text = "Cancel",
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                    enabled = !hotReloading
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = if (hotReloading) "Reloading" else "Reload",
-                    onClick = { onConfirm(restartAllScopes) },
-                    modifier = Modifier.weight(1f),
-                    enabled = !hotReloading,
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        }
-    )
 }
