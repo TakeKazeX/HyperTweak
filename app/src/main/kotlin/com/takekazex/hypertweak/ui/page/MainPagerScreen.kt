@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import com.takekazex.hypertweak.hook.HotReloadReport
 import androidx.compose.foundation.selection.selectable
@@ -55,6 +56,7 @@ fun MainPagerScreen(
     hotReloading: Boolean,
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
+    pendingRestartScopes: RestartScopeSelection,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
@@ -102,7 +104,7 @@ fun MainPagerScreen(
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean) -> Unit,
+    onRestartScope: (RestartScopeSelection) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {
@@ -252,6 +254,7 @@ fun MainPagerScreen(
                                 packageName = "com.takekazex.hypertweak",
                                 targetSdk = 37,
                                 backdrop = backdrop,
+                                pendingRestartScopes = pendingRestartScopes,
                                 onNavigateToHiddenFeatures = onNavigateToHiddenFeatures,
                                 onHotReload = onHotReload,
                                 onRestartScope = onRestartScope

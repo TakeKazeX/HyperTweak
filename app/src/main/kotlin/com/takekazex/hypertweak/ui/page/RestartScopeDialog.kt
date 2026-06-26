@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -28,17 +29,18 @@ private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageNam
 @Composable
 fun RestartScopeDialog(
     show: Boolean,
+    initialSelection: RestartScopeSelection,
     onDismissRequest: () -> Unit,
-    onConfirm: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean) -> Unit
+    onConfirm: (RestartScopeSelection) -> Unit
 ) {
-    var systemUiChecked by remember(show) { mutableStateOf(false) }
-    var settingsChecked by remember(show) { mutableStateOf(false) }
-    var aodChecked by remember(show) { mutableStateOf(false) }
-    var securityCenterChecked by remember(show) { mutableStateOf(false) }
-    var scannerChecked by remember(show) { mutableStateOf(false) }
-    var milinkChecked by remember(show) { mutableStateOf(false) }
-    var bluetoothChecked by remember(show) { mutableStateOf(false) }
-    var powerkeeperChecked by remember(show) { mutableStateOf(false) }
+    var systemUiChecked by remember(show, initialSelection.systemUi) { mutableStateOf(initialSelection.systemUi) }
+    var settingsChecked by remember(show, initialSelection.settings) { mutableStateOf(initialSelection.settings) }
+    var aodChecked by remember(show, initialSelection.aod) { mutableStateOf(initialSelection.aod) }
+    var securityCenterChecked by remember(show, initialSelection.securityCenter) { mutableStateOf(initialSelection.securityCenter) }
+    var scannerChecked by remember(show, initialSelection.scanner) { mutableStateOf(initialSelection.scanner) }
+    var milinkChecked by remember(show, initialSelection.milink) { mutableStateOf(initialSelection.milink) }
+    var bluetoothChecked by remember(show, initialSelection.bluetooth) { mutableStateOf(initialSelection.bluetooth) }
+    var powerkeeperChecked by remember(show, initialSelection.powerkeeper) { mutableStateOf(initialSelection.powerkeeper) }
 
     val context = LocalContext.current
     val packageManager = context.packageManager
@@ -117,7 +119,18 @@ fun RestartScopeDialog(
                 TextButton(
                     text = "Restart",
                     onClick = {
-                        onConfirm(systemUiChecked, settingsChecked, aodChecked, securityCenterChecked, scannerChecked, milinkChecked, bluetoothChecked, powerkeeperChecked)
+                        onConfirm(
+                            RestartScopeSelection(
+                                systemUi = systemUiChecked,
+                                settings = settingsChecked,
+                                aod = aodChecked,
+                                securityCenter = securityCenterChecked,
+                                scanner = scannerChecked,
+                                milink = milinkChecked,
+                                bluetooth = bluetoothChecked,
+                                powerkeeper = powerkeeperChecked
+                            )
+                        )
                         onDismissRequest()
                     },
                     modifier = Modifier.weight(1f),
