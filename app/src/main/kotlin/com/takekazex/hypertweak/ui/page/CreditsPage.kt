@@ -114,6 +114,11 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperPasskey") }
                     )
                     ArrowPreference(
+                        title = "HyperOS_FCM_Live",
+                        summary = "Google Push / FCM Live implementation by howard20181",
+                        onClick = { uriHandler.openUri("https://github.com/howard20181/HyperOS_FCM_Live") }
+                    )
+                    ArrowPreference(
                         title = "HighLight Icons",
                         summary = "App shortcut icons by @GotohHitoriBocchi0221",
                         onClick = { uriHandler.openUri("https://t.me/HighLightIcons") }

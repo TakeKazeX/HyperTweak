@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.util.DebugLog
 /**
  * Remove HyperOS restrictions on Google Cloud Messaging (FCM/GCM).
  * Based on HyperOS_FCM_Live by howard20181.
+ * https://github.com/howard20181/HyperOS_FCM_Live
  */
 object FcmLiveSystemHooker : StaticHooker() {
     override val hookerName = "FcmLiveSystem"

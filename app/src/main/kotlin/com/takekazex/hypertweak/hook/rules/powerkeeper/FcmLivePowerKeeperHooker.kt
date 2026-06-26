@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.util.DebugLog
 /**
  * Remove power restrictions on GMS in com.miui.powerkeeper.
  * Based on HyperOS_FCM_Live by howard20181.
+ * https://github.com/howard20181/HyperOS_FCM_Live
  */
 object FcmLivePowerKeeperHooker : StaticHooker() {
     override val hookerName = "FcmLivePowerKeeper"

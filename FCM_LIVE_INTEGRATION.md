@@ -4,6 +4,8 @@
 
 成功将 **HyperOS_FCM_Live** 功能集成到 HyperTweak v1.6.0，作为可选模块移除 HyperOS 对 Google Cloud Messaging (FCM/GCM) 的限制。
 
+本功能基于 howard20181 的 [HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live) 实现，感谢原项目提供的实现思路与参考。
+
 ## 已完成的工作
 
 ### 1. UI 集成
@@ -145,7 +147,7 @@ FcmLivePowerKeeper: GlobalFeatureConfigureHelper hooks registered
    - 检查系统日志是否有异常
    - 验证 Hot Reload 是否正常工作
 
-## 📚 技术参考
+## 📚 Acknowledgements & Credits
 
 ### 原始项目
 - [HyperOS_FCM_Live by howard20181](https://github.com/howard20181/HyperOS_FCM_Live)

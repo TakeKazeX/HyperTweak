@@ -71,6 +71,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - 绕过指纹图标绘制的基本实现逻辑参考。
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - 系统设置项注入实现参考。
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
+* **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - 澎湃系统谷歌推送限制解除 / FCM Live 实现参考，作者 howard20181。
 * **[HighLight Icons](https://t.me/HighLightIcons)** - 应用快捷方式图标，作者 [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221)。
 
 ---
