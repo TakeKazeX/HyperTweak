@@ -174,7 +174,7 @@ fun TweaksScreenContent(
                         checked = fcmLiveEnabled,
                         onCheckedChange = onFcmLiveEnabledChange,
                         title = "Fix Google Push (FCM Live)",
-                        summary = "Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires system_server and PowerKeeper restart."
+                        summary = "Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires reboot and PowerKeeper restart to apply."
                     )
                 }
             }

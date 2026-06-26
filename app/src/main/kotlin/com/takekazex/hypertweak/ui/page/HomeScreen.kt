@@ -259,7 +259,7 @@ fun HomeScreenContent(
                     )
                     ArrowPreference(
                         title = "Restart Scoped Apps",
-                        summary = "Restart SystemUI, Settings, and Always-On Display to apply tweaks",
+                        summary = "Restart scoped app processes such as SystemUI, Settings, AOD, and PowerKeeper",
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Refresh,
