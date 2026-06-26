@@ -106,11 +106,15 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             triggerGMSLimitActionMethod.hook {
                 before { param ->
-                    if (param.args.isNotEmpty()) {
-                        param.args[0] = false
-                    } else {
-                        val mGmsLimitEnabledField = clazz.getDeclaredField("mGmsLimitEnabled").apply { isAccessible = true }
-                        mGmsLimitEnabledField.setBoolean(param.thisObject, false)
+                    runCatching {
+                        if (param.args.isNotEmpty()) {
+                            param.args[0] = false
+                        } else {
+                            val mGmsLimitEnabledField = clazz.getDeclaredField("mGmsLimitEnabled").apply { isAccessible = true }
+                            mGmsLimitEnabledField.setBoolean(param.thisObject, false)
+                        }
+                    }.onFailure { t ->
+                        DebugLog.w(hookerName, "Failed to disable GMS limit action", t)
                     }
                 }
             }
@@ -286,7 +290,11 @@ object FcmLiveSystemHooker : StaticHooker() {
             )
             method.hook {
                 before { param ->
-                    handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
+                    runCatching {
+                        handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
+                    }.onFailure { t ->
+                        DebugLog.w(hookerName, "Failed to handle FCM broadcast intent", t)
+                    }
                 }
             }
 
@@ -314,15 +322,15 @@ object FcmLiveSystemHooker : StaticHooker() {
         val intent = args[intentArgIndex] as? Intent
         if (intent?.action == ACTION_REMOTE_INTENT) {
             val app = getRecordMethod.invoke(thisObject, args[0])
-            val info = infoField.get(app) as? ApplicationInfo
+            val info = app?.let { infoField.get(it) as? ApplicationInfo }
 
             if (info?.packageName == GMS_PACKAGE_NAME) {
                 // Add to temporary allow list for push messaging (API 31+, minSdk is 35)
                 val packageName = intent.`package`
                 if (packageName != null) {
                     runCatching {
-                        val context = mContextField.get(thisObject) as Context
-                        val powerExemptionManager = context.getSystemService("power_exemption")
+                        val context = mContextField.get(thisObject) as? Context ?: return@runCatching
+                        val powerExemptionManager = context.getSystemService("power_exemption") ?: return@runCatching
                         val pemClass = Class.forName("android.os.PowerExemptionManager")
                         val addMethod = pemClass.getMethod(
                             "addToTemporaryAllowList",
@@ -332,6 +340,8 @@ object FcmLiveSystemHooker : StaticHooker() {
                             Long::class.javaPrimitiveType
                         )
                         addMethod.invoke(powerExemptionManager, packageName, 102, "GOOGLE_C2DM", 2000L)
+                    }.onFailure { t ->
+                        DebugLog.w(hookerName, "Failed to add FCM receiver to temporary allow list", t)
                     }
                 }
 

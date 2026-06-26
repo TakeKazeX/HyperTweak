@@ -52,9 +52,9 @@ HyperTweak was refactored and built in collaboration with AI coding assistants. 
 - `io.github.libxposed:api:102.0.0` / `io.github.libxposed:service:102.0.0`
 - `io.github.lingqiqi5211.ezhooktool:core:1.1.0-rc04` / `hook-xposed-102:1.1.0-rc04`
   - `org.luckypray:dexkit:2.2.0`
-  - `top.yukonga.miuix.kmp:miuix-*:0.9.1`
-  - `androidx.compose.material:material-icons-*:1.7.6`
-- **Build**: Gradle with Kotlin DSL, AGP 9.1.0, Kotlin 2.2.10, JDK 25
+  - `top.yukonga.miuix.kmp:miuix-*:0.9.2`
+  - `androidx.compose.material:material-icons-*:1.7.8`
+- **Build**: Gradle with Kotlin DSL, AGP 9.2.1, Kotlin Compose plugin 2.4.0, JDK 25
 - **CI/CD**: GitHub Actions with automated changelog and release publishing
 
 ---

@@ -11,7 +11,7 @@
 
   <p align="center">
     <a href="https://github.com/TakeKazeX/HyperTweak/actions"><img src="https://img.shields.io/github/actions/workflow/status/TakeKazeX/HyperTweak/ci.yml?branch=main&style=flat-square&logo=github-actions&logoColor=white&label=CI" alt="Build Status"></a>
-    <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.0-blue?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin"></a>
+    <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.4-blue?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin"></a>
     <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-15%20%7C%2016-green?style=flat-square&logo=android&logoColor=white" alt="Android Support"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/TakeKazeX/HyperTweak?style=flat-square&color=orange" alt="License"></a>
   </p>
@@ -40,7 +40,7 @@
 
 ### Development Environment Requirements
 - **IDE**: Android Studio Ladybug (2024.2.1) or higher
-- **Build Tool**: Gradle 9.5.1
+- **Build Tool**: Gradle 9.6.0
 - **Target SDK**: Android 16 (API 37)
 - **Min SDK**: Android 15 (API 35)
 

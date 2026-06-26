@@ -1,21 +1,20 @@
-# FCM Live Integration - COMPLETED ✅
+# FCM Live Integration - COMPLETED
 
 ## 概述
 
 成功将 **HyperOS_FCM_Live** 功能集成到 HyperTweak v1.6.0，作为可选模块移除 HyperOS 对 Google Cloud Messaging (FCM/GCM) 的限制。
 
-## ✅ 已完成的工作
+## 已完成的工作
 
 ### 1. UI 集成
-- ✅ Settings 页面新增 "Google Services" 部分
-- ✅ 添加 "Fix Google Push (FCM)" 开关
-- ✅ 包含电池使用警告提示
-- ✅ 状态管理完整连接：MainActivity → HyperTweakNavContainer → MainPagerScreen → SettingsScreen
+- Tweaks 页 "System Core" 部分新增 "Fix Google Push (FCM Live)" 开关
+- 包含电池使用警告提示
+- 状态管理完整连接：MainActivity → HyperTweakNavContainer → MainPagerScreen → TweaksScreen
 
 ### 2. 配置与架构
-- ✅ 添加 `Preferences.KEY_FCM_LIVE_ENABLED` 配置项
-- ✅ 将 `com.miui.powerkeeper` 添加到 `scope.list`
-- ✅ 在 `HookEntry` 中注册两个 hooker：
+- 添加 `Preferences.KEY_FCM_LIVE_ENABLED` 配置项
+- 将 `com.miui.powerkeeper` 添加到 `scope.list`
+- 在 `HookEntry` 中注册两个 hooker：
   - `FcmLiveSystemHooker` (system server)
   - `FcmLivePowerKeeperHooker` (powerkeeper process)
 
@@ -63,12 +62,12 @@
 
 ### 4. 技术实现细节
 
-- ✅ 使用 `object` + `StaticHooker` 模式（单例）
-- ✅ 使用 `toClassOrNull()` 进行类解析
-- ✅ 使用 EzHookTool DSL: `hook { before/after }`
-- ✅ 反射访问 PowerExemptionManager (隐藏 API)
-- ✅ 支持多 Android 版本的方法签名差异
-- ✅ 完整的错误处理和日志记录
+- 使用 `object` + `StaticHooker` 模式（单例）
+- 使用 `toClassOrNull()` 进行类解析
+- 使用 EzHookTool DSL: `hook { before/after }`
+- 反射访问 PowerExemptionManager (隐藏 API)
+- 当前 minSdk 35，因此直接使用 Android S/TIRAMISU+ 相关方法签名
+- 完整的错误处理和日志记录
 
 ### 5. 编译与构建
 - ✅ 成功编译通过
@@ -79,9 +78,9 @@
 ### 启用 FCM Live
 
 1. 打开 HyperTweak 设置
-2. 滚动到 "Google Services" 部分
-3. 开启 "Fix Google Push (FCM)" 开关
-4. 软重启受影响的进程（system_server、powerkeeper）
+2. 进入 "Features" / "System Core"
+3. 开启 "Fix Google Push (FCM Live)" 开关
+4. 重启设备或软重启以重新加载 system hooks，并重启 PowerKeeper 进程
 
 ### 预期效果
 
@@ -99,6 +98,8 @@
 
 - `system` (system_server)
 - `com.miui.powerkeeper`
+
+注意：应用内 "Restart Scoped Apps" 只暴露应用进程重启，不提供直接重启 `system_server` 的入口。
 
 ## 🔍 调试
 
