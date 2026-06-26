@@ -7,15 +7,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageName: String): Boolean {
     return try {
@@ -63,6 +67,26 @@ fun RestartScopeDialog(
         title = "Restart Scoped Apps",
         onDismissRequest = onDismissRequest,
         content = {
+            if (!initialSelection.isEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = CardDefaults.defaultColors(
+                        color = MiuixTheme.colorScheme.primaryContainer,
+                        contentColor = MiuixTheme.colorScheme.onPrimaryContainer
+                    ),
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Detected modified tweaks and preselected the related scopes.",
+                        color = MiuixTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+
             if (installedApps.isNotEmpty()) {
                 Card(
                     modifier = Modifier

@@ -36,6 +36,34 @@ data class RestartScopeSelection(
         )
     }
 
+    fun intersect(other: RestartScopeSelection): RestartScopeSelection {
+        return RestartScopeSelection(
+            systemUi = systemUi && other.systemUi,
+            settings = settings && other.settings,
+            aod = aod && other.aod,
+            securityCenter = securityCenter && other.securityCenter,
+            scanner = scanner && other.scanner,
+            milink = milink && other.milink,
+            bluetooth = bluetooth && other.bluetooth,
+            powerkeeper = powerkeeper && other.powerkeeper
+        )
+    }
+
+    fun covers(other: RestartScopeSelection): Boolean {
+        return other.without(this).isEmpty()
+    }
+
+    fun isEmpty(): Boolean {
+        return !systemUi &&
+            !settings &&
+            !aod &&
+            !securityCenter &&
+            !scanner &&
+            !milink &&
+            !bluetooth &&
+            !powerkeeper
+    }
+
     fun toKeySet(): Set<String> {
         val keys = mutableSetOf<String>()
         if (systemUi) keys += KEY_SYSTEM_UI

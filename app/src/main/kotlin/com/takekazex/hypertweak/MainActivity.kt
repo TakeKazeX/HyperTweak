@@ -37,49 +37,50 @@ internal fun getSystemAccentColor(context: Context): Int {
     }
 }
 
-private val AOD_RESTART_SCOPES = RestartScopeSelection(
-    systemUi = true,
-    settings = true,
-    aod = true
+private val TWEAK_RESTART_SCOPES = mapOf(
+    Preferences.KEY_AOD_FULLSCREEN to RestartScopeSelection(
+        systemUi = true,
+        settings = true,
+        aod = true
+    ),
+    Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
+    Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
+        settings = true,
+        securityCenter = true,
+        scanner = true
+    ),
+    Preferences.KEY_DISABLE_SPATIAL_AUDIO to RestartScopeSelection(
+        settings = true,
+        milink = true
+    ),
+    Preferences.KEY_FORCE_ADAPTIVE_ANC to RestartScopeSelection(bluetooth = true),
+    Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true)
 )
 
-private val SYSTEM_UI_RESTART_SCOPES = RestartScopeSelection(systemUi = true)
-
-private val SETTINGS_RESTART_SCOPES = RestartScopeSelection(settings = true)
-
-private val PASSKEY_RESTART_SCOPES = RestartScopeSelection(
-    settings = true,
-    securityCenter = true,
-    scanner = true
-)
-
-private val SPATIAL_AUDIO_RESTART_SCOPES = RestartScopeSelection(
-    settings = true,
-    milink = true
-)
-
-private val ADAPTIVE_ANC_RESTART_SCOPES = RestartScopeSelection(bluetooth = true)
-
-private val FCM_LIVE_RESTART_SCOPES = RestartScopeSelection(powerkeeper = true)
-
-private val ALL_MANUAL_RESTART_SCOPES = RestartScopeSelection(
-    systemUi = true,
-    settings = true,
-    aod = true,
-    securityCenter = true,
-    scanner = true,
-    milink = true,
-    bluetooth = true,
-    powerkeeper = true
-)
+private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(RestartScopeSelection.Empty) { acc, scopes ->
+    acc.merge(scopes)
+}
 
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
+private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
+private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
 
 private fun currentBootToken(): String {
     return runCatching {
         java.io.File("/proc/sys/kernel/random/boot_id").readText().trim()
     }.getOrNull()?.takeIf { it.isNotEmpty() }
         ?: ((System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()) / 1000L).toString()
+}
+
+private fun restartScopesForDirtyTweaks(keys: Set<String>): RestartScopeSelection {
+    return keys.fold(RestartScopeSelection.Empty) { acc, key ->
+        acc.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -162,37 +163,109 @@ class MainActivity : ComponentActivity() {
             val lastActive = remember { localPrefs.getBoolean("last_known_module_activated", false) }
             val initialActive = isModuleActive() || lastActive
             var moduleActive by remember { mutableStateOf(initialActive) }
+            var dirtyTweakKeys by remember {
+                val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
+                if (storedBootToken == bootToken) {
+                    mutableStateOf(localPrefs.getStringSet(KEY_DIRTY_TWEAK_KEYS, emptySet()).orEmpty())
+                } else {
+                    localPrefs.edit {
+                        remove(Preferences.KEY_PENDING_RESTART_SCOPES)
+                        remove(KEY_DIRTY_TWEAK_KEYS)
+                        TWEAK_RESTART_SCOPES.keys.forEach { remove("$KEY_TWEAK_BASELINE_PREFIX$it") }
+                        putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    }
+                    mutableStateOf(emptySet())
+                }
+            }
             var pendingRestartScopes by remember {
                 val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
                 if (storedBootToken == bootToken) {
                     mutableStateOf(
                         RestartScopeSelection.fromKeySet(
                             localPrefs.getStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, emptySet()).orEmpty()
-                        )
+                        ).intersect(restartScopesForDirtyTweaks(dirtyTweakKeys))
                     )
                 } else {
-                    localPrefs.edit {
-                        remove(Preferences.KEY_PENDING_RESTART_SCOPES)
-                        putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
-                    }
                     mutableStateOf(RestartScopeSelection.Empty)
                 }
             }
 
-            fun updatePendingRestartScopes(next: RestartScopeSelection) {
-                pendingRestartScopes = next
+            fun effectivePendingRestartScopes(dirtyKeys: Set<String>, pendingScopes: RestartScopeSelection): RestartScopeSelection {
+                return restartScopesForDirtyTweaks(dirtyKeys).intersect(pendingScopes)
+            }
+
+            fun updateDirtyTweakKeys(next: Set<String>) {
+                val nextPendingScopes = effectivePendingRestartScopes(next, pendingRestartScopes)
+                dirtyTweakKeys = next
+                pendingRestartScopes = nextPendingScopes
                 localPrefs.edit {
                     putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
-                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, next.toKeySet())
+                    putStringSet(KEY_DIRTY_TWEAK_KEYS, next)
+                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
                 }
             }
 
-            fun markPendingRestartScopes(scopes: RestartScopeSelection) {
-                updatePendingRestartScopes(pendingRestartScopes.merge(scopes))
+            fun currentTweakValue(key: String): Boolean {
+                return when (key) {
+                    Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
+                    Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
+                    Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
+                    Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
+                    Preferences.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
+                    Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
+                    Preferences.KEY_SHOW_IN_SETTINGS -> showInSettings
+                    Preferences.KEY_UNLOCK_PASSKEY -> unlockPasskey
+                    Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
+                    Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
+                    Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
+                    else -> Preferences.getBoolean(key, false)
+                }
+            }
+
+            fun markTweaked(key: String, value: Boolean) {
+                val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
+                val baseline = if (localPrefs.contains(baselineKey)) {
+                    localPrefs.getBoolean(baselineKey, value)
+                } else {
+                    Preferences.getBoolean(key, value)
+                }
+                val nextDirtyKeys = if (value == baseline) {
+                    dirtyTweakKeys - key
+                } else {
+                    dirtyTweakKeys + key
+                }
+                val nextPendingScopes = if (value == baseline) {
+                    effectivePendingRestartScopes(nextDirtyKeys, pendingRestartScopes)
+                } else {
+                    pendingRestartScopes.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
+                }
+
+                dirtyTweakKeys = nextDirtyKeys
+                pendingRestartScopes = nextPendingScopes
+                localPrefs.edit {
+                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    putBoolean(baselineKey, baseline)
+                    putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
+                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                }
             }
 
             fun clearRestartedScopes(scopes: RestartScopeSelection) {
-                updatePendingRestartScopes(pendingRestartScopes.without(scopes))
+                val nextPendingScopes = pendingRestartScopes.without(scopes)
+                val clearedKeys = dirtyTweakKeys.filter { key ->
+                    TWEAK_RESTART_SCOPES[key]?.let(nextPendingScopes::intersect)?.isEmpty() == true
+                }.toSet()
+                val nextDirtyKeys = dirtyTweakKeys - clearedKeys
+                dirtyTweakKeys = nextDirtyKeys
+                pendingRestartScopes = nextPendingScopes
+                localPrefs.edit {
+                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    clearedKeys.forEach { key ->
+                        putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValue(key))
+                    }
+                    putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
+                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                }
             }
 
             LaunchedEffect(serviceConnected) {
@@ -355,8 +428,8 @@ class MainActivity : ComponentActivity() {
                     pendingRestartScopes = pendingRestartScopes,
                     aodFullscreen = aodFullscreen,
                     onAodFullscreenChange = { checked ->
+                        markTweaked(Preferences.KEY_AOD_FULLSCREEN, checked)
                         aodFullscreen = checked
-                        markPendingRestartScopes(AOD_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
                         }
@@ -370,48 +443,48 @@ class MainActivity : ComponentActivity() {
                     },
                     hideFingerprint = hideFingerprint,
                     onHideFingerprintChange = { checked ->
+                        markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         hideFingerprint = checked
-                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         }
                     },
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->
+                        markTweaked(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         hideGestureBar = checked
-                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         }
                     },
                     gestureBarRaiseLayout = gestureBarRaiseLayout,
                     onGestureBarRaiseLayoutChange = { checked ->
+                        markTweaked(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         gestureBarRaiseLayout = checked
-                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         }
                     },
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->
+                        markTweaked(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
                         sliderShowPercentage = checked
-                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
                         }
                     },
                     sliderSamePercentageStyle = sliderSamePercentageStyle,
                     onSliderSamePercentageChange = { checked ->
+                        markTweaked(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                         sliderSamePercentageStyle = checked
-                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                         }
                     },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
+                        markTweaked(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         showInSettings = checked
-                        markPendingRestartScopes(SETTINGS_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         }
@@ -426,32 +499,32 @@ class MainActivity : ComponentActivity() {
                     },
                     unlockPasskey = unlockPasskey,
                     onUnlockPasskeyChange = { checked ->
+                        markTweaked(Preferences.KEY_UNLOCK_PASSKEY, checked)
                         unlockPasskey = checked
-                        markPendingRestartScopes(PASSKEY_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
                         }
                     },
                     disableSpatialAudio = disableSpatialAudio,
                     onDisableSpatialAudioChange = { checked ->
+                        markTweaked(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         disableSpatialAudio = checked
-                        markPendingRestartScopes(SPATIAL_AUDIO_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         }
                     },
                     forceAdaptiveAnc = forceAdaptiveAnc,
                     onForceAdaptiveAncChange = { checked ->
+                        markTweaked(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                         forceAdaptiveAnc = checked
-                        markPendingRestartScopes(ADAPTIVE_ANC_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                         }
                     },
                     fcmLiveEnabled = fcmLiveEnabled,
                     onFcmLiveEnabledChange = { checked ->
+                        markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         fcmLiveEnabled = checked
-                        markPendingRestartScopes(FCM_LIVE_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         }
