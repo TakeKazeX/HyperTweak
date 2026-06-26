@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -61,9 +62,10 @@ fun HomeScreenContent(
     packageName: String,
     targetSdk: Int,
     backdrop: LayerBackdrop,
+    pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
-    onRestartScope: (systemUi: Boolean, settings: Boolean, aod: Boolean, securityCenter: Boolean, scanner: Boolean, milink: Boolean, bluetooth: Boolean, powerkeeper: Boolean) -> Unit
+    onRestartScope: (RestartScopeSelection) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val containerColor = when {
@@ -278,6 +280,7 @@ fun HomeScreenContent(
 
         RestartScopeDialog(
             show = showRestartDialog,
+            initialSelection = pendingRestartScopes,
             onDismissRequest = { showRestartDialog = false },
             onConfirm = onRestartScope
         )

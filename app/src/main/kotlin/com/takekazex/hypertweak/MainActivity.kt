@@ -25,6 +25,7 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.takekazex.hypertweak.util.RestartUtils
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.LocaleHelper
 import androidx.compose.ui.platform.LocalContext
 
@@ -34,6 +35,51 @@ internal fun getSystemAccentColor(context: Context): Int {
     } catch (e: Throwable) {
         0xFF007AFF.toInt()
     }
+}
+
+private val AOD_RESTART_SCOPES = RestartScopeSelection(
+    systemUi = true,
+    settings = true,
+    aod = true
+)
+
+private val SYSTEM_UI_RESTART_SCOPES = RestartScopeSelection(systemUi = true)
+
+private val SETTINGS_RESTART_SCOPES = RestartScopeSelection(settings = true)
+
+private val PASSKEY_RESTART_SCOPES = RestartScopeSelection(
+    settings = true,
+    securityCenter = true,
+    scanner = true
+)
+
+private val SPATIAL_AUDIO_RESTART_SCOPES = RestartScopeSelection(
+    settings = true,
+    milink = true
+)
+
+private val ADAPTIVE_ANC_RESTART_SCOPES = RestartScopeSelection(bluetooth = true)
+
+private val FCM_LIVE_RESTART_SCOPES = RestartScopeSelection(powerkeeper = true)
+
+private val ALL_MANUAL_RESTART_SCOPES = RestartScopeSelection(
+    systemUi = true,
+    settings = true,
+    aod = true,
+    securityCenter = true,
+    scanner = true,
+    milink = true,
+    bluetooth = true,
+    powerkeeper = true
+)
+
+private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
+
+private fun currentBootToken(): String {
+    return runCatching {
+        java.io.File("/proc/sys/kernel/random/boot_id").readText().trim()
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
+        ?: ((System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()) / 1000L).toString()
 }
 
 class MainActivity : ComponentActivity() {
@@ -112,9 +158,42 @@ class MainActivity : ComponentActivity() {
 
             val context = androidx.compose.ui.platform.LocalContext.current
             val localPrefs = remember { getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE) }
+            val bootToken = remember { currentBootToken() }
             val lastActive = remember { localPrefs.getBoolean("last_known_module_activated", false) }
             val initialActive = isModuleActive() || lastActive
             var moduleActive by remember { mutableStateOf(initialActive) }
+            var pendingRestartScopes by remember {
+                val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
+                if (storedBootToken == bootToken) {
+                    mutableStateOf(
+                        RestartScopeSelection.fromKeySet(
+                            localPrefs.getStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, emptySet()).orEmpty()
+                        )
+                    )
+                } else {
+                    localPrefs.edit {
+                        remove(Preferences.KEY_PENDING_RESTART_SCOPES)
+                        putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    }
+                    mutableStateOf(RestartScopeSelection.Empty)
+                }
+            }
+
+            fun updatePendingRestartScopes(next: RestartScopeSelection) {
+                pendingRestartScopes = next
+                localPrefs.edit {
+                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, next.toKeySet())
+                }
+            }
+
+            fun markPendingRestartScopes(scopes: RestartScopeSelection) {
+                updatePendingRestartScopes(pendingRestartScopes.merge(scopes))
+            }
+
+            fun clearRestartedScopes(scopes: RestartScopeSelection) {
+                updatePendingRestartScopes(pendingRestartScopes.without(scopes))
+            }
 
             LaunchedEffect(serviceConnected) {
                 fun reloadAllPreferences() {
@@ -273,9 +352,11 @@ class MainActivity : ComponentActivity() {
                     hotReloading = hotReloading,
                     hotReloadTargets = staleTargets.map { it.processName },
                     hotReloadReport = hotReloadReport,
+                    pendingRestartScopes = pendingRestartScopes,
                     aodFullscreen = aodFullscreen,
                     onAodFullscreenChange = { checked ->
                         aodFullscreen = checked
+                        markPendingRestartScopes(AOD_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
                         }
@@ -290,6 +371,7 @@ class MainActivity : ComponentActivity() {
                     hideFingerprint = hideFingerprint,
                     onHideFingerprintChange = { checked ->
                         hideFingerprint = checked
+                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         }
@@ -297,6 +379,7 @@ class MainActivity : ComponentActivity() {
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->
                         hideGestureBar = checked
+                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         }
@@ -304,6 +387,7 @@ class MainActivity : ComponentActivity() {
                     gestureBarRaiseLayout = gestureBarRaiseLayout,
                     onGestureBarRaiseLayoutChange = { checked ->
                         gestureBarRaiseLayout = checked
+                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         }
@@ -311,6 +395,7 @@ class MainActivity : ComponentActivity() {
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->
                         sliderShowPercentage = checked
+                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
                         }
@@ -318,6 +403,7 @@ class MainActivity : ComponentActivity() {
                     sliderSamePercentageStyle = sliderSamePercentageStyle,
                     onSliderSamePercentageChange = { checked ->
                         sliderSamePercentageStyle = checked
+                        markPendingRestartScopes(SYSTEM_UI_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                         }
@@ -325,6 +411,7 @@ class MainActivity : ComponentActivity() {
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
                         showInSettings = checked
+                        markPendingRestartScopes(SETTINGS_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         }
@@ -340,6 +427,7 @@ class MainActivity : ComponentActivity() {
                     unlockPasskey = unlockPasskey,
                     onUnlockPasskeyChange = { checked ->
                         unlockPasskey = checked
+                        markPendingRestartScopes(PASSKEY_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
                         }
@@ -347,6 +435,7 @@ class MainActivity : ComponentActivity() {
                     disableSpatialAudio = disableSpatialAudio,
                     onDisableSpatialAudioChange = { checked ->
                         disableSpatialAudio = checked
+                        markPendingRestartScopes(SPATIAL_AUDIO_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         }
@@ -354,6 +443,7 @@ class MainActivity : ComponentActivity() {
                     forceAdaptiveAnc = forceAdaptiveAnc,
                     onForceAdaptiveAncChange = { checked ->
                         forceAdaptiveAnc = checked
+                        markPendingRestartScopes(ADAPTIVE_ANC_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                         }
@@ -361,6 +451,7 @@ class MainActivity : ComponentActivity() {
                     fcmLiveEnabled = fcmLiveEnabled,
                     onFcmLiveEnabledChange = { checked ->
                         fcmLiveEnabled = checked
+                        markPendingRestartScopes(FCM_LIVE_RESTART_SCOPES)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         }
@@ -381,13 +472,15 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper ->
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper)
+                    onRestartScope = { selection ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, selection)
+                        clearRestartedScopes(selection)
                     },
                     onHotReload = { restartAllScopes ->
                         XposedServiceManager.hotReloadStaleTargets { report ->
                             if (restartAllScopes && report.failedCount == 0) {
-                                RestartUtils.restartScope(this@MainActivity, coroutineScope, true, true, true, true, true, true, true, true)
+                                RestartUtils.restartScope(this@MainActivity, coroutineScope, ALL_MANUAL_RESTART_SCOPES)
+                                clearRestartedScopes(ALL_MANUAL_RESTART_SCOPES)
                             }
                         }
                     },

@@ -12,6 +12,25 @@ object RestartUtils {
     fun restartScope(
         context: Context,
         coroutineScope: CoroutineScope,
+        selection: RestartScopeSelection
+    ) {
+        restartScope(
+            context = context,
+            coroutineScope = coroutineScope,
+            systemUi = selection.systemUi,
+            settings = selection.settings,
+            aod = selection.aod,
+            securityCenter = selection.securityCenter,
+            scanner = selection.scanner,
+            milink = selection.milink,
+            bluetooth = selection.bluetooth,
+            powerkeeper = selection.powerkeeper
+        )
+    }
+
+    fun restartScope(
+        context: Context,
+        coroutineScope: CoroutineScope,
         systemUi: Boolean,
         settings: Boolean,
         aod: Boolean,
