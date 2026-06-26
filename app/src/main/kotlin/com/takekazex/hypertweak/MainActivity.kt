@@ -381,13 +381,13 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper, systemServer ->
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper, systemServer)
+                    onRestartScope = { systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper ->
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, systemUi, settings, aod, securityCenter, scanner, milink, bluetooth, powerkeeper)
                     },
                     onHotReload = { restartAllScopes ->
                         XposedServiceManager.hotReloadStaleTargets { report ->
                             if (restartAllScopes && report.failedCount == 0) {
-                                RestartUtils.restartScope(this@MainActivity, coroutineScope, true, true, true, true, true, true, true)
+                                RestartUtils.restartScope(this@MainActivity, coroutineScope, true, true, true, true, true, true, true, true)
                             }
                         }
                     },
