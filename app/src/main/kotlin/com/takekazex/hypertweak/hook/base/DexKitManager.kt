@@ -125,7 +125,8 @@ object DexKitManager {
         cacheDir: File?,
         apkPath: String,
         classLoader: ClassLoader,
-        queries: Map<String, (DexKitBridge) -> String?>
+        queries: Map<String, (DexKitBridge) -> String?>,
+        logMissingQueries: Boolean = true
     ): Map<String, Class<*>> {
         if (!loadLibrary()) {
             DebugLog.e("DexKit", "not loaded; falling back to default names")
@@ -196,7 +197,11 @@ object DexKitManager {
                             DebugLog.e("DexKit", "resolved $className for key $key but class load failed", t)
                         }
                     } else {
-                        DebugLog.e("DexKit", "query returned null for key $key")
+                        if (logMissingQueries) {
+                            DebugLog.e("DexKit", "query returned null for key $key")
+                        } else {
+                            DebugLog.d("DexKit", "optional query returned null for key $key")
+                        }
                     }
                 }
                 if (cacheUpdated && cacheFile != null && cacheDir != null) {

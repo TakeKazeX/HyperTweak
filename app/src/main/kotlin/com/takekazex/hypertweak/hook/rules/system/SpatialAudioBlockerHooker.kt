@@ -2,7 +2,9 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 
 object SpatialAudioBlockerHooker : StaticHooker() {
@@ -22,8 +24,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     }
 
     private fun hookAirCoreManager() {
-        val clazz = resolveAppClass(
-            "AirCoreManager",
+        val clazz = resolveFirstAppClass(
             mapOf(
                 "AirCoreManager" to { bridge ->
                     bridge.findClass {
@@ -35,7 +36,8 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                         matcher { usingStrings("air_anc", "setCommand") }
                     }.singleOrNull()?.name
                 }
-            )
+            ),
+            fallbackClassNames = listOf("AirCoreManager", "AirCoreByString")
         ) ?: return
 
         Log.d(TAG, "SpatialAudioBlockerHooker: Found AirCoreManager: ${clazz.name}, methods:")
@@ -80,8 +82,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     }
 
     private fun hookAudioEffectCenter() {
-        val clazz = resolveAppClass(
-            "AudioEffectCenter",
+        val clazz = resolveFirstAppClass(
             mapOf(
                 "AudioEffectCenter" to { bridge ->
                     bridge.findClass {
@@ -93,7 +94,8 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                         matcher { usingStrings("setSpatialAudioActive") }
                     }.singleOrNull()?.name
                 }
-            )
+            ),
+            fallbackClassNames = listOf("AudioEffectCenter", "SpatialAudioPresenter")
         ) ?: return
 
         Log.d(TAG, "SpatialAudioBlockerHooker: Found AudioEffectCenter: ${clazz.name}")
@@ -116,5 +118,26 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                 }
             }
         }
+    }
+
+    private fun resolveFirstAppClass(
+        queries: Map<String, (DexKitBridge) -> String?>,
+        fallbackClassNames: List<String>
+    ): Class<*>? {
+        val appInfo = hookParam.appInfo
+        val baseDir = appInfo?.deviceProtectedDataDir ?: appInfo?.dataDir
+        val apkPath = appInfo?.sourceDir
+        if (baseDir != null && apkPath != null) {
+            val resolved = DexKitManager.resolveClasses(
+                cacheDir = java.io.File(baseDir, "cache"),
+                apkPath = apkPath,
+                classLoader = classLoader,
+                queries = queries,
+                logMissingQueries = false
+            )
+            queries.keys.firstNotNullOfOrNull { resolved[it] }?.let { return it }
+        }
+
+        return fallbackClassNames.firstNotNullOfOrNull { it.toClassOrNull() }
     }
 }

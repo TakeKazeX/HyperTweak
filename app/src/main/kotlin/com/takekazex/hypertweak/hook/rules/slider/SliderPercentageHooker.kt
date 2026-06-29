@@ -23,12 +23,14 @@ class SliderPercentageHooker(
         private set
 
     fun resolveClass(className: String, initialize: Boolean = false): Class<Any>? {
+        className.toClassOrNull(initialize = initialize)?.let { return it }
+
         val resolvedClass = resolveViaDexKit(className)
         if (resolvedClass != null) {
             @Suppress("UNCHECKED_CAST")
             return resolvedClass as Class<Any>
         }
-        return className.toClassOrNull(initialize = initialize)
+        return null
     }
 
     private fun resolveViaDexKit(className: String): Class<*>? {
