@@ -24,6 +24,7 @@ import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
+import io.github.lingqiqi5211.ezhooktool.xposed.ApplicationAttachCallback
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 
@@ -31,6 +32,7 @@ class HookEntry : XposedModule() {
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
     private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
+    private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
     private var systemServerClassLoader: ClassLoader? = null
@@ -92,17 +94,10 @@ class HookEntry : XposedModule() {
             pluginStates = currentPluginStates(param.packageName)
         )
 
-        val appContext = packageStates[param.packageName]?.appContext
-        if (appContext != null) {
-            Preferences.initLocalCache(appContext)
-            RestartBroadcastHooker.register(appContext)
-            DebugLog.d("HookEntry", "package ready package=${param.packageName} context=${appContext.packageName}")
-        } else {
-            DebugLog.w("HookEntry", "package ready package=${param.packageName} without app context")
-        }
+        handlePackageReadyContext(param.packageName, param.classLoader)
 
         if (param.packageName == "com.android.systemui") {
-            HideBottomBarHooker.onPackageReady(appContext, param.classLoader)
+            HideBottomBarHooker.onPackageReady(packageStates[param.packageName]?.appContext, param.classLoader)
         }
     }
 
@@ -160,6 +155,7 @@ class HookEntry : XposedModule() {
         injectedPackages.clear()
         rootHookers.clear()
         packageStates.clear()
+        pendingAppContextPackages.clear()
 
         if (restoredState == null) {
             DebugLog.w("HookEntry", "hot reloaded without restorable target state")
@@ -195,6 +191,9 @@ class HookEntry : XposedModule() {
                 pluginStates = state.pluginStates
             )
             injectedPackages.add(state.packageName)
+            if (state.appContext != null) {
+                pendingAppContextPackages.remove(state.packageName)
+            }
             EzReflect.init(state.classLoader)
             dispatchPackageHookers(
                 packageName = state.packageName,
@@ -265,6 +264,58 @@ class HookEntry : XposedModule() {
             appContext = appContext ?: old?.appContext,
             pluginStates = if (pluginStates.isNotEmpty()) pluginStates else old?.pluginStates.orEmpty()
         )
+        if (packageStates[packageName]?.appContext != null) {
+            pendingAppContextPackages.remove(packageName)
+        }
+    }
+
+    private fun handlePackageReadyContext(packageName: String, classLoader: ClassLoader) {
+        val appContext = packageStates[packageName]?.appContext ?: runCatching {
+            EzXposed.appContextOrNull
+        }.getOrNull()?.also { context ->
+            recordPackageState(
+                packageName = packageName,
+                classLoader = classLoader,
+                appInfo = packageStates[packageName]?.appInfo,
+                isFirstPackage = false,
+                isPackageReady = true,
+                appContext = context,
+                pluginStates = currentPluginStates(packageName)
+            )
+        }
+
+        if (appContext != null) {
+            onPackageReadyContextAvailable(packageName, appContext)
+            return
+        }
+
+        DebugLog.d("HookEntry", "package ready package=$packageName waiting for app context")
+        if (!pendingAppContextPackages.add(packageName)) return
+
+        EzXposed.runOnApplicationAttach(object : ApplicationAttachCallback {
+            override fun onApplicationAttached(context: Context) {
+                val appContext = context.applicationContext ?: context
+                if (appContext.packageName != packageName) return
+                if (!pendingAppContextPackages.remove(packageName)) return
+
+                recordPackageState(
+                    packageName = packageName,
+                    classLoader = classLoader,
+                    appInfo = packageStates[packageName]?.appInfo,
+                    isFirstPackage = false,
+                    isPackageReady = true,
+                    appContext = appContext,
+                    pluginStates = currentPluginStates(packageName)
+                )
+                onPackageReadyContextAvailable(packageName, appContext)
+            }
+        })
+    }
+
+    private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
+        Preferences.initLocalCache(appContext)
+        RestartBroadcastHooker.register(appContext)
+        DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
 
     private fun hotReloadModeSummary(): String {
