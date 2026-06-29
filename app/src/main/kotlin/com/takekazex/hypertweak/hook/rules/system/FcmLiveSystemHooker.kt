@@ -275,7 +275,9 @@ object FcmLiveSystemHooker : StaticHooker() {
             val infoField = processRecordClass.getDeclaredField("info").apply { isAccessible = true }
 
             // Use API 31+ method (minSdk is 35)
-            val getRecordMethod = amsClass.getDeclaredMethod("getRecordForAppLOSP", appThreadClass)
+            val getRecordMethod = amsClass.getDeclaredMethod("getRecordForAppLOSP", appThreadClass).apply {
+                isAccessible = true
+            }
 
             val stringArrayClass = Array<String>::class.java
 
@@ -292,7 +294,7 @@ object FcmLiveSystemHooker : StaticHooker() {
             method.hook {
                 before { param ->
                     runCatching {
-                        handleBroadcastIntent(param, 2, getRecordMethod, infoField, mContextField)
+                        handleBroadcastIntent(param.args, param.thisObject, 2, getRecordMethod, infoField, mContextField)
                     }.onFailure { t ->
                         DebugLog.w(hookerName, "Failed to handle FCM broadcast intent", t)
                     }
@@ -306,20 +308,13 @@ object FcmLiveSystemHooker : StaticHooker() {
     }
 
     private fun handleBroadcastIntent(
-        param: Any,
+        args: Array<Any?>,
+        thisObject: Any,
         intentArgIndex: Int,
         getRecordMethod: java.lang.reflect.Method,
         infoField: java.lang.reflect.Field,
         mContextField: java.lang.reflect.Field
     ) {
-        // Access param properties through reflection since we're outside the hook DSL
-        val paramClass = param.javaClass
-        val argsField = paramClass.getDeclaredField("args").apply { isAccessible = true }
-        val thisObjectField = paramClass.getDeclaredField("thisObject").apply { isAccessible = true }
-
-        val args = argsField.get(param) as Array<*>
-        val thisObject = thisObjectField.get(param)
-
         val intent = args[intentArgIndex] as? Intent
         if (intent?.action == ACTION_REMOTE_INTENT) {
             val app = getRecordMethod.invoke(thisObject, args[0])
