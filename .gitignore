@@ -9,6 +9,7 @@
 /build
 /app/build
 /hidden-api/build
+/hidden-api/bin
 /captures
 .externalNativeBuild
 .cxx
