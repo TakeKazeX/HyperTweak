@@ -7,9 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g. v1.2)'
+        description: 'Tag name for the release (must match the project version)'
         required: true
-        default: 'v1.2'
 
 permissions:
   contents: write
@@ -36,6 +35,23 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CURRENT_TAG="${{ github.event.inputs.tag_name }}"
+          else
+            CURRENT_TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          PROJECT_VERSION="$(./gradlew -q :app:printBaseVersion)"
+          EXPECTED_TAG="v${PROJECT_VERSION}"
+          if [ "$CURRENT_TAG" != "$EXPECTED_TAG" ]; then
+            echo "ERROR: release tag '$CURRENT_TAG' does not match project version '$EXPECTED_TAG'."
+            exit 1
+          fi
+          echo "CURRENT_TAG=$CURRENT_TAG" >> "$GITHUB_ENV"
+          echo "Release tag matches project version: $CURRENT_TAG"
 
       - name: Decode Release Keystore
         run: |
@@ -66,12 +82,6 @@ jobs:
             git fetch --tags
           fi
           
-          # Determine current tag
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            CURRENT_TAG="${{ github.event.inputs.tag_name }}"
-          else
-            CURRENT_TAG=${GITHUB_REF#refs/tags/}
-          fi
           echo "Current tag to compare: $CURRENT_TAG"
           
           # Find the previous tag
