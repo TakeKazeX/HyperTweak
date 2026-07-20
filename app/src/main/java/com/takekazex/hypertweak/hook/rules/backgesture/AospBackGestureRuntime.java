@@ -76,6 +76,7 @@ import com.takekazex.hypertweak.hook.Preferences;
 
 import io.github.libxposed.api.XposedInterface;
 
+@SuppressWarnings("deprecation")
 public final class AospBackGestureRuntime {
     private static final String TAG = "MiuiBackGestureHook";
     private static final String BUILD_MARK =

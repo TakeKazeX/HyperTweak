@@ -68,7 +68,14 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Verify release certificate
-        run: apksigner verify --print-certs app/build/outputs/apk/release/*.apk
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "ERROR: Android SDK apksigner was not found under $SDK_ROOT/build-tools"
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/*.apk
 
       - name: Generate Changelog
         run: |
