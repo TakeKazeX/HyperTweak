@@ -54,6 +54,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
 
     override fun onServiceDied(service: XposedService) {
         DebugLog.w("XposedService", "service died")
+        Preferences.useLocalBackend()
         _serviceFlow.value = null
         _staleTargetsFlow.value = emptyList()
         _hotReloadingFlow.value = false

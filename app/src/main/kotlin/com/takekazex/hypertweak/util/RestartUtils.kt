@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.ensureActive
+import java.util.concurrent.TimeUnit
 
 object RestartUtils {
     fun restartScope(
@@ -46,19 +49,19 @@ object RestartUtils {
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
-            val intent = Intent("com.takekazex.hypertweak.ACTION_RESTART_SCOPE").apply {
+            val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra("systemui", systemUi)
-                putExtra("miuihome", miuiHome)
-                putExtra("settings", settings)
-                putExtra("aod", aod)
-                putExtra("securitycenter", securityCenter)
-                putExtra("scanner", scanner)
-                putExtra("milink", milink)
-                putExtra("bluetooth", bluetooth)
-                putExtra("powerkeeper", powerkeeper)
+                putExtra(RestartProtocol.EXTRA_SYSTEM_UI, systemUi)
+                putExtra(RestartProtocol.EXTRA_MIUI_HOME, miuiHome)
+                putExtra(RestartProtocol.EXTRA_SETTINGS, settings)
+                putExtra(RestartProtocol.EXTRA_AOD, aod)
+                putExtra(RestartProtocol.EXTRA_SECURITY_CENTER, securityCenter)
+                putExtra(RestartProtocol.EXTRA_SCANNER, scanner)
+                putExtra(RestartProtocol.EXTRA_MILINK, milink)
+                putExtra(RestartProtocol.EXTRA_BLUETOOTH, bluetooth)
+                putExtra(RestartProtocol.EXTRA_POWERKEEPER, powerkeeper)
             }
-            context.sendBroadcast(intent)
+            runCatching { context.sendBroadcast(intent, RestartProtocol.PERMISSION) }
 
             // 2. Try executing root shell commands to terminate target processes
             val rootSuccess = withContext(Dispatchers.IO) {
@@ -95,8 +98,19 @@ object RestartUtils {
                         writer.write("exit\n")
                         writer.flush()
                     }
-                    process.waitFor() == 0
+                    val completed = process.waitFor(8, TimeUnit.SECONDS)
+                    if (!completed) {
+                        process.destroyForcibly()
+                        DebugLog.e("RestartUtils", "root restart timed out")
+                        false
+                    } else {
+                        val stderr = process.errorStream.bufferedReader().use { it.readText() }
+                        if (stderr.isNotBlank()) DebugLog.e("RestartUtils", "root stderr: $stderr")
+                        DebugLog.d("RestartUtils", "root restart exit=${process.exitValue()}")
+                        process.exitValue() == 0
+                    }
                 } catch (e: Exception) {
+                    DebugLog.e("RestartUtils", "root restart failed", e)
                     false
                 }
             }

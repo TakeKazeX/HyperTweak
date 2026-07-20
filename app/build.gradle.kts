@@ -14,11 +14,12 @@ android {
         applicationId = "com.takekazex.hypertweak"
         minSdk = 35
         targetSdk = 37
+        val explicitVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
         val commitCount = providers.exec {
             commandLine("git", "rev-list", "--count", "HEAD")
         }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
 
-        versionCode = commitCount
+        versionCode = explicitVersionCode ?: commitCount
 
         val isStableRelease = project.hasProperty("stable") ||
                 (System.getenv("BUILD_CHANNEL") == "stable") ||
@@ -78,6 +79,7 @@ android {
             if (keystoreFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             } else {
+                logger.warn("Release keystore missing; producing debug-signed fallback APK")
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
@@ -110,7 +112,8 @@ androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
             val mainOutput = output as? com.android.build.api.variant.impl.VariantOutputImpl
-            mainOutput?.outputFileName?.set("HyperTweak-v${variant.outputs.first().versionName.get()}-${variant.name}.apk")
+            val suffix = if (variant.name == "release" && !file("release.keystore").exists()) "-debug-signed" else ""
+            mainOutput?.outputFileName?.set("HyperTweak-v${variant.outputs.first().versionName.get()}-${variant.name}$suffix.apk")
         }
     }
 }

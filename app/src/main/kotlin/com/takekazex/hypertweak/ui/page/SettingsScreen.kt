@@ -171,8 +171,8 @@ fun SettingsScreenContent(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
-                    title = "Debug Logs",
-                    summary = "View module and hook runtime logs",
+                    title = "Debug",
+                    summary = "Logging and diagnostics",
                     onClick = onNavigateToDebugLogs
                 )
                 ArrowPreference(

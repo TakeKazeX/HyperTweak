@@ -1,5 +1,3 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
-
 package com.takekazex.hypertweak
 
 import android.content.ComponentName
@@ -12,7 +10,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.core.content.edit
@@ -21,12 +18,9 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeController
-import top.yukonga.miuix.kmp.theme.ThemeColorSpec
-import top.yukonga.miuix.kmp.theme.colorsFromSeed
-import com.takekazex.hypertweak.ui.theme.paletteStyleFromStored
+import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
+import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -336,66 +330,12 @@ class MainActivity : ComponentActivity() {
             }
 
             val isDark = isSystemInDarkTheme()
-            val resolvedSeedColorHex = remember(seedColorHex, context) {
-                if (seedColorHex == 0) {
-                    getSystemAccentColor(context)
-                } else {
-                    seedColorHex
-                }
-            }
+            val deviceAccent = rememberDeviceAccentColor()
+            val resolvedSeedColorHex = if (seedColorHex == 0) deviceAccent else seedColorHex
 
             val pureBlackActive = pureBlackDarkTheme && isEffectivelyDark(themeMode, isDark)
             val controller = remember(themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive, isDark) {
-                val mode = when (themeMode) {
-                    1 -> if (useMonet) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
-                    2 -> if (useMonet) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
-                    else -> if (useMonet) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
-                }
-                val generatedController = ThemeController(
-                    colorSchemeMode = mode,
-                    keyColor = Color(resolvedSeedColorHex),
-                    colorSpec = ThemeColorSpec.Spec2025,
-                    paletteStyle = paletteStyleFromStored(paletteStyle).miuixStyle,
-                    isDark = when (themeMode) {
-                        1 -> false
-                        2 -> true
-                        else -> null
-                    }
-                )
-                if (pureBlackActive) {
-                    val style = paletteStyleFromStored(paletteStyle).miuixStyle
-                    val lightColors = if (useMonet) {
-                        colorsFromSeed(Color(resolvedSeedColorHex), ThemeColorSpec.Spec2025, style, false)
-                    } else generatedController.lightColors
-                    val darkColors = if (useMonet) {
-                        colorsFromSeed(Color(resolvedSeedColorHex), ThemeColorSpec.Spec2025, style, true)
-                    } else generatedController.darkColors
-                    ThemeController(
-                        colorSchemeMode = when (themeMode) {
-                            1 -> ColorSchemeMode.Light
-                            2 -> ColorSchemeMode.Dark
-                            else -> ColorSchemeMode.System
-                        },
-                        lightColors = lightColors.copy(
-                            background = Color.Black,
-                            surface = Color.Black
-                        ),
-                        darkColors = darkColors.copy(
-                            background = Color.Black,
-                            surface = Color.Black
-                        ),
-                        keyColor = Color(resolvedSeedColorHex),
-                        colorSpec = ThemeColorSpec.Spec2025,
-                        paletteStyle = paletteStyleFromStored(paletteStyle).miuixStyle,
-                        isDark = when (themeMode) {
-                            1 -> false
-                            2 -> true
-                            else -> null
-                        }
-                    )
-                } else {
-                    generatedController
-                }
+                MiuixSpec2025Adapter.createThemeController(themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive)
             }
 
             val systemDensity = LocalDensity.current

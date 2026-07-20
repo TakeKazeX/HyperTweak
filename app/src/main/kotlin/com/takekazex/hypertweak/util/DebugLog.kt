@@ -120,7 +120,9 @@ object DebugLog {
             else -> Log.d(TAG, fullMessage)
         }
 
-        enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+        if (Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) {
+            enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+        }
         forwardToXposed(priority, fullMessage, throwable)
     }
 

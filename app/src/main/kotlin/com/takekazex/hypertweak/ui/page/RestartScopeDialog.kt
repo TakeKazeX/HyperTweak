@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.ui.page
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -95,10 +97,12 @@ fun RestartScopeDialog(
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp),
                     ) {
-                        installedApps.forEach { pkg ->
+                        items(installedApps, key = { it }) { pkg ->
                             val checked = when (pkg) {
                                 "com.android.systemui" -> systemUiChecked
                                 "com.miui.home" -> miuiHomeChecked
@@ -134,16 +138,10 @@ fun RestartScopeDialog(
                 }
             }
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(
-                    text = "Cancel",
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(20.dp))
                 TextButton(
                     text = "Restart",
                     onClick = {
@@ -162,8 +160,17 @@ fun RestartScopeDialog(
                         )
                         onDismissRequest()
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+                TextButton(
+                    text = "Cancel",
+                    onClick = onDismissRequest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                 )
             }
         }

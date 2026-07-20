@@ -6,12 +6,14 @@ import org.luckypray.dexkit.DexKitBridge
 import java.io.File
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import java.util.concurrent.ConcurrentHashMap
 
 object DexKitManager {
     private const val PREFS_NAME = "hypertweak_dexkit_cache"
     private const val KEY_LAST_MODIFIED = "apk_last_modified"
     private val bridgeLock = ReentrantLock()
     private val bridgeDrained = bridgeLock.newCondition()
+    private val resolutionLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     @Volatile
     private var isLoaded = false
@@ -120,7 +122,6 @@ object DexKitManager {
      * @param queries A map of cacheKey to query function (DexKitBridge) -> String (ClassName)
      * @return Map of cacheKey to Resolved ClassName
      */
-    @Synchronized
     fun resolveClasses(
         cacheDir: File?,
         apkPath: String,
@@ -128,6 +129,9 @@ object DexKitManager {
         queries: Map<String, (DexKitBridge) -> String?>,
         logMissingQueries: Boolean = true
     ): Map<String, Class<*>> {
+        val resolutionLock = resolutionLocks.computeIfAbsent(apkPath) { ReentrantLock() }
+        resolutionLock.lock()
+        try {
         if (!loadLibrary()) {
             DebugLog.e("DexKit", "not loaded; falling back to default names")
             return emptyMap()
@@ -218,5 +222,8 @@ object DexKitManager {
         }
 
         return resolvedMap
+        } finally {
+            resolutionLock.unlock()
+        }
     }
 }

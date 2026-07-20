@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <permission
+        android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE"
+        android:protectionLevel="signature" />
+
     <queries>
         <package android:name="com.android.systemui" />
         <package android:name="com.android.settings" />
@@ -14,7 +18,8 @@
 
     <application
         android:name=".HyperTweakApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupOnly="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:description="@string/module_description"
         android:fullBackupContent="@xml/backup_rules"

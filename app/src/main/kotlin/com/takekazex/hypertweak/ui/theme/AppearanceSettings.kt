@@ -3,18 +3,11 @@ package com.takekazex.hypertweak.ui.theme
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 
 enum class PaletteStyleOption(
+    val persistedId: Int,
     val label: String,
     val miuixStyle: ThemePaletteStyle
 ) {
-    TonalSpot("Tonal Spot", ThemePaletteStyle.TonalSpot),
-    Neutral("Neutral", ThemePaletteStyle.Neutral),
-    Vibrant("Vibrant", ThemePaletteStyle.Vibrant),
-    Expressive("Expressive", ThemePaletteStyle.Expressive),
-    Monochrome("Monochrome", ThemePaletteStyle.Monochrome),
-    Fidelity("Fidelity", ThemePaletteStyle.Fidelity),
-    Content("Content", ThemePaletteStyle.Content),
-    Rainbow("Rainbow", ThemePaletteStyle.Rainbow),
-    FruitSalad("Fruit Salad", ThemePaletteStyle.FruitSalad)
+    TonalSpot(0, "Tonal Spot", ThemePaletteStyle.TonalSpot), Neutral(1, "Neutral", ThemePaletteStyle.Neutral), Vibrant(2, "Vibrant", ThemePaletteStyle.Vibrant), Expressive(3, "Expressive", ThemePaletteStyle.Expressive), Monochrome(4, "Monochrome", ThemePaletteStyle.Monochrome), Fidelity(5, "Fidelity", ThemePaletteStyle.Fidelity), Content(6, "Content", ThemePaletteStyle.Content), Rainbow(7, "Rainbow", ThemePaletteStyle.Rainbow), FruitSalad(8, "Fruit Salad", ThemePaletteStyle.FruitSalad)
 }
 
 val presetAccentColors = listOf(
@@ -32,10 +25,10 @@ val presetAccentLabels = listOf(
 )
 
 fun paletteStyleFromStored(value: Int): PaletteStyleOption =
-    PaletteStyleOption.entries.getOrElse(value) { PaletteStyleOption.TonalSpot }
+    PaletteStyleOption.entries.firstOrNull { it.persistedId == value } ?: PaletteStyleOption.TonalSpot
 
 fun paletteStyleIndex(value: Int): Int =
-    value.takeIf { it in PaletteStyleOption.entries.indices } ?: 0
+    PaletteStyleOption.entries.indexOfFirst { it.persistedId == value }.takeIf { it >= 0 } ?: 0
 
 fun accentSelectionIndex(useMonet: Boolean, seedColor: Int): Int {
     if (!useMonet) return 0
