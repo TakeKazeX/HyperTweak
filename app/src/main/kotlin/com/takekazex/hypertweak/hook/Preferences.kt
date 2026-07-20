@@ -20,6 +20,8 @@ object Preferences {
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"
+    const val KEY_THEME_PALETTE_STYLE = "theme_palette_style"
+    const val KEY_PURE_BLACK_DARK_THEME = "pure_black_dark_theme"
     const val KEY_USE_FLOATING_BOTTOM_BAR = "use_floating_bottom_bar"
     const val KEY_FLOATING_BAR_STYLE = "floating_bar_style"
     const val KEY_PREDICTIVE_BACK_STYLE = "predictive_back_style"

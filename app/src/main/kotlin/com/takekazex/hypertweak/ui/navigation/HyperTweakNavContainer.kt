@@ -32,6 +32,7 @@ import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.DebugLogPage
+import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import com.takekazex.hypertweak.hook.HotReloadReport
@@ -48,6 +49,10 @@ fun HyperTweakNavContainer(
     onUseMonetChange: (Boolean) -> Unit,
     seedColorHex: Int,
     onSeedColorChange: (Int) -> Unit,
+    paletteStyle: Int,
+    onPaletteStyleChange: (Int) -> Unit,
+    pureBlackDarkTheme: Boolean,
+    onPureBlackDarkThemeChange: (Boolean) -> Unit,
     useFloatingBottomBar: Boolean,
     onUseFloatingBottomBarChange: (Boolean) -> Unit,
     floatingBarStyle: Int,
@@ -208,6 +213,9 @@ fun HyperTweakNavContainer(
                 onNavigateToAbout = {
                     backStack.add(Route.About)
                 },
+                onNavigateToAppearance = {
+                    backStack.add(Route.Appearance)
+                },
                 onNavigateToDebugLogs = {
                     backStack.add(Route.DebugLogs)
                 },
@@ -221,6 +229,31 @@ fun HyperTweakNavContainer(
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
                 onAppLanguageChange = onAppLanguageChange
+            )
+        }
+        entry<Route.Appearance> {
+            AppearancePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+                useMonet = useMonet,
+                onUseMonetChange = onUseMonetChange,
+                seedColorHex = seedColorHex,
+                onSeedColorChange = onSeedColorChange,
+                paletteStyle = paletteStyle,
+                onPaletteStyleChange = onPaletteStyleChange,
+                pureBlackDarkTheme = pureBlackDarkTheme,
+                onPureBlackDarkThemeChange = onPureBlackDarkThemeChange,
+                useFloatingBottomBar = useFloatingBottomBar,
+                onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
+                floatingBarStyle = floatingBarStyle,
+                onFloatingBarStyleChange = onFloatingBarStyleChange,
+                predictiveBackStyle = predictiveBackStyle,
+                onPredictiveBackStyleChange = onPredictiveBackStyleChange,
+                predictiveBackFollowGesture = predictiveBackFollowGesture,
+                onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
+                pageScale = pageScale,
+                onPageScaleChange = onPageScaleChange
             )
         }
         entry<Route.About> {

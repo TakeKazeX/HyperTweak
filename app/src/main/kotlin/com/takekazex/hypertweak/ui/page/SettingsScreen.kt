@@ -56,24 +56,10 @@ fun SettingsScreenContent(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
-    themeMode: Int,
-    onThemeModeChange: (Int) -> Unit,
-    useMonet: Boolean,
-    onUseMonetChange: (Boolean) -> Unit,
-    seedColorHex: Int,
-    onSeedColorChange: (Int) -> Unit,
-    useFloatingBottomBar: Boolean,
-    onUseFloatingBottomBarChange: (Boolean) -> Unit,
-    floatingBarStyle: Int,
-    onFloatingBarStyleChange: (Int) -> Unit,
-    predictiveBackStyle: Int,
-    onPredictiveBackStyleChange: (Int) -> Unit,
-    predictiveBackFollowGesture: Boolean,
-    onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
+    themeSummary: String,
+    onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
     onAllowLandscapeChange: (Boolean) -> Unit,
-    pageScale: Float,
-    onPageScaleChange: (Float) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
@@ -122,178 +108,15 @@ fun SettingsScreenContent(
             Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Theme Settings
-            SmallTitle(text = "Theme Settings")
+            SmallTitle(text = "Appearance")
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OverlayDropdownPreference(
-                        title = "Theme Mode",
-                        items = listOf("Follow System", "Light", "Dark"),
-                        selectedIndex = themeMode,
-                        onSelectedIndexChange = onThemeModeChange
-                    )
-
-                    SwitchPreference(
-                        checked = useMonet,
-                        onCheckedChange = onUseMonetChange,
-                        title = "Use Monet Accent Color",
-                        summary = "Enable dynamic colors based on selected accent color"
-                    )
-
-                    SwitchPreference(
-                        checked = useFloatingBottomBar,
-                        onCheckedChange = onUseFloatingBottomBarChange,
-                        title = "Floating Bottom Bar",
-                        summary = "Enable floating style bottom navigation bar"
-                    )
-
-                    AnimatedVisibility(
-                        visible = useFloatingBottomBar,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        OverlayDropdownPreference(
-                            title = "Floating Bottom Bar Style",
-                            items = listOf("Miuix", "iOS-like"),
-                            selectedIndex = floatingBarStyle,
-                            onSelectedIndexChange = onFloatingBarStyleChange
-                        )
-                    }
-
-                    OverlayDropdownPreference(
-                        title = "Predictive Back Style",
-                        items = listOf("Disabled", "Miuix", "Scale"),
-                        selectedIndex = predictiveBackStyle,
-                        onSelectedIndexChange = onPredictiveBackStyleChange
-                    )
-
-                    AnimatedVisibility(
-                        visible = predictiveBackStyle == 2,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        SwitchPreference(
-                            checked = predictiveBackFollowGesture,
-                            onCheckedChange = onPredictiveBackFollowGestureChange,
-                            title = "Follow Gesture Direction",
-                            summary = "Adjust scale pivot and exit animation translation based on swipe edge"
-                        )
-                    }
-
-                    var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
-                    var showScaleDialog by remember { mutableStateOf(false) }
-
-                    ArrowPreference(
-                        title = "Interface Scale",
-                        summary = "Adjust the size of application interface elements",
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.AspectRatio,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Interface Scale",
-                                tint = MiuixTheme.colorScheme.onBackground
-                            )
-                        },
-                        endActions = {
-                            Text(
-                                text = "${(sliderValue * 100).toInt()}%",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            )
-                        },
-                        onClick = { showScaleDialog = !showScaleDialog },
-                        holdDownState = showScaleDialog,
-                        bottomAction = {
-                            Slider(
-                                value = sliderValue,
-                                onValueChange = {
-                                    sliderValue = it
-                                },
-                                onValueChangeFinished = {
-                                    onPageScaleChange(sliderValue)
-                                },
-                                valueRange = 0.85f..1.15f,
-                                showKeyPoints = true,
-                                keyPoints = listOf(0.85f, 1.0f, 1.15f),
-                                magnetThreshold = 0.01f,
-                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-                            )
-                        }
-                    )
-
-                    ScaleDialog(
-                        show = showScaleDialog,
-                        onDismissRequest = { showScaleDialog = false },
-                        volumeState = { pageScale },
-                        onVolumeChange = onPageScaleChange
-                    )
-                }
-            }
-
-            // Accent Color Selection
-            AnimatedVisibility(
-                visible = useMonet,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    SmallTitle(text = "Accent Color Selection")
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val context = LocalContext.current
-                            val systemAccentColor = remember(context) { getSystemAccentColor(context) }
-                            val colors = buildList {
-                                add(0) // Device color
-                                add(0xFF007AFF.toInt()) // Blue
-                                add(0xFF4CAF50.toInt()) // Green
-                                add(0xFFFF9800.toInt()) // Orange
-                                add(0xFFF44336.toInt()) // Red
-                                add(0xFF9C27B0.toInt()) // Purple
-                                add(0xFF3F51B5.toInt()) // Indigo
-                            }
-
-                            colors.forEach { colorVal ->
-                                val isSelected = seedColorHex == colorVal
-                                val displayColor = if (colorVal == 0) Color(systemAccentColor) else Color(colorVal)
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(displayColor)
-                                        .clickable { onSeedColorChange(colorVal) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Basic.Check,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp),
-                                            contentDescription = "Selected"
-                                        )
-                                    } else if (colorVal == 0) {
-                                        Text(
-                                            text = "D",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                ArrowPreference(
+                    title = "Appearance",
+                    summary = themeSummary,
+                    onClick = onNavigateToAppearance
+                )
             }
 
             // Module Preferences
