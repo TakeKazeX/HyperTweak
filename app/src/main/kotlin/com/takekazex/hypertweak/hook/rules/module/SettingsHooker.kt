@@ -174,11 +174,8 @@ object SettingsHooker : StaticHooker() {
                                     (24 * density).toInt()
                                 }
 
-                                // Enforce exact dimension limits on ImageView to prevent overflow
-                                iconView.layoutParams = iconView.layoutParams?.apply {
-                                    width = size
-                                    height = size
-                                }
+                                // Keep the system icon slot width so this title aligns with
+                                // every other header; only scale the bitmap inside that slot.
                                 iconView.scaleType = ImageView.ScaleType.FIT_CENTER
 
                                 // Render the drawable onto a bitmap of exact size for a clean look
