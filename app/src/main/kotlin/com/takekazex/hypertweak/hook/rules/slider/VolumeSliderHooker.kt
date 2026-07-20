@@ -307,11 +307,11 @@ class VolumeSliderHooker(
                     val sameStyleVolume = parent.sameStyleEnabled
                     if (sameStyleVolume) {
                         putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                        ColorOverrideLock.isSettingColor.set(true)
-                        runCatching {
+                        withColorOverride {
+                            runCatching {
                             mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
+                            }
                         }
-                        ColorOverrideLock.isSettingColor.set(false)
                     } else {
                         val textColor = getSliderTextColor(context)
                         mSuperVolume.setTextColor(textColor)
@@ -482,11 +482,11 @@ class VolumeSliderHooker(
                                         if (sameStyleVolume) {
                                             putTag(columnSuperVolume, "sliderType", "VolumePanelViewController")
                                             val activeColor = ACTIVE_BLUE_COLOR
-                                            ColorOverrideLock.isSettingColor.set(true)
-                                            runCatching {
+                                            withColorOverride {
+                                                runCatching {
                                                 columnSuperVolume.setTextColor(activeColor)
+                                                }
                                             }
-                                            ColorOverrideLock.isSettingColor.set(false)
                                         } else {
                                             val context = columnSuperVolume.context
                                             val textColor = getSliderTextColor(context)
@@ -508,11 +508,11 @@ class VolumeSliderHooker(
 
                                             if (sameStyleVolume) {
                                                 putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                                                ColorOverrideLock.isSettingColor.set(true)
-                                                runCatching {
+                                                withColorOverride {
+                                                    runCatching {
                                                     mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
+                                                    }
                                                 }
-                                                ColorOverrideLock.isSettingColor.set(false)
                                             } else {
                                                 val context = mSuperVolume.context
                                                 val textColor = getSliderTextColor(context)
@@ -640,11 +640,11 @@ class VolumeSliderHooker(
                                     if (sameStyleSuper) {
                                         putTag(textView, "sliderType", "VolumePanelViewController")
                                         val activeColor = ACTIVE_BLUE_COLOR
-                                        ColorOverrideLock.isSettingColor.set(true)
-                                        runCatching {
+                                        withColorOverride {
+                                            runCatching {
                                             textView.setTextColor(activeColor)
+                                            }
                                         }
-                                        ColorOverrideLock.isSettingColor.set(false)
                                     } else {
                                         val context = textView.context
                                         val textColor = getSliderTextColor(context)

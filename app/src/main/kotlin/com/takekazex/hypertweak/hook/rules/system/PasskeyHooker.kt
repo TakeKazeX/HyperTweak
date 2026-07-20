@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -102,8 +103,10 @@ object PasskeyHooker : StaticHooker() {
 
         constructorRequestSession?.hook {
             after { param ->
-                if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
-                    fHybridService.set(param.thisObject, "com.google.android.gms/.auth.api.credentials.credman.service.RemoteService")
+                HookFailurePolicy.open(TAG, "RequestSession#hybridService", Unit) {
+                    if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                        fHybridService.set(param.thisObject, "com.google.android.gms/.auth.api.credentials.credman.service.RemoteService")
+                    }
                 }
             }
         }

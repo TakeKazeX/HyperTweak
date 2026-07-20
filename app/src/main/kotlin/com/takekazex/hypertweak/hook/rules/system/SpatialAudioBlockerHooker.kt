@@ -4,6 +4,7 @@ import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 
@@ -11,8 +12,6 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     private const val TAG = "HyperTweak"
 
     override fun onHook() {
-        Log.d(TAG, "SpatialAudioBlockerHooker: onHook() pkg=${hookParam.packageName}")
-
         when (hookParam.packageName) {
             "com.xiaomi.bluetooth" -> {
                 hookAirCoreManager()
@@ -40,37 +39,23 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             fallbackClassNames = listOf("AirCoreManager", "AirCoreByString")
         ) ?: return
 
-        Log.d(TAG, "SpatialAudioBlockerHooker: Found AirCoreManager: ${clazz.name}, methods:")
-        clazz.declaredMethods.forEach { m ->
-            Log.d(TAG, "  ${m.name}(${m.parameterTypes.joinToString { it.simpleName }}) ret=${m.returnType.simpleName}")
-        }
-
-        val setCommand = clazz.declaredMethods.firstOrNull {
-            it.parameterTypes.size == 3
-        } ?: clazz.declaredMethods.firstOrNull {
-            it.parameterTypes.size == 2 &&
-                it.parameterTypes.all { p -> p == String::class.java }
-        }
+        val setCommand = clazz.declaredMethods.filter {
+            it.name == "setCommand" && it.parameterTypes.size in 2..3 &&
+                it.parameterTypes.all { parameter -> parameter == String::class.java }
+        }.singleOrNull()
 
         if (setCommand == null) {
             Log.e(TAG, "SpatialAudioBlockerHooker: No 2-param method found in ${clazz.name}")
-            clazz.declaredMethods.forEach { m ->
-                Log.d(TAG, "  ${m.name}(${m.parameterTypes.joinToString { it.simpleName }})")
-            }
             return
         }
 
-        Log.d(TAG, "SpatialAudioBlockerHooker: Hooking ${setCommand.name}(${setCommand.parameterTypes.joinToString { it.simpleName }})")
         setCommand.hook {
             before { param ->
                 runCatching {
                     val p0 = param.args[0]?.toString() ?: ""
                     val p1 = param.args[1]?.toString() ?: ""
-                    Log.d(TAG, "SpatialAudioBlockerHooker: ${setCommand.name} called: p0=[$p0] p1=[$p1] p0.class=${param.args[0]?.javaClass?.simpleName} p1.class=${param.args[1]?.javaClass?.simpleName}")
-
                     if (p0.contains("air_anc") || p1.contains("air_anc")) {
                         if (p1 == "01" && Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) {
-                            Log.d(TAG, "SpatialAudioBlockerHooker: Remapping OFF(01) → ADAPTIVE(04)")
                             param.args[1] = "04"
                         }
                     }
@@ -98,13 +83,11 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             fallbackClassNames = listOf("AudioEffectCenter", "SpatialAudioPresenter")
         ) ?: return
 
-        Log.d(TAG, "SpatialAudioBlockerHooker: Found AudioEffectCenter: ${clazz.name}")
-
-        val setEffectActive = clazz.declaredMethods.firstOrNull {
-            it.name == "setEffectActive" && it.parameterTypes.size == 2
-        } ?: return
-
-        Log.d(TAG, "SpatialAudioBlockerHooker: Hooking setEffectActive(${setEffectActive.parameterTypes.joinToString { it.simpleName }})")
+        val setEffectActive = CompatibleMethodResolver.find(
+            clazz,
+            "setEffectActive",
+            parameterTypes = listOf(String::class.java, Boolean::class.javaPrimitiveType!!)
+        ) ?: return
         setEffectActive.hook {
             before { param ->
                 runCatching {
@@ -112,7 +95,6 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                     val effect = param.args[0] as? String ?: return@before
                     val active = param.args[1] as? Boolean ?: return@before
                     if (effect.contains("spatial", ignoreCase = true) && active) {
-                        Log.d(TAG, "SpatialAudioBlockerHooker: Blocking spatial audio (effect=$effect)")
                         param.args[1] = false
                     }
                 }

@@ -20,6 +20,15 @@ class SliderPercentageHooker(
     var sameStyleEnabled: Boolean = false
         private set
 
+    private val resolvedPluginClasses by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        if (pluginContext == null || pluginApkPath.isEmpty()) emptyMap() else DexKitManager.resolveClasses(
+            cacheDir = pluginContext.cacheDir,
+            apkPath = pluginApkPath,
+            classLoader = classLoader,
+            queries = pluginClassQueries()
+        )
+    }
+
     fun resolveClass(className: String, initialize: Boolean = false): Class<Any>? {
         className.toClassOrNull(initialize = initialize)?.let { return it }
 
@@ -34,93 +43,78 @@ class SliderPercentageHooker(
     private fun resolveViaDexKit(className: String): Class<*>? {
         if (pluginContext == null) return null
         
-        return when (className) {
-            "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController" -> {
-                resolvePluginClass("BrightnessSliderController") { bridge ->
+        val key = pluginClassKey(className) ?: return null
+        return resolvedPluginClasses[key]
+    }
+
+    private fun pluginClassQueries() = mapOf<String, (org.luckypray.dexkit.DexKitBridge) -> String?>(
+            "BrightnessSliderController" to { bridge ->
                     bridge.findClass {
                         searchPackages("miui.systemui.controlcenter")
                         matcher { className("BrightnessSliderController", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController" -> {
-                resolvePluginClass("VolumeSliderController") { bridge ->
+                },
+            "VolumeSliderController" to { bridge ->
                     bridge.findClass {
                         searchPackages("miui.systemui.controlcenter")
                         matcher { className("VolumeSliderController", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder" -> {
-                resolvePluginClass("ToggleSliderViewHolder") { bridge ->
+                },
+            "ToggleSliderViewHolder" to { bridge ->
                     bridge.findClass {
                         searchPackages("miui.systemui.controlcenter")
                         matcher { className("ToggleSliderViewHolder", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-
-            "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator" -> {
-                resolvePluginClass("BrightnessPanelAnimator") { bridge ->
+                },
+            "BrightnessPanelAnimator" to { bridge ->
                     bridge.findClass {
                         searchPackages("miui.systemui.controlcenter")
                         matcher { className("BrightnessPanelAnimator", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate" -> {
-                resolvePluginClass("BrightnessPanelSliderDelegate") { bridge ->
+                },
+            "BrightnessPanelSliderDelegate" to { bridge ->
                     bridge.findClass {
                         searchPackages("miui.systemui.controlcenter")
                         matcher { className("BrightnessPanelSliderDelegate", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1" -> {
-                resolvePluginClass("iconColorTransition") { bridge ->
+                },
+            "iconColorTransition" to { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn\$iconColorTransition\$2\$1", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1" -> {
-                resolvePluginClass("iconBlendColorTransition") { bridge ->
+                },
+            "iconBlendColorTransition" to { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn\$iconBlendColorTransition\$2\$1", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "com.android.systemui.miui.volume.VolumeColumn" -> {
-                resolvePluginClass("VolumeColumn") { bridge ->
+                },
+            "VolumeColumn" to { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumeColumn", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
-                }
-            }
-            "com.android.systemui.miui.volume.VolumePanelViewController" -> {
-                resolvePluginClass("VolumePanelViewController") { bridge ->
+                },
+            "VolumePanelViewController" to { bridge ->
                     bridge.findClass {
                         searchPackages("com.android.systemui")
                         matcher { className("VolumePanelViewController", StringMatchType.EndsWith) }
                     }.singleOrNull()?.name
                 }
-            }
-            else -> null
-        }
-    }
-
-    private fun resolvePluginClass(key: String, query: (org.luckypray.dexkit.DexKitBridge) -> String?): Class<*>? {
-        if (pluginApkPath.isEmpty()) return null
-        val resolved = DexKitManager.resolveClasses(
-            cacheDir = pluginContext?.cacheDir,
-            apkPath = pluginApkPath,
-            classLoader = classLoader,
-            queries = mapOf(key to query)
         )
-        return resolved[key]
+
+    private fun pluginClassKey(className: String): String? = when (className) {
+        "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController" -> "BrightnessSliderController"
+        "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController" -> "VolumeSliderController"
+        "miui.systemui.controlcenter.panel.main.recyclerview.ToggleSliderViewHolder" -> "ToggleSliderViewHolder"
+        "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelAnimator" -> "BrightnessPanelAnimator"
+        "miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate" -> "BrightnessPanelSliderDelegate"
+        "com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1" -> "iconColorTransition"
+        "com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1" -> "iconBlendColorTransition"
+        "com.android.systemui.miui.volume.VolumeColumn" -> "VolumeColumn"
+        "com.android.systemui.miui.volume.VolumePanelViewController" -> "VolumePanelViewController"
+        else -> null
     }
 
     override fun onPrepareHotReload() {

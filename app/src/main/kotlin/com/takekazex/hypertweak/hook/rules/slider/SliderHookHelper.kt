@@ -295,13 +295,13 @@ object SliderHookHelper {
             }
 
             if (blurSupported && blendColorsResId != 0) {
-                ColorOverrideLock.isSettingColor.set(true)
-                runCatching {
+                withColorOverride {
+                    runCatching {
                     topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
                 }.onFailure { t ->
                     Log.e("HyperTweak", "applyTopTextStyle: color set failed", t)
                 }
-                ColorOverrideLock.isSettingColor.set(false)
+                }
 
                 // Cached getMiViewBlurMode method
                 val blurModeMethod = synchronized(this) {
@@ -376,23 +376,23 @@ object SliderHookHelper {
                 }
             } else {
                 topText.clearMiBlur()
-                ColorOverrideLock.isSettingColor.set(true)
-                runCatching {
+                withColorOverride {
+                    runCatching {
                     topText.setTextColor(android.content.res.ColorStateList.valueOf(activeColor))
                 }.onFailure { t ->
                     Log.e("HyperTweak", "applyTopTextStyle: color set failed", t)
                 }
-                ColorOverrideLock.isSettingColor.set(false)
+                }
             }
         } else {
             topText.clearMiBlur()
             runCatching {
-                ColorOverrideLock.isSettingColor.set(true)
-                topText.setTextColor(getSliderTextColor(context))
+                withColorOverride {
+                    topText.setTextColor(getSliderTextColor(context))
+                }
             }.onFailure { t ->
                 Log.e("HyperTweak", "applyTopTextStyle: no-blur color set failed", t)
             }
-            ColorOverrideLock.isSettingColor.set(false)
         }
     }
 
