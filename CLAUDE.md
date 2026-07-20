@@ -12,7 +12,7 @@ application hooks for customization across the processes listed in
 
 ## Toolchain and Dependencies
 
-- Android `compileSdk 37`, `targetSdk 37`, `minSdk 35`; Java source and target 21.
+- Android `compileSdk 37`, `targetSdk 37`, `minSdk 35`; Java source and target 25.
 - Android Gradle Plugin `9.3.0`; Kotlin Compose plugin `2.4.10`.
 - libxposed API and service `102.0.0`; Miuix `0.9.3`; DexKit `2.2.0`.
 - Native packaging is limited to `arm64-v8a`.
@@ -75,5 +75,5 @@ restart-scope controls, logging, and theme/UI settings.
 ```
 
 The repository currently has JVM unit tests but no device-level Compose or UI
-tests. Release CI uses JDK 21, a signing keystore, `BUILD_CHANNEL=stable`, and
+tests. Release CI uses JDK 25, a signing keystore, `BUILD_CHANNEL=stable`, and
 verifies the APK certificate with `apksigner`.

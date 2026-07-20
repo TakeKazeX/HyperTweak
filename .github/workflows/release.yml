@@ -13,9 +13,6 @@ on:
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   publish:
     name: Build & Publish Release
@@ -23,18 +20,18 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '25'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Validate release tag
         shell: bash
@@ -212,7 +209,7 @@ jobs:
           cat changelog.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           body_path: changelog.txt
