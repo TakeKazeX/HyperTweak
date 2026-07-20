@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "HyperTweak"
 include(":app")
+include(":hidden-api")

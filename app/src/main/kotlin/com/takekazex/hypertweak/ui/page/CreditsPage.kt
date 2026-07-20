@@ -119,6 +119,11 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperOS_FCM_Live") }
                     )
                     ArrowPreference(
+                        title = "MiuiBackGestureHook",
+                        summary = "MIUI back gesture compatibility implementation by wxxsfxyzm · Apache-2.0",
+                        onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook") }
+                    )
+                    ArrowPreference(
                         title = "HighLight Icons",
                         summary = "App shortcut icons by @GotohHitoriBocchi0221",
                         onClick = { uriHandler.openUri("https://t.me/HighLightIcons") }

@@ -72,6 +72,7 @@ Special thanks to the following open-source projects for their support and inspi
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - Reference implementations for Settings entry injection.
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - Google Push / FCM Live implementation reference by howard20181.
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MIUI back gesture compatibility implementation, integrated under its Apache-2.0 license.
 * **[HighLight Icons](https://t.me/HighLightIcons)** - App shortcut icons by [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221).
 
 ---

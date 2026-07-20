@@ -139,6 +139,7 @@ dependencies {
 
     // libxposed
     compileOnly("io.github.libxposed:api:102.0.0")
+    compileOnly(project(":hidden-api"))
     implementation("io.github.libxposed:service:102.0.0")
 
     // EzHookTool

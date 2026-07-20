@@ -44,6 +44,8 @@ fun TweaksScreenContent(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    miuiBackGestureHook: Boolean,
+    onMiuiBackGestureHookChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
@@ -150,6 +152,12 @@ fun TweaksScreenContent(
                         title = "Raise Layout",
                         summary = "Keep the reserved navigation bar space so app content sits above the gesture area",
                         enabled = hideGestureBar
+                    )
+                    SwitchPreference(
+                        checked = miuiBackGestureHook,
+                        onCheckedChange = onMiuiBackGestureHookChange,
+                        title = "AOSP Back Gestrue",
+                        summary = "Restore the AOSP back gesture pipeline in MIUI SystemUI"
                     )
                 }
             }

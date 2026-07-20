@@ -24,6 +24,7 @@ object Preferences {
     const val KEY_FLOATING_BAR_STYLE = "floating_bar_style"
     const val KEY_PREDICTIVE_BACK_STYLE = "predictive_back_style"
     const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
+    const val KEY_MIUI_BACK_GESTURE_HOOK = "miui_back_gesture_hook"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
     const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
     const val KEY_LANGUAGE = "app_language"

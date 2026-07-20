@@ -20,6 +20,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
+import com.takekazex.hypertweak.hook.integrated.MiuiBackGestureHook
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -29,6 +30,7 @@ import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
+    private val miuiBackGestureHook = MiuiBackGestureHook()
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
     private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
@@ -45,12 +47,14 @@ class HookEntry : XposedModule() {
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
         initPreferences()
+        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onModuleLoaded(param)
         DebugLog.ensureSession()
         DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
         EzXposed.initOnSystemServerStarting(param)
+        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onSystemServerStarting(param)
         systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
         dispatchSystemServerHookers(param.classLoader)
@@ -59,6 +63,7 @@ class HookEntry : XposedModule() {
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
         if (!injectedPackages.add(param.packageName)) return
         EzXposed.initOnPackageLoaded(param)
+        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onPackageLoaded(param)
         EzReflect.init(param.defaultClassLoader)
         recordPackageState(
             packageName = param.packageName,
@@ -102,6 +107,10 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
+        if (isMiuiBackGestureHookEnabled()) {
+            DebugLog.w("HookEntry", "hot reload disabled while MIUI back gesture compatibility is enabled")
+            return false
+        }
         DebugLog.d(
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
@@ -378,6 +387,9 @@ class HookEntry : XposedModule() {
             DebugLog.e("HookEntry", "failed to init Preferences", t)
         }
     }
+
+    private fun isMiuiBackGestureHookEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
 
     private fun dispatchSystemServerHookers(
         classLoader: ClassLoader,

@@ -72,6 +72,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - 系统设置项注入实现参考。
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - 澎湃系统谷歌推送限制解除 / FCM Live 实现参考，作者 howard20181。
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MIUI 返回手势兼容实现，按其 Apache-2.0 许可证整合。
 * **[HighLight Icons](https://t.me/HighLightIcons)** - 应用快捷方式图标，作者 [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221)。
 
 ---
