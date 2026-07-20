@@ -16,11 +16,13 @@ import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
+import com.takekazex.hypertweak.hook.rules.system.AospBackSystemHooker
+import com.takekazex.hypertweak.hook.rules.systemui.AospBackSystemUiHooker
+import com.takekazex.hypertweak.hook.rules.launcher.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
-import com.takekazex.hypertweak.hook.integrated.MiuiBackGestureHook
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -30,7 +32,6 @@ import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
-    private val miuiBackGestureHook = MiuiBackGestureHook()
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
     private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
@@ -47,14 +48,12 @@ class HookEntry : XposedModule() {
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
         initPreferences()
-        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onModuleLoaded(param)
         DebugLog.ensureSession()
         DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
         EzXposed.initOnSystemServerStarting(param)
-        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onSystemServerStarting(param)
         systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
         dispatchSystemServerHookers(param.classLoader)
@@ -63,7 +62,6 @@ class HookEntry : XposedModule() {
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
         if (!injectedPackages.add(param.packageName)) return
         EzXposed.initOnPackageLoaded(param)
-        if (isMiuiBackGestureHookEnabled()) miuiBackGestureHook.onPackageLoaded(param)
         EzReflect.init(param.defaultClassLoader)
         recordPackageState(
             packageName = param.packageName,
@@ -107,30 +105,26 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
-        if (isMiuiBackGestureHookEnabled()) {
-            DebugLog.w("HookEntry", "hot reload disabled while MIUI back gesture compatibility is enabled")
-            return false
-        }
         DebugLog.d(
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
         )
         val ready = runCatching {
             refreshHotReloadSnapshots()
-            param.setSavedInstanceState(
-                HotReloadState.save(
-                    processName = processName,
-                    isSystemServer = isSystemServer,
-                    systemServerClassLoader = systemServerClassLoader,
-                    packages = packageStates.values
-                )
-            )
             if (!DexKitManager.prepareForHotReload()) {
                 error("DexKit native bridge users are still active")
             }
+            val hyperTweakState = HotReloadState.save(
+                processName = processName,
+                isSystemServer = isSystemServer,
+                systemServerClassLoader = systemServerClassLoader,
+                packages = packageStates.values,
+                hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() }
+            )
             rootHookers.forEach { it.prepareForHotReload() }
             rootHookers.forEach { it.resetAfterHotReloadPrepared() }
             rootHookers.clear()
+            param.setSavedInstanceState(hyperTweakState)
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
             DebugLog.prepareForHotReload()
         }.onFailure { t ->
@@ -184,6 +178,7 @@ class HookEntry : XposedModule() {
             }
             EzReflect.init(targetClassLoader)
             dispatchSystemServerHookers(targetClassLoader, oldHandles)
+            restoreHookerStates(restoredState.hookerStates)
             logHotReloadHandleDiff(oldHandleIds, oldHandles)
             unhookRemainingOldHandles(oldHandles)
             return
@@ -215,6 +210,8 @@ class HookEntry : XposedModule() {
                 onRestoredPackageReady(state, oldHandles)
             }
         }
+
+        restoreHookerStates(restoredState.hookerStates)
 
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
@@ -251,6 +248,15 @@ class HookEntry : XposedModule() {
             "HookEntry",
             "hot reload removed unmatched old handles ok=$unhookedCount failed=$unhookFailedCount"
         )
+    }
+
+    private fun restoreHookerStates(states: Map<String, Any?>) {
+        rootHookers.forEach { hooker ->
+            if (states.containsKey(hooker.hookerName)) {
+                runCatching { hooker.restoreHotReloadState(states[hooker.hookerName]) }
+                    .onFailure { DebugLog.e("HookEntry", "failed to restore ${hooker.hookerName}", it) }
+            }
+        }
     }
 
     private fun recordPackageState(
@@ -404,6 +410,9 @@ class HookEntry : XposedModule() {
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
+        if (isMiuiBackGestureHookEnabled()) {
+            attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
+        }
     }
 
     private fun dispatchPackageHookers(
@@ -430,6 +439,14 @@ class HookEntry : XposedModule() {
                 attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
+                if (isMiuiBackGestureHookEnabled()) {
+                    attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
+                }
+            }
+            "com.miui.home" -> {
+                if (isMiuiBackGestureHookEnabled()) {
+                    attachHooker(AospBackMiuiHomeHooker, classLoader, ctx, replacementHandles)
+                }
             }
             "com.miui.aod" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

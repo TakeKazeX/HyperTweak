@@ -46,6 +46,8 @@ fun TweaksScreenContent(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     miuiBackGestureHook: Boolean,
     onMiuiBackGestureHookChange: (Boolean) -> Unit,
+    crossTaskWallpaperBackground: Boolean,
+    onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
@@ -156,8 +158,15 @@ fun TweaksScreenContent(
                     SwitchPreference(
                         checked = miuiBackGestureHook,
                         onCheckedChange = onMiuiBackGestureHookChange,
-                        title = "AOSP Back Gestrue",
+                        title = "AOSP Back Gesture",
                         summary = "Restore the AOSP back gesture pipeline in MIUI SystemUI"
+                    )
+                    SwitchPreference(
+                        checked = crossTaskWallpaperBackground,
+                        onCheckedChange = onCrossTaskWallpaperBackgroundChange,
+                        title = "Cross Task Wallpaper Background",
+                        summary = "Use a blurred wallpaper behind cross-task back animations",
+                        enabled = miuiBackGestureHook
                     )
                 }
             }

@@ -18,6 +18,7 @@ object RestartUtils {
             context = context,
             coroutineScope = coroutineScope,
             systemUi = selection.systemUi,
+            miuiHome = selection.miuiHome,
             settings = selection.settings,
             aod = selection.aod,
             securityCenter = selection.securityCenter,
@@ -32,6 +33,7 @@ object RestartUtils {
         context: Context,
         coroutineScope: CoroutineScope,
         systemUi: Boolean,
+        miuiHome: Boolean = false,
         settings: Boolean,
         aod: Boolean,
         securityCenter: Boolean,
@@ -40,13 +42,14 @@ object RestartUtils {
         bluetooth: Boolean,
         powerkeeper: Boolean = false
     ) {
-        if (!systemUi && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper) return
+        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper) return
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
             val intent = Intent("com.takekazex.hypertweak.ACTION_RESTART_SCOPE").apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra("systemui", systemUi)
+                putExtra("miuihome", miuiHome)
                 putExtra("settings", settings)
                 putExtra("aod", aod)
                 putExtra("securitycenter", securityCenter)
@@ -64,6 +67,9 @@ object RestartUtils {
                     process.outputStream.bufferedWriter().use { writer ->
                         if (systemUi) {
                             writer.write("pkill -f com.android.systemui\n")
+                        }
+                        if (miuiHome) {
+                            writer.write("am force-stop com.miui.home\n")
                         }
                         if (settings) {
                             writer.write("am force-stop com.android.settings\n")
@@ -99,6 +105,7 @@ object RestartUtils {
             withContext(Dispatchers.Main) {
                 val targets = buildList {
                     if (systemUi) add("SystemUI")
+                    if (miuiHome) add("MiuiHome")
                     if (settings) add("Settings")
                     if (aod) add("AOD")
                     if (securityCenter) add("Security")

@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.util
 
 data class RestartScopeSelection(
     val systemUi: Boolean = false,
+    val miuiHome: Boolean = false,
     val settings: Boolean = false,
     val aod: Boolean = false,
     val securityCenter: Boolean = false,
@@ -13,6 +14,7 @@ data class RestartScopeSelection(
     fun merge(other: RestartScopeSelection): RestartScopeSelection {
         return RestartScopeSelection(
             systemUi = systemUi || other.systemUi,
+            miuiHome = miuiHome || other.miuiHome,
             settings = settings || other.settings,
             aod = aod || other.aod,
             securityCenter = securityCenter || other.securityCenter,
@@ -26,6 +28,7 @@ data class RestartScopeSelection(
     fun without(other: RestartScopeSelection): RestartScopeSelection {
         return RestartScopeSelection(
             systemUi = systemUi && !other.systemUi,
+            miuiHome = miuiHome && !other.miuiHome,
             settings = settings && !other.settings,
             aod = aod && !other.aod,
             securityCenter = securityCenter && !other.securityCenter,
@@ -39,6 +42,7 @@ data class RestartScopeSelection(
     fun intersect(other: RestartScopeSelection): RestartScopeSelection {
         return RestartScopeSelection(
             systemUi = systemUi && other.systemUi,
+            miuiHome = miuiHome && other.miuiHome,
             settings = settings && other.settings,
             aod = aod && other.aod,
             securityCenter = securityCenter && other.securityCenter,
@@ -55,6 +59,7 @@ data class RestartScopeSelection(
 
     fun isEmpty(): Boolean {
         return !systemUi &&
+            !miuiHome &&
             !settings &&
             !aod &&
             !securityCenter &&
@@ -67,6 +72,7 @@ data class RestartScopeSelection(
     fun toKeySet(): Set<String> {
         val keys = mutableSetOf<String>()
         if (systemUi) keys += KEY_SYSTEM_UI
+        if (miuiHome) keys += KEY_MIUI_HOME
         if (settings) keys += KEY_SETTINGS
         if (aod) keys += KEY_AOD
         if (securityCenter) keys += KEY_SECURITY_CENTER
@@ -81,6 +87,7 @@ data class RestartScopeSelection(
         val Empty = RestartScopeSelection()
 
         private const val KEY_SYSTEM_UI = "systemui"
+        private const val KEY_MIUI_HOME = "miuihome"
         private const val KEY_SETTINGS = "settings"
         private const val KEY_AOD = "aod"
         private const val KEY_SECURITY_CENTER = "securitycenter"
@@ -92,6 +99,7 @@ data class RestartScopeSelection(
         fun fromKeySet(keys: Set<String>): RestartScopeSelection {
             return RestartScopeSelection(
                 systemUi = KEY_SYSTEM_UI in keys,
+                miuiHome = KEY_MIUI_HOME in keys,
                 settings = KEY_SETTINGS in keys,
                 aod = KEY_AOD in keys,
                 securityCenter = KEY_SECURITY_CENTER in keys,

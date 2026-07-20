@@ -101,6 +101,12 @@ sealed class BaseHooker {
 
     open fun onPrepareHotReload() {}
 
+    /** Optional process-local state carried to the replacement generation. */
+    open fun saveHotReloadState(): Any? = null
+
+    /** Restores state captured by [saveHotReloadState] after hooks are attached. */
+    open fun restoreHotReloadState(state: Any?) {}
+
     internal fun performInit() {
         onInit()
     }
@@ -171,9 +177,21 @@ sealed class BaseHooker {
     fun Method.hook(
         managed: Boolean = true,
         block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle = hookMethod(this, defaultHookId(this), managed, block)
+
+    fun Method.hook(
+        hookId: String,
+        managed: Boolean = true,
+        block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle = hookMethod(this, hookId, managed, block)
+
+    private fun hookMethod(
+        method: Method,
+        hookId: String,
+        managed: Boolean,
+        block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
-        val target = formatExecutable(this)
-        val hookId = defaultHookId(this)
+        val target = formatExecutable(method)
         return try {
             val replacementMap = replacementHandles
             val oldHandle = replacementMap?.firstForId(hookId)
@@ -181,7 +199,7 @@ sealed class BaseHooker {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)
                 }
-            } else this.createHook {
+            } else method.createHook {
                 id(hookId)
                 block()
             }
@@ -189,6 +207,17 @@ sealed class BaseHooker {
         } catch (t: Throwable) {
             DebugLog.hookFailed(hookerName, target, t)
             throw t
+        }
+    }
+
+    /** Registers a runtime-supplied hooker while retaining BaseHooker ownership. */
+    fun registerRuntimeHook(
+        method: Method,
+        hookId: String,
+        hooker: XposedInterface.Hooker
+    ): XposedInterface.HookHandle {
+        return method.hook(hookId) {
+            intercept(hooker)
         }
     }
 
