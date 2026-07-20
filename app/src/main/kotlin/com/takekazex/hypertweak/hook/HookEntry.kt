@@ -15,6 +15,8 @@ import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
+import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
+import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospBackSystemUiHooker
@@ -456,7 +458,10 @@ class HookEntry : XposedModule() {
                 attachHooker(SettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-                // Spatial audio is handled by the package-specific controller hook below.
+                // The Bluetooth extension is loaded by Settings, so its UI hook must be
+                // attached in this process as well as the Bluetooth service process.
+                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
@@ -476,6 +481,7 @@ class HookEntry : XposedModule() {
             }
             "com.xiaomi.bluetooth" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
             }
             "com.takekazex.hypertweak" -> {

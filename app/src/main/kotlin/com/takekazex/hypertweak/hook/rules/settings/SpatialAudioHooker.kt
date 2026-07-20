@@ -83,8 +83,7 @@ class SpatialAudioHooker(
             onPrefChange.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onPreferenceChange", Unit) {
-                        val disabled = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
-                        if (disabled && param.args[1] == true) {
+                        if (param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable")
                             param.result = false
                         }
@@ -106,8 +105,7 @@ class SpatialAudioHooker(
             onCheckedChanged.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onCheckedChanged", Unit) {
-                        val disabled = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
-                        if (disabled && param.args[1] == true) {
+                        if (param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable via onCheckedChanged")
                             param.result = null
                         }
