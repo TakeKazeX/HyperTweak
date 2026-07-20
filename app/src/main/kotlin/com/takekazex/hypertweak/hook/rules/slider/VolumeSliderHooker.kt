@@ -57,6 +57,7 @@ class VolumeSliderHooker(
     private var cachedStreamStateFieldsLoaded = false
     private var ssField_states: java.lang.reflect.Field? = null
     private var ssField_level: java.lang.reflect.Field? = null
+    private var ssField_levelMin: java.lang.reflect.Field? = null
     private var ssField_levelMax: java.lang.reflect.Field? = null
     private var ssMethod_get: java.lang.reflect.Method? = null
 
@@ -65,9 +66,6 @@ class VolumeSliderHooker(
     private var cachedColumnStreamField: java.lang.reflect.Field? = null
     private var cachedColumnStreamGetter: java.lang.reflect.Method? = null
 
-    // Cached GradientDrawable for badge background
-    private var cachedBadgeBgColor: Int = Int.MIN_VALUE
-    private var cachedBadgeDrawable: android.graphics.drawable.GradientDrawable? = null
     private var cachedVolumeRadiusMethod: java.lang.reflect.Method? = null
     private var cachedVolumeRadiusLoaded = false
 
@@ -93,13 +91,12 @@ class VolumeSliderHooker(
         cachedStreamStateFieldsLoaded = false
         ssField_states = null
         ssField_level = null
+        ssField_levelMin = null
         ssField_levelMax = null
         ssMethod_get = null
         cachedVolumeColumnField = null
         cachedColumnStreamField = null
         cachedColumnStreamGetter = null
-        cachedBadgeBgColor = Int.MIN_VALUE
-        cachedBadgeDrawable = null
         cachedVolumeRadiusMethod = null
         cachedVolumeRadiusLoaded = false
         textViewToStreamCache.clear()
@@ -148,9 +145,9 @@ class VolumeSliderHooker(
                                     putTag(controller, "cached_topText", tt)
                                     tt
                                 }
-                            val pct = calcVolumePercent(controller)
+                            val pct = calcVolumePercent(controller) ?: return@runCatching
                             topText.post {
-                                topText.text = formatPercent(pct)
+                                setPercentIfChanged(topText, pct)
                                 applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }
                         }.onFailure { t ->
@@ -182,90 +179,13 @@ class VolumeSliderHooker(
                                         putTag(controller, "cached_topText", tt)
                                         tt
                                     }
-                                val pct = calcVolumePercentFromSliderValue(controller, sliderValue)
-                                topText.text = formatPercent(pct)
+                                val pct = calcVolumePercentFromSliderValue(controller, sliderValue) ?: return@runCatching
+                                setPercentIfChanged(topText, pct)
                                 applyTopTextStyle(topText, sliderType = "VolumeSliderController")
                             }.onFailure { t ->
                                 Log.e("HyperTweak", "Error in updateSliderValue hook", t)
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        // ─── Volume Column Color & Blend Transitions ───────────────────────────
-        val transitionClass = parent.resolveClass("com.android.systemui.miui.volume.VolumeColumn\$iconColorTransition\$2\$1")
-        transitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
-            method.hook {
-                before { param ->
-                    val fromColorList = param.args[0] as android.content.res.ColorStateList
-                    val toColorList = param.args[1] as android.content.res.ColorStateList
-                    val fraction = param.args[2] as Float
-
-                    runCatching {
-                        val thisObject = param.thisObject
-                        val this0Field = cachedThis0Field ?: thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.also { cachedThis0Field = it }
-                        val volumeColumn = this0Field.get(thisObject)
-                        val svField = cachedSuperVolumeField ?: volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedSuperVolumeField = it }
-                        val superVolume = svField.get(volumeColumn) as TextView
-
-                        if (superVolume.visibility != View.VISIBLE) return@before
-
-                        val sameStyleVolume = parent.sameStyleEnabled
-                        if (sameStyleVolume) {
-                            val blendedColor = blendColors(fromColorList.defaultColor, toColorList.defaultColor, fraction)
-                            ColorOverrideLock.isSettingColor.set(true)
-                            runCatching {
-                                superVolume.setTextColor(android.content.res.ColorStateList.valueOf(blendedColor))
-                            }
-                            ColorOverrideLock.isSettingColor.set(false)
-                        } else {
-                            val context = superVolume.context
-                            val textColor = getSliderTextColor(context)
-                            superVolume.setTextColor(textColor)
-                        }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error in VolumeColumn.iconColorTransition hook", t)
-                    }
-                }
-            }
-        }
-
-        val blendTransitionClass = parent.resolveClass("com.android.systemui.miui.volume.VolumeColumn\$iconBlendColorTransition\$2\$1")
-        blendTransitionClass?.declaredMethods?.firstOrNull { it.name == "invoke" }?.let { method ->
-            method.hook {
-                before { param ->
-                    val fromToken = param.args[0]
-                    val toToken = param.args[1]
-                    val fraction = param.args[2] as Float
-
-                    runCatching {
-                        val thisObject = param.thisObject
-                        val this0Field = cachedThis0Field ?: thisObject.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.also { cachedThis0Field = it }
-                        val volumeColumn = this0Field.get(thisObject)
-                        val svField = cachedSuperVolumeField ?: volumeColumn.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedSuperVolumeField = it }
-                        val superVolume = svField.get(volumeColumn) as TextView
-
-                        if (superVolume.visibility != View.VISIBLE) return@before
-
-                        val sameStyleVolume = parent.sameStyleEnabled
-                        if (sameStyleVolume) {
-                            val cachedBlurMode = SliderHookHelper.getTag(superVolume, "cached_blurMode") as? Int
-                            if (cachedBlurMode != 3) {
-                                superVolume.setMiViewBlurMode(3)
-                                SliderHookHelper.putTag(superVolume, "cached_blurMode", 3)
-                            }
-                            val clzMiBlurCompat = cachedMiBlurCompatClass ?: superVolume.context.classLoader.loadClass("miui.systemui.util.MiBlurCompat").also { cachedMiBlurCompatClass = it }
-                            val clzColorBlendToken = cachedColorBlendTokenClass ?: superVolume.context.classLoader.loadClass("miuix.theme.token.ColorBlendToken").also { cachedColorBlendTokenClass = it }
-                            val blendMethod = cachedTokenBlendMethod ?: clzMiBlurCompat.getMethod("setMiBackgroundBlendColors", View::class.java, clzColorBlendToken, clzColorBlendToken, Float::class.javaPrimitiveType).also { cachedTokenBlendMethod = it }
-                            blendMethod.invoke(null, superVolume, fromToken, toToken, fraction)
-                        } else {
-                            superVolume.clearMiBlur()
-                            SliderHookHelper.putTag(superVolume, "cached_blurMode", 0)
-                        }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "Error in VolumeColumn.iconBlendColorTransition hook", t)
                     }
                 }
             }
@@ -360,20 +280,10 @@ class VolumeSliderHooker(
                         runCatching { radiusMethod.invoke(null, context) as Int }.getOrNull()?.toFloat()
                     } else null) ?: (20f * context.resources.displayMetrics.density)
 
-                    // Reuse GradientDrawable when background color hasn't changed
-                    val existing = cachedBadgeDrawable
-                    if (existing != null && cachedBadgeBgColor == bgColor) {
-                        existing.cornerRadius = radius
-                        mSuperVolumeBg.background = existing
-                    } else {
-                        val newBg = android.graphics.drawable.GradientDrawable().apply {
-                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                            setColor(bgColor)
-                            cornerRadius = radius
-                        }
-                        cachedBadgeDrawable = newBg
-                        cachedBadgeBgColor = bgColor
-                        mSuperVolumeBg.background = newBg
+                    mSuperVolumeBg.background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                        setColor(bgColor)
+                        cornerRadius = radius
                     }
                     mSuperVolumeBg.backgroundTintList = null
 
@@ -458,12 +368,7 @@ class VolumeSliderHooker(
             val statesObj = ssField_states!!.get(mState)
             if (statesObj != null) {
                 ssMethod_get = statesObj.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
-                // Probe a sample element to cache level/levelMax fields
-                val sample = runCatching { ssMethod_get!!.invoke(statesObj, 0) }.getOrNull()
-                if (sample != null) {
-                    ssField_level = sample.javaClass.getDeclaredField("level").apply { isAccessible = true }
-                    ssField_levelMax = sample.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
-                }
+                // Fields are initialized lazily from the first valid stream state.
             }
             cachedStreamStateFieldsLoaded = true
         }
@@ -477,9 +382,16 @@ class VolumeSliderHooker(
                 val states = ssField_states?.get(mState) ?: return
                 val streamState = ssMethod_get?.invoke(states, activeStream) ?: return
 
+                if (ssField_level == null || ssField_levelMax == null) {
+                    ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
+                    ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
+                    ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
+                }
+
                 val level = (ssField_level?.get(streamState) as? Int) ?: 0
+                val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
                 val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
-                val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
+                val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching
 
                 val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
                 if (mSuperVolume != null) {
@@ -504,8 +416,9 @@ class VolumeSliderHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "showVolumePanelH" }?.let { method ->
             method.hook {
                 before { param ->
-                    val activeStream = param.args[0] as Int
-                    updateBadgeText(param.thisObject, activeStream)
+                    loadVpcFields(param.thisObject)
+                    val activeStream = vpcField_mActiveStream?.get(param.thisObject) as? Int
+                    if (activeStream != null) updateBadgeText(param.thisObject, activeStream)
                     badgeThemeApplied = false
                     applyBadgeThemeColors(param.thisObject)
                 }
@@ -545,16 +458,22 @@ class VolumeSliderHooker(
                             if (stream >= 0) {
                                 val states = ssField_states?.get(mState) ?: return@runCatching
                                 val streamState = ssMethod_get?.invoke(states, stream) ?: return@runCatching
-  
+
+                                if (ssField_level == null || ssField_levelMax == null) {
+                                    ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
+                                    ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
+                                    ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
+                                }
                                 val level = (ssField_level?.get(streamState) as? Int) ?: 0
+                                val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
                                 val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
-                                val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
+                                val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching
 
                                 val sameStyleVolume = parent.sameStyleEnabled
                                 val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
                                 val columnSuperVolume = colSuperVolField.get(column) as? TextView
                                 if (columnSuperVolume != null) {
-                                    columnSuperVolume.text = formatPercent(pct)
+                                    setPercentIfChanged(columnSuperVolume, pct)
                                     val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
                                     val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
@@ -583,7 +502,7 @@ class VolumeSliderHooker(
                                     if (stream == activeStream) {
                                         val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
                                         if (mSuperVolume != null) {
-                                            mSuperVolume.text = formatPercent(pct)
+                                            setPercentIfChanged(mSuperVolume, pct)
                                             mSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                             mSuperVolume.visibility = View.VISIBLE
 
@@ -697,11 +616,17 @@ class VolumeSliderHooker(
                                 if (foundStream >= 0) {
                                     val states = ssField_states?.get(mState) ?: return@runCatching false
                                     val streamState = ssMethod_get?.invoke(states, foundStream) ?: return@runCatching false
+                                    if (ssField_level == null || ssField_levelMax == null) {
+                                        ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
+                                        ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
+                                        ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
+                                    }
                                     val level = (ssField_level?.get(streamState) as? Int) ?: 0
+                                    val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
                                     val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
-                                    val pct = if (levelMax > 0) Math.round(level * 1f / levelMax * 100f).coerceIn(0, 100) else 0
+                                    val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching false
 
-                                    textView.text = formatPercent(pct)
+                                    setPercentIfChanged(textView, pct)
 
                                     val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
                                     val sameStyleSuper = parent.sameStyleEnabled

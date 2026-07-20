@@ -74,6 +74,15 @@ object ColorOverrideLock {
     val isSettingColor = ThreadLocal.withInitial { false }
 }
 
+inline fun withColorOverride(block: () -> Unit) {
+    ColorOverrideLock.isSettingColor.set(true)
+    try {
+        block()
+    } finally {
+        ColorOverrideLock.isSettingColor.set(false)
+    }
+}
+
 // ─── Shared Slider Hooker Helper ───────────────────────────────────────────
 
 object SliderHookHelper {
@@ -81,16 +90,6 @@ object SliderHookHelper {
 
     @Volatile
     var sameStyleEnabled = false
-
-    // Animator cache coordinates
-    var fromLeft = 0
-    var fromTop = 0
-    var fromWidth = 0
-    var fromHeight = 0
-    var toLeft = 0
-    var toTop = 0
-    var toWidth = 0
-    var toHeight = 0
 
     @Synchronized
     fun getTag(obj: Any, key: String): Any? {
@@ -165,14 +164,6 @@ object SliderHookHelper {
         MiBlurMethodCache.clear()
         tags.clear()
         sameStyleEnabled = false
-        fromLeft = 0
-        fromTop = 0
-        fromWidth = 0
-        fromHeight = 0
-        toLeft = 0
-        toTop = 0
-        toWidth = 0
-        toHeight = 0
         isBlurSupportedMethod = null
         isBlurSupportedMethodLoaded = false
         clearActiveColorCache()
@@ -408,11 +399,6 @@ object SliderHookHelper {
     fun initTopText(topText: TextView) {
         topText.visibility = View.VISIBLE
         topText.typeface = Typeface.DEFAULT_BOLD
-        topText.post {
-            if (topText.text == "200%") {
-                topText.text = "0%"
-            }
-        }
     }
 
     private val holderMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method?>()
@@ -456,7 +442,7 @@ object SliderHookHelper {
         }.getOrNull()
     }
 
-    fun calcVolumePercent(sliderController: Any): Int {
+    fun calcVolumePercent(sliderController: Any): Int? {
         return runCatching {
             var fSystemVolume = getTag(sliderController, "cached_fSystemVolume") as? java.lang.reflect.Field
             var fSliderMaxValue = getTag(sliderController, "cached_fSliderMaxValue") as? java.lang.reflect.Field
@@ -472,15 +458,14 @@ object SliderHookHelper {
                 putTag(sliderController, "cached_fSliderMinValue", fSliderMinValue)
             }
 
-            val systemVolume = fSystemVolume?.get(sliderController) as? Int ?: return@runCatching 0
-            val sliderMaxValue = fSliderMaxValue?.get(sliderController) as? Int ?: return@runCatching 0
-            val sliderMinValue = fSliderMinValue?.get(sliderController) as? Int ?: return@runCatching 0
-
-            Math.round((systemVolume * 1000f - sliderMinValue) / (sliderMaxValue - sliderMinValue) * 100f).coerceIn(0, 100)
-        }.getOrDefault(0)
+            val systemVolume = fSystemVolume?.get(sliderController) as? Int ?: return@runCatching null
+            val sliderMaxValue = fSliderMaxValue?.get(sliderController) as? Int ?: return@runCatching null
+            val sliderMinValue = fSliderMinValue?.get(sliderController) as? Int ?: return@runCatching null
+            volumePercent(systemVolume * 1000, sliderMinValue, sliderMaxValue)
+        }.getOrNull()
     }
 
-    fun calcVolumePercentFromSliderValue(sliderController: Any, sliderValue: Int): Int {
+    fun calcVolumePercentFromSliderValue(sliderController: Any, sliderValue: Int): Int? {
         return runCatching {
             var mValueToVolume = getTag(sliderController, "cached_mValueToVolume") as? java.lang.reflect.Method
             var fStreamMaxVolume = getTag(sliderController, "cached_fStreamMaxVolume") as? java.lang.reflect.Field
@@ -496,13 +481,11 @@ object SliderHookHelper {
                 putTag(sliderController, "cached_fStreamMinVolume", fStreamMinVolume)
             }
 
-            val level = mValueToVolume?.invoke(sliderController, sliderValue) as? Int ?: return@runCatching 0
-            val maxLevel = fStreamMaxVolume?.get(sliderController) as? Int ?: return@runCatching 0
-            val minLevel = fStreamMinVolume?.get(sliderController) as? Int ?: return@runCatching 0
-
-            if (maxLevel <= 0) 0
-            else Math.round((level - minLevel).toFloat() / (maxLevel - minLevel) * 100f).coerceIn(0, 100)
-        }.getOrDefault(0)
+            val level = mValueToVolume?.invoke(sliderController, sliderValue) as? Int ?: return@runCatching null
+            val maxLevel = fStreamMaxVolume?.get(sliderController) as? Int ?: return@runCatching null
+            val minLevel = fStreamMinVolume?.get(sliderController) as? Int ?: return@runCatching null
+            volumePercent(level, minLevel, maxLevel)
+        }.getOrNull()
     }
 
     fun calcBrightnessPercent(slider: SeekBar): Int {
@@ -513,7 +496,7 @@ object SliderHookHelper {
         }.recoverCatching {
             slider.javaClass.getMethod("getValue").invoke(slider) as? Int
         }.getOrNull() ?: slider.progress
-        return Math.round((value - min).toFloat() / (max - min) * 100f).coerceIn(0, 100)
+        return volumePercent(value, min, max) ?: 0
     }
 
     fun updatePercentageText(sliderController: Any, type: String) {
@@ -540,9 +523,9 @@ object SliderHookHelper {
                 calcVolumePercent(sliderController)
             } else {
                 calcBrightnessPercent(slider)
-            }
+            } ?: return@runCatching
 
-                topText.text = formatPercent(pct)
+            setPercentIfChanged(topText, pct)
             applyTopTextStyle(topText, sliderType = type)
         }
 
