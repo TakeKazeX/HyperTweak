@@ -4,6 +4,7 @@ import androidx.navigation3.runtime.NavKey
 
 sealed interface Route : NavKey {
     data object Main : Route
+    data object Appearance : Route
     data object About : Route
     data object Credits : Route
     data object HiddenFeatures : Route

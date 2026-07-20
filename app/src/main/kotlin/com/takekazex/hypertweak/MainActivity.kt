@@ -1,3 +1,5 @@
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
 package com.takekazex.hypertweak
 
 import android.content.ComponentName
@@ -22,6 +24,10 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
+import top.yukonga.miuix.kmp.theme.ThemeColorSpec
+import top.yukonga.miuix.kmp.theme.colorsFromSeed
+import com.takekazex.hypertweak.ui.theme.paletteStyleFromStored
+import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.takekazex.hypertweak.util.RestartUtils
@@ -124,6 +130,8 @@ class MainActivity : ComponentActivity() {
             var themeMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
             var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
             var seedColorHex by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())) }
+            var paletteStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_PALETTE_STYLE, 0)) }
+            var pureBlackDarkTheme by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, false)) }
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
             var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
@@ -336,21 +344,58 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val controller = remember(themeMode, useMonet, resolvedSeedColorHex, isDark) {
+            val pureBlackActive = pureBlackDarkTheme && isEffectivelyDark(themeMode, isDark)
+            val controller = remember(themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive, isDark) {
                 val mode = when (themeMode) {
                     1 -> if (useMonet) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
                     2 -> if (useMonet) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
                     else -> if (useMonet) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
                 }
-                ThemeController(
+                val generatedController = ThemeController(
                     colorSchemeMode = mode,
                     keyColor = Color(resolvedSeedColorHex),
+                    colorSpec = ThemeColorSpec.Spec2025,
+                    paletteStyle = paletteStyleFromStored(paletteStyle).miuixStyle,
                     isDark = when (themeMode) {
                         1 -> false
                         2 -> true
                         else -> null
                     }
                 )
+                if (pureBlackActive) {
+                    val style = paletteStyleFromStored(paletteStyle).miuixStyle
+                    val lightColors = if (useMonet) {
+                        colorsFromSeed(Color(resolvedSeedColorHex), ThemeColorSpec.Spec2025, style, false)
+                    } else generatedController.lightColors
+                    val darkColors = if (useMonet) {
+                        colorsFromSeed(Color(resolvedSeedColorHex), ThemeColorSpec.Spec2025, style, true)
+                    } else generatedController.darkColors
+                    ThemeController(
+                        colorSchemeMode = when (themeMode) {
+                            1 -> ColorSchemeMode.Light
+                            2 -> ColorSchemeMode.Dark
+                            else -> ColorSchemeMode.System
+                        },
+                        lightColors = lightColors.copy(
+                            background = Color.Black,
+                            surface = Color.Black
+                        ),
+                        darkColors = darkColors.copy(
+                            background = Color.Black,
+                            surface = Color.Black
+                        ),
+                        keyColor = Color(resolvedSeedColorHex),
+                        colorSpec = ThemeColorSpec.Spec2025,
+                        paletteStyle = paletteStyleFromStored(paletteStyle).miuixStyle,
+                        isDark = when (themeMode) {
+                            1 -> false
+                            2 -> true
+                            else -> null
+                        }
+                    )
+                } else {
+                    generatedController
+                }
             }
 
             val systemDensity = LocalDensity.current
@@ -392,6 +437,20 @@ class MainActivity : ComponentActivity() {
                         seedColorHex = color
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putInt(Preferences.KEY_SEED_COLOR, color)
+                        }
+                    },
+                    paletteStyle = paletteStyle,
+                    onPaletteStyleChange = { style ->
+                        paletteStyle = style
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putInt(Preferences.KEY_THEME_PALETTE_STYLE, style)
+                        }
+                    },
+                    pureBlackDarkTheme = pureBlackDarkTheme,
+                    onPureBlackDarkThemeChange = { enabled ->
+                        pureBlackDarkTheme = enabled
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, enabled)
                         }
                     },
                     useFloatingBottomBar = useFloatingBottomBar,
@@ -593,7 +652,7 @@ class MainActivity : ComponentActivity() {
                             runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this@MainActivity) }
                         }
                     }
-                )
+                    )
             }
         }
     }
