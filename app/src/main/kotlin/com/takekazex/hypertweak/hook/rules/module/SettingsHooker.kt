@@ -13,9 +13,22 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.ResourceLookup
 import org.luckypray.dexkit.query.enums.StringMatchType
+import java.lang.reflect.Constructor
+import java.lang.reflect.Field
+import java.util.concurrent.ConcurrentHashMap
+import android.graphics.Bitmap
 
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 10777L
+    private val headerFieldCache = ConcurrentHashMap<Class<*>, Map<String, Field>>()
+    private val headerConstructorCache = ConcurrentHashMap<Class<*>, Constructor<*>?>()
+    private val iconBitmapCache = ConcurrentHashMap<Long, Bitmap>()
+
+    override fun onPrepareHotReload() {
+        headerFieldCache.clear()
+        headerConstructorCache.clear()
+        iconBitmapCache.clear()
+    }
 
     override fun onHook() {
         val clzMiuiSettings = resolveAppClass(
@@ -82,19 +95,23 @@ object SettingsHooker : StaticHooker() {
                     if (alreadyInjected) return@after
 
                     // Instantiate new Header object
-                    val headerCtor = clzHeader?.getDeclaredConstructor()?.apply { isAccessible = true }
+                    val headerCtor = clzHeader?.let { type ->
+                        headerConstructorCache.computeIfAbsent(type) {
+                            runCatching { type.getDeclaredConstructor().apply { isAccessible = true } }.getOrNull()
+                        }
+                    }
                     val header = headerCtor?.newInstance()
 
                     if (header != null) {
-                        header.javaClass.getDeclaredField("id").apply { isAccessible = true }.set(header, HEADER_ID)
+                        headerField(header.javaClass, "id")?.set(header, HEADER_ID)
 
                         val intent = Intent().apply {
                             putExtra("isDisplayHomeAsUpEnabled", true)
                             setClassName("com.takekazex.hypertweak", "com.takekazex.hypertweak.MainActivity")
                         }
-                        header.javaClass.getDeclaredField("intent").apply { isAccessible = true }.set(header, intent)
-                        header.javaClass.getDeclaredField("title").apply { isAccessible = true }.set(header, "HyperTweak")
-                        header.javaClass.getDeclaredField("iconRes").apply { isAccessible = true }.set(header, 0)
+                        headerField(header.javaClass, "intent")?.set(header, intent)
+                        headerField(header.javaClass, "title")?.set(header, "HyperTweak")
+                        headerField(header.javaClass, "iconRes")?.set(header, 0)
 
                         val bundle = Bundle().apply {
                             val ctorUserHandle = UserHandle::class.java.getDeclaredConstructor(Int::class.java).apply { isAccessible = true }
@@ -103,7 +120,7 @@ object SettingsHooker : StaticHooker() {
                         }
                         header.javaClass.getDeclaredField("extras").apply { isAccessible = true }.set(header, bundle)
 
-                        // Find index of "wifi_settings" to insert right after it
+                        // Find "wifi_settings" and keep the module entry immediately before it.
                         var targetIndex = -1
                         val wifiSettingsId = try {
                             ResourceLookup.identifier(activity.resources, "wifi_settings", "id", "com.android.settings").toLong()
@@ -133,11 +150,7 @@ object SettingsHooker : StaticHooker() {
                             }
                         }
 
-                        if (targetIndex != -1) {
-                            list.add(targetIndex, header)
-                        } else {
-                            if (list.size > 2) list.add(2, header) else list.add(header)
-                        }
+                        list.add(SettingsHeaderPlacement.before(targetIndex, list.size), header)
                     }
                 } catch (t: Throwable) {
                     // Ignore
@@ -179,10 +192,15 @@ object SettingsHooker : StaticHooker() {
                                 iconView.scaleType = ImageView.ScaleType.FIT_CENTER
 
                                 // Render the drawable onto a bitmap of exact size for a clean look
-                                val bitmap = createBitmap(size, size)
-                                val canvas = android.graphics.Canvas(bitmap)
-                                moduleIcon.setBounds(0, 0, size, size)
-                                moduleIcon.draw(canvas)
+                                val density = iconView.resources.displayMetrics.densityDpi
+                                val cacheKey = (density.toLong() shl 32) or size.toLong()
+                                val bitmap = iconBitmapCache.computeIfAbsent(cacheKey) {
+                                    createBitmap(size, size).also { cachedBitmap ->
+                                        val canvas = android.graphics.Canvas(cachedBitmap)
+                                        moduleIcon.setBounds(0, 0, size, size)
+                                        moduleIcon.draw(canvas)
+                                    }
+                                }
                                 iconView.setImageBitmap(bitmap)
                             }
                         }
@@ -194,5 +212,15 @@ object SettingsHooker : StaticHooker() {
                 chain.proceed()
             }
         }
+    }
+
+    private fun headerField(type: Class<*>, name: String): Field? {
+        val fields = headerFieldCache.computeIfAbsent(type) {
+            type.declaredFields.associateBy { field ->
+                field.isAccessible = true
+                field.name
+            }
+        }
+        return fields[name]
     }
 }

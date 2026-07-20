@@ -10,14 +10,19 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 
 object SystemUIPluginHooker : StaticHooker() {
-    private val activePluginHookers = ConcurrentHashMap<Any, SliderPercentageHooker>()
-    private val activePluginStates = ConcurrentHashMap<Any, HotReloadPluginState>()
+    private data class PluginHookSession(
+        val state: HotReloadPluginState,
+        val hooker: SliderPercentageHooker
+    )
+
+    private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
 
     override fun onPrepareHotReload() {
-        activePluginStates.clear()
-        activePluginHookers.clear()
+        activeSessions.clear()
     }
 
     override fun onHook() {
@@ -34,10 +39,10 @@ object SystemUIPluginHooker : StaticHooker() {
         }
 
         // Hook loadPlugin() to capture the plugin ClassLoader after loading
-        clzPluginInstance.declaredMethods.firstOrNull { it.name == "loadPlugin" }?.let { method ->
+        CompatibleMethodResolver.find(clzPluginInstance, "loadPlugin", parameterTypes = emptyList())?.let { method ->
             method.hook {
                 after { param ->
-                    runCatching {
+                    HookFailurePolicy.open("SystemUIPlugin", "loadPlugin", Unit) {
                         val pluginInstance = param.thisObject
                         val componentName = pluginInstance.javaClass.getDeclaredField("mComponentName")
                             .apply { isAccessible = true }.get(pluginInstance) as? ComponentName
@@ -45,8 +50,6 @@ object SystemUIPluginHooker : StaticHooker() {
                         if (componentName != null && isControlCenterPlugin(componentName)) {
                             attachPluginHooker(pluginInstance, componentName)
                         }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "SystemUIPluginHooker: Error in loadPlugin hook", t)
                     }
                 }
             }
@@ -56,18 +59,16 @@ object SystemUIPluginHooker : StaticHooker() {
         }
 
         // Hook unloadPlugin() to release hooks and prevent leaks when plugin is unloaded
-        clzPluginInstance.declaredMethods.firstOrNull { it.name == "unloadPlugin" }?.let { method ->
+        CompatibleMethodResolver.find(clzPluginInstance, "unloadPlugin", parameterTypes = emptyList())?.let { method ->
             method.hook {
                 before { param ->
-                    runCatching {
+                    HookFailurePolicy.open("SystemUIPlugin", "unloadPlugin", Unit) {
                         val pluginInstance = param.thisObject
-                        val hooker = activePluginHookers.remove(pluginInstance)
-                        activePluginStates.remove(pluginInstance)
-                        if (hooker != null) {
-                            detach(hooker)
+                        val session = activeSessions.remove(pluginInstance)
+                        if (session != null) {
+                            runCatching { session.hooker.prepareForHotReload() }
+                            detach(session.hooker)
                         }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "SystemUIPluginHooker: Error in unloadPlugin hook", t)
                     }
                 }
             }
@@ -78,7 +79,7 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     fun snapshotHotReloadPlugins(): List<HotReloadPluginState> {
-        return activePluginStates.values.toList()
+        return activeSessions.values.map { it.state }
     }
 
     fun restoreHotReloadPlugins(states: List<HotReloadPluginState>) {
@@ -94,12 +95,14 @@ object SystemUIPluginHooker : StaticHooker() {
     private fun attachPluginHooker(pluginInstance: Any, componentName: ComponentName) {
         val mPluginFactory = pluginInstance.javaClass.getDeclaredField("mPluginFactory")
             .apply { isAccessible = true }.get(pluginInstance)
-        val mClassLoaderFactory = mPluginFactory.javaClass.getDeclaredField("mClassLoaderFactory")
-            .apply { isAccessible = true }.get(mPluginFactory)
-        val classLoader = (mClassLoaderFactory as? java.util.function.Supplier<*>)?.get() as? ClassLoader
+        val plugin = sequenceOf("mPlugin", "mLoadedPlugin").mapNotNull { fieldName ->
+            runCatching { pluginInstance.javaClass.getDeclaredField(fieldName).apply { isAccessible = true }.get(pluginInstance) }.getOrNull()
+        }.firstOrNull()
+        val classLoader = plugin?.javaClass?.classLoader
+            ?: runCatching { pluginInstance.javaClass.getDeclaredField("mClassLoader").apply { isAccessible = true }.get(pluginInstance) as? ClassLoader }.getOrNull()
         if (classLoader == null) {
             DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
-            Log.e("HyperTweak", "SystemUIPluginHooker: Failed to extract ClassLoader from mClassLoaderFactory")
+            Log.e("HyperTweak", "SystemUIPluginHooker: failed to extract loaded plugin ClassLoader")
             return
         }
 
@@ -124,7 +127,7 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     private fun attachPluginHooker(state: HotReloadPluginState) {
-        if (activePluginHookers.containsKey(state.pluginInstance)) return
+        if (activeSessions.containsKey(state.pluginInstance)) return
         val hooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
             SliderPercentageHooker(state.appContext, state.pluginApkPath)
         } else {
@@ -132,8 +135,7 @@ object SystemUIPluginHooker : StaticHooker() {
             SliderPercentageHooker()
         }
 
-        activePluginStates[state.pluginInstance] = state
-        activePluginHookers[state.pluginInstance] = hooker
+        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker)
         attach(hooker, state.classLoader)
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")
     }

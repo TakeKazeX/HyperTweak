@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.ResolveInfo
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.CollectionOverrides
 import com.takekazex.hypertweak.util.DebugLog
 
 /**
@@ -133,7 +134,8 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             deferBroadcastMethod.hook {
                 before { param ->
-                    param.result = false
+                    val action = param.args.firstOrNull() as? String
+                    if (action in CN_DEFER_BROADCAST) param.result = false
                 }
             }
 
@@ -170,8 +172,9 @@ object FcmLiveSystemHooker : StaticHooker() {
                     before { param ->
                         runCatching {
                             @Suppress("UNCHECKED_CAST")
-                            val whiteList = mUseDataWhiteListField.get(param.thisObject) as? MutableSet<String>
-                            whiteList?.add(GMS_PACKAGE_NAME)
+                            val current = mUseDataWhiteListField.get(param.thisObject) as? Collection<*>
+                            val updated = CollectionOverrides.stringSet(current, GMS_PACKAGE_NAME)
+                            mUseDataWhiteListField.set(param.thisObject, updated)
                         }
                     }
                 }
@@ -227,11 +230,10 @@ object FcmLiveSystemHooker : StaticHooker() {
                     val flags = param.args[0] as? Int
                     if (flags != null && (flags and 1) != 0) {
                         @Suppress("UNCHECKED_CAST")
-                        val whiteList = param.result as? MutableList<String>
-                        whiteList?.apply {
-                            add(GMS_PACKAGE_NAME)
-                            add(GMS_PERSISTENT_PROCESS_NAME)
-                        }
+                        val current = param.result as? Collection<*>
+                        param.result = CollectionOverrides.stringList(
+                            current, GMS_PACKAGE_NAME, GMS_PERSISTENT_PROCESS_NAME
+                        )
                     }
                 }
             }

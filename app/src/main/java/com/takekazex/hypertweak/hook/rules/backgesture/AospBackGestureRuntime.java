@@ -57,12 +57,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -154,8 +152,8 @@ public final class AospBackGestureRuntime {
     }
 
     private HookRegistrar hookRegistrar;
-    private final Map<Object, NativeBackInputMonitor> nativeInputMonitors =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private final NativeInputMonitorRegistry<Object, NativeBackInputMonitor> nativeInputMonitors =
+            new NativeInputMonitorRegistry<>();
     private final ConcurrentHashMap<Object, OpenTransitionSnapshot> runningOpenTransitions =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ReflectionKey, Field> reflectedFields =
@@ -360,13 +358,15 @@ public final class AospBackGestureRuntime {
     public Object saveHotReloadState() {
         boolean savedMiuiOverviewVisible = miuiOverviewVisible;
         long savedDismissDeadline = miuiOverviewDismissPendingUntilUptime;
-        Object[][] inputState = new Object[nativeInputMonitors.size()][2];
-        int index = 0;
-        for (Map.Entry<Object, NativeBackInputMonitor> entry :
-                new ArrayList<>(nativeInputMonitors.entrySet())) {
-            inputState[index][0] = entry.getKey();
-            inputState[index][1] = entry.getValue().backAnimationImpl;
-            index++;
+        Object[][] inputState;
+        synchronized (nativeInputMonitors) {
+            inputState = new Object[nativeInputMonitors.size()][2];
+            int index = 0;
+            for (Map.Entry<Object, NativeBackInputMonitor> entry : nativeInputMonitors.entriesSnapshot()) {
+                inputState[index][0] = entry.getKey();
+                inputState[index][1] = entry.getValue().backAnimationImpl;
+                index++;
+            }
         }
         return new Object[]{inputState, Boolean.valueOf(savedMiuiOverviewVisible),
                 Long.valueOf(savedDismissDeadline)};
@@ -378,10 +378,12 @@ public final class AospBackGestureRuntime {
         invalidateAllOpenTransitionSnapshots("hotReload");
         clearLegacyBackGuard("hotReload");
         unregisterMiuiOverviewStateReceiver();
-        for (NativeBackInputMonitor monitor : new ArrayList<>(nativeInputMonitors.values())) {
-            monitor.detach();
+        synchronized (nativeInputMonitors) {
+            for (NativeBackInputMonitor monitor : nativeInputMonitors.valuesSnapshot()) {
+                monitor.detach();
+            }
+            nativeInputMonitors.clear();
         }
-        nativeInputMonitors.clear();
         shutdownWallpaperCache("hotReload");
     }
 
@@ -1752,8 +1754,11 @@ public final class AospBackGestureRuntime {
     }
 
     private void notifyShellAnimationFinished(Object controller, String reason) {
-        for (NativeBackInputMonitor monitor
-                : new ArrayList<>(nativeInputMonitors.values())) {
+        ArrayList<NativeBackInputMonitor> monitorSnapshot;
+        synchronized (nativeInputMonitors) {
+            monitorSnapshot = new ArrayList<>(nativeInputMonitors.valuesSnapshot());
+        }
+        for (NativeBackInputMonitor monitor : monitorSnapshot) {
             monitor.onShellAnimationFinished(controller, reason);
         }
     }
@@ -1939,17 +1944,17 @@ public final class AospBackGestureRuntime {
             Context context = (Context) readField(edgeBackGestureHandler, "mContext");
             ensureMiuiOverviewStateReceiver(context);
             ensureNativeEdgeBackPlugin(edgeBackGestureHandler, context);
-            NativeBackInputMonitor existing = nativeInputMonitors.get(edgeBackGestureHandler);
-            if (existing != null) {
-                existing.updateBackAnimation(backAnimationImpl);
-                log(Log.INFO, TAG, "Updated native SystemUI back input monitor"
-                        + ", controller=" + shortObject(controller));
-                return;
+            synchronized (nativeInputMonitors) {
+                NativeBackInputMonitor existing = nativeInputMonitors.get(edgeBackGestureHandler);
+                if (existing != null) {
+                    existing.updateBackAnimation(backAnimationImpl);
+                    return;
+                }
+                NativeBackInputMonitor monitor = createNativeBackInputMonitor(context,
+                        edgeBackGestureHandler, controller, backAnimationImpl);
+                monitor.attach();
+                nativeInputMonitors.put(edgeBackGestureHandler, monitor);
             }
-            NativeBackInputMonitor monitor = createNativeBackInputMonitor(context,
-                    edgeBackGestureHandler, controller, backAnimationImpl);
-            monitor.attach();
-            nativeInputMonitors.put(edgeBackGestureHandler, monitor);
             log(Log.INFO, TAG, "Installed native SystemUI back input monitor"
                     + ", controller=" + shortObject(controller));
         } catch (Throwable throwable) {
@@ -1963,7 +1968,7 @@ public final class AospBackGestureRuntime {
             return;
         }
         try {
-            if (nativeInputMonitors.containsKey(edgeBackGestureHandler)) {
+            if (nativeInputMonitors.contains(edgeBackGestureHandler)) {
                 return;
             }
             Object backAnimation = readField(edgeBackGestureHandler, "mBackAnimation");
@@ -2225,7 +2230,7 @@ public final class AospBackGestureRuntime {
 
     private boolean isAospBackGestureActive() {
         synchronized (nativeInputMonitors) {
-            for (NativeBackInputMonitor monitor : nativeInputMonitors.values()) {
+            for (NativeBackInputMonitor monitor : nativeInputMonitors.valuesSnapshot()) {
                 if (monitor != null && monitor.driver.gestureActive) {
                     return true;
                 }
@@ -2386,49 +2391,56 @@ public final class AospBackGestureRuntime {
     private synchronized void startWallpaperCacheIfEnabled() {
         if (!Preferences.INSTANCE.getBoolean(
                 Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) return;
-        Context context = wallpaperContext;
-        if (context == null) {
-            Context current = currentApplicationContext();
-            if (current == null) return;
-            context = current.getApplicationContext();
-            wallpaperContext = context;
-        }
-        if (wallpaperExecutor == null || wallpaperExecutor.isShutdown()) {
-            wallpaperExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
-                @Override
-                public Thread newThread(Runnable runnable) {
-                    Thread thread = new Thread(runnable, "HyperTweak-wallpaper-cache");
-                    thread.setDaemon(true);
-                    return thread;
-                }
-            });
-        }
-        if (wallpaperReceiver == null) {
-            wallpaperReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context ignored, Intent intent) {
-                    invalidateWallpaperCache("wallpaperChanged");
-                }
-            };
-            context.registerReceiver(wallpaperReceiver,
-                    new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED), Context.RECEIVER_EXPORTED);
-        }
-        if (wallpaperConfigurationCallbacks == null) {
-            wallpaperConfigurationCallbacks = new ComponentCallbacks() {
-                @Override
-                public void onConfigurationChanged(Configuration newConfig) {
-                    invalidateWallpaperCache("displayConfigurationChanged");
-                }
+        try {
+            Context context = wallpaperContext;
+            if (context == null) {
+                Context current = currentApplicationContext();
+                if (current == null) return;
+                context = current.getApplicationContext();
+                wallpaperContext = context;
+            }
+            if (wallpaperExecutor == null || wallpaperExecutor.isShutdown()) {
+                wallpaperExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+                    @Override
+                    public Thread newThread(Runnable runnable) {
+                        Thread thread = new Thread(runnable, "HyperTweak-wallpaper-cache");
+                        thread.setDaemon(true);
+                        return thread;
+                    }
+                });
+            }
+            if (wallpaperReceiver == null) {
+                BroadcastReceiver receiver = new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context ignored, Intent intent) {
+                        invalidateWallpaperCache("wallpaperChanged");
+                    }
+                };
+                context.registerReceiver(receiver,
+                        new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED), Context.RECEIVER_EXPORTED);
+                wallpaperReceiver = receiver;
+            }
+            if (wallpaperConfigurationCallbacks == null) {
+                ComponentCallbacks callbacks = new ComponentCallbacks() {
+                    @Override
+                    public void onConfigurationChanged(Configuration newConfig) {
+                        invalidateWallpaperCache("displayConfigurationChanged");
+                    }
 
-                @Override
-                public void onLowMemory() {
-                    invalidateWallpaperCache("lowMemory");
-                }
-            };
-            context.registerComponentCallbacks(wallpaperConfigurationCallbacks);
-        }
-        if (wallpaperCache == null && wallpaperPrewarmGeneration == 0L) {
-            invalidateWallpaperCache("initial");
+                    @Override
+                    public void onLowMemory() {
+                        invalidateWallpaperCache("lowMemory");
+                    }
+                };
+                context.registerComponentCallbacks(callbacks);
+                wallpaperConfigurationCallbacks = callbacks;
+            }
+            if (wallpaperCache == null && wallpaperPrewarmGeneration == 0L) {
+                invalidateWallpaperCache("initial");
+            }
+        } catch (Throwable throwable) {
+            log(Log.WARN, TAG, "Failed to start CrossTask wallpaper cache", throwable);
+            shutdownWallpaperCache("startFailed");
         }
     }
 
@@ -2446,7 +2458,12 @@ public final class AospBackGestureRuntime {
         log(Log.INFO, TAG, "CrossTask wallpaper cache invalidated, reason=" + reason
                 + ", generation=" + generation);
         if (executor != null && context != null && !executor.isShutdown()) {
-            executor.execute(() -> prewarmWallpaperCache(context, generation));
+            try {
+                executor.execute(() -> prewarmWallpaperCache(context, generation));
+            } catch (Throwable throwable) {
+                if (wallpaperPrewarmGeneration == generation) wallpaperPrewarmGeneration = 0L;
+                log(Log.WARN, TAG, "Failed to schedule wallpaper prewarm", throwable);
+            }
         }
     }
 
@@ -3020,13 +3037,15 @@ public final class AospBackGestureRuntime {
         }
 
         private void cancelNativeCandidate(MotionEvent event, String reason) {
+            MotionEvent cancel = null;
             try {
-                MotionEvent cancel = MotionEvent.obtain(event);
+                cancel = MotionEvent.obtain(event);
                 cancel.setAction(MotionEvent.ACTION_CANCEL);
                 driver.handleTouch(cancel, activeEdge);
-                cancel.recycle();
             } catch (Throwable throwable) {
                 log(Log.WARN, TAG, "Failed to cancel native back candidate", throwable);
+            } finally {
+                if (cancel != null) cancel.recycle();
             }
             log(Log.INFO, TAG, "Cancelled native SystemUI back candidate before pilfer"
                     + ", reason=" + reason
@@ -3048,9 +3067,12 @@ public final class AospBackGestureRuntime {
                 driver.handleTouch(event, activeEdge);
             } else {
                 MotionEvent cancel = MotionEvent.obtain(event);
-                cancel.setAction(MotionEvent.ACTION_CANCEL);
-                driver.handleTouch(cancel, activeEdge);
-                cancel.recycle();
+                try {
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    driver.handleTouch(cancel, activeEdge);
+                } finally {
+                    cancel.recycle();
+                }
             }
             boolean handled = pilfered;
             resetCandidate();
@@ -3678,13 +3700,15 @@ public final class AospBackGestureRuntime {
         }
 
         private void cancelLocalGesture(MotionEvent event, String reason) {
+            MotionEvent cancel = null;
             try {
-                MotionEvent cancel = MotionEvent.obtain(event);
+                cancel = MotionEvent.obtain(event);
                 cancel.setAction(MotionEvent.ACTION_CANCEL);
                 dispatchToEdgePlugin(cancel, activeEdge);
-                cancel.recycle();
             } catch (Throwable throwable) {
                 log(Log.WARN, TAG, "Failed to cancel local edge panel", throwable);
+            } finally {
+                if (cancel != null) cancel.recycle();
             }
             clearLocalGestureState();
             log(Log.INFO, TAG, "Cancelled local SystemUI back gesture, reason=" + reason);
@@ -3989,10 +4013,13 @@ public final class AospBackGestureRuntime {
                         new Class<?>[]{boolean.class},
                         new Object[]{Boolean.valueOf(edge == EDGE_LEFT)});
                 MotionEvent screenEvent = MotionEvent.obtain(event);
-                screenEvent.setLocation(event.getRawX(), event.getRawY());
-                invokeMethod(plugin, "onMotionEvent",
-                        new Class<?>[]{MotionEvent.class}, new Object[]{screenEvent});
-                screenEvent.recycle();
+                try {
+                    screenEvent.setLocation(event.getRawX(), event.getRawY());
+                    invokeMethod(plugin, "onMotionEvent",
+                            new Class<?>[]{MotionEvent.class}, new Object[]{screenEvent});
+                } finally {
+                    screenEvent.recycle();
+                }
             } catch (Throwable throwable) {
                 log(Log.WARN, TAG, "Failed to dispatch event to NavigationEdgeBackPlugin",
                         throwable);
@@ -4035,14 +4062,13 @@ public final class AospBackGestureRuntime {
     private Object invokeAnyMethod(Object target, String methodName, Object[] args)
             throws Exception {
         Class<?> owner = target.getClass();
-        ReflectionKey key = new ReflectionKey(owner,
-                "any:" + methodName + "/" + args.length);
+        ReflectionKey key = new ReflectionKey(owner, runtimeMethodSignature(methodName, args));
         Method best = reflectedAnyMethods.get(key);
         if (best == null && missingReflectedMembers.contains(key)) {
             throw new NoSuchMethodException(owner.getName() + "." + methodName);
         }
         if (best == null) {
-            Method resolved = findAnyMethod(owner, methodName, args.length);
+            Method resolved = findCompatibleMethod(owner, methodName, args);
             if (resolved != null) {
                 resolved.setAccessible(true);
                 Method raced = reflectedAnyMethods.putIfAbsent(key, resolved);
@@ -4063,6 +4089,54 @@ public final class AospBackGestureRuntime {
                     .append(';');
         }
         return signature.append(')').toString();
+    }
+
+    private static String runtimeMethodSignature(String methodName, Object[] args) {
+        StringBuilder signature = new StringBuilder("runtime:").append(methodName).append('(');
+        for (Object arg : args) {
+            signature.append(arg == null ? "null" : arg.getClass().getName()).append(';');
+        }
+        return signature.append(')').toString();
+    }
+
+    private static Method findCompatibleMethod(Class<?> type, String methodName, Object[] args) {
+        ArrayList<Method> matches = new ArrayList<>();
+        Class<?> current = type;
+        while (current != null) {
+            for (Method method : current.getDeclaredMethods()) {
+                if (methodName.equals(method.getName()) && parametersCompatible(method, args)) {
+                    matches.add(method);
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return matches.size() == 1 ? matches.get(0) : null;
+    }
+
+    private static boolean parametersCompatible(Method method, Object[] args) {
+        Class<?>[] parameters = method.getParameterTypes();
+        if (parameters.length != args.length) return false;
+        for (int i = 0; i < parameters.length; i++) {
+            if (args[i] == null) {
+                if (parameters[i].isPrimitive()) return false;
+            } else if (!boxedType(parameters[i]).isInstance(args[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Class<?> boxedType(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == boolean.class) return Boolean.class;
+        if (type == byte.class) return Byte.class;
+        if (type == short.class) return Short.class;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == float.class) return Float.class;
+        if (type == double.class) return Double.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private static Method findAnyMethod(Class<?> type, String methodName, int argCount) {

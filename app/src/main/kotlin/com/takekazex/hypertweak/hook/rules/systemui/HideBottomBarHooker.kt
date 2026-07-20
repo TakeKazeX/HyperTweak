@@ -42,7 +42,10 @@ object HideBottomBarHooker : StaticHooker() {
                     val id = param.args[0] as? Int ?: return@before
                     try {
                         val name = resources.getResourceEntryName(id)
-                        if (name == "navigation_bar_height") {
+                        val type = resources.getResourceTypeName(id)
+                        val pkg = resources.getResourcePackageName(id)
+                        if (name == "navigation_bar_height" && type == "dimen" &&
+                            (pkg == "android" || pkg == "com.android.systemui")) {
                             param.result = 0
                         }
                     } catch (_: Throwable) {}

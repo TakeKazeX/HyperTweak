@@ -21,7 +21,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.AospBackSystemUiHooker
 import com.takekazex.hypertweak.hook.rules.launcher.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
-import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
@@ -457,7 +456,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
+                // Spatial audio is handled by the package-specific controller hook below.
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

@@ -12,7 +12,6 @@ object SystemConfigHooker : StaticHooker() {
     private var removeFeatureMethod: Method? = null
 
     override fun onHook() {
-        Log.d("HyperTweak", "SystemConfigHooker: onHook started")
         val clzSystemConfig = "com.android.server.SystemConfig".toClassOrNull()
         if (clzSystemConfig == null) {
             Log.e("HyperTweak", "SystemConfigHooker: Failed to find com.android.server.SystemConfig class")
@@ -22,9 +21,7 @@ object SystemConfigHooker : StaticHooker() {
         // Try to hook constructor
         clzSystemConfig.findConstructorOrNull {}?.hook {
             after { param ->
-                Log.d("HyperTweak", "SystemConfigHooker: SystemConfig constructor called")
                 if (Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) {
-                    Log.d("HyperTweak", "SystemConfigHooker: KEY_REMOVE_GMS_RESTRICTION is true in constructor")
                     removeGmsRestrictions(param.thisObject)
                 }
             }
@@ -35,7 +32,6 @@ object SystemConfigHooker : StaticHooker() {
             name("getInstance")
         }?.hook {
             after { param ->
-                Log.d("HyperTweak", "SystemConfigHooker: SystemConfig.getInstance() called, instance=${param.result}")
                 if (Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) {
                     removeGmsRestrictions(param.result)
                 }
@@ -47,7 +43,6 @@ object SystemConfigHooker : StaticHooker() {
             name("getAvailableFeatures")
         }?.hook {
             after { param ->
-                Log.d("HyperTweak", "SystemConfigHooker: getAvailableFeatures called")
                 if (Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) {
                     removeGmsRestrictions(param.thisObject)
                 }
@@ -66,9 +61,8 @@ object SystemConfigHooker : StaticHooker() {
                     isAccessible = true
                 }
             }
-            val res1 = removeFeatureMethod?.invoke(instance, "cn.google.services")
-            val res2 = removeFeatureMethod?.invoke(instance, "com.google.android.feature.services_updater")
-            Log.d("HyperTweak", "SystemConfigHooker: removeGmsRestrictions executed. cn.google.services res=$res1, com.google.android.feature.services_updater res=$res2")
+            removeFeatureMethod?.invoke(instance, "cn.google.services")
+            removeFeatureMethod?.invoke(instance, "com.google.android.feature.services_updater")
         } catch (t: Throwable) {
             Log.e("HyperTweak", "SystemConfigHooker: Failed to execute removeGmsRestrictions", t)
         }

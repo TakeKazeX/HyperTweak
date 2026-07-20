@@ -4,6 +4,8 @@ import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.DynamicHooker
+import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 
 class SpatialAudioHooker(
     private val pluginContext: android.content.Context? = null,
@@ -68,75 +70,47 @@ class SpatialAudioHooker(
     }
 
     private fun hookToggleMethod(clazz: Class<*>) {
-        // Try onPreferenceChange first (standard Preference callback)
-        val onPrefChange = clazz.declaredMethods.firstOrNull { method ->
-            method.name == "onPreferenceChange" &&
-                method.parameterTypes.size == 2
+        val preferenceClass = sequenceOf("androidx.preference.Preference", "android.preference.Preference")
+            .mapNotNull { it.toClassOrNull() }.firstOrNull()
+        val onPrefChange = preferenceClass?.let {
+            CompatibleMethodResolver.find(
+                clazz, "onPreferenceChange", Boolean::class.javaPrimitiveType,
+                listOf(it, Any::class.java)
+            )
         }
         if (onPrefChange != null) {
             Log.d("HyperTweak", "SpatialAudioHooker: Hooking onPreferenceChange")
             onPrefChange.hook {
                 before { param ->
-                    runCatching {
-                        if (!Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) return@before
-                        val newValue = param.args[1]
-                        if (newValue == true) {
+                    HookFailurePolicy.open("SpatialAudio", "onPreferenceChange", Unit) {
+                        val disabled = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+                        if (disabled && param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable")
-                            param.result = null
+                            param.result = false
                         }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "SpatialAudioHooker: Error in onPreferenceChange hook", t)
                     }
                 }
             }
             return
         }
 
-        // Fallback: try onCheckedChanged (CompoundButton listener)
-        val onCheckedChanged = clazz.declaredMethods.firstOrNull { method ->
-            method.name == "onCheckedChanged" &&
-                method.parameterTypes.size == 2
+        val compoundButton = "android.widget.CompoundButton".toClassOrNull()
+        val onCheckedChanged = compoundButton?.let {
+            CompatibleMethodResolver.find(
+                clazz, "onCheckedChanged", Void.TYPE,
+                listOf(it, Boolean::class.javaPrimitiveType!!)
+            )
         }
         if (onCheckedChanged != null) {
             Log.d("HyperTweak", "SpatialAudioHooker: Hooking onCheckedChanged")
             onCheckedChanged.hook {
                 before { param ->
-                    runCatching {
-                        if (!Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) return@before
-                        val isChecked = param.args[1] as? Boolean ?: return@before
-                        if (isChecked) {
+                    HookFailurePolicy.open("SpatialAudio", "onCheckedChanged", Unit) {
+                        val disabled = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+                        if (disabled && param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable via onCheckedChanged")
                             param.result = null
                         }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "SpatialAudioHooker: Error in onCheckedChanged hook", t)
-                    }
-                }
-            }
-            return
-        }
-
-        // Fallback: find any method that takes a boolean and could be a setter
-        val setterMethod = clazz.declaredMethods.firstOrNull { method ->
-            method.parameterTypes.size == 1 &&
-                method.parameterTypes[0] == Boolean::class.javaPrimitiveType &&
-                (method.name.contains("set", ignoreCase = true) ||
-                    method.name.contains("enable", ignoreCase = true) ||
-                    method.name.contains("update", ignoreCase = true))
-        }
-        if (setterMethod != null) {
-            Log.d("HyperTweak", "SpatialAudioHooker: Hooking boolean setter: ${setterMethod.name}")
-            setterMethod.hook {
-                before { param ->
-                    runCatching {
-                        if (!Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) return@before
-                        val value = param.args[0] as? Boolean ?: return@before
-                        if (value) {
-                            Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable via ${setterMethod.name}")
-                            param.args[0] = false
-                        }
-                    }.onFailure { t ->
-                        Log.e("HyperTweak", "SpatialAudioHooker: Error in setter hook", t)
                     }
                 }
             }
@@ -144,9 +118,5 @@ class SpatialAudioHooker(
         }
 
         Log.e("HyperTweak", "SpatialAudioHooker: No suitable toggle method found in ${clazz.name}")
-        Log.d("HyperTweak", "SpatialAudioHooker: Available methods:")
-        clazz.declaredMethods.forEach { method ->
-            Log.d("HyperTweak", "  ${method.name}(${method.parameterTypes.joinToString { it.simpleName }})")
-        }
     }
 }
