@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
             var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
+            var miuiBackGestureHook by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)) }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
             var pageScale by remember { mutableFloatStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
@@ -404,6 +405,13 @@ class MainActivity : ComponentActivity() {
                         predictiveBackStyle = style
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, style)
+                        }
+                    },
+                    miuiBackGestureHook = miuiBackGestureHook,
+                    onMiuiBackGestureHookChange = { enabled ->
+                        miuiBackGestureHook = enabled
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
                         }
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,
