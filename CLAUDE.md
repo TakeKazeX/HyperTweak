@@ -1,67 +1,79 @@
-# CLAUDE.md — Project Instructions for HyperTweak
+# HyperTweak Project Reference
 
-## Project Overview
+This file records verifiable project facts. Agent execution rules live in
+[`AGENTS.md`](AGENTS.md).
 
-HyperTweak is an Xposed module for Xiaomi HyperOS 3 / MIUI that provides system-level customizations not available through standard settings UI. Built with Jetpack Compose + Miuix UI, targeting the native libxposed API 102.
+## Overview
 
-## Build & Test
+HyperTweak is a Xiaomi HyperOS/MIUI libxposed API 102 module. Its settings UI
+uses Jetpack Compose with Miuix components. The module provides system and
+application hooks for customization across the processes listed in
+`app/src/main/resources/META-INF/xposed/scope.list`.
+
+## Toolchain and Dependencies
+
+- Android `compileSdk 37`, `targetSdk 37`, `minSdk 35`; Java source and target 21.
+- Android Gradle Plugin `9.3.0`; Kotlin Compose plugin `2.4.10`.
+- libxposed API and service `102.0.0`; Miuix `0.9.3`; DexKit `2.2.0`.
+- Native packaging is limited to `arm64-v8a`.
+
+## Layout
+
+Kotlin sources are under `app/src/main/kotlin/com/takekazex/hypertweak/`:
+
+- `hook/` contains the entry point and hook implementation. `hook/base/` holds
+  shared hook infrastructure; `hook/rules/*` contains feature-specific rules.
+- `ui/page`, `ui/effect`, `ui/liquid`, `ui/navigation`, and `ui/theme` contain
+  Compose screens and UI infrastructure.
+- `util/` contains shared utilities. JVM tests are under `app/src/test/`.
+
+## Key Components
+
+- `HookEntry` dispatches module initialization for each process.
+- `Preferences` owns runtime preference access and cross-process synchronization.
+- `XposedServiceManager` manages the libxposed service boundary.
+- `BaseHooker` provides common hook lifecycle and resolution behavior.
+- `DexKitManager` resolves obfuscated classes with cached runtime metadata.
+
+Hook handles and hot-reload state belong to the hook lifecycle layer; runtime
+preference changes are consumed through `Preferences` and must not be coupled
+to UI-only state.
+
+## Scope and Features
+
+The scope file is the single source of truth. It currently contains:
+
+```text
+system
+com.android.systemui
+com.miui.home
+com.takekazex.hypertweak
+com.android.settings
+com.miui.aod
+com.miui.securitycenter
+com.miui.powerkeeper
+com.xiaomi.scanner
+com.milink.service
+com.xiaomi.bluetooth
+```
+
+These cover the system server, SystemUI, Launcher, the module's own process,
+Settings, AOD, Security Center, PowerKeeper, Scanner, MiLink, and Bluetooth.
+
+Feature areas include system/SystemUI hooks, slider percentage display, an AOSP
+back gesture, AOD/fingerprint/navigation-bar behavior, Settings injection,
+restart-scope controls, logging, and theme/UI settings.
+
+## Build and Test
 
 ```bash
-# Build debug APK
-./gradlew assembleDebug
-
-# Build release APK
-./gradlew assembleRelease
-
-# Compile check (faster than full build)
-./gradlew compileDebugKotlin
-
-# Lint
-./gradlew lint
+./gradlew :app:compileDebugKotlin
+./gradlew :app:testDebugUnitTest
+./gradlew :app:lintDebug
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-No test suite exists — verify changes by compiling.
-
-## Architecture
-
-```
-app/src/main/kotlin/com/takekazex/hypertweak/
-├── hook/
-│   ├── HookEntry.kt              # Xposed module entry point
-│   ├── Preferences.kt            # IPC SharedPreferences with local cache
-│   ├── XposedServiceManager.kt   # LSPosed service lifecycle
-│   ├── base/
-│   │   ├── BaseHooker.kt         # StaticHooker / DynamicHooker base
-│   │   ├── DexKitManager.kt      # DexKit caching resolver
-│   │   └── ModuleContext.kt       # Per-process hook metadata
-│   └── rules/
-│       ├── module/               # Self-hooks (settings injection, status)
-│       ├── slider/               # Brightness/volume slider hooks
-│       ├── system/               # system_server hooks (GMS, Passkey)
-│       └── systemui/             # SystemUI hooks (AOD, fingerprint, navbar)
-├── ui/
-│   ├── page/                     # Compose screens
-│   ├── effect/                   # Background effects, shaders
-│   └── liquid/                   # iOS-like liquid glass nav bar
-└── util/                         # Locale, restart helpers
-```
-
-## Conventions
-
-- **Commit messages**: Conventional commits (`fix:`, `feat:`, `perf:`, `refactor:`, `chore:`)
-- **Hook safety**: Always wrap hook callbacks in `runCatching`. Use `as?` not `as` or `!!`.
-- **Reflection caching**: Never call `getDeclaredField`/`getMethod` in hot paths. Cache with `@Volatile` fields or `ConcurrentHashMap`.
-- **Preferences**: Use `Preferences.getBoolean()`/`putBoolean()` — never direct `SharedPreferences`.
-- **No comments**: Do not add code comments unless explicitly asked.
-- **Version**: Defined in `app/build.gradle.kts` as `baseVersion`. README uses `<version>` placeholder.
-
-## Scope & Target Processes
-
-Defined in `app/src/main/resources/META-INF/xposed/scope.list`:
-- `system` (system_server)
-- `com.android.systemui`
-- `com.android.settings`
-- `com.miui.aod`
-- `com.miui.securitycenter`
-- `com.xiaomi.scanner`
-- `com.takekazex.hypertweak` (self)
+The repository currently has JVM unit tests but no device-level Compose or UI
+tests. Release CI uses JDK 21, a signing keystore, `BUILD_CHANNEL=stable`, and
+verifies the APK certificate with `apksigner`.

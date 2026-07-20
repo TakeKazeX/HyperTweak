@@ -1,6 +1,8 @@
 import java.io.FileInputStream
 import java.util.Properties
 
+val baseVersion = providers.gradleProperty("hypertweak.version").get()
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -26,7 +28,6 @@ android {
                 (System.getenv("GITHUB_REF_NAME")?.matches(Regex("^v[0-9.]+$")) == true)
         val isCI = System.getenv("GITHUB_ACTIONS") == "true"
 
-        val baseVersion = "1.7.0"
         versionName = when {
             isStableRelease -> baseVersion
             isCI -> "$baseVersion-dev"
@@ -115,6 +116,15 @@ androidComponents {
             val suffix = if (variant.name == "release" && !file("release.keystore").exists()) "-debug-signed" else ""
             mainOutput?.outputFileName?.set("HyperTweak-v${variant.outputs.first().versionName.get()}-${variant.name}$suffix.apk")
         }
+    }
+}
+
+tasks.register("printBaseVersion") {
+    group = "help"
+    description = "Prints the canonical application version used for release tags."
+    val version = providers.gradleProperty("hypertweak.version")
+    doLast {
+        println(version.get())
     }
 }
 
