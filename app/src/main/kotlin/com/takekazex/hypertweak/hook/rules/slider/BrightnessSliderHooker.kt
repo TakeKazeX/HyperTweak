@@ -8,24 +8,26 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromHeight
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromLeft
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromTop
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.fromWidth
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.isBlurSupported
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toHeight
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toLeft
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toTop
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.toWidth
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
 class BrightnessSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
+
+    private data class AnimatorBounds(
+        val fromLeft: Int, val fromTop: Int, val fromWidth: Int, val fromHeight: Int,
+        val toLeft: Int, val toTop: Int, val toWidth: Int, val toHeight: Int
+    )
+    private val animatorBounds = java.util.WeakHashMap<Any, AnimatorBounds>()
+
+    override fun onPrepareHotReload() {
+        animatorBounds.clear()
+    }
 
 
     // Cached fields for BrightnessPanelAnimator (frameCallback hot path)
@@ -225,19 +227,14 @@ class BrightnessSliderHooker(
                         val thisObject = param.thisObject
                         val fromView = getOrCacheAnimatorFromViewField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
                         val fromText = getOrCacheViewGetTopTextMethod(fromView.javaClass)?.invoke(fromView) as? TextView ?: return@runCatching
-                        fromLeft = fromText.left
-                        fromTop = fromText.top
-                        fromWidth = fromText.width
-                        fromHeight = fromText.height
-
                         val getToView = getOrCacheAnimatorGetToViewMethod(thisObject.javaClass) ?: return@runCatching
                         val toView = getToView.invoke(thisObject) ?: return@runCatching
                         val sliderBinding = getOrCacheViewGetSliderBindingMethod(toView.javaClass)?.invoke(toView) ?: return@runCatching
                         val toText = getOrCacheBindingTopTextField(sliderBinding.javaClass)?.get(sliderBinding) as? TextView ?: return@runCatching
-                        toLeft = toText.left
-                        toTop = toText.top
-                        toWidth = toText.width
-                        toHeight = toText.height
+                        animatorBounds[thisObject] = AnimatorBounds(
+                            fromText.left, fromText.top, fromText.width, fromText.height,
+                            toText.left, toText.top, toText.width, toText.height
+                        )
                     }.onFailure { t ->
                         Log.e("HyperTweak", "Error in calculateViewValues hook", t)
                     }
@@ -250,11 +247,12 @@ class BrightnessSliderHooker(
                 after { param ->
                     runCatching {
                         val thisObject = param.thisObject
+                        val bounds = animatorBounds[thisObject] ?: return@runCatching
                         val fraction = getOrCacheAnimatorSizeField(thisObject.javaClass)?.get(thisObject) as? Float ?: return@runCatching
-                        val left = fromLeft + (toLeft - fromLeft) * fraction
-                        val top = fromTop + (toTop - fromTop) * fraction
-                        val width = fromWidth + (toWidth - fromWidth) * fraction
-                        val height = fromHeight + (toHeight - fromHeight) * fraction
+                        val left = bounds.fromLeft + (bounds.toLeft - bounds.fromLeft) * fraction
+                        val top = bounds.fromTop + (bounds.toTop - bounds.fromTop) * fraction
+                        val width = bounds.fromWidth + (bounds.toWidth - bounds.fromWidth) * fraction
+                        val height = bounds.fromHeight + (bounds.toHeight - bounds.fromHeight) * fraction
 
                         val getToView = getOrCacheAnimatorGetToViewMethod(thisObject.javaClass) ?: return@runCatching
                         val toView = getToView.invoke(thisObject) ?: return@runCatching
@@ -305,9 +303,10 @@ class BrightnessSliderHooker(
                             val slider = getOrCacheDelegateSliderField(toggleSlider.javaClass)?.get(toggleSlider) as? android.widget.SeekBar ?: return@runCatching
 
                             val level = slider.progress
+                            val minLevel = slider.min
                             val maxLevel = slider.max
-                            val pct = if (maxLevel > 0) Math.round(level * 1f / maxLevel * 100f).coerceIn(0, 100) else 0
-                            topText.text = formatPercent(pct)
+                            val pct = volumePercent(level, minLevel, maxLevel) ?: return@runCatching
+                            setPercentIfChanged(topText, pct)
                             applyTopTextStyle(topText, sliderType = "BrightnessSliderController")
                         }.onFailure { t ->
                             Log.e("HyperTweak", "Error updating BrightnessPanelSliderDelegate percentage", t)
