@@ -31,7 +31,8 @@ import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
-import com.takekazex.hypertweak.ui.page.DebugLogPage
+import com.takekazex.hypertweak.ui.page.DebugPage
+import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
@@ -217,7 +218,7 @@ fun HyperTweakNavContainer(
                     backStack.add(Route.Appearance)
                 },
                 onNavigateToDebugLogs = {
-                    backStack.add(Route.DebugLogs)
+                    backStack.add(Route.Debug)
                 },
                 onNavigateToHiddenFeatures = {
                     backStack.add(Route.HiddenFeatures)
@@ -289,8 +290,14 @@ fun HyperTweakNavContainer(
                 onShortcutsChanged = onShortcutsChanged
             )
         }
+        entry<Route.Debug> {
+            DebugPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onNavigateToLogs = { backStack.add(Route.DebugLogs) }
+            )
+        }
         entry<Route.DebugLogs> {
-            DebugLogPage(
+            LogsPage(
                 onBack = {
                     if (backStack.size > 1) backStack.removeLast()
                 }

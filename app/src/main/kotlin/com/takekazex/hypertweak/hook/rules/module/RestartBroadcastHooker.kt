@@ -8,6 +8,7 @@ import android.os.Process
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.RestartProtocol
 import java.util.concurrent.ConcurrentHashMap
 
 object RestartBroadcastHooker : StaticHooker() {
@@ -31,18 +32,18 @@ object RestartBroadcastHooker : StaticHooker() {
         if (!registeredPackages.add(pkgName)) return
 
         try {
-            val filter = IntentFilter("com.takekazex.hypertweak.ACTION_RESTART_SCOPE")
+            val filter = IntentFilter(RestartProtocol.ACTION)
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {
-                    if (intent.action == "com.takekazex.hypertweak.ACTION_RESTART_SCOPE") {
-                        val restartSystemUi = intent.getBooleanExtra("systemui", false)
-                        val restartSettings = intent.getBooleanExtra("settings", false)
-                        val restartAod = intent.getBooleanExtra("aod", false)
-                        val restartSecurityCenter = intent.getBooleanExtra("securitycenter", false)
-                        val restartScanner = intent.getBooleanExtra("scanner", false)
-                        val restartMilink = intent.getBooleanExtra("milink", false)
-                        val restartBluetooth = intent.getBooleanExtra("bluetooth", false)
-                        val restartPowerkeeper = intent.getBooleanExtra("powerkeeper", false)
+                    if (intent.action == RestartProtocol.ACTION) {
+                        val restartSystemUi = intent.getBooleanExtra(RestartProtocol.EXTRA_SYSTEM_UI, false)
+                        val restartSettings = intent.getBooleanExtra(RestartProtocol.EXTRA_SETTINGS, false)
+                        val restartAod = intent.getBooleanExtra(RestartProtocol.EXTRA_AOD, false)
+                        val restartSecurityCenter = intent.getBooleanExtra(RestartProtocol.EXTRA_SECURITY_CENTER, false)
+                        val restartScanner = intent.getBooleanExtra(RestartProtocol.EXTRA_SCANNER, false)
+                        val restartMilink = intent.getBooleanExtra(RestartProtocol.EXTRA_MILINK, false)
+                        val restartBluetooth = intent.getBooleanExtra(RestartProtocol.EXTRA_BLUETOOTH, false)
+                        val restartPowerkeeper = intent.getBooleanExtra(RestartProtocol.EXTRA_POWERKEEPER, false)
 
                         val shouldRestart = when (pkgName) {
                             "com.android.systemui" -> restartSystemUi
@@ -63,7 +64,7 @@ object RestartBroadcastHooker : StaticHooker() {
                     }
                 }
             }
-            ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+            ContextCompat.registerReceiver(appContext, receiver, filter, RestartProtocol.PERMISSION, null, ContextCompat.RECEIVER_EXPORTED)
             receivers[pkgName] = appContext to receiver
             DebugLog.d("RestartBroadcastHooker", "registered restart receiver in $pkgName")
         } catch (t: Throwable) {

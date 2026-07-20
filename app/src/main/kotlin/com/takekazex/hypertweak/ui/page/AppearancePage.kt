@@ -1,5 +1,3 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
-
 package com.takekazex.hypertweak.ui.page
 
 import androidx.compose.animation.AnimatedVisibility
@@ -18,9 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.takekazex.hypertweak.getSystemAccentColor
 import com.takekazex.hypertweak.ui.theme.*
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -29,8 +25,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeColorSpec
-import top.yukonga.miuix.kmp.theme.colorsFromSeed
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
@@ -58,8 +52,7 @@ fun AppearancePage(
     onPageScaleChange: (Float) -> Unit
 ) {
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val systemAccent = remember(context) { getSystemAccentColor(context) }
+    val systemAccent = rememberDeviceAccentColor()
     val resolvedSeed = if (seedColorHex == 0) systemAccent else seedColorHex
     val darkPreview = isEffectivelyDark(themeMode, isSystemInDarkTheme())
     val customSeed = seedColorHex !in presetAccentColors
@@ -101,13 +94,7 @@ fun AppearancePage(
     )
     val palettePreviewColors = remember(resolvedSeed, darkPreview) {
         PaletteStyleOption.entries.map { option ->
-            val colors = colorsFromSeed(
-                Color(resolvedSeed),
-                ThemeColorSpec.Spec2025,
-                option.miuixStyle,
-                darkPreview
-            )
-            listOf(colors.primary, colors.secondary, colors.tertiaryContainer)
+            MiuixSpec2025Adapter.previewColors(resolvedSeed, option.persistedId, darkPreview)
         }
     }
     val paletteEntry = DropdownEntry(
@@ -115,7 +102,7 @@ fun AppearancePage(
             DropdownItem(
                 text = option.label,
                 selected = index == paletteStyleIndex(paletteStyle),
-                onClick = { onPaletteStyleChange(index) },
+                onClick = { onPaletteStyleChange(option.persistedId) },
                 icon = { modifier ->
                     Row(
                         modifier = modifier.width(42.dp).height(18.dp),

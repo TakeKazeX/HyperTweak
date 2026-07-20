@@ -129,46 +129,25 @@ private data class DebugLogEntry(
 }
 
 @Composable
-fun DebugLogPage(
+fun LogsPage(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val topAppBarScrollBehavior = MiuixScrollBehavior()
+    val contentReady = rememberContentReady()
     val surfaceColor = MiuixTheme.colorScheme.surface
     val topBarBackdrop = rememberLayerBackdrop {
         drawRect(surfaceColor)
         drawContent()
     }
-    val contentReady = rememberContentReady()
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
-    var logText by remember { mutableStateOf(Preferences.getDebugLog()) }
+    var logText by remember {
+        mutableStateOf(runCatching { Preferences.getDebugLog() }.getOrDefault(""))
+    }
     var selectedFilter by remember { mutableStateOf(LogFilter.All) }
     var logLevel by remember {
         mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
-    var exportText by remember { mutableStateOf("") }
-    var exportStatus by remember { mutableStateOf<String?>(null) }
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri: Uri? ->
-        if (uri == null) {
-            DebugLog.w("DebugLogPage", "log export cancelled")
-            exportStatus = "Export cancelled"
-            return@rememberLauncherForActivityResult
-        }
-        runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { output ->
-                output.write(exportText.toByteArray(Charsets.UTF_8))
-            } ?: error("openOutputStream returned null")
-        }.onSuccess {
-            DebugLog.d("DebugLogPage", "logs exported to $uri")
-            exportStatus = "Exported ${exportText.lines().size} lines"
-            logText = Preferences.getDebugLog()
-        }.onFailure { t ->
-            DebugLog.e("DebugLogPage", "failed to export logs", t)
-            exportStatus = "Export failed"
-            logText = Preferences.getDebugLog()
-        }
-    }
+    val exportStatus: String? = null
     val entries = remember(logText) {
         parseLogEntries(logText).sortedBy { it.time }.asReversed()
     }
@@ -195,13 +174,11 @@ fun DebugLogPage(
                         blurRadius = 25f,
                         colors = BlurDefaults.blurColors(
                             blendColors = listOf(
-                                BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
+                                BlendColorEntry(color = surfaceColor.copy(alpha = 0.8f))
                             )
                         )
                     )
-                } else {
-                    Modifier
-                },
+                } else Modifier,
                 color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -209,78 +186,6 @@ fun DebugLogPage(
                         Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            DebugLog.d("DebugLogPage", "logs refreshed from UI")
-                            logText = Preferences.getDebugLog()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
-                    IconButton(
-                        enabled = logText.isNotBlank(),
-                        onClick = {
-                            val text = buildExportText(entries, LogFilter.All, entries.size)
-                            copyText(context, "HyperTweak Logs", text)
-                            exportStatus = "Copied all logs"
-                            DebugLog.d("DebugLogPage", "all logs copied from UI")
-                            logText = Preferences.getDebugLog()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Copy,
-                            contentDescription = "Copy all",
-                            tint = actionTint(enabled = logText.isNotBlank())
-                        )
-                    }
-                    IconButton(
-                        enabled = logText.isNotBlank(),
-                        onClick = {
-                            val text = buildExportText(entries, LogFilter.All, entries.size)
-                            shareText(context, "HyperTweak Logs", text)
-                            exportStatus = "Share sheet opened"
-                            DebugLog.d("DebugLogPage", "logs shared from UI")
-                            logText = Preferences.getDebugLog()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Share,
-                            contentDescription = "Share",
-                            tint = actionTint(enabled = logText.isNotBlank())
-                        )
-                    }
-                    IconButton(
-                        enabled = logText.isNotBlank(),
-                        onClick = {
-                            exportText = buildExportText(entries, LogFilter.All, entries.size)
-                            exportLauncher.launch(defaultLogFileName())
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Download,
-                            contentDescription = "Export",
-                            tint = actionTint(enabled = logText.isNotBlank())
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            Preferences.clearDebugLog()
-                            DebugLog.d("DebugLogPage", "logs cleared from UI")
-                            logText = Preferences.getDebugLog()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Delete,
-                            contentDescription = "Clear",
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
-                }
             )
         }
     ) { innerPadding ->
@@ -323,7 +228,6 @@ fun DebugLogPage(
                         entry = entry,
                         onCopy = {
                             copyText(context, "HyperTweak Log Entry", formatSingleEntry(entry))
-                            exportStatus = "Copied 1 log entry"
                         }
                     )
                 }
