@@ -38,6 +38,7 @@ fun RestartScopeDialog(
     onConfirm: (RestartScopeSelection) -> Unit
 ) {
     var systemUiChecked by remember(show, initialSelection.systemUi) { mutableStateOf(initialSelection.systemUi) }
+    var miuiHomeChecked by remember(show, initialSelection.miuiHome) { mutableStateOf(initialSelection.miuiHome) }
     var settingsChecked by remember(show, initialSelection.settings) { mutableStateOf(initialSelection.settings) }
     var aodChecked by remember(show, initialSelection.aod) { mutableStateOf(initialSelection.aod) }
     var securityCenterChecked by remember(show, initialSelection.securityCenter) { mutableStateOf(initialSelection.securityCenter) }
@@ -52,6 +53,7 @@ fun RestartScopeDialog(
     val installedApps = remember(show) {
         buildList {
             if (isPackageInstalled(packageManager, "com.android.systemui")) add("com.android.systemui")
+            add("com.miui.home")
             if (isPackageInstalled(packageManager, "com.android.settings")) add("com.android.settings")
             if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
             if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
@@ -99,6 +101,7 @@ fun RestartScopeDialog(
                         installedApps.forEach { pkg ->
                             val checked = when (pkg) {
                                 "com.android.systemui" -> systemUiChecked
+                                "com.miui.home" -> miuiHomeChecked
                                 "com.android.settings" -> settingsChecked
                                 "com.miui.aod" -> aodChecked
                                 "com.miui.securitycenter" -> securityCenterChecked
@@ -111,6 +114,7 @@ fun RestartScopeDialog(
                             val onCheckedChange: (Boolean) -> Unit = { newVal ->
                                 when (pkg) {
                                     "com.android.systemui" -> systemUiChecked = newVal
+                                    "com.miui.home" -> miuiHomeChecked = newVal
                                     "com.android.settings" -> settingsChecked = newVal
                                     "com.miui.aod" -> aodChecked = newVal
                                     "com.miui.securitycenter" -> securityCenterChecked = newVal
@@ -146,6 +150,7 @@ fun RestartScopeDialog(
                         onConfirm(
                             RestartScopeSelection(
                                 systemUi = systemUiChecked,
+                                miuiHome = miuiHomeChecked,
                                 settings = settingsChecked,
                                 aod = aodChecked,
                                 securityCenter = securityCenterChecked,
@@ -186,6 +191,7 @@ fun AppRestartPreference(
     val appName = remember(appInfo, packageName) {
         fun fallbackName(pkg: String) = when (pkg) {
             "com.android.systemui" -> "System UI"
+            "com.miui.home" -> "Miui Home"
             "com.android.settings" -> "Settings"
             "com.miui.aod" -> "Always-On Display"
             "com.miui.securitycenter" -> "Security"

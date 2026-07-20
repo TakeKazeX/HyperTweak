@@ -45,6 +45,11 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
+        systemUi = true,
+        miuiHome = true
+    ),
+    Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
@@ -123,6 +128,7 @@ class MainActivity : ComponentActivity() {
             var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
             var miuiBackGestureHook by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)) }
+            var crossTaskWallpaperBackground by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
             var pageScale by remember { mutableFloatStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
@@ -211,6 +217,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
+                    Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
                     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
                     Preferences.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
                     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
@@ -278,6 +285,7 @@ class MainActivity : ComponentActivity() {
                     floatingBarStyle = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
                     predictiveBackStyle = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
                     predictiveBackFollowGesture = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
+                    crossTaskWallpaperBackground = Preferences.getBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)
                     allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
                     pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
                     appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
@@ -412,6 +420,14 @@ class MainActivity : ComponentActivity() {
                         miuiBackGestureHook = enabled
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
+                        }
+                    },
+                    crossTaskWallpaperBackground = crossTaskWallpaperBackground,
+                    onCrossTaskWallpaperBackgroundChange = { enabled ->
+                        markTweaked(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
+                        crossTaskWallpaperBackground = enabled
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
                         }
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,

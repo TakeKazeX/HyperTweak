@@ -27,18 +27,20 @@ data class HotReloadTargetState(
     val processName: String,
     val isSystemServer: Boolean,
     val systemServerClassLoader: ClassLoader?,
-    val packages: List<HotReloadPackageState>
+    val packages: List<HotReloadPackageState>,
+    val hookerStates: Map<String, Any?> = emptyMap()
 )
 
 object HotReloadState {
     private const val MAGIC = "HyperTweak.HotReloadState"
-    private const val VERSION = 1
+    private const val VERSION = 2
 
     fun save(
         processName: String,
         isSystemServer: Boolean,
         systemServerClassLoader: ClassLoader?,
-        packages: Collection<HotReloadPackageState>
+        packages: Collection<HotReloadPackageState>,
+        hookerStates: Map<String, Any?> = emptyMap()
     ): Array<Any?> {
         return arrayOf(
             MAGIC,
@@ -66,18 +68,28 @@ object HotReloadState {
                         )
                     }.toTypedArray()
                 )
-            }.toTypedArray()
+            }.toTypedArray(),
+            hookerStates.map { (name, value) -> arrayOf(name, value) }.toTypedArray()
         )
     }
 
     fun restore(state: Any?): HotReloadTargetState? {
         val root = state as? Array<*> ?: return null
-        if (root.size < 6 || root[0] != MAGIC || root[1] != VERSION) return null
+        val version = root.getOrNull(1) as? Int ?: return null
+        if (root.size < 6 || root[0] != MAGIC || version !in 1..VERSION) return null
 
         val processName = root[2] as? String ?: return null
         val isSystemServer = root[3] as? Boolean ?: return null
         val systemServerClassLoader = root[4] as? ClassLoader
         val packagesArray = root[5] as? Array<*> ?: emptyArray<Any?>()
+        val hookerStates = (root.getOrNull(6) as? Array<*>)
+            .orEmpty()
+            .mapNotNull { item ->
+                val pair = item as? Array<*> ?: return@mapNotNull null
+                val name = pair.getOrNull(0) as? String ?: return@mapNotNull null
+                name to pair.getOrNull(1)
+            }
+            .toMap()
 
         val packages = packagesArray.mapNotNull { item ->
             val pkg = item as? Array<*> ?: return@mapNotNull null
@@ -109,7 +121,8 @@ object HotReloadState {
             processName = processName,
             isSystemServer = isSystemServer,
             systemServerClassLoader = systemServerClassLoader,
-            packages = packages
+            packages = packages,
+            hookerStates = hookerStates
         )
     }
 }
