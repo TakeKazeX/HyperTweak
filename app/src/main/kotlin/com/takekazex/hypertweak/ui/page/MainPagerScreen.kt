@@ -452,18 +452,6 @@ fun RowScope.MyNavigationBarItem(
                 )
             }
 
-            top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode.TextOnly -> {
-                top.yukonga.miuix.kmp.basic.Text(
-                    modifier = Modifier
-                        .padding(vertical = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.BottomPadding),
-                    text = label,
-                    color = tint,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    fontSize = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.TextFontSize,
-                    fontWeight = fontWeight,
-                )
-            }
-
             else -> {
                 Box(
                     modifier = Modifier.size(30.dp),
