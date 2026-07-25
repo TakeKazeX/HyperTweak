@@ -136,7 +136,11 @@ class MainActivity : ComponentActivity() {
             // Theme settings states
             var themeMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
             var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
-            var seedColorHex by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())) }
+            var seedColorHex by remember {
+                mutableIntStateOf(
+                    Preferences.getInt(Preferences.KEY_SEED_COLOR, Preferences.DEFAULT_SEED_COLOR)
+                )
+            }
             var paletteStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_PALETTE_STYLE, 0)) }
             var pureBlackDarkTheme by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, false)) }
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
@@ -186,6 +190,14 @@ class MainActivity : ComponentActivity() {
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
+            var immediateMonetRefresh by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(
+                        Preferences.KEY_IMMEDIATE_MONET_REFRESH,
+                        Preferences.DEFAULT_IMMEDIATE_MONET_REFRESH
+                    )
+                )
+            }
 
             val coroutineScope = rememberCoroutineScope()
 
@@ -322,7 +334,15 @@ class MainActivity : ComponentActivity() {
                 fun reloadAllPreferences() {
                     themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
                     useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
-                    seedColorHex = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0xFF007AFF.toInt())
+                    seedColorHex = Preferences.getInt(
+                        Preferences.KEY_SEED_COLOR,
+                        Preferences.DEFAULT_SEED_COLOR
+                    )
+                    paletteStyle = Preferences.getInt(Preferences.KEY_THEME_PALETTE_STYLE, 0)
+                    pureBlackDarkTheme = Preferences.getBoolean(
+                        Preferences.KEY_PURE_BLACK_DARK_THEME,
+                        false
+                    )
                     useFloatingBottomBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)
                     floatingBarStyle = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
                     predictiveBackStyle = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
@@ -354,6 +374,10 @@ class MainActivity : ComponentActivity() {
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
                     fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
+                    immediateMonetRefresh = Preferences.getBoolean(
+                        Preferences.KEY_IMMEDIATE_MONET_REFRESH,
+                        Preferences.DEFAULT_IMMEDIATE_MONET_REFRESH
+                    )
                 }
 
                 if (isModuleActive()) {
@@ -607,6 +631,13 @@ class MainActivity : ComponentActivity() {
                         setLauncherIconVisible(this@MainActivity, !checked)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, checked)
+                        }
+                    },
+                    immediateMonetRefresh = immediateMonetRefresh,
+                    onImmediateMonetRefreshChange = { enabled ->
+                        immediateMonetRefresh = enabled
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Preferences.putBoolean(Preferences.KEY_IMMEDIATE_MONET_REFRESH, enabled)
                         }
                     },
                     unlockPasskey = unlockPasskey,

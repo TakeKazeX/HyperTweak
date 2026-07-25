@@ -7,6 +7,8 @@ import java.util.concurrent.Executors
 
 object Preferences {
     const val NAME = "hypertweak_settings"
+    const val DEFAULT_SEED_COLOR = 0
+    const val DEFAULT_IMMEDIATE_MONET_REFRESH = true
 
     // Key names
     const val KEY_AOD_FULLSCREEN = "support_aod_fullscreen"
@@ -43,6 +45,7 @@ object Preferences {
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
     const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
+    const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"

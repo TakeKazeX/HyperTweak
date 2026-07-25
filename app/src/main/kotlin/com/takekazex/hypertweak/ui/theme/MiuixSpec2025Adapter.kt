@@ -1,9 +1,12 @@
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
 package com.takekazex.hypertweak.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec
+import top.yukonga.miuix.kmp.theme.colorsFromSeed
 
 object MiuixSpec2025Adapter {
     fun createThemeController(
@@ -27,7 +30,11 @@ object MiuixSpec2025Adapter {
             isDark = when (themeMode) { 1 -> false; 2 -> true; else -> null }
         )
         if (!pureBlackActive) return generated
-        val dark = generated.darkColors
+        val dark = if (useMonet) {
+            colorsFromSeed(Color(seedColor), ThemeColorSpec.Spec2025, style, true)
+        } else {
+            generated.darkColors
+        }
         val pureBlackMode = when (themeMode) { 1 -> ColorSchemeMode.Light; 2 -> ColorSchemeMode.Dark; else -> ColorSchemeMode.System }
         return ThemeController(
             colorSchemeMode = pureBlackMode,
@@ -41,14 +48,12 @@ object MiuixSpec2025Adapter {
     }
 
     fun previewColors(seedColor: Int, paletteId: Int, dark: Boolean): List<Color> {
-        val controller = ThemeController(
-            colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light,
-            keyColor = Color(seedColor),
-            colorSpec = ThemeColorSpec.Spec2025,
-            paletteStyle = paletteStyleFromStored(paletteId).miuixStyle,
-            isDark = dark
+        val colors = colorsFromSeed(
+            Color(seedColor),
+            ThemeColorSpec.Spec2025,
+            paletteStyleFromStored(paletteId).miuixStyle,
+            dark
         )
-        val colors = if (dark) controller.darkColors else controller.lightColors
         return listOf(colors.primary, colors.secondary, colors.tertiaryContainer)
     }
 }

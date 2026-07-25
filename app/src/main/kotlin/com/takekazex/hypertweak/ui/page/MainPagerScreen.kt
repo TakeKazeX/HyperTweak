@@ -73,6 +73,8 @@ fun MainPagerScreen(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
+    immediateMonetRefresh: Boolean,
+    onImmediateMonetRefreshChange: (Boolean) -> Unit,
     hideGestureBar: Boolean,
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
@@ -324,6 +326,8 @@ fun MainPagerScreen(
                                 onShowInSettingsChange = onShowInSettingsChange,
                                 hideLauncherIcon = hideLauncherIcon,
                                 onHideLauncherIconChange = onHideLauncherIconChange,
+                                immediateMonetRefresh = immediateMonetRefresh,
+                                onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,
                                 themeSummary = listOf("Follow System", "Light", "Dark")
                                     .getOrElse(themeMode) { "Follow System" },
                                 onNavigateToAppearance = onNavigateToAppearance,

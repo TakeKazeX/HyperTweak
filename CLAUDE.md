@@ -94,6 +94,16 @@ marked HyperTweak requests after a stale service is rebound. The feature
 defaults off, requires a SystemUI restart after setting changes, and needs one
 reboot after module installation so the system-server hooks are installed.
 
+`ImmediateMonetRefreshHooker` works around HyperOS dropping wallpaper colors
+whose source is marked as AOD, deferring later events while the display is
+awake, and failing to pass Xiaomi's independently extracted lock-wallpaper
+colors to `ThemeOverlayController`. It forwards both the SystemUI listener and
+Xiaomi keyguard callback through the original `handleWallpaperColors` path so
+the platform still owns source selection, settings updates, and Monet overlay
+generation. Fashion Gallery events remain excluded. The experimental setting
+defaults on and is read for every wallpaper event, so changing it does not
+require a SystemUI restart after the hook has been installed.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git
