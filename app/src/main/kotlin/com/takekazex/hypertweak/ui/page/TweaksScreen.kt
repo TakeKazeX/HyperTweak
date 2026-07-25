@@ -36,6 +36,8 @@ fun TweaksScreenContent(
     onRemoveGmsChange: (Boolean) -> Unit,
     hideFingerprint: Boolean,
     onHideFingerprintChange: (Boolean) -> Unit,
+    hideLockscreenStatusBar: Boolean,
+    onHideLockscreenStatusBarChange: (Boolean) -> Unit,
     sliderShowPercentage: Boolean,
     onSliderShowPercentageChange: (Boolean) -> Unit,
     sliderSamePercentageStyle: Boolean,
@@ -114,6 +116,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onHideFingerprintChange,
                         title = "Hide Lockscreen Fingerprint",
                         summary = "Completely remove the fingerprint sensor circle icon on lockscreen"
+                    )
+                    SwitchPreference(
+                        checked = hideLockscreenStatusBar,
+                        onCheckedChange = onHideLockscreenStatusBarChange,
+                        title = "Hide Lockscreen Status Bar",
+                        summary = "Hide the clock and status icons while the device is locked"
                     )
                 }
             }

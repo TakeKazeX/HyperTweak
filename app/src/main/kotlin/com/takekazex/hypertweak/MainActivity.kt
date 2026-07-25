@@ -44,6 +44,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         aod = true
     ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
         systemUi = true,
@@ -155,6 +156,7 @@ class MainActivity : ComponentActivity() {
             var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
             var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
+            var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
@@ -228,6 +230,7 @@ class MainActivity : ComponentActivity() {
                 return when (key) {
                     Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
+                    Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
                     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
                     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
@@ -304,6 +307,7 @@ class MainActivity : ComponentActivity() {
                     aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
+                    hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
@@ -475,6 +479,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     hideFingerprint = hideFingerprint,
+                    hideLockscreenStatusBar = hideLockscreenStatusBar,
+                    onHideLockscreenStatusBarChange = { checked ->
+                        markTweaked(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
+                        hideLockscreenStatusBar = checked
+                        Preferences.putBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
+                    },
                     onHideFingerprintChange = { checked ->
                         markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         hideFingerprint = checked

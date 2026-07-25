@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
@@ -438,6 +439,7 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
+                attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
