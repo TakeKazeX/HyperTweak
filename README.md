@@ -73,6 +73,7 @@ Special thanks to the following open-source projects for their support and inspi
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - Google Push / FCM Live implementation reference by howard20181.
 * **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MIUI back gesture compatibility implementation, integrated under its Apache-2.0 license.
+* **[MiCTS](https://github.com/parallelcc/MiCTS)** - Reference for the Android 15 contextual-search service path used by Gesture Bar Shortcuts (GPL-3.0).
 * **[HighLight Icons](https://t.me/HighLightIcons)** - App shortcut icons by [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221).
 
 ---

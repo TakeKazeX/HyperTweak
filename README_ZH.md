@@ -73,6 +73,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - 澎湃系统谷歌推送限制解除 / FCM Live 实现参考，作者 howard20181。
 * **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MIUI 返回手势兼容实现，按其 Apache-2.0 许可证整合。
+* **[MiCTS](https://github.com/parallelcc/MiCTS)** - 小白条快捷操作所用 Android 15 上下文搜索服务路径的实现参考（GPL-3.0）。
 * **[HighLight Icons](https://t.me/HighLightIcons)** - 应用快捷方式图标，作者 [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221)。
 
 ---

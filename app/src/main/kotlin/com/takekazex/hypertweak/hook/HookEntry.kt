@@ -10,10 +10,13 @@ import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
+import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
+import com.takekazex.hypertweak.hook.rules.system.VoiceInteractionServiceRepairHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
@@ -410,6 +413,8 @@ class HookEntry : XposedModule() {
             appContext = null
         )
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
+        attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
+        attachHooker(VoiceInteractionServiceRepairHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
         if (isMiuiBackGestureHookEnabled()) {
@@ -442,6 +447,7 @@ class HookEntry : XposedModule() {
                 attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
+                attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }
