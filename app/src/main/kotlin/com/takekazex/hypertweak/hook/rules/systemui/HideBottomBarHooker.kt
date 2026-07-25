@@ -12,6 +12,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 object HideBottomBarHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
+    private val navigationHandleClassNames = listOf(
+        "com.android.systemui.navigationbar.gestural.NavigationHandle",
+        "com.android.systemui.navigationbar.gestural.QuickswitchOrientedNavHandle"
+    )
+
     private val hooksApplied = AtomicBoolean(false)
     @Volatile
     private var hideGestureBarEnabled = false
@@ -72,6 +77,11 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     private fun applyDynamicHooks(cl: ClassLoader) {
+        // Keep the handle views attached and suppress only the gesture bar drawing.
+        navigationHandleClassNames.forEach { className ->
+            hookOnDraw(cl, className)
+        }
+
         // Hook 3: MiuiDecorationBottomView.onDraw
         try {
             val clzDecorationView = cl.loadClass(
@@ -122,6 +132,43 @@ object HideBottomBarHooker : StaticHooker() {
             }
         } catch (t: Throwable) {
             DebugLog.hookFailed("HideBottomBar", "AuthContainerView#getmBottomHeight()", t)
+        }
+    }
+
+    private fun hookOnDraw(cl: ClassLoader, className: String) {
+        val target = "${className.substringAfterLast('.')}#onDraw(Canvas)"
+        val targetClass = try {
+            cl.loadClass(className)
+        } catch (_: ClassNotFoundException) {
+            DebugLog.hookSkipped("HideBottomBar", target, "class not found")
+            return
+        } catch (t: Throwable) {
+            DebugLog.hookFailed("HideBottomBar", target, t)
+            return
+        }
+
+        try {
+            val methods = targetClass.declaredMethods.filter {
+                it.name == "onDraw" &&
+                    it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0] == Canvas::class.java
+            }
+            if (methods.isEmpty()) {
+                DebugLog.hookSkipped("HideBottomBar", target, "method not found")
+                return
+            }
+
+            methods.forEach { method ->
+                method.hook {
+                    before { param ->
+                        if (hideGestureBarEnabled) {
+                            param.result = null
+                        }
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            DebugLog.hookFailed("HideBottomBar", target, t)
         }
     }
 }
