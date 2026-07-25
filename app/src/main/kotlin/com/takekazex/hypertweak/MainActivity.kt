@@ -115,7 +115,17 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
 
-        com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this)
+        // ShortcutService rejects dynamic shortcuts while the launcher alias is disabled.
+        // Do not call it at all in that state: some Android builds propagate the
+        // service-side IllegalStateException across Binder despite local catches.
+        val launcherAliasEnabled = runCatching {
+            packageManager.getComponentEnabledSetting(
+                ComponentName(this, "com.takekazex.hypertweak.MainActivityAlias")
+            ) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        }.getOrDefault(true)
+        if (launcherAliasEnabled) {
+            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this) }
+        }
 
         window.isNavigationBarContrastEnforced = false
 
@@ -515,9 +525,11 @@ class MainActivity : ComponentActivity() {
                     hideLauncherIcon = hideLauncherIcon,
                     onHideLauncherIconChange = { checked ->
                         hideLauncherIcon = checked
+                        // Component state changes touch PackageManager and must stay on the
+                        // activity thread; only preference persistence is dispatched.
+                        setLauncherIconVisible(this@MainActivity, !checked)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, checked)
-                            setLauncherIconVisible(this@MainActivity, !checked)
                         }
                     },
                     unlockPasskey = unlockPasskey,
@@ -598,18 +610,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-    private fun setLauncherIconVisible(context: Context, visible: Boolean) {
-        try {
-            val pm = context.packageManager
-            val componentName = ComponentName(context, "com.takekazex.hypertweak.MainActivityAlias")
-            val state = if (visible) {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            }
-            pm.setComponentEnabledSetting(componentName, state, PackageManager.DONT_KILL_APP)
-        } catch (e: Exception) {
-            // Ignore
+private fun setLauncherIconVisible(context: Context, visible: Boolean) {
+    runCatching {
+        val state = if (visible) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+        } else {
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         }
+        context.packageManager.setComponentEnabledSetting(
+            ComponentName(context, "com.takekazex.hypertweak.MainActivityAlias"),
+            state,
+            PackageManager.DONT_KILL_APP
+        )
     }
+}
 }
