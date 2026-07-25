@@ -3,6 +3,11 @@ package com.takekazex.hypertweak.ui.page
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -15,6 +20,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -46,6 +52,12 @@ fun TweaksScreenContent(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    gestureBarActionsEnabled: Boolean,
+    onGestureBarActionsEnabledChange: (Boolean) -> Unit,
+    gestureBarLongPressAction: Int,
+    onGestureBarLongPressActionChange: (Int) -> Unit,
+    gestureBarDoubleTapAction: Int,
+    onGestureBarDoubleTapActionChange: (Int) -> Unit,
     miuiBackGestureHook: Boolean,
     onMiuiBackGestureHookChange: (Boolean) -> Unit,
     crossTaskWallpaperBackground: Boolean,
@@ -67,6 +79,15 @@ fun TweaksScreenContent(
     }
     val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
+    val gestureActionLabels = remember {
+        listOf(
+            "Disabled",
+            "Default assistant",
+            "Circle to Search",
+            "Gemini (direct)",
+            "ChatGPT (direct)"
+        )
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -163,6 +184,39 @@ fun TweaksScreenContent(
                         summary = "Keep the reserved navigation bar space so app content sits above the gesture area",
                         enabled = hideGestureBar
                     )
+                    SwitchPreference(
+                        checked = gestureBarActionsEnabled,
+                        onCheckedChange = onGestureBarActionsEnabledChange,
+                        title = "Gesture Bar Shortcuts",
+                        summary = "Handle long press and double tap in SystemUI"
+                    )
+                    AnimatedVisibility(
+                        visible = gestureBarActionsEnabled,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            OverlayDropdownPreference(
+                                title = "Long Press Action",
+                                summary = "Circle to Search and direct actions do not require a default assistant",
+                                items = gestureActionLabels,
+                                selectedIndex = gestureBarLongPressAction.coerceIn(
+                                    0,
+                                    gestureActionLabels.lastIndex
+                                ),
+                                onSelectedIndexChange = onGestureBarLongPressActionChange
+                            )
+                            OverlayDropdownPreference(
+                                title = "Double Tap Action",
+                                items = gestureActionLabels,
+                                selectedIndex = gestureBarDoubleTapAction.coerceIn(
+                                    0,
+                                    gestureActionLabels.lastIndex
+                                ),
+                                onSelectedIndexChange = onGestureBarDoubleTapActionChange
+                            )
+                        }
+                    }
                     SwitchPreference(
                         checked = miuiBackGestureHook,
                         onCheckedChange = onMiuiBackGestureHookChange,

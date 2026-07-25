@@ -28,6 +28,26 @@ needed.
 - Access runtime settings through `Preferences`, including cross-process state,
   rather than bypassing the project preference abstraction.
 
+## Reverse Engineering
+
+- Keep extracted platform APK/JAR files and decompiler output outside the
+  repository in `/Users/ink/developer/reverse`. Extract only the components
+  needed for the current investigation.
+- Store source artifacts at the reverse-workspace root with version or build
+  information in the filename. Do not assume an unversioned artifact such as
+  `SystemUI.apk` is the current device build; use the current baseline recorded
+  in [`CLAUDE.md`](CLAUDE.md).
+- Store all derived output under `/Users/ink/developer/reverse/cache`, never in
+  the repository or beside the source artifact. New caches should use
+  `<component>-<first-16-SHA-256>` and contain the applicable `input/`, `jadx/`,
+  `apktool/`, and `SHA256SUMS` entries.
+- Verify the complete source SHA-256 before reusing a cache. Preserve older
+  artifacts and caches unless the user explicitly approves their removal.
+- Use JADX output for source navigation and APKTool output for manifests,
+  resources, and smali. A JADX decompilation failure is not evidence that a
+  class or method is absent; confirm uncertain behavior in smali or runtime
+  logs.
+
 ## Compose and UI
 
 Keep the existing Compose and Miuix visual language. Verify narrow screens,
