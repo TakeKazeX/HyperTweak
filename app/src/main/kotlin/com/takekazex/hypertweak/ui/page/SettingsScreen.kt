@@ -56,6 +56,8 @@ fun SettingsScreenContent(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
+    immediateMonetRefresh: Boolean,
+    onImmediateMonetRefreshChange: (Boolean) -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -169,6 +171,18 @@ fun SettingsScreenContent(
                         onSelectedIndexChange = onAppLanguageChange
                     )
                 }
+            }
+
+            SmallTitle(text = "Experimental")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                SwitchPreference(
+                    checked = immediateMonetRefresh,
+                    onCheckedChange = onImmediateMonetRefreshChange,
+                    title = "Immediate Monet Refresh",
+                    summary = "Apply new wallpaper colors when HyperOS misses or delays its Monet update"
+                )
             }
 
             // Other

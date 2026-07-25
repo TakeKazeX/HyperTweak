@@ -1,7 +1,9 @@
 package com.takekazex.hypertweak.ui.theme
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,5 +47,36 @@ class AppearanceSettingsTest {
         assertTrue(isEffectivelyDark(0, true))
         assertFalse(isEffectivelyDark(1, true))
         assertTrue(isEffectivelyDark(2, false))
+    }
+
+    @Test
+    fun `palette previews are generated from the selected color style`() {
+        val seed = 0xFF336699.toInt()
+
+        val tonalSpot = MiuixSpec2025Adapter.previewColors(seed, 0, dark = false)
+        val neutral = MiuixSpec2025Adapter.previewColors(seed, 1, dark = false)
+        val vibrant = MiuixSpec2025Adapter.previewColors(seed, 2, dark = false)
+
+        assertNotEquals(tonalSpot, neutral)
+        assertNotEquals(tonalSpot, vibrant)
+        assertNotEquals(neutral, vibrant)
+    }
+
+    @Test
+    fun `pure black monet theme keeps generated palette colors`() {
+        val seed = 0xFF336699.toInt()
+        val expectedPrimary = MiuixSpec2025Adapter.previewColors(seed, 2, dark = true).first()
+
+        val controller = MiuixSpec2025Adapter.createThemeController(
+            themeMode = 2,
+            useMonet = true,
+            seedColor = seed,
+            paletteId = 2,
+            pureBlackActive = true
+        )
+
+        assertEquals(expectedPrimary, controller.darkColors.primary)
+        assertEquals(Color.Black, controller.darkColors.background)
+        assertEquals(Color.Black, controller.darkColors.surface)
     }
 }

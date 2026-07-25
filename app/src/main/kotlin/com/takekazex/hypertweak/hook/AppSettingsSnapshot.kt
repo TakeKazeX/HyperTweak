@@ -18,7 +18,10 @@ data class AppSettingsSnapshot(
         fun read(): AppSettingsSnapshot = AppSettingsSnapshot(
             themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0),
             useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false),
-            seedColor = Preferences.getInt(Preferences.KEY_SEED_COLOR, 0),
+            seedColor = Preferences.getInt(
+                Preferences.KEY_SEED_COLOR,
+                Preferences.DEFAULT_SEED_COLOR
+            ),
             paletteStyle = Preferences.getInt(Preferences.KEY_THEME_PALETTE_STYLE, 0),
             pureBlackDarkTheme = Preferences.getBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, false),
             useFloatingBottomBar = Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false),

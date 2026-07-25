@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
@@ -447,6 +448,7 @@ class HookEntry : XposedModule() {
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
                 attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ImmediateMonetRefreshHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
