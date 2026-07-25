@@ -32,6 +32,7 @@
 - **🌍 GMS Restriction Bypass**: Overrides limitations on domestic (China) ROMs to enable trouble-free Google Mobile Services and Play Store installation.
 - **🔑 Google Passkey Unlock**: Bypasses system-level restrictions to enable Google Passkey and third-party Credential Managers on domestic HyperOS/MIUI ROMs.
 - **⚙️ Settings Entry Injection**: Seamlessly injects the module configuration entry directly below the Wi-Fi listing in the system Settings app.
+- **⌨️ Gesture Bar Shortcuts**: Lets SystemUI own long-press and double-tap actions for Gemini, ChatGPT, the default assistant, and Circle to Search, including Rust + Flutter Launcher 8 compatibility.
 - **🙈 Launcher Icon Hiding**: Hides the module's app icon from the launcher home screen; access remains available through the LSPosed manager or system Settings.
 
 ---

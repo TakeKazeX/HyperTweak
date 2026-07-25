@@ -67,8 +67,23 @@ settings. `HideLockscreenStatusBarHooker` targets the lockscreen-only
 `MiuiKeyguardStatusBarView` and holds it at `INVISIBLE`/zero alpha so lockscreen
 and full-screen AOD animations cannot restore its clock or status icons. The
 setting requires a SystemUI restart. `GestureBarActionHooker` owns optional
-long-press and double-tap handling through a SystemUI `InputMonitor`, without a
-Launcher hook. Default-assistant requests call SystemUI's `AssistManager`
+long-press and double-tap actions in SystemUI, without a Launcher hook. Its
+SystemUI `InputMonitor` remains the local fallback, while
+`GestureBarGestureSystemHooker` observes the system-server global pointer stream
+and relays recognized gestures back to a non-exported SystemUI receiver. For a
+touch that begins inside the handle region, it temporarily gates Launcher 8's
+private `InputManagerService$InputMonitorHost.pilferPointers()` call for the
+`[Gesture Monitor] swipe-up` channel. If Launcher requests ownership before the
+system-server pointer observer receives `DOWN`, the request is held
+asynchronously for up to 32 ms and then associated by display or replayed
+unchanged. The original native request is also replayed on movement, pointer-up,
+cancellation, dispatch failure, or the fail-open timeout, and is discarded only
+when HyperTweak or its own SystemUI monitor claims the shortcut. This preserves
+recognition inside apps without hooking Launcher or breaking the normal upward
+home gesture. HyperTweak does not add separate haptic feedback on dispatch,
+avoiding overlap with Launcher and assistant feedback. Action selections are
+read at dispatch time and do not require a SystemUI restart. Default-assistant
+requests call SystemUI's `AssistManager`
 without HyperOS's Launcher-owned invocation type, while direct Gemini and
 ChatGPT actions resolve only exported assistant activities. Circle to Search is
 CSService-only and does not depend on the selected digital assistant; its
@@ -115,9 +130,21 @@ Other available mappings are:
 - SystemUI plugin: `/Users/ink/developer/reverse/miui.systemui.plugin.apk`
   (`f85d514f440836aa73bcc13ffc32abb5937cf658f9584a5b828054e938ee7cc0`) ->
   `/Users/ink/developer/reverse/cache/miui-systemui-plugin-current`
-- Launcher: `/Users/ink/developer/reverse/系统桌面_RELEASE-7.00.20.0000-05141423.apk`
+- Launcher 8: `/Users/ink/developer/reverse/MiuiHome-RELEASE-8.00.02.2771-07171632-R.apk`
+  (`2ceb8193d82f9566f02c196cd3a35e311d81e84fb7d3bcef2b96558b7a1be1ac`)
+  -> `/Users/ink/developer/reverse/cache/launcher-2ceb8193d82f9566`
+  - The manifest declares `android:hasCode="false"` and requires
+    `hyperos.rustruntime.v4`; `libapp_launcher.so` contains the Rust gesture
+    implementation and `libapp.so` contains Flutter AOT code.
+  - Bundled Flutter version: `3.38.3-mi-1.17.16-beta3`.
+  - Runtime logs confirm `gesture_input_monitor` can call `pilfer_pointers` at
+    pointer down, canceling other gesture spy windows before a long-press timer.
+- Launcher 7: `/Users/ink/developer/reverse/系统桌面_RELEASE-7.00.20.0000-05141423.apk`
   (`82fa1e1b776cf0e84a94a2fa31d392314f334bf93460ee4718443d07e9a113e4`)
   -> `/Users/ink/developer/reverse/cache/launcher-current`
+- Framework client: `/Users/ink/developer/reverse/framework-OS3.0.308.0.WPMCNXM.jar`
+  (`36426149118b109a33f4a8b143bb5390dbe50ca0e21d00fd16f357710b368f0f`)
+  -> `/Users/ink/developer/reverse/cache/framework-36426149118b109a`
 - Framework services: `/Users/ink/developer/reverse/services.jar`
   (`2e880646dd2e4d92c1a12111aaa70b8eab9a8edf838eab2eb33d87a14618d3a9`) ->
   `/Users/ink/developer/reverse/cache/framework-services-2e880646`
