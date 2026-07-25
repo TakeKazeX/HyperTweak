@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui
+package com.takekazex.hypertweak.hook.rules.backgesture
 
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackGestureRuntime

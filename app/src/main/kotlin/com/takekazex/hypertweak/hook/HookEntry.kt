@@ -18,9 +18,9 @@ import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
-import com.takekazex.hypertweak.hook.rules.system.AospBackSystemHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.rules.launcher.AospBackMiuiHomeHooker
+import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
+import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
+import com.takekazex.hypertweak.hook.rules.backgesture.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker

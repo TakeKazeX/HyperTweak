@@ -35,6 +35,7 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import com.takekazex.hypertweak.hook.Preferences;
 import android.util.Pair;
 import android.view.InputChannel;
 import android.view.InputEvent;
@@ -2738,10 +2739,12 @@ public final class AospBackGestureRuntime {
     }
 
     private static void log(int priority, String tag, String message) {
+        if (!Preferences.INSTANCE.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) return;
         Log.println(priority, tag, message);
     }
 
     private static void log(int priority, String tag, String message, Throwable throwable) {
+        if (!Preferences.INSTANCE.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) return;
         Log.println(priority, tag, message + "\n" + Log.getStackTraceString(throwable));
     }
 
