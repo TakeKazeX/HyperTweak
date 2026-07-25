@@ -41,6 +41,11 @@ useful checks first (compile or focused tests), then add unit tests, lint, and
 Debug/Release builds when the change warrants them. Use the commands and
 constraints in [`CLAUDE.md`](CLAUDE.md) as the project reference.
 
+- Do not run `screencap` or otherwise capture, pull, store, or inspect
+  screenshots during development or verification unless the user explicitly
+  requests it. Leave visual inspection to the user and rely on logs, state
+  queries, and functional checks instead.
+
 ## Git
 
 Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `perf:`, `docs:`,
