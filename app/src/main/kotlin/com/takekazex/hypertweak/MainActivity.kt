@@ -54,8 +54,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
@@ -70,11 +68,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_FORCE_ADAPTIVE_ANC to RestartScopeSelection(bluetooth = true),
     Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true)
-)
-
-private val INT_TWEAK_KEYS = setOf(
-    Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-    Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION
 )
 
 private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(RestartScopeSelection.Empty) { acc, scopes ->
@@ -213,7 +206,14 @@ class MainActivity : ComponentActivity() {
             var dirtyTweakKeys by remember {
                 val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
                 if (storedBootToken == bootToken) {
-                    mutableStateOf(localPrefs.getStringSet(KEY_DIRTY_TWEAK_KEYS, emptySet()).orEmpty())
+                    val storedKeys = localPrefs
+                        .getStringSet(KEY_DIRTY_TWEAK_KEYS, emptySet())
+                        .orEmpty()
+                    val restartKeys = storedKeys.intersect(TWEAK_RESTART_SCOPES.keys)
+                    if (restartKeys != storedKeys) {
+                        localPrefs.edit { putStringSet(KEY_DIRTY_TWEAK_KEYS, restartKeys) }
+                    }
+                    mutableStateOf(restartKeys)
                 } else {
                     localPrefs.edit {
                         remove(Preferences.KEY_PENDING_RESTART_SCOPES)
@@ -272,14 +272,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            fun currentIntTweakValue(key: String): Int {
-                return when (key) {
-                    Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION -> gestureBarLongPressAction
-                    Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION -> gestureBarDoubleTapAction
-                    else -> Preferences.getInt(key, 0)
-                }
-            }
-
             fun markTweaked(key: String, value: Boolean) {
                 val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
                 val baseline = if (localPrefs.contains(baselineKey)) {
@@ -308,34 +300,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            fun markIntTweaked(key: String, value: Int) {
-                val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
-                val baseline = if (localPrefs.contains(baselineKey)) {
-                    localPrefs.getInt(baselineKey, value)
-                } else {
-                    Preferences.getInt(key, value)
-                }
-                val nextDirtyKeys = if (value == baseline) {
-                    dirtyTweakKeys - key
-                } else {
-                    dirtyTweakKeys + key
-                }
-                val nextPendingScopes = if (value == baseline) {
-                    effectivePendingRestartScopes(nextDirtyKeys, pendingRestartScopes)
-                } else {
-                    pendingRestartScopes.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
-                }
-
-                dirtyTweakKeys = nextDirtyKeys
-                pendingRestartScopes = nextPendingScopes
-                localPrefs.edit {
-                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
-                    putInt(baselineKey, baseline)
-                    putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
-                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
-                }
-            }
-
             fun clearRestartedScopes(scopes: RestartScopeSelection) {
                 val nextPendingScopes = pendingRestartScopes.without(scopes)
                 val clearedKeys = dirtyTweakKeys.filter { key ->
@@ -347,11 +311,7 @@ class MainActivity : ComponentActivity() {
                 localPrefs.edit {
                     putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
                     clearedKeys.forEach { key ->
-                        if (key in INT_TWEAK_KEYS) {
-                            putInt("$KEY_TWEAK_BASELINE_PREFIX$key", currentIntTweakValue(key))
-                        } else {
-                            putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValue(key))
-                        }
+                        putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValue(key))
                     }
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
@@ -597,7 +557,6 @@ class MainActivity : ComponentActivity() {
                     },
                     gestureBarLongPressAction = gestureBarLongPressAction,
                     onGestureBarLongPressActionChange = { action ->
-                        markIntTweaked(Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION, action)
                         gestureBarLongPressAction = action
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putInt(
@@ -608,7 +567,6 @@ class MainActivity : ComponentActivity() {
                     },
                     gestureBarDoubleTapAction = gestureBarDoubleTapAction,
                     onGestureBarDoubleTapActionChange = { action ->
-                        markIntTweaked(Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION, action)
                         gestureBarDoubleTapAction = action
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putInt(
