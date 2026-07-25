@@ -17,6 +17,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.util.concurrent.ConcurrentHashMap
 import android.graphics.Bitmap
+import android.graphics.Path
 
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 10777L
@@ -71,16 +72,16 @@ object SettingsHooker : StaticHooker() {
 
                 val showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                 if (!showInSettings) {
-                    val iterator = list.iterator()
-                    while (iterator.hasNext()) {
-                        val head = iterator.next()
-                        val idField = try {
-                            head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
-                        } catch (t: Throwable) {
-                            null
-                        }
-                        if (idField?.get(head) == HEADER_ID) {
-                            iterator.remove()
+                    runCatching {
+                        val iterator = list.iterator()
+                        while (iterator.hasNext()) {
+                            val head = iterator.next()
+                            val idField = runCatching {
+                                head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
+                            }.getOrNull()
+                            if (idField?.get(head) == HEADER_ID) {
+                                iterator.remove()
+                            }
                         }
                     }
                     return@after
@@ -195,11 +196,7 @@ object SettingsHooker : StaticHooker() {
                                 val density = iconView.resources.displayMetrics.densityDpi
                                 val cacheKey = (density.toLong() shl 32) or size.toLong()
                                 val bitmap = iconBitmapCache.computeIfAbsent(cacheKey) {
-                                    createBitmap(size, size).also { cachedBitmap ->
-                                        val canvas = android.graphics.Canvas(cachedBitmap)
-                                        moduleIcon.setBounds(0, 0, size, size)
-                                        moduleIcon.draw(canvas)
-                                    }
+                                    createMaskedIconBitmap(moduleIcon, size)
                                 }
                                 iconView.setImageBitmap(bitmap)
                             }
@@ -222,5 +219,19 @@ object SettingsHooker : StaticHooker() {
             }
         }
         return fields[name]
+    }
+
+    private fun createMaskedIconBitmap(drawable: android.graphics.drawable.Drawable, size: Int): Bitmap {
+        return createBitmap(size, size).also { bitmap ->
+            val canvas = android.graphics.Canvas(bitmap)
+            val mask = Path().apply {
+                addCircle(size / 2f, size / 2f, size / 2f, Path.Direction.CW)
+            }
+            canvas.save()
+            canvas.clipPath(mask)
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            canvas.restore()
+        }
     }
 }

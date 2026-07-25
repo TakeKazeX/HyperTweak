@@ -139,11 +139,17 @@ fun SettingsScreenContent(
                         summary = "Hide launcher icon (access module via LSPosed or system settings)"
                     )
 
-                    ArrowPreference(
-                        title = "App Shortcuts",
-                        summary = "Choose shortcuts shown in long-press app icon menu",
-                        onClick = onNavigateToAppShortcuts
-                    )
+                    AnimatedVisibility(
+                        visible = !hideLauncherIcon,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        ArrowPreference(
+                            title = "App Shortcuts",
+                            summary = "Choose shortcuts shown in long-press app icon menu",
+                            onClick = onNavigateToAppShortcuts
+                        )
+                    }
 
                     SwitchPreference(
                         checked = allowLandscape,
