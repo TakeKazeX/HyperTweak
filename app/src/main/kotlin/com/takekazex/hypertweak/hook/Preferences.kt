@@ -42,6 +42,7 @@ object Preferences {
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"
+    const val KEY_AOSP_BACK_LOGS = "aosp_back_logs"
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

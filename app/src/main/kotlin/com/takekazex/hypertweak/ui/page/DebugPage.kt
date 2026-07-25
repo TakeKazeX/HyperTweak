@@ -39,6 +39,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
+    var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
     Scaffold(topBar = {
         TopAppBar(
             title = "Debug",
@@ -65,6 +66,15 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                         },
                         title = "Record Logs",
                         summary = "Persist module and hook runtime logs"
+                    )
+                    SwitchPreference(
+                        checked = aospBackLogs,
+                        onCheckedChange = { enabled ->
+                            aospBackLogs = enabled
+                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_LOGS, enabled)
+                        },
+                        title = "AOSP Back Gesture Logs",
+                        summary = "Record detailed logs from the AOSP back gesture hook"
                     )
                     ArrowPreference(
                         title = "Logs",
