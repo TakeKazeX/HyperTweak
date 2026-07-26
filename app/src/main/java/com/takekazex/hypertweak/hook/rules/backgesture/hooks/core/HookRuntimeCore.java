@@ -409,9 +409,21 @@ public abstract class HookRuntimeCore {
     protected static final long SHELL_RELEASE_WATCHDOG_TIMEOUT_MS = 1500L;
 
     /**
-     * HyperTweak: how long to let the launcher's own app-to-home animation run before retiring the
-     * handed-off session. Measured at ~1.5s end to end on device, so this clears shortly after it
-     * settles while still landing well before a following gesture.
+     * HyperTweak: how many times the release watchdog may re-arm while Shell is still not
+     * quiescent before it force-completes the released session. Bounds the total wait at
+     * {@code SHELL_RELEASE_WATCHDOG_TIMEOUT_MS * this}, so a finish callback that never arrives can
+     * never strand {@code activeShellSession} permanently — after the budget is spent the session
+     * is completed exactly as a successful quiescence check would complete it.
+     */
+    protected static final int SHELL_RELEASE_WATCHDOG_MAX_ATTEMPTS = 5;
+
+    /**
+     * HyperTweak: safety-net upper bound on how long a driven, handed-off return-home session is
+     * retained before it is force-retired. This is not an ordering wait for the animation: the
+     * launcher owns that animation and its own finish now applies independently (see
+     * consumeUnifiedNativeFinishDispatch, which lets a handed-off finish proceed), so this delay is
+     * only a backstop against a session that would otherwise leak if that finish never arrived.
+     * Kept short enough to retire well before a following gesture.
      */
     protected static final long MIUI_HOME_HANDOFF_FINISH_DELAY_MS = 900L;
 

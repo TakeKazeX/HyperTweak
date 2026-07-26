@@ -3762,6 +3762,19 @@ public abstract class MiuiHomeReturnHomeRuntime extends SystemUiHookRuntime {
                 if (session != null
                         && session.finished.get() == 0
                         && session.unifiedNativePreviewOwned
+                        && session.handedOffToLauncher
+                        && session.nativeWindowElement == windowElement) {
+                    // HyperTweak: same reasoning as the provider-adopted case above. A driven,
+                    // handed-off return-home whose animation settles before the ~900ms retire net
+                    // still needs its own finish to apply — the launcher owns the animation, just as
+                    // beginUnifiedNativeFinishDispatch already lets a handed-off finish proceed.
+                    // Suppressing it here ("Skipped unpaired Xiaomi finish apply") stranded the
+                    // WindowElement, so let the finish proceed instead of returning Boolean.FALSE.
+                    return null;
+                }
+                if (session != null
+                        && session.finished.get() == 0
+                        && session.unifiedNativePreviewOwned
                         && session.nativeWindowElement == windowElement) {
                     log(Log.ERROR, TAG,
                             "Skipped unpaired Xiaomi finish apply"

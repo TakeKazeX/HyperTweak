@@ -2636,6 +2636,17 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
          * quiescent once the release should have settled, complete it.
          */
         protected void scheduleShellSessionReleaseWatchdog(ShellGestureSession session) {
+            // HyperTweak: begin the bounded watchdog at its first attempt.
+            scheduleShellSessionReleaseWatchdog(session, 1);
+        }
+
+        // HyperTweak: the watchdog re-arms up to SHELL_RELEASE_WATCHDOG_MAX_ATTEMPTS times while
+        // Shell is still not quiescent, then force-completes the released session, so a release
+        // whose finish callback never arrives can never strand activeShellSession forever. Every
+        // attempt still verifies quiescence on the Shell owner thread and completion still runs on
+        // main, matching the original one-shot check.
+        protected void scheduleShellSessionReleaseWatchdog(
+                ShellGestureSession session, int attempt) {
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (activeShellSession != session
                         || session.completionConsumed.get()) {
@@ -2654,8 +2665,22 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                                     "Failed to inspect Shell for release watchdog"
                                             + ", shellSessionId=" + session.id, throwable);
                         }
-                        if (!quiescent
-                                || activeShellSession != session
+                        if (!quiescent) {
+                            // HyperTweak: Shell has not settled yet. Re-arm until the attempt budget
+                            // is spent, then fall through to force-complete so the session can never
+                            // strand permanently when its finish callback never arrives.
+                            if (activeShellSession == session
+                                    && !session.completionConsumed.get()
+                                    && attempt < SHELL_RELEASE_WATCHDOG_MAX_ATTEMPTS) {
+                                scheduleShellSessionReleaseWatchdog(session, attempt + 1);
+                                return;
+                            }
+                            log(Log.WARN, TAG,
+                                    "Forcing Shell session completion after release watchdog budget"
+                                            + ", shellSessionId=" + session.id
+                                            + ", attempts=" + attempt);
+                        }
+                        if (activeShellSession != session
                                 || !session.completionConsumed.compareAndSet(false, true)) {
                             return;
                         }
