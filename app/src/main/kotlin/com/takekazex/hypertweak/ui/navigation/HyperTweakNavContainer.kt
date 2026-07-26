@@ -33,6 +33,7 @@ import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
+import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -349,6 +350,12 @@ fun HyperTweakNavContainer(
         }
         entry<Route.AospRestore> {
             AospRestorePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onNavigateToAospIme = { backStack.add(Route.AospIme) }
+            )
+        }
+        entry<Route.AospIme> {
+            AospImePage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

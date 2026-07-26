@@ -459,6 +459,19 @@ make every apply-restart drop the user's keyboard selection.
 
 The system-server half requires a reboot; there is no restart path for it.
 
+`ui/page/AospImePage.kt` picks the target keyboards. The selection is applied on
+demand rather than per toggle, because applying it requests Xposed scope and that
+prompts the user; `ScopeManager.applyManagedDiff` is passed every installed input
+method as the managed set, so unchecking one revokes its scope and nothing else is
+touched. The preference is written only when the scope request succeeds.
+
+`RestartScopeSelection` has no field for input methods and its nine booleans have
+a symmetric `merge`/`without`/`intersect` contract, so instead the restart
+broadcast carries `RestartProtocol.EXTRA_PACKAGES` and `RestartBroadcastHooker`
+also self-kills when its own package is named there. The receiver is already
+registered in every hooked package, so a newly scoped keyboard is reachable
+without extra wiring. `RestartUtils.forceStopPackages` is the sender.
+
 `InputMethodModuleManager` and `InputMethodServiceInjector` are in
 `miui-framework.jar`, not `framework.jar`. Both are on the boot classpath at
 runtime so resolution from the keyboard process works, but the local

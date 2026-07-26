@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * pending-restart-scope tracking; the page surfaces the restart requirement in each summary.
  */
 @Composable
-fun AospRestorePage(onBack: () -> Unit) {
+fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -150,6 +150,15 @@ fun AospRestorePage(onBack: () -> Unit) {
                         )
                     }
                 }
+            }
+
+            SmallTitle("Input Method")
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = "AOSP Keyboard Bar",
+                    summary = "Draw the AOSP gesture navigation bar inside selected keyboards",
+                    onClick = onNavigateToAospIme
+                )
             }
 
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))

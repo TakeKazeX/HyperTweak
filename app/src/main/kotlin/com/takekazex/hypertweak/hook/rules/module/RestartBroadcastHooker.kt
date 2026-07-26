@@ -45,7 +45,10 @@ object RestartBroadcastHooker : StaticHooker() {
                         val restartBluetooth = intent.getBooleanExtra(RestartProtocol.EXTRA_BLUETOOTH, false)
                         val restartPowerkeeper = intent.getBooleanExtra(RestartProtocol.EXTRA_POWERKEEPER, false)
 
-                        val shouldRestart = when (pkgName) {
+                        // Packages with no RestartScopeSelection field name themselves here.
+                        val namedPackages = intent.getStringArrayExtra(RestartProtocol.EXTRA_PACKAGES)
+
+                        val shouldRestart = namedPackages?.contains(pkgName) == true || when (pkgName) {
                             "com.android.systemui" -> restartSystemUi
                             "com.android.settings" -> restartSettings
                             "com.miui.aod" -> restartAod

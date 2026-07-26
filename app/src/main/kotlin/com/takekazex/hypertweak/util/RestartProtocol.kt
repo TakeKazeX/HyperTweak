@@ -12,4 +12,10 @@ object RestartProtocol {
     const val EXTRA_MILINK = "milink"
     const val EXTRA_BLUETOOTH = "bluetooth"
     const val EXTRA_POWERKEEPER = "powerkeeper"
+
+    /**
+     * Package names to restart, for targets that have no [RestartScopeSelection] field — currently
+     * the user-selected input methods.
+     */
+    const val EXTRA_PACKAGES = "packages"
 }

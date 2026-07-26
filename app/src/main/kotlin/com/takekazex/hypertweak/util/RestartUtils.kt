@@ -12,6 +12,58 @@ import kotlinx.coroutines.ensureActive
 import java.util.concurrent.TimeUnit
 
 object RestartUtils {
+    /**
+     * Restarts packages that have no [RestartScopeSelection] field, such as the user-selected input
+     * methods. The in-process receiver is already registered in every hooked package, so a newly
+     * scoped app is reachable without any extra wiring.
+     */
+    fun forceStopPackages(
+        context: Context,
+        coroutineScope: CoroutineScope,
+        packages: Set<String>
+    ) {
+        if (packages.isEmpty()) return
+
+        coroutineScope.launch {
+            val intent = Intent(RestartProtocol.ACTION).apply {
+                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                putExtra(RestartProtocol.EXTRA_PACKAGES, packages.toTypedArray())
+            }
+            runCatching { context.sendBroadcast(intent, RestartProtocol.PERMISSION) }
+
+            val rootSuccess = withContext(Dispatchers.IO) {
+                try {
+                    val process = Runtime.getRuntime().exec("su")
+                    process.outputStream.bufferedWriter().use { writer ->
+                        packages.forEach { writer.write("am force-stop $it\n") }
+                        writer.write("exit\n")
+                        writer.flush()
+                    }
+                    if (!process.waitFor(8, TimeUnit.SECONDS)) {
+                        process.destroyForcibly()
+                        DebugLog.e("RestartUtils", "root package restart timed out")
+                        false
+                    } else {
+                        DebugLog.d("RestartUtils", "root package restart exit=${process.exitValue()}")
+                        process.exitValue() == 0
+                    }
+                } catch (e: Exception) {
+                    DebugLog.e("RestartUtils", "root package restart failed", e)
+                    false
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                val message = if (rootSuccess) {
+                    "Restarted ${packages.size} app(s) via Root"
+                } else {
+                    "Broadcast sent to restart ${packages.size} app(s)"
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     fun restartScope(
         context: Context,
         coroutineScope: CoroutineScope,
