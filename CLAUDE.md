@@ -67,28 +67,37 @@ settings. `HideLockscreenStatusBarHooker` targets the lockscreen-only
 `MiuiKeyguardStatusBarView` and holds it at `INVISIBLE`/zero alpha so lockscreen
 and full-screen AOD animations cannot restore its clock or status icons. The
 setting requires a SystemUI restart. `GestureBarActionHooker` owns optional
-long-press and double-tap actions in SystemUI, without a Launcher hook. Its
-SystemUI `InputMonitor` remains the local fallback, while
-`GestureBarGestureSystemHooker` observes the system-server global pointer stream
-and relays recognized gestures back to a non-exported SystemUI receiver. For a
-touch that begins inside the handle region, it temporarily gates Launcher 8's
-private `InputManagerService$InputMonitorHost.pilferPointers()` call for the
-`[Gesture Monitor] swipe-up` channel. If Launcher requests ownership before the
-system-server pointer observer receives `DOWN`, the request is held
-asynchronously for up to 32 ms and then associated by display or replayed
-unchanged. The original native request is also replayed on movement, pointer-up,
-cancellation, dispatch failure, or the fail-open timeout, and is discarded only
-when HyperTweak or its own SystemUI monitor claims the shortcut. This preserves
-recognition inside apps without hooking Launcher or breaking the normal upward
-home gesture. HyperTweak does not add separate haptic feedback on dispatch,
-avoiding overlap with Launcher and assistant feedback. Action selections are
-read at dispatch time and do not require a SystemUI restart. Default-assistant
-requests call SystemUI's `AssistManager`
-without HyperOS's Launcher-owned invocation type, while direct Gemini and
-ChatGPT actions resolve only exported assistant activities. Circle to Search is
-CSService-only and does not depend on the selected digital assistant; its
-system-server bridge limits the compatibility override to calls from the
-resolved SystemUI UID. A companion voice-interaction repair extends HyperOS's
+long-press and double-tap actions in SystemUI, without a Launcher hook. Its only
+recognizer is a SystemUI gesture `InputMonitor` that pilfers pointers once a
+gesture is recognized inside the handle region, so recognition works wherever
+SystemUI wins ownership and yields to Launcher everywhere else.
+
+The system-server takeover bridge added in commit `6192c2a` is reverted on this
+branch. That bridge observed the global pointer stream from
+`PointerEventDispatcher`, gated Launcher 8's private
+`InputManagerService$InputMonitorHost.pilferPointers()` call for the
+`[Gesture Monitor] swipe-up` channel, and relayed recognized gestures back to
+SystemUI over a broadcast. Gating returns success to Launcher's Rust recognizer
+without transferring ownership and then replays the original native request from
+a timer, so both Launcher and the foreground window track the same pointers and
+a later, unrelated touch can be cancelled by the replay. On device this showed as
+repeated redraws along the bottom of the screen and, over time, a handle region
+that stopped responding. Do not restore it without a mechanism that does not lie
+to Launcher about ownership.
+
+HyperTweak does not add separate haptic feedback on dispatch, avoiding overlap
+with Launcher and assistant feedback. Action selections are read at dispatch time
+and do not require a SystemUI restart. Default-assistant requests call SystemUI's
+`AssistManager` without HyperOS's Launcher-owned invocation type, while direct
+Gemini and ChatGPT actions resolve only exported assistant activities. Circle to
+Search is CSService-only and does not depend on the selected digital assistant.
+`ContextualSearchSystemHooker` scopes its compatibility override to two callers:
+`startContextualSearch` from the resolved SystemUI UID, and the provider's
+`getContextualSearchState` callback from the resolved Google app UID. Both
+resolve the contextual-search package name, and HyperOS leaves
+`config_defaultContextualSearchPackageName` empty, so covering only the first
+call leaves the callback resolving an empty package. A companion
+voice-interaction repair extends HyperOS's
 Binder-death recovery to the configured third-party assistant and replays only
 marked HyperTweak requests after a stale service is rebound. The feature
 defaults off, requires a SystemUI restart after setting changes, and needs one

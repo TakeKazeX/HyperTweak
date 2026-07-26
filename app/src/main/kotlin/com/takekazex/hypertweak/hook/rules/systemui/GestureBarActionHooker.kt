@@ -1,11 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.app.KeyguardManager
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.os.Bundle
@@ -336,30 +334,6 @@ object GestureBarActionHooker : StaticHooker() {
             ViewConfiguration.getLongPressTimeout().toLong()
         )
         private var pilfered = false
-        private var bridgeReceiverRegistered = false
-        private var lastGesture: GestureBarGesture? = null
-        private var lastGestureToken = Long.MIN_VALUE
-        private var activeGestureToken = 0L
-
-        private val bridgeReceiver = object : BroadcastReceiver() {
-            override fun onReceive(receiverContext: Context?, intent: Intent?) {
-                if (intent?.action != GESTURE_BAR_GESTURE_ACTION ||
-                    intent.getIntExtra(GESTURE_BAR_GESTURE_DISPLAY_EXTRA, -1) != displayId
-                ) {
-                    return
-                }
-                val gesture = GestureBarGesture.fromPersistedId(
-                    intent.getIntExtra(GESTURE_BAR_GESTURE_EXTRA, -1)
-                ) ?: return
-                val gestureToken = intent.getLongExtra(
-                    GESTURE_BAR_GESTURE_TOKEN_EXTRA,
-                    Long.MIN_VALUE
-                )
-                HookFailurePolicy.open(SCOPE, "system gesture bridge callback", Unit) {
-                    dispatchGesture(gesture, gestureToken, "system bridge")
-                }
-            }
-        }
 
         private val longPressRunnable = Runnable {
             HookFailurePolicy.open(SCOPE, "long press callback", Unit) {
@@ -368,26 +342,7 @@ object GestureBarActionHooker : StaticHooker() {
                     return@open
                 }
                 if (!detector.onLongPressTimeout() || !pilfer("long press")) return@open
-                dispatchGesture(
-                    GestureBarGesture.LONG_PRESS,
-                    activeGestureToken,
-                    "input monitor"
-                )
-            }
-        }
-
-        init {
-            runCatching {
-                context.registerReceiver(
-                    bridgeReceiver,
-                    IntentFilter(GESTURE_BAR_GESTURE_ACTION),
-                    null,
-                    handler,
-                    Context.RECEIVER_NOT_EXPORTED
-                )
-                bridgeReceiverRegistered = true
-            }.onFailure {
-                DebugLog.w(SCOPE, "failed to register system gesture bridge", it)
+                dispatchGesture(GestureBarGesture.LONG_PRESS)
             }
         }
 
@@ -408,11 +363,6 @@ object GestureBarActionHooker : StaticHooker() {
         fun detach() {
             handler.removeCallbacks(longPressRunnable)
             detector.cancel()
-            if (bridgeReceiverRegistered) {
-                runCatching { context.unregisterReceiver(bridgeReceiver) }
-                    .onFailure { DebugLog.w(SCOPE, "failed to unregister gesture bridge", it) }
-                bridgeReceiverRegistered = false
-            }
             runCatching { dispose() }
                 .onFailure { DebugLog.w(SCOPE, "failed to dispose input receiver", it) }
             runCatching { inputMonitor.dispose() }
@@ -447,7 +397,6 @@ object GestureBarActionHooker : StaticHooker() {
 
             val doubleTapAction = configuredDoubleTapAction()
             val longPressAction = configuredLongPressAction()
-            activeGestureToken = event.downTime
             if (doubleTapAction == GestureBarAction.DISABLED) {
                 detector.clearTapHistory()
             }
@@ -470,36 +419,19 @@ object GestureBarActionHooker : StaticHooker() {
         private fun onUp(event: MotionEvent): Boolean {
             handler.removeCallbacks(longPressRunnable)
             val isDoubleTap = detector.onUp(event.eventTime, event.x, event.y)
-            if (isDoubleTap && pilfered &&
-                configuredDoubleTapAction() != GestureBarAction.DISABLED
-            ) {
-                dispatchGesture(
-                    GestureBarGesture.DOUBLE_TAP,
-                    event.downTime,
-                    "input monitor"
-                )
+            if (isDoubleTap && pilfered) {
+                dispatchGesture(GestureBarGesture.DOUBLE_TAP)
             }
             return pilfered.also { pilfered = false }
         }
 
-        private fun dispatchGesture(
-            gesture: GestureBarGesture,
-            gestureToken: Long,
-            source: String
-        ) {
+        private fun dispatchGesture(gesture: GestureBarGesture) {
             val action = when (gesture) {
                 GestureBarGesture.LONG_PRESS -> configuredLongPressAction()
                 GestureBarGesture.DOUBLE_TAP -> configuredDoubleTapAction()
             }
             if (action == GestureBarAction.DISABLED) return
-
-            if (lastGesture == gesture && lastGestureToken == gestureToken) {
-                DebugLog.d(SCOPE, "ignored duplicate $gesture from $source")
-                return
-            }
-            lastGesture = gesture
-            lastGestureToken = gestureToken
-            DebugLog.i(SCOPE, "dispatching $gesture action=$action source=$source")
+            DebugLog.i(SCOPE, "dispatching $gesture action=$action")
             executeAction(action, navigationBar, navigationView)
         }
 
@@ -507,7 +439,6 @@ object GestureBarActionHooker : StaticHooker() {
             handler.removeCallbacks(longPressRunnable)
             detector.cancel()
             pilfered = false
-            activeGestureToken = 0L
         }
 
         private fun pilfer(reason: String): Boolean {

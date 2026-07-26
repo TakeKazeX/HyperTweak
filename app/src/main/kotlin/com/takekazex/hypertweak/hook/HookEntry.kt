@@ -17,7 +17,6 @@ import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
-import com.takekazex.hypertweak.hook.rules.system.GestureBarGestureSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.VoiceInteractionServiceRepairHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
@@ -416,7 +415,6 @@ class HookEntry : XposedModule() {
         )
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
-        attachHooker(GestureBarGestureSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(VoiceInteractionServiceRepairHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)

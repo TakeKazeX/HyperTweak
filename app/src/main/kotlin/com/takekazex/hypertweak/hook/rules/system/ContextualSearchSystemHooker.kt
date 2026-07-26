@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 
-/** Restricts the contextual-search compatibility bridge to calls originating in SystemUI. */
+/** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
 object ContextualSearchSystemHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
@@ -15,17 +15,16 @@ object ContextualSearchSystemHooker : StaticHooker() {
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
     private const val GOOGLE_SEARCH_PACKAGE = "com.google.android.googlequicksearchbox"
 
-    private val activeSystemUiInvocation = ThreadLocal<Boolean>()
+    private val activeBridgedInvocation = ThreadLocal<Boolean>()
 
-    @Volatile
-    private var systemUiUid = -1
+    private val resolvedUids = mutableMapOf<String, Int>()
 
     @Volatile
     private var systemPackageManager: PackageManager? = null
 
     override fun onPrepareHotReload() {
-        activeSystemUiInvocation.remove()
-        systemUiUid = -1
+        activeBridgedInvocation.remove()
+        synchronized(resolvedUids) { resolvedUids.clear() }
         systemPackageManager = null
     }
 
@@ -51,7 +50,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
                 val context = param.args.getOrNull(0) as? Context
                 if (context != null) {
                     systemPackageManager = context.packageManager
-                    resolveSystemUiUidIfNeeded()
+                    resolveUid(SYSTEM_UI_PACKAGE)
                 }
                 if (param.args.getOrNull(1) == contextualSearchPackageId) {
                     param.result = true
@@ -73,16 +72,22 @@ object ContextualSearchSystemHooker : StaticHooker() {
             Int::class.javaPrimitiveType
         ).apply { isAccessible = true }.hook("gesture_bar_cts_systemui_call") {
             intercept { chain ->
-                val expectedUid = resolveSystemUiUidIfNeeded()
-                if (expectedUid < 0 || Binder.getCallingUid() != expectedUid) {
-                    return@intercept chain.proceed()
-                }
+                withBridgedInvocation(SYSTEM_UI_PACKAGE) { chain.proceed() }
+            }
+        }
 
-                activeSystemUiInvocation.set(true)
-                try {
-                    chain.proceed()
-                } finally {
-                    activeSystemUiInvocation.remove()
+        // The provider calls back into the service to collect the screenshot and assist data.
+        // That call resolves the contextual-search package again, on its own binder thread, so
+        // the override has to cover it as well or the service throws on the empty HyperOS value.
+        val stateMethod = stubClass.declaredMethods
+            .firstOrNull { it.name == "getContextualSearchState" }
+            ?.apply { isAccessible = true }
+        if (stateMethod == null) {
+            DebugLog.w(SCOPE, "contextual search state callback is unavailable")
+        } else {
+            stateMethod.hook("gesture_bar_cts_provider_callback") {
+                intercept { chain ->
+                    withBridgedInvocation(GOOGLE_SEARCH_PACKAGE) { chain.proceed() }
                 }
             }
         }
@@ -92,7 +97,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
             String::class.java
         ).apply { isAccessible = true }.hook("gesture_bar_cts_permission") {
             intercept { chain ->
-                if (activeSystemUiInvocation.get() == true) null else chain.proceed()
+                if (activeBridgedInvocation.get() == true) null else chain.proceed()
             }
         }
 
@@ -100,7 +105,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
             .apply { isAccessible = true }
             .hook("gesture_bar_cts_package") {
                 intercept { chain ->
-                    if (activeSystemUiInvocation.get() == true) {
+                    if (activeBridgedInvocation.get() == true) {
                         GOOGLE_SEARCH_PACKAGE
                     } else {
                         chain.proceed()
@@ -109,22 +114,35 @@ object ContextualSearchSystemHooker : StaticHooker() {
             }
     }
 
-    @Synchronized
-    private fun resolveSystemUiUidIfNeeded(): Int {
-        if (systemUiUid >= 0) return systemUiUid
+    private inline fun withBridgedInvocation(
+        expectedPackage: String,
+        proceed: () -> Any?
+    ): Any? {
+        val expectedUid = resolveUid(expectedPackage)
+        if (expectedUid < 0 || Binder.getCallingUid() != expectedUid) return proceed()
+
+        activeBridgedInvocation.set(true)
+        return try {
+            proceed()
+        } finally {
+            activeBridgedInvocation.remove()
+        }
+    }
+
+    private fun resolveUid(packageName: String): Int {
+        synchronized(resolvedUids) { resolvedUids[packageName] }?.let { return it }
         val packageManager = systemPackageManager ?: return -1
         val resolvedUid = runCatching {
             packageManager.getPackageUid(
-                SYSTEM_UI_PACKAGE,
+                packageName,
                 PackageManager.PackageInfoFlags.of(0)
             )
         }.onFailure {
-            DebugLog.w(SCOPE, "failed to resolve SystemUI uid", it)
+            DebugLog.w(SCOPE, "failed to resolve uid for $packageName", it)
         }.getOrDefault(-1)
-        if (resolvedUid >= 0) {
-            systemUiUid = resolvedUid
-            DebugLog.i(SCOPE, "resolved SystemUI uid=$resolvedUid")
-        }
-        return systemUiUid
+        if (resolvedUid < 0) return -1
+        synchronized(resolvedUids) { resolvedUids[packageName] = resolvedUid }
+        DebugLog.i(SCOPE, "resolved $packageName uid=$resolvedUid")
+        return resolvedUid
     }
 }
