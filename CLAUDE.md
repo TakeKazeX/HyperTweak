@@ -386,6 +386,20 @@ observes the substitution, and `onPrepareHotReload` puts the original back.
 Upstream's second branch, which hooks `start()` on baselines without the field, is
 dead code here. HyperOS keeps showing its own editor too; both appear.
 
+`AospAppInfoEntryHooker` adds an entry to Security Center's app details page
+(`com.miui.appmanager.fragment.ApplicationsDetailsFragment#onCreatePreferences`)
+that opens Settings' SPA route `AppInfoSettings/{package}/{user}`, served by
+`com.android.settings.spa.app.appinfo.AppInfoSettingsProvider`. The entry is
+inserted directly after `app_default_pref`, shifting every later preference's
+order by one. `UserHandle.myUserId()`/`getUserId(int)` are `@hide`, so both go
+through reflection, and the preference class falls back from
+`miuix.preference.TextPreference` to `androidx.preference.Preference`.
+
+**Neither Security Center feature is verified**: there is no
+`com.miui.securitycenter` artifact in the reverse-engineering workspace. Every
+lookup is null-checked and both hookers fail silently. Pull the APK and cache it
+before changing either.
+
 The Extend Unlock configuration screen itself is
 `com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
 which is not exported, so Hidden Features tries a direct launch first and then

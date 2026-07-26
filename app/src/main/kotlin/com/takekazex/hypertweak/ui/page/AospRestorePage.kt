@@ -66,9 +66,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var clipboardEditor by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
     }
+    var appInfoEntry by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, false))
+    }
     // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
     // tracking; offer the restart here instead once something on this page needs one.
     var systemUiRestartPending by remember { mutableStateOf(false) }
+    var securityCenterRestartPending by remember { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -160,6 +164,37 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                                     selection = RestartScopeSelection(systemUi = true)
                                 )
                                 systemUiRestartPending = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            SmallTitle("Security Center")
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = appInfoEntry,
+                        onCheckedChange = { enabled ->
+                            appInfoEntry = enabled
+                            securityCenterRestartPending = true
+                            Preferences.putBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, enabled)
+                        },
+                        title = "AOSP App Info Entry",
+                        summary = "Add an entry to the app details page that opens Settings' AOSP " +
+                            "app info screen. Requires a Security Center restart"
+                    )
+                    if (securityCenterRestartPending) {
+                        ArrowPreference(
+                            title = "Restart Security Center",
+                            summary = "Apply the changes made in this section",
+                            onClick = {
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = RestartScopeSelection(securityCenter = true)
+                                )
+                                securityCenterRestartPending = false
                             }
                         )
                     }

@@ -77,6 +77,10 @@ object Preferences {
     /** Lets AOSP's clipboard overlay editor appear for real copies, not just CTS. */
     const val KEY_AOSP_CLIPBOARD_EDITOR = "aosp_clipboard_editor"
 
+    /** Security Center entry points into Settings' AOSP app screens. */
+    const val KEY_AOSP_APP_INFO_ENTRY = "aosp_app_info_entry"
+    const val KEY_AOSP_APP_MANAGER_ENTRY = "aosp_app_manager_entry"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 
