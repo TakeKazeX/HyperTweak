@@ -27,6 +27,9 @@ object FcmLiveSystemHooker : StaticHooker() {
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
     private const val GMS_PERSISTENT_PROCESS_NAME = "com.google.android.gms.persistent"
 
+    @Volatile
+    private var loggedImmutableWhiteList = false
+
     override fun onInit() {
         if (!Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) {
             DebugLog.d(hookerName, "FCM Live disabled by user preference")
@@ -149,8 +152,13 @@ object FcmLiveSystemHooker : StaticHooker() {
         runCatching {
             val clazz = "com.miui.server.greeze.power.ListAppsManager".toClassOrNull() ?: return@runCatching
             val mSystemBlackListField = clazz.getDeclaredField("mSystemBlackList").apply { isAccessible = true }
+            val mUseDataWhiteListField = runCatching {
+                clazz.getDeclaredField("mUseDataWhiteList").apply { isAccessible = true }
+            }.onFailure {
+                DebugLog.w(hookerName, "ListAppsManager use-data whitelist field is unavailable", it)
+            }.getOrNull()
 
-            // Hook all constructors to remove GMS from blacklist
+            // Hook all constructors to remove GMS from the blacklist and seed it into the whitelist.
             clazz.declaredConstructors.forEach { constructor ->
                 constructor.hook {
                     after { param ->
@@ -159,22 +167,28 @@ object FcmLiveSystemHooker : StaticHooker() {
                             val blackList = mSystemBlackListField.get(param.thisObject) as? MutableList<String>
                             blackList?.remove(GMS_PACKAGE_NAME)
                         }
+                        // Seed GMS into the static whitelist once, in place, so the platform's own
+                        // add/removeAll mutations are preserved.
+                        mUseDataWhiteListField?.let { field ->
+                            runCatching { addGmsToWhiteListInPlace(field.get(param.thisObject)) }
+                        }
                     }
                 }
             }
 
             // boolean isInWhiteList(String packageName)
-            runCatching {
-                val isInWhiteListMethod = clazz.getDeclaredMethod("isInWhiteList", String::class.java)
-                val mUseDataWhiteListField = clazz.getDeclaredField("mUseDataWhiteList").apply { isAccessible = true }
-
-                isInWhiteListMethod.hook {
-                    before { param ->
-                        runCatching {
-                            @Suppress("UNCHECKED_CAST")
-                            val current = mUseDataWhiteListField.get(param.thisObject) as? Collection<*>
-                            val updated = CollectionOverrides.stringSet(current, GMS_PACKAGE_NAME)
-                            mUseDataWhiteListField.set(param.thisObject, updated)
+            mUseDataWhiteListField?.let { whiteListField ->
+                runCatching {
+                    val isInWhiteListMethod = clazz.getDeclaredMethod("isInWhiteList", String::class.java)
+                    isInWhiteListMethod.hook {
+                        before { param ->
+                            // mUseDataWhiteList is a process-wide static Set. Mutate it in place instead
+                            // of allocating a replacement and reassigning the field: the old reference
+                            // swap discarded the platform's concurrent add/removeAll updates and
+                            // republished the static unsafely across binder threads.
+                            runCatching {
+                                addGmsToWhiteListInPlace(whiteListField.get(param.thisObject))
+                            }
                         }
                     }
                 }
@@ -184,6 +198,33 @@ object FcmLiveSystemHooker : StaticHooker() {
         }.onFailure { t ->
             DebugLog.e(hookerName, "Failed to hook ListAppsManager", t)
         }
+    }
+
+    /**
+     * Adds [GMS_PACKAGE_NAME] to the existing whitelist collection in place, never replacing the
+     * static reference. No-op when GMS is already present; leaves the collection untouched and logs
+     * once when it cannot be mutated.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun addGmsToWhiteListInPlace(current: Any?) {
+        val whiteList = current as? MutableCollection<Any?>
+        if (whiteList == null) {
+            logImmutableWhiteListOnce(null)
+            return
+        }
+        if (whiteList.contains(GMS_PACKAGE_NAME)) return
+        try {
+            whiteList.add(GMS_PACKAGE_NAME)
+        } catch (t: UnsupportedOperationException) {
+            // The static is an unmodifiable view; leave it as-is rather than swapping the reference.
+            logImmutableWhiteListOnce(t)
+        }
+    }
+
+    private fun logImmutableWhiteListOnce(t: Throwable?) {
+        if (loggedImmutableWhiteList) return
+        loggedImmutableWhiteList = true
+        DebugLog.w(hookerName, "use-data whitelist is not mutable; left GMS unadded", t)
     }
 
     private fun hookBroadcastQueueModernStubImpl() {

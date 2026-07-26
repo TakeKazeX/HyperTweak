@@ -3,8 +3,10 @@ package com.takekazex.hypertweak.hook.rules.system
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Binder
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
@@ -33,8 +35,41 @@ object ContextualSearchSystemHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        // The bridge relaxes system_server permission checks and forces the service on, so it must
+        // not be installed unless the Circle to Search gesture action that needs it is actually on.
+        if (!isCircleToSearchActionEnabled()) {
+            DebugLog.hookSkipped(SCOPE, "contextual search bridge", "Circle to Search disabled")
+            return
+        }
         hookServiceStartupGate()
         hookContextualSearchService()
+    }
+
+    /**
+     * The system-side bridge exists solely to make SystemUI's Circle to Search gesture action
+     * succeed, so it follows the same live predicate the SystemUI-side hookers read: gesture-bar
+     * actions enabled, with Circle to Search bound to the long-press or double-tap slot. Mirrors
+     * [com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker] /
+     * [VoiceInteractionServiceRepairHooker].
+     */
+    private fun isCircleToSearchActionEnabled(): Boolean {
+        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) {
+            return false
+        }
+        val longPress = GestureBarAction.fromPersistedId(
+            Preferences.getInt(
+                Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
+                GestureBarAction.DEFAULT_ASSISTANT.persistedId
+            )
+        )
+        val doubleTap = GestureBarAction.fromPersistedId(
+            Preferences.getInt(
+                Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
+                GestureBarAction.CIRCLE_TO_SEARCH.persistedId
+            )
+        )
+        return longPress == GestureBarAction.CIRCLE_TO_SEARCH ||
+            doubleTap == GestureBarAction.CIRCLE_TO_SEARCH
     }
 
     private fun hookServiceStartupGate() {
@@ -96,32 +131,40 @@ object ContextualSearchSystemHooker : StaticHooker() {
             }
         }
 
-        serviceClass.getDeclaredMethod(
+        // Both methods are small and private, so ART is free to inline them; deoptimize first or the
+        // hooks never fire. Mirrors the sibling AOSP-restore hookers.
+        val enforcePermissionMethod = serviceClass.getDeclaredMethod(
             "enforcePermission",
             String::class.java
-        ).apply { isAccessible = true }.hook("gesture_bar_cts_permission") {
+        ).apply { isAccessible = true }
+        deoptimize(enforcePermissionMethod)
+        enforcePermissionMethod.hook("gesture_bar_cts_permission") {
             intercept { chain ->
                 if (activeBridgedInvocation.get() == true) null else chain.proceed()
             }
         }
 
-        serviceClass.getDeclaredMethod("getContextualSearchPackageName")
+        val packageNameMethod = serviceClass.getDeclaredMethod("getContextualSearchPackageName")
             .apply { isAccessible = true }
-            .hook("gesture_bar_cts_package") {
-                intercept { chain ->
-                    if (activeBridgedInvocation.get() == true) {
-                        GOOGLE_SEARCH_PACKAGE
-                    } else {
-                        chain.proceed()
-                    }
+        deoptimize(packageNameMethod)
+        packageNameMethod.hook("gesture_bar_cts_package") {
+            intercept { chain ->
+                if (activeBridgedInvocation.get() == true) {
+                    GOOGLE_SEARCH_PACKAGE
+                } else {
+                    chain.proceed()
                 }
             }
+        }
     }
 
     private inline fun withBridgedInvocation(
         expectedPackage: String,
         proceed: () -> Any?
     ): Any? {
+        // Re-checked live so turning Circle to Search off takes effect without a reboot: the bridge
+        // flag is never set, so enforcePermission and getContextualSearchPackageName run unchanged.
+        if (!isCircleToSearchActionEnabled()) return proceed()
         val expectedUid = resolveUid(expectedPackage)
         if (expectedUid < 0 || Binder.getCallingUid() != expectedUid) return proceed()
 

@@ -7,8 +7,8 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
-import android.os.Looper
 import android.provider.Settings
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -42,6 +42,7 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
     private var showSessionMethod: Method? = null
     private var getCurrentInteractorMethod: Method? = null
     private var secureGetIntForUserMethod: Method? = null
+    private var repairThread: HandlerThread? = null
     private var repairHandler: Handler? = null
     private var repairPending = false
 
@@ -50,6 +51,7 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         repairHandler?.removeCallbacksAndMessages(null)
+        repairThread?.quitSafely()
         synchronized(repairLock) { repairPending = false }
         managedAssistantPackages.clear()
         outerServiceField = null
@@ -61,6 +63,7 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
         showSessionMethod = null
         getCurrentInteractorMethod = null
         secureGetIntForUserMethod = null
+        repairThread = null
         repairHandler = null
         systemUiUid = -1
     }
@@ -107,7 +110,6 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
             callbackClass,
             IBinder::class.java
         ).apply { isAccessible = true }
-        repairHandler = Handler(Looper.getMainLooper())
 
         hookHyperOsServiceLiveness(stubClass)
         hookHyperOsServiceCleanup(stubClass)
@@ -189,7 +191,9 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
                 }
 
                 val retryArgs = chain.args.toTypedArray().also { args ->
-                    args[0] = Bundle(request)
+                    // Drop the marker so replaying showSession does not re-enter this intercept and
+                    // schedule a second repair for the request we are already repairing.
+                    args[0] = Bundle(request).apply { remove(GESTURE_BAR_ASSIST_REQUEST_MARKER) }
                 }
                 val scheduled = runCatching {
                     beginRepair(chain.thisObject, retryArgs)
@@ -235,7 +239,9 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
 
     private fun beginRepair(stub: Any, retryArgs: Array<Any?>): Boolean {
         synchronized(repairLock) {
-            if (repairPending) return true
+            // A repair is already in flight. Return false so the caller serves this request normally
+            // instead of claiming it as handled and dropping it without scheduling anything.
+            if (repairPending) return false
             repairPending = true
         }
 
@@ -244,18 +250,38 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
                 ?: error("switchImplementationIfNeeded is unavailable")
             switchMethod.invoke(stub, true)
             DebugLog.w(SCOPE, "stale assistant service detected; forced a rebind")
+            // If the retry could not be scheduled, fall through to the original call.
             scheduleSessionRetry(stub, retryArgs, poll = 0)
-            true
         } catch (t: Throwable) {
             clearRepairPending()
             throw t
         }
     }
 
-    private fun scheduleSessionRetry(stub: Any, retryArgs: Array<Any?>, poll: Int) {
-        val handler = repairHandler ?: run {
+    /**
+     * Lazily creates a dedicated worker thread for repair retries. The replay must never run on the
+     * system_server main looper, where a stall trips the Watchdog and restarts the device. Guarded
+     * so a construction failure degrades to "no repair scheduled" instead of throwing into the hook.
+     */
+    private fun ensureRepairHandler(): Handler? {
+        synchronized(repairLock) {
+            repairHandler?.let { return it }
+            return runCatching {
+                val thread = HandlerThread("HyperTweakVoiceRepair").apply { start() }
+                Handler(thread.looper).also {
+                    repairThread = thread
+                    repairHandler = it
+                }
+            }.onFailure {
+                DebugLog.w(SCOPE, "failed to start voice-repair worker thread", it)
+            }.getOrNull()
+        }
+    }
+
+    private fun scheduleSessionRetry(stub: Any, retryArgs: Array<Any?>, poll: Int): Boolean {
+        val handler = ensureRepairHandler() ?: run {
             clearRepairPending()
-            return
+            return false
         }
         val posted = handler.postDelayed(
             {
@@ -283,6 +309,7 @@ object VoiceInteractionServiceRepairHooker : StaticHooker() {
             RECONNECT_POLL_MS
         )
         if (!posted) clearRepairPending()
+        return posted
     }
 
     private fun isActiveServiceDisconnected(stub: Any): Boolean {
