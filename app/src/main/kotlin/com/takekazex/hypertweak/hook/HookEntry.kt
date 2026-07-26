@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
@@ -339,6 +340,9 @@ class HookEntry : XposedModule() {
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
         Preferences.initLocalCache(appContext)
         RestartBroadcastHooker.register(appContext)
+        if (packageName == "com.android.systemui") {
+            ProxyLaunchHooker.register(appContext)
+        }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
 
@@ -360,6 +364,9 @@ class HookEntry : XposedModule() {
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
+            if (state.packageName == "com.android.systemui") {
+                ProxyLaunchHooker.register(appContext)
+            }
             DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
         } else {
             DebugLog.w("HookEntry", "restored package ready package=${state.packageName} without app context")
@@ -454,6 +461,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ExtendUnlockHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {

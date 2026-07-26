@@ -373,6 +373,16 @@ state, the two binder round-trips are cached per user for 200 ms and invalidated
 eagerly from `onTrustChanged`. The setting defaults off and requires a SystemUI
 restart.
 
+The Extend Unlock configuration screen itself is
+`com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
+which is not exported, so Hidden Features tries a direct launch first and then
+asks SystemUI to start it. `ProxyLaunchHooker` registers that receiver in
+SystemUI, guarded by the module's signature-level permission and reusing
+`RestartBroadcastHooker`'s registration pattern. The broadcast carries a target
+key, never a component name: the receiver runs as uid system, so the component is
+resolved from a hardcoded allow-list in `ProxyLaunchHooker.TARGETS`. This half is
+independent of the trust fix and needs no setting.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git
