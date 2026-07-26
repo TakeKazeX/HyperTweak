@@ -29,7 +29,10 @@ object RestartUtils {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra(RestartProtocol.EXTRA_PACKAGES, packages.toTypedArray())
             }
-            runCatching { context.sendBroadcast(intent, RestartProtocol.PERMISSION) }
+            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
+            // system apps never will. Senders are already restricted by the receivers'
+            // broadcastPermission, which this app now holds.
+            runCatching { context.sendBroadcast(intent) }
 
             val rootSuccess = withContext(Dispatchers.IO) {
                 try {
@@ -113,7 +116,10 @@ object RestartUtils {
                 putExtra(RestartProtocol.EXTRA_BLUETOOTH, bluetooth)
                 putExtra(RestartProtocol.EXTRA_POWERKEEPER, powerkeeper)
             }
-            runCatching { context.sendBroadcast(intent, RestartProtocol.PERMISSION) }
+            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
+            // system apps never will. Senders are already restricted by the receivers'
+            // broadcastPermission, which this app now holds.
+            runCatching { context.sendBroadcast(intent) }
 
             // 2. Try executing root shell commands to terminate target processes
             val rootSuccess = withContext(Dispatchers.IO) {

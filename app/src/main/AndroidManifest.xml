@@ -4,6 +4,12 @@
     <permission
         android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE"
         android:protectionLevel="signature" />
+    <!--
+      The receivers hooked into other processes register with this as their
+      broadcastPermission, which the *sender* must hold. Without this the module could
+      not talk to its own receivers and every broadcast was silently dropped.
+    -->
+    <uses-permission android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE" />
 
     <queries>
         <package android:name="com.android.systemui" />
