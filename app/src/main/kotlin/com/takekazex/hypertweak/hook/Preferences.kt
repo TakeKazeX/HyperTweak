@@ -64,6 +64,12 @@ object Preferences {
      * the installer-selection methods run; see `AospPackageInstallerHooker`.
      */
     const val KEY_AOSP_PACKAGE_INSTALLER = "aosp_package_installer"
+
+    /** Blocks MIUI's global-actions plugin so SystemUI falls back to the AOSP power menu. */
+    const val KEY_AOSP_POWER_MENU = "aosp_power_menu"
+
+    /** Blocks MIUI's volume-dialog plugin so SystemUI falls back to the AOSP volume panel. */
+    const val KEY_AOSP_VOLUME_PANEL = "aosp_volume_panel"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"

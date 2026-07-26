@@ -328,6 +328,26 @@ methods are deoptimized first; they are small enough to be AOT-inlined otherwise
 `PasskeyHooker`). The setting is read live inside the callbacks, so turning it off
 takes effect without a reboot even though turning it on needs one.
 
+`AospSystemUiPluginBlockHooker` restores the AOSP power menu and volume panel.
+Upstream disables `miui.systemui.plugin/miui.systemui.globalactions.GlobalActionsPlugin`
+and `.../miui.systemui.volume.VolumeDialogPlugin` with
+`setComponentEnabledSetting`, falling back to a root `pm disable`; HyperTweak has
+neither permission as a normal app, so it hides the components from SystemUI's own
+plugin framework instead. `PluginActionManager.loadPluginComponent(ComponentName)`
+(SystemUI `:313`) is the single funnel both discovery paths use — the R8-synthesized
+package-change lambda at `:151` and `handleQueryPlugins` at `:291` — and every
+caller is written as `if (instance != null)`, so returning null skips the plugin
+cleanly. That needs no root, leaves no persistent component state, and is fully
+reverted by turning the switch off and restarting SystemUI.
+
+Matching is by class name, not package: `SystemUIPluginHooker` needs the
+control-center plugin in the same package to keep loading. The two settings are
+separate, snapshotted at `onHook()`, and require a SystemUI restart.
+
+Whether HyperOS still ships working AOSP `GlobalActionsDialog` and
+`VolumeDialogImpl` fallbacks is unverified off-device; if it does not, the failure
+mode is a power or volume key with no dialog.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git
