@@ -434,6 +434,31 @@ which supplies the dex, is not in the reverse-engineering workspace. It sits
 behind its own setting (`KEY_AOSP_IME_MIUI_IME_LIST`, default off) and fails
 silently.
 
+`AospImeSystemHooker` is the system-server half.
+`InputMethodDrawsNavBarResourceMonitor` derives `UserData.mImeDrawsNavBar` from
+`config_isDesktopModeSupported`, false on phones, and only re-evaluates it at user
+start and on overlay changes — never on an IME switch. So the flag is recomputed
+where it is read, in
+`InputMethodManagerService.getInputMethodNavButtonFlagsLocked(UserData)`
+(`services.jar:2097`, `IME_DRAWS_IME_NAV_BAR = 1`), from
+`Settings.Secure.navigation_mode` and the current `DEFAULT_INPUT_METHOD`, writing
+the result back into `UserData.mImeDrawsNavBar` (a `final AtomicBoolean`) so the
+next `onNavButtonFlagsChanged` agrees. The method is resolved by exact signature:
+older platforms take `(int userId)` here, and a blind write to `args[0]` on that
+shape would silently do nothing. It and its three callers are deoptimized.
+
+`InputMethodManagerServiceImpl.isCallingBetweenCustomIME(Context, int, String)`
+(`:757`) is extended so a selected keyboard passes MIUI's caller check.
+
+Upstream also overrides `isCustomizedInputMethod(String)` (`:512`) to false for
+selected packages. **That is deliberately not ported**: the method also feeds
+`InputMethodManagerService.onHandleForceStop` (`:537`), whose "keep using it"
+branch stops the system from resetting the default input method when a keyboard is
+force-stopped — which is exactly how this feature gets applied. Overriding it would
+make every apply-restart drop the user's keyboard selection.
+
+The system-server half requires a reboot; there is no restart path for it.
+
 `InputMethodModuleManager` and `InputMethodServiceInjector` are in
 `miui-framework.jar`, not `framework.jar`. Both are on the boot classpath at
 runtime so resolution from the keyboard process works, but the local

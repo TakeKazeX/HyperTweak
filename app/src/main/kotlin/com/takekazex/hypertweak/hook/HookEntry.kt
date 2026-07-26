@@ -20,6 +20,7 @@ import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
+import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
@@ -431,6 +432,9 @@ class HookEntry : XposedModule() {
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
+        if (AospImeConfig.isEnabled()) {
+            attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
+        }
         if (isMiuiBackGestureHookEnabled()) {
             attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         }
