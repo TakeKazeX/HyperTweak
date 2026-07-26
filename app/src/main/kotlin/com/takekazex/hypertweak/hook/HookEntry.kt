@@ -23,6 +23,7 @@ import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
@@ -507,6 +508,7 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.powerkeeper" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

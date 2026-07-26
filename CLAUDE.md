@@ -395,6 +395,16 @@ order by one. `UserHandle.myUserId()`/`getUserId(int)` are `@hide`, so both go
 through reflection, and the preference class falls back from
 `miuix.preference.TextPreference` to `androidx.preference.Preference`.
 
+`AospAppManagerEntryHooker` adds an overflow-menu entry to the app manager that
+opens Settings' `AllAppList` SPA route
+(`com.android.settings.spa.app.AllAppListPageProvider`). It hooks miuix's
+`AppCompatActivity.onOptionsMenuViewAdded(Menu, Menu)` — where the end menu is
+populated — and checks for `com.miui.appmanager.AppManagerMainActivity` inside, so
+nothing else in Security Center picks up the entry. An empty end menu means miuix
+has not populated it yet, so the entry is skipped for that pass. Unlike upstream,
+the item carries no `Intent`; only the click listener starts the activity, so a
+missing Settings SPA route fails as a no-op rather than an unhandled intent.
+
 **Neither Security Center feature is verified**: there is no
 `com.miui.securitycenter` artifact in the reverse-engineering workspace. Every
 lookup is null-checked and both hookers fail silently. Pull the APK and cache it

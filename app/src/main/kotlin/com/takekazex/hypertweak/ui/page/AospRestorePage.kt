@@ -69,6 +69,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var appInfoEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, false))
     }
+    var appManagerEntry by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
+    }
     // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
     // tracking; offer the restart here instead once something on this page needs one.
     var systemUiRestartPending by remember { mutableStateOf(false) }
@@ -183,6 +186,17 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = "AOSP App Info Entry",
                         summary = "Add an entry to the app details page that opens Settings' AOSP " +
                             "app info screen. Requires a Security Center restart"
+                    )
+                    SwitchPreference(
+                        checked = appManagerEntry,
+                        onCheckedChange = { enabled ->
+                            appManagerEntry = enabled
+                            securityCenterRestartPending = true
+                            Preferences.putBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, enabled)
+                        },
+                        title = "AOSP App Manager Entry",
+                        summary = "Add an overflow-menu entry to the app manager that opens " +
+                            "Settings' AOSP app list. Requires a Security Center restart"
                     )
                     if (securityCenterRestartPending) {
                         ArrowPreference(
