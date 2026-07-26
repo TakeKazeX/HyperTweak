@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
@@ -475,6 +476,7 @@ class HookEntry : XposedModule() {
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ExtendUnlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
+                attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {

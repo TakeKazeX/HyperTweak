@@ -63,6 +63,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var extendUnlockFix by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false))
     }
+    var clipboardEditor by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
+    }
     // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
     // tracking; offer the restart here instead once something on this page needs one.
     var systemUiRestartPending by remember { mutableStateOf(false) }
@@ -134,6 +137,17 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = "Extend Unlock",
                         summary = "Re-derive keyguard trust from the system when HyperOS lets its " +
                             "cached trust state go stale. Requires a SystemUI restart"
+                    )
+                    SwitchPreference(
+                        checked = clipboardEditor,
+                        onCheckedChange = { enabled ->
+                            clipboardEditor = enabled
+                            systemUiRestartPending = true
+                            Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
+                        },
+                        title = "AOSP Clipboard Editor",
+                        summary = "Show the AOSP clipboard overlay when copying. HyperOS keeps " +
+                            "showing its own editor as well. Requires a SystemUI restart"
                     )
                     if (systemUiRestartPending) {
                         ArrowPreference(

@@ -74,6 +74,9 @@ object Preferences {
     /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
     const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
 
+    /** Lets AOSP's clipboard overlay editor appear for real copies, not just CTS. */
+    const val KEY_AOSP_CLIPBOARD_EDITOR = "aosp_clipboard_editor"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 

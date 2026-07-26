@@ -373,6 +373,19 @@ state, the two binder round-trips are cached per user for 200 ms and invalidated
 eagerly from `onTrustChanged`. The setting defaults off and requires a SystemUI
 restart.
 
+`UnlockClipboardHooker` restores AOSP's clipboard overlay editor.
+`ClipboardListener.onPrimaryClipChanged` (SystemUI `:93`) gates the whole overlay
+on `sCtsTestPkgList.contains(getPrimaryClipSource())`, and on this baseline that
+field is `Arrays.asList("com.android.cts.verifier")` (`:47`) — so the AOSP editor
+only ever appears under CTS. The hook adds the app owning the current clip.
+
+The list is rebuilt as `original + currentSource` rather than accumulated, so it
+stays at two entries instead of growing by one for every app that has ever copied.
+`sCtsTestPkgList` has exactly one reader in SystemUI (`:100`), so nothing else
+observes the substitution, and `onPrepareHotReload` puts the original back.
+Upstream's second branch, which hooks `start()` on baselines without the field, is
+dead code here. HyperOS keeps showing its own editor too; both appear.
+
 The Extend Unlock configuration screen itself is
 `com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
 which is not exported, so Hidden Features tries a direct launch first and then
