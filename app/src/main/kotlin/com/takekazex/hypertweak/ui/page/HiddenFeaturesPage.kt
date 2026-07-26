@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.takekazex.hypertweak.util.ProxyLaunchProtocol
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -26,44 +25,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
-
-/**
- * GMS's Extend Unlock screen is not exported, so a direct launch throws for a third-party app.
- * Fall back to asking SystemUI — which runs as uid system — to start it on our behalf.
- */
-private fun launchExtendUnlock(context: android.content.Context) {
-    val direct = Intent().apply {
-        component = ComponentName(
-            "com.google.android.gms",
-            "com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity"
-        )
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    try {
-        context.startActivity(direct)
-        return
-    } catch (_: Exception) {
-        // Not exported, or GMS is missing; try the proxy before giving up.
-    }
-
-    try {
-        context.sendBroadcast(
-            Intent(ProxyLaunchProtocol.ACTION).apply {
-                setPackage("com.android.systemui")
-                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra(ProxyLaunchProtocol.EXTRA_TARGET, ProxyLaunchProtocol.TARGET_EXTEND_UNLOCK)
-            }
-        )
-        Toast.makeText(context, "Opening Extend Unlock via SystemUI", Toast.LENGTH_SHORT).show()
-    } catch (_: Exception) {
-        Toast.makeText(
-            context,
-            "Unable to open Extend Unlock. Check that Google Play services is installed and " +
-                "SystemUI is in the module's scope",
-            Toast.LENGTH_LONG
-        ).show()
-    }
-}
 
 @Composable
 fun HiddenFeaturesPage(
@@ -371,19 +332,6 @@ fun HiddenFeaturesPage(
                         }
                     )
 
-                    ArrowPreference(
-                        title = "Extend Unlock",
-                        summary = "Open the Extend Unlock (Smart Lock) configuration HyperOS hides",
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.LockOpen,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Extend Unlock",
-                                tint = MiuixTheme.colorScheme.primary
-                            )
-                        },
-                        onClick = { launchExtendUnlock(context) }
-                    )
                 }
             }
 

@@ -444,15 +444,23 @@ removed again when the setting is turned off; only that one component is touched
 
 The Extend Unlock configuration screen itself is
 `com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
-which is `exported=true` on this baseline, so the direct launch in Hidden Features
-succeeds and the trampoline hands off to `ConfirmUserCredentialAndStartActivity`.
-The SystemUI proxy is only a fallback for builds where it is not exported.
+which is `exported=true` on this baseline, so the direct launch succeeds and the
+trampoline hands off to `ConfirmUserCredentialAndStartActivity`. The SystemUI proxy
+in `util/ExtendUnlockLauncher.kt` is only a fallback for builds where it is not
+exported. The entry sits next to its switch on the AOSP Restore page and is greyed
+out until the switch is on, since the trust agent is only enabled while it is.
 `ProxyLaunchHooker` registers that receiver in
 SystemUI, guarded by the module's signature-level permission and reusing
 `RestartBroadcastHooker`'s registration pattern. The broadcast carries a target
 key, never a component name: the receiver runs as uid system, so the component is
-resolved from a hardcoded allow-list in `ProxyLaunchHooker.TARGETS`. This half is
-independent of the trust fix and needs no setting.
+resolved from a hardcoded allow-list in `ProxyLaunchHooker.TARGETS`.
+
+The manifest must `<uses-permission>` its own `RESTART_SCOPE` permission, not just
+declare it. Receivers register with it as their `broadcastPermission`, which the
+*sender* has to hold, so without it the module could not reach its own receivers
+and every broadcast — restart and proxy launch alike — was dropped in silence.
+`RestartUtils` correspondingly sends with no receiver permission: that argument
+demands the *receiver* hold it, and the hooked system apps never will.
 
 ## AOSP IME Full Screen
 

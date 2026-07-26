@@ -24,6 +24,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.ExtendUnlockLauncher
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
@@ -142,8 +143,15 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             Preferences.putBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, enabled)
                         },
                         title = "Extend Unlock",
-                        summary = "Re-derive keyguard trust from the system when HyperOS lets its " +
-                            "cached trust state go stale. Requires a SystemUI restart"
+                        summary = "Enable the Google trust agent HyperOS leaves off, and re-derive " +
+                            "keyguard trust when its cached state goes stale. Requires a SystemUI restart"
+                    )
+                    ArrowPreference(
+                        title = "Configure Extend Unlock",
+                        summary = "Open the Google configuration screen HyperOS hides. " +
+                            "Turn the switch on and restart SystemUI first",
+                        enabled = extendUnlockFix,
+                        onClick = { ExtendUnlockLauncher.launch(context) }
                     )
                     SwitchPreference(
                         checked = clipboardEditor,
