@@ -72,6 +72,155 @@ recognizer is a SystemUI gesture `InputMonitor` that pilfers pointers once a
 gesture is recognized inside the handle region, so recognition works wherever
 SystemUI wins ownership and yields to Launcher everywhere else.
 
+## AOSP Back Gesture
+
+The AOSP back gesture is vendored from `wxxsfxyzm/MiuiBackGestureHook`
+(Apache-2.0) at upstream commit `efa595d` (v0.8.1, 2026-07-26). Upstream's
+reference clone lives at `/Users/ink/developer/refrences/MiuiBackGestureHook`.
+
+Upstream's class chain is copied verbatim under
+`hook/rules/backgesture/` so future updates stay mergeable. HyperTweak-local
+changes are marked with a `HyperTweak:` comment and are confined to:
+
+- `hooks/core/HookRuntimeCore.java` — the root drops `extends XposedModule`.
+  Hook installation goes through a `HookRegistrar` bridged to `BaseHooker`
+  (`registerHook()` replaces upstream's
+  `recordHookHandle(hook(m).setId(id).intercept(f))`, 62 call sites), `log()` is
+  redefined as a static gated on `KEY_AOSP_BACK_LOGS`, and `deoptimize()` is
+  routed through the registrar.
+- `hooks/hotreload/HotReloadHookRuntime.java` — upstream's LSPosed lifecycle
+  callbacks become `saveHotReloadState()`/`restoreHotReloadState()` plus explicit
+  `install*Hooks(classLoader, registrar)` entry points. A deferral throws instead
+  of returning `false`. `createHotReloadHooker()` is dropped because `BaseHooker`
+  already replaces handles by hook id when `onHook()` re-runs.
+- Preferences resolve through `Preferences` rather than upstream's own remote
+  group; see the `KEY_AOSP_BACK_*` keys.
+
+`CrossTaskWallpaperRuntime` is HyperTweak-only and is not part of upstream. It
+draws the wallpaper behind the cross-task back animation when
+`KEY_CROSS_TASK_WALLPAPER_BACKGROUND` is on. Upstream's
+`tintCrossTaskBackground` hooks the same `BackAnimationBackground.ensureBackground`
+method to repaint that layer black for its slide-back animation, so it yields
+when this setting is on and the two never fight over one surface.
+
+The launcher route is version-gated. Predictive return-home hooks ~35
+`com.miui.home` Java classes (`recents.anim.*`, `RectFSpringAnim`,
+`ClipAnimationHelper`, ...) that only Launcher 7 and older ship; Launcher 8
+declares `android:hasCode="false"` and contains no dex at all, so none of them
+can resolve there. `LauncherVersion` caches the launcher version from the UI
+process into `Preferences` and hook processes fall back to probing the launcher
+class loader for `GestureStubView`. The route defaults off when unsupported and
+its setting is greyed out in Settings → Experimental.
+
+Upstream v0.8.0 replaced the old direct-pilfer input model with launcher-side
+arbitration (`inputModel=miuihome-accepted-token`): MIUI's `GestureStubView` owns
+the screen edges for every app, so `MiuiHomeHookRuntime` hooks
+`GesturesBackTouchProcessor.onPointerEvent` and publishes an accepted-input token
+to SystemUI. Upstream's `SystemUiInputRuntime.onNativeDown` marks the gesture a
+candidate and then returns `false` until `acceptMiuiHomeInput(token)` runs, and
+`miuiHomeInputAccepted` is reachable from nowhere else. Upstream therefore needs
+`com.miui.home` both in the module's LSPosed scope and running a launcher that
+still has the Java gesture stack, for the gesture to start **in any app** — not
+just for the launcher route.
+
+HyperTweak restores a token-free path so that dependency is not fatal on a
+launcher that cannot arbitrate at all. `onNativeDown` synthesises a token from
+the current DOWN and calls `acceptMiuiHomeInput` directly, which is the pre-0.8.0
+behaviour; every downstream check still applies because the synthesised token
+carries this process's `systemUiInputArbiterGeneration` and the DOWN's own
+identity.
+
+That path is taken only when `LauncherVersion.mayArbitrate` is false, i.e. the
+launcher is positively known to have no Java gesture stack. It deliberately does
+**not** trigger on "SystemUI has not heard from the launcher yet".
+`MiuiHomeHookRuntime` announces itself lazily, from
+`ensureMiuiHomeInputArbiterReceiver` on its first gesture-stub interaction, so
+silence does not mean absence. Claiming a gesture the launcher is also
+arbitrating leaves the two sides' ownership identities diverged; on device that
+showed up as predictive return-home working for the first few gestures and then
+stranding the transition — no predictive animation, a white status bar, and a
+delayed jump to home. `mayArbitrate` therefore treats an undetected launcher as
+"might arbitrate" and fails safe.
+
+`miuiHomeArbiterSeen` remains as the positive signal that a hooked launcher is
+present, and `MiuiHomeHookRuntime` re-sends its arbiter query whenever it sees a
+new SystemUI generation so a SystemUI restart re-establishes arbitration before
+the next gesture.
+
+### Why predictive return-home strands on Launcher 7.50.06
+
+Traced on device (launcher `RELEASE-7.50.06.2372-06261924`, decompiled to
+`cache/launcher-73ee007d501ecdb8`). The commit path itself works: the module holds the element in
+`CLOSE_TO_DRAG` ("Held Xiaomi CLOSE_TO_DRAG for real commit transition") and composes the commit
+("Composed accepted predictive return-home commit in original start transaction"). Then nothing
+happens for ~1.8s until `completeUnifiedCommitTransitionTimeout` fires.
+
+The element never leaves `CLOSE_TO_DRAG` because on this build `AnimType.CLOSE_TO_HOME` for a
+gesture-driven return home is issued from exactly one place: `NavStubView` on finger-up, via
+`StateManager.sendEvent(AppToHomeEvent(GestureAppUpEventInfo(... CLOSE_TO_HOME ...)))`
+(`NavStubView.java:4597`). The module pilfers the pointer stream for SystemUI, so `NavStubView`
+never receives the UP and never sends that event. Nothing else supplies it:
+`WindowAnimParamsProvider.getRemoteAbortParams` also builds `CLOSE_TO_HOME` params, but only for
+`RemoteShellAbortEvent` from `FastLaunchWindowElement`, which is an abort path, not a commit.
+
+`animTo` itself is called constantly during the drag (106 `CLOSE_TO_DRAG` calls in one gesture),
+so the `animTo$lambda$3` hook resolves and fires correctly — the hooks are not the problem. Nor is
+the launcher version: every member upstream resolves exists with the expected signature on this
+build.
+
+Closing this needs the module to drive the launcher to home itself after commit, mirroring
+`NavStubView:4597`, rather than waiting for an event that its own pointer pilfering prevents.
+Note the launcher logs under instance tags (`WindowElement<hash>`) and `MiuiHomeLog` prefixes
+`Launcher.`, with `debug()` gated behind the `is_miui_home_debug_log_enable` pref — capture all of
+logcat and filter offline rather than using `logcat -s`.
+
+The launcher hooks are split into two independently gated halves.
+`installMiuiHomeInputArbitrationOnly` (gesture stub, `GesturesBackTouchProcessor`
+arbiter, recents/task-launch/fullscreen state mirrors) always installs while the
+AOSP back gesture is enabled, because without the accepted-input token SystemUI
+never starts a gesture in any app. Only the predictive return-home half — the
+deep `recents.anim.*` integration plus the module-driven `performAppToHome`
+chain — is gated by `KEY_AOSP_BACK_MIUI_HOME_HOOKS` and `LauncherVersion`.
+Turning that setting off must degrade to native return-home animation, never
+disable the gesture.
+
+The driven return-home chain compensates for three things NavStubView normally
+does on its own finger-up, which never happens under module ownership:
+`ensureMiuiHomeStateManagerAppState` promotes StateManager Idle→App so event
+6004 is routed (only `AppState` handles it, `StateManager.java:1239`);
+`refreshMiuiHomeRunningTaskIdentity` seeds `mRunningTask*` from the session's
+closing `RemoteAnimationTarget.taskInfo` so `findClosingAnimTarget` resolves the
+icon of the app actually closing; and `hookMiuiHomeAppToHomeGate` forces
+`isNeedStopBecauseRecentsRemoteAnimStartFailed()` false for exactly the driven
+call so `performAppToHome` takes its animation branch.
+
+On the SystemUI side, `scheduleShellSessionReleaseWatchdog` bounds a released
+Shell session whose finish callback never arrives (seen after releases resolving
+`actualTrigger=false` right after an app launch): after
+`SHELL_RELEASE_WATCHDOG_TIMEOUT_MS` it verifies quiescence on the Shell owner
+thread — controller state is only readable there — and completes the session, so
+later gestures stop being rejected with "Suppressed SystemUI back while Shell is
+busy".
+
+`ReturnHomeSession` retention is bounded locally. Upstream claims unified-native preview
+ownership before the rest of the WindowElement is validated, and a failure path that misses the
+matching cancel leaves the session owning it with `unifiedNativeCleanupVerified` false.
+`finishSession` then refuses to finish such a session ("Deferred runner finish behind Xiaomi
+native owner") while cleanup verification waits on the finish, so the two wait on each other
+forever. Observed on device as: predictive return-home works, then one gesture leaves the
+launcher stuck blurred and scaled but interactive, every later runner is refused with "Rejected
+overlapping return-home runner", and `blocksControllerReplacement` stays true so LSPosed reports
+the launcher as a process that failed to hot reload. All three are the same leak.
+`STALE_RETURN_HOME_PREVIEW_TIMEOUT_MS` bounds it: a preview owner older than that is cancelled,
+marked verified to break the deadlock, and finished, and the same bound is applied in
+`blocksControllerReplacement`. Only the preview case is bounded — a running native animation
+still holds ownership for as long as it needs.
+
+The device baseline for this feature is Launcher 7.x, which has the Java gesture
+stack and so always uses upstream's arbitrated path — meaning `com.miui.home`
+must be in the module's LSPosed scope there. The AOSP Back Gesture summary says
+so when the installed launcher is one that owns the screen edges.
+
 The system-server takeover bridge added in commit `6192c2a` is reverted on this
 branch. That bridge observed the global pointer stream from
 `PointerEventDispatcher`, gated Launcher 8's private

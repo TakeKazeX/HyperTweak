@@ -35,6 +35,26 @@ object Preferences {
     const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
     const val KEY_MIUI_BACK_GESTURE_HOOK = "miui_back_gesture_hook"
     const val KEY_CROSS_TASK_WALLPAPER_BACKGROUND = "cross_task_wallpaper_background"
+
+    // AOSP back gesture, ported from MiuiBackGestureHook v0.8.1.
+    /** Per-app predictive-back opt-in, read in the system server. */
+    const val KEY_AOSP_BACK_OPT_IN_PACKAGES = "aosp_back_opt_in_packages"
+    const val KEY_AOSP_BACK_HYPEROS_INDICATOR = "aosp_back_hyperos_indicator"
+    const val KEY_AOSP_BACK_HYPEROS_HAPTICS = "aosp_back_hyperos_haptics"
+    const val KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED = "aosp_back_hyperos_haptics_enhanced"
+    const val KEY_AOSP_BACK_SLIDE_ANIMATION = "aosp_back_slide_animation"
+
+    /**
+     * Launcher-side hook route. Only Launcher 7 exposes the `com.miui.home` Java classes the
+     * predictive return-home animation hooks, so this defaults off on Launcher 8 and newer.
+     * See [KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET].
+     */
+    const val KEY_AOSP_BACK_MIUI_HOME_HOOKS = "aosp_back_miui_home_hooks"
+    const val KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET = "aosp_back_miui_home_hooks_user_set"
+
+    /** Cached `com.miui.home` version, so hook processes can gate without a PackageManager. */
+    const val KEY_LAUNCHER_MAJOR = "launcher_version_major"
+    const val KEY_LAUNCHER_VERSION_NAME = "launcher_version_name"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
     const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
     const val KEY_LANGUAGE = "app_language"
