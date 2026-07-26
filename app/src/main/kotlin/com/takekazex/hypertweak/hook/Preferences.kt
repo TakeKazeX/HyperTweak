@@ -57,6 +57,13 @@ object Preferences {
     const val KEY_LAUNCHER_VERSION_NAME = "launcher_version_name"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
     const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
+
+    // AOSP restore.
+    /**
+     * Hands package installs back to the AOSP installer. Relaxes MIUI install verification while
+     * the installer-selection methods run; see `AospPackageInstallerHooker`.
+     */
+    const val KEY_AOSP_PACKAGE_INSTALLER = "aosp_package_installer"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"

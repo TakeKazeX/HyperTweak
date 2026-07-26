@@ -131,6 +131,7 @@ fun MainPagerScreen(
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
     onNavigateToPredictiveBackApps: () -> Unit,
+    onNavigateToAospRestore: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     appLanguage: Int,
@@ -355,6 +356,7 @@ fun MainPagerScreen(
                                 aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
                                 onAospBackMiuiHomeHooksChange = onAospBackMiuiHomeHooksChange,
                                 onNavigateToPredictiveBackApps = onNavigateToPredictiveBackApps,
+                                onNavigateToAospRestore = onNavigateToAospRestore,
                                 themeSummary = listOf("Follow System", "Light", "Dark")
                                     .getOrElse(themeMode) { "Follow System" },
                                 onNavigateToAppearance = onNavigateToAppearance,

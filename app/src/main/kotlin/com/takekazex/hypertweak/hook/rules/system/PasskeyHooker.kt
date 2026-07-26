@@ -367,22 +367,4 @@ object PasskeyHooker : StaticHooker() {
         }
     }
 
-    private fun deoptimize(executable: java.lang.reflect.Executable) {
-        runCatching {
-            var clazz: Class<*>? = module.javaClass
-            var deoptimizeMethod: java.lang.reflect.Method? = null
-            while (clazz != null) {
-                try {
-                    deoptimizeMethod = clazz.getDeclaredMethod("deoptimize", java.lang.reflect.Executable::class.java)
-                    break
-                } catch (e: NoSuchMethodException) {
-                    clazz = clazz.superclass
-                }
-            }
-            deoptimizeMethod?.apply {
-                isAccessible = true
-                invoke(module, executable)
-            }
-        }
-    }
 }

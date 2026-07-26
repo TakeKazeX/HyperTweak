@@ -32,6 +32,7 @@ import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
+import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -274,6 +275,9 @@ fun HyperTweakNavContainer(
                 onNavigateToPredictiveBackApps = {
                     backStack.add(Route.PredictiveBackApps)
                 },
+                onNavigateToAospRestore = {
+                    backStack.add(Route.AospRestore)
+                },
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
@@ -340,6 +344,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.PredictiveBackApps> {
             PredictiveBackAppsPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.AospRestore> {
+            AospRestorePage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooke
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
+import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.VoiceInteractionServiceRepairHooker
@@ -418,6 +419,7 @@ class HookEntry : XposedModule() {
         attachHooker(VoiceInteractionServiceRepairHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
+        attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
         if (isMiuiBackGestureHookEnabled()) {
             attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         }

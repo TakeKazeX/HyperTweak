@@ -63,6 +63,7 @@ fun SettingsScreenContent(
     aospBackMiuiHomeHooks: Boolean,
     onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
     onNavigateToPredictiveBackApps: () -> Unit,
+    onNavigateToAospRestore: () -> Unit,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
@@ -208,6 +209,17 @@ fun SettingsScreenContent(
                     title = "Predictive Back Apps",
                     summary = "Force predictive back for apps that never opted in",
                     onClick = onNavigateToPredictiveBackApps
+                )
+            }
+
+            SmallTitle(text = "AOSP Restore")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                ArrowPreference(
+                    title = "AOSP Restore",
+                    summary = "Hand HyperOS components back to their AOSP implementations",
+                    onClick = onNavigateToAospRestore
                 )
             }
 

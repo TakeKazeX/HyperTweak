@@ -296,6 +296,38 @@ generation. Fashion Gallery events remain excluded. The experimental setting
 defaults on and is read for every wallpaper event, so changing it does not
 require a SystemUI restart after the hook has been installed.
 
+## AOSP Restore
+
+Settings → AOSP Restore (`ui/page/AospRestorePage.kt`, `Route.AospRestore`) collects
+the switches that hand a HyperOS component back to its AOSP implementation. The
+page keeps its own state instead of hoisting it into `MainActivity`, so these keys
+are deliberately absent from `TWEAK_RESTART_SCOPES` and each summary states its own
+restart requirement.
+
+`AospPackageInstallerHooker` restores the AOSP package installer, ported from
+tehcneko's AOSP Package Installer (GPL-3.0). On the current baseline
+`PackageManagerServiceImpl.updateDefaultPkgInstallerLocked()` selects the MIUI
+installer unless `isCTS()` is true (`services.jar:1260`), and
+`assertValidApkAndInstaller()` (`:1112`) and `hookChooseBestActivity()` (`:1220`)
+gate on the same static `isCTS()` (`:1440`, returning `AppOpsUtils.isXOptMode()`).
+The hooker forces `isCTS()` true for the duration of those three methods.
+
+**This deliberately relaxes MIUI install verification**: `assertValidApkAndInstaller`
+returns early when `isCTS()` is true, skipping the signature and installer checks
+MIUI performs. That is what the feature is for, but it is a security-relevant
+relaxation and the setting defaults off.
+
+Because `isCTS()` is static and also gates the install-verification path at
+`services.jar:643`, the override is scoped to the calling thread through a
+re-entrant `ThreadLocal` depth counter. The upstream implementations use a
+process-wide boolean, which lets a concurrent install on another system_server
+thread skip validation. The scope is entered only while the setting is on but
+always left, so toggling mid-call cannot strand the counter above zero. All four
+methods are deoptimized first; they are small enough to be AOT-inlined otherwise.
+`BaseHooker.deoptimize(Executable)` is the shared helper (previously private to
+`PasskeyHooker`). The setting is read live inside the callbacks, so turning it off
+takes effect without a reboot even though turning it on needs one.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git

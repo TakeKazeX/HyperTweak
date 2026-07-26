@@ -10,6 +10,7 @@ sealed interface Route : NavKey {
     data object HiddenFeatures : Route
     data object AppShortcuts : Route
     data object PredictiveBackApps : Route
+    data object AospRestore : Route
     data object Debug : Route
     data object DebugLogs : Route
 }

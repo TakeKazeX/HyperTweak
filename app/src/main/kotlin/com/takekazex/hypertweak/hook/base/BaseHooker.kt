@@ -270,6 +270,32 @@ sealed class BaseHooker {
         return hookHandles.toList() + childHookers.flatMap { it.collectManagedHookHandles() }
     }
 
+    /**
+     * Undo AOT inlining of [executable] so hooks on small or private methods actually fire.
+     * Resolved reflectively because `deoptimize` is not on the [XposedModule] type this module
+     * compiles against on every API level.
+     */
+    fun deoptimize(executable: Executable) {
+        runCatching {
+            var clazz: Class<*>? = module.javaClass
+            var deoptimizeMethod: Method? = null
+            while (clazz != null) {
+                try {
+                    deoptimizeMethod = clazz.getDeclaredMethod("deoptimize", Executable::class.java)
+                    break
+                } catch (_: NoSuchMethodException) {
+                    clazz = clazz.superclass
+                }
+            }
+            deoptimizeMethod?.apply {
+                isAccessible = true
+                invoke(module, executable)
+            }
+        }.onFailure { t ->
+            DebugLog.w(hookerName, "failed to deoptimize ${formatExecutable(executable)}", t)
+        }
+    }
+
     private fun registerHandle(
         handle: XposedInterface.HookHandle,
         target: String,
