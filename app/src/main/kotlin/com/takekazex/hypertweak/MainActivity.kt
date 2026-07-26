@@ -288,6 +288,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
+                    Preferences.KEY_MIUI_BACK_GESTURE_HOOK -> miuiBackGestureHook
                     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
                     Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS -> aospBackMiuiHomeHooks
                     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
@@ -462,102 +463,75 @@ class MainActivity : ComponentActivity() {
                     themeMode = themeMode,
                     onThemeModeChange = { mode ->
                         themeMode = mode
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_THEME_MODE, mode)
-                        }
+                        Preferences.putInt(Preferences.KEY_THEME_MODE, mode)
                     },
                     useMonet = useMonet,
                     onUseMonetChange = { monet ->
                         useMonet = monet
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_USE_MONET, monet)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_USE_MONET, monet)
                     },
                     seedColorHex = seedColorHex,
                     onSeedColorChange = { color ->
                         seedColorHex = color
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_SEED_COLOR, color)
-                        }
+                        Preferences.putInt(Preferences.KEY_SEED_COLOR, color)
                     },
                     paletteStyle = paletteStyle,
                     onPaletteStyleChange = { style ->
                         paletteStyle = style
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_THEME_PALETTE_STYLE, style)
-                        }
+                        Preferences.putInt(Preferences.KEY_THEME_PALETTE_STYLE, style)
                     },
                     pureBlackDarkTheme = pureBlackDarkTheme,
                     onPureBlackDarkThemeChange = { enabled ->
                         pureBlackDarkTheme = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_PURE_BLACK_DARK_THEME, enabled)
                     },
                     useFloatingBottomBar = useFloatingBottomBar,
                     onUseFloatingBottomBarChange = { floating ->
                         useFloatingBottomBar = floating
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, floating)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, floating)
                     },
                     floatingBarStyle = floatingBarStyle,
                     onFloatingBarStyleChange = { style ->
                         floatingBarStyle = style
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_FLOATING_BAR_STYLE, style)
-                        }
+                        Preferences.putInt(Preferences.KEY_FLOATING_BAR_STYLE, style)
                     },
                     predictiveBackStyle = predictiveBackStyle,
                     onPredictiveBackStyleChange = { style ->
                         predictiveBackStyle = style
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, style)
-                        }
+                        Preferences.putInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, style)
                     },
                     miuiBackGestureHook = miuiBackGestureHook,
                     onMiuiBackGestureHookChange = { enabled ->
+                        markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
                         miuiBackGestureHook = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
                     },
                     crossTaskWallpaperBackground = crossTaskWallpaperBackground,
                     onCrossTaskWallpaperBackgroundChange = { enabled ->
                         markTweaked(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
                         crossTaskWallpaperBackground = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
                     },
                     // Read at dispatch time by the SystemUI runtime, so no restart is needed.
                     aospBackIndicator = aospBackIndicator,
                     onAospBackIndicatorChange = { enabled ->
                         aospBackIndicator = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, enabled)
                     },
                     aospBackHaptics = aospBackHaptics,
                     onAospBackHapticsChange = { enabled ->
                         aospBackHaptics = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS, enabled)
                     },
                     aospBackHapticsEnhanced = aospBackHapticsEnhanced,
                     onAospBackHapticsEnhancedChange = { enabled ->
                         aospBackHapticsEnhanced = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED, enabled)
                     },
                     aospBackSlideAnimation = aospBackSlideAnimation,
                     onAospBackSlideAnimationChange = { enabled ->
                         aospBackSlideAnimation = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, enabled)
                     },
                     launcherMajor = launcherMajor,
                     launcherSupportsBackRoute = launcherSupportsBackRoute,
@@ -565,28 +539,22 @@ class MainActivity : ComponentActivity() {
                     onAospBackMiuiHomeHooksChange = { enabled ->
                         markTweaked(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
                         aospBackMiuiHomeHooks = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
-                            // Records that the choice is the user's, so the runtime stops
-                            // following the launcher-version default.
-                            Preferences.putBoolean(
-                                Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, true
-                            )
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
+                        // Records that the choice is the user's, so the runtime stops
+                        // following the launcher-version default.
+                        Preferences.putBoolean(
+                            Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, true
+                        )
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,
                     onPredictiveBackFollowGestureChange = { follow ->
                         predictiveBackFollowGesture = follow
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, follow)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, follow)
                     },
                     allowLandscape = allowLandscape,
                     onAllowLandscapeChange = { allowed ->
                         allowLandscape = allowed
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_ALLOW_LANDSCAPE, allowed)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_ALLOW_LANDSCAPE, allowed)
                     },
                     moduleActive = moduleActive,
                     hotReloadAvailable = staleTargets.isNotEmpty(),
@@ -598,16 +566,12 @@ class MainActivity : ComponentActivity() {
                     onAodFullscreenChange = { checked ->
                         markTweaked(Preferences.KEY_AOD_FULLSCREEN, checked)
                         aodFullscreen = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
                     },
                     removeGms = removeGms,
                     onRemoveGmsChange = { checked ->
                         removeGms = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, checked)
                     },
                     hideFingerprint = hideFingerprint,
                     hideLockscreenStatusBar = hideLockscreenStatusBar,
@@ -619,80 +583,62 @@ class MainActivity : ComponentActivity() {
                     onHideFingerprintChange = { checked ->
                         markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         hideFingerprint = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
                     },
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->
                         markTweaked(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         hideGestureBar = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                     },
                     gestureBarRaiseLayout = gestureBarRaiseLayout,
                     onGestureBarRaiseLayoutChange = { checked ->
                         markTweaked(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         gestureBarRaiseLayout = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                     },
                     gestureBarActionsEnabled = gestureBarActionsEnabled,
                     onGestureBarActionsEnabledChange = { checked ->
                         markTweaked(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, checked)
                         gestureBarActionsEnabled = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(
-                                Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED,
-                                checked
-                            )
-                        }
+                        Preferences.putBoolean(
+                            Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED,
+                            checked
+                        )
                     },
                     gestureBarLongPressAction = gestureBarLongPressAction,
                     onGestureBarLongPressActionChange = { action ->
                         gestureBarLongPressAction = action
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(
-                                Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-                                action
-                            )
-                        }
+                        Preferences.putInt(
+                            Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
+                            action
+                        )
                     },
                     gestureBarDoubleTapAction = gestureBarDoubleTapAction,
                     onGestureBarDoubleTapActionChange = { action ->
                         gestureBarDoubleTapAction = action
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(
-                                Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
-                                action
-                            )
-                        }
+                        Preferences.putInt(
+                            Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
+                            action
+                        )
                     },
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->
                         markTweaked(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
                         sliderShowPercentage = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, checked)
                     },
                     sliderSamePercentageStyle = sliderSamePercentageStyle,
                     onSliderSamePercentageChange = { checked ->
                         markTweaked(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                         sliderSamePercentageStyle = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                     },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
                         markTweaked(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         showInSettings = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                     },
                     hideLauncherIcon = hideLauncherIcon,
                     onHideLauncherIconChange = { checked ->
@@ -707,49 +653,37 @@ class MainActivity : ComponentActivity() {
                     immediateMonetRefresh = immediateMonetRefresh,
                     onImmediateMonetRefreshChange = { enabled ->
                         immediateMonetRefresh = enabled
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_IMMEDIATE_MONET_REFRESH, enabled)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_IMMEDIATE_MONET_REFRESH, enabled)
                     },
                     unlockPasskey = unlockPasskey,
                     onUnlockPasskeyChange = { checked ->
                         markTweaked(Preferences.KEY_UNLOCK_PASSKEY, checked)
                         unlockPasskey = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
                     },
                     disableSpatialAudio = disableSpatialAudio,
                     onDisableSpatialAudioChange = { checked ->
                         markTweaked(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         disableSpatialAudio = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                     },
                     forceAdaptiveAnc = forceAdaptiveAnc,
                     onForceAdaptiveAncChange = { checked ->
                         markTweaked(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                         forceAdaptiveAnc = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                     },
                     fcmLiveEnabled = fcmLiveEnabled,
                     onFcmLiveEnabledChange = { checked ->
                         markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         fcmLiveEnabled = checked
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
-                        }
+                        Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                     },
                     backdrop = backdrop,
                     pageScale = pageScale,
                     onPageScaleChange = { scale ->
                         pageScale = scale
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putFloat(Preferences.KEY_PAGE_SCALE, scale)
-                        }
+                        Preferences.putFloat(Preferences.KEY_PAGE_SCALE, scale)
                     },
                     onViewSourceCode = {
                         try {
@@ -774,9 +708,7 @@ class MainActivity : ComponentActivity() {
                     appLanguage = appLanguage,
                     onAppLanguageChange = { lang ->
                         appLanguage = lang
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Preferences.putInt(Preferences.KEY_LANGUAGE, lang)
-                        }
+                        Preferences.putInt(Preferences.KEY_LANGUAGE, lang)
                     },
                     onShortcutsChanged = {
                         coroutineScope.launch(Dispatchers.IO) {

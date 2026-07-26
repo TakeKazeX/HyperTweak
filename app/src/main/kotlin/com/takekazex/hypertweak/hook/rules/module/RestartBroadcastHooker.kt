@@ -37,6 +37,7 @@ object RestartBroadcastHooker : StaticHooker() {
                 override fun onReceive(ctx: Context, intent: Intent) {
                     if (intent.action == RestartProtocol.ACTION) {
                         val restartSystemUi = intent.getBooleanExtra(RestartProtocol.EXTRA_SYSTEM_UI, false)
+                        val restartMiuiHome = intent.getBooleanExtra(RestartProtocol.EXTRA_MIUI_HOME, false)
                         val restartSettings = intent.getBooleanExtra(RestartProtocol.EXTRA_SETTINGS, false)
                         val restartAod = intent.getBooleanExtra(RestartProtocol.EXTRA_AOD, false)
                         val restartSecurityCenter = intent.getBooleanExtra(RestartProtocol.EXTRA_SECURITY_CENTER, false)
@@ -50,6 +51,7 @@ object RestartBroadcastHooker : StaticHooker() {
 
                         val shouldRestart = namedPackages?.contains(pkgName) == true || when (pkgName) {
                             "com.android.systemui" -> restartSystemUi
+                            "com.miui.home" -> restartMiuiHome
                             "com.android.settings" -> restartSettings
                             "com.miui.aod" -> restartAod
                             "com.miui.securitycenter" -> restartSecurityCenter
