@@ -106,6 +106,33 @@ object SliderHookHelper {
         return tags[obj]?.remove(key)
     }
 
+    /** Drops the cached holder views for a controller so a recycled ViewHolder re-resolves them. */
+    fun invalidateHolderViews(sliderController: Any) {
+        removeTag(sliderController, "cached_topText")
+        removeTag(sliderController, "cached_slider")
+    }
+
+    /**
+     * Refreshes the per-controller view cache from a freshly bound holder. Called from
+     * onBindViewHolder so a recycled ViewHolder points the cache at its current views instead of
+     * stranding percentage updates on the previous, now-detached ones. Falls back to invalidation
+     * when the slider cannot be resolved, so [updatePercentageText] re-resolves rather than caching
+     * a half-populated pair.
+     */
+    fun refreshViewCache(sliderController: Any, holder: Any, topText: TextView) {
+        val slider = resolveSliderFromHolder(holder)
+        if (slider != null) {
+            putTag(sliderController, "cached_topText", topText)
+            putTag(sliderController, "cached_slider", slider)
+        } else {
+            invalidateHolderViews(sliderController)
+        }
+    }
+
+    private fun resolveSliderFromHolder(holder: Any): SeekBar? =
+        runCatching { holder.javaClass.getField("slider").get(holder) as? SeekBar }.getOrNull()
+            ?: runCatching { holder.javaClass.getMethod("getSlider").invoke(holder) as? SeekBar }.getOrNull()
+
     fun blendColors(color1: Int, color2: Int, fraction: Float): Int {
         val a = (color1 ushr 24 and 0xff) + ((color2 ushr 24 and 0xff) - (color1 ushr 24 and 0xff)) * fraction
         val r = (color1 ushr 16 and 0xff) + ((color2 ushr 16 and 0xff) - (color1 ushr 16 and 0xff)) * fraction
@@ -173,6 +200,7 @@ object SliderHookHelper {
         setBlendMethodLoaded = false
         holderMethodCache.clear()
         topTextMethodCache.clear()
+        brightnessValueMethodCache.clear()
     }
 
     // Cached blendColors resource lookup (avoids getIdentifier + createPackageContext per call)
@@ -428,6 +456,7 @@ object SliderHookHelper {
     }
 
     private val topTextMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method?>()
+    private val brightnessValueMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
 
     fun getTopTextFromHolder(holder: Any): TextView? {
         val clazz = holder.javaClass
@@ -459,6 +488,7 @@ object SliderHookHelper {
             }
 
             val systemVolume = fSystemVolume?.get(sliderController) as? Int ?: return@runCatching null
+            if (systemVolume == Int.MIN_VALUE) return@runCatching null  // unsynced sentinel; * 1000 would wrap to 0
             val sliderMaxValue = fSliderMaxValue?.get(sliderController) as? Int ?: return@runCatching null
             val sliderMinValue = fSliderMinValue?.get(sliderController) as? Int ?: return@runCatching null
             volumePercent(systemVolume * 1000, sliderMinValue, sliderMaxValue)
@@ -488,15 +518,21 @@ object SliderHookHelper {
         }.getOrNull()
     }
 
-    fun calcBrightnessPercent(slider: SeekBar): Int {
+    fun calcBrightnessPercent(slider: SeekBar): Int? {
         val min = slider.min
         val max = slider.max
-        val value = runCatching {
-            slider.javaClass.getMethod("getTargetValue").invoke(slider) as? Int
-        }.recoverCatching {
-            slider.javaClass.getMethod("getValue").invoke(slider) as? Int
-        }.getOrNull() ?: slider.progress
-        return volumePercent(value, min, max) ?: 0
+        val clazz = slider.javaClass
+        // Resolve getTargetValue()/getValue() once per SeekBar class — this runs on every drag frame.
+        val method = brightnessValueMethodCache[clazz] ?: run {
+            val m = runCatching { clazz.getMethod("getTargetValue") }.getOrNull()
+                ?: runCatching { clazz.getMethod("getValue") }.getOrNull()
+            if (m != null) brightnessValueMethodCache[clazz] = m
+            m
+        }
+        val value = method?.let { runCatching { it.invoke(slider) as? Int }.getOrNull() } ?: slider.progress
+        // null when the range is degenerate or a spring overshoot leaves the value out of range —
+        // the caller keeps the previous text instead of flashing "0%".
+        return volumePercent(value, min, max)
     }
 
     fun updatePercentageText(sliderController: Any, type: String) {
@@ -511,8 +547,7 @@ object SliderHookHelper {
                 topText = getTopTextFromHolder(holder)
                     ?: throw NullPointerException("topText view not found in holder")
 
-                slider = runCatching { holder.javaClass.getField("slider").get(holder) as? SeekBar }.getOrNull()
-                    ?: runCatching { holder.javaClass.getMethod("getSlider").invoke(holder) as? SeekBar }.getOrNull()
+                slider = resolveSliderFromHolder(holder)
                     ?: throw NullPointerException("slider view not found in holder")
 
                 putTag(sliderController, "cached_topText", topText)

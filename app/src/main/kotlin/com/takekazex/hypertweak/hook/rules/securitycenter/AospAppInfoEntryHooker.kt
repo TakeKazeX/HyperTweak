@@ -20,8 +20,8 @@ import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
  * The target is Settings' SPA route `AppInfoSettings/{package}/{user}`, served by
  * `com.android.settings.spa.app.appinfo.AppInfoSettingsProvider`.
  *
- * **Unverified off-device**: there is no `com.miui.securitycenter` artifact in the
- * reverse-engineering workspace, so every lookup is null-checked and the hooker fails silently.
+ * Every lookup is null-checked so the hooker fails silently if Security Center's shape drifts from
+ * the recorded baseline (`cache/securitycenter-2627ffd76e9d8f79`).
  */
 object AospAppInfoEntryHooker : StaticHooker() {
     private const val TAG = "AospAppInfoEntry"
@@ -95,8 +95,40 @@ object AospAppInfoEntryHooker : StaticHooker() {
         preference.callMethodOrNull("setVisible", true)
         preference.callMethodOrNull("setPersistent", false)
         preference.callMethodOrNull("setOrder", order)
-        preference.callMethodOrNull("setIntent", intent)
+        // Not setIntent(): androidx Preference.performClick() would call startActivity(intent) with
+        // no catch, so a missing SPA route crashes Security Center. Launch from a guarded click
+        // listener instead, matching AospAppManagerEntryHooker.
+        setSafeClickListener(preference, activity, intent)
         parent.callMethodOrNull("addPreference", preference)
+    }
+
+    /**
+     * Installs an `OnPreferenceClickListener` that launches [intent] guarded by runCatching. The
+     * listener interface lives only in Security Center's class loader, so it is implemented through a
+     * [java.lang.reflect.Proxy] built from the `setOnPreferenceClickListener` parameter type.
+     */
+    private fun setSafeClickListener(preference: Any, activity: Activity, intent: Intent) {
+        val setListener = preference.javaClass.methods.firstOrNull {
+            it.name == "setOnPreferenceClickListener" && it.parameterTypes.size == 1
+        } ?: return
+        val listenerType = setListener.parameterTypes[0]
+        val listener = java.lang.reflect.Proxy.newProxyInstance(
+            listenerType.classLoader,
+            arrayOf(listenerType)
+        ) { proxy, method, args ->
+            when (method.name) {
+                "onPreferenceClick" -> {
+                    runCatching { activity.startActivity(intent) }
+                        .onFailure { DebugLog.w(TAG, "failed to open AOSP app info", it) }
+                    true
+                }
+                "equals" -> proxy === args?.getOrNull(0)
+                "hashCode" -> System.identityHashCode(proxy)
+                "toString" -> "AospAppInfoClickListener"
+                else -> null
+            }
+        }
+        runCatching { setListener.invoke(preference, listener) }
     }
 
     /** Makes room at [order] so the new entry lands directly after its anchor. */
@@ -105,7 +137,9 @@ object AospAppInfoEntryHooker : StaticHooker() {
         for (index in 0 until count) {
             val preference = parent.callMethodOrNull("getPreference", index) ?: continue
             val current = preference.callMethodOrNull("getOrder") as? Int ?: continue
-            if (current >= order) preference.callMethodOrNull("setOrder", current + 1)
+            // Preference.DEFAULT_ORDER (Int.MAX_VALUE) means "append last"; + 1 would overflow to
+            // Int.MIN_VALUE and jump the row to the very top. Leave those where they are.
+            if (current in order until Int.MAX_VALUE) preference.callMethodOrNull("setOrder", current + 1)
         }
     }
 
@@ -120,15 +154,13 @@ object AospAppInfoEntryHooker : StaticHooker() {
 
     private fun createAppInfoIntent(activity: Activity): Intent? {
         val packageName = activity.intent?.getStringExtra("package_name") ?: return null
-        // UserHandle.myUserId()/getUserId(int) are @hide.
+        // UserHandle.myUserId() is @hide. `miui.intent.extra.USER_ID` is already a userId (0/10/999) —
+        // the same value the fragment itself reads — not a uid, so it must NOT be run through
+        // getUserId(int), which would collapse XSpace's 999 and second-space's 10 back to user 0.
         val myUserId = runCatching {
             UserHandle::class.java.getMethod("myUserId").invoke(null) as? Int
         }.getOrNull() ?: 0
-        val uid = activity.intent.getIntExtra("miui.intent.extra.USER_ID", myUserId)
-        val userId = runCatching {
-            UserHandle::class.java.getMethod("getUserId", Int::class.javaPrimitiveType)
-                .invoke(null, uid) as? Int
-        }.getOrNull() ?: myUserId
+        val userId = activity.intent.getIntExtra("miui.intent.extra.USER_ID", myUserId)
 
         return Intent(Intent.ACTION_MAIN).apply {
             setClassName("com.android.settings", "com.android.settings.spa.SpaActivity")

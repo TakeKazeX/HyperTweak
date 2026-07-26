@@ -17,6 +17,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.refreshViewCache
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
@@ -112,6 +113,7 @@ class VolumeSliderHooker(
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
+                            refreshViewCache(param.thisObject, holder, topText)
                             initTopText(topText)
                             putTag(topText, "sliderType", "VolumeSliderController")
                             applyTopTextStyle(topText, force = true, sliderType = "VolumeSliderController")
@@ -241,14 +243,18 @@ class VolumeSliderHooker(
         fun loadVpcFields(thisObject: Any) {
             if (cachedVpcFieldsLoaded) return
             val clz = thisObject.javaClass
-            vpcField_mState = clz.getDeclaredField("mState").apply { isAccessible = true }
-            vpcField_mExpanded = clz.getDeclaredField("mExpanded").apply { isAccessible = true }
-            vpcField_mActiveStream = clz.getDeclaredField("mActiveStream").apply { isAccessible = true }
-            vpcField_mSuperVolume = clz.getDeclaredField("mSuperVolume").apply { isAccessible = true }
-            vpcField_mSuperVolumeBg = clz.getDeclaredField("mSuperVolumeBg").apply { isAccessible = true }
-            vpcField_mVolumeView = clz.getDeclaredField("mVolumeView").apply { isAccessible = true }
-            vpcField_isControlCenterPanel = runCatching { clz.getDeclaredField("isControlCenterPanel").apply { isAccessible = true } }.getOrNull()
-            vpcField_mColumns = runCatching { clz.getDeclaredField("mColumns").apply { isAccessible = true } }.getOrNull()
+            // Resolve each field independently and always latch loaded=true: a missing field leaves
+            // that ref null (every consumer null-checks) instead of throwing on — and re-running
+            // getDeclaredField for — every volume event.
+            fun field(name: String) = runCatching { clz.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+            vpcField_mState = field("mState")
+            vpcField_mExpanded = field("mExpanded")
+            vpcField_mActiveStream = field("mActiveStream")
+            vpcField_mSuperVolume = field("mSuperVolume")
+            vpcField_mSuperVolumeBg = field("mSuperVolumeBg")
+            vpcField_mVolumeView = field("mVolumeView")
+            vpcField_isControlCenterPanel = field("isControlCenterPanel")
+            vpcField_mColumns = field("mColumns")
             cachedVpcFieldsLoaded = true
         }
 
@@ -365,11 +371,11 @@ class VolumeSliderHooker(
             if (cachedStreamStateFieldsLoaded) return
             val stateClz = mState.javaClass
             ssField_states = stateClz.getDeclaredField("states").apply { isAccessible = true }
-            val statesObj = ssField_states!!.get(mState)
-            if (statesObj != null) {
-                ssMethod_get = statesObj.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
-                // Fields are initialized lazily from the first valid stream state.
-            }
+            // states can still be null before the first stream sync — return without latching so a
+            // later call retries, instead of pinning ssMethod_get null and disabling the badge for good.
+            val statesObj = ssField_states!!.get(mState) ?: return
+            ssMethod_get = statesObj.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
+            // Level fields are initialized lazily from the first valid stream state.
             cachedStreamStateFieldsLoaded = true
         }
 

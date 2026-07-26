@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
+import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.refreshViewCache
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.isBlurSupported
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
@@ -34,9 +35,11 @@ class BrightnessSliderHooker(
     private var animatorSizeField: java.lang.reflect.Field? = null
     private var animatorGetToViewMethod: java.lang.reflect.Method? = null
     private var animatorFromViewField: java.lang.reflect.Field? = null
-    private var viewGetTopTextMethod: java.lang.reflect.Method? = null
-    private var viewGetSliderBindingMethod: java.lang.reflect.Method? = null
-    private var bindingTopTextField: java.lang.reflect.Field? = null
+    // Keyed by Class: these resolve against several runtime types (holder binding vs slider-view
+    // binding, fromView vs toView), so a single slot would be poisoned by the first class seen.
+    private val viewGetTopTextMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
+    private val viewGetSliderBindingMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
+    private val bindingTopTextFieldCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Field>()
 
     // Cached fields for BrightnessSliderController (setInMirror)
     private var inMirrorField: java.lang.reflect.Field? = null
@@ -71,23 +74,23 @@ class BrightnessSliderHooker(
     }
 
     private fun getOrCacheViewGetTopTextMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        viewGetTopTextMethod?.let { return it }
+        viewGetTopTextMethodCache[clazz]?.let { return it }
         val m = clazz.getMethod("getTopText")
-        viewGetTopTextMethod = m
+        viewGetTopTextMethodCache[clazz] = m
         return m
     }
 
     private fun getOrCacheViewGetSliderBindingMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        viewGetSliderBindingMethod?.let { return it }
+        viewGetSliderBindingMethodCache[clazz]?.let { return it }
         val m = clazz.getMethod("getSliderBinding")
-        viewGetSliderBindingMethod = m
+        viewGetSliderBindingMethodCache[clazz] = m
         return m
     }
 
     private fun getOrCacheBindingTopTextField(clazz: Class<*>): java.lang.reflect.Field? {
-        bindingTopTextField?.let { return it }
+        bindingTopTextFieldCache[clazz]?.let { return it }
         val f = clazz.getField("topText")
-        bindingTopTextField = f
+        bindingTopTextFieldCache[clazz] = f
         return f
     }
 
@@ -150,6 +153,9 @@ class BrightnessSliderHooker(
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
+                            // A recycled holder means the cached views are stale — repoint the cache at
+                            // the freshly bound views so percentage updates don't strand on detached ones.
+                            refreshViewCache(param.thisObject, holder, topText)
                             initTopText(topText)
                             putTag(topText, "sliderType", "BrightnessSliderController")
                             applyTopTextStyle(topText, force = true)
