@@ -6,6 +6,7 @@ import android.util.TypedValue
 import android.view.RoundedCorner
 import android.view.View
 import android.view.WindowInsets
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -14,6 +15,7 @@ import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.Collections
 import java.util.WeakHashMap
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -37,6 +39,7 @@ object AospImeHooker : StaticHooker() {
     private const val NAV_BAR_INFLATER_VIEW = "android.inputmethodservice.navigationbar.NavigationBarInflaterView"
     private const val NAV_BAR_VIEW = "android.inputmethodservice.navigationbar.NavigationBarView"
     private const val DEAD_ZONE = "android.inputmethodservice.navigationbar.DeadZone"
+    private const val INPUT_METHOD_MODULE_MANAGER = "android.inputmethodservice.InputMethodModuleManager"
 
     private const val CAPTION_BAR_HEIGHT_DP = 48
     private const val NAV_BAR_SHADOW_DP = 4
@@ -45,6 +48,9 @@ object AospImeHooker : StaticHooker() {
     private val basePaddings = WeakHashMap<View, IntArray>()
 
     private var insetsView: WeakReference<View>? = null
+
+    /** MIUI can side-load its dex more than once; attach the child hooker per ClassLoader. */
+    private val hookedDexLoaders = Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())
 
     private var internationalBuildField: Field? = null
     private var imeSupportMethod: Method? = null
@@ -61,6 +67,7 @@ object AospImeHooker : StaticHooker() {
             basePaddings.remove(view)
         }
         basePaddings.clear()
+        hookedDexLoaders.clear()
         internationalBuildField = null
         imeSupportMethod = null
         imeSupportResolved = false
@@ -84,6 +91,48 @@ object AospImeHooker : StaticHooker() {
         hookInflateLayout()
         hookOrientationViews()
         hookDeadZone()
+        if (Preferences.getBoolean(Preferences.KEY_AOSP_IME_MIUI_IME_LIST, false)) {
+            hookLoadDex()
+        }
+    }
+
+    /**
+     * `InputMethodBottomManager` lives in the dex MIUI side-loads into the keyboard process, so the
+     * hooks on it have to wait for that ClassLoader to exist.
+     */
+    private fun hookLoadDex() {
+        val moduleManager = INPUT_METHOD_MODULE_MANAGER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, INPUT_METHOD_MODULE_MANAGER, "class not found")
+            return
+        }
+        val method = CompatibleMethodResolver.find(
+            moduleManager,
+            "loadDex",
+            parameterTypes = listOf(ClassLoader::class.java, String::class.java)
+        ) ?: run {
+            DebugLog.hookSkipped(
+                TAG,
+                "$INPUT_METHOD_MODULE_MANAGER#loadDex(ClassLoader,String)",
+                "method not found"
+            )
+            return
+        }
+
+        runCatching {
+            method.hook {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "loadDex", Unit) {
+                        // loadDex throws for anything that is not a BaseDexClassLoader.
+                        if (param.throwable != null) return@open
+                        val loader = param.args.getOrNull(0) as? ClassLoader ?: return@open
+                        if (!hookedDexLoaders.add(loader)) return@open
+                        attach(MiuiImeBottomHooker, loader)
+                    }
+                }
+            }
+        }.onFailure {
+            DebugLog.hookFailed(TAG, "$INPUT_METHOD_MODULE_MANAGER#loadDex(ClassLoader,String)", it)
+        }
     }
 
     private fun hookHideImeRenderGesturalNavButtons() {

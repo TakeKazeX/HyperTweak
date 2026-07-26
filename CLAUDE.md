@@ -420,6 +420,27 @@ never fire, and `InputMethodManager` would need an app `Context` that only exist
 at `onPackageReady` — after `InputMethodService` may already have run. The picker
 validates instead.
 
+`MiuiImeBottomHooker` makes MIUI's keyboard switcher list every enabled input
+method rather than only the customised ones. Its target,
+`com.miui.inputmethod.InputMethodBottomManager`, lives in the dex MIUI side-loads
+through `InputMethodModuleManager.loadDex(ClassLoader, String)`, so `AospImeHooker`
+attaches it as a child hooker onto that ClassLoader — the same pattern
+`SystemUIPluginHooker` uses for the control-center plugin. `loadDex` throws for
+anything that is not a `BaseDexClassLoader`, so the `after` hook checks
+`param.throwable` first, and loaders are deduped through a `WeakHashMap`-backed set.
+
+This half could not be verified against any local artifact: `com.miui.phrase`,
+which supplies the dex, is not in the reverse-engineering workspace. It sits
+behind its own setting (`KEY_AOSP_IME_MIUI_IME_LIST`, default off) and fails
+silently.
+
+`InputMethodModuleManager` and `InputMethodServiceInjector` are in
+`miui-framework.jar`, not `framework.jar`. Both are on the boot classpath at
+runtime so resolution from the keyboard process works, but the local
+`/Users/ink/developer/reverse/miui-framework.jar` is unversioned and not part of
+the recorded baseline — pull a versioned copy from an OS 3.0.308.0 device and cache
+it before trusting anything read from it.
+
 ## Xposed Scope
 
 The module declares `staticScope=false` in

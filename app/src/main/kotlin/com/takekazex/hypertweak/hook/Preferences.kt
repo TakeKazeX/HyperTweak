@@ -81,6 +81,9 @@ object Preferences {
     const val KEY_AOSP_IME_PACKAGES = "aosp_ime_packages"
     const val KEY_AOSP_IME_NAV_BAR_START = "aosp_ime_nav_bar_start"
     const val KEY_AOSP_IME_NAV_BAR_END = "aosp_ime_nav_bar_end"
+
+    /** Lists every enabled input method in MIUI's keyboard switcher. Unverified off-device. */
+    const val KEY_AOSP_IME_MIUI_IME_LIST = "aosp_ime_miui_ime_list"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"
