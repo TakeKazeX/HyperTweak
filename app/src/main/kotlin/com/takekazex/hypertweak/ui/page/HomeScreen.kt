@@ -406,37 +406,31 @@ private fun ScopeWarningCard() {
     if (absent.isEmpty()) return
 
     val scope = rememberCoroutineScope()
-    val isDark = isSystemInDarkTheme()
 
+    SmallTitle(text = "Scope")
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
-        )
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "Scope incomplete",
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "These apps are missing from the module's LSPosed scope, so the features " +
-                    "that hook them do nothing:",
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                fontSize = 13.sp,
-                lineHeight = 18.sp
-            )
-            Text(
-                text = absent.sorted().joinToString("\n") { "- ${friendlyProcessName(it)} ($it)" },
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                fontSize = 12.sp,
-                lineHeight = 17.sp
-            )
-            TextButton(
-                text = "Restore scope",
+        Column(modifier = Modifier.fillMaxWidth()) {
+            absent.sorted().forEach { packageName ->
+                key(packageName) {
+                    BasicComponent(
+                        title = friendlyProcessName(packageName),
+                        summary = packageName,
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.WarningAmber,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Missing scope",
+                                tint = Color(0xFFFFB300)
+                            )
+                        }
+                    )
+                }
+            }
+            ArrowPreference(
+                title = "Restore Scope",
+                summary = "Request the missing scope so these features can hook again",
                 onClick = {
                     scope.launch {
                         when (val result = ScopeManager.request(absent)) {

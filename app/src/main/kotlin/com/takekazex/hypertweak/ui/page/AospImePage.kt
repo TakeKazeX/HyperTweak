@@ -89,7 +89,11 @@ fun AospImePage(onBack: () -> Unit) {
         imes = withContext(Dispatchers.IO) {
             val pm = context.packageManager
             val imm = context.getSystemService(InputMethodManager::class.java)
-            (imm?.inputMethodList ?: emptyList())
+            // Enabled methods only. getInputMethodList() also returns services that are installed
+            // but can never be the current keyboard — notably Play Services' autofill IME — and
+            // the system-server hook gates on DEFAULT_INPUT_METHOD, which only an enabled method
+            // can ever be.
+            (imm?.enabledInputMethodList ?: emptyList())
                 .distinctBy { it.packageName }
                 .map { InstalledIme(it.packageName, it.loadLabel(pm).toString()) }
                 .sortedBy { it.label.lowercase() }

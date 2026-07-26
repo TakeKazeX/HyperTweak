@@ -31,6 +31,11 @@ object ScopeManager {
         data object ServiceUnavailable : Result
     }
 
+    private const val SYSTEM_SERVER = "system"
+
+    /** What LSPosed builds before the `system` rename call the system server. */
+    private const val LEGACY_SYSTEM_SERVER = "android"
+
     private val service: XposedService?
         get() = XposedServiceManager.currentService
 
@@ -48,13 +53,19 @@ object ScopeManager {
 
     /**
      * Required packages the user has removed in LSPosed, or null when the scope cannot be read.
-     * `system` and `android` name the same target across LSPosed versions, so either satisfies both.
+     *
+     * The module's own package is skipped: `getScope()` does not report self-scope, and the Home
+     * page's module-status card already tells the user to check HyperTweak itself when the module
+     * is not active. Older LSPosed builds name the system server `android` rather than `system`,
+     * so either satisfies the `system` entry.
      */
     suspend fun missingRequiredScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
-        val systemPresent = live.any { it == "system" || it == "android" }
+        val systemPresent = live.any { it == SYSTEM_SERVER || it == LEGACY_SYSTEM_SERVER }
         return requiredScope(context).filterNot { required ->
-            required in live || (systemPresent && (required == "system" || required == "android"))
+            required in live ||
+                required == context.packageName ||
+                (required == SYSTEM_SERVER && systemPresent)
         }.toSet()
     }
 

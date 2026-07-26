@@ -459,7 +459,11 @@ make every apply-restart drop the user's keyboard selection.
 
 The system-server half requires a reboot; there is no restart path for it.
 
-`ui/page/AospImePage.kt` picks the target keyboards. The selection is applied on
+`ui/page/AospImePage.kt` picks the target keyboards. It lists
+`getEnabledInputMethodList()`, not `getInputMethodList()`: the latter also returns
+services that can never be the current keyboard, such as Play Services' autofill
+IME, and the system-server hook gates on `DEFAULT_INPUT_METHOD`, which only an
+enabled method can ever be. The selection is applied on
 demand rather than per toggle, because applying it requests Xposed scope and that
 prompts the user; `ScopeManager.applyManagedDiff` is passed every installed input
 method as the managed set, so unchecking one revokes its scope and nothing else is
@@ -492,9 +496,13 @@ The scope is declared twice and both copies must stay identical:
 manifest's `xposedscope` meta-data) is the runtime source of truth read by
 `ScopeManager.requiredScope`, and `META-INF/xposed/scope.list` is the copy LSPosed
 reads at install time. They had drifted — `arrays.xml` was missing
-`com.miui.powerkeeper` and `com.xiaomi.bluetooth`, `scope.list` was missing
-`android` — and are now aligned. `scope.list` carries no comment because its
-parser is not known to accept one.
+`com.miui.powerkeeper` and `com.xiaomi.bluetooth` — and are now aligned.
+`scope.list` carries no comment because its parser is not known to accept one.
+
+The system server is declared once, as `system`. Current libxposed builds no longer
+accept `android` for it, so listing both made `getScope()` permanently report
+`android` as missing. `ScopeManager` still treats an `android` entry coming back
+from an older LSPosed as satisfying `system`, but only `system` is required.
 
 `util/ScopeManager.kt` wraps the libxposed service 102 scope API
 (`getScope()`, `requestScope(List, OnScopeEventListener)`, `removeScope(List)`).
@@ -506,9 +514,14 @@ set and subtracts `requiredScope`, so unchecking an entry gives its scope back
 while a package another feature needs is never revoked.
 
 `ScopeWarningCard` on the Home page names any required scope the user has removed
-and offers to request it back. It is a separate card rather than a fourth hero
-card state, which would collide with `hotReloadAvailable`. `system` and `android`
-name the same target across LSPosed versions, so either satisfies both.
+and offers to request it back, as a `SmallTitle` + `Card` of `BasicComponent` rows
+like every other section on that page. It is a separate card rather than a fourth
+hero card state, which would collide with `hotReloadAvailable`.
+
+`missingRequiredScope` skips the module's own package: `getScope()` does not report
+self-scope, so including it reported HyperTweak as unhooked on every launch, and
+the hero card already tells the user to check HyperTweak itself when the module is
+not active.
 
 ## Reverse Engineering Workspace
 
