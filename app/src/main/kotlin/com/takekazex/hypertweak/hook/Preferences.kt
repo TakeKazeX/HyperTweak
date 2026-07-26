@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.Executors
 
 object Preferences {
@@ -111,9 +112,13 @@ object Preferences {
 
     private lateinit var remotePrefs: SharedPreferences
     private var localSourcePrefs: SharedPreferences? = null
+    @Volatile
     private var localCachePrefs: SharedPreferences? = null
     private var isLocalOnly = false
     private val serializedWriter = Executors.newSingleThreadExecutor { r -> Thread(r, "HyperTweak-Prefs").apply { isDaemon = true } }
+
+    /** Serializes debug-log writes so log I/O never shares the object monitor with preference reads. */
+    private val logLock = Any()
 
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         if (useLocalOnly) {
@@ -141,16 +146,14 @@ object Preferences {
         if (isLocalOnly || local === remotePrefs) return
         serializedWriter.execute {
             runCatching { remotePrefs.edit { block() } }
-                .onFailure { useLocalBackend() }
+                .onFailure { DebugLog.w("Preferences", "remote pref write failed; retrying on next write", it) }
         }
     }
 
-    @Synchronized
     fun initLocalCache(context: Context) {
         localCachePrefs = context.getSharedPreferences("hypertweak_cache", Context.MODE_PRIVATE)
     }
 
-    @Synchronized
     private fun getLocalCache(): SharedPreferences? {
         return localCachePrefs
     }
@@ -170,7 +173,7 @@ object Preferences {
             return value
         }
         return getLocalCache()?.getBoolean(key, default) ?: default
-        } catch (_: Throwable) { useLocalBackend(); return localSourcePrefs?.getBoolean(key, default) ?: getLocalCache()?.getBoolean(key, default) ?: default }
+        } catch (_: Throwable) { return localSourcePrefs?.getBoolean(key, default) ?: getLocalCache()?.getBoolean(key, default) ?: default }
     }
 
     fun getInt(key: String, default: Int = 0): Int {
@@ -185,7 +188,7 @@ object Preferences {
             return value
         }
         return getLocalCache()?.getInt(key, default) ?: default
-        } catch (_: Throwable) { useLocalBackend(); return localSourcePrefs?.getInt(key, default) ?: getLocalCache()?.getInt(key, default) ?: default }
+        } catch (_: Throwable) { return localSourcePrefs?.getInt(key, default) ?: getLocalCache()?.getInt(key, default) ?: default }
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
@@ -200,7 +203,7 @@ object Preferences {
             return value
         }
         return getLocalCache()?.getFloat(key, default) ?: default
-        } catch (_: Throwable) { useLocalBackend(); return localSourcePrefs?.getFloat(key, default) ?: getLocalCache()?.getFloat(key, default) ?: default }
+        } catch (_: Throwable) { return localSourcePrefs?.getFloat(key, default) ?: getLocalCache()?.getFloat(key, default) ?: default }
     }
 
     fun putBoolean(key: String, value: Boolean) {
@@ -227,7 +230,7 @@ object Preferences {
             return value
         }
         return getLocalCache()?.getStringSet(key, default) ?: default
-        } catch (_: Throwable) { useLocalBackend(); return localSourcePrefs?.getStringSet(key, default) ?: getLocalCache()?.getStringSet(key, default) ?: default }
+        } catch (_: Throwable) { return localSourcePrefs?.getStringSet(key, default) ?: getLocalCache()?.getStringSet(key, default) ?: default }
     }
 
     fun putStringSet(key: String, value: Set<String>) {
@@ -246,39 +249,41 @@ object Preferences {
             return value
         }
         return getLocalCache()?.getString(key, default) ?: default
-        } catch (_: Throwable) { useLocalBackend(); return localSourcePrefs?.getString(key, default) ?: getLocalCache()?.getString(key, default) ?: default }
+        } catch (_: Throwable) { return localSourcePrefs?.getString(key, default) ?: getLocalCache()?.getString(key, default) ?: default }
     }
 
     fun putString(key: String, value: String) {
         write { putString(key, value) }
     }
 
-    @Synchronized
     fun appendDebugLog(processTag: String, line: String) {
-        appendDebugLogs(processTag, listOf(line))
+        synchronized(logLock) {
+            appendDebugLogs(processTag, listOf(line))
+        }
     }
 
-    @Synchronized
     fun appendDebugLogs(processTag: String, lines: List<String>) {
-        if (!isInitialized) return
-        if (!getBoolean(KEY_RECORD_LOGS, true)) return
-        if (lines.isEmpty()) return
-        val key = debugLogKeyFor(processTag)
-        val local = localSourcePrefs
-        val old = runCatching { remotePrefs.getString(key, "") }.getOrNull()
-            ?.takeIf { it.isNotEmpty() }
-            ?: runCatching { local?.getString(key, "") }.getOrNull().orEmpty()
-        val appended = lines.joinToString("\n")
-        var next = if (old.isEmpty()) appended else "$old\n$appended"
-        if (next.length > MAX_DEBUG_LOG_LENGTH) {
-            next = next.takeLast(MAX_DEBUG_LOG_LENGTH)
-            val firstNewLine = next.indexOf('\n')
-            if (firstNewLine >= 0 && firstNewLine < next.lastIndex) {
-                next = next.substring(firstNewLine + 1)
+        synchronized(logLock) {
+            if (!isInitialized) return
+            if (!getBoolean(KEY_RECORD_LOGS, true)) return
+            if (lines.isEmpty()) return
+            val key = debugLogKeyFor(processTag)
+            val local = localSourcePrefs
+            val old = runCatching { remotePrefs.getString(key, "") }.getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?: runCatching { local?.getString(key, "") }.getOrNull().orEmpty()
+            val appended = lines.joinToString("\n")
+            var next = if (old.isEmpty()) appended else "$old\n$appended"
+            if (next.length > MAX_DEBUG_LOG_LENGTH) {
+                next = next.takeLast(MAX_DEBUG_LOG_LENGTH)
+                val firstNewLine = next.indexOf('\n')
+                if (firstNewLine >= 0 && firstNewLine < next.lastIndex) {
+                    next = next.substring(firstNewLine + 1)
+                }
             }
+            runCatching { local?.edit(commit = true) { putString(key, next) } }
+            if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) { putString(key, next) } }
         }
-        runCatching { local?.edit(commit = true) { putString(key, next) } }
-        if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) { putString(key, next) } }
     }
 
     fun getDebugLog(): String {
@@ -296,36 +301,39 @@ object Preferences {
     }
 
     fun clearDebugLog() {
-        if (!isInitialized) return
-        val keys = (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
-            runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
-            .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
-        if (keys.isEmpty()) return
-        runCatching { localSourcePrefs?.edit(commit = true) { keys.forEach(::remove) } }
-        runCatching { remotePrefs.edit(commit = true) { keys.forEach(::remove) } }
+        synchronized(logLock) {
+            if (!isInitialized) return
+            val keys = (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
+                runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
+                .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+            if (keys.isEmpty()) return
+            runCatching { localSourcePrefs?.edit(commit = true) { keys.forEach(::remove) } }
+            runCatching { remotePrefs.edit(commit = true) { keys.forEach(::remove) } }
+        }
     }
 
     /**
      * Clears all debug logs when the runtime session changes (app update / reinstall / reboot),
      * so records from different sessions are not mixed together. No-op when the token is unchanged.
      */
-    @Synchronized
     fun rotateLogSessionIfNeeded(token: String) {
-        if (!isInitialized) return
-        val currentToken = runCatching { remotePrefs.getString(KEY_LOG_SESSION, null) }.getOrNull()
-            ?: runCatching { localSourcePrefs?.getString(KEY_LOG_SESSION, null) }.getOrNull()
-        if (currentToken == token) return
-        val keys = (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
-            runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
-            .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
-        localSourcePrefs?.edit(commit = true) {
-            keys.forEach(::remove)
-            putString(KEY_LOG_SESSION, token)
+        synchronized(logLock) {
+            if (!isInitialized) return
+            val currentToken = runCatching { remotePrefs.getString(KEY_LOG_SESSION, null) }.getOrNull()
+                ?: runCatching { localSourcePrefs?.getString(KEY_LOG_SESSION, null) }.getOrNull()
+            if (currentToken == token) return
+            val keys = (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
+                runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
+                .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+            localSourcePrefs?.edit(commit = true) {
+                keys.forEach(::remove)
+                putString(KEY_LOG_SESSION, token)
+            }
+            if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) {
+                keys.forEach(::remove)
+                putString(KEY_LOG_SESSION, token)
+            } }
         }
-        if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) {
-            keys.forEach(::remove)
-            putString(KEY_LOG_SESSION, token)
-        } }
     }
 
     private fun debugLogKeyFor(processTag: String): String {
