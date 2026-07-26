@@ -145,6 +145,13 @@ fun IosLiquidGlassNavigationBar(
     val containerColor = if (isBlurActive) surfaceContainer.copy(alpha = 0.4f) else surfaceContainer
 
     val density = LocalDensity.current
+    // Reserve height proportional to the font scale so the label never clips at large accessibility
+    // sizes. At the default scale this is exactly 64/56dp, so the normal appearance is unchanged;
+    // both the pill and every indicator/backdrop copy use these so the liquid-glass layers stay
+    // aligned as they grow together.
+    val heightScale = maxOf(1f, density.fontScale)
+    val pillHeight = 64.dp * heightScale
+    val indicatorHeight = pillHeight - 8.dp
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val animationScope = rememberCoroutineScope()
     val tabsCount = items.size
@@ -391,7 +398,7 @@ fun IosLiquidGlassNavigationBar(
                             },
                         )
                         .then(if (isBlurActive) interactiveHighlight.modifier else Modifier)
-                        .height(64.dp)
+                        .height(pillHeight)
                         .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     content = tabsContent,
@@ -433,7 +440,7 @@ fun IosLiquidGlassNavigationBar(
                                 }
                             )
                             .then(interactiveHighlight.modifier)
-                            .height(56.dp)
+                            .height(indicatorHeight)
                             .padding(horizontal = 4.dp)
                             .graphicsLayer(colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)),
                         verticalAlignment = Alignment.CenterVertically,
@@ -491,7 +498,7 @@ fun IosLiquidGlassNavigationBar(
                                     alpha = dampedDrag.pressProgress,
                                 )
                             }
-                            .height(56.dp)
+                            .height(indicatorHeight)
                             .width(tabWidthDp),
                     )
                 } else {
@@ -505,7 +512,7 @@ fun IosLiquidGlassNavigationBar(
                             .then(dampedDrag.modifier)
                             .clip(pillShape)
                             .background(accentColor.copy(alpha = 0.15f), pillShape)
-                            .height(56.dp)
+                            .height(indicatorHeight)
                             .width(tabWidthDp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -515,7 +522,7 @@ fun IosLiquidGlassNavigationBar(
                                     .clearAndSetSemantics {}
                                     .wrapContentWidth(align = Alignment.Start, unbounded = true)
                                     .requiredWidth(with(density) { (totalWidthPx - 8.dp.toPx()).toDp() })
-                                    .height(56.dp)
+                                    .height(indicatorHeight)
                                     .graphicsLayer {
                                         val progressOffset = dampedDrag.value * tabWidthPx
                                         translationX = if (isLtr) -progressOffset else progressOffset

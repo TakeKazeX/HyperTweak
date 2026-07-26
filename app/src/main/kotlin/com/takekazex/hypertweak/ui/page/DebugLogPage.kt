@@ -34,9 +34,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +81,8 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -140,16 +144,22 @@ fun LogsPage(
         drawRect(surfaceColor)
         drawContent()
     }
-    var logText by remember {
-        mutableStateOf(runCatching { Preferences.getDebugLog() }.getOrDefault(""))
-    }
+    // Reading (up to ~0.5MB of prefs) and parsing (regex per line + sort) are too heavy for
+    // composition on the main thread, so run them once off-thread and show a loading placeholder.
+    var entries by remember { mutableStateOf<List<DebugLogEntry>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
     var selectedFilter by remember { mutableStateOf(LogFilter.All) }
     var logLevel by remember {
         mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
     val exportStatus: String? = null
-    val entries = remember(logText) {
-        parseLogEntries(logText).sortedBy { it.time }.asReversed()
+    LaunchedEffect(Unit) {
+        val parsed = withContext(Dispatchers.Default) {
+            val raw = runCatching { Preferences.getDebugLog() }.getOrDefault("")
+            parseLogEntries(raw).sortedBy { it.time }.asReversed()
+        }
+        entries = parsed
+        loading = false
     }
     val filteredEntries = remember(entries, selectedFilter) {
         entries.filter { entry ->
@@ -220,7 +230,9 @@ fun LogsPage(
             item(key = "runtime-title") {
                 SmallTitle(text = "Runtime (${filteredEntries.size})")
             }
-            if (filteredEntries.isEmpty()) {
+            if (loading) {
+                item(key = "runtime-loading") { LoadingLogCard() }
+            } else if (filteredEntries.isEmpty()) {
                 item(key = "runtime-empty") { EmptyLogCard() }
             } else {
                 items(filteredEntries, key = { it.id }) { entry ->
@@ -347,7 +359,7 @@ private fun LogEntryCard(
     entry: DebugLogEntry,
     onCopy: () -> Unit
 ) {
-    var expanded by remember(entry.id) { mutableStateOf(entry.isError || entry.isHookFailed) }
+    var expanded by rememberSaveable(entry.id) { mutableStateOf(entry.isError || entry.isHookFailed) }
 
     Card(
         modifier = Modifier
@@ -451,6 +463,20 @@ private fun EmptyLogCard() {
         BasicComponent(
             title = "No logs",
             summary = "No records match the selected filter."
+        )
+    }
+}
+
+@Composable
+private fun LoadingLogCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+    ) {
+        BasicComponent(
+            title = "Loading…",
+            summary = "Reading and parsing runtime records."
         )
     }
 }

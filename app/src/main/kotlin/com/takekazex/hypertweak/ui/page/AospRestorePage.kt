@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -74,9 +75,10 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
     }
     // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
-    // tracking; offer the restart here instead once something on this page needs one.
-    var systemUiRestartPending by remember { mutableStateOf(false) }
-    var securityCenterRestartPending by remember { mutableStateOf(false) }
+    // tracking; offer the restart here instead once something on this page needs one. Saveable so
+    // the pending prompt survives navigating away (Nav3 disposes the entry) and process death.
+    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
+    var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(

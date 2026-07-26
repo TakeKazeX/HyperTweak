@@ -415,7 +415,9 @@ fun RowScope.MyNavigationBarItem(
 
     Column(
         modifier = modifier
-            .height(itemHeight)
+            // Min-height instead of a fixed height so the label can grow at large font scales
+            // without clipping; at the default scale the content fits and the height is unchanged.
+            .heightIn(min = itemHeight)
             .weight(1f)
             .selectable(
                 selected = selected,

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -112,25 +113,34 @@ fun PredictiveBackAppsPage(onBack: () -> Unit) {
                     }
                 )
             }
-            item("card") {
-                Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        visible.forEach { app ->
-                            key(app.packageName) {
-                                SwitchPreference(
-                                    checked = app.packageName in selected,
-                                    onCheckedChange = { toggle(app.packageName, it) },
-                                    title = app.label,
-                                    summary = app.packageName
-                                )
-                            }
-                        }
-                    }
-                }
+            // Real lazy items so only on-screen rows compose; a single wrapping item would
+            // recompose the whole 100-300 app list on every search keystroke.
+            items(visible, key = { it.packageName }) { app ->
+                OptInAppRow(
+                    app = app,
+                    checked = app.packageName in selected,
+                    onCheckedChange = { toggle(app.packageName, it) }
+                )
             }
             item("spacer_bottom") {
                 Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 48.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun OptInAppRow(
+    app: OptInApp,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        SwitchPreference(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            title = app.label,
+            summary = app.packageName
+        )
     }
 }

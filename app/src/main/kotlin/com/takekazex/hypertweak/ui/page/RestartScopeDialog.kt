@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -22,6 +23,8 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageName: String): Boolean {
     return try {
@@ -30,6 +33,19 @@ private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageNam
     } catch (e: Exception) {
         false
     }
+}
+
+private fun fallbackAppName(packageName: String): String = when (packageName) {
+    "com.android.systemui" -> "System UI"
+    "com.miui.home" -> "Miui Home"
+    "com.android.settings" -> "Settings"
+    "com.miui.aod" -> "Always-On Display"
+    "com.miui.securitycenter" -> "Security"
+    "com.xiaomi.scanner" -> "Scanner"
+    "com.milink.service" -> "MiLink Service"
+    "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
+    "com.miui.powerkeeper" -> "Power Keeper"
+    else -> packageName
 }
 
 @Composable
@@ -52,17 +68,22 @@ fun RestartScopeDialog(
     val context = LocalContext.current
     val packageManager = context.packageManager
 
-    val installedApps = remember(show) {
-        buildList {
-            if (isPackageInstalled(packageManager, "com.android.systemui")) add("com.android.systemui")
-            add("com.miui.home")
-            if (isPackageInstalled(packageManager, "com.android.settings")) add("com.android.settings")
-            if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
-            if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
-            if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
-            if (isPackageInstalled(packageManager, "com.milink.service")) add("com.milink.service")
-            if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
-            if (isPackageInstalled(packageManager, "com.miui.powerkeeper")) add("com.miui.powerkeeper")
+    // The installed set does not change while the dialog is open, so probe PackageManager once,
+    // off the main thread. Keyed on Unit, this no longer re-runs on every open/close edge and
+    // never runs the binder I/O in composition (it previously ran even before the dialog showed).
+    val installedApps by produceState(initialValue = emptyList<String>()) {
+        value = withContext(Dispatchers.IO) {
+            buildList {
+                if (isPackageInstalled(packageManager, "com.android.systemui")) add("com.android.systemui")
+                add("com.miui.home")
+                if (isPackageInstalled(packageManager, "com.android.settings")) add("com.android.settings")
+                if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
+                if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
+                if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
+                if (isPackageInstalled(packageManager, "com.milink.service")) add("com.milink.service")
+                if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
+                if (isPackageInstalled(packageManager, "com.miui.powerkeeper")) add("com.miui.powerkeeper")
+            }
         }
     }
 
@@ -185,50 +206,28 @@ fun AppRestartPreference(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val packageManager = context.packageManager
 
-    val appInfo = remember(packageName) {
-        try {
-            packageManager.getApplicationInfo(packageName, 0)
-        } catch (e: Exception) {
-            null
+    // Label and icon are both PackageManager binder calls, and the icon additionally rasterizes a
+    // bitmap; resolve them off the main thread. Seed the label with the offline fallback so the row
+    // renders its correct name immediately, then fill in the resolved label and icon once ready.
+    val appName by produceState(initialValue = fallbackAppName(packageName), packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+            }.getOrDefault(fallbackAppName(packageName))
         }
     }
 
-    val appName = remember(appInfo, packageName) {
-        fun fallbackName(pkg: String) = when (pkg) {
-            "com.android.systemui" -> "System UI"
-            "com.miui.home" -> "Miui Home"
-            "com.android.settings" -> "Settings"
-            "com.miui.aod" -> "Always-On Display"
-            "com.miui.securitycenter" -> "Security"
-            "com.xiaomi.scanner" -> "Scanner"
-            "com.milink.service" -> "MiLink Service"
-            "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
-            "com.miui.powerkeeper" -> "Power Keeper"
-            else -> pkg
-        }
-        if (appInfo != null) {
-            try {
-                packageManager.getApplicationLabel(appInfo).toString()
-            } catch (e: Exception) {
-                fallbackName(packageName)
-            }
-        } else {
-            fallbackName(packageName)
-        }
-    }
-
-    val appIcon = remember(packageName) {
-        try {
-            val drawable = packageManager.getApplicationIcon(packageName)
-            drawable.toBitmap(100, 100).asImageBitmap()
-        } catch (e: Exception) {
-            try {
-                val drawable = ContextCompat.getDrawable(context, com.takekazex.hypertweak.R.mipmap.ic_launcher)
-                drawable?.toBitmap(100, 100)?.asImageBitmap()
-            } catch (e2: Exception) {
-                null
+    val appIcon by produceState<ImageBitmap?>(initialValue = null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(packageName).toBitmap(100, 100).asImageBitmap()
+            }.getOrElse {
+                runCatching {
+                    ContextCompat.getDrawable(context, com.takekazex.hypertweak.R.mipmap.ic_launcher)
+                        ?.toBitmap(100, 100)?.asImageBitmap()
+                }.getOrNull()
             }
         }
     }
@@ -241,9 +240,10 @@ fun AppRestartPreference(
         onCheckedChange = onCheckedChange,
         checkboxLocation = CheckboxLocation.End,
         startAction = {
-            if (appIcon != null) {
+            val icon = appIcon
+            if (icon != null) {
                 Image(
-                    bitmap = appIcon,
+                    bitmap = icon,
                     contentDescription = null,
                     modifier = Modifier.size(40.dp)
                 )

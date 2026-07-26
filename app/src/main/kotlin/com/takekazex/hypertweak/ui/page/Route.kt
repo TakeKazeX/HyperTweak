@@ -15,3 +15,39 @@ sealed interface Route : NavKey {
     data object Debug : Route
     data object DebugLogs : Route
 }
+
+/**
+ * Stable string key for each route, used to persist the navigation back stack across process death
+ * (see the `rememberSaveable` back stack in `HyperTweakNavContainer`). The mapping is explicit
+ * rather than derived from the class name so it survives R8/obfuscation and a route rename.
+ */
+val Route.saveKey: String
+    get() = when (this) {
+        Route.Main -> "Main"
+        Route.Appearance -> "Appearance"
+        Route.About -> "About"
+        Route.Credits -> "Credits"
+        Route.HiddenFeatures -> "HiddenFeatures"
+        Route.AppShortcuts -> "AppShortcuts"
+        Route.PredictiveBackApps -> "PredictiveBackApps"
+        Route.AospRestore -> "AospRestore"
+        Route.AospIme -> "AospIme"
+        Route.Debug -> "Debug"
+        Route.DebugLogs -> "DebugLogs"
+    }
+
+/** Inverse of [saveKey]; returns null for an unknown key so a stale save cannot crash restore. */
+fun routeFromSaveKey(key: String): Route? = when (key) {
+    "Main" -> Route.Main
+    "Appearance" -> Route.Appearance
+    "About" -> Route.About
+    "Credits" -> Route.Credits
+    "HiddenFeatures" -> Route.HiddenFeatures
+    "AppShortcuts" -> Route.AppShortcuts
+    "PredictiveBackApps" -> Route.PredictiveBackApps
+    "AospRestore" -> Route.AospRestore
+    "AospIme" -> Route.AospIme
+    "Debug" -> Route.Debug
+    "DebugLogs" -> Route.DebugLogs
+    else -> null
+}

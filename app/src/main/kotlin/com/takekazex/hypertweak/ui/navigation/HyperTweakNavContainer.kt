@@ -8,6 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -26,6 +28,8 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.navigationevent.compose.NavigationEventState
 import com.takekazex.hypertweak.ui.page.Route
+import com.takekazex.hypertweak.ui.page.saveKey
+import com.takekazex.hypertweak.ui.page.routeFromSaveKey
 import com.takekazex.hypertweak.ui.page.MainPagerScreen
 import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
@@ -145,7 +149,19 @@ fun HyperTweakNavContainer(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
-    val backStack = remember { mutableStateListOf<Route>(Route.Main) }
+    // Persist the back stack across process death: routes are data objects, so serialize them to
+    // their stable keys and rebuild the observable list on restore. Falls back to [Route.Main] if
+    // nothing (or only unknown keys) was saved, keeping the same initial entry as a fresh launch.
+    val backStack = rememberSaveable(
+        saver = listSaver(
+            save = { stack -> stack.map { it.saveKey } },
+            restore = { keys ->
+                keys.mapNotNull(::routeFromSaveKey)
+                    .ifEmpty { listOf(Route.Main) }
+                    .toMutableStateList()
+            }
+        )
+    ) { mutableStateListOf<Route>(Route.Main) }
 
     val isPagerBackHandlerEnabled by remember(backStack, pagerState.currentPage) {
         derivedStateOf {
