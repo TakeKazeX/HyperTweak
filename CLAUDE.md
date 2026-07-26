@@ -387,13 +387,15 @@ Upstream's second branch, which hooks `start()` on baselines without the field, 
 dead code here. HyperOS keeps showing its own editor too; both appear.
 
 `AospAppInfoEntryHooker` adds an entry to Security Center's app details page
-(`com.miui.appmanager.fragment.ApplicationsDetailsFragment#onCreatePreferences`)
-that opens Settings' SPA route `AppInfoSettings/{package}/{user}`, served by
-`com.android.settings.spa.app.appinfo.AppInfoSettingsProvider`. The entry is
-inserted directly after `app_default_pref`, shifting every later preference's
-order by one. `UserHandle.myUserId()`/`getUserId(int)` are `@hide`, so both go
-through reflection, and the preference class falls back from
-`miuix.preference.TextPreference` to `androidx.preference.Preference`.
+(`com.miui.appmanager.fragment.ApplicationsDetailsFragment#onCreatePreferences`,
+`:2916`) that opens Settings' SPA route `AppInfoSettings/{package}/{user}`, served
+by `com.android.settings.spa.app.appinfo.AppInfoSettingsProvider`. The entry is
+inserted directly after `app_default_pref` (`:2438`), shifting every later
+preference's order by one. `UserHandle.myUserId()`/`getUserId(int)` are `@hide`, so
+both go through reflection. The anchor is a `miuix.preference.TextPreference` on
+this baseline, which is what the hooker creates, with `androidx.preference.Preference`
+as the fallback. `package_name` and `miui.intent.extra.USER_ID` are the extras the
+fragment itself reads (`:1431`, `:1437`).
 
 `AospAppManagerEntryHooker` adds an overflow-menu entry to the app manager that
 opens Settings' `AllAppList` SPA route
@@ -405,10 +407,20 @@ has not populated it yet, so the entry is skipped for that pass. Unlike upstream
 the item carries no `Intent`; only the click listener starts the activity, so a
 missing Settings SPA route fails as a no-op rather than an unhandled intent.
 
-**Neither Security Center feature is verified**: there is no
-`com.miui.securitycenter` artifact in the reverse-engineering workspace. Every
-lookup is null-checked and both hookers fail silently. Pull the APK and cache it
-before changing either.
+**`onOptionsMenuViewAdded` has an empty body** on this baseline
+(`AppCompatActivity:444`), so ART inlines it away and a hook on it alone never
+fires. Its only caller, `AppCompatActivity$Callback.onPanelViewAdded(int, View,
+Menu, Menu)` (`:71`), is deoptimized as well. That caller is resolved by signature
+across `AppCompatActivity.declaredClasses` rather than by the `$Callback` name, so
+an obfuscated build still matches. Nothing in the APK overrides
+`onOptionsMenuViewAdded`, so hooking the base class covers
+`AppManagerMainActivity` → `com.miui.common.base.BaseActivity` →
+`miuix.appcompat.app.AppCompatActivity`.
+
+Both entries target `com.android.settings/.spa.SpaActivity`, which is
+`exported=false`. That is fine here: `com.miui.securitycenter` and
+`com.android.settings` both run under `android.uid.system`, and Security Center
+holds `START_ANY_ACTIVITY`.
 
 The Extend Unlock configuration screen itself is
 `com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
@@ -591,6 +603,18 @@ The current MIUI AOD JADX run produced usable output but reported multiple
 method decompilation failures. Use the APKTool smali from the same cache when a
 class or method is missing or incomplete in `jadx/`.
 
+- Security Center source:
+  `/Users/ink/developer/reverse/MIUISecurityCenter-12.7.4-260711.0.1.apk`
+  (`2627ffd76e9d8f7962e1a8d9a94ede950070306871540f93587f786c73c49388`)
+- Security Center cache:
+  `/Users/ink/developer/reverse/cache/securitycenter-2627ffd76e9d8f79`
+  - JADX source: `jadx/` (reported 64 method decompilation failures; use the
+    APKTool smali for anything missing)
+  - APKTool resources and smali: `apktool/`
+  - Cached input and checksum: `input/MIUISecurityCenter.apk`, `SHA256SUMS`
+  - miuix is bundled here, so `miuix.appcompat.*` and `miuix.preference.*` resolve
+    from this APK rather than the framework.
+
 Other available mappings are:
 
 - SystemUI plugin: `/Users/ink/developer/reverse/miui.systemui.plugin.apk`
@@ -611,6 +635,10 @@ Other available mappings are:
 - Framework client: `/Users/ink/developer/reverse/framework-OS3.0.308.0.WPMCNXM.jar`
   (`36426149118b109a33f4a8b143bb5390dbe50ca0e21d00fd16f357710b368f0f`)
   -> `/Users/ink/developer/reverse/cache/framework-36426149118b109a`
+- Settings: `/Users/ink/developer/reverse/Settings-OS3.0.308.0.WPMCNXM.apk`
+  (`022d14a4ae7d30139a8a0f251df45780960fe650b8865cf6fb320f7e8055a9f8`) — pulled to
+  confirm the `AppInfoSettings` / `AllAppList` SPA routes exist; not decompiled, so
+  there is no cache entry for it.
 - Framework services: `/Users/ink/developer/reverse/services.jar`
   (`2e880646dd2e4d92c1a12111aaa70b8eab9a8edf838eab2eb33d87a14618d3a9`) ->
   `/Users/ink/developer/reverse/cache/framework-services-2e880646`

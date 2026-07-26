@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -64,6 +65,10 @@ object AospAppManagerEntryHooker : StaticHooker() {
         }
 
         runCatching {
+            // The method body is empty on this baseline, so ART inlines it away at the call site.
+            // Deoptimizing the method alone is not enough; its only caller has to come back too.
+            deoptimize(method)
+            deoptimizeMenuViewCaller(appCompat)
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "onOptionsMenuViewAdded", Unit) {
@@ -77,6 +82,31 @@ object AospAppManagerEntryHooker : StaticHooker() {
         }.onFailure {
             DebugLog.hookFailed(TAG, "$APPCOMPAT_ACTIVITY#onOptionsMenuViewAdded(Menu,Menu)", it)
         }
+    }
+
+    /**
+     * `AppCompatActivity$Callback.onPanelViewAdded` is the only caller. It is resolved by looking
+     * for the signature among the declared inner classes rather than by name, so an obfuscated or
+     * renamed callback class still matches.
+     */
+    private fun deoptimizeMenuViewCaller(appCompat: Class<*>) {
+        val caller = appCompat.declaredClasses.firstNotNullOfOrNull { inner ->
+            CompatibleMethodResolver.find(
+                inner,
+                "onPanelViewAdded",
+                parameterTypes = listOf(
+                    Int::class.javaPrimitiveType!!,
+                    View::class.java,
+                    Menu::class.java,
+                    Menu::class.java
+                )
+            )
+        }
+        if (caller == null) {
+            DebugLog.w(TAG, "could not resolve onPanelViewAdded; the menu hook may never fire")
+            return
+        }
+        deoptimize(caller)
     }
 
     private fun addEntry(activity: Activity, menu: Menu) {
