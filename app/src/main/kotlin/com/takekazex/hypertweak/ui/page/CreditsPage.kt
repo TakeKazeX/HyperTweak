@@ -124,6 +124,16 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook") }
                     )
                     ArrowPreference(
+                        title = "AOSP Package Installer",
+                        summary = "AOSP installer restoration approach by tehcneko · GPL-3.0",
+                        onClick = { uriHandler.openUri("https://github.com/tehcneko/AospPackageInstaller") }
+                    )
+                    ArrowPreference(
+                        title = "HyperTrust",
+                        summary = "Extend Unlock trust state repair by StevenWin818 · GPL-3.0",
+                        onClick = { uriHandler.openUri("https://github.com/StevenWin818/HyperTrust") }
+                    )
+                    ArrowPreference(
                         title = "HighLight Icons",
                         summary = "App shortcut icons by @GotohHitoriBocchi0221",
                         onClick = { uriHandler.openUri("https://t.me/HighLightIcons") }

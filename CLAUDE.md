@@ -348,6 +348,31 @@ Whether HyperOS still ships working AOSP `GlobalActionsDialog` and
 `VolumeDialogImpl` fallbacks is unverified off-device; if it does not, the failure
 mode is a power or volume key with no dialog.
 
+`ExtendUnlockHooker` repairs Extend Unlock (formerly Smart Lock), ported from
+StevenWin818's HyperTrust (GPL-3.0). Xiaomi does **not** modify
+`KeyguardUpdateMonitor.getUserHasTrust(int)`; on the current baseline
+(SystemUI `:2131`) it is AOSP's formula verbatim,
+`!isSimPinSecure() && mUserHasTrust.get(id) && isUnlockingWithBiometricAllowed(true)`.
+What breaks is the `mUserHasTrust` cache going stale, so a trust grant never
+reaches the keyguard. `derivedTrustState`, named in HyperTrust's description, is
+not a real symbol in AOSP or HyperOS — it is that project's local variable.
+
+The hook is an `after` hook that patches only the stale-cache case. When the
+original returns false it re-checks `isSimPinSecure()` and
+`isUnlockingWithBiometricAllowed(true)`; if either explains the false result the
+value is left alone, so a pending SIM PIN can never be overridden into a trusted
+state. Otherwise trust is re-derived from `TrustManagerService` through the
+`@hide` `KeyguardManager.isDeviceSecure(int)`/`isDeviceLocked(int)` overloads.
+
+The result is deliberately **not** written back into `mUserHasTrust`, which is
+what upstream does. The field's only other reader is one assistant-visibility
+check (SystemUI `:3211`), and writing a `SparseBooleanArray` from a getter
+reachable off the main thread is a race AOSP asserts against in `onTrustChanged`.
+Because `getUserHasTrust` is recomputed in bursts from the fingerprint listening
+state, the two binder round-trips are cached per user for 200 ms and invalidated
+eagerly from `onTrustChanged`. The setting defaults off and requires a SystemUI
+restart.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git

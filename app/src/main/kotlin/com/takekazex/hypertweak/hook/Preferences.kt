@@ -70,6 +70,9 @@ object Preferences {
 
     /** Blocks MIUI's volume-dialog plugin so SystemUI falls back to the AOSP volume panel. */
     const val KEY_AOSP_VOLUME_PANEL = "aosp_volume_panel"
+
+    /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
+    const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"

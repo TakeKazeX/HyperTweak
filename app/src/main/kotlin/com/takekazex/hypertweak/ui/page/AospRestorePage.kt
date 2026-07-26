@@ -60,6 +60,9 @@ fun AospRestorePage(onBack: () -> Unit) {
     var volumePanel by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false))
     }
+    var extendUnlockFix by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false))
+    }
     // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
     // tracking; offer the restart here instead once something on this page needs one.
     var systemUiRestartPending by remember { mutableStateOf(false) }
@@ -120,6 +123,17 @@ fun AospRestorePage(onBack: () -> Unit) {
                         title = "AOSP Volume Panel",
                         summary = "Hide MIUI's volume-dialog plugin so the AOSP volume panel is used. " +
                             "Other volume slider tweaks do not apply to it. Requires a SystemUI restart"
+                    )
+                    SwitchPreference(
+                        checked = extendUnlockFix,
+                        onCheckedChange = { enabled ->
+                            extendUnlockFix = enabled
+                            systemUiRestartPending = true
+                            Preferences.putBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, enabled)
+                        },
+                        title = "Extend Unlock",
+                        summary = "Re-derive keyguard trust from the system when HyperOS lets its " +
+                            "cached trust state go stale. Requires a SystemUI restart"
                     )
                     if (systemUiRestartPending) {
                         ArrowPreference(
