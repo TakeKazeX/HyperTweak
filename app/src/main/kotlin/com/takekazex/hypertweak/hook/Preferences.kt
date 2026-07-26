@@ -73,6 +73,14 @@ object Preferences {
 
     /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
     const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
+
+    /** Restores AOSP's full-screen IME navigation bar. */
+    const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
+
+    /** Input methods the AOSP IME hooks apply to; also drives the dynamic scope request. */
+    const val KEY_AOSP_IME_PACKAGES = "aosp_ime_packages"
+    const val KEY_AOSP_IME_NAV_BAR_START = "aosp_ime_nav_bar_start"
+    const val KEY_AOSP_IME_NAV_BAR_END = "aosp_ime_nav_bar_end"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"

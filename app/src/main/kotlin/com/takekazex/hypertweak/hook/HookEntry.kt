@@ -18,6 +18,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooke
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
+import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
+import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
@@ -450,6 +452,13 @@ class HookEntry : XposedModule() {
             appInfo = appInfo,
             appContext = null
         )
+
+        // Input methods are chosen by the user, so they cannot be listed in the `when` below. All
+        // the targets are boot-classpath classes present in every process, so a wrong package only
+        // installs hooks that never fire; the picker does the real validation.
+        if (AospImeConfig.shouldHookImePackage(packageName)) {
+            attachHooker(AospImeHooker, classLoader, ctx, replacementHandles)
+        }
 
         when (packageName) {
             "com.android.systemui" -> {

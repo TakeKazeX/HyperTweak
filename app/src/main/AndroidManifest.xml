@@ -16,6 +16,10 @@
         <package android:name="com.xiaomi.bluetooth" />
         <!-- Hosts the hidden Extend Unlock configuration screen. -->
         <package android:name="com.google.android.gms" />
+        <!-- Lets the AOSP IME picker enumerate installed input methods. -->
+        <intent>
+            <action android:name="android.view.InputMethod" />
+        </intent>
     </queries>
 
     <application

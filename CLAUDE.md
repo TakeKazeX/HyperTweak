@@ -383,6 +383,43 @@ key, never a component name: the receiver runs as uid system, so the component i
 resolved from a hardcoded allow-list in `ProxyLaunchHooker.TARGETS`. This half is
 independent of the trust fix and needs no setting.
 
+## AOSP IME Full Screen
+
+Restores AOSP's full-screen IME navigation bar for input methods the user selects,
+ported from Howard20181's Mi_AOSP_IME (GPL-3.0). It spans three places.
+
+`AospImeHooker` runs in the selected keyboard's own process.
+`InputMethodService.hideImeRenderGesturalNavButtons(String)` returns true for any
+keyboard HyperOS does not recognise as MIUI-customised, collapsing the caption bar
+to zero height, so the hook forces `IS_INTERNATIONAL_BUILD` — a
+`private static final boolean` that is not a compile-time constant, and whose only
+reader is that method, so the process-wide write does not leak elsewhere. It is
+skipped when `InputMethodServiceInjector.isImeSupport(Context)` says MIUI already
+draws its own bottom view for this keyboard; that method is `private static` and
+declared on the injector, not on the `InputMethodServiceStub` interface.
+
+The rest restores `NavigationBarController$Impl.getImeCaptionBarHeight(boolean)`
+to 48dp (one overload only on this baseline — upstream's no-arg fallback branch is
+dead code here), swaps `NavigationBarInflaterView.inflateLayout(String)` for the
+configured handle, pads `NavigationBarView.mHorizontal` clear of the display's
+rounded corners, and zeroes `DeadZone.mSizeMin`. `mHorizontal` must be read off
+`NavigationBarView`; `NavigationBarInflaterView` declares its own field of the
+same name. `getImeCaptionBarHeight` and `updateOrientationViews` are private and
+small, so both are deoptimized.
+
+Layout tokens are limited to what `NavigationBarInflaterView.createView` actually
+inflates: `back`, `home_handle`, and `ime_switcher`. Everything else returns null.
+`home_handle` sits in its own centre group, so a `space` placeholder for "no key"
+does not decentre it.
+
+Input-method packages cannot be listed in `HookEntry`'s `when (packageName)`
+because the user picks them, so dispatch is gated on `AospImeConfig` before it.
+The package is not re-validated in the hook process: every target is a
+boot-classpath class present in every process, so a wrong entry installs hooks that
+never fire, and `InputMethodManager` would need an app `Context` that only exists
+at `onPackageReady` — after `InputMethodService` may already have run. The picker
+validates instead.
+
 ## Xposed Scope
 
 The module declares `staticScope=false` in
