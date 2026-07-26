@@ -194,6 +194,40 @@ icon of the app actually closing; and `hookMiuiHomeAppToHomeGate` forces
 `isNeedStopBecauseRecentsRemoteAnimStartFailed()` false for exactly the driven
 call so `performAppToHome` takes its animation branch.
 
+A driven return-home session is handed off, not tracked. The driven `animTo` carries
+StateManager's own `RectFParams`, so `resolveUnifiedAnimToConfigOwnerToken` returns
+null, `configuredAnimTo` stays null and the finish source is refused with
+"Skipped superseded Xiaomi finish source" — the session then leaks on every
+gesture. `ReturnHomeSession.handedOffToLauncher` marks that Xiaomi owns the
+animation: `beginUnifiedNativeFinishDispatch` lets its finish through (same
+reasoning as upstream's `unifiedNativeProviderCommitAdopted` case) and
+`scheduleHandedOffSessionFinish` retires the session after
+`MIUI_HOME_HANDOFF_FINISH_DELAY_MS`.
+
+`systemUiShellSettling` covers the window between a Shell release and its finish
+callback — ~538ms of real settling animation on device. A DOWN in that window is
+rejected as "Shell is busy" and, by upstream design, abandoned for good, because
+`NativeBackInputMonitor` still owns its candidate until UP/CANCEL. Rather than
+reopening a rejected stream, the flag is published through
+`publishSystemUiInputArbiterState` so the launcher keeps its own legacy processor
+for those gestures and the user gets MIUI's native back instead of a gesture that
+does nothing. All readiness publishes go through `isSystemUiArbiterReady()` so a
+monitor query cannot overwrite the settling state.
+
+`ContextualSearchSystemHooker` must not clear its uid cache or PackageManager on
+hot reload. `systemPackageManager` was only ever seeded from the
+`SystemServer.deviceHasConfigString` hook, which runs once during early boot, so
+clearing it left `resolveUid()` returning -1 forever and every
+`startContextualSearch` fell through to `enforcePermission` — Circle to Search
+died after any module update until reboot. `resolvePackageManager()` now falls
+back to `ActivityThread.currentApplication()`.
+
+The cross-task wallpaper cache is warmed ahead of use, not on first use.
+`ensureWallpaperCacheReady` retries while SystemUI's application context does not
+exist yet, and runs again at cross-task animation start so a wallpaper change or
+memory trim is rebuilt before the next gesture; the consumer runs on the Shell
+animation thread and cannot wait for a decode.
+
 On the SystemUI side, `scheduleShellSessionReleaseWatchdog` bounds a released
 Shell session whose finish callback never arrives (seen after releases resolving
 `actualTrigger=false` right after an app launch): after

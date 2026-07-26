@@ -23,9 +23,13 @@ object ContextualSearchSystemHooker : StaticHooker() {
     private var systemPackageManager: PackageManager? = null
 
     override fun onPrepareHotReload() {
+        // Only the per-invocation flag is process state. The uid cache and PackageManager are
+        // rebuilt lazily and stay valid for the life of system_server, and clearing them here
+        // used to strand the bridge: systemPackageManager was seeded only from the
+        // SystemServer.deviceHasConfigString hook, which runs once during early boot and never
+        // again, so after a module hot reload resolveUid() returned -1 forever and every
+        // startContextualSearch fell through to enforcePermission.
         activeBridgedInvocation.remove()
-        synchronized(resolvedUids) { resolvedUids.clear() }
-        systemPackageManager = null
     }
 
     override fun onHook() {
@@ -129,9 +133,29 @@ object ContextualSearchSystemHooker : StaticHooker() {
         }
     }
 
+    /**
+     * system_server's own PackageManager. Seeded opportunistically from the boot-time config gate,
+     * but that hook runs only once per boot, so fall back to the current ActivityThread — a hot
+     * reload lands on a fresh instance whose field is null and would otherwise never recover.
+     */
+    private fun resolvePackageManager(): PackageManager? {
+        systemPackageManager?.let { return it }
+        val resolved = runCatching {
+            val activityThread = Class.forName("android.app.ActivityThread")
+            val application = activityThread
+                .getDeclaredMethod("currentApplication")
+                .invoke(null) as? Context
+            application?.packageManager
+        }.onFailure {
+            DebugLog.w(SCOPE, "failed to resolve system PackageManager", it)
+        }.getOrNull() ?: return null
+        systemPackageManager = resolved
+        return resolved
+    }
+
     private fun resolveUid(packageName: String): Int {
         synchronized(resolvedUids) { resolvedUids[packageName] }?.let { return it }
-        val packageManager = systemPackageManager ?: return -1
+        val packageManager = resolvePackageManager() ?: return -1
         val resolvedUid = runCatching {
             packageManager.getPackageUid(
                 packageName,

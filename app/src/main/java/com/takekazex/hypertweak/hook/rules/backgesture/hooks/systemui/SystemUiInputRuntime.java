@@ -2687,6 +2687,9 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                 activeShellSession = null;
                 shellOwnerUncertain = false;
             }
+            // The settling window is over: SystemUI can take gestures again.
+            systemUiShellSettling = false;
+            publishSystemUiInputArbiterState(context, isSystemUiArbiterReady(), "shellIdle");
             clearSystemUiReturnHomeCommitIdentity(
                     session.controller, session.id,
                     "shellFinished:" + reason);
@@ -2740,6 +2743,11 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                         dispatchFinalProgress, requestedTrigger, releaseEdge,
                         recentsCallback, shadeCallback, drawerCallback, editingCallback,
                         aospNullFallback, aospNullInputEpoch, inputIdentity));
+                // Tell the launcher SystemUI cannot take the next gesture until this navigation's
+                // finish callback lands, so it keeps its own handling for that window.
+                systemUiShellSettling = true;
+                publishSystemUiInputArbiterState(context, isSystemUiArbiterReady(),
+                        "shellReleasing");
                 scheduleShellSessionReleaseWatchdog(session);
                 return true;
             } catch (Throwable throwable) {

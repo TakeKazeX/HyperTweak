@@ -20,8 +20,9 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
     @Override
     public void installSystemUiHooks(ClassLoader classLoader, HookRegistrar registrar) {
         super.installSystemUiHooks(classLoader, registrar);
-        startWallpaperCacheIfEnabled();
         installCrossTaskWallpaperHooks(classLoader);
+        // Warm before any gesture; retries until SystemUI's application context exists.
+        ensureWallpaperCacheReady("systemUiInstall");
     }
 
     /**
@@ -103,7 +104,7 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
     @Override
     public void restoreHotReloadState(Object savedState) {
         super.restoreHotReloadState(savedState);
-        startWallpaperCacheIfEnabled();
+        ensureWallpaperCacheReady("hotReload");
     }
 
     /** BaseHooker tears the process down through this; release the wallpaper cache with it. */

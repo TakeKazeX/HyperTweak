@@ -48,6 +48,9 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
     protected static final String CROSS_TASK_BACK_ANIMATION_RUNNER =
             "com.android.wm.shell.back.CrossTaskBackAnimation$Runner";
 
+    private static final long WALLPAPER_START_MAX_RETRIES = 8L;
+    private static final long WALLPAPER_START_RETRY_DELAY_MS = 250L;
+
     protected final ThreadLocal<CrossTaskScope> crossTaskBackgroundScope = new ThreadLocal<>();
     protected final AtomicLong crossTaskGeneration = new AtomicLong();
     protected final AtomicLong wallpaperGeneration = new AtomicLong();
@@ -59,13 +62,36 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
     protected volatile Context wallpaperContext;
     protected volatile WallpaperManager.OnColorsChangedListener wallpaperColorsListener;
     protected volatile ComponentCallbacks2 wallpaperConfigurationCallbacks;
-    protected volatile long wallpaperPrewarmGeneration;
+    /** Warming generation, or 0 when idle. CAS so a concurrent invalidate cannot clobber it. */
+    protected final AtomicLong wallpaperPrewarmGeneration = new AtomicLong();
+    protected final AtomicLong wallpaperStartRetries = new AtomicLong();
     protected volatile Object activeCrossTaskRunner;
 
     /** Installs the HyperTweak-only cross-task hooks on top of upstream's SystemUI hooks. */
     protected void installCrossTaskWallpaperHooks(ClassLoader classLoader) {
         hookCrossTaskWallpaperScope(classLoader);
         hookBackAnimationBackground(classLoader);
+    }
+
+    /**
+     * Warms the cache, retrying while the application context is still unavailable. SystemUI hooks
+     * install before {@code ActivityThread.currentApplication()} returns anything, so a single
+     * attempt at hook time silently gave up and left the first gesture to miss.
+     */
+    protected void ensureWallpaperCacheReady(String reason) {
+        if (startWallpaperCacheIfEnabled()) {
+            wallpaperStartRetries.set(0L);
+            return;
+        }
+        long attempt = wallpaperStartRetries.incrementAndGet();
+        if (attempt > WALLPAPER_START_MAX_RETRIES) {
+            log(Log.WARN, TAG, "Gave up warming CrossTask wallpaper cache"
+                    + ", attempts=" + attempt + ", reason=" + reason);
+            return;
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> ensureWallpaperCacheReady(reason),
+                WALLPAPER_START_RETRY_DELAY_MS * attempt);
     }
 
     protected static final class CrossTaskScope {
@@ -149,6 +175,9 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                         crossTaskGeneration.incrementAndGet());
                 activeCrossTaskRunner = runner;
                 crossTaskBackgroundScope.set(scope);
+                // Cheap no-op once warm; rebuilds for the next gesture if a
+                // wallpaper change or memory trim dropped the cache.
+                ensureWallpaperCacheReady("crossTaskStart");
                 log(Log.INFO, TAG, "CrossTask start, generation=" + scope.generation
                         + ", thread=" + Thread.currentThread().getName());
                 try {
@@ -396,14 +425,21 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         }
     }
 
-    protected synchronized void startWallpaperCacheIfEnabled() {
+    /**
+     * Keeps the cache warm ahead of any gesture. The consumer runs on the Shell animation thread
+     * and cannot wait for a decode, so a cache that is only built on first use always misses that
+     * first gesture. Returns false when the cache is neither ready nor warming, which is the
+     * signal to retry — at SystemUI hook time the application context does not exist yet.
+     */
+    protected synchronized boolean startWallpaperCacheIfEnabled() {
         if (!Preferences.INSTANCE.getBoolean(
-                Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) return;
+                Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) return true;
+        if (wallpaperCache != null) return true;
         try {
             Context context = wallpaperContext;
             if (context == null) {
                 Context current = currentApplicationContext();
-                if (current == null) return;
+                if (current == null) return false;
                 context = current.getApplicationContext();
                 wallpaperContext = context;
             }
@@ -464,18 +500,20 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 context.registerComponentCallbacks(callbacks);
                 wallpaperConfigurationCallbacks = callbacks;
             }
-            if (wallpaperCache == null && wallpaperPrewarmGeneration == 0L) {
+            if (wallpaperCache == null && wallpaperPrewarmGeneration.get() == 0L) {
                 invalidateWallpaperCache("initial");
             }
+            return true;
         } catch (Throwable throwable) {
             log(Log.WARN, TAG, "Failed to start CrossTask wallpaper cache", throwable);
             shutdownWallpaperCache("startFailed");
+            return false;
         }
     }
 
     protected synchronized void invalidateWallpaperCache(String reason) {
         long generation = wallpaperGeneration.incrementAndGet();
-        wallpaperPrewarmGeneration = generation;
+        wallpaperPrewarmGeneration.set(generation);
         WallpaperCache old;
         synchronized (wallpaperCacheLock) {
             old = wallpaperCache;
@@ -490,7 +528,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
             try {
                 executor.execute(() -> prewarmWallpaperCache(context, generation));
             } catch (Throwable throwable) {
-                if (wallpaperPrewarmGeneration == generation) wallpaperPrewarmGeneration = 0L;
+                wallpaperPrewarmGeneration.compareAndSet(generation, 0L);
                 log(Log.WARN, TAG, "Failed to schedule wallpaper prewarm", throwable);
             }
         }
@@ -547,7 +585,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                     + ", elapsedMs=" + (SystemClock.uptimeMillis() - started), throwable);
         } finally {
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
-            if (wallpaperPrewarmGeneration == generation) wallpaperPrewarmGeneration = 0L;
+            wallpaperPrewarmGeneration.compareAndSet(generation, 0L);
         }
     }
 
@@ -567,7 +605,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         }
         wallpaperColorsListener = null;
         wallpaperConfigurationCallbacks = null;
-        wallpaperPrewarmGeneration = 0L;
+        wallpaperPrewarmGeneration.set(0L);
         wallpaperContext = null;
         ExecutorService executor = wallpaperExecutor;
         wallpaperExecutor = null;

@@ -3595,7 +3595,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
                 }
                 if (MODULE_MIUI_HOME_INPUT_ARBITER_QUERY.equals(action)) {
                     publishSystemUiInputArbiterState(receiverContext,
-                            systemUiInputArbiterMonitorCount.get() > 0,
+                            isSystemUiArbiterReady(),
                             "miuiHomeQuery");
                     return;
                 }
