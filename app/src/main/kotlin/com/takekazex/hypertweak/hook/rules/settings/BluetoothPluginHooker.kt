@@ -1,8 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
 import android.util.Log
-import android.widget.TextView
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import java.lang.reflect.Method
+import java.util.concurrent.ConcurrentHashMap
 
 object BluetoothPluginHooker : StaticHooker() {
     private const val TAG = "HyperTweak"
@@ -21,34 +23,6 @@ object BluetoothPluginHooker : StaticHooker() {
                 Log.e(TAG, "BluetoothPluginHooker: Neither androidx nor legacy Preference class found")
             }
         }
-        hookAncText()
-    }
-
-    private fun hookAncText() {
-        val textView = "android.widget.TextView".toClassOrNull() ?: return
-        textView.declaredMethods.filter { it.name == "setText" && it.parameterTypes.size == 1 }
-            .forEach { method -> method.hook {
-                after { param -> runCatching {
-                    val view = param.thisObject as? TextView ?: return@runCatching
-                    if (view.text?.toString() != "关闭" || !isAncView(view)) return@runCatching
-                    view.text = "自适应"
-                } }
-            } }
-    }
-
-    private fun isAncView(view: TextView): Boolean {
-        val idName = runCatching {
-            if (view.id == 0 || view.id == -1) "" else view.resources.getResourceEntryName(view.id)
-        }.getOrDefault("")
-        if (idName.contains("anc", true) || idName.contains("noise", true)) return true
-        var parent = view.parent
-        repeat(5) {
-            val p = parent ?: return@repeat
-            val name = p.javaClass.name
-            if (name.contains("headset", true) || name.contains("anc", true) || name.contains("noise", true)) return true
-            parent = p.parent
-        }
-        return false
     }
 
     private fun hookPreferenceClass(prefClass: Class<*>) {
@@ -78,7 +52,7 @@ object BluetoothPluginHooker : StaticHooker() {
                     if (!isSpatial) return@before
 
                     val newValue = param.args[0]
-                    if (newValue == true) {
+                    if (newValue == true && disableSpatialEnabled()) {
                         Log.d(TAG, "BluetoothPluginHooker: Blocking spatial audio enable (key=$key)")
                         param.result = false
                     }
@@ -91,10 +65,10 @@ object BluetoothPluginHooker : StaticHooker() {
         // Bluetooth settings may be supplied by a dynamically loaded plugin. Hook the
         // shared PreferenceGroup boundary so entries are removed after construction,
         // regardless of which fragment/plugin created them.
-        val groupClass = prefClass.classLoader?.loadClass(
+        val groupClass = (
             if (prefClass.name.startsWith("androidx.")) "androidx.preference.PreferenceGroup"
             else "android.preference.PreferenceGroup"
-        )
+        ).toClassOrNull()
         groupClass?.declaredMethods?.filter {
             it.name == "addPreference" && it.parameterTypes.size == 1
         }?.forEach { add ->
@@ -106,11 +80,13 @@ object BluetoothPluginHooker : StaticHooker() {
                     val summary = invokeString(child, "getSummary")
                     val parentKey = invokeString(param.thisObject, "getKey")
                     if (isSpatial(key, title, summary)) {
-                        invokeBoolean(param.thisObject, "removePreference", child)
-                        Log.d(TAG, "BluetoothPluginHooker: removed spatial preference key=$key title=$title")
+                        if (disableSpatialEnabled()) {
+                            invokeBoolean(param.thisObject, "removePreference", child)
+                            Log.d(TAG, "BluetoothPluginHooker: removed spatial preference key=$key title=$title")
+                        }
                     } else if (isAnc(key, parentKey, title, summary) &&
                         (title == "关闭" || title?.contains("关闭") == true)) {
-                        invokeTitle(child, "自适应")
+                        if (forceAdaptiveEnabled()) invokeTitle(child, "自适应")
                     }
                 }.onFailure { t -> Log.e(TAG, "PreferenceGroup hook failed", t) } }
             }
@@ -131,17 +107,32 @@ object BluetoothPluginHooker : StaticHooker() {
     }
 
     private fun invokeString(target: Any, method: String): String? = runCatching {
-        target.javaClass.methods.firstOrNull { it.name == method && it.parameterTypes.isEmpty() }
-            ?.invoke(target)?.toString()
+        resolveMethod(target.javaClass, method, 0)?.invoke(target)?.toString()
     }.getOrNull()
 
     private fun invokeBoolean(target: Any, method: String, arg: Any) {
-        target.javaClass.methods.firstOrNull { it.name == method && it.parameterTypes.size == 1 }
-            ?.invoke(target, arg)
+        resolveMethod(target.javaClass, method, 1)?.invoke(target, arg)
     }
 
     private fun invokeTitle(target: Any, title: String) {
-        target.javaClass.methods.firstOrNull { it.name == "setTitle" && it.parameterTypes.size == 1 }
-            ?.invoke(target, title)
+        resolveMethod(target.javaClass, "setTitle", 1)?.invoke(target, title)
     }
+
+    // addPreference fires for every preference added anywhere in Settings, so cache the
+    // per-class method resolution instead of scanning javaClass.methods on each call.
+    private val methodCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method>>()
+
+    private fun resolveMethod(cls: Class<*>, name: String, argCount: Int): Method? {
+        val perClass = methodCache.getOrPut(cls) { ConcurrentHashMap() }
+        perClass["$name/$argCount"]?.let { return it }
+        val found = cls.methods.firstOrNull { it.name == name && it.parameterTypes.size == argCount }
+        if (found != null) perClass["$name/$argCount"] = found
+        return found
+    }
+
+    private fun disableSpatialEnabled() =
+        Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+
+    private fun forceAdaptiveEnabled() =
+        Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
 }

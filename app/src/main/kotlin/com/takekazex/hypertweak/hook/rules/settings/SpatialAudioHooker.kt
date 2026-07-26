@@ -83,7 +83,7 @@ class SpatialAudioHooker(
             onPrefChange.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onPreferenceChange", Unit) {
-                        if (param.args[1] == true) {
+                        if (disableSpatialEnabled() && param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable")
                             param.result = false
                         }
@@ -105,7 +105,7 @@ class SpatialAudioHooker(
             onCheckedChanged.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onCheckedChanged", Unit) {
-                        if (param.args[1] == true) {
+                        if (disableSpatialEnabled() && param.args[1] == true) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable via onCheckedChanged")
                             param.result = null
                         }
@@ -117,4 +117,7 @@ class SpatialAudioHooker(
 
         Log.e("HyperTweak", "SpatialAudioHooker: No suitable toggle method found in ${clazz.name}")
     }
+
+    private fun disableSpatialEnabled() =
+        Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
 }
