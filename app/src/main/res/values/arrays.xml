@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      Keep in sync with app/src/main/resources/META-INF/xposed/scope.list.
+      This copy is the runtime source of truth (ScopeManager.requiredScope);
+      scope.list is the copy LSPosed reads at install time.
+    -->
     <string-array name="xposed_scope">
         <item>system</item>
         <item>android</item>
@@ -9,7 +14,9 @@
         <item>com.android.settings</item>
         <item>com.miui.aod</item>
         <item>com.miui.securitycenter</item>
+        <item>com.miui.powerkeeper</item>
         <item>com.xiaomi.scanner</item>
         <item>com.milink.service</item>
+        <item>com.xiaomi.bluetooth</item>
     </string-array>
 </resources>

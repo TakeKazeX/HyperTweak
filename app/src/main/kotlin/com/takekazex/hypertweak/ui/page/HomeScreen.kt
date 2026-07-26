@@ -39,9 +39,14 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.takekazex.hypertweak.hook.HotReloadReport
+import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.ScopeManager
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -213,6 +218,8 @@ fun HomeScreenContent(
                 }
             }
 
+            ScopeWarningCard()
+
             // SmallTitle - proper 28dp left indent like miuix
             SmallTitle(text = "Diagnostics Details")
 
@@ -381,6 +388,75 @@ private fun HotReloadDialog(
     )
 }
 
+/**
+ * Names the required scopes the user has removed in LSPosed.
+ *
+ * The module declares `staticScope=false` so it can request scope for input methods at runtime,
+ * which also makes the whole list user-editable — a removed entry silently disables whatever
+ * depends on it, so surface it rather than letting the feature look broken.
+ */
+@Composable
+private fun ScopeWarningCard() {
+    val context = LocalContext.current
+    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val missing by produceState<Set<String>?>(initialValue = null, service) {
+        value = if (service == null) null else ScopeManager.missingRequiredScope(context)
+    }
+    val absent = missing ?: return
+    if (absent.isEmpty()) return
+
+    val scope = rememberCoroutineScope()
+    val isDark = isSystemInDarkTheme()
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
+        )
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = "Scope incomplete",
+                color = MiuixTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "These apps are missing from the module's LSPosed scope, so the features " +
+                    "that hook them do nothing:",
+                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+            Text(
+                text = absent.sorted().joinToString("\n") { "- ${friendlyProcessName(it)} ($it)" },
+                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+            TextButton(
+                text = "Restore scope",
+                onClick = {
+                    scope.launch {
+                        when (val result = ScopeManager.request(absent)) {
+                            is ScopeManager.Result.Failed ->
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                            ScopeManager.Result.ServiceUnavailable ->
+                                Toast.makeText(
+                                    context,
+                                    "The Xposed service is unavailable",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            else -> Unit
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
 @Composable
 private fun HotReloadTargetsCard(targets: List<String>) {
     Card(
@@ -454,14 +530,17 @@ private fun HotReloadResultCard(report: HotReloadReport) {
 
 private fun friendlyProcessName(processName: String): String {
     return when (processName) {
-        "system", "system_server" -> "System Server"
+        "system", "system_server", "android" -> "System Server"
         "com.android.systemui" -> "System UI"
         "com.android.settings" -> "Settings"
         "com.miui.aod" -> "Always-On Display"
+        "com.miui.home" -> "System Launcher"
         "com.miui.securitycenter" -> "Security"
+        "com.miui.powerkeeper" -> "PowerKeeper"
         "com.xiaomi.scanner" -> "Scanner"
         "com.milink.service" -> "MiLink Service"
         "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
+        "com.takekazex.hypertweak" -> "HyperTweak"
         else -> processName
     }
 }

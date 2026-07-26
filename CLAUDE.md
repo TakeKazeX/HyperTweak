@@ -383,6 +383,37 @@ key, never a component name: the receiver runs as uid system, so the component i
 resolved from a hardcoded allow-list in `ProxyLaunchHooker.TARGETS`. This half is
 independent of the trust fix and needs no setting.
 
+## Xposed Scope
+
+The module declares `staticScope=false` in
+`app/src/main/resources/META-INF/xposed/module.prop`, so it can call
+`XposedService.requestScope` for input methods the user selects at runtime. The
+cost is that LSPosed then lets the user edit the whole scope list, and removing a
+required entry silently disables whatever hooks it.
+
+The scope is declared twice and both copies must stay identical:
+`app/src/main/res/values/arrays.xml` (`xposed_scope`, referenced from the
+manifest's `xposedscope` meta-data) is the runtime source of truth read by
+`ScopeManager.requiredScope`, and `META-INF/xposed/scope.list` is the copy LSPosed
+reads at install time. They had drifted — `arrays.xml` was missing
+`com.miui.powerkeeper` and `com.xiaomi.bluetooth`, `scope.list` was missing
+`android` — and are now aligned. `scope.list` carries no comment because its
+parser is not known to accept one.
+
+`util/ScopeManager.kt` wraps the libxposed service 102 scope API
+(`getScope()`, `requestScope(List, OnScopeEventListener)`, `removeScope(List)`).
+Every call can throw an unchecked `XposedService.ServiceException` and
+`requestScope`'s callbacks arrive on a Binder thread, so each result is settled
+once through an `AtomicBoolean` — a partial approval can still be followed by a
+failure callback. `applyManagedDiff` intersects removals with the caller's managed
+set and subtracts `requiredScope`, so unchecking an entry gives its scope back
+while a package another feature needs is never revoked.
+
+`ScopeWarningCard` on the Home page names any required scope the user has removed
+and offers to request it back. It is a separate card rather than a fourth hero
+card state, which would collide with `hotReloadAvailable`. `system` and `android`
+name the same target across LSPosed versions, so either satisfies both.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git
