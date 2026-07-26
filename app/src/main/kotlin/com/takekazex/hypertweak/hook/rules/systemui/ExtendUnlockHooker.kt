@@ -22,19 +22,25 @@ import java.util.concurrent.ConcurrentHashMap
  * What breaks is the `mUserHasTrust` cache itself, which goes stale so a trust grant never reaches
  * the keyguard.
  *
- * This patches only that failure: when the original returns false and neither guard explains it,
- * the trust state is re-derived from `TrustManagerService` through `KeyguardManager`. The other two
- * causes of a false result are left alone, so a pending SIM PIN can never be overridden into a
- * trusted state.
+ * This patches only that failure, and only ever in the safe direction. When the original returns
+ * false and neither the SIM-PIN nor the biometric guard explains it, trust is re-derived from lock
+ * state — but the override is granted only while a trust agent is actually managing trust for the
+ * user (`getUserTrustIsManaged`) and the keyguard is actually on screen (`isKeyguardLocked`), read
+ * back from `KeyguardManager.isDeviceSecure`/`isDeviceLocked`. It does not read TrustManagerService's
+ * trust set directly. The SIM-PIN and biometric causes of a false result are left alone, so a
+ * pending SIM PIN can never be overridden into a trusted state.
  *
  * Unlike HyperTrust, which this is ported from (GPL-3.0), the result is not written back into
  * `mUserHasTrust`. The only other reader of that field is one assistant-visibility check, and a
  * `SparseBooleanArray` write from a getter reachable off the main thread is a race AOSP explicitly
  * asserts against.
  *
- * `getUserHasTrust` is recomputed in bursts from the fingerprint listening state, so the two binder
- * round-trips are cached per user for [TRUST_CACHE_TTL_MS] and invalidated eagerly whenever
- * `onTrustChanged` fires.
+ * `getUserHasTrust` is a one-expression method its hot callers may AOT-inline, so it is deoptimized
+ * before hooking. It is recomputed in bursts from the fingerprint listening state, so the derived
+ * value is cached per user for [TRUST_CACHE_TTL_MS]. The cache is only ever seeded while the keyguard
+ * is showing — an unlocked device never seeds a `true` that could be served across a later lock
+ * transition — and is dropped from a `before` hook on `onTrustChanged`, ahead of the platform's own
+ * notification loop, so a trust revocation can never read back a stale `true`.
  */
 object ExtendUnlockHooker : StaticHooker() {
     private const val TAG = "ExtendUnlock"
@@ -57,8 +63,17 @@ object ExtendUnlockHooker : StaticHooker() {
     private var contextField: Field? = null
     private var isSimPinSecureMethod: Method? = null
     private var isUnlockingWithBiometricAllowedMethod: Method? = null
+
+    /** `KeyguardUpdateMonitor.getUserTrustIsManaged(int)` — false when no agent manages trust. */
+    @Volatile
+    private var getUserTrustIsManagedMethod: Method? = null
+
     private var isDeviceSecureMethod: Method? = null
     private var isDeviceLockedMethod: Method? = null
+
+    /** `KeyguardManager.isKeyguardLocked()` — gates the override on the keyguard being on screen. */
+    @Volatile
+    private var isKeyguardLockedMethod: Method? = null
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
@@ -107,8 +122,10 @@ object ExtendUnlockHooker : StaticHooker() {
         contextField = null
         isSimPinSecureMethod = null
         isUnlockingWithBiometricAllowedMethod = null
+        getUserTrustIsManagedMethod = null
         isDeviceSecureMethod = null
         isDeviceLockedMethod = null
+        isKeyguardLockedMethod = null
     }
 
     override fun onHook() {
@@ -135,13 +152,19 @@ object ExtendUnlockHooker : StaticHooker() {
             returnType = Boolean::class.javaPrimitiveType,
             parameterTypes = listOf(Boolean::class.javaPrimitiveType!!)
         )
+        getUserTrustIsManagedMethod = CompatibleMethodResolver.find(
+            monitor,
+            "getUserTrustIsManaged",
+            returnType = Boolean::class.javaPrimitiveType,
+            parameterTypes = listOf(Int::class.javaPrimitiveType!!)
+        )
         if (contextField == null || isSimPinSecureMethod == null ||
-            isUnlockingWithBiometricAllowedMethod == null
+            isUnlockingWithBiometricAllowedMethod == null || getUserTrustIsManagedMethod == null
         ) {
             DebugLog.hookSkipped(
                 TAG,
                 "$KEYGUARD_UPDATE_MONITOR guards",
-                "mContext/isSimPinSecure/isUnlockingWithBiometricAllowed not resolved"
+                "mContext/isSimPinSecure/isUnlockingWithBiometricAllowed/getUserTrustIsManaged not resolved"
             )
             return
         }
@@ -162,6 +185,8 @@ object ExtendUnlockHooker : StaticHooker() {
         }
 
         runCatching {
+            // One-expression method; hot callers may AOT-inline it, silently making the hook dead.
+            deoptimize(method)
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "getUserHasTrust", Unit) {
@@ -180,7 +205,10 @@ object ExtendUnlockHooker : StaticHooker() {
         }
     }
 
-    /** Drop the cached trust state as soon as the platform reports a real change. */
+    /**
+     * Drop the cached trust state *before* the platform propagates the change, so its own
+     * `onTrustChanged` notification loop cannot read back a stale cached `true` during a revocation.
+     */
     private fun hookOnTrustChanged(monitor: Class<*>) {
         val method = monitor.declaredMethods.firstOrNull {
             it.name == "onTrustChanged" && it.parameterTypes.size == 5
@@ -191,7 +219,7 @@ object ExtendUnlockHooker : StaticHooker() {
 
         runCatching {
             method.hook {
-                after { param ->
+                before { param ->
                     HookFailurePolicy.open(TAG, "onTrustChanged", Unit) {
                         when (val userId = param.args.getOrNull(2)) {
                             is Int -> trustCache.remove(userId)
@@ -215,7 +243,22 @@ object ExtendUnlockHooker : StaticHooker() {
         return isUnlockingWithBiometricAllowedMethod?.invoke(monitorInstance, true) as? Boolean ?: false
     }
 
+    /**
+     * Re-derives the trust decision, failing closed at every step. Two gates run ahead of anything
+     * cached or granted, each strictly narrowing when the override applies:
+     *  - a trust agent must actually be managing trust for this user ([getUserTrustIsManagedMethod]),
+     *    so a device with no working Extend Unlock agent is never overridden even inside a timing
+     *    window. This is re-checked on every call, ahead of the cache, because it is in-process and
+     *    cheap, so a cached `true` is never served once trust management stops.
+     *  - the keyguard must actually be on screen ([isKeyguardLockedMethod]). When it is not, the
+     *    device is already unlocked, there is no trust decision to make, and — crucially — the cache
+     *    is left untouched, so an unlocked device can never seed a `true` served across a later lock.
+     */
     private fun resolveTrusted(monitorInstance: Any, userId: Int): Boolean {
+        val getUserTrustIsManaged = getUserTrustIsManagedMethod ?: return false
+        val trustManaged = getUserTrustIsManaged.invoke(monitorInstance, userId) as? Boolean ?: return false
+        if (!trustManaged) return false
+
         val now = SystemClock.uptimeMillis()
         trustCache[userId]?.let { cached ->
             if (now - cached.uptimeMs < TRUST_CACHE_TTL_MS) return cached.trusted
@@ -224,6 +267,9 @@ object ExtendUnlockHooker : StaticHooker() {
         val context = contextField?.get(monitorInstance) as? Context ?: return false
         val keyguardManager = context.getSystemService(KeyguardManager::class.java) ?: return false
 
+        val isKeyguardLocked = isKeyguardLockedMethod ?: runCatching {
+            KeyguardManager::class.java.getMethod("isKeyguardLocked").apply { isAccessible = true }
+        }.getOrNull()?.also { isKeyguardLockedMethod = it } ?: return false
         val isDeviceSecure = isDeviceSecureMethod ?: runCatching {
             KeyguardManager::class.java
                 .getMethod("isDeviceSecure", Int::class.javaPrimitiveType)
@@ -235,6 +281,15 @@ object ExtendUnlockHooker : StaticHooker() {
                 .apply { isAccessible = true }
         }.getOrNull()?.also { isDeviceLockedMethod = it } ?: return false
 
+        // Only override, and only seed the cache, while the keyguard is actually showing. A false
+        // result here leaves trustCache untouched so an unlocked device can never seed a stale true.
+        val keyguardShowing = isKeyguardLocked.invoke(keyguardManager) as? Boolean ?: return false
+        if (!keyguardShowing) return false
+
+        // TODO(HyperTweak): isDeviceSecure/isDeviceLocked are binder round-trips run inline on
+        // getUserHasTrust's caller. They now only run on a cache miss while the keyguard is showing
+        // (rare, at unlock attempts), which greatly reduces the prior ANR exposure; a fully async
+        // re-derivation would remove the residual exposure entirely and is left for a later pass.
         val secure = isDeviceSecure.invoke(keyguardManager, userId) as? Boolean ?: return false
         val locked = isDeviceLocked.invoke(keyguardManager, userId) as? Boolean ?: return false
         val trusted = secure && !locked
