@@ -422,10 +422,32 @@ Both entries target `com.android.settings/.spa.SpaActivity`, which is
 `com.android.settings` both run under `android.uid.system`, and Security Center
 holds `START_ANY_ACTIVITY`.
 
+**The keyguard fix alone does nothing on a stock HyperOS device.** Verified on the
+baseline: `dumpsys trust` lists only
+`com.google.android.gms/.personalsafety.service.LockingTrustAgentService` — an
+unrelated locking agent — and the Extend Unlock agent,
+`com.google.android.gms/com.google.android.gms.auth.trustagent.GoogleTrustAgent`,
+is absent from the enabled list even though the component itself is enabled and
+exported. GMS therefore reports Extend Unlock as unavailable, and no trust is ever
+granted for `getUserHasTrust` to report.
+
+HyperOS ships **no** Trust agents settings screen (`cmd package query-activities`
+finds no `TrustAgentSettings` activity), so the user cannot enable it either.
+`ExtendUnlockHooker.syncTrustAgent` does it from SystemUI, which runs as uid system
+and may write lock settings, through
+`LockPatternUtils.setEnabledTrustAgents(Collection<ComponentName>, int)`
+(`framework.jar:863`, which also calls `reportEnabledTrustAgentsChanged`). It runs
+at `onPackageReady`, when an application `Context` exists.
+
+That list is persistent system state that outlives the module, so the entry is
+removed again when the setting is turned off; only that one component is touched.
+
 The Extend Unlock configuration screen itself is
 `com.google.android.gms/com.google.android.gms.trustagent.TrustAgentSearchEntryPointActivity`,
-which is not exported, so Hidden Features tries a direct launch first and then
-asks SystemUI to start it. `ProxyLaunchHooker` registers that receiver in
+which is `exported=true` on this baseline, so the direct launch in Hidden Features
+succeeds and the trampoline hands off to `ConfirmUserCredentialAndStartActivity`.
+The SystemUI proxy is only a fallback for builds where it is not exported.
+`ProxyLaunchHooker` registers that receiver in
 SystemUI, guarded by the module's signature-level permission and reusing
 `RestartBroadcastHooker`'s registration pattern. The broadcast carries a target
 key, never a component name: the receiver runs as uid system, so the component is

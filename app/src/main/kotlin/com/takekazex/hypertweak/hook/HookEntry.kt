@@ -348,6 +348,7 @@ class HookEntry : XposedModule() {
         RestartBroadcastHooker.register(appContext)
         if (packageName == "com.android.systemui") {
             ProxyLaunchHooker.register(appContext)
+            ExtendUnlockHooker.syncTrustAgent(appContext)
         }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
@@ -372,6 +373,7 @@ class HookEntry : XposedModule() {
             RestartBroadcastHooker.register(appContext)
             if (state.packageName == "com.android.systemui") {
                 ProxyLaunchHooker.register(appContext)
+                ExtendUnlockHooker.syncTrustAgent(appContext)
             }
             DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
         } else {

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.app.KeyguardManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
@@ -41,6 +42,11 @@ object ExtendUnlockHooker : StaticHooker() {
     private const val KEYGUARD_UPDATE_MONITOR = "com.android.keyguard.KeyguardUpdateMonitor"
     private const val TRUST_CACHE_TTL_MS = 200L
 
+    private const val GMS_PACKAGE = "com.google.android.gms"
+
+    /** The Extend Unlock agent. Not the unrelated `personalsafety` locking agent. */
+    private const val GMS_TRUST_AGENT = "com.google.android.gms.auth.trustagent.GoogleTrustAgent"
+
     private class CachedTrust(val uptimeMs: Long, val trusted: Boolean)
 
     @Volatile
@@ -55,6 +61,45 @@ object ExtendUnlockHooker : StaticHooker() {
     private var isDeviceLockedMethod: Method? = null
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+
+    /**
+     * Puts GMS's Extend Unlock agent into the enabled trust agent list, which is what actually makes
+     * the feature available.
+     *
+     * HyperOS ships no Trust agents settings screen at all, so there is no way for the user to
+     * enable it — `dumpsys trust` lists only Play Services' unrelated locking agent, and GMS reports
+     * Extend Unlock as unavailable. The keyguard-side fix above is useless until this is done.
+     *
+     * Called from SystemUI, which runs as uid system and may write lock settings. The list is
+     * persistent system state, so the entry is removed again when the setting is turned off.
+     */
+    fun syncTrustAgent(context: Context) {
+        HookFailurePolicy.open(TAG, "syncTrustAgent", Unit) {
+            val wanted = Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false)
+            val lockPatternUtils = "com.android.internal.widget.LockPatternUtils".toClassOrNull()
+                ?: return@open
+            val instance = lockPatternUtils.getConstructor(Context::class.java).newInstance(context)
+
+            val userId = runCatching {
+                android.os.UserHandle::class.java.getMethod("myUserId").invoke(null) as? Int
+            }.getOrNull() ?: 0
+
+            @Suppress("UNCHECKED_CAST")
+            val enabled = lockPatternUtils
+                .getMethod("getEnabledTrustAgents", Int::class.javaPrimitiveType)
+                .invoke(instance, userId) as? List<ComponentName> ?: emptyList()
+
+            val agent = ComponentName(GMS_PACKAGE, GMS_TRUST_AGENT)
+            val present = enabled.any { it == agent }
+            if (present == wanted) return@open
+
+            val next = if (wanted) enabled + agent else enabled.filterNot { it == agent }
+            lockPatternUtils
+                .getMethod("setEnabledTrustAgents", Collection::class.java, Int::class.javaPrimitiveType)
+                .invoke(instance, next, userId)
+            DebugLog.i(TAG, "${if (wanted) "enabled" else "disabled"} trust agent $agent for user $userId")
+        }
+    }
 
     override fun onPrepareHotReload() {
         enabled = false
