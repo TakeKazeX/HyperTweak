@@ -35,6 +35,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.getSystemAccentColor
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.LauncherVersion
 import com.takekazex.hypertweak.R
 import androidx.compose.ui.res.stringResource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -57,6 +58,11 @@ fun SettingsScreenContent(
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     immediateMonetRefresh: Boolean,
+    launcherMajor: Int,
+    launcherSupportsBackRoute: Boolean,
+    aospBackMiuiHomeHooks: Boolean,
+    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
+    onNavigateToPredictiveBackApps: () -> Unit,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
@@ -185,6 +191,26 @@ fun SettingsScreenContent(
                 )
             }
 
+            // Launcher-dependent halves of the AOSP back gesture. The gesture itself and its
+            // SystemUI-only options stay under Features; only what hooks com.miui.home lives here.
+            SmallTitle(text = "Launcher Hooks")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                SwitchPreference(
+                    checked = aospBackMiuiHomeHooks && launcherSupportsBackRoute,
+                    onCheckedChange = onAospBackMiuiHomeHooksChange,
+                    title = "Predictive Return to Home",
+                    summary = launcherBackRouteSummary(launcherMajor, launcherSupportsBackRoute),
+                    enabled = launcherSupportsBackRoute
+                )
+                ArrowPreference(
+                    title = "Predictive Back Apps",
+                    summary = "Force predictive back for apps that never opted in",
+                    onClick = onNavigateToPredictiveBackApps
+                )
+            }
+
             // Other
             SmallTitle(text = "Other")
             Card(
@@ -204,5 +230,22 @@ fun SettingsScreenContent(
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
+    }
+}
+
+/**
+ * The predictive return-home animation hooks `com.miui.home` Java classes that only Launcher 7
+ * and older ship, so explain why the switch is unavailable rather than just greying it out.
+ */
+private fun launcherBackRouteSummary(launcherMajor: Int, supported: Boolean): String {
+    val version = LauncherVersion.versionName.ifBlank { "unknown" }
+    return when {
+        // Upstream documents the launcher animation hooks as matched to 7.50.xx. Other 7.x
+        // builds move the members it resolves, so show the exact version to compare against.
+        supported -> "Hand the back-to-home gesture to the launcher animation. " +
+            "Installed launcher $version; upstream targets 7.50.xx"
+        launcherMajor > 0 ->
+            "Unavailable: launcher $version has no hookable gesture code (needs Launcher 7)"
+        else -> "Unavailable: could not detect the installed launcher"
     }
 }

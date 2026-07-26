@@ -1,16 +1,21 @@
 package com.takekazex.hypertweak.hook.rules.backgesture
 
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackGestureRuntime
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackGestureRuntimeProvider
 
 object AospBackSystemHooker : StaticHooker() {
+    private val runtime get() = AospBackGestureRuntimeProvider.runtime
+
     override fun onHook() {
-        AospBackGestureRuntimeProvider.runtime.installSystemServerHooks(
-            classLoader,
-            AospBackGestureRuntime.HookRegistrar { method, id, hooker ->
-                registerRuntimeHook(method, id, hooker)
-            }
-        )
+        runtime.installSystemServerHooks(classLoader, aospBackRegistrar())
+    }
+
+    override fun saveHotReloadState(): Any? = runtime.saveHotReloadState()
+
+    override fun onPrepareHotReload() {
+        runtime.prepareHotReload()
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        runtime.restoreHotReloadState(state)
     }
 }

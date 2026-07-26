@@ -31,6 +31,7 @@ import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
+import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -64,6 +65,18 @@ fun HyperTweakNavContainer(
     onMiuiBackGestureHookChange: (Boolean) -> Unit,
     crossTaskWallpaperBackground: Boolean,
     onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
+    aospBackIndicator: Boolean,
+    onAospBackIndicatorChange: (Boolean) -> Unit,
+    aospBackHaptics: Boolean,
+    onAospBackHapticsChange: (Boolean) -> Unit,
+    aospBackHapticsEnhanced: Boolean,
+    onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
+    aospBackSlideAnimation: Boolean,
+    onAospBackSlideAnimationChange: (Boolean) -> Unit,
+    launcherMajor: Int,
+    launcherSupportsBackRoute: Boolean,
+    aospBackMiuiHomeHooks: Boolean,
+    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
     predictiveBackFollowGesture: Boolean,
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
     allowLandscape: Boolean,
@@ -225,6 +238,18 @@ fun HyperTweakNavContainer(
                 onMiuiBackGestureHookChange = onMiuiBackGestureHookChange,
                 crossTaskWallpaperBackground = crossTaskWallpaperBackground,
                 onCrossTaskWallpaperBackgroundChange = onCrossTaskWallpaperBackgroundChange,
+                aospBackIndicator = aospBackIndicator,
+                onAospBackIndicatorChange = onAospBackIndicatorChange,
+                aospBackHaptics = aospBackHaptics,
+                onAospBackHapticsChange = onAospBackHapticsChange,
+                aospBackHapticsEnhanced = aospBackHapticsEnhanced,
+                onAospBackHapticsEnhancedChange = onAospBackHapticsEnhancedChange,
+                aospBackSlideAnimation = aospBackSlideAnimation,
+                onAospBackSlideAnimationChange = onAospBackSlideAnimationChange,
+                launcherMajor = launcherMajor,
+                launcherSupportsBackRoute = launcherSupportsBackRoute,
+                aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
+                onAospBackMiuiHomeHooksChange = onAospBackMiuiHomeHooksChange,
                 predictiveBackFollowGesture = predictiveBackFollowGesture,
                 onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
                 allowLandscape = allowLandscape,
@@ -245,6 +270,9 @@ fun HyperTweakNavContainer(
                 },
                 onNavigateToAppShortcuts = {
                     backStack.add(Route.AppShortcuts)
+                },
+                onNavigateToPredictiveBackApps = {
+                    backStack.add(Route.PredictiveBackApps)
                 },
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
@@ -308,6 +336,11 @@ fun HyperTweakNavContainer(
                     if (backStack.size > 1) backStack.removeLast()
                 },
                 onShortcutsChanged = onShortcutsChanged
+            )
+        }
+        entry<Route.PredictiveBackApps> {
+            PredictiveBackAppsPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.Debug> {

@@ -62,6 +62,15 @@ fun TweaksScreenContent(
     onMiuiBackGestureHookChange: (Boolean) -> Unit,
     crossTaskWallpaperBackground: Boolean,
     onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
+    aospBackIndicator: Boolean,
+    onAospBackIndicatorChange: (Boolean) -> Unit,
+    aospBackHaptics: Boolean,
+    onAospBackHapticsChange: (Boolean) -> Unit,
+    aospBackHapticsEnhanced: Boolean,
+    onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
+    aospBackSlideAnimation: Boolean,
+    onAospBackSlideAnimationChange: (Boolean) -> Unit,
+    launcherSupportsBackRoute: Boolean,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
@@ -221,7 +230,13 @@ fun TweaksScreenContent(
                         checked = miuiBackGestureHook,
                         onCheckedChange = onMiuiBackGestureHookChange,
                         title = "AOSP Back Gesture",
-                        summary = "Restore the AOSP back gesture pipeline in MIUI SystemUI"
+                        summary = if (launcherSupportsBackRoute) {
+                            "Restore the AOSP back gesture pipeline in MIUI SystemUI. " +
+                                "Needs \"System Launcher\" in the module's LSPosed scope, " +
+                                "which owns the screen edges on this launcher"
+                        } else {
+                            "Restore the AOSP back gesture pipeline in MIUI SystemUI"
+                        }
                     )
                     SwitchPreference(
                         checked = crossTaskWallpaperBackground,
@@ -230,6 +245,42 @@ fun TweaksScreenContent(
                         summary = "Use a blurred wallpaper behind cross-task back animations",
                         enabled = miuiBackGestureHook
                     )
+                    AnimatedVisibility(
+                        visible = miuiBackGestureHook,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                checked = aospBackIndicator,
+                                onCheckedChange = onAospBackIndicatorChange,
+                                title = "HyperOS Back Arrow",
+                                summary = "Replaces the AOSP indicator with the HyperOS arrow. " +
+                                    "Turn off to get the AOSP indicator back, at the cost of haptics"
+                            )
+                            SwitchPreference(
+                                checked = aospBackHaptics,
+                                onCheckedChange = onAospBackHapticsChange,
+                                title = "Back Gesture Haptics",
+                                summary = "Vibrate when the gesture arms and triggers. " +
+                                    "Driven by the arrow overlay, so it needs HyperOS Back Arrow",
+                                enabled = aospBackIndicator
+                            )
+                            SwitchPreference(
+                                checked = aospBackHapticsEnhanced,
+                                onCheckedChange = onAospBackHapticsEnhancedChange,
+                                title = "Enhanced Haptics",
+                                summary = "Use the richer HyperOS haptic pattern",
+                                enabled = aospBackIndicator && aospBackHaptics
+                            )
+                            SwitchPreference(
+                                checked = aospBackSlideAnimation,
+                                onCheckedChange = onAospBackSlideAnimationChange,
+                                title = "Slide Back Animation",
+                                summary = "Slide the previous activity in behind the gesture"
+                            )
+                        }
+                    }
                 }
             }
 
