@@ -1,6 +1,14 @@
 name: Manual CI Build
 
 on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 jobs:
@@ -22,6 +30,12 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Run Unit Tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Run Lint
+        run: ./gradlew :app:lintDebug
 
       - name: Decode Release Keystore
         run: |

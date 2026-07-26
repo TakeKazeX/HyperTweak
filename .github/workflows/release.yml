@@ -35,9 +35,11 @@ jobs:
 
       - name: Validate release tag
         shell: bash
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag_name }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            CURRENT_TAG="${{ github.event.inputs.tag_name }}"
+            CURRENT_TAG="$TAG_NAME"
           else
             CURRENT_TAG="${GITHUB_REF#refs/tags/}"
           fi
