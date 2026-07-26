@@ -59,6 +59,25 @@ public abstract class HookRuntimeCore {
     protected volatile ClassLoader runtimeClassLoader;
 
     /**
+     * HyperTweak: true between a Shell release and its finish callback, while a new DOWN would be
+     * rejected as "Shell is busy". Published to the launcher so it keeps its own gesture handling
+     * for that window instead of handing over a gesture SystemUI has to drop.
+     */
+    protected volatile boolean systemUiShellSettling;
+
+    /**
+     * HyperTweak: whether SystemUI can actually take the next gesture. A monitor being attached is
+     * necessary but not sufficient — while a previous Shell navigation is still settling (~500ms
+     * between release and its finish callback) {@code isShellReadyForGesture()} rejects the DOWN,
+     * and a rejected stream is abandoned for good. Reporting not-ready for that window makes the
+     * launcher keep its own legacy processor for those gestures, so the user gets MIUI's native
+     * back instead of a gesture that silently does nothing.
+     */
+    protected boolean isSystemUiArbiterReady() {
+        return systemUiInputArbiterMonitorCount.get() > 0 && !systemUiShellSettling;
+    }
+
+    /**
      * Upstream calls the inherited {@code XposedInterface.deoptimize()}. Routed through the
      * registrar so the vendored call sites stay untouched.
      */
@@ -388,6 +407,13 @@ public abstract class HookRuntimeCore {
      * ever fires for a navigation that ended without reporting.
      */
     protected static final long SHELL_RELEASE_WATCHDOG_TIMEOUT_MS = 1500L;
+
+    /**
+     * HyperTweak: how long to let the launcher's own app-to-home animation run before retiring the
+     * handed-off session. Measured at ~1.5s end to end on device, so this clears shortly after it
+     * settles while still landing well before a following gesture.
+     */
+    protected static final long MIUI_HOME_HANDOFF_FINISH_DELAY_MS = 900L;
 
     protected static final long SYSUI_STATE_NAV_BAR_HIDDEN = 1L << 1;
     protected static final long SYSUI_STATE_ALLOW_GESTURE_IGNORING_BAR_VISIBILITY =

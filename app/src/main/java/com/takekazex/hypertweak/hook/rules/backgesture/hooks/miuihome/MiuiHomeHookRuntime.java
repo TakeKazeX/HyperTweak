@@ -2934,17 +2934,16 @@ public abstract class MiuiHomeHookRuntime extends MiuiHomeReturnHomeRuntime {
     }
 
     protected void onSystemUiInputMonitorAttached(Context context) {
-        int count = systemUiInputArbiterMonitorCount.incrementAndGet();
-        publishSystemUiInputArbiterState(context, count > 0, "monitorAttached");
+        systemUiInputArbiterMonitorCount.incrementAndGet();
+        publishSystemUiInputArbiterState(context, isSystemUiArbiterReady(), "monitorAttached");
     }
 
     protected void onSystemUiInputMonitorDetached(Context context) {
         int count = systemUiInputArbiterMonitorCount.decrementAndGet();
         if (count < 0) {
             systemUiInputArbiterMonitorCount.set(0);
-            count = 0;
         }
-        publishSystemUiInputArbiterState(context, count > 0, "monitorDetached");
+        publishSystemUiInputArbiterState(context, isSystemUiArbiterReady(), "monitorDetached");
     }
 
     protected void publishSystemUiInputArbiterState(Context context, boolean ready,

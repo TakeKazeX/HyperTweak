@@ -3598,6 +3598,13 @@ public abstract class MiuiHomeReturnHomeRuntime extends SystemUiHookRuntime {
                 // epoch gate.
                 return null;
             }
+            if (session.handedOffToLauncher) {
+                // HyperTweak: same reasoning as the provider-adopted case above. The launcher is
+                // running its own app-to-home animation, so its finish must not be held behind the
+                // module's epoch gate — gating it produced "Skipped superseded Xiaomi finish
+                // source" on every driven return and stranded the session.
+                return null;
+            }
             long dispatchId = unifiedNativeFinishDispatchIds
                     .incrementAndGet();
             Object animationIdentity =
@@ -9497,6 +9504,33 @@ public abstract class MiuiHomeReturnHomeRuntime extends SystemUiHookRuntime {
          * wiring itself, which reconstructing by hand would get subtly wrong.
          */
         /**
+         * Retires a session whose animation was handed to the launcher. Xiaomi drives it to
+         * completion from here, and the module's own finish accounting can never settle for it, so
+         * waiting for that would strand the session and make every following gesture fail with
+         * "Rejected overlapping return-home runner". Delayed by the animation's own length so the
+         * hand-off is not cut short, then retired exactly like a stale preview owner.
+         */
+        protected void scheduleHandedOffSessionFinish(
+                ReturnHomeSession session, String reason) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (currentSession != session || session.finished.get() != 0) {
+                    return;
+                }
+                log(Log.INFO, TAG, "Retiring return-home session handed to the launcher"
+                        + ", generation=" + session.generation
+                        + ", ageMs=" + (SystemClock.uptimeMillis() - session.startedUptime)
+                        + ", reason=" + reason);
+                startUnifiedNativeCancel(session, "handedOffToLauncher");
+                invalidatePendingDirectCancel(session, "handedOffToLauncher", true);
+                // finishSession() defers while preview ownership is unverified; the launcher owns
+                // the animation now, so declare the module's half done and let finish run.
+                session.unifiedNativeCleanupVerified = true;
+                finishSession(session, "handedOffToLauncher",
+                        shouldRestorePreview(session));
+            }, MIUI_HOME_HANDOFF_FINISH_DELAY_MS);
+        }
+
+        /**
          * Mirrors the part of NavStubView.backGestureDown()/initRunningTaskRelativeInfo() that a
          * module-owned gesture skips: seeds mRunningTaskInfo, mRunningTaskId, mRunningTaskUserId
          * and mRunningTaskComponentName from this session's closing RemoteAnimationTarget, so
@@ -9630,6 +9664,10 @@ public abstract class MiuiHomeReturnHomeRuntime extends SystemUiHookRuntime {
                 log(Log.INFO, TAG, "Drove MiuiHome performAppToHome for committed return-home"
                         + ", generation=" + (session == null ? 0L : session.generation)
                         + ", reason=" + reason);
+                if (session != null) {
+                    session.handedOffToLauncher = true;
+                    scheduleHandedOffSessionFinish(session, reason);
+                }
                 return true;
             } catch (Throwable throwable) {
                 log(Log.WARN, TAG, "Failed to drive MiuiHome performAppToHome"
@@ -12578,6 +12616,14 @@ public abstract class MiuiHomeReturnHomeRuntime extends SystemUiHookRuntime {
              * ownership is claimed but never cleaned up wedges the launcher permanently.
              */
             final long startedUptime = SystemClock.uptimeMillis();
+            /**
+             * HyperTweak: set once the module has driven the launcher's own app-to-home animation.
+             * From that point Xiaomi owns the animation and the module's commit bookkeeping can
+             * never settle — the driven animTo carries StateManager's own RectFParams, not the
+             * commit token's, so resolveUnifiedAnimToConfigOwnerToken() returns null and the
+             * finish source is refused. The session is handed off rather than tracked.
+             */
+            volatile boolean handedOffToLauncher;
             final long generation;
             final Object[] apps;
             final Object[] wallpapers;
