@@ -148,7 +148,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.3")
-    implementation("androidx.navigation3:navigation3-runtime:1.1.4")
+    implementation("androidx.navigation3:navigation3-runtime:1.1.5")
     implementation("androidx.navigationevent:navigationevent:1.1.2")
 
     // libxposed
@@ -157,8 +157,8 @@ dependencies {
     implementation("io.github.libxposed:service:102.0.0")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.0")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.1.0")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.2")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.1.2")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
