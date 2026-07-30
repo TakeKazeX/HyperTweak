@@ -3,7 +3,8 @@
 Port of `wxxsfxyzm/MiuiBackGestureHook` v0.4.3 → v0.8.1, and the on-device
 investigation that followed.
 
-- Upstream baseline: `efa595d` (v0.8.1, 2026-07-26)
+- Upstream baseline: `ae2ff3184bc01d92bf434bf4044cd8c1872d1ab4`
+  (`ae2ff31`; v0.8.1 plus five post-tag commits, 2026-07-31)
 - Upstream clone: `/Users/ink/developer/refrences/MiuiBackGestureHook`
 - Device: `25102RKBEC`, launcher `com.miui.home RELEASE-7.50.06.2372-06261924`
 - Launcher artifact: `reverse/MiuiHome-RELEASE-7.50.06.2372-06261924.apk`,

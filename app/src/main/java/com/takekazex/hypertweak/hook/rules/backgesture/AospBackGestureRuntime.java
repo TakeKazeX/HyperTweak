@@ -79,6 +79,7 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
                     MIUI_HOME_TASK_VIEW, false, classLoader);
             hookMiuiHomeRecentsTaskLaunch(taskViewClass);
             hookMiuiHomeFullscreenState(classLoader);
+            hookMiuiHomeFreeformBackTouchability(classLoader);
             log(Log.INFO, TAG, "Enabled MiuiHome input arbitration"
                     + ", predictiveReturnHome=false"
                     + ", blocksLegacyGestureProcessor=true"

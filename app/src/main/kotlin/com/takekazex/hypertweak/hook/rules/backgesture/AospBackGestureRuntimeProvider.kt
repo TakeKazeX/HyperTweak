@@ -22,4 +22,7 @@ internal fun BaseHooker.aospBackRegistrar(): HookRuntimeCore.HookRegistrar =
         ): XposedInterface.HookHandle = registerRuntimeHook(method, hookId, hooker)
 
         override fun deoptimize(method: Method): Boolean = module.deoptimize(method)
+
+        override fun getInvoker(method: Method): XposedInterface.Invoker<*, Method> =
+            module.getInvoker(method)
     }

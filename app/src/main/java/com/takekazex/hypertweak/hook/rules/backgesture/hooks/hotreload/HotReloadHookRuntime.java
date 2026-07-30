@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.hotreload;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
-// Vendored from upstream efa595d (v0.8.1). Keep structural parity with upstream
+// Vendored through upstream ae2ff31 (v0.8.1 + 5 post-tag commits). Keep structural parity
 // so future updates stay mergeable; HyperTweak-local changes are marked.
 
 import android.content.Context;
@@ -30,6 +30,15 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
      * being written to the LSPosed param.
      */
     public Object saveHotReloadState() {
+        PreparedBackTransitionHold heldTransition = preparedBackTransitionHold.get();
+        if (heldTransition != null) {
+            log(Log.WARN, TAG,
+                    "Deferred hot reload while a prepared-back transition is held"
+                            + ", process=" + processName
+                            + ", " + describePreparedBackTransitionHold(heldTransition));
+            throw new IllegalStateException(
+                    "A prepared-back transition is still held");
+        }
         for (NativeBackInputMonitor monitor
                 : new ArrayList<>(nativeInputMonitors.values())) {
             if (monitor.blocksHotReload()) {
@@ -78,6 +87,12 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
                 detachMiuiHomeReturnHome("hotReload", true);
         miuiHomePendingNativeGeometry.remove();
         returnHomeFinishTransferCandidate.remove();
+        preparedBackTargetArrival.set(null);
+        preparedBackTargetArrivalHookReady = false;
+        preparedBackTerminalHookReady = false;
+        preparedBackStartAnimationInvoker = null;
+        freeformColorRootCandidate.set(null);
+        freeformColorRootAnimation = null;
         backCommitCompositionHookReady = false;
         backFinishOpenAtomicHookReady = false;
         backFinishOpenCallerDeoptimized = false;
@@ -91,6 +106,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         openSnapshotGeneration.incrementAndGet();
         invalidateAllOpenTransitionSnapshots("hotReload");
         clearLegacyBackGuard("hotReload");
+        miuiLauncherOpenActive = false;
         miuiLauncherOpenBreakAvailable = false;
         miuiLauncherOpenBreakGeneration = 0L;
         acceptedInputToken.set(null);
@@ -360,6 +376,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
             hookMiuiHomeReturnHomeFreshOpen(classLoader);
             hookMiuiHomeReturnHomeDirectCancel(classLoader);
             hookMiuiHomeDrawerState(classLoader);
+            hookMiuiHomeFreeformBackTouchability(classLoader);
             hookMiuiHomeEditingState(classLoader);
             hookMiuiHomeReturnHomeInitialize(classLoader);
             hookMiuiHomeReturnHomeLocalHandoff(classLoader);
@@ -374,6 +391,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
                     + ", mirrorsTaskLaunchExit=true"
                     + ", mirrorsAuthenticatedFullscreenState=true"
                     + ", mirrorsDrawerState=true"
+                    + ", preservesSmallWindowBackTouchability=true"
                     + ", mirrorsLauncherEditingState=true"
                     + ", mirrorsLauncherOpenBreakState=true"
                     + ", repairsNonReusableSameIconOpen=true"

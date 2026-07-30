@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.core;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
-// Vendored from upstream efa595d (v0.8.1). Keep structural parity with upstream
+// Vendored through upstream ae2ff31 (v0.8.1 + 5 post-tag commits). Keep structural parity
 // so future updates stay mergeable; HyperTweak-local changes are marked.
 
 import android.animation.Animator;
@@ -51,6 +51,9 @@ public abstract class HookRuntimeCore {
 
         /** Mirrors {@code XposedInterface.deoptimize(Method)}. */
         boolean deoptimize(Method method);
+
+        /** Mirrors {@code XposedInterface.getInvoker(Method)} for original-method dispatch. */
+        XposedInterface.Invoker<?, Method> getInvoker(Method method);
     }
 
     protected volatile HookRegistrar hookRegistrar;
@@ -84,6 +87,14 @@ public abstract class HookRuntimeCore {
     protected boolean deoptimize(Method method) {
         HookRegistrar registrar = hookRegistrar;
         return registrar != null && registrar.deoptimize(method);
+    }
+
+    protected XposedInterface.Invoker<?, Method> getInvoker(Method method) {
+        HookRegistrar registrar = hookRegistrar;
+        if (registrar == null) {
+            throw new IllegalStateException("No hook registrar for invoker " + method);
+        }
+        return registrar.getInvoker(method);
     }
 
     /** Replaces upstream's {@code recordHookHandle(hook(m).setId(id).intercept(f))}. */
@@ -138,7 +149,8 @@ public abstract class HookRuntimeCore {
             Context context, boolean ready, String reason);
 
     protected abstract void publishStandardReturnHomeCommit(
-            int taskId, int transitionDebugId, Object compositionController);
+            int taskId, int transitionDebugId, Object compositionController,
+            Object exactFinishCallback, boolean elementBoundaryOnly);
 
     protected abstract void clearLegacyBackGuard(String reason);
 
@@ -169,7 +181,7 @@ public abstract class HookRuntimeCore {
 
     protected static final String TAG = "MiuiBackGestureHook";
     protected static final String BUILD_MARK =
-            "systemui-aosp-back-0.7.2-r55-hyperos-slide-back-animation";
+            "systemui-aosp-back-0.7.2-r96-taskfragment-role";
     protected static final String SYSTEM_UI = "com.android.systemui";
     protected static final String MIUI_HOME = "com.miui.home";
     protected static final String WINDOW_ON_BACK_INVOKED_DISPATCHER =
@@ -224,6 +236,8 @@ public abstract class HookRuntimeCore {
             "com.miui.home.launcher.LauncherState";
     protected static final String MIUI_HOME_BASE_LAUNCHER =
             "com.miui.home.launcher.BaseLauncher";
+    protected static final String MIUI_HOME_SMALL_WINDOW_STATE_HELPER =
+            "com.miui.home.smallwindow.SmallWindowStateHelper";
     protected static final String MIUI_HOME_APPLICATION =
             "com.miui.home.launcher.Application";
     protected static final String MIUI_HOME_OVERVIEW_PROXY_IMPL =
@@ -313,8 +327,6 @@ public abstract class HookRuntimeCore {
             "com.android.wm.shell.common.transition.DefaultTransitionImpl";
     protected static final String BACK_NAVIGATION_CONTROLLER =
             "com.android.server.wm.BackNavigationController";
-    protected static final String BACK_ANIMATION_HANDLER =
-            "com.android.server.wm.BackNavigationController$AnimationHandler";
     protected static final String BACK_WINDOW_ANIMATION_ADAPTOR =
             "com.android.server.wm.BackNavigationController$AnimationHandler$BackWindowAnimationAdaptor";
     protected static final String SCHEDULE_ANIMATION_BUILDER =
@@ -363,6 +375,8 @@ public abstract class HookRuntimeCore {
     protected static final String EXTRA_INPUT_EDGE = "input_edge";
     protected static final String EXTRA_LAUNCHER_OPEN_BREAK_AVAILABLE =
             "launcher_open_break_available";
+    protected static final String EXTRA_LAUNCHER_OPEN_ACTIVE =
+            "launcher_open_active";
     protected static final String EXTRA_LAUNCHER_OPEN_BREAK_GENERATION =
             "launcher_open_break_generation";
     protected static final String EXTRA_LAUNCHER_OPEN_BREAK_ATTEMPT =
@@ -374,6 +388,8 @@ public abstract class HookRuntimeCore {
             "return_home_commit_debug_id";
     protected static final String EXTRA_RETURN_HOME_COMMIT_ATTEMPT =
             "return_home_commit_attempt";
+    protected static final String EXTRA_RETURN_HOME_ELEMENT_BOUNDARY =
+            "return_home_element_boundary";
     protected static final String EXTRA_RETURN_HOME_FINISH_ATTEMPT =
             "return_home_finish_attempt";
     protected static final String EXTRA_RETURN_HOME_RUNNER_SESSION =
@@ -442,6 +458,7 @@ public abstract class HookRuntimeCore {
     protected static final int TOUCH_OCCLUSION_MODE_USE_OPACITY = 1;
     protected static final int TOUCH_OCCLUSION_MODE_ALLOW = 2;
     protected static final int WINDOWING_MODE_FULLSCREEN = 1;
+    protected static final int WINDOWING_MODE_FREEFORM = 5;
     protected static final float EDGE_TOUCH_WIDTH_DP = 24.0f;
     protected static final float PILFER_THRESHOLD_DP = 8.0f;
     protected static final float TRIGGER_THRESHOLD_DP = 48.0f;
@@ -459,8 +476,6 @@ public abstract class HookRuntimeCore {
     protected static final long DUPLICATE_BACK_PAIR_TIMEOUT_MS = 700L;
     protected static final long DUPLICATE_BACK_UP_INTERVAL_MS = 200L;
     protected static final long INPUT_ACCEPTED_TOKEN_TIMEOUT_MS = 750L;
-    protected static final long RETURN_HOME_CANCEL_DURATION_MS = 200L;
-    protected static final long RETURN_HOME_CANCEL_FINISH_GUARD_MS = 350L;
     protected static final long RETURN_HOME_DIRECT_CANCEL_CLEANUP_GUARD_MS = 500L;
     protected static final long RETURN_HOME_NATIVE_TIMEOUT_MS = 1800L;
     protected static final int RETURN_HOME_GEOMETRY_SOURCE_ANIM_UPDATE = 1;
@@ -559,6 +574,7 @@ public abstract class HookRuntimeCore {
     protected volatile boolean miuiDrawerVisible;
     protected volatile boolean miuiLauncherEditing;
     protected volatile boolean miuiHomeEditingStatePublished;
+    protected volatile boolean miuiLauncherOpenActive;
     protected volatile boolean miuiLauncherOpenBreakAvailable;
     protected volatile long miuiLauncherOpenBreakGeneration;
     protected volatile long miuiOverviewDismissPendingUntilUptime;
@@ -567,6 +583,7 @@ public abstract class HookRuntimeCore {
     protected volatile Object miuiHomeOpenBreakController;
     protected volatile boolean miuiHomeOpenBreakCommandPending;
     protected volatile long miuiHomeOpenBreakGeneration;
+    protected volatile Object miuiHomeOpenBreakStateManager;
     protected volatile Object miuiHomeOpenBreakAnimationIdentity;
     protected volatile boolean miuiHomeOpenBreakGenerationPrepared;
     protected volatile boolean miuiHomeOpenBreakAnimationActive;
@@ -931,13 +948,14 @@ public abstract class HookRuntimeCore {
         public final int displayId;
         public final int edge;
         public final IBinder runnerSession;
+        public final boolean elementBoundaryOnly;
 
         public StandardReturnHomeCommitSignal(
                 long attempt, long arbiterGeneration,
                 int taskId, int transitionDebugId,
                 int eventId, long downTime,
                 int deviceId, int source, int displayId, int edge,
-                IBinder runnerSession) {
+                IBinder runnerSession, boolean elementBoundaryOnly) {
             this.attempt = attempt;
             this.arbiterGeneration = arbiterGeneration;
             this.taskId = taskId;
@@ -949,6 +967,7 @@ public abstract class HookRuntimeCore {
             this.displayId = displayId;
             this.edge = edge;
             this.runnerSession = runnerSession;
+            this.elementBoundaryOnly = elementBoundaryOnly;
         }
 
         public boolean matchesInput(MiuiHomeAcceptedInputToken token) {
@@ -995,10 +1014,6 @@ public abstract class HookRuntimeCore {
             this.rightSensitivity = rightSensitivity;
             this.leftTouchWidth = combineTouchWidth(leftSensitivity, leftInset);
             this.rightTouchWidth = combineTouchWidth(rightSensitivity, rightInset);
-        }
-
-        public int touchWidth(int edge) {
-            return edge == EDGE_LEFT ? leftTouchWidth : rightTouchWidth;
         }
 
         public static int combineTouchWidth(int sensitivity, int inset) {

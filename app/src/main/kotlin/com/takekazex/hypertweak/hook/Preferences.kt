@@ -37,7 +37,7 @@ object Preferences {
     const val KEY_MIUI_BACK_GESTURE_HOOK = "miui_back_gesture_hook"
     const val KEY_CROSS_TASK_WALLPAPER_BACKGROUND = "cross_task_wallpaper_background"
 
-    // AOSP back gesture, ported from MiuiBackGestureHook v0.8.1.
+    // AOSP back gesture, ported through MiuiBackGestureHook v0.8.1 + git ae2ff31.
     /** Per-app predictive-back opt-in, read in the system server. */
     const val KEY_AOSP_BACK_OPT_IN_PACKAGES = "aosp_back_opt_in_packages"
     const val KEY_AOSP_BACK_HYPEROS_INDICATOR = "aosp_back_hyperos_indicator"

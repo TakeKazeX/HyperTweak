@@ -75,18 +75,22 @@ SystemUI wins ownership and yields to Launcher everywhere else.
 ## AOSP Back Gesture
 
 The AOSP back gesture is vendored from `wxxsfxyzm/MiuiBackGestureHook`
-(Apache-2.0) at upstream commit `efa595d` (v0.8.1, 2026-07-26). Upstream's
-reference clone lives at `/Users/ink/developer/refrences/MiuiBackGestureHook`.
+(Apache-2.0) through upstream commit
+`ae2ff3184bc01d92bf434bf4044cd8c1872d1ab4` (`ae2ff31`; v0.8.1 plus five
+post-tag commits, 2026-07-31). Upstream's reference clone lives at
+`/Users/ink/developer/refrences/MiuiBackGestureHook`.
 
-Upstream's class chain is copied verbatim under
-`hook/rules/backgesture/` so future updates stay mergeable. HyperTweak-local
-changes are marked with a `HyperTweak:` comment and are confined to:
+Upstream's hook ownership chain is copied under `hook/rules/backgesture/` so
+future updates stay mergeable. `BackGestureHookRuntime` remains as a
+HyperTweak-only composition shim after upstream removed its equivalent.
+HyperTweak-local changes are marked with a `HyperTweak:` comment and are
+confined to:
 
 - `hooks/core/HookRuntimeCore.java` — the root drops `extends XposedModule`.
   Hook installation goes through a `HookRegistrar` bridged to `BaseHooker`
   (`registerHook()` replaces upstream's
-  `recordHookHandle(hook(m).setId(id).intercept(f))`, 62 call sites), `log()` is
-  redefined as a static gated on `KEY_AOSP_BACK_LOGS`, and `deoptimize()` is
+  `recordHookHandle(hook(m).setId(id).intercept(f))`), `log()` is redefined as a
+  static gated on `KEY_AOSP_BACK_LOGS`, and `deoptimize()`/`getInvoker()` are
   routed through the registrar.
 - `hooks/hotreload/HotReloadHookRuntime.java` — upstream's LSPosed lifecycle
   callbacks become `saveHotReloadState()`/`restoreHotReloadState()` plus explicit

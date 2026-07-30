@@ -120,8 +120,8 @@ fun CreditsPage(
                     )
                     ArrowPreference(
                         title = "MiuiBackGestureHook",
-                        summary = "MIUI back gesture compatibility implementation by wxxsfxyzm · Apache-2.0",
-                        onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook") }
+                        summary = "MIUI back gesture compatibility by wxxsfxyzm · v0.8.1 · git ae2ff31 · Apache-2.0",
+                        onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook/commit/ae2ff3184bc01d92bf434bf4044cd8c1872d1ab4") }
                     )
                     ArrowPreference(
                         title = "AOSP Package Installer",
