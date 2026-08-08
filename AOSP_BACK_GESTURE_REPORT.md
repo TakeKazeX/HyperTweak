@@ -1,10 +1,10 @@
 # AOSP Back Gesture — Port and Investigation Report
 
-Port of `wxxsfxyzm/MiuiBackGestureHook` v0.4.3 → v0.8.1, and the on-device
+Port of `wxxsfxyzm/MiuiBackGestureHook` v0.4.3 → v0.8.5, and the on-device
 investigation that followed.
 
-- Upstream baseline: `ae2ff3184bc01d92bf434bf4044cd8c1872d1ab4`
-  (`ae2ff31`; v0.8.1 plus five post-tag commits, 2026-07-31)
+- Upstream baseline: `a5f1ae5d76609f8323d30ce108117081369c426f`
+  (`a5f1ae5`; v0.8.5, 2026-08-09)
 - Upstream clone: `/Users/ink/developer/refrences/MiuiBackGestureHook`
 - Device: `25102RKBEC`, launcher `com.miui.home RELEASE-7.50.06.2372-06261924`
 - Launcher artifact: `reverse/MiuiHome-RELEASE-7.50.06.2372-06261924.apk`,
@@ -12,23 +12,30 @@ investigation that followed.
 
 ## 1. What the port did
 
-Upstream replaced a single 3,701-line class with a nine-class chain. The chain is
-vendored verbatim so future updates stay mergeable; all local changes carry a
+Upstream replaced a single 3,701-line class with a nine-class chain, and in v0.8.4
+further decomposed the return-home layer into a six-class hierarchy (State →
+Preview → Unified → UnifiedCommit → Lifecycle → leaf). The chain is vendored
+verbatim so future updates stay mergeable; all local changes carry a
 `HyperTweak:` comment.
 
 | File | Lines | Local changes |
 |---|---:|---:|
-| `hooks/miuihome/MiuiHomeReturnHomeRuntime.java` | 12,647 | 5 |
-| `hooks/systemui/SystemUiHookRuntime.java` | 3,968 | 2 |
-| `hooks/systemui/SystemUiInputRuntime.java` | 3,778 | 5 |
-| `hooks/miuihome/MiuiHomeHookRuntime.java` | 3,415 | 1 |
-| `hooks/core/HookRuntimeCore.java` | 1,448 | 4 |
-| `CrossTaskWallpaperRuntime.java` | 713 | HyperTweak-only |
-| `hooks/systemserver/SystemServerHookRuntime.java` | 735 | 1 |
-| `hooks/systemui/MiuiStyleBackArrowOverlay.java` | 555 | 0 |
-| `hooks/hotreload/HotReloadHookRuntime.java` | 386 | 4 |
-| `hooks/systemui/MiuiHapticFeedbackHelper.java` | 158 | 0 |
-| `AospBackGestureRuntime.java` | 70 | leaf |
+| `hooks/miuihome/MiuiHomeReturnHomeLifecycleRuntime.java` | 2,738 | 3 |
+| `hooks/miuihome/MiuiHomeReturnHomeUnifiedRuntime.java` | 3,833 | 2 |
+| `hooks/miuihome/MiuiHomeReturnHomeUnifiedCommitRuntime.java` | 3,237 | 0 |
+| `hooks/miuihome/MiuiHomeReturnHomePreviewRuntime.java` | 1,914 | 2 |
+| `hooks/miuihome/MiuiHomeReturnHomeStateRuntime.java` | 1,790 | 2 |
+| `hooks/miuihome/MiuiHomeReturnHomeRuntime.java` | 75 | 1 |
+| `hooks/systemui/SystemUiHookRuntime.java` | 5,180 | 2 |
+| `hooks/systemui/SystemUiInputRuntime.java` | 3,954 | 9 |
+| `hooks/miuihome/MiuiHomeHookRuntime.java` | 3,508 | 1 |
+| `hooks/core/HookRuntimeCore.java` | 1,617 | 10 |
+| `CrossTaskWallpaperRuntime.java` | 749 | HyperTweak-only |
+| `hooks/systemserver/SystemServerHookRuntime.java` | 1,083 | 1 |
+| `hooks/systemui/MiuiStyleBackArrowOverlay.java` | 600 | 0 |
+| `hooks/hotreload/HotReloadHookRuntime.java` | 405 | 4 |
+| `hooks/systemui/MiuiHapticFeedbackHelper.java` | 202 | 0 |
+| `AospBackGestureRuntime.java` | 115 | leaf |
 | `core/BackGestureHookRuntime.java` | 11 | 0 |
 
 Adaptation is concentrated in two files:
@@ -36,16 +43,31 @@ Adaptation is concentrated in two files:
 - **`HookRuntimeCore`** — dropped `extends XposedModule`. Hook installation goes
   through a `HookRegistrar` bridged to `BaseHooker`; `registerHook()` replaced
   upstream's `recordHookHandle(hook(m).setId(id).intercept(f))` at 62 call sites.
-  `log()` became a static, and `deoptimize()` routes through the registrar.
+  Upstream renamed `log()` to `moduleLog()` and added a `KEY_MODULE_LOGGING`
+  preference; HyperTweak keeps the `moduleLog` name but gates it on its own
+  `KEY_AOSP_BACK_LOGS` (WARN and above stay unconditional), and `deoptimize()`
+  routes through the registrar.
 - **`HotReloadHookRuntime`** — LSPosed lifecycle callbacks became
   `saveHotReloadState()` / `restoreHotReloadState()` plus explicit
   `install*Hooks(classLoader, registrar)`. Deferral throws instead of returning
   `false`. `createHotReloadHooker()` was dropped: `BaseHooker` already replaces
   handles by hook id when `onHook()` re-runs, so the table was unreachable.
 
+When v0.8.4 split the return-home controller into specialized layers, the
+HyperTweak-local driven-app-to-home machinery moved with it. The
+`drivingMiuiHomeAppToHome` thread-local and `hookMiuiHomeAppToHomeGate` live on
+`MiuiHomeReturnHomeRuntime` (leaf); the drive methods
+(`driveMiuiHomeAppToHome`, `scheduleMiuiHomeAppToHomeDrive`,
+`scheduleHandedOffSessionFinish`, `refreshMiuiHomeRunningTaskIdentity`,
+`ensureMiuiHomeStateManagerAppState`) live on `ReturnHomeLifecycleController`
+alongside the `startNativeClose` call site; the staleness bounds
+(`blocksControllerReplacement`, stale preview owner) live in
+`MiuiHomeReturnHomePreviewRuntime`; and the `startedUptime`/`handedOffToLauncher`
+session fields live in `MiuiHomeReturnHomeStateRuntime`.
+
 Verification: regenerating each vendored file from upstream with the same package
 rewrite and `registerHook` transform, then diffing, leaves only the marked
-changes and line-wrapping. `MiuiHomeReturnHomeRuntime` is otherwise identical.
+changes and line-wrapping. The return-home files are otherwise identical.
 
 ## 2. Fixed
 

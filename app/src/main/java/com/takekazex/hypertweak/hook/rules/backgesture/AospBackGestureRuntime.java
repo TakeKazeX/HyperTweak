@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.backgesture;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
 //
-// Upstream's leaf is `MiuiBackGestureHook extends BackGestureHookRuntime`, an empty class whose
+// Upstream's leaf is `MiuiBackGestureHook extends HotReloadHookRuntime`, an empty class whose
 // only job is to be the LSPosed entry point. HyperTweak is driven by BaseHooker instead, so this
 // leaf carries the process entry points, the registrar binding and the launcher-route gate.
 
@@ -42,7 +42,7 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
     public void installMiuiHomeHooks(ClassLoader classLoader, HookRegistrar registrar) {
         boolean supported = LauncherVersion.INSTANCE.isRouteSupported(classLoader);
         if (!isMiuiHomeRouteEnabled(supported)) {
-            log(Log.INFO, TAG, "Installing MiuiHome input arbitration only"
+            moduleLog(Log.INFO, TAG, "Installing MiuiHome input arbitration only"
                     + ", reason=returnHomeRouteDisabled"
                     + ", launcherMajor=" + LauncherVersion.INSTANCE.getMajor()
                     + ", launcherVersion=" + LauncherVersion.INSTANCE.getVersionName()
@@ -80,12 +80,12 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
             hookMiuiHomeRecentsTaskLaunch(taskViewClass);
             hookMiuiHomeFullscreenState(classLoader);
             hookMiuiHomeFreeformBackTouchability(classLoader);
-            log(Log.INFO, TAG, "Enabled MiuiHome input arbitration"
+            moduleLog(Log.INFO, TAG, "Enabled MiuiHome input arbitration"
                     + ", predictiveReturnHome=false"
                     + ", blocksLegacyGestureProcessor=true"
                     + ", requiresAcceptedInputToken=true");
         } catch (Throwable throwable) {
-            log(Log.ERROR, TAG, "Failed to install MiuiHome input arbitration", throwable);
+            moduleLog(Log.ERROR, TAG, "Failed to install MiuiHome input arbitration", throwable);
         }
     }
 

@@ -76,8 +76,8 @@ SystemUI wins ownership and yields to Launcher everywhere else.
 
 The AOSP back gesture is vendored from `wxxsfxyzm/MiuiBackGestureHook`
 (Apache-2.0) through upstream commit
-`ae2ff3184bc01d92bf434bf4044cd8c1872d1ab4` (`ae2ff31`; v0.8.1 plus five
-post-tag commits, 2026-07-31). Upstream's reference clone lives at
+`a5f1ae5d76609f8323d30ce108117081369c426f` (`a5f1ae5`; v0.8.5, 2026-08-09).
+Upstream's reference clone lives at
 `/Users/ink/developer/refrences/MiuiBackGestureHook`.
 
 Upstream's hook ownership chain is copied under `hook/rules/backgesture/` so
@@ -89,14 +89,28 @@ confined to:
 - `hooks/core/HookRuntimeCore.java` — the root drops `extends XposedModule`.
   Hook installation goes through a `HookRegistrar` bridged to `BaseHooker`
   (`registerHook()` replaces upstream's
-  `recordHookHandle(hook(m).setId(id).intercept(f))`), `log()` is redefined as a
-  static gated on `KEY_AOSP_BACK_LOGS`, and `deoptimize()`/`getInvoker()` are
-  routed through the registrar.
+  `recordHookHandle(hook(m).setId(id).intercept(f))`). Upstream renamed `log()`
+  to `moduleLog()` and added its own `KEY_MODULE_LOGGING` preference; HyperTweak
+  keeps the `moduleLog` name but redefines it as a static gated on
+  `KEY_AOSP_BACK_LOGS` (WARN and above stay unconditional), and
+  `deoptimize()`/`getInvoker()` are routed through the registrar.
 - `hooks/hotreload/HotReloadHookRuntime.java` — upstream's LSPosed lifecycle
   callbacks become `saveHotReloadState()`/`restoreHotReloadState()` plus explicit
   `install*Hooks(classLoader, registrar)` entry points. A deferral throws instead
   of returning `false`. `createHotReloadHooker()` is dropped because `BaseHooker`
   already replaces handles by hook id when `onHook()` re-runs.
+- `hooks/miuihome/MiuiHomeReturnHome*.java` — upstream v0.8.4 decomposed the old
+  single return-home controller into a six-class chain (State → Preview → Unified
+  → UnifiedCommit → Lifecycle → leaf). The HyperTweak-driven app-to-home
+  machinery moved with it: `hookMiuiHomeAppToHomeGate` and the
+  `drivingMiuiHomeAppToHome` thread-local live on the `MiuiHomeReturnHomeRuntime`
+  leaf; `driveMiuiHomeAppToHome`, `scheduleMiuiHomeAppToHomeDrive`,
+  `scheduleHandedOffSessionFinish`, `refreshMiuiHomeRunningTaskIdentity` and
+  `ensureMiuiHomeStateManagerAppState` live on `ReturnHomeLifecycleController`
+  next to the `startNativeClose` call site; the preview-owner staleness bounds
+  live in `MiuiHomeReturnHomePreviewRuntime`; and the
+  `startedUptime`/`handedOffToLauncher` session fields live in
+  `MiuiHomeReturnHomeStateRuntime`.
 - Preferences resolve through `Preferences` rather than upstream's own remote
   group; see the `KEY_AOSP_BACK_*` keys.
 

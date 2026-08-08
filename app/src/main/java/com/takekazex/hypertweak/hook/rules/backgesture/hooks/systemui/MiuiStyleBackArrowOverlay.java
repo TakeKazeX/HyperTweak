@@ -1,8 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
-// Vendored through upstream ae2ff31 (v0.8.1 + 5 post-tag commits). Keep structural parity
-// so future updates stay mergeable; HyperTweak-local changes are marked.
+// Vendored through upstream a5f1ae5 (v0.8.5). Keep structural parity so future updates stay
+// mergeable; HyperTweak-local changes are marked.
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -69,7 +69,6 @@ final class MiuiStyleBackArrowOverlay {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private ArrowView view;
-    private WindowManager.LayoutParams layoutParams;
     private int attachedEdge = -1;
     private boolean windowAdded;
 
@@ -187,7 +186,6 @@ final class MiuiStyleBackArrowOverlay {
         }
         ArrowView current = view;
         view = null;
-        layoutParams = null;
         attachedEdge = -1;
         boolean added = windowAdded;
         windowAdded = false;
@@ -209,26 +207,58 @@ final class MiuiStyleBackArrowOverlay {
 
     private void ensureWindow(int edge) {
         if (view != null && windowAdded && attachedEdge == edge) {
+            // prepare() is called for every ACTION_DOWN.  A cancelled gesture may
+            // still be running its 100ms retract animation, so clear the reused
+            // view before the next stream gets a chance to draw it.
+            view.resetForNewGesture(edge == EDGE_LEFT
+                    ? ArrowView.POSITION_LEFT : ArrowView.POSITION_RIGHT);
             return;
         }
         WindowManager windowManager = context.getSystemService(WindowManager.class);
         if (view == null || !windowAdded) {
             detachDanglingView(windowManager);
-            ArrowView created = new ArrowView(context, this);
-            WindowManager.LayoutParams params = buildLayoutParams(edge);
-            windowManager.addView(created, params);
-            view = created;
-            layoutParams = params;
-            windowAdded = true;
-            attachedEdge = edge;
-            logger.log(Log.INFO, "Attached HyperOS-style back indicator window"
-                    + ", edge=" + edge
-                    + ", width=" + params.width, null);
+            attachWindow(windowManager, edge);
             return;
         }
-        layoutParams.gravity = gravityForEdge(edge);
-        windowManager.updateViewLayout(view, layoutParams);
+        // Do not move a visible ViewRoot/Surface between edges. WindowManager applies
+        // that relayout asynchronously, and the old buffer can be displayed at the
+        // new location for one frame. A fresh window starts with a transparent view
+        // and therefore cannot carry the previous edge's buffer across the switch.
+        ArrowView oldView = view;
+        oldView.resetForNewGesture(edge == EDGE_LEFT
+                ? ArrowView.POSITION_LEFT : ArrowView.POSITION_RIGHT);
+        oldView.setVisibility(View.INVISIBLE);
+        try {
+            windowManager.removeViewImmediate(oldView);
+        } catch (Throwable throwable) {
+            try {
+                oldView.setVisibility(View.VISIBLE);
+            } catch (Throwable ignored) {
+            }
+            logger.log(Log.WARN,
+                    "Failed to replace HyperOS-style back indicator window",
+                    throwable);
+            throw new IllegalStateException(
+                    "Unable to remove the previous HyperOS indicator window", throwable);
+        }
+        view = null;
+        windowAdded = false;
+        attachedEdge = -1;
+        attachWindow(windowManager, edge);
+    }
+
+    private void attachWindow(WindowManager windowManager, int edge) {
+        ArrowView created = new ArrowView(context, this);
+        created.position = edge == EDGE_LEFT
+                ? ArrowView.POSITION_LEFT : ArrowView.POSITION_RIGHT;
+        WindowManager.LayoutParams params = buildLayoutParams(edge);
+        windowManager.addView(created, params);
+        view = created;
+        windowAdded = true;
         attachedEdge = edge;
+        logger.log(Log.INFO, "Attached HyperOS-style back indicator window"
+                + ", edge=" + edge
+                + ", width=" + params.width, null);
     }
 
     private void detachDanglingView(WindowManager windowManager) {
@@ -395,18 +425,33 @@ final class MiuiStyleBackArrowOverlay {
         }
 
         void onSwipeStart(float localY, int newPosition) {
-            cancelFinishAnimation();
-            position = newPosition;
+            resetForNewGesture(newPosition);
             Bitmap background = currentBackground();
             expectBackHeight = background == null ? 0.0f : background.getHeight();
             // Matches Xiaomi's no-explicit-height branch in setStartLocation().
             startY = localY - 20.0f;
+            backgroundScale = 0.0f;
+            invalidate();
+        }
+
+        /**
+         * Clears visual state at the start of every input stream, before the
+         * 20px horizontal intent threshold is reached.  This is separate from
+         * onSwipeStart() because the latter also calculates the gesture's Y
+         * origin and must remain threshold-gated.
+         */
+        void resetForNewGesture(int newPosition) {
+            if (arrowAnimator != null) {
+                arrowAnimator.cancel();
+            }
+            cancelFinishAnimation();
+            position = newPosition;
+            backgroundScale = 0.0f;
             arrowPaint.setAlpha(0);
             currentArrowAlpha = 0;
             arrowShown = false;
             iconNeedDraw = false;
             arrowLit = false;
-            backgroundScale = 0.0f;
             invalidate();
         }
 

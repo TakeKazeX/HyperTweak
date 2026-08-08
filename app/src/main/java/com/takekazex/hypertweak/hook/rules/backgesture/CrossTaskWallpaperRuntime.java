@@ -85,7 +85,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         }
         long attempt = wallpaperStartRetries.incrementAndGet();
         if (attempt > WALLPAPER_START_MAX_RETRIES) {
-            log(Log.WARN, TAG, "Gave up warming CrossTask wallpaper cache"
+            moduleLog(Log.WARN, TAG, "Gave up warming CrossTask wallpaper cache"
                     + ", attempts=" + attempt + ", reason=" + reason);
             return;
         }
@@ -163,7 +163,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 }
             }
             if (start == null) {
-                log(Log.WARN, TAG, "Cross-task runner animation-start method not found");
+                moduleLog(Log.WARN, TAG, "Cross-task runner animation-start method not found");
                 return;
             }
             start.setAccessible(true);
@@ -178,7 +178,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 // Cheap no-op once warm; rebuilds for the next gesture if a
                 // wallpaper change or memory trim dropped the cache.
                 ensureWallpaperCacheReady("crossTaskStart");
-                log(Log.INFO, TAG, "CrossTask start, generation=" + scope.generation
+                moduleLog(Log.INFO, TAG, "CrossTask start, generation=" + scope.generation
                         + ", thread=" + Thread.currentThread().getName());
                 try {
                     return chain.proceed();
@@ -196,15 +196,15 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                                 Object runner = chain.getThisObject();
                                 if (activeCrossTaskRunner == runner) activeCrossTaskRunner = null;
                                 long generation = crossTaskGeneration.incrementAndGet();
-                                log(Log.INFO, TAG, "CrossTask finish, generation=" + generation
+                                moduleLog(Log.INFO, TAG, "CrossTask finish, generation=" + generation
                                         + ", thread=" + Thread.currentThread().getName());
                                 return chain.proceed();
                             });
                 }
             }
-            log(Log.INFO, TAG, "Hooked cross-task background scope");
+            moduleLog(Log.INFO, TAG, "Hooked cross-task background scope");
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to hook cross-task background scope", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to hook cross-task background scope", throwable);
         }
     }
 
@@ -222,7 +222,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 }
             }
             if (ensureBackground == null) {
-                log(Log.WARN, TAG, "BackAnimationBackground.ensureBackground not found");
+                moduleLog(Log.WARN, TAG, "BackAnimationBackground.ensureBackground not found");
                 return;
             }
             ensureBackground.setAccessible(true);
@@ -245,14 +245,14 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                             args.size() > 5 && args.get(5) instanceof Number
                                     ? ((Number) args.get(5)).floatValue() : 0.0f);
                 } catch (Throwable throwable) {
-                    log(Log.WARN, TAG, "Failed to install cross-task wallpaper background",
+                    moduleLog(Log.WARN, TAG, "Failed to install cross-task wallpaper background",
                             throwable);
                 }
                 return result;
             });
-            log(Log.INFO, TAG, "Hooked BackAnimationBackground.ensureBackground");
+            moduleLog(Log.INFO, TAG, "Hooked BackAnimationBackground.ensureBackground");
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to hook BackAnimationBackground", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to hook BackAnimationBackground", throwable);
         }
     }
 
@@ -290,12 +290,12 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         WallpaperCache cache = wallpaperCache;
         if (scope.handler == null || cache == null
                 || cache.generation != wallpaperGeneration.get()) {
-            log(Log.INFO, TAG, "CrossTask wallpaper cache miss, generation=" + scope.generation);
+            moduleLog(Log.INFO, TAG, "CrossTask wallpaper cache miss, generation=" + scope.generation);
             return;
         }
         if (bounds != null && !bounds.isEmpty()
                 && (bounds.width() != cache.displayWidth || bounds.height() != cache.displayHeight)) {
-            log(Log.INFO, TAG, "CrossTask wallpaper cache miss, reason=displaySizeMismatch"
+            moduleLog(Log.INFO, TAG, "CrossTask wallpaper cache miss, reason=displaySizeMismatch"
                     + ", cached=" + cache.displayWidth + "x" + cache.displayHeight
                     + ", requested=" + bounds.width() + "x" + bounds.height());
             return;
@@ -313,7 +313,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
             Object handler = readField(backAnimationRunner, "mHandler");
             if (handler instanceof Handler) return (Handler) handler;
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Unable to resolve CrossTask animation Handler", throwable);
+            moduleLog(Log.WARN, TAG, "Unable to resolve CrossTask animation Handler", throwable);
         }
         return null;
     }
@@ -367,13 +367,13 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
             writeField(background, "mBackgroundSurface", candidate);
             writeField(background, "mBackgroundIsDark", Boolean.valueOf(cache.dark));
             pendingWallpaperSurfaces.remove(candidate);
-            log(Log.INFO, TAG, "CrossTask wallpaper installed, generation=" + scope.generation
+            moduleLog(Log.INFO, TAG, "CrossTask wallpaper installed, generation=" + scope.generation
                     + ", buffer=" + cache.bitmap.getWidth() + "x" + cache.bitmap.getHeight()
                     + ", thread=" + Thread.currentThread().getName()
                     + ", elapsedMs=" + (SystemClock.uptimeMillis() - scope.startedUptime));
         } catch (Throwable throwable) {
             if (candidate != null) removeCandidateSurface(candidate);
-            log(Log.WARN, TAG, "Failed to install cached CrossTask wallpaper", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to install cached CrossTask wallpaper", throwable);
         } finally {
             cache.release();
         }
@@ -397,7 +397,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
     }
 
     protected void logWallpaperInstallAbandoned(CrossTaskScope scope, String reason) {
-        log(Log.INFO, TAG, "CrossTask wallpaper install abandoned, reason=" + reason
+        moduleLog(Log.INFO, TAG, "CrossTask wallpaper install abandoned, reason=" + reason
                 + ", generation=" + scope.generation + ", thread="
                 + Thread.currentThread().getName());
     }
@@ -410,7 +410,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 transaction.apply();
             }
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to remove wallpaper candidate", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to remove wallpaper candidate", throwable);
         }
     }
 
@@ -505,7 +505,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
             }
             return true;
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to start CrossTask wallpaper cache", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to start CrossTask wallpaper cache", throwable);
             shutdownWallpaperCache("startFailed");
             return false;
         }
@@ -522,14 +522,14 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         if (old != null) old.retire();
         ExecutorService executor = wallpaperExecutor;
         Context context = wallpaperContext;
-        log(Log.INFO, TAG, "CrossTask wallpaper cache invalidated, reason=" + reason
+        moduleLog(Log.INFO, TAG, "CrossTask wallpaper cache invalidated, reason=" + reason
                 + ", generation=" + generation);
         if (executor != null && context != null && !executor.isShutdown()) {
             try {
                 executor.execute(() -> prewarmWallpaperCache(context, generation));
             } catch (Throwable throwable) {
                 wallpaperPrewarmGeneration.compareAndSet(generation, 0L);
-                log(Log.WARN, TAG, "Failed to schedule wallpaper prewarm", throwable);
+                moduleLog(Log.WARN, TAG, "Failed to schedule wallpaper prewarm", throwable);
             }
         }
     }
@@ -561,13 +561,13 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                     rotation, wallpaperId, generation, dark);
             if (generation != wallpaperGeneration.get()) {
                 prepared.retire();
-                log(Log.INFO, TAG, "Discarded stale wallpaper prewarm, generation=" + generation);
+                moduleLog(Log.INFO, TAG, "Discarded stale wallpaper prewarm, generation=" + generation);
                 return;
             }
             synchronized (wallpaperCacheLock) {
                 if (generation != wallpaperGeneration.get()) {
                     prepared.retire();
-                    log(Log.INFO, TAG, "Discarded wallpaper prewarm during publish"
+                    moduleLog(Log.INFO, TAG, "Discarded wallpaper prewarm during publish"
                             + ", generation=" + generation);
                     return;
                 }
@@ -576,12 +576,12 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
                 if (previous != null) previous.retire();
             }
             bitmap = null;
-            log(Log.INFO, TAG, "CrossTask wallpaper cache ready, generation=" + generation
+            moduleLog(Log.INFO, TAG, "CrossTask wallpaper cache ready, generation=" + generation
                     + ", wallpaperId=" + wallpaperId + ", display=" + displayWidth + "x"
                     + displayHeight + ", rotation=" + rotation + ", buffer=" + width + "x"
                     + height + ", elapsedMs=" + (SystemClock.uptimeMillis() - started));
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "CrossTask wallpaper prewarm failed, generation=" + generation
+            moduleLog(Log.WARN, TAG, "CrossTask wallpaper prewarm failed, generation=" + generation
                     + ", elapsedMs=" + (SystemClock.uptimeMillis() - started), throwable);
         } finally {
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
@@ -624,7 +624,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
         }
         crossTaskGeneration.incrementAndGet();
         activeCrossTaskRunner = null;
-        log(Log.INFO, TAG, "Stopped CrossTask wallpaper cache, reason=" + reason);
+        moduleLog(Log.INFO, TAG, "Stopped CrossTask wallpaper cache, reason=" + reason);
     }
 
     protected SurfaceControl createWallpaperBackgroundSurface(Object background, int width,
@@ -652,7 +652,7 @@ public abstract class CrossTaskWallpaperRuntime extends BackGestureHookRuntime {
             }
             return true;
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to draw cached wallpaper buffer", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to draw cached wallpaper buffer", throwable);
             return false;
         } finally {
             surface.release();

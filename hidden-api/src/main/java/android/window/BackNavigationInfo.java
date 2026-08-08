@@ -6,6 +6,7 @@ public final class BackNavigationInfo {
     }
 
     public int getType() { throw new RuntimeException("Stub"); }
+    public int getFocusedTaskId() { throw new RuntimeException("Stub"); }
     public IOnBackInvokedCallback getOnBackInvokedCallback() {
         throw new RuntimeException("Stub");
     }

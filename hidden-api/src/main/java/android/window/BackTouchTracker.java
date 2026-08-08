@@ -8,6 +8,7 @@ public final class BackTouchTracker {
     }
 
     public void update(float touchX, float touchY) { throw new RuntimeException("Stub"); }
+    public boolean getTriggerBack() { throw new RuntimeException("Stub"); }
     public void setState(TouchTrackerState state) { throw new RuntimeException("Stub"); }
     public boolean isInInitialState() { throw new RuntimeException("Stub"); }
     public void reset() { throw new RuntimeException("Stub"); }

@@ -1,16 +1,18 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
-// Vendored through upstream ae2ff31 (v0.8.1 + 5 post-tag commits). Keep structural parity
-// so future updates stay mergeable; HyperTweak-local changes are marked.
+// Vendored through upstream a5f1ae5 (v0.8.5). Keep structural parity so future updates stay
+// mergeable; HyperTweak-local changes are marked.
 
 import android.content.Context;
+import android.os.SystemProperties;
 import android.os.SystemClock;
 import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Reproduces MiuiHome's two-stage back gesture haptics inside SystemUI through the
@@ -24,9 +26,9 @@ import java.util.concurrent.Executors;
  *   <li>hand-up (committed release): ext effect 163 / 0, skipped on linear devices
  *       within 140ms of ready-back.</li>
  * </ul>
- * Support requires {@code isSupportExtHapticFeedback(162) && (163)} exactly like
- * Xiaomi's {@code isSupportEffectGestureBackLinear()}; anything else reports
- * unsupported so callers keep the native AOSP panel haptics.
+ * The optional two-stage mode requires {@code isSupportExtHapticFeedback(162) && (163)}
+ * exactly like Xiaomi's {@code isSupportEffectGestureBackLinear()}; the single AOSP
+ * replacement checks only its actual default effect (162 or V2 effect 0).
  */
 final class MiuiHapticFeedbackHelper {
 
@@ -45,6 +47,7 @@ final class MiuiHapticFeedbackHelper {
     private final Executor executor = Executors.newSingleThreadExecutor();
     private final Object hapticFeedbackUtil;
     private final Method performExtHapticFeedback;
+    private final boolean defaultBackSupported;
     private final boolean supported;
     private final boolean hapticV2;
     private volatile boolean enhancedMode;
@@ -54,9 +57,13 @@ final class MiuiHapticFeedbackHelper {
         this.logger = logger;
         Object util = null;
         Method perform = null;
+        boolean resolvedDefaultSupported = false;
         boolean resolvedSupported = false;
         boolean resolvedV2 = false;
         try {
+            String version = SystemProperties.get("sys.haptic.version", "1.0");
+            resolvedV2 = "2.0".equals(version);
+
             Class<?> utilClass = Class.forName("miui.util.HapticFeedbackUtil");
             boolean linearMotor = Boolean.TRUE.equals(utilClass
                     .getMethod("isSupportLinearMotorVibrate").invoke(null));
@@ -66,35 +73,45 @@ final class MiuiHapticFeedbackHelper {
                 Method support = utilClass.getMethod(
                         "isSupportExtHapticFeedback", int.class);
                 perform = utilClass.getMethod("performExtHapticFeedback", int.class);
-                resolvedSupported = Boolean.TRUE.equals(support.invoke(util,
-                        Integer.valueOf(EFFECT_GESTURE_READY_BACK_LINEAR)))
+                resolvedDefaultSupported = Boolean.TRUE.equals(support.invoke(util,
+                        Integer.valueOf(resolvedV2
+                                ? EFFECT_GESTURE_BACK_V2
+                                : EFFECT_GESTURE_READY_BACK_LINEAR)));
+                resolvedSupported = resolvedDefaultSupported
                         && Boolean.TRUE.equals(support.invoke(util,
                         Integer.valueOf(EFFECT_GESTURE_BACK_HAND_UP_LINEAR)));
             }
-            Class<?> systemProperties = Class.forName("android.os.SystemProperties");
-            Object version = systemProperties
-                    .getMethod("get", String.class, String.class)
-                    .invoke(null, "sys.haptic.version", "1.0");
-            resolvedV2 = "2.0".equals(version);
         } catch (Throwable throwable) {
             logger.log(Log.WARN, "MIUI haptic feedback unavailable"
                     + ", policy=keepNativePanelHaptics", throwable);
             util = null;
             perform = null;
+            resolvedDefaultSupported = false;
             resolvedSupported = false;
         }
         this.hapticFeedbackUtil = util;
         this.performExtHapticFeedback = perform;
+        this.defaultBackSupported = resolvedDefaultSupported
+                && util != null && perform != null;
         this.supported = resolvedSupported && util != null && perform != null;
         this.hapticV2 = resolvedV2;
         if (this.supported) {
             logger.log(Log.INFO, "MIUI two-stage back haptics ready"
+                    + ", hapticV2=" + resolvedV2, null);
+        } else if (this.defaultBackSupported) {
+            logger.log(Log.INFO, "MIUI default AOSP replacement haptic ready"
+                    + ", effect=" + (resolvedV2
+                    ? EFFECT_GESTURE_BACK_V2 : EFFECT_GESTURE_READY_BACK_LINEAR)
                     + ", hapticV2=" + resolvedV2, null);
         }
     }
 
     boolean isSupported() {
         return supported;
+    }
+
+    boolean isDefaultBackSupported() {
+        return defaultBackSupported;
     }
 
     boolean isHapticV2() {
@@ -112,6 +129,33 @@ final class MiuiHapticFeedbackHelper {
 
     boolean isEnhancedMode() {
         return enhancedMode;
+    }
+
+    /** Plays only HyperOS's default back effect, without its second hand-up stage. */
+    boolean performDefaultBack() {
+        if (!defaultBackSupported) {
+            return false;
+        }
+        int effectId = hapticV2 ? EFFECT_GESTURE_BACK_V2
+                : EFFECT_GESTURE_READY_BACK_LINEAR;
+        try {
+            // The original View feedback call is synchronous. Keep this single replacement
+            // synchronous as well so the threshold does not acquire an executor delay and a
+            // runtime failure can still fall back to the native AOSP effect.
+            performExtHapticFeedback.invoke(hapticFeedbackUtil,
+                    Integer.valueOf(effectId));
+            return true;
+        } catch (Throwable throwable) {
+            logger.log(Log.WARN, "Failed to play MIUI default AOSP replacement effect "
+                    + effectId, throwable);
+            return false;
+        }
+    }
+
+    void close() {
+        if (executor instanceof ExecutorService) {
+            ((ExecutorService) executor).shutdownNow();
+        }
     }
 
     /** Arrow fade-in completed; mirrors performGestureReadyBack(). */

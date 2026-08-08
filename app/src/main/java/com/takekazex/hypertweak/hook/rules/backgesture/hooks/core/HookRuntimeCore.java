@@ -1,8 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.core;
 
 // Adapted for HyperTweak from wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
-// Vendored through upstream ae2ff31 (v0.8.1 + 5 post-tag commits). Keep structural parity
-// so future updates stay mergeable; HyperTweak-local changes are marked.
+// Vendored through upstream a5f1ae5 (v0.8.5). Keep structural parity so future updates stay
+// mergeable; HyperTweak-local changes are marked.
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -17,10 +17,15 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
+import android.view.IRemoteAnimationFinishedCallback;
+import android.view.IRemoteAnimationRunner;
 import android.view.MotionEvent;
 import android.view.SurfaceControl;
 import android.view.View;
 import android.window.BackNavigationInfo;
+import android.window.IOnBackInvokedCallback;
+import android.window.TransitionInfo;
+import android.window.WindowOnBackInvokedDispatcher;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
@@ -36,7 +41,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.takekazex.hypertweak.hook.Preferences;
-
 import io.github.libxposed.api.XposedInterface;
 
 // HyperTweak: upstream extends XposedModule and owns the LSPosed lifecycle directly. Here the
@@ -110,16 +114,17 @@ public abstract class HookRuntimeCore {
     }
 
     /**
-     * Upstream inherits {@code log()} from XposedInterfaceWrapper. HyperTweak keeps the same
-     * call shape but gates it on the module's own AOSP back-gesture log switch, which is off
-     * by default so a shipped build stays quiet.
+     * Upstream calls {@code moduleLog()} on the inherited XposedModule, gated on its own
+     * {@code KEY_MODULE_LOGGING} preference. HyperTweak keeps the same call shape but gates it
+     * on the module's own AOSP back-gesture log switch, which is off by default so a shipped
+     * build stays quiet.
      */
-    protected static void log(int priority, String tag, String message) {
+    protected static void moduleLog(int priority, String tag, String message) {
         if (!isBackGestureLogPriorityEnabled(priority)) return;
         Log.println(priority, tag, message);
     }
 
-    protected static void log(int priority, String tag, String message, Throwable throwable) {
+    protected static void moduleLog(int priority, String tag, String message, Throwable throwable) {
         if (!isBackGestureLogPriorityEnabled(priority)) return;
         Log.println(priority, tag, message + "\n" + Log.getStackTraceString(throwable));
     }
@@ -180,12 +185,11 @@ public abstract class HookRuntimeCore {
             String... parameterTypeNames) throws NoSuchMethodException;
 
     protected static final String TAG = "MiuiBackGestureHook";
-    protected static final String BUILD_MARK =
-            "systemui-aosp-back-0.7.2-r96-taskfragment-role";
+    protected static final String BUILD_MARK = "aosp-back-0.8.5";
     protected static final String SYSTEM_UI = "com.android.systemui";
     protected static final String MIUI_HOME = "com.miui.home";
     protected static final String WINDOW_ON_BACK_INVOKED_DISPATCHER =
-            "android.window.WindowOnBackInvokedDispatcher";
+            WindowOnBackInvokedDispatcher.class.getName();
     protected static final int APPLICATION_PREDICTIVE_BACK_ENABLE_FLAG = 0x8;
     protected static final int ACTIVITY_PREDICTIVE_BACK_ENABLE_FLAG = 0x4;
     protected static final int ACTIVITY_PREDICTIVE_BACK_DISABLE_FLAG = 0x8;
@@ -195,6 +199,10 @@ public abstract class HookRuntimeCore {
 
     protected static final String EDGE_BACK_GESTURE_HANDLER =
             "com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler";
+    protected static final String VIBRATOR_HELPER =
+            "com.android.systemui.statusbar.VibratorHelper";
+    protected static final String BACK_PANEL_VIEW =
+            "com.android.systemui.navigationbar.gestural.BackPanel";
     protected static final String MIUI_OVERVIEW_PROXY =
             "com.android.systemui.recents.MiuiOverviewProxy";
     protected static final String MIUI_HOME_GESTURE_STUB =
@@ -492,11 +500,11 @@ public abstract class HookRuntimeCore {
     protected static final String SHELL_BACK_ANIMATION_DESCRIPTOR =
             "com.android.wm.shell.back.IBackAnimation";
     protected static final String ON_BACK_INVOKED_CALLBACK_DESCRIPTOR =
-            "android.window.IOnBackInvokedCallback";
+            IOnBackInvokedCallback.class.getName();
     protected static final String REMOTE_ANIMATION_RUNNER_DESCRIPTOR =
-            "android.view.IRemoteAnimationRunner";
+            IRemoteAnimationRunner.class.getName();
     protected static final String REMOTE_ANIMATION_FINISHED_DESCRIPTOR =
-            "android.view.IRemoteAnimationFinishedCallback";
+            IRemoteAnimationFinishedCallback.class.getName();
     protected static final int SHELL_BACK_SET_LAUNCHER_CALLBACK_TRANSACTION = 1;
     protected static final int SHELL_BACK_CLEAR_LAUNCHER_CALLBACK_TRANSACTION = 2;
     protected static final int RETURN_HOME_TERMINAL_NONE = 0;
@@ -608,7 +616,6 @@ public abstract class HookRuntimeCore {
     protected volatile Field defaultTransitionAnimationsField;
     protected volatile Field defaultTransitionAnimationSizeField;
     protected volatile Field defaultTransitionAnimExecutorField;
-    protected volatile Method transitionInfoGetTypeMethod;
     protected volatile Method animatorCanReverseMethod;
     protected LegacyBackAttempt legacyBackAttempt;
     protected int legacyBackGuardPhase = BACK_GUARD_IDLE;
@@ -1166,17 +1173,17 @@ public abstract class HookRuntimeCore {
                 method.setAccessible(true);
                 Object result = method.invoke(null);
                 if (result instanceof Boolean) {
-                    log(Log.INFO, TAG, "Read " + methodName + " from "
+                    moduleLog(Log.INFO, TAG, "Read " + methodName + " from "
                             + className + ": " + result);
                     return ((Boolean) result).booleanValue();
                 }
             } catch (Throwable throwable) {
-                log(Log.WARN, TAG, "Flag lookup failed for " + className
+                moduleLog(Log.WARN, TAG, "Flag lookup failed for " + className
                         + ": " + throwable.getClass().getSimpleName()
                         + ": " + throwable.getMessage());
             }
         }
-        log(Log.WARN, TAG, "Unable to read " + methodName
+        moduleLog(Log.WARN, TAG, "Unable to read " + methodName
                 + "; defaulting to " + defaultValue);
         return defaultValue;
     }
@@ -1210,7 +1217,7 @@ public abstract class HookRuntimeCore {
             return;
         }
         nativePluginDiagnosticsLogged = true;
-        log(Log.WARN, TAG, "Native BackPanelController plugin unavailable"
+        moduleLog(Log.WARN, TAG, "Native BackPanelController plugin unavailable"
                 + ", handler=" + shortObject(edgeBackGestureHandler));
     }
 
@@ -1231,10 +1238,10 @@ public abstract class HookRuntimeCore {
                     crossTask, "crossTask");
             if (changed) {
                 invokeAnyMethod(registry, "updateSupportedAnimators", new Object[0]);
-                log(Log.INFO, TAG, "Restored AOSP registry definitions from " + source);
+                moduleLog(Log.INFO, TAG, "Restored AOSP registry definitions from " + source);
             }
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to restore AOSP registry definitions from " + source,
+            moduleLog(Log.WARN, TAG, "Failed to restore AOSP registry definitions from " + source,
                     throwable);
         }
     }
@@ -1253,11 +1260,11 @@ public abstract class HookRuntimeCore {
             }
             invokeAnyMethod(definitions, "set",
                     new Object[]{Integer.valueOf(type), runner});
-            log(Log.INFO, TAG, "Added " + label + " runner to registry, type=" + type
+            moduleLog(Log.INFO, TAG, "Added " + label + " runner to registry, type=" + type
                     + ", runner=" + shortObject(runner));
             return true;
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to add " + label + " runner, type=" + type,
+            moduleLog(Log.WARN, TAG, "Failed to add " + label + " runner, type=" + type,
                     throwable);
             return false;
         }
@@ -1400,7 +1407,7 @@ public abstract class HookRuntimeCore {
 
     protected void logBackNavigationInfo(Object info) {
         if (info == null) {
-            log(Log.INFO, TAG, "BackNavigationInfo=null");
+            moduleLog(Log.INFO, TAG, "BackNavigationInfo=null");
             return;
         }
         try {
@@ -1408,11 +1415,11 @@ public abstract class HookRuntimeCore {
             int type = navigationInfo.getType();
             boolean prepare = navigationInfo.isPrepareRemoteAnimation();
             Object callback = navigationInfo.getOnBackInvokedCallback();
-            log(Log.INFO, TAG, "BackNavigationInfo detail: type=" + type
+            moduleLog(Log.INFO, TAG, "BackNavigationInfo detail: type=" + type
                     + ", prepareRemoteAnimation=" + prepare
                     + ", callback=" + shortObject(callback));
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to inspect BackNavigationInfo", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to inspect BackNavigationInfo", throwable);
         }
     }
 
@@ -1424,12 +1431,111 @@ public abstract class HookRuntimeCore {
             BackNavigationInfo navigationInfo = (BackNavigationInfo) info;
             if (navigationInfo.getType() == TYPE_CALLBACK) {
                 navigationInfo.disableAppProgressGenerationAllowed();
-                log(Log.INFO, TAG,
+                moduleLog(Log.INFO, TAG,
                         "Disabled app-generated progress for TYPE_CALLBACK; SystemUI will dispatch progress");
             }
         } catch (Throwable throwable) {
-            log(Log.WARN, TAG, "Failed to force SystemUI callback progress", throwable);
+            moduleLog(Log.WARN, TAG, "Failed to force SystemUI callback progress", throwable);
         }
+    }
+
+    /**
+     * Reads the framework back target without routing a boot-classpath call through reflection.
+     * A non-framework object is deliberately treated as unavailable so wrapper/compatibility
+     * objects still fail closed at their existing callers.
+     */
+    protected Integer readBackNavigationType(Object navigation) {
+        return navigation instanceof BackNavigationInfo
+                ? ((BackNavigationInfo) navigation).getType() : null;
+    }
+
+    /**
+     * Reads a real framework TransitionInfo directly. Xiaomi's expose/wrapper objects are not
+     * accepted here and continue through their own reflective compatibility paths.
+     */
+    protected Integer readTransitionInfoType(Object info) {
+        return info instanceof TransitionInfo ? ((TransitionInfo) info).getType() : null;
+    }
+
+    protected List<?> readTransitionInfoChanges(Object info) {
+        return info instanceof TransitionInfo ? ((TransitionInfo) info).getChanges() : null;
+    }
+
+    protected Integer readTransitionInfoRootCount(Object info) {
+        return info instanceof TransitionInfo ? ((TransitionInfo) info).getRootCount() : null;
+    }
+
+    protected Object readTransitionInfoRoot(Object info, int index) {
+        return info instanceof TransitionInfo
+                ? ((TransitionInfo) info).getRoot(index) : null;
+    }
+
+    protected Object readTransitionRootLeash(Object root) {
+        return root instanceof TransitionInfo.Root
+                ? ((TransitionInfo.Root) root).getLeash() : null;
+    }
+
+    protected Object readTransitionRootOffset(Object root) {
+        return root instanceof TransitionInfo.Root
+                ? ((TransitionInfo.Root) root).getOffset() : null;
+    }
+
+    protected Integer readTransitionChangeMode(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getMode() : null;
+    }
+
+    protected Integer readTransitionChangeFlags(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getFlags() : null;
+    }
+
+    protected Boolean hasTransitionChangeFlags(Object change, int flags) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).hasFlags(flags) : null;
+    }
+
+    protected Object readTransitionChangeTaskInfo(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getTaskInfo() : null;
+    }
+
+    protected Object readTransitionChangeActivityComponent(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getActivityComponent() : null;
+    }
+
+    protected Object readTransitionChangeLeash(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getLeash() : null;
+    }
+
+    protected Object readTransitionChangeStartAbsBounds(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getStartAbsBounds() : null;
+    }
+
+    protected Object readTransitionChangeEndAbsBounds(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getEndAbsBounds() : null;
+    }
+
+    protected Integer readTransitionChangeStartDisplayId(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getStartDisplayId() : null;
+    }
+
+    protected Integer readTransitionChangeEndDisplayId(Object change) {
+        return change instanceof TransitionInfo.Change
+                ? ((TransitionInfo.Change) change).getEndDisplayId() : null;
+    }
+
+    protected boolean setTransitionChangeMode(Object change, int mode) {
+        if (!(change instanceof TransitionInfo.Change)) {
+            return false;
+        }
+        ((TransitionInfo.Change) change).setMode(mode);
+        return true;
     }
 
     protected Object invokeMethod(Object target, String methodName,
