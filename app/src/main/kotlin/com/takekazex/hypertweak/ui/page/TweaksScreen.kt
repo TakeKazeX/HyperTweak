@@ -317,13 +317,13 @@ fun TweaksScreenContent(
                         checked = disableSpatialAudio,
                         onCheckedChange = onDisableSpatialAudioChange,
                         title = "Block Spatial Audio",
-                        summary = "Prevent spatial audio from being enabled on Bluetooth earbuds"
+                        summary = "AirPods only, including AirPods Max. Prevent spatial audio from being enabled. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing."
                     )
                     SwitchPreference(
                         checked = forceAdaptiveAnc,
                         onCheckedChange = onForceAdaptiveAncChange,
                         title = "Force Adaptive ANC",
-                        summary = "Replace Off mode with Adaptive noise cancellation"
+                        summary = "AirPods only, including AirPods Max. Replace Off mode with Adaptive noise cancellation. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing."
                     )
                 }
             }

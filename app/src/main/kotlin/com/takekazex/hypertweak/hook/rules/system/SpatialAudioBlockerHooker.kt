@@ -31,9 +31,9 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             it.parameterTypes[1] == String::class.java && it.parameterTypes[2] == String::class.java
         }?.forEach { method -> method.hook {
             before { param -> runCatching {
-                // This class is the AirPods-only transport boundary, but still require the
-                // device argument so a malformed/common call cannot change shared state.
-                if (!AirPodsScope.hasBluetoothDevice(*param.args)) return@runCatching
+                // The transport class is AirPods-oriented, but its device argument is still the
+                // authority: do not rewrite a common/non-AirPods call just because it has a device.
+                if (!isAirPodsCall(param.thisObject, param.args)) return@runCatching
                 normalizeValue(param.args, 1, 2)
             }.onFailure { Log.e(TAG, "AirCore command conversion failed", it) } }
         } }
@@ -45,14 +45,14 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             ?.filter { it.parameterTypes.any { parameter -> parameter == android.bluetooth.BluetoothDevice::class.java } }
             ?.forEach { method -> method.hook {
                 before { param -> runCatching {
-                    if (!AirPodsScope.hasBluetoothDevice(*param.args)) return@runCatching
+                    if (!isAirPodsCall(param.thisObject, param.args)) return@runCatching
                     findKeyValueIndexes(param.args)?.let { (keyIndex, valueIndex) ->
                         normalizeValue(param.args, keyIndex, valueIndex)
                     }
                 } }
                 after { param -> runCatching {
-                    if (!AirPodsScope.hasBluetoothDevice(*param.args)) return@runCatching
-                    param.result = normalizeResult(param.result, keyFrom(param.args))
+                    if (!isAirPodsCall(param.thisObject, param.args)) return@runCatching
+                    param.result = normalizeResult(param.result, keyFrom(param.args), *param.args)
                 } }
             } }
 
@@ -61,11 +61,11 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             ?: resolveClass("p169q0.C6614a", "airpodsRepository", "send_command"))?.declaredMethods?.filter { it.parameterTypes.any { p -> p == Bundle::class.java } }
             ?.forEach { method -> method.hook { before { param -> runCatching {
                 val bundle = param.args.lastOrNull { it is Bundle } as? Bundle ?: return@runCatching
-                normalizeBundle(bundle)
+                normalizeBundle(bundle, *param.args)
             } }
             after { param -> runCatching {
                 val bundle = param.result as? Bundle ?: return@runCatching
-                normalizeBundle(bundle)
+                normalizeBundle(bundle, *param.args)
             } } } }
     }
 
@@ -249,8 +249,8 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     private fun keyFrom(args: Array<Any?>): String? =
         args.firstOrNull { it is String }?.toString()
 
-    private fun normalizeResult(result: Any?, key: String?): Any? = when (result) {
-        is Bundle -> result.also(::normalizeBundle)
+    private fun normalizeResult(result: Any?, key: String?, vararg scopeRoots: Any?): Any? = when (result) {
+        is Bundle -> result.also { normalizeBundle(it, *scopeRoots) }
         is String -> when {
             key == "air_anc" -> AirPodsScope.ancValue(
                 result,
@@ -267,8 +267,8 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         else -> result
     }
 
-    private fun normalizeBundle(bundle: Bundle) {
-        if (!AirPodsScope.hasBluetoothDevice(bundle)) return
+    private fun normalizeBundle(bundle: Bundle, vararg scopeRoots: Any?) {
+        if (!isAirPodsCall(null, arrayOf(bundle, *scopeRoots))) return
         val key = bundle.getString("extra_key") ?: return
         val original = bundle.getString("extra_value") ?: return
         val replacement = when {

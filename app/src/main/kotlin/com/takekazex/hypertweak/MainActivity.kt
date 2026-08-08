@@ -67,7 +67,8 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_DISABLE_SPATIAL_AUDIO to RestartScopeSelection(
         settings = true,
-        milink = true
+        milink = true,
+        bluetooth = true
     ),
     Preferences.KEY_FORCE_ADAPTIVE_ANC to RestartScopeSelection(
         settings = true,
