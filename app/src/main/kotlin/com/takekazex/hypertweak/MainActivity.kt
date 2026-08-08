@@ -69,7 +69,11 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         settings = true,
         milink = true
     ),
-    Preferences.KEY_FORCE_ADAPTIVE_ANC to RestartScopeSelection(bluetooth = true),
+    Preferences.KEY_FORCE_ADAPTIVE_ANC to RestartScopeSelection(
+        settings = true,
+        milink = true,
+        bluetooth = true
+    ),
     Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true)
 )
 

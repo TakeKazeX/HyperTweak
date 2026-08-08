@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.settings
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
@@ -50,6 +51,7 @@ object BluetoothPluginHooker : StaticHooker() {
                         key.contains("head_tracking", ignoreCase = true)
 
                     if (!isSpatial) return@before
+                    if (!AirPodsScope.isAirPodsPreferenceScope(pref, *param.args)) return@before
 
                     val newValue = param.args[0]
                     if (newValue == true && disableSpatialEnabled()) {
@@ -79,14 +81,15 @@ object BluetoothPluginHooker : StaticHooker() {
                     val title = invokeString(child, "getTitle")
                     val summary = invokeString(child, "getSummary")
                     val parentKey = invokeString(param.thisObject, "getKey")
+                    val airPodsScope = AirPodsScope.isAirPodsPreferenceScope(child, param.thisObject, *param.args)
                     if (isSpatial(key, title, summary)) {
-                        if (disableSpatialEnabled()) {
+                        if (airPodsScope && disableSpatialEnabled()) {
                             invokeBoolean(param.thisObject, "removePreference", child)
                             Log.d(TAG, "BluetoothPluginHooker: removed spatial preference key=$key title=$title")
                         }
                     } else if (isAnc(key, parentKey, title, summary) &&
                         (title == "关闭" || title?.contains("关闭") == true)) {
-                        if (forceAdaptiveEnabled()) invokeTitle(child, "自适应")
+                        if (airPodsScope && forceAdaptiveEnabled()) invokeTitle(child, "自适应")
                     }
                 }.onFailure { t -> Log.e(TAG, "PreferenceGroup hook failed", t) } }
             }

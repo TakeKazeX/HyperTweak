@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
 
 class SpatialAudioHooker(
     private val pluginContext: android.content.Context? = null,
@@ -83,7 +84,9 @@ class SpatialAudioHooker(
             onPrefChange.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onPreferenceChange", Unit) {
-                        if (disableSpatialEnabled() && param.args[1] == true) {
+                        if (disableSpatialEnabled() && param.args[1] == true &&
+                            AirPodsScope.isAirPodsPreferenceScope(param.thisObject, *param.args)
+                        ) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable")
                             param.result = false
                         }
@@ -105,7 +108,9 @@ class SpatialAudioHooker(
             onCheckedChanged.hook {
                 before { param ->
                     HookFailurePolicy.open("SpatialAudio", "onCheckedChanged", Unit) {
-                        if (disableSpatialEnabled() && param.args[1] == true) {
+                        if (disableSpatialEnabled() && param.args[1] == true &&
+                            AirPodsScope.isAirPodsPreferenceScope(param.thisObject, *param.args)
+                        ) {
                             Log.d("HyperTweak", "SpatialAudioHooker: Blocking spatial audio enable via onCheckedChanged")
                             param.result = null
                         }
