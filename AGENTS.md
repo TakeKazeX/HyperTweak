@@ -65,6 +65,12 @@ constraints in [`CLAUDE.md`](CLAUDE.md) as the project reference.
   screenshots during development or verification unless the user explicitly
   requests it. Leave visual inspection to the user and rely on logs, state
   queries, and functional checks instead.
+- Do not drive the device yourself for functional testing: no `uiautomator`
+  dumps, `input` swipes/keyevents, or other automated UI actions. The user
+  performs on-device functional testing. Verification done by the agent is
+  limited to build output, unit tests, lint, and log inspection (logcat,
+  LSPosed logs, module log files); record what was verified and what is left
+  to the user in [`CLAUDE.md`](CLAUDE.md).
 
 ## Git
 

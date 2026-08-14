@@ -484,6 +484,53 @@ and every broadcast — restart and proxy launch alike — was dropped in silenc
 `RestartUtils` correspondingly sends with no receiver permission: that argument
 demands the *receiver* hold it, and the hooked system apps never will.
 
+## Slider Percentage
+
+The control-center percentage display is a plugin hook. SystemUI itself only
+shows the topText percentage on the volume slider while super volume is active
+(volume at/above max) and never on the brightness slider; the module attaches a
+`SliderPercentageHooker` to the loaded `miui.systemui.plugin` classloader and
+rewrites `ToggleSliderItemViewBinding.topText` (via
+`ToggleSliderViewHolder.getTopText()`/`setTopTextVisible`) from
+`BrightnessSliderController`/`VolumeSliderController` bind, progress and volume
+sync events. The volume-dialog half hooks `com.android.systemui.miui.volume.*`
+(`VolumeColumn`, `VolumePanelViewController`, `MiuiVolumeDialogView`), which on
+OS4 moved from the SystemUI APK into the plugin APK.
+
+`SystemUIPluginHooker` discovers the plugin by hooking
+`PluginInstance.loadPlugin()`/`unloadPlugin()` and reading fields off the
+instance. **OS4 renamed those fields** (verified on OS4.0.0.15.XPMCNXM):
+OS3's private `mComponentName`/`mPluginFactory`/`mPlugin`/`mAppContext` (and
+`PluginFactory.mAppInfo`) became public `componentName`/`pluginFactory`/
+`pluginData` (with `pluginData.plugin` and `pluginData.context`, a
+`PluginContextWrapper` whose `getClassLoader()` is the plugin loader) plus
+`pluginFactory.pluginAppInfo`. `readPluginField` tries both spellings per
+lookup, so one hooker covers both plugin generations; without it, the
+`mComponentName` read throws inside the `loadPlugin` after-hook and the whole
+slider hooker is never attached — the percentage silently stops working.
+
+OS4 `VolumeSliderController.updateIconProgress` grew a second `boolean`
+parameter (hook matches by name, so it keeps firing), and the OS4 brightness
+panel reuses the same `BrightnessPanelAnimator`/`BrightnessPanelSliderDelegate`
+shapes (delegate `binding` is now `BrightnessPanelBinding` whose `toggleSlider`
+is the `ToggleSliderItemViewBinding`).
+
+Agent verification status (OS4.0.0.15.XPMCNXM, 2026-08-14): `compileDebugKotlin`,
+unit tests, and `lintDebug` pass; the debug APK was installed on the device and,
+after a SystemUI restart, the LSPosed verbose log confirms every slider hook
+installs — `BrightnessSliderController#onBindViewHolder/updateIconProgress/
+setInMirror`, `BrightnessPanelAnimator#calculateViewValues/frameCallback`,
+`BrightnessPanelSliderDelegate#prepareShow/updateIconProgress`,
+`VolumeSliderController#onBindViewHolder/updateIconProgress(boolean,boolean)/
+syncSystemVolume/updateSliderValue`, `VolumeColumn#initColumn`,
+`VolumePanelViewController#initSuperVolumeColor/showVolumePanelH/
+updateVolumeColumnH/updateSuperVolumeView/updateSuperVolumeText/
+updateSuperVolumeViewColor`, `MiuiVolumeDialogView#updateSuperVolumeVisibility`,
+`ToggleSliderViewHolder#updateBlendBlur` — with no hook or DexKit errors in
+logcat. On-device functional testing (percentage visibility and live updates in
+the control center and the volume panel) is performed by the user, not by the
+agent (see AGENTS.md).
+
 ## AOSP IME Full Screen
 
 Restores AOSP's full-screen IME navigation bar for input methods the user selects,
@@ -669,6 +716,20 @@ class or method is missing or incomplete in `jadx/`.
 
 Other available mappings are:
 
+- OS4 (HyperOS 4.0.0.15.XPMCNXM, pulled 2026-08-14 from the myron
+  25102RKBEC device, build `CP2A.260605.016`):
+  - Control-center plugin:
+    `/Users/ink/developer/reverse/MIUISystemUIPlugin-OS4.0.0.15.XPMCNXM.apk`
+    (`7a0dfbe892f558393ad28ae8aea2a12fe152de972354b067500ed16ca9e17f3e`) ->
+    `/Users/ink/developer/reverse/cache/systemui-plugin-7a0dfbe892f55839`
+    (JADX `jadx/`, APKTool `apktool/`, input `input/plugin.apk`)
+  - SystemUI:
+    `/Users/ink/developer/reverse/MiuiSystemUI-OS4.0.0.15.XPMCNXM.apk`
+    (`9af08c49ea6e412e52a5ffba0d8ca0bc91034b6092c25a4af4776ac010e13cf7`) ->
+    `/Users/ink/developer/reverse/cache/systemui-9af08c49ea6e412e` (JADX `jadx/`)
+  - On OS4 the `com.android.systemui.miui.volume.*` classes moved from SystemUI
+    into the plugin APK, and `PluginInstance` dropped its `m*` fields (see the
+    Slider Percentage section).
 - SystemUI plugin: `/Users/ink/developer/reverse/miui.systemui.plugin.apk`
   (`f85d514f440836aa73bcc13ffc32abb5937cf658f9584a5b828054e938ee7cc0`) ->
   `/Users/ink/developer/reverse/cache/miui-systemui-plugin-current`

@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
@@ -44,8 +45,9 @@ object SystemUIPluginHooker : StaticHooker() {
                 after { param ->
                     HookFailurePolicy.open("SystemUIPlugin", "loadPlugin", Unit) {
                         val pluginInstance = param.thisObject
-                        val componentName = pluginInstance.javaClass.getDeclaredField("mComponentName")
-                            .apply { isAccessible = true }.get(pluginInstance) as? ComponentName
+                        // OS4 renamed the PluginInstance fields from m-prefixed private to public
+                        // short names; accept both so one hooker covers both plugin generations.
+                        val componentName = readPluginField(pluginInstance, "mComponentName", "componentName") as? ComponentName
 
                         if (componentName != null && isControlCenterPlugin(componentName)) {
                             attachPluginHooker(pluginInstance, componentName)
@@ -93,37 +95,45 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     private fun attachPluginHooker(pluginInstance: Any, componentName: ComponentName) {
-        val mPluginFactory = pluginInstance.javaClass.getDeclaredField("mPluginFactory")
-            .apply { isAccessible = true }.get(pluginInstance)
-        val plugin = sequenceOf("mPlugin", "mLoadedPlugin").mapNotNull { fieldName ->
-            runCatching { pluginInstance.javaClass.getDeclaredField(fieldName).apply { isAccessible = true }.get(pluginInstance) }.getOrNull()
-        }.firstOrNull()
+        // OS3 exposes mPluginFactory/mPlugin/mAppContext on PluginInstance; OS4 replaces them
+        // with public componentName/pluginFactory/pluginData{plugin, context} fields.
+        val pluginData = readPluginField(pluginInstance, "pluginData")
+        val plugin = readPluginField(pluginInstance, "mPlugin", "mLoadedPlugin")
+            ?: pluginData?.let { readPluginField(it, "plugin") }
+        val appContext = readPluginField(pluginInstance, "mAppContext") as? Context
+            ?: pluginData?.let { readPluginField(it, "context") as? Context }
         val classLoader = plugin?.javaClass?.classLoader
-            ?: runCatching { pluginInstance.javaClass.getDeclaredField("mClassLoader").apply { isAccessible = true }.get(pluginInstance) as? ClassLoader }.getOrNull()
+            ?: (appContext as? ContextWrapper)?.classLoader
+            ?: readPluginField(pluginInstance, "mClassLoader") as? ClassLoader
         if (classLoader == null) {
             DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
             Log.e("HyperTweak", "SystemUIPluginHooker: failed to extract loaded plugin ClassLoader")
             return
         }
 
-        val mAppContext = runCatching {
-            pluginInstance.javaClass.getDeclaredField("mAppContext")
-                .apply { isAccessible = true }.get(pluginInstance) as? Context
-        }.getOrNull()
-        val mAppInfo = runCatching {
-            mPluginFactory.javaClass.getDeclaredField("mAppInfo")
-                .apply { isAccessible = true }.get(mPluginFactory) as? ApplicationInfo
-        }.getOrNull()
+        val pluginFactory = readPluginField(pluginInstance, "mPluginFactory", "pluginFactory")
+        val mAppInfo = pluginFactory?.let { readPluginField(it, "mAppInfo", "pluginAppInfo") as? ApplicationInfo }
         attachPluginHooker(
             HotReloadPluginState(
                 pluginInstance = pluginInstance,
                 componentPackage = componentName.packageName,
                 componentClass = componentName.className,
                 classLoader = classLoader,
-                appContext = mAppContext,
+                appContext = appContext,
                 pluginApkPath = mAppInfo?.sourceDir ?: ""
             )
         )
+    }
+
+    /** Reads the first non-null field value among the candidate names, tolerating renamed fields across plugin generations. */
+    private fun readPluginField(obj: Any, vararg names: String): Any? {
+        for (name in names) {
+            val value = runCatching {
+                obj.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(obj)
+            }.getOrNull()
+            if (value != null) return value
+        }
+        return null
     }
 
     private fun attachPluginHooker(state: HotReloadPluginState) {
