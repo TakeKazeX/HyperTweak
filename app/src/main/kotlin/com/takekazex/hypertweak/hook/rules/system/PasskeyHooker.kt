@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.util.StaticFieldWriter
 import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -339,7 +340,7 @@ object PasskeyHooker : StaticHooker() {
                 val prev = fIsInternationalBuildBoolean?.getBoolean(null) ?: false
                 PREV_VALUE.set(prev)
                 if (!prev) {
-                    fIsInternationalBuildBoolean?.setBoolean(null, true)
+                    fIsInternationalBuildBoolean?.let { StaticFieldWriter.setBoolean(it, true) }
                 }
             }
             DEPTH.set(depth + 1)
@@ -356,7 +357,7 @@ object PasskeyHooker : StaticHooker() {
                     PREV_VALUE.remove()
                     DEPTH.remove()
                     if (prev != null) {
-                        fIsInternationalBuildBoolean?.setBoolean(null, prev)
+                        fIsInternationalBuildBoolean?.let { StaticFieldWriter.setBoolean(it, prev) }
                     }
                 } else {
                     DEPTH.set(d)

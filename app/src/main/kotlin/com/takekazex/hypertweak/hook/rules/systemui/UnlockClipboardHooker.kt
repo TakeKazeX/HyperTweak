@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.StaticFieldWriter
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
@@ -108,13 +109,15 @@ object UnlockClipboardHooker : StaticHooker() {
         val source = runCatching { sourceMethod.invoke(clipboardManager) as? String }.getOrNull() ?: return
         if (source in original) return
 
-        field.set(null, original + source)
+        // sCtsTestPkgList is static final; ART on OS4 rejects the reflective write, so
+        // StaticFieldWriter falls back to Unsafe.
+        StaticFieldWriter.set(field, original + source)
     }
 
     private fun restoreOriginalList() {
         val field = ctsTestPkgListField ?: return
         val original = originalCtsTestPkgList ?: return
-        runCatching { field.set(null, original) }
+        runCatching { StaticFieldWriter.set(field, original) }
             .onFailure { DebugLog.w(TAG, "failed to restore sCtsTestPkgList", it) }
     }
 }

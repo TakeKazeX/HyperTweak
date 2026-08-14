@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.StaticFieldWriter
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -186,8 +187,9 @@ object AospImeHooker : StaticHooker() {
         if (context != null && isMiuiCustomisedIme(context)) return
 
         // IS_INTERNATIONAL_BUILD is a static field whose only reader is the method being hooked,
-        // so leaving it set does not leak into anything else in this process.
-        field.setBoolean(null, true)
+        // so leaving it set does not leak into anything else in this process. It is also final,
+        // and ART on OS4 rejects the reflective write, so StaticFieldWriter falls back to Unsafe.
+        StaticFieldWriter.setBoolean(field, true)
     }
 
     private fun isMiuiCustomisedIme(context: Context): Boolean {

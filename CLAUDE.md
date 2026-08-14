@@ -396,17 +396,37 @@ eagerly from `onTrustChanged`. The setting defaults off and requires a SystemUI
 restart.
 
 `UnlockClipboardHooker` restores AOSP's clipboard overlay editor.
-`ClipboardListener.onPrimaryClipChanged` (SystemUI `:93`) gates the whole overlay
+`ClipboardListener.onPrimaryClipChanged` (SystemUI `:105`) gates the whole overlay
 on `sCtsTestPkgList.contains(getPrimaryClipSource())`, and on this baseline that
-field is `Arrays.asList("com.android.cts.verifier")` (`:47`) — so the AOSP editor
+field is `Arrays.asList("com.android.cts.verifier")` (`:59`) — so the AOSP editor
 only ever appears under CTS. The hook adds the app owning the current clip.
 
 The list is rebuilt as `original + currentSource` rather than accumulated, so it
 stays at two entries instead of growing by one for every app that has ever copied.
-`sCtsTestPkgList` has exactly one reader in SystemUI (`:100`), so nothing else
+`sCtsTestPkgList` has exactly one reader in SystemUI (`:113`), so nothing else
 observes the substitution, and `onPrepareHotReload` puts the original back.
 Upstream's second branch, which hooks `start()` on baselines without the field, is
 dead code here. HyperOS keeps showing its own editor too; both appear.
+
+`sCtsTestPkgList` is `static final`, and ART on OS4 (Android 16+) rejects
+reflective writes to static final fields of initialized classes with
+`IllegalAccessException: Cannot set public static final field ...` (same failure
+seen on-device for HyperCeiler's `Build.MANUFACTURER` spoofing). The write goes
+through `util/StaticFieldWriter.kt`, which tries the reflective write first and
+falls back to `Unsafe`. On OS4 the `sun.misc.Unsafe` shim dropped
+`staticFieldBase`/`staticFieldOffset` (`NoSuchMethodError` at runtime), so the
+writer reads the shim's `theInternalUnsafe` field and takes offset/base from the
+platform's own `jdk.internal.misc.Unsafe.staticFieldOffset`/`staticFieldBase`,
+writing through the shim's `putObject`/`putBoolean`; the hot-reload restore uses
+the same path. Agent verification (2026-08-15, OS4 device): the hook installs
+(`HOOK_OK`) but every copy previously failed at the field write — first with the
+IllegalAccessException above, then with `NoSuchMethodError: staticFieldBase` —
+both now fixed; `compileDebugKotlin`, unit tests and lint pass, and the debug
+APK is installed with a SystemUI restart. On-device verification: after a real
+copy with the fixed APK, logcat shows SystemUI creating and showing the
+`ClipboardOverlay` window (pid of the new module process) with no new hook
+failures in the LSPosed log, so the AOSP editor reappears; visual confirmation
+is the user's.
 
 `AospAppInfoEntryHooker` adds an entry to Security Center's app details page
 (`com.miui.appmanager.fragment.ApplicationsDetailsFragment#onCreatePreferences`,
