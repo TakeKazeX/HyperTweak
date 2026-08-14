@@ -1,10 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.app.KeyguardManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
@@ -35,9 +33,6 @@ object GestureBarActionHooker : StaticHooker() {
     private const val NAVIGATION_BAR_CLASS =
         "com.android.systemui.navigationbar.views.NavigationBar"
     private const val INPUT_MONITOR_NAME = "HyperTweakGestureBar"
-    private const val GOOGLE_APP_PACKAGE = "com.google.android.googlequicksearchbox"
-    private const val CHATGPT_PACKAGE = "com.openai.chatgpt"
-    private const val ACTION_VOICE_ASSIST = "android.intent.action.VOICE_ASSIST"
 
     private val receivers = IdentityHashMap<Any, GestureBarInputReceiver>()
 
@@ -205,18 +200,6 @@ object GestureBarActionHooker : StaticHooker() {
                     DebugLog.w(SCOPE, "failed to schedule Circle to Search", it)
                 }
             }
-            GestureBarAction.GEMINI -> launchDirectAssistant(
-                context = navigationView.context,
-                packageName = GOOGLE_APP_PACKAGE,
-                actions = listOf(ACTION_VOICE_ASSIST, Intent.ACTION_ASSIST),
-                displayName = "Gemini"
-            )
-            GestureBarAction.CHATGPT -> launchDirectAssistant(
-                context = navigationView.context,
-                packageName = CHATGPT_PACKAGE,
-                actions = listOf(Intent.ACTION_ASSIST),
-                displayName = "ChatGPT"
-            )
         }
     }
 
@@ -247,51 +230,6 @@ object GestureBarActionHooker : StaticHooker() {
         }.onFailure {
             DebugLog.w(SCOPE, "fallback assistant invocation failed", it)
         }
-    }
-
-    private fun launchDirectAssistant(
-        context: Context,
-        packageName: String,
-        actions: List<String>,
-        displayName: String
-    ) {
-        val intent = runCatching {
-            actions.firstNotNullOfOrNull { action ->
-                resolveExportedActivity(context, action, packageName)
-            }
-        }.onFailure {
-            DebugLog.w(SCOPE, "failed to resolve $displayName assistant", it)
-        }.getOrNull()
-        if (intent == null) {
-            DebugLog.w(SCOPE, "$displayName assistant activity is unavailable")
-            return
-        }
-
-        runCatching {
-            context.startActivity(intent)
-            DebugLog.i(SCOPE, "$displayName assistant requested directly")
-        }.onFailure {
-            DebugLog.w(SCOPE, "failed to start $displayName assistant", it)
-        }
-    }
-
-    private fun resolveExportedActivity(
-        context: Context,
-        action: String,
-        packageName: String
-    ): Intent? {
-        val candidate = Intent(action)
-            .addCategory(Intent.CATEGORY_DEFAULT)
-            .setPackage(packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val resolved = context.packageManager.resolveActivity(
-            candidate,
-            PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-        )?.activityInfo ?: return null
-        if (!resolved.enabled || !resolved.exported || resolved.packageName != packageName) {
-            return null
-        }
-        return candidate.setComponent(ComponentName(resolved.packageName, resolved.name))
     }
 
     private fun currentHandleView(navigationView: View): View? {

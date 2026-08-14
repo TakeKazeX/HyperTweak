@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -88,13 +89,11 @@ fun TweaksScreenContent(
     }
     val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
-    val gestureActionLabels = remember {
+    val gestureActionOptions = remember {
         listOf(
-            "Disabled",
-            "Default assistant",
-            "Circle to Search",
-            "Gemini (direct)",
-            "ChatGPT (direct)"
+            GestureBarAction.DISABLED to "Disabled",
+            GestureBarAction.DEFAULT_ASSISTANT to "Default assistant",
+            GestureBarAction.CIRCLE_TO_SEARCH to "Circle to Search"
         )
     }
     Scaffold(
@@ -207,22 +206,28 @@ fun TweaksScreenContent(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             OverlayDropdownPreference(
                                 title = "Long Press Action",
-                                summary = "Circle to Search and direct actions do not require a default assistant",
-                                items = gestureActionLabels,
-                                selectedIndex = gestureBarLongPressAction.coerceIn(
-                                    0,
-                                    gestureActionLabels.lastIndex
-                                ),
-                                onSelectedIndexChange = onGestureBarLongPressActionChange
+                                summary = "Circle to Search does not require a default assistant",
+                                items = gestureActionOptions.map { it.second },
+                                selectedIndex = gestureActionOptions.indexOfFirst {
+                                    it.first.persistedId == gestureBarLongPressAction
+                                }.coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
+                                        onGestureBarLongPressActionChange
+                                    )
+                                }
                             )
                             OverlayDropdownPreference(
                                 title = "Double Tap Action",
-                                items = gestureActionLabels,
-                                selectedIndex = gestureBarDoubleTapAction.coerceIn(
-                                    0,
-                                    gestureActionLabels.lastIndex
-                                ),
-                                onSelectedIndexChange = onGestureBarDoubleTapActionChange
+                                items = gestureActionOptions.map { it.second },
+                                selectedIndex = gestureActionOptions.indexOfFirst {
+                                    it.first.persistedId == gestureBarDoubleTapAction
+                                }.coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
+                                        onGestureBarDoubleTapActionChange
+                                    )
+                                }
                             )
                         }
                     }

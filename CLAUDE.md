@@ -289,9 +289,13 @@ to Launcher about ownership.
 HyperTweak does not add separate haptic feedback on dispatch, avoiding overlap
 with Launcher and assistant feedback. Action selections are read at dispatch time
 and do not require a SystemUI restart. Default-assistant requests call SystemUI's
-`AssistManager` without HyperOS's Launcher-owned invocation type, while direct
-Gemini and ChatGPT actions resolve only exported assistant activities. Circle to
+`AssistManager` without HyperOS's Launcher-owned invocation type. Circle to
 Search is CSService-only and does not depend on the selected digital assistant.
+Direct Gemini and ChatGPT bare-launch actions were removed after on-device
+testing showed the target entry activities self-terminate (ChatGPT's
+translucent `AssistantProxyActivity`) or fall into the app's main UI without
+engaging voice (Google's `GoogleAppVoiceAssistEntrypoint`) when launched without
+an assist-framework session; persisted ids 3 and 4 now degrade to `DISABLED`.
 `ContextualSearchSystemHooker` scopes its compatibility override to two callers:
 `startContextualSearch` from the resolved SystemUI UID, and the provider's
 `getContextualSearchState` callback from the resolved Google app UID. Both
