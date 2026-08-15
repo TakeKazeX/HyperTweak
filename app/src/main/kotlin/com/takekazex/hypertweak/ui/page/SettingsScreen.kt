@@ -24,9 +24,12 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -65,6 +68,7 @@ fun SettingsScreenContent(
     onNavigateToPredictiveBackApps: () -> Unit,
     onNavigateToAospRestore: () -> Unit,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
+    onNavigateToIconTuner: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -72,6 +76,7 @@ fun SettingsScreenContent(
     onNavigateToAbout: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
+    onClearAllSettings: () -> Unit,
     backdrop: LayerBackdrop,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -83,6 +88,7 @@ fun SettingsScreenContent(
     }
     val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
+    var showClearAllDialog by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -184,12 +190,19 @@ fun SettingsScreenContent(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                SwitchPreference(
-                    checked = immediateMonetRefresh,
-                    onCheckedChange = onImmediateMonetRefreshChange,
-                    title = "Immediate Monet Refresh",
-                    summary = "Apply new wallpaper colors when HyperOS misses or delays its Monet update"
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = immediateMonetRefresh,
+                        onCheckedChange = onImmediateMonetRefreshChange,
+                        title = "Immediate Monet Refresh",
+                        summary = "Apply new wallpaper colors when HyperOS misses or delays its Monet update"
+                    )
+                    ArrowPreference(
+                        title = "Icon Tuner",
+                        summary = "Hide and customize status-bar icons (cellular, WiFi)",
+                        onClick = onNavigateToIconTuner
+                    )
+                }
             }
 
             // Launcher-dependent halves of the AOSP back gesture. The gesture itself and its
@@ -238,11 +251,57 @@ fun SettingsScreenContent(
                     summary = "HyperTweak v${BuildConfig.VERSION_NAME}",
                     onClick = onNavigateToAbout
                 )
+                ArrowPreference(
+                    title = "Clear All Settings",
+                    summary = "Reset every setting, including the LSPosed-side copy that survives uninstall",
+                    onClick = { showClearAllDialog = true }
+                )
             }
+
+            ClearAllSettingsDialog(
+                show = showClearAllDialog,
+                onDismissRequest = { showClearAllDialog = false },
+                onConfirm = {
+                    showClearAllDialog = false
+                    onClearAllSettings()
+                }
+            )
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
     }
+}
+
+@Composable
+private fun ClearAllSettingsDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    OverlayDialog(
+        show = show,
+        title = "Clear All Settings",
+        summary = "This resets every module setting to its default and also wipes the copy " +
+            "stored by the LSPosed service, which normally survives module uninstall. " +
+            "Hooked processes pick the defaults up without a reboot.",
+        onDismissRequest = onDismissRequest,
+        content = {
+            Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(
+                    text = "Cancel",
+                    onClick = onDismissRequest,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = "Clear",
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            }
+        }
+    )
 }
 
 /**

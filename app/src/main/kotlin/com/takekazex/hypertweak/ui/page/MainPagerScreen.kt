@@ -132,6 +132,8 @@ fun MainPagerScreen(
     onNavigateToAppShortcuts: () -> Unit,
     onNavigateToPredictiveBackApps: () -> Unit,
     onNavigateToAospRestore: () -> Unit,
+    onNavigateToIconTuner: () -> Unit,
+    onClearAllSettings: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     appLanguage: Int,
@@ -357,6 +359,7 @@ fun MainPagerScreen(
                                 onAospBackMiuiHomeHooksChange = onAospBackMiuiHomeHooksChange,
                                 onNavigateToPredictiveBackApps = onNavigateToPredictiveBackApps,
                                 onNavigateToAospRestore = onNavigateToAospRestore,
+                                onNavigateToIconTuner = onNavigateToIconTuner,
                                 themeSummary = listOf("Follow System", "Light", "Dark")
                                     .getOrElse(themeMode) { "Follow System" },
                                 onNavigateToAppearance = onNavigateToAppearance,
@@ -365,6 +368,7 @@ fun MainPagerScreen(
                                 onNavigateToAbout = onNavigateToAbout,
                                 onNavigateToDebugLogs = onNavigateToDebugLogs,
                                 onNavigateToAppShortcuts = onNavigateToAppShortcuts,
+                                onClearAllSettings = onClearAllSettings,
                                 backdrop = backdrop,
                                 appLanguage = appLanguage,
                                 onAppLanguageChange = onAppLanguageChange

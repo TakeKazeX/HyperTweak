@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.AospImePage
+import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -141,6 +142,7 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
+    onClearAllSettings: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     onShortcutsChanged: () -> Unit,
@@ -295,6 +297,10 @@ fun HyperTweakNavContainer(
                 onNavigateToAospRestore = {
                     backStack.add(Route.AospRestore)
                 },
+                onNavigateToIconTuner = {
+                    backStack.add(Route.IconTuner)
+                },
+                onClearAllSettings = onClearAllSettings,
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
@@ -372,6 +378,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.AospIme> {
             AospImePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.IconTuner> {
+            IconTunerPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

@@ -85,6 +85,7 @@ private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(Restart
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
+private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
 
 private fun currentBootToken(): String {
     return runCatching {
@@ -356,6 +357,22 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(serviceConnected) {
+                // The remote copy of the settings lives in the LSPosed daemon and survives a
+                // module uninstall, so a reinstall would silently restore the old config.
+                // The module's own data dir is wiped on uninstall: when it is fresh but the
+                // remote copy still holds settings, discard the leftovers once. `last_known_
+                // module_activated` is written on every launch by every recent version, so
+                // its presence means this is an ordinary update, not a reinstall.
+                fun ensureFreshInstallReset() {
+                    if (localPrefs.contains(KEY_FIRST_RUN_TOKEN)) return
+                    if (!Preferences.isInitialized) return
+                    val freshDataDir = !localPrefs.contains("last_known_module_activated")
+                    if (freshDataDir && Preferences.hasRemoteConfig()) {
+                        Preferences.clearAllSettings()
+                    }
+                    localPrefs.edit { putBoolean(KEY_FIRST_RUN_TOKEN, true) }
+                }
+
                 fun reloadAllPreferences() {
                     themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
                     useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
@@ -416,6 +433,7 @@ class MainActivity : ComponentActivity() {
                 if (isModuleActive()) {
                     moduleActive = true
                     localPrefs.edit { putBoolean("last_known_module_activated", true) }
+                    ensureFreshInstallReset()
                     reloadAllPreferences()
                     XposedServiceManager.refreshHotReloadTargets()
                     return@LaunchedEffect
@@ -424,6 +442,7 @@ class MainActivity : ComponentActivity() {
                 if (serviceConnected != null) {
                     moduleActive = true
                     localPrefs.edit { putBoolean("last_known_module_activated", true) }
+                    ensureFreshInstallReset()
                     reloadAllPreferences()
                     XposedServiceManager.refreshHotReloadTargets()
                 } else {
@@ -697,6 +716,11 @@ class MainActivity : ComponentActivity() {
                         } catch (e: Exception) {
                             // Ignore
                         }
+                    },
+                    onClearAllSettings = {
+                        Preferences.clearAllSettings()
+                        // Recreate so every Compose state reloads from the now-default prefs.
+                        this@MainActivity.recreate()
                     },
                     onRestartScope = { selection ->
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, selection)
