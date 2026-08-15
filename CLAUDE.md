@@ -841,7 +841,9 @@ HyperOS_FCM_Live (GPL-3.0; reference clone at
   `AwareResourceControl.mNoNetworkBlackUids`; and in
   `ActivityManagerService.broadcastIntentWithFeature` adds
   `FLAG_INCLUDE_STOPPED_PACKAGES` plus a `GOOGLE_C2DM` temporary power
-  exemption for the target package.
+  exemption for the target package; and `BroadcastSkipPolicy`
+  `shouldSkipAtEnqueueMessage`/`shouldSkipMessage` return null for GMS
+  c2dm so tombstone-freezer modules cannot skip delivery (see below).
 - `FcmLivePowerKeeperHooker` (com.miui.powerkeeper): forces
   `NetdExecutor.initGmsChain` to ACCEPT, drives `GmsObserver`
   `updateGmsAlarm`/`updateGmsNetWork`/`updateGoogleReletivesWakelock` to
@@ -866,6 +868,26 @@ whitelist. `compileDebugKotlin` and `testDebugUnitTest` pass. On-device
 functional testing (push delivery) is performed by the user. The setting
 requires a reboot for the system half and a PowerKeeper restart (its
 restart-scope selection only covers PowerKeeper, per the UI summary).
+
+### Tombstone-freezer interference (NOACTIVE)
+
+Tombstone-freezer modules such as `cn.myflv.noactive` hook the private
+`BroadcastSkipPolicy.shouldSkipMessage` variants and return
+`"Skip broadcast to frozen process"` for any broadcast whose target
+process is frozen (`!o.f9702d && q.f9722g`), so GMS's `c2dm.intent.RECEIVE`
+never reaches a tombstoned app: GMS logs `broadcast intent callback:
+result=CANCELLED` and retries every ~30s (`FcmRetry`), and FCM Diagnostics
+records "No response to broadcast" with `time=1ms`. The freeze flag is the
+cgroup freezer (`cgroup.freeze=1`), applied by the module, not greeze. The
+whitelist flag (`t5.o.f9702d`) is `v6.b.a()` = NOACTIVE's 白名单应用
+(`MasterConfig.boot.getUserAppSet()`), **not** its 网速识别/网络识别
+setting (that only feeds the `网络传输中` thaw-while-transferring state).
+Because the skip is inside the policy methods, HyperTweak short-circuits the
+**public** entry points `shouldSkipAtEnqueueMessage(BroadcastRecord,Object)`
+and `shouldSkipMessage(BroadcastRecord,Object)` before the private variants
+run, so the bypass holds regardless of module hook order. Verified on-device
+(2026-08-15): after installing the hook, the queued FCM backlog was
+delivered instead of skipped and the `FcmRetry`/CANCELLED loop stopped.
 
 ## Module Configuration Storage
 

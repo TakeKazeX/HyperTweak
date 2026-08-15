@@ -43,6 +43,7 @@ object FcmLiveSystemHooker : StaticHooker() {
         hookProcessPolicy()
         hookAwareResourceControl()
         hookActivityManagerService()
+        hookBroadcastSkipPolicy()
     }
 
     private fun hookGreezeManagerService() {
@@ -323,6 +324,48 @@ object FcmLiveSystemHooker : StaticHooker() {
             DebugLog.i(hookerName, "AwareResourceControl hooks registered")
         }.onFailure { t ->
             DebugLog.e(hookerName, "Failed to hook AwareResourceControl", t)
+        }
+    }
+
+    private fun hookBroadcastSkipPolicy() {
+        runCatching {
+            val policyClass = "com.android.server.am.BroadcastSkipPolicy".toClassOrNull() ?: return@runCatching
+            val recordClass = "com.android.server.am.BroadcastRecord".toClassOrNull() ?: return@runCatching
+            val callerPackageField = recordClass.getDeclaredField("callerPackage").apply { isAccessible = true }
+            val intentField = recordClass.getDeclaredField("intent").apply { isAccessible = true }
+
+            fun isGmsC2dm(record: Any?): Boolean {
+                if (record == null) return false
+                val caller = callerPackageField.get(record) as? String
+                if (caller != GMS_PACKAGE_NAME) return false
+                val intent = intentField.get(record) as? Intent
+                return intent?.action == ACTION_REMOTE_INTENT
+            }
+
+            // Tombstone-freezer modules (observed: cn.myflv.noactive) hook the private
+            // shouldSkipMessage variants and skip broadcasts to frozen processes ("Skip broadcast
+            // to frozen process"), which defeats FCM delivery even with the greeze bypasses above.
+            // Short-circuit at the public entry points instead — the enqueue loop calls
+            // shouldSkipAtEnqueueMessage(BroadcastRecord, Object) and the delivery path calls
+            // shouldSkipMessage(BroadcastRecord, Object), both before the private variants, so the
+            // bypass holds regardless of module hook order.
+            listOf(
+                "shouldSkipAtEnqueueMessage",
+                "shouldSkipMessage"
+            ).forEach { methodName ->
+                val method = policyClass.getDeclaredMethod(methodName, recordClass, Any::class.java)
+                method.hook {
+                    before { param ->
+                        if (isGmsC2dm(param.args.firstOrNull())) {
+                            param.result = null
+                        }
+                    }
+                }
+            }
+
+            DebugLog.i(hookerName, "BroadcastSkipPolicy hooks registered")
+        }.onFailure { t ->
+            DebugLog.e(hookerName, "Failed to hook BroadcastSkipPolicy", t)
         }
     }
 
