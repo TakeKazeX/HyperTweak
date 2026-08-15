@@ -17,6 +17,12 @@ import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IgnoreSysIconSettingsHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
@@ -349,6 +355,7 @@ class HookEntry : XposedModule() {
         if (packageName == "com.android.systemui") {
             ProxyLaunchHooker.register(appContext)
             ExtendUnlockHooker.syncTrustAgent(appContext)
+            StackedSignalHooker.onPackageReady(appContext)
         }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
@@ -374,6 +381,7 @@ class HookEntry : XposedModule() {
             if (state.packageName == "com.android.systemui") {
                 ProxyLaunchHooker.register(appContext)
                 ExtendUnlockHooker.syncTrustAgent(appContext)
+                StackedSignalHooker.onPackageReady(appContext)
             }
             DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
         } else {
@@ -483,6 +491,12 @@ class HookEntry : XposedModule() {
                 attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
+                attachHooker(CellularIconHooker, classLoader, ctx, replacementHandles)
+                attachHooker(WifiIconHooker, classLoader, ctx, replacementHandles)
+                attachHooker(HideCellularIconHooker, classLoader, ctx, replacementHandles)
+                attachHooker(IconManagerHooker, classLoader, ctx, replacementHandles)
+                attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
+                attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }
