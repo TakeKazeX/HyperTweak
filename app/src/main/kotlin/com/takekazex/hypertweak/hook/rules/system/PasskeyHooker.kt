@@ -2,13 +2,21 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.UserHandle
+import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.widget.CompoundButton
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.ResourceLookup
 import com.takekazex.hypertweak.util.StaticFieldWriter
 import java.io.File
 import java.lang.reflect.Field
@@ -226,17 +234,211 @@ object PasskeyHooker : StaticHooker() {
                 }
             }
         }
+
+        hookSettingsActivityLaunchFallback()
+        hookCombiPreferenceSwitchCommit()
+    }
+
+    /**
+     * The 密码和账号 rows launch the provider's declared settings activity through
+     * `CombinedProviderInfo.launchSettingsActivityIntent`. On this baseline almost every
+     * provider declares none (GMS's credential XML has no `settingsActivity` and its
+     * autofill fallback points at a manifest-disabled page; Edge/Authenticator declare
+     * nothing), so the intent is null and the tap silently does nothing. This hook keeps
+     * the original behaviour but falls back to a reachable target when it fails:
+     * GMS goes to its Password Manager activity, everything else to the app-details page.
+     */
+    private fun hookSettingsActivityLaunchFallback() {
+        val combinedProviderInfoClass = "com.android.settings.applications.credentials.CombinedProviderInfo".toClassOrNull() ?: return
+        combinedProviderInfoClass.findMethodOrNull {
+            name("launchSettingsActivityIntent")
+            parameterTypes(Context::class.java, CharSequence::class.java, CharSequence::class.java, Int::class.javaPrimitiveType!!)
+        }?.hook {
+            intercept { chain ->
+                val args = chain.args
+                val context = args.getOrNull(0) as? Context
+                val packageName = args.getOrNull(1)?.toString()
+                val userId = (args.getOrNull(3) as? Int) ?: -1
+                if (context == null || packageName.isNullOrEmpty() || userId < 0) {
+                    return@intercept chain.proceed()
+                }
+                // GMS's declared settings activity is the disabled autofill page on
+                // domestic builds, so redirect straight to the Password Manager.
+                if (packageName == "com.google.android.gms") {
+                    val passwordManager = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_DEFAULT)
+                        setComponent(
+                            ComponentName(
+                                packageName,
+                                "com.google.android.gms.credential.manager.PasswordManagerActivity"
+                            )
+                        )
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (tryStartActivityAsUser(context, passwordManager, userId)) {
+                        return@intercept true
+                    }
+                }
+                val original = try {
+                    chain.proceed() as? Boolean ?: false
+                } catch (_: Throwable) {
+                    false
+                }
+                if (!original) {
+                    // Provider declared no settings activity (or it cannot be started).
+                    val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (tryStartActivityAsUser(context, details, userId)) {
+                        return@intercept true
+                    }
+                }
+                original
+            }
+        }
+    }
+
+    private fun tryStartActivityAsUser(context: Context, intent: Intent, userId: Int): Boolean {
+        return runCatching {
+            // Context#startActivityAsUser and UserHandle#of are @hide; resolve by name.
+            val userHandle = UserHandle::class.java.getMethod("of", Int::class.javaPrimitiveType!!).invoke(null, userId)
+            context.javaClass.getMethod("startActivityAsUser", Intent::class.java, UserHandle::class.java)
+                .invoke(context, intent, userHandle)
+        }.isSuccess
+    }
+
+    /**
+     * `CombiPreference` only attaches its commit listener (`onCheckChanged` ->
+     * `setEnabledProviders`) when the row widget is a `miuix.slidingwidget.widget.SlidingSwitch`.
+     * On OS4 the expressive settings theme uses a `MaterialSwitch` instead, so toggling the
+     * switch only flips the local `mChecked` state (the super class's own listener) and the
+     * enable/disable never reaches the CredentialManager — the switch reverts on rebind.
+     * This hook wires the real listener onto any non-SlidingSwitch widget after the bind.
+     */
+    private fun hookCombiPreferenceSwitchCommit() {
+        val combiPreferenceClass =
+            "com.android.settings.applications.credentials.CredentialManagerPreferenceController\$CombiPreference".toClassOrNull() ?: return
+        val preferenceViewHolderClass = "androidx.preference.PreferenceViewHolder".toClassOrNull() ?: return
+        combiPreferenceClass.findMethodOrNull {
+            name("onBindViewHolder")
+            parameterTypes(preferenceViewHolderClass)
+        }?.hook {
+            after { param ->
+                HookFailurePolicy.open(TAG, "CombiPreference#onBindViewHolder switch wiring", Unit) {
+                    wireCombiPreferenceSwitch(param.thisObject, param.args.getOrNull(0))
+                }
+            }
+        }
+    }
+
+    private fun wireCombiPreferenceSwitch(preference: Any?, viewHolder: Any?) {
+        if (preference == null || viewHolder == null) {
+            DebugLog.i(TAG, "DIAG wire skipped pref=${preference != null} vh=${viewHolder != null}")
+            return
+        }
+        val itemView = runCatching {
+            viewHolder.javaClass.getField("itemView").get(viewHolder) as? View
+        }.getOrNull()
+        if (itemView == null) {
+            DebugLog.i(TAG, "DIAG wire skipped: no itemView")
+            return
+        }
+        val context = runCatching {
+            preference.javaClass.getMethod("getContext").invoke(preference) as? Context
+        }.getOrNull()
+        if (context == null) {
+            DebugLog.i(TAG, "DIAG wire skipped: no context")
+            return
+        }
+        var switchId = ResourceLookup.identifier(context, "switchWidget", "id", "com.android.settings")
+        if (switchId == 0) {
+            switchId = ResourceLookup.identifier(context, "switchWidget", "id", "com.android.settingslib")
+        }
+        if (switchId == 0) {
+            DebugLog.i(TAG, "DIAG wire skipped: switchWidget id not found")
+            return
+        }
+        val switch = itemView.findViewById<View>(switchId) as? CompoundButton
+        if (switch == null) {
+            DebugLog.i(TAG, "DIAG wire skipped: widget not a CompoundButton id=$switchId")
+            return
+        }
+        // The native path already wires the commit listener for SlidingSwitch.
+        if (switch.javaClass.name == "miuix.slidingwidget.widget.SlidingSwitch") return
+
+        val listenerField = runCatching {
+            preference.javaClass.getDeclaredField("mOnClickListener").apply { isAccessible = true }
+        }.getOrNull()
+        if (listenerField == null) {
+            DebugLog.i(TAG, "DIAG wire skipped: no mOnClickListener field")
+            return
+        }
+        val onCheckChanged = runCatching {
+            listenerField.type.getDeclaredMethod(
+                "onCheckChanged",
+                preference.javaClass,
+                Boolean::class.javaPrimitiveType!!
+            )
+        }.getOrNull()
+        if (onCheckChanged == null) {
+            DebugLog.i(TAG, "DIAG wire skipped: no onCheckChanged method in ${listenerField.type.name}")
+            return
+        }
+        val checkedField = runCatching {
+            preference.javaClass.getDeclaredField("mChecked").apply { isAccessible = true }
+        }.getOrNull()
+
+        switch.setOnCheckedChangeListener { _, checked ->
+            val listener = listenerField.get(preference) ?: return@setOnCheckedChangeListener
+            val accepted = runCatching {
+                onCheckChanged.invoke(listener, preference, checked) as? Boolean ?: true
+            }.getOrDefault(true)
+            if (!accepted) {
+                // Provider limit reached: revert exactly like the native SlidingSwitch path.
+                checkedField?.setBoolean(preference, false)
+                switch.isChecked = false
+            }
+        }
+
+        // AOSP builds the rows before the controller refreshes mEnabledPackageNames, and the
+        // controller's own sync (`setAvailableServices` -> `mPrefs.setChecked`) only reaches
+        // rows already registered in `mPrefs`; on this build that left the rows stuck at their
+        // initial (off) state even though the provider is enabled. Force the switch to the
+        // controller's authoritative state at every bind so the rows always reflect reality.
+        val listener = listenerField.get(preference) ?: return
+        val controller = runCatching {
+            listener.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(listener)
+        }.getOrNull()
+        val packageName = runCatching {
+            listener.javaClass.getDeclaredField("val\$packageName").apply { isAccessible = true }.get(listener) as? String
+        }.getOrNull()
+        if (controller != null && packageName != null && checkedField != null) {
+            val enabledNamesField = runCatching {
+                controller.javaClass.getDeclaredField("mEnabledPackageNames").apply { isAccessible = true }
+            }.getOrNull()
+            if (enabledNamesField != null) {
+                val enabled = runCatching {
+                    (enabledNamesField.get(controller) as? Set<*>)?.contains(packageName) == true
+                }.getOrDefault(false)
+                if (checkedField.getBoolean(preference) != enabled || switch.isChecked != enabled) {
+                    checkedField.setBoolean(preference, enabled)
+                    switch.isChecked = enabled
+                }
+            }
+        }
     }
 
     private fun hookSecurityCenter(apkPath: String) {
-        val appClass = "com.miui.securitycenter.Application".toClassOrNull() ?: return
+        // The default-credential writers moved between SecurityCenter builds (from
+        // `com.miui.securitycenter.Application` to `com.miui.securitycenter.service.CacheService`
+        // on the current OS4 device build, with R8-renamed `(String,int)` helpers), so resolve
+        // them by shape instead of by class: a helper that reads a resource and writes
+        // Settings.Secure, plus the wrapper that calls it with the setting names.
         DexKitManager.withBridge(apkPath) bridgeBlock@ { bridge ->
-                val cApplication = bridge.getClassData("Lcom/miui/securitycenter/Application;") ?: return@bridgeBlock
-                
                 val mSetStringResourceConfigIfNeed = runCatching {
-                    cApplication.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                    bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
                         .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .paramTypes(Context::class.java.name, String::class.java.name, "int")
                             .addInvoke("Landroid/content/res/Resources;->getString(I)Ljava/lang/String;")
                             .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
                         )).singleOrNull()
@@ -244,9 +446,8 @@ object PasskeyHooker : StaticHooker() {
 
                 val mConfigForAutofillService = if (mSetStringResourceConfigIfNeed != null) {
                     runCatching {
-                        cApplication.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                        bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
                             .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                                .paramTypes(Context::class.java.name)
                                 .addEqString("autofill_service")
                                 .addInvoke(mSetStringResourceConfigIfNeed.descriptor)
                             )).singleOrNull()
@@ -254,9 +455,8 @@ object PasskeyHooker : StaticHooker() {
                 } else null
 
                 val mSetStringArrayResourceConfigIfNeed = runCatching {
-                    cApplication.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                    bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
                         .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .paramTypes(Context::class.java.name, String::class.java.name, "int")
                             .addInvoke("Landroid/content/res/Resources;->getStringArray(I)[Ljava/lang/String;")
                             .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
                         )).singleOrNull()
@@ -264,9 +464,8 @@ object PasskeyHooker : StaticHooker() {
 
                 val mSetDefaultConfigForAutofillAndCredentialManager = if (mSetStringArrayResourceConfigIfNeed != null) {
                     runCatching {
-                        cApplication.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                        bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
                             .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                                .paramTypes(Context::class.java.name)
                                 .usingEqStrings("credential_service", "credential_service_primary")
                                 .addInvoke(mSetStringArrayResourceConfigIfNeed.descriptor)
                             )).singleOrNull()
@@ -286,7 +485,12 @@ object PasskeyHooker : StaticHooker() {
                                 }
                             }
                         }
+                        DebugLog.i(TAG, "securitycenter autofill-service default write blocked")
+                    }.onFailure { t ->
+                        DebugLog.e(TAG, "securitycenter autofill hook failed", t)
                     }
+                } else {
+                    DebugLog.w(TAG, "securitycenter autofill-service default write not found")
                 }
 
                 if (mSetDefaultConfigForAutofillAndCredentialManager != null) {
@@ -302,7 +506,12 @@ object PasskeyHooker : StaticHooker() {
                                 }
                             }
                         }
+                        DebugLog.i(TAG, "securitycenter credential default write blocked")
+                    }.onFailure { t ->
+                        DebugLog.e(TAG, "securitycenter credential hook failed", t)
                     }
+                } else {
+                    DebugLog.w(TAG, "securitycenter credential default write not found")
                 }
         }
     }

@@ -72,6 +72,69 @@ recognizer is a SystemUI gesture `InputMonitor` that pilfers pointers once a
 gesture is recognized inside the handle region, so recognition works wherever
 SystemUI wins ownership and yields to Launcher everywhere else.
 
+## Status-Bar Icon Tuner
+
+Settings → Experimental → Icon Tuner
+(`ui/page/IconTunerPage.kt`, `Route.IconTuner`) is the icon tuner ported from Hyper Helper
+26.07.5 (`dev.lackluster.mihelper`, decompiled to
+`/Users/ink/developer/reverse/cache/xiaomihelper-2bfd4873a4138764`; the OS4 comparison and
+staged port plan live in `OS4_ADAPTATION_PLAN.md` in that cache). The page keeps its own state
+like `AospRestorePage`, so its keys are deliberately absent from `TWEAK_RESTART_SCOPES` and it
+offers its own SystemUI restart action.
+
+Ported hookers live in `hook/rules/systemui/icon/`, all targets verified present on OS4 unless
+noted. Two shared mechanisms recur:
+
+- `IconTunerFlows` builds shared `ReadonlyStateFlow` instances (`false` / `0`) reflectively;
+  the visibility hooks replace the ViewModel's flow fields with them right after construction,
+  mirroring Hyper Helper.
+- Font-weight overrides use the system `MiSansVF.ttf` variable font (`'wght'` axis); Hyper
+  Helper's user-font-file and bundled MiSansCondensed/SFPro subset support is not ported.
+
+Current slice (cellular and WiFi visibility were the first slice):
+
+- `CellularIconHooker` — `MiuiCellularIconVM` visibility fields (`inOutVisible`,
+  `mobileTypeVisible`/`mobileTypeImageVisible`, `vowifiVisible`, `volteVisibleGlobal`,
+  `volteNoService`, `speechHd`) replaced after construction; roam visibility via
+  `getMobileRoamVisible`/`getSmallRoamVisible` before hooks plus a
+  `StatusBarIconObserver.roamSettingBlock` constructor write.
+- `WifiIconHooker` — `WifiIcon$Companion.fromModel` substitutes `WifiIcon$Hidden` for a
+  connected `WifiNetworkModel$Active` (flag argument false); `WifiViewModel`
+  `activityInOutRes`/`wifiStandard` replaced with a `0` flow.
+- `IconManagerHooker` — mutates the static `MiuiIconManagerUtils.RIGHT_BLOCK_LIST` /
+  `CONTROL_CENTER_BLOCK_LIST` ArrayLists (consumers hold the same instance) per slot mode
+  (0 follow system = lists untouched, 1 visible everywhere, 2 status bar only, 3 control center
+  only, 4 hidden everywhere; only `single_mobile_sim1`/`single_mobile_sim2` default 0→4 so the
+  stacked icon can take over).
+  Keys are `Preferences.slotKey(slot)`; `icon_ext_blocked` adds extra slots from a list.
+- `IgnoreSysIconSettingsHooker` — OS4 moved `isIconBlocked` off `StatusBarIconObserver` onto
+  `StatusBarIconView`, so the hook target differs from upstream (OS4_ADAPTATION_PLAN.md T3):
+  force `isIconBlocked` false except the privacy slot, `loadStatusBarIcon` returns "", and
+  `NetworkSpeedController.mShowNetworkSpeed` is forced from the `network_speed` slot mode
+  (constructor + R8 nest `mupdateVisibility` name match).
+- `HideCellularIconHooker` — captures `MobileIconsInteractorImpl.defaultDataSubId` and replaces
+  `MobileIconViewModel.isVisible` with the false flow for the non-default SIM; gated by
+  `icon_hide_sim_auto` and disabled while `icon_stacked_enabled` is on.
+- `StackedSignalHooker` + `StackedSignalRender` — the custom SVG signal icon. The renderer is a
+  minimal parser for the exact SVG subset the bundled assets use (`path`/`rect` + `id`
+  `signal_1..4` / `signal_1_1..signal_2_4` + `type_container` anchor), producing ALPHA_8 bitmaps.
+  The hook takes over the mobile pipeline without fighting OS4's Compose stacked renderer:
+  `MobileIconsViewModel.isStackable` is forced to a shared `true` flow so SystemUI clears the
+  ordinary mobile icons, and each real `MobileIconViewModel.getIcon()` returns the module-drawn
+  icon; signal level and type text are derived from the original system `Icon` resource ids
+  (`stat_sys_signal_N`, `data_connection_*`), so no system state streams are read. Stacked mode
+  composites both SIM rows (default SIM on row 1). Six SVGs are bundled under
+  `app/src/main/assets/svg/`; `onPackageReady` loads them and resolves the status-bar icon height.
+
+Agent verification status (2026-08-15): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`
+and `assembleDebug` pass. On-device verification is performed by the user (see AGENTS.md).
+Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: compound icon (`CompoundIcon`,
+deeply coupled to MIUI's status-icon state machine), carrier label (`HideCarrierLabel`, T7),
+region sampling (`RegionSampling`, T6), and the left-container/island engine (`LeftContainer`,
+T2). The clock (`MiuiClockHooker`), network speed (`NetworkSpeedHooker`) and battery
+(`BatteryIndicatorHooker`) slices were removed again at the user's request on 2026-08-15 (their
+preference keys are deleted; the hookers and UI sections no longer exist).
+
 ## AOSP Back Gesture
 
 The AOSP back gesture is vendored from `wxxsfxyzm/MiuiBackGestureHook`
@@ -691,6 +754,100 @@ self-scope, so including it reported HyperTweak as unhooked on every launch, and
 the hero card already tells the user to check HyperTweak itself when the module is
 not active.
 
+## Passkey / Credential Manager Page (密码和账号)
+
+`PasskeyHooker` (feature `unlock_passkey`) unlocks the AOSP credential-manager UI on
+domestic HyperOS by forcing `miui.os.Build.IS_INTERNATIONAL_BUILD` around the three
+Settings entry points. Verified on OS4.0.0.15.XPMCNXM (Settings
+`5e1fadcf63fb29fd`, decompiled to `cache/settings-5e1fadcf63fb29fd`):
+
+- The 密码、通行密钥和账号 page is `AccountDashboardFragment` /
+  `AccountPersonalDashboardFragment` (`accounts_*_dashboard_settings_credman.xml`):
+  a `PrimaryProviderPreference` row ("首选服务", key `default_credman_autofill_main`)
+  plus a `CredentialManagerPreferenceController` switch list ("其他服务").
+- `IS_INTERNATIONAL_BUILD` is `public static final boolean` with a non-constant
+  initializer in `/system_ext/framework/miui-framework.jar` (Settings reads it with
+  `sget-boolean`, so it is not inlined). ART rejects the reflective write on OS4
+  (`IllegalAccessException: Cannot set public static final field`); the
+  `StaticFieldWriter` Unsafe fallback works — verified on-device with `app_process`
+  (reflective write failed, Unsafe write flipped the field). The module hooks install
+  (`HOOK_OK`) and fire; the provider list rendering, the picker selection and the
+  flag forcing were all confirmed working by on-device instrumentation.
+
+Two user-visible failures on this baseline were diagnosed and fixed:
+
+1. **Tapping a 其他服务 row did nothing.** `onLeftSideClicked` gates on
+   `IS_INTERNATIONAL_BUILD &&` (hooked, flag forced — works) and then calls
+   `CombinedProviderInfo.launchSettingsActivityIntent`, which silently returns false
+   when the provider declares no `settingsActivity`. GMS's credential XML
+   (`xml/google_id_provider`, `xml/remote_provider` — flat obfuscated `res/*.xml`
+   files in the GMS base APK) declares only `settingsSubtitle`; the autofill fallback
+   (`AutofillServiceInfo.getSettingsActivity` → `AutofillSettingsActivity`) is
+   manifest-disabled/not-exported and is the wrong page anyway. Edge
+   (`PasskeyCredentialProviderService`) and Microsoft Authenticator declare nothing.
+   So the intent was null and the tap was a silent no-op. `hookSettingsActivityLaunchFallback`
+   now hooks `launchSettingsActivityIntent`: GMS goes straight to its exported
+   `com.google.android.gms.credential.manager.PasswordManagerActivity`, and any other
+   failure falls back to the app-details page (`Settings.ACTION_APPLICATION_DETAILS_SETTINGS`).
+   `Context.startActivityAsUser`/`UserHandle.of` are `@hide`, so the fallback resolves
+   them by name.
+2. **The 其他服务 switches toggled visually but never committed, and showed off on page
+   open despite being enabled.** Two stacked causes, both verified on-device:
+   - `CombiPreference` wires its commit listener (`onCheckChanged` → `setEnabledProviders`)
+     only when the row widget is `miuix.slidingwidget.widget.SlidingSwitch`; on OS4 the
+     expressive settings theme makes `PrimarySwitchPreference` use
+     `settingslib_expressive_preference_switch.xml` (a `MaterialSwitch`), whose super-class
+     listener (`PrimarySwitchPreference.lambda$onBindViewHolder$0`) only flips the local
+     `mChecked` — so toggles never reached the CredentialManager. `hookCombiPreferenceSwitchCommit`
+     hooks `CombiPreference.onBindViewHolder` and, for any non-SlidingSwitch widget, attaches
+     an `OnCheckedChangeListener` that reflectively calls the preference's
+     `mOnClickListener.onCheckChanged(preference, checked)` (reverting on `false`, the
+     provider-limit case), mirroring the native SlidingSwitch path.
+   - Even with the commit working, the switches showed **off on page open while the system
+     state was on**: the rows are built (`buildPreferenceList`) before the controller's
+     `update()` refreshes `mEnabledPackageNames`, and the controller's own sync
+     (`setAvailableServices` → `mPrefs.setChecked`) only reaches rows already registered in
+     `mPrefs` — which on this build were empty during the initial display pass. `wireCombiPreferenceSwitch`
+     therefore also forces the switch (and the preference's `mChecked`) to the controller's
+     `mEnabledPackageNames` state at every bind, read through the listener's `this$0`/
+     `val$packageName` fields. Verified: toggles commit (`setEnabledProviders success`,
+     `credential_service` gains the components), the settings persist, and the switches
+     render on after a page re-open.
+
+**SecurityCenter half fixed for the current build**: the default-credential writers moved
+from `com.miui.securitycenter.Application` to `com.miui.securitycenter.service.CacheService`
+(private no-arg `C()`/`D()` wrappers calling R8-renamed `(String,int)` helpers `y0`/`x0` that
+read a resource and write `Settings.Secure`), so the old `Application`-scoped DexKit queries
+silently resolved nothing and MIUI's defaults were never blocked. `hookSecurityCenter` now
+resolves the helpers and wrappers by shape (resource-read + `putString` invokes, and the
+`autofill_service` / `credential_service`+`credential_service_primary` string wrappers)
+without a class-name dependency, blocking them while `unlock_passkey` is on.
+
+## Module Configuration Storage
+
+The module's settings live in two independent copies, which is why they "survive
+uninstall" (verified on-device 2026-08-15):
+
+- **Module data** (`/data/user/0/com.takekazex.hypertweak/shared_prefs/`
+  `hypertweak_settings.xml` + `hypertweak_cache.xml`): deleted on uninstall.
+- **LSPosed daemon copy**: `service.getRemotePreferences(Preferences.NAME)` is backed
+  by `/data/adb/lspd/config/modules_config.db`, table `module_configs` (one row per
+  key, Java-serialized value, keyed by module package with `ON DELETE CASCADE` on
+  `modules`). LSPosed keeps the module row, so a reinstall silently restores the old
+  config. Every hooked process also keeps its own `hypertweak_cache.xml` in *its*
+  data dir, which is unreachable from the module and would keep serving stale values
+  after a remote wipe.
+
+`Preferences.clearAllSettings()` wipes all three: the remote copy (with a bumped
+`prefs_epoch` row left behind), the module's own prefs, and the module's own cache.
+All getters compare the cache's epoch against the remote epoch and treat a mismatch
+as "cache stale → default", so hooked processes pick the reset up on their next read
+without a reboot. A reinstall/clear-data is detected through `first_run_token` in the
+module's own prefs (fresh data dir + remote config present → auto-reset once; the
+presence of `last_known_module_activated`, written on every launch by recent versions,
+marks an ordinary update as not-fresh so upgrades never wipe settings), and
+Settings → Other → Clear All Settings offers the same reset manually.
+
 ## Reverse Engineering Workspace
 
 Platform artifacts and decompiler output are intentionally external to the Git
@@ -772,6 +929,19 @@ Other available mappings are:
   (`022d14a4ae7d30139a8a0f251df45780960fe650b8865cf6fb320f7e8055a9f8`) — pulled to
   confirm the `AppInfoSettings` / `AllAppList` SPA routes exist; not decompiled, so
   there is no cache entry for it.
+- OS4 Settings (pulled 2026-08-15):
+  `/Users/ink/developer/reverse/Settings-OS4.0.0.15.XPMCNXM.apk`
+  (`5e1fadcf63fb29fdb11f05da6db10191529fe3f9f59e74f6a3c7d13b61e4263b`) ->
+  `/Users/ink/developer/reverse/cache/settings-5e1fadcf63fb29fd`
+  (JADX `jadx/`, APKTool smali+res `apktool/`, input `input/Settings.apk`).
+- OS4 framework and services (pulled 2026-08-15):
+  `/Users/ink/developer/reverse/framework-OS4.0.0.15.XPMCNXM.jar`
+  (`ab30b2c82d158e18fa83efb02ce32ba838456832708d2e4e4a26a1fbfecc3bbc`) and
+  `/Users/ink/developer/reverse/services-OS4.0.0.15.XPMCNXM.jar`.
+- Device-side app artifacts (pulled 2026-08-15, unversioned):
+  `/Users/ink/developer/reverse/com.google.android.gms-OS4-device.apk` (GMS
+  26.31.31; credential-provider XMLs live under obfuscated flat `res/*.xml` files)
+  and `/Users/ink/developer/reverse/com.microsoft.emmx-device.apk` (Edge).
 - Framework services: `/Users/ink/developer/reverse/services.jar`
   (`2e880646dd2e4d92c1a12111aaa70b8eab9a8edf838eab2eb33d87a14618d3a9`) ->
   `/Users/ink/developer/reverse/cache/framework-services-2e880646`
