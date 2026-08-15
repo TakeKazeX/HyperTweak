@@ -823,6 +823,50 @@ resolves the helpers and wrappers by shape (resource-read + `putString` invokes,
 `autofill_service` / `credential_service`+`credential_service_primary` string wrappers)
 without a class-name dependency, blocking them while `unlock_passkey` is on.
 
+## FCM Live (Google Push Fix)
+
+Settings → Tweaks → Fix Google Push (FCM Live), ported from howard20181's
+HyperOS_FCM_Live (GPL-3.0; reference clone at
+`/Users/ink/developer/refrences/HyperOS_FCM_Live-main`). Two hookers:
+
+- `FcmLiveSystemHooker` (system_server): allows GMS c2dm broadcasts through
+  `GreezeManagerService.isAllowBroadcast` and stops
+  `GreezeManagerService.deferBroadcastForMiui` /
+  `DomesticPolicyManager.deferBroadcast` from deferring
+  `GCM_RECONNECT`/`CONNECTED`/`DISCONNECTED`/`HEARTBEAT_ALARM`; disables the
+  GMS-limit action; removes GMS from `ListAppsManager`'s system blacklist and
+  seeds it into the use-data whitelist; lets GMS remote intents through
+  `BroadcastQueueModernStubImpl.checkApplicationAutoStart`; adds GMS to
+  `ProcessPolicy.getWhiteList`; removes it from
+  `AwareResourceControl.mNoNetworkBlackUids`; and in
+  `ActivityManagerService.broadcastIntentWithFeature` adds
+  `FLAG_INCLUDE_STOPPED_PACKAGES` plus a `GOOGLE_C2DM` temporary power
+  exemption for the target package.
+- `FcmLivePowerKeeperHooker` (com.miui.powerkeeper): forces
+  `NetdExecutor.initGmsChain` to ACCEPT, drives `GmsObserver`
+  `updateGmsAlarm`/`updateGmsNetWork`/`updateGoogleReletivesWakelock` to
+  false, and adds GMS to `GlobalFeatureConfigureHelper.getDozeWhiteListApps`.
+
+OS4 renamed `ListAppsManager`'s fields and made them static (verified on
+OS4.0.0.15.XPMCNXM, miui-services.jar classes2.dex): `mSystemBlackList` →
+`SYSTEM_BLACK_LIST`, `mUseDataWhiteList` → `USE_DATA_WHITE_LIST`; the hooker
+tries both spellings. The constructor only removes GMS itself when
+`PolicyManager.CN_MODEL` is false, so the blacklist removal is repeated in
+the `isInWhiteList` hook to cover construction order. GMS is seeded in place
+into the static `USE_DATA_WHITE_LIST` set so the platform's own
+add/removeAll mutations survive.
+
+Agent verification (OS4.0.0.15.XPMCNXM, 2026-08-15): before the fix the
+LSPosed verbose log reported `Failed to hook ListAppsManager`
+(NoSuchFieldException on `mSystemBlackList`) and `dumpsys greezer` showed
+GMS absent from the `local:` whitelist; after the fix every FcmLive hook in
+both processes reports HOOK_OK and `dumpsys greezer` lists
+`com.google.android.gms` in `local:`, with GMS also in the deviceidle
+whitelist. `compileDebugKotlin` and `testDebugUnitTest` pass. On-device
+functional testing (push delivery) is performed by the user. The setting
+requires a reboot for the system half and a PowerKeeper restart (its
+restart-scope selection only covers PowerKeeper, per the UI summary).
+
 ## Module Configuration Storage
 
 The module's settings live in two independent copies, which is why they "survive
@@ -936,8 +980,12 @@ Other available mappings are:
   (JADX `jadx/`, APKTool smali+res `apktool/`, input `input/Settings.apk`).
 - OS4 framework and services (pulled 2026-08-15):
   `/Users/ink/developer/reverse/framework-OS4.0.0.15.XPMCNXM.jar`
-  (`ab30b2c82d158e18fa83efb02ce32ba838456832708d2e4e4a26a1fbfecc3bbc`) and
-  `/Users/ink/developer/reverse/services-OS4.0.0.15.XPMCNXM.jar`.
+  (`ab30b2c82d158e18fa83efb02ce32ba838456832708d2e4e4a26a1fbfecc3bbc`),
+  `/Users/ink/developer/reverse/services-OS4.0.0.15.XPMCNXM.jar`, and
+  `/Users/ink/developer/reverse/miui-services-OS4.0.0.15.XPMCNXM.jar`
+  (`e78defb013d4dd50d1705147853b351828f130be2b6a45cfc446b7b7407903af`;
+  `com.miui.server.greeze.*` — GreezeManagerService, ListAppsManager,
+  AwareResourceControl — lives in its `classes2.dex`).
 - Device-side app artifacts (pulled 2026-08-15, unversioned):
   `/Users/ink/developer/reverse/com.google.android.gms-OS4-device.apk` (GMS
   26.31.31; credential-provider XMLs live under obfuscated flat `res/*.xml` files)

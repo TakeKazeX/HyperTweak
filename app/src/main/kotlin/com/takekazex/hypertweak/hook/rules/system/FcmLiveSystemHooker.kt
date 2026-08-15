@@ -151,12 +151,23 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookListAppsManager() {
         runCatching {
             val clazz = "com.miui.server.greeze.power.ListAppsManager".toClassOrNull() ?: return@runCatching
-            val mSystemBlackListField = clazz.getDeclaredField("mSystemBlackList").apply { isAccessible = true }
-            val mUseDataWhiteListField = runCatching {
+            // OS4 renamed both fields and made them static: mSystemBlackList -> SYSTEM_BLACK_LIST,
+            // mUseDataWhiteList -> USE_DATA_WHITE_LIST (verified on OS4.0.0.15.XPMCNXM,
+            // miui-services.jar classes2.dex). Older builds use the m-prefixed instance fields;
+            // try both spellings.
+            val systemBlackListField = runCatching {
+                clazz.getDeclaredField("mSystemBlackList").apply { isAccessible = true }
+            }.getOrElse {
+                clazz.getDeclaredField("SYSTEM_BLACK_LIST").apply { isAccessible = true }
+            }
+            val useDataWhiteListField = runCatching {
                 clazz.getDeclaredField("mUseDataWhiteList").apply { isAccessible = true }
-            }.onFailure {
-                DebugLog.w(hookerName, "ListAppsManager use-data whitelist field is unavailable", it)
-            }.getOrNull()
+            }.getOrElse {
+                runCatching { clazz.getDeclaredField("USE_DATA_WHITE_LIST").apply { isAccessible = true } }
+                    .onFailure {
+                        DebugLog.w(hookerName, "ListAppsManager use-data whitelist field is unavailable", it)
+                    }.getOrNull()
+            }
 
             // Hook all constructors to remove GMS from the blacklist and seed it into the whitelist.
             clazz.declaredConstructors.forEach { constructor ->
@@ -164,12 +175,12 @@ object FcmLiveSystemHooker : StaticHooker() {
                     after { param ->
                         runCatching {
                             @Suppress("UNCHECKED_CAST")
-                            val blackList = mSystemBlackListField.get(param.thisObject) as? MutableList<String>
+                            val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
                             blackList?.remove(GMS_PACKAGE_NAME)
                         }
                         // Seed GMS into the static whitelist once, in place, so the platform's own
                         // add/removeAll mutations are preserved.
-                        mUseDataWhiteListField?.let { field ->
+                        useDataWhiteListField?.let { field ->
                             runCatching { addGmsToWhiteListInPlace(field.get(param.thisObject)) }
                         }
                     }
@@ -177,18 +188,25 @@ object FcmLiveSystemHooker : StaticHooker() {
             }
 
             // boolean isInWhiteList(String packageName)
-            mUseDataWhiteListField?.let { whiteListField ->
-                runCatching {
-                    val isInWhiteListMethod = clazz.getDeclaredMethod("isInWhiteList", String::class.java)
-                    isInWhiteListMethod.hook {
-                        before { param ->
-                            // mUseDataWhiteList is a process-wide static Set. Mutate it in place instead
-                            // of allocating a replacement and reassigning the field: the old reference
-                            // swap discarded the platform's concurrent add/removeAll updates and
-                            // republished the static unsafely across binder threads.
+            runCatching {
+                val isInWhiteListMethod = clazz.getDeclaredMethod("isInWhiteList", String::class.java)
+                isInWhiteListMethod.hook {
+                    before { param ->
+                        // USE_DATA_WHITE_LIST is a process-wide static Set. Mutate it in place instead
+                        // of allocating a replacement and reassigning the field: the old reference
+                        // swap discarded the platform's concurrent add/removeAll updates and
+                        // republished the static unsafely across binder threads.
+                        useDataWhiteListField?.let { field ->
                             runCatching {
-                                addGmsToWhiteListInPlace(whiteListField.get(param.thisObject))
+                                addGmsToWhiteListInPlace(field.get(param.thisObject))
                             }
+                        }
+                        // Repeat the blacklist removal here so it holds even when the constructor
+                        // ran before this hook was installed.
+                        runCatching {
+                            @Suppress("UNCHECKED_CAST")
+                            val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
+                            blackList?.remove(GMS_PACKAGE_NAME)
                         }
                     }
                 }
