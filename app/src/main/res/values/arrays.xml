@@ -17,5 +17,6 @@
         <item>com.xiaomi.scanner</item>
         <item>com.milink.service</item>
         <item>com.xiaomi.bluetooth</item>
+        <item>com.google.android.gms</item>
     </string-array>
 </resources>

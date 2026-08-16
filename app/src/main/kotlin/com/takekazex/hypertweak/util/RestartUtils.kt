@@ -87,7 +87,8 @@ object RestartUtils {
             scanner = selection.scanner,
             milink = selection.milink,
             bluetooth = selection.bluetooth,
-            powerkeeper = selection.powerkeeper
+            powerkeeper = selection.powerkeeper,
+            gms = selection.gms
         )
     }
 
@@ -102,9 +103,10 @@ object RestartUtils {
         scanner: Boolean,
         milink: Boolean,
         bluetooth: Boolean,
-        powerkeeper: Boolean = false
+        powerkeeper: Boolean = false,
+        gms: Boolean = false
     ) {
-        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper) return
+        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper && !gms) return
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
@@ -119,6 +121,7 @@ object RestartUtils {
                 putExtra(RestartProtocol.EXTRA_MILINK, milink)
                 putExtra(RestartProtocol.EXTRA_BLUETOOTH, bluetooth)
                 putExtra(RestartProtocol.EXTRA_POWERKEEPER, powerkeeper)
+                putExtra(RestartProtocol.EXTRA_GMS, gms)
             }
             // No receiver permission: that argument demands the *receiver* hold it, and the hooked
             // system apps never will. Senders are already restricted by the receivers'
@@ -157,6 +160,9 @@ object RestartUtils {
                         if (powerkeeper) {
                             writer.write("am force-stop com.miui.powerkeeper\n")
                         }
+                        if (gms) {
+                            writer.write("am force-stop com.google.android.gms\n")
+                        }
                         writer.write("exit\n")
                         writer.flush()
                     }
@@ -189,6 +195,7 @@ object RestartUtils {
                     if (milink) add("MiLink")
                     if (bluetooth) add("Bluetooth")
                     if (powerkeeper) add("PowerKeeper")
+                    if (gms) add("GMS")
                 }.joinToString(", ")
 
                 if (rootSuccess) {

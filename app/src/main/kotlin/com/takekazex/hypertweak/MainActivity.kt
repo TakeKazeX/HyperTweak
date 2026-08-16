@@ -27,12 +27,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.LauncherVersion
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.LocaleHelper
 import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
 
 internal fun getSystemAccentColor(context: Context): Int {
     return try {
@@ -78,7 +76,10 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         milink = true,
         bluetooth = true
     ),
-    Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true)
+    Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true),
+    // The Quick Share phenotype override lives in Google Play services; GMS is a declared
+    // required scope entry, so the toggle flows through the standard Home restart button.
+    Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true)
 )
 
 private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(RestartScopeSelection.Empty) { acc, scopes ->
@@ -89,9 +90,6 @@ private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
 private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
-
-/** Google Play services; the Quick Share phenotype override runs in its process. */
-private const val GMS_PACKAGE = "com.google.android.gms"
 
 private fun currentBootToken(): String {
     return runCatching {
@@ -376,65 +374,15 @@ class MainActivity : ComponentActivity() {
 
             /**
              * Quick Share on CN GMS works through a phenotype override that only GMS's own
-             * process can write, so turning it on requests GMS scope and restarts Google Play
-             * services; the hooker then writes the `sharing_supports_latchsky` row at
-             * package-ready. Turning it off restarts GMS first (still scoped, so the hooker
-             * removes the row) and only then revokes the scope.
+             * process can write. GMS is a declared required scope, so the toggle only flips the
+             * preference and marks the tweak dirty: the standard Home restart button then
+             * restarts Google Play services, and the hooker writes the `sharing_supports_latchsky`
+             * row (or removes it) at package-ready.
              */
             fun handleQuickShareChange(checked: Boolean) {
                 quickShareEnabled = checked
                 Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
-                val managed = setOf(GMS_PACKAGE)
-                coroutineScope.launch {
-                    if (checked) {
-                        when (val result = ScopeManager.applyManagedDiff(context, managed, managed)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                                RestartUtils.forceStopPackages(context, coroutineScope, managed)
-                            }
-                            is ScopeManager.Result.Rejected -> {
-                                quickShareEnabled = false
-                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
-                                Toast.makeText(
-                                    context,
-                                    "GMS scope not granted; Quick Share stays off",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            is ScopeManager.Result.Failed -> {
-                                quickShareEnabled = false
-                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
-                                Toast.makeText(
-                                    context,
-                                    "Could not update the scope: ${result.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            ScopeManager.Result.ServiceUnavailable -> {
-                                quickShareEnabled = false
-                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
-                                Toast.makeText(
-                                    context,
-                                    "The Xposed service is unavailable",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    } else {
-                        // Restart GMS while it is still scoped so the hooker removes the override
-                        // row, then revoke the scope. If the restart loses the race, the row
-                        // survives — a benign leftover that a later toggle-off retries.
-                        val restartJob = RestartUtils.forceStopPackages(context, coroutineScope, managed)
-                        restartJob.join()
-                        when (val result = ScopeManager.applyManagedDiff(context, emptySet(), managed)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> Unit
-                            else -> Toast.makeText(
-                                context,
-                                "Quick Share disabled; GMS scope left in place",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
+                markTweaked(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
             }
 
             LaunchedEffect(serviceConnected) {

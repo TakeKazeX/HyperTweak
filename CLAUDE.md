@@ -893,48 +893,84 @@ delivered instead of skipped and the `FcmRetry`/CANCELLED loop stopped.
 
 Settings → Tweaks → System Core → Unlock Nearby Share (Quick Share)
 (`KEY_QUICK_SHARE_ENABLED`, `hook/rules/gms/QuickSharePhenotypeHooker.kt`). CN
-(domestic) Google Play services hides Quick Share because its phenotype flag
-`sharing_supports_latchsky` (flag package `com.google.android.gms.nearby`) is
-`false`, and the latchsky module initializer refuses to enable Quick Share
-while it is false. The fix is a persistent override row in GMS's
-credential-encrypted `phenotype.db`
-(`/data/user/0/com.google.android.gms/databases/phenotype.db`), which wins over
-server-delivered flag values at read time.
+(domestic) Google Play services hides Quick Share through two gates, both
+driven by the CN marker features `com.google.android.feature.services_updater`
++ `cn.google.services`:
+
+1. **Init gate**: `com.google.android.gms.nearby.sharing.ModuleInitializer.e(Context)`
+   returns the phenotype flag `sharing_supports_latchsky` (flag package
+   `com.google.android.gms.nearby`) when the CN features are present; the flag
+   ships `false` on CN builds, so the runtime never starts (`Sharing is
+   disabled for reason UNSUPPORTED_DEVICE_TYPE_LATCHSKY`).
+2. **Device-type gate**: `defpackage.bmwx.i(Context)` classifies a CN GMS
+   device as "latchsky", which makes `dqvq.f()` report a blacklisted device
+   type; `imck.d/e` then refuse discovery and `egph.a()` makes
+   `GAccountUtils#getSupportedAccounts` fail.
+
+The persistent fix is an override row in GMS's credential-encrypted
+`phenotype.db` (`/data/user/0/com.google.android.gms/databases/phenotype.db`),
+`sharing_supports_latchsky` in `flag_overrides` with `active IS 1`, `type = 2`
+(boolean), `value = 1` (true), keyed by `config_package_name` + the wildcard
+`*` account, which wins over server-delivered flag values at read time. **A
+plain DB row is not enough on its own**: the flag store serves per-package
+protobuf snapshots (`phenotype/shared/<...>.pb`) rebuilt from
+`config_packages.flags_content` + `flag_overrides` by the persistent-process
+flag store, and nothing guarantees a rebuild after a raw write. The hooker
+therefore combines four layers (all idempotent, all gated on the key):
+
+1. Raw DB override row (persistent, self-healing at every GMS start).
+2. The official `com.google.android.gms.phenotype.FLAG_OVERRIDE` broadcast,
+   sent from the GMS process (the receiver `FlagOverrideChimeraReceiver` is
+   protected by the signature permission `PHENOTYPE_OVERRIDE_FLAGS`, which only
+   GMS holds): extras `package`/`user`(`*`)/`commit`/`flags`/`values`/`types`
+   (or `action=delete` + `flag` for the off path) → `SetFlagOverrides
+   OperationCall` (`fldk`/`fldm`) commits the override with GMS's own account
+   semantics, rebuilds the shared `.pb` snapshots (`flfi`,
+   PhSharedDirectoryWriter, which merges `flag_overrides`), and broadcasts
+   `com.google.android.gms.phenotype.COMMITTED`, which re-runs
+   `ModuleInitializer`. Sent only when the DB state actually changed.
+3. Hook `ModuleInitializer.e(Context)` → true (stable, non-obfuscated class
+   name — the exact gate the flag feeds), so initialization happens even if a
+   future GMS version changes flag delivery.
+4. Hook `bmwx.i(Context)` → false (best-effort; the class name is R8-obfuscated
+   and version-fragile, so it silently no-ops when it does not resolve) to open
+   the discovery device-type gate and the account-metadata path.
 
 Mechanism, verified in `com.google.android.gms-OS4-device.apk` (26.31.31,
-classes2.dex + classes11.dex, temporary JADX output under
-`/tmp/gmsapk/jadx{2,11,12}`): the flag is read through `jnjr.dL()` →
-`guyf.a.i(261, "sharing_supports_latchsky", false)` from the flag container
-`jngf.a = guwl("com.google.android.gms.nearby", …)`. `PhenotypeDbHelper`
-(`fkyz`, DB file `phenotype.db`, opened via `context.getDatabasePath`) stores
-flags in the current schema's `flag_overrides(config_package_name,
-account_id, active, name, value, type, source)` + `accounts` tables (legacy
-pre-1001 schema: `FlagOverrides(packageName, user, name, flagType, intVal,
-boolVal, floatVal, stringVal, extensionVal, committed)`). Overrides are
-matched at read time (`flfi`) by `(config_packages.name = ? OR
-flag_overrides.config_package_name IS ?)` and `(accounts.name = ? OR
-accounts.name = '*')` with `active IS 1`, so a row keyed by
-`config_package_name` with the wildcard `*` account applies to every user.
+temporary JADX output under `/tmp/gmsapk/jadx{0,2,7,11,12,15}`): the flag is
+read through `jnjr.dL()` → `guyf.a.i(261, "sharing_supports_latchsky", false)`
+from the flag container `jngf.a = guwl("com.google.android.gms.nearby", …)`;
+`sharing_supports_latchsky` has exactly one consumer (`ModuleInitializer`).
+`PhenotypeDbHelper` (`fkyz`, DB file `phenotype.db`, opened via
+`context.getDatabasePath`) stores flags in the current schema's
+`flag_overrides(config_package_name, account_id, active, name, value, type,
+source)` + `accounts` tables (legacy pre-1001 schema:
+`FlagOverrides(packageName, user, name, flagType, intVal, boolVal, floatVal,
+stringVal, extensionVal, committed)`). Overrides are matched at read time
+(`flfi`) by `(config_packages.name = ? OR flag_overrides.config_package_name
+IS ?)` and `(accounts.name = ? OR accounts.name = '*')` with `active IS 1`;
 `type = 2` is boolean, `value = 1` is true, `source = 0` marks a local user
-override (GMS's own commit path treats `source = 0` rows as authoritative).
-Both SQL shapes were validated against a real SQLite with the extracted
-schema, including GMS's read-side EXISTS query.
+override. Both SQL shapes were validated against a real SQLite with the
+extracted schema, including GMS's read-side EXISTS query. The broadcast
+format was taken from `FlagOverrideChimeraReceiver.onReceive` (26.31.31);
+26.30.61 is expected to match but is not verified locally.
 
-The hooker never hooks a GMS class — it only writes the DB — so a GMS update
-cannot break it; only the SQLite schema is touched (schema-variant detection
-via `sqlite_master`/`PRAGMA table_info`). It runs inside the GMS main process
-at package-ready (GMS must be in the module's Xposed scope), enforces the row
-at every GMS start (upsert on, delete off; idempotent), and retries once after
-30s when the CE database is not accessible yet (early boot). `PRAGMA
-busy_timeout = 5000` covers write locks held by GMS's own flag store.
+The DB layer runs inside the GMS main process at package-ready (GMS must be in
+the module's Xposed scope), enforces the row at every GMS start (upsert on,
+delete off), and retries once after 30s when the CE database is not accessible
+yet (early boot). `PRAGMA busy_timeout = 5000` covers write locks held by
+GMS's own flag store. Schema-variant detection via
+`sqlite_master`/`PRAGMA table_info`.
 
-Scope is granted dynamically, mirroring the input-method flow: toggling on
-`ScopeManager.applyManagedDiff`s `com.google.android.gms` in and restarts GMS
-(`RestartUtils.forceStopPackages`, which now returns its `Job`); toggling off
-restarts GMS first — while it is still scoped, so the hooker removes the row —
-and then revokes the scope. If the restart loses the race, the override row
-survives; that is benign and a later toggle-off retries. GMS is deliberately
-**not** in `arrays.xml`/`scope.list` (no mandatory GMS hooking). Applying takes
+Scope: `com.google.android.gms` is a declared entry in `arrays.xml`/`scope.list`
+(shown as a recommended scope in LSPosed), so the toggle only flips the
+preference and marks the tweak dirty (`TWEAK_RESTART_SCOPES` →
+`RestartScopeSelection(gms = true)`); the standard Home "Restart Scoped Apps"
+dialog (which gained a `gms` field) restarts Google Play services, and the
+hooker applies or removes the override at package-ready. Toggling off restarts
+GMS first — while it is still scoped, so the hooker removes the row — and no
+dynamic scope request is needed. If the restart loses the race, the override
+row survives; that is benign and a later toggle-off retries. Applying takes
 effect after the GMS restart; verification of the Quick Share UI is the
 user's.
 

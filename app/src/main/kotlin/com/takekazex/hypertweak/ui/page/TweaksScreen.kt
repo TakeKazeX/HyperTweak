@@ -308,9 +308,10 @@ fun TweaksScreenContent(
                         checked = quickShareEnabled,
                         onCheckedChange = onQuickShareEnabledChange,
                         title = "Unlock Nearby Share (Quick Share)",
-                        summary = "Override the GMS phenotype flag sharing_supports_latchsky so Quick Share " +
-                            "appears on CN Google Play services. Prompts for GMS scope and restarts " +
-                            "Google Play services to apply."
+                        summary = "Unlocks Quick Share on CN Google Play services: overrides the phenotype " +
+                            "flag sharing_supports_latchsky in GMS's database and opens the CN " +
+                            "device-type gates. Prompts for GMS scope and restarts Google Play " +
+                            "services to apply."
                     )
                     SwitchPreference(
                         checked = unlockPasskey,
