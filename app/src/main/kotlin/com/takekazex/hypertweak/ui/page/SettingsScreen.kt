@@ -71,6 +71,7 @@ fun SettingsScreenContent(
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
+    onNavigateToWatermark: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -203,6 +204,11 @@ fun SettingsScreenContent(
                         title = "Icon Tuner",
                         summary = "Hide and customize status-bar icons (cellular, WiFi)",
                         onClick = onNavigateToIconTuner
+                    )
+                    ArrowPreference(
+                        title = "Watermark Unlock",
+                        summary = "Unlock Leica / Disney / POCO / festival watermarks in the media editor",
+                        onClick = onNavigateToWatermark
                     )
                     // The material style (材质风格) with its two modes only exists on OS4;
                     // OS3 SystemUI has neither the bionics resources nor the material_style key.

@@ -55,10 +55,13 @@ com.miui.powerkeeper
 com.xiaomi.scanner
 com.milink.service
 com.xiaomi.bluetooth
+com.google.android.gms
+com.miui.mediaeditor
 ```
 
 These cover the system server, SystemUI, Launcher, the module's own process,
-Settings, AOD, Security Center, PowerKeeper, Scanner, MiLink, and Bluetooth.
+Settings, AOD, Security Center, PowerKeeper, Scanner, MiLink, Bluetooth, Google
+Play services, and the media editor (相册编辑).
 
 Feature areas include system/SystemUI hooks, slider percentage display, an AOSP
 back gesture, AOD/fingerprint/navigation-bar behavior, lockscreen status-bar
@@ -973,6 +976,99 @@ dynamic scope request is needed. If the restart loses the race, the override
 row survives; that is benign and a later toggle-off retries. Applying takes
 effect after the GMS restart; verification of the Quick Share UI is the
 user's.
+
+## Media Editor Watermark Unlock
+
+Settings → Experimental → Watermark Unlock
+(`ui/page/WatermarkPage.kt`, `Route.Watermark`,
+`hook/rules/mediaeditor/MediaEditorWatermarkHooker.kt`) unlocks watermark
+categories in the media editor (`com.miui.mediaeditor`, 相册编辑; gallery
+itself is a Rust/Flutter shell with no dex to hook). Reverse engineering for
+2.10.37.9 (OS4.0.0.15.XPMCNXM) lives in
+`cache/mediaeditor-292ff5db343e5f13/` (`WATERMARK_UNLOCK_PLAN.md`, APK pulled
+from the device as `MiMediaEditor-OS4.0.0.15.XPMCNXM-device.apk`).
+
+Watermark visibility is gated in three layers, each with its own hooks:
+
+1. **Device checks** — R8-obfuscated static helpers `wn.a` / `zn.a`
+   (classes2.dex, resolved by literal name with DexKit string signatures as
+   fallback) decide which brand/theme groups this device may see. Every check
+   is a parameterless `boolean` over `Build.DEVICE` / `Build.BRAND` /
+   `ro.boot.product.theme_customize` / `ro.theme_customize`, shared by the
+   local template menu (`vy.i.d`) and the cloud filter (`vy.i0.a`), so one
+   hook per method unlocks both sides of one category. Each category has its
+   own preference: `wn.a.b()`=leica, `wn.a.i()`=xiaomi, `wn.a.e()`=redmi,
+   `wn.a.c()`=poco, `wn.a.g()`=victoria, `wn.a.h()`=west_coast_3,
+   `zn.a.g()`=lcc, `zn.a.h()`=west_coast_1, `zn.a.i()`=west_coast_2.
+   **`zn.a.b()` must never be hooked**: the local watermark menu is wrapped in
+   `if (!zn.a.b() || zn.a$q.b(null))`, so forcing it true hides the whole menu.
+2. **Cloud config fields** — the `CloudWatermarkData` constructor after-hook
+   (business class name kept, 21-parameter constructor) rewrites the
+   per-watermark restriction fields parsed from the `watermark_config_v2`
+   cloud config (server sends the full list; filtering is client-side) while
+   the master switch is on: validFrom=0/validTo=Long.MAX_VALUE (smali-verified
+   check is `now <= validTo && validFrom <= now`), supportRegions=["*"]/
+   unSupportRegions=[], name_length_limitation=[], minWmVer=0.0 and
+   supportDisplayApp gains "ALL". These "integrity" limits follow the master
+   switch rather than per-category switches, because a category such as leica
+   mixes entries with different restrictions (festival editions, camera-only
+   display apps, higher min versions) and unlocking the category must show
+   them all (initially they had their own switches; that left most cloud
+   entries filtered when only the category switch was on). The LCC tag remap
+   stays behind `KEY_WM_LCC`: `lcc_global_devices` / `lcc_cn_devices` tags in
+   the support list become `*` and are dropped from the unsupported list, so
+   both LCC sets pass regardless of `ro.product.mod_device`. List fields are
+   mutated through the constructor arguments (shared instances); the long/
+   double fields are written on `thisObject` by type order (first `long` =
+   validFrom, second `long` = validTo, the only `double` = minWmVer — the
+   declaration order R8 preserves).
+3. **Downloaded-resource filter** — after a cloud watermark zip lands in
+   `files/watermarks/`, `tb0.o0` (PhotoWmManager) re-scans and applies a
+   second filter chain (id whitelist / validity / device_type / region /
+   theme / system properties / name length). The whole chain is skipped when
+   the system property `camera.cloud.watermark.debug` is true, read by the
+   obfuscated `tb0.v$b.invoke()`; hooking that to true while
+   `KEY_WM_UNLOCK_MASTER` is on keeps every downloaded resource usable.
+
+`KEY_WM_DOWNLOAD_ALL` bulk-fetches every `CloudWatermarkItem` through the
+same `yy.m.a(WatermarkItem, WatermarkCategory, ee.e.a)` dispatch path
+(resource fetcher `yy.h`, listener supplied via a dynamic proxy) in a
+`vy.i.b(List, boolean)` after-hook, once per editor process.
+
+### Camera half (`com.android.camera`)
+
+`hook/rules/camera/CameraWatermarkHooker.kt` (switch `KEY_WM_CAMERA`) unlocks
+the camera's own watermark gallery (`WmGalleryFragment` → `WmGalleryPreference`,
+data via the `WmBaseManager` abstraction `Gg.P`). The camera syncs the full
+watermark set (festival editions included, e.g. `2026_parents_day`) into
+`files/watermarks/`, but `Gg.P.d(boolean)` (`filterData`) applies the same
+filter chain the editor uses — id whitelist, validity, device_type,
+**system-properties match**, theme, region, name length — and on this baseline
+the Leica set (ids 88..94, 111) all require `"ro.boot.product.theme_customize":
+"lcc"` in their `config.json`, so a non-LCC device sees no Leica watermarks.
+The chain is wrapped in `if (!C1686u.f6071a.getValue())`, and the obfuscated
+reader `Gg.u$b.invoke()` reads the same `camera.cloud.watermark.debug` property
+as the editor's `tb0.v$b`; hooking it to true while `KEY_WM_CAMERA` is on skips
+the whole chain. The property read runs per gallery scan, so the switch takes
+effect on the next menu open without restarting the camera.
+
+All switches are read live inside the callbacks (100 ms Preferences memo), so
+toggling a category takes effect the next time the watermark menu is built
+without restarting the editor; only the first enable of
+`KEY_WM_UNLOCK_MASTER` needs the editor process restarted so the hooks are
+installed. `com.miui.mediaeditor` is a declared scope entry in
+`arrays.xml`/`scope.list`; the page requests it dynamically via
+`ScopeManager.request` when the master switch is turned on, so the user does
+not have to toggle LSPosed by hand.
+
+Agent verification (2026-08-16, OS4 device): `compileDebugKotlin`,
+`testDebugUnitTest`, `lintDebug` and `assembleDebug` pass; the debug APK is
+installed, LSPosed auto-merged the new scope entry after reinstall, and the
+media-editor process reports HOOK_OK for every hook (`wn.a#b/i/e/c/g/h`,
+`zn.a#g/h/i`, `CloudWatermarkData#<init>`, `tb0.v$b#invoke`,
+`vy.i#b(List,boolean)`) with no failures. On-device functional testing (the
+watermark menu showing the unlocked categories, festival watermarks outside
+their time window, bulk downloads) is performed by the user.
 
 ## Module Configuration Storage
 

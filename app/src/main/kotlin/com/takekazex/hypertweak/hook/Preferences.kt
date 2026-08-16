@@ -199,8 +199,27 @@ object Preferences {
      */
     const val KEY_GLASS_TUNER_GLASS_TONE = "glass_tuner_glass_tone"
 
-    /** Status-bar slot preference key for [slot]; shared by the hooks and the settings UI. */
+    // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
     fun slotKey(slot: String): String = "icon_tuner_slot_$slot"
+
+    // Media-editor watermark unlock (com.miui.mediaeditor). See
+    // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
+    // KEY_WM_UNLOCK_MASTER needs the editor process restarted (to install the hooks).
+    const val KEY_WM_UNLOCK_MASTER = "wm_unlock_master"
+    const val KEY_WM_LEICA = "wm_leica"
+    const val KEY_WM_XIAOMI = "wm_xiaomi"
+    const val KEY_WM_REDMI = "wm_redmi"
+    const val KEY_WM_POCO = "wm_poco"
+    const val KEY_WM_DISNEY1 = "wm_disney1"
+    const val KEY_WM_DISNEY2 = "wm_disney2"
+    const val KEY_WM_DISNEY3 = "wm_disney3"
+    const val KEY_WM_VICTORIA = "wm_victoria"
+    const val KEY_WM_LCC = "wm_lcc"
+    const val KEY_WM_DOWNLOAD_ALL = "wm_download_all"
+
+    /** Camera app (com.android.camera) watermark unlock; see `CameraWatermarkHooker`. */
+    const val KEY_WM_CAMERA = "wm_camera"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

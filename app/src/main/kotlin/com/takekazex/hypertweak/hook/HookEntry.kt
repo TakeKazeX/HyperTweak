@@ -47,6 +47,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
+import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -547,6 +549,12 @@ class HookEntry : XposedModule() {
                 // Only the phenotype DB write runs in GMS (see QuickSharePhenotypeHooker);
                 // GMS is added to the scope dynamically when the Quick Share switch is on.
                 attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.miui.mediaeditor" -> {
+                attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.camera" -> {
+                attachHooker(CameraWatermarkHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

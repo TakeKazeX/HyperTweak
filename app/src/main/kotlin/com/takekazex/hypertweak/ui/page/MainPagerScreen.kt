@@ -136,6 +136,7 @@ fun MainPagerScreen(
     onNavigateToAospRestore: () -> Unit,
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
+    onNavigateToWatermark: () -> Unit,
     onClearAllSettings: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
@@ -366,6 +367,7 @@ fun MainPagerScreen(
                                 onNavigateToAospRestore = onNavigateToAospRestore,
                                 onNavigateToIconTuner = onNavigateToIconTuner,
                                 onNavigateToGlassTuner = onNavigateToGlassTuner,
+                                onNavigateToWatermark = onNavigateToWatermark,
                                 themeSummary = listOf("Follow System", "Light", "Dark")
                                     .getOrElse(themeMode) { "Follow System" },
                                 onNavigateToAppearance = onNavigateToAppearance,
