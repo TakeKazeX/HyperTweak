@@ -70,6 +70,7 @@ fun SettingsScreenContent(
     onNavigateToAospRestore: () -> Unit,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit,
+    onNavigateToGlassTuner: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -203,6 +204,15 @@ fun SettingsScreenContent(
                         summary = "Hide and customize status-bar icons (cellular, WiFi)",
                         onClick = onNavigateToIconTuner
                     )
+                    // The material style (材质风格) with its two modes only exists on OS4;
+                    // OS3 SystemUI has neither the bionics resources nor the material_style key.
+                    if (PlatformLevel.isOs4) {
+                        ArrowPreference(
+                            title = "Glass Material Tuner",
+                            summary = "Tune the blur and blend parameters behind 清透磨砂 / 柔光玻璃",
+                            onClick = onNavigateToGlassTuner
+                        )
+                    }
                 }
             }
 

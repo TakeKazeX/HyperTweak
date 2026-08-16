@@ -39,6 +39,7 @@ import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
+import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -304,6 +305,9 @@ fun HyperTweakNavContainer(
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
                 },
+                onNavigateToGlassTuner = {
+                    backStack.add(Route.GlassTuner)
+                },
                 onClearAllSettings = onClearAllSettings,
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
@@ -387,6 +391,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.IconTuner> {
             IconTunerPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.GlassTuner> {
+            GlassTunerPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

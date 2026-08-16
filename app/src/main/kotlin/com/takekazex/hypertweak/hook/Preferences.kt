@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.util.DebugLog
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 object Preferences {
     const val NAME = "hypertweak_settings"
@@ -165,6 +167,37 @@ object Preferences {
     const val KEY_ICON_IGNORE_SYS_HIDE = "icon_ignore_sys_hide"
     const val KEY_ICON_HIDE_PRIVACY = "icon_hide_privacy"
 
+    // OS4 material style glass tuning (Settings → Display → Visual style, 材质风格). The
+    // SystemUI hook intercepts the blur/blend resources behind 清透磨砂 and 柔光玻璃, so the
+    // page keeps its own state like IconTunerPage and these keys are deliberately absent from
+    // TWEAK_RESTART_SCOPES; the page offers its own SystemUI restart.
+    const val KEY_GLASS_TUNER_ENABLED = "glass_tuner_enabled"
+
+    /** Blend opacity multiplier (0.1..1.0, 1.0 = original); scales every blend color alpha. */
+    const val KEY_GLASS_TUNER_BLEND_ALPHA = "glass_tuner_blend_alpha"
+
+    /**
+     * Blend color lightness (0.5..1.5, 1.0 = original). Below 1.0 mixes the blend colors toward
+     * black (darker tint), above 1.0 toward white (lighter, more transparent-looking tint).
+     */
+    const val KEY_GLASS_TUNER_BLEND_LIGHTNESS = "glass_tuner_blend_lightness"
+
+    /** Blur max-radius multiplier (0.0..2.0, 1.0 = original); scales every blur radius dimen. */
+    const val KEY_GLASS_TUNER_RADIUS_SCALE = "glass_tuner_radius_scale"
+
+    /**
+     * Glass card effect multiplier (0.1..1.0, 1.0 = original). Scales the glass-shader params
+     * behind the notification / media card material (darkening, white tint, highlights).
+     */
+    const val KEY_GLASS_TUNER_GLASS_OPACITY = "glass_tuner_glass_opacity"
+
+    /**
+     * Glass tone multiplier (0.0..2.0, 1.0 = original). Scales the shader's base cast —
+     * luminance mix, brightness and blurred-backdrop saturation — that survives at zero
+     * opacity and reads as a grey, heavy look; lower is lighter and more see-through.
+     */
+    const val KEY_GLASS_TUNER_GLASS_TONE = "glass_tuner_glass_tone"
+
     /** Status-bar slot preference key for [slot]; shared by the hooks and the settings UI. */
     fun slotKey(slot: String): String = "icon_tuner_slot_$slot"
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
@@ -259,6 +292,20 @@ object Preferences {
             runCatching { remotePrefs.edit { block() } }
                 .onFailure { DebugLog.w("Preferences", "remote pref write failed; retrying on next write", it) }
         }
+    }
+
+    /**
+     * Blocks until every queued remote write has been applied. The remote copy lives in the
+     * LSPosed daemon and is written asynchronously through [serializedWriter], so a hooked
+     * process restarted right after a setting change (e.g. the Restart SystemUI action on a
+     * tuning page) can start before the daemon has the new values and read stale ones. Call
+     * this before restarting hooked processes that must observe the latest settings.
+     */
+    fun flush() {
+        if (!isInitialized || isLocalOnly) return
+        val latch = CountDownLatch(1)
+        serializedWriter.execute { latch.countDown() }
+        runCatching { latch.await(3, TimeUnit.SECONDS) }
     }
 
     fun initLocalCache(context: Context) {

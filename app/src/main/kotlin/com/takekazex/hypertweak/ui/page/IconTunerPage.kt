@@ -187,6 +187,9 @@ fun IconTunerPage(onBack: () -> Unit) {
                         title = "Restart SystemUI",
                         summary = "Apply the changes made on this page",
                         onClick = {
+                            // The remote (LSPosed daemon) copy is written asynchronously; make
+                            // sure SystemUI starts after the daemon has the latest values.
+                            Preferences.flush()
                             RestartUtils.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,

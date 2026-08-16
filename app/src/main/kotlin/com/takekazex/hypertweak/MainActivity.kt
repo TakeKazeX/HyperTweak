@@ -114,6 +114,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.i("HyperTweak", "MainActivity onCreate, intent=${intent?.action}")
 
         val shortcutTarget = intent?.getStringExtra("shortcut_target")
         if (shortcutTarget == "lsposed") {
