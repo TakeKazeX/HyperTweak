@@ -67,23 +67,29 @@ object FcmLiveSystemHooker : StaticHooker() {
             isAllowBroadcastMethod.hook {
                 before { param ->
                     val callerPkgName = param.args[1] as? String
-                    var calleePkgName = param.args[3] as? String
                     val calleeUid = param.args[2] as? Int
                     val action = param.args[4] as? String
 
-                    // Try to resolve callee package name from uid
-                    if (calleeUid != null) {
+                    // Fast path: a c2dm delivery owned by the GMS caller needs no callee
+                    // resolution at all.
+                    if (action != null && callerPkgName == GMS_PACKAGE_NAME &&
+                        action == ACTION_REMOTE_INTENT
+                    ) {
+                        param.result = true
+                        return@before
+                    }
+
+                    // Deferral actions: only now resolve the callee package name from its uid.
+                    // The previous code did that for every broadcast that passed through greeze,
+                    // even ones completely unrelated to GMS.
+                    if (action == null || action !in CN_DEFER_BROADCAST) return@before
+                    var calleePkgName = param.args[3] as? String
+                    if (calleePkgName == null && calleeUid != null) {
                         runCatching {
                             calleePkgName = getPackageNameFromUidMethod.invoke(param.thisObject, calleeUid) as? String
                         }
                     }
-
-                    // Allow FCM broadcasts
-                    if (action != null && (
-                        (callerPkgName == GMS_PACKAGE_NAME && action == ACTION_REMOTE_INTENT) ||
-                        ((calleePkgName == GMS_PACKAGE_NAME || calleePkgName == GMS_PERSISTENT_PROCESS_NAME) &&
-                            action in CN_DEFER_BROADCAST)
-                    )) {
+                    if (calleePkgName == GMS_PACKAGE_NAME || calleePkgName == GMS_PERSISTENT_PROCESS_NAME) {
                         param.result = true
                     }
                 }

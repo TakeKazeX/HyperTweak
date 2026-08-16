@@ -61,6 +61,71 @@ object StackedSignalHooker : StaticHooker() {
     private var isStackableField: Field? = null
     private val hooksInstalled = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    /** Cached `ActivityThread.currentApplication()` reflection; resolves once, never per call. */
+    private val activityThreadCurrentApplicationMethod by lazy {
+        runCatching {
+            Class.forName("android.app.ActivityThread")
+                .getMethod("currentApplication")
+                .apply { isAccessible = true }
+        }.getOrNull()
+    }
+
+    @Volatile
+    private var appContext: android.content.Context? = null
+
+    private fun appResources(): android.content.res.Resources? {
+        appContext?.let { return it.resources }
+        val method = activityThreadCurrentApplicationMethod ?: return null
+        val resolved = runCatching { method.invoke(null) as? android.content.Context }.getOrNull()
+        if (resolved != null) appContext = resolved
+        return resolved?.resources
+    }
+
+    /** Resource-name lookups are per-icon-request hot; cache by resource id (small, bounded set). */
+    private val resourceNameCache = ConcurrentHashMap<Int, String>()
+
+    private fun resourceNameOf(resId: Int): String? {
+        resourceNameCache[resId]?.let { return it }
+        val name = runCatching { appResources()?.getResourceEntryName(resId) }.getOrNull()
+        if (name != null) resourceNameCache[resId] = name
+        return name
+    }
+
+    /**
+     * The composed icon only changes when the signal level, type text or a render parameter
+     * changes, but `getIcon()` is called on every status-bar refresh. Cache the composed bitmap
+     * by those inputs instead of re-rendering (3-5 ALPHA_8 bitmaps plus Pictures) per request.
+     * [renderEpoch] is bumped whenever a parameter outside the key changes (style, scale, alphas,
+     * weight, paddings, rtl, icon height), which only happens on (re)install.
+     */
+    private class RenderKey(
+        val epoch: Int,
+        val stacked: Boolean,
+        val row1Level: Int,
+        val row2Level: Int,
+        val typeText: String
+    ) {
+        override fun equals(other: Any?): Boolean =
+            other is RenderKey && other.epoch == epoch && other.stacked == stacked &&
+                other.row1Level == row1Level && other.row2Level == row2Level &&
+                other.typeText == typeText
+
+        override fun hashCode(): Int {
+            var result = epoch
+            result = 31 * result + if (stacked) 1 else 0
+            result = 31 * result + row1Level
+            result = 31 * result + row2Level
+            result = 31 * result + typeText.hashCode()
+            return result
+        }
+    }
+
+    private const val MAX_RENDER_CACHE_ENTRIES = 16
+
+    @Volatile
+    private var renderEpoch = 0
+    private val renderedCache = ConcurrentHashMap<RenderKey, android.graphics.Bitmap>()
+
     /** Loads built-in SVGs and resolves the icon height; called from HookEntry.onPackageReady. */
     fun onPackageReady(context: Context) {
         rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
@@ -83,6 +148,8 @@ object StackedSignalHooker : StaticHooker() {
             TAG,
             "StackedSignal ready: h=${iconHeightPx}px rtl=$rtl single=${singleSvg != null} stacked=${stackedSvg != null}"
         )
+        // Render parameters (height, rtl) changed; any cached icon is stale.
+        renderEpoch++
         // onHook may have run before package ready (SVGs missing then); install now.
         if (enabled && singleSvg != null && hooksInstalled.compareAndSet(false, true)) {
             runCatching { installHooks() }.onFailure { t ->
@@ -108,6 +175,9 @@ object StackedSignalHooker : StaticHooker() {
         subscriptionField = null
         isStackableField = null
         hooksInstalled.set(false)
+        appContext = null
+        resourceNameCache.clear()
+        renderedCache.clear()
     }
 
     override fun onHook() {
@@ -126,6 +196,8 @@ object StackedSignalHooker : StaticHooker() {
         showSingle = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, true)
         showStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_STACKED, false)
         showRoaming = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, false)
+        // Render parameters changed; any cached icon is stale.
+        renderEpoch++
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
             return
@@ -197,17 +269,10 @@ object StackedSignalHooker : StaticHooker() {
         } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getNetworkTypeIcon", "method not found")
     }
 
-    private fun appResources(): android.content.res.Resources? =
-        runCatching {
-            val thread = Class.forName("android.app.ActivityThread")
-            val app = thread.getMethod("currentApplication").invoke(null) as? android.content.Context
-            app?.resources
-        }.getOrNull()
-
     private fun levelFromSystemIcon(icon: Icon): Int? {
         val resId = runCatching { icon.resId }.getOrDefault(0)
         if (resId == 0) return null
-        val name = appResources()?.getResourceEntryName(resId) ?: return null
+        val name = resourceNameOf(resId) ?: return null
         val prefix = "stat_sys_signal_"
         if (!name.startsWith(prefix)) return null
         val digits = name.removePrefix(prefix).takeWhile { it.isDigit() }
@@ -217,7 +282,7 @@ object StackedSignalHooker : StaticHooker() {
     private fun typeFromSystemIcon(icon: Icon): String? {
         val resId = runCatching { icon.resId }.getOrDefault(0)
         if (resId == 0) return null
-        val name = appResources()?.getResourceEntryName(resId) ?: return null
+        val name = resourceNameOf(resId) ?: return null
         return when {
             "5ga" in name || "5g_a" in name -> "5GA"
             "5g" in name -> if ("plus" in name) "5G+" else "5G"
@@ -236,11 +301,29 @@ object StackedSignalHooker : StaticHooker() {
             singleSvg ?: return null
         }
         val height = (iconHeightPx * scale).toInt().coerceAtLeast(1)
+        val other = if (stacked) states.keys.firstOrNull { it != defaultSubId.get() } else null
+        val row1Level = state.level
+        val row2Level = other?.let { states[it]?.level } ?: 0
+        val typeText = if (subId == defaultSubId.get()) state.type else ""
+
+        val key = RenderKey(renderEpoch, stacked, row1Level, row2Level, typeText)
+        renderedCache[key]?.let { return Icon.createWithBitmap(it) }
+        val composed = renderIcon(doc, stacked, row1Level, row2Level, height, typeText) ?: return null
+        if (renderedCache.size >= MAX_RENDER_CACHE_ENTRIES) renderedCache.clear()
+        renderedCache[key] = composed
+        return Icon.createWithBitmap(composed)
+    }
+
+    private fun renderIcon(
+        doc: StackedSignalRender.Doc,
+        stacked: Boolean,
+        row1Level: Int,
+        row2Level: Int,
+        height: Int,
+        typeText: String
+    ): android.graphics.Bitmap? {
         val bars: android.graphics.Bitmap = if (stacked) {
             // Default SIM on row 1, the other SIM on row 2.
-            val other = states.keys.firstOrNull { it != defaultSubId.get() }
-            val row1Level = state.level
-            val row2Level = other?.let { states[it]?.level } ?: 0
             val b1 = StackedSignalRender.renderBars(doc, 1, row1Level, height / 2, alphaFg) ?: return null
             val b2 = StackedSignalRender.renderBars(doc, 2, row2Level, height / 2, alphaBg) ?: return null
             val out = android.graphics.Bitmap.createBitmap(
@@ -251,18 +334,16 @@ object StackedSignalHooker : StaticHooker() {
             canvas.drawBitmap(b2, 0f, height / 2f, null)
             out
         } else {
-            StackedSignalRender.renderBars(doc, 0, state.level, height, alphaFg) ?: return null
+            StackedSignalRender.renderBars(doc, 0, row1Level, height, alphaFg) ?: return null
         }
-        val typeText = if (subId == defaultSubId.get()) state.type else ""
         val typeBmp = StackedSignalRender.renderTypeText(
             typeText, (height * 0.9f).toInt(), typeWeight, alphaFg
         )
         val density = appResources()?.displayMetrics?.density ?: 1f
-        val composed = StackedSignalRender.compose(
+        return StackedSignalRender.compose(
             bars, typeBmp, doc.anchor, rtl,
             (paddingStart * density).toInt(), (paddingEnd * density).toInt(), density
         )
-        return Icon.createWithBitmap(composed)
     }
 
     private fun Class<*>.fieldOrNull(name: String): Field? =

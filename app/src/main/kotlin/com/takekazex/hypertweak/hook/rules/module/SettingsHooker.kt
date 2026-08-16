@@ -25,10 +25,15 @@ object SettingsHooker : StaticHooker() {
     private val headerConstructorCache = ConcurrentHashMap<Class<*>, Constructor<*>?>()
     private val iconBitmapCache = ConcurrentHashMap<Long, Bitmap>()
 
+    /** `header_icon_size` dimen id, resolved once per process instead of per header bind. */
+    @Volatile
+    private var headerIconSizeResId = 0
+
     override fun onPrepareHotReload() {
         headerFieldCache.clear()
         headerConstructorCache.clear()
         iconBitmapCache.clear()
+        headerIconSizeResId = 0
     }
 
     override fun onHook() {
@@ -75,10 +80,8 @@ object SettingsHooker : StaticHooker() {
                     runCatching {
                         val iterator = list.iterator()
                         while (iterator.hasNext()) {
-                            val head = iterator.next()
-                            val idField = runCatching {
-                                head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
-                            }.getOrNull()
+                            val head = iterator.next() ?: continue
+                            val idField = headerField(head.javaClass, "id")
                             if (idField?.get(head) == HEADER_ID) {
                                 iterator.remove()
                             }
@@ -90,8 +93,7 @@ object SettingsHooker : StaticHooker() {
                 try {
                     // Check if already injected
                     val alreadyInjected = list.any { head ->
-                        val idField = head?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
-                        idField?.get(head) == HEADER_ID
+                        head?.let { headerField(it.javaClass, "id")?.get(it) } == HEADER_ID
                     }
                     if (alreadyInjected) return@after
 
@@ -132,15 +134,15 @@ object SettingsHooker : StaticHooker() {
                         for (i in list.indices) {
                             val head = list[i] ?: continue
                             try {
-                                val idField = head.javaClass.getDeclaredField("id").apply { isAccessible = true }
-                                val id = (idField.get(head) as? Number)?.toLong() ?: -1L
+                                val idField = headerField(head.javaClass, "id")
+                                val id = (idField?.get(head) as? Number)?.toLong() ?: -1L
                                 if (wifiSettingsId != 0L && id == wifiSettingsId) {
                                     targetIndex = i
                                     break
                                 }
 
-                                val intentField = head.javaClass.getDeclaredField("intent").apply { isAccessible = true }
-                                val headIntent = intentField.get(head) as? Intent
+                                val intentField = headerField(head.javaClass, "intent")
+                                val headIntent = intentField?.get(head) as? Intent
                                 if (headIntent?.action == "android.settings.WIFI_SETTINGS" ||
                                     headIntent?.component?.className?.contains("WifiSettings", ignoreCase = true) == true) {
                                     targetIndex = i
@@ -167,20 +169,15 @@ object SettingsHooker : StaticHooker() {
                 val header = param[1]
 
                 try {
-                    val idField = header?.javaClass?.getDeclaredField("id")?.apply { isAccessible = true }
-                    val identifier = idField?.get(header) as? Long
+                    val identifier = header?.let { headerField(it.javaClass, "id")?.get(it) } as? Long
                     if (identifier == HEADER_ID) {
-                        val iconField = headerViewHolder?.javaClass?.getDeclaredField("icon")?.apply { isAccessible = true }
+                        val iconField = headerViewHolder?.let { headerField(it.javaClass, "icon") }
                         val iconView = iconField?.get(headerViewHolder) as? ImageView
                         if (iconView != null) {
                             iconView.visibility = View.VISIBLE
                             val moduleIcon = Icon.createWithResource("com.takekazex.hypertweak", R.mipmap.ic_launcher).loadDrawable(iconView.context)
                             if (moduleIcon != null) {
-                                val headerIconSizeResId = try {
-                                    ResourceLookup.identifier(iconView.context.resources, "header_icon_size", "dimen", "com.android.settings")
-                                } catch (t: Throwable) {
-                                    0
-                                }
+                                val headerIconSizeResId = resolveHeaderIconSizeResId(iconView.context)
                                 val size = if (headerIconSizeResId != 0) {
                                     iconView.context.resources.getDimensionPixelSize(headerIconSizeResId)
                                 } else {
@@ -219,6 +216,18 @@ object SettingsHooker : StaticHooker() {
             }
         }
         return fields[name]
+    }
+
+    private fun resolveHeaderIconSizeResId(context: android.content.Context): Int {
+        var cached = headerIconSizeResId
+        if (cached != 0) return cached
+        cached = try {
+            ResourceLookup.identifier(context.resources, "header_icon_size", "dimen", "com.android.settings")
+        } catch (t: Throwable) {
+            0
+        }
+        headerIconSizeResId = cached
+        return cached
     }
 
     private fun createMaskedIconBitmap(drawable: android.graphics.drawable.Drawable, size: Int): Bitmap {

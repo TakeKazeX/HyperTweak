@@ -23,10 +23,23 @@ object HideBottomBarHooker : StaticHooker() {
     @Volatile
     private var raiseLayoutEnabled = false
 
+    /**
+     * Compiled resource ids of `navigation_bar_height` in the `android` and
+     * `com.android.systemui` packages. The `Resources.getDimensionPixelSize` hook compares the
+     * requested id against these instead of resolving the resource name on every call (that was
+     * three `Resources` table lookups per dimension read anywhere in SystemUI). 0 = not resolved.
+     */
+    @Volatile
+    private var navBarHeightAndroidResId = 0
+    @Volatile
+    private var navBarHeightSystemUiResId = 0
+
     override fun onPrepareHotReload() {
         hooksApplied.set(false)
         hideGestureBarEnabled = false
         raiseLayoutEnabled = false
+        navBarHeightAndroidResId = 0
+        navBarHeightSystemUiResId = 0
     }
 
     override fun onHook() {
@@ -40,12 +53,21 @@ object HideBottomBarHooker : StaticHooker() {
         // Hook 1: Resources.getDimensionPixelSize
         if (raiseLayoutEnabled) return
         try {
+            // The `android` package id is process-wide and resolvable without an app context;
+            // the SystemUI package id is resolved at package ready.
+            runCatching {
+                navBarHeightAndroidResId = Resources.getSystem()
+                    .getIdentifier("navigation_bar_height", "dimen", "android")
+            }
             Resources::class.java.getMethod("getDimensionPixelSize", Int::class.javaPrimitiveType).hook {
                 before { param ->
                     if (!hideGestureBarEnabled || raiseLayoutEnabled) return@before
                     val resources = param.thisObject as? Resources ?: return@before
                     val id = param.args[0] as? Int ?: return@before
+                    if (id != navBarHeightAndroidResId && id != navBarHeightSystemUiResId) return@before
                     try {
+                        // Rare match: keep the original name/type/package verification so a
+                        // resource id that numerically collides in another package is not zeroed.
                         val name = resources.getResourceEntryName(id)
                         val type = resources.getResourceTypeName(id)
                         val pkg = resources.getResourcePackageName(id)
@@ -67,6 +89,7 @@ object HideBottomBarHooker : StaticHooker() {
         if (hooksApplied.getAndSet(true)) return
         if (context != null) {
             Preferences.initLocalCache(context)
+            resolveNavigationBarHeightResIds(context)
         }
 
         hideGestureBarEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
@@ -74,6 +97,14 @@ object HideBottomBarHooker : StaticHooker() {
         if (!hideGestureBarEnabled) return
 
         applyDynamicHooks(readyClassLoader)
+    }
+
+    private fun resolveNavigationBarHeightResIds(context: Context) {
+        runCatching {
+            navBarHeightSystemUiResId = context.resources.getIdentifier(
+                "navigation_bar_height", "dimen", "com.android.systemui"
+            )
+        }
     }
 
     private fun applyDynamicHooks(cl: ClassLoader) {

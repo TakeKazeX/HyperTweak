@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
 import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -43,11 +46,39 @@ object AospImeSystemHooker : StaticHooker() {
     private var immsContextField: Field? = null
     private var imeDrawsNavBarField: Field? = null
 
+    /**
+     * `getInputMethodNavButtonFlagsLocked` runs on every IME attach, and reading
+     * `navigation_mode`/`DEFAULT_INPUT_METHOD` from `Settings.Secure` on every call was two
+     * binder round-trips per attach. Snapshot both values and refresh them through a
+     * `ContentObserver`, so the hot path only reads fields (the system-server half already
+     * requires a reboot, so a settings change arriving via the observer is strictly better
+     * than the previous per-call read).
+     */
+    @Volatile
+    private var cachedGestureNav = false
+    @Volatile
+    private var cachedCurrentIme: String? = null
+
+    private val imeSettingsLock = Any()
+    private var imeSettingsAttached = false
+    private var imeSettingsObserver: ContentObserver? = null
+    private var imeSettingsResolver: android.content.ContentResolver? = null
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         immsContextField = null
         imeDrawsNavBarField = null
+        synchronized(imeSettingsLock) {
+            val observer = imeSettingsObserver ?: return@synchronized
+            imeSettingsObserver = null
+            imeSettingsAttached = false
+            // `unregisterSelf()` is @hide; unregister through the resolver instead.
+            runCatching { imeSettingsResolver?.unregisterContentObserver(observer) }
+            imeSettingsResolver = null
+        }
+        cachedGestureNav = false
+        cachedCurrentIme = null
     }
 
     override fun onHook() {
@@ -127,12 +158,48 @@ object AospImeSystemHooker : StaticHooker() {
     }
 
     private fun shouldDrawImeNavBar(context: Context): Boolean {
-        val resolver = context.contentResolver ?: return false
-        val gestureNav = Settings.Secure.getInt(resolver, "navigation_mode", NAV_BAR_MODE_GESTURAL) ==
-            NAV_BAR_MODE_GESTURAL
-        if (!gestureNav) return false
-        val currentIme = Settings.Secure.getString(resolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-        return AospImeConfig.isSelectedIme(currentIme)
+        attachImeSettingsObserver(context)
+        if (!cachedGestureNav) return false
+        val currentIme = cachedCurrentIme
+        return currentIme != null && AospImeConfig.isSelectedIme(currentIme)
+    }
+
+    private fun attachImeSettingsObserver(context: Context) {
+        if (imeSettingsAttached) return
+        synchronized(imeSettingsLock) {
+            if (imeSettingsAttached) return
+            imeSettingsAttached = true
+            refreshImeSettings(context)
+            val resolver = context.contentResolver
+            imeSettingsResolver = resolver
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean) {
+                    refreshImeSettings(context)
+                }
+            }
+            imeSettingsObserver = observer
+            runCatching {
+                resolver.registerContentObserver(
+                    Settings.Secure.getUriFor("navigation_mode"), false, observer
+                )
+                resolver.registerContentObserver(
+                    Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD), false, observer
+                )
+            }.onFailure {
+                DebugLog.w(TAG, "failed to register IME settings observer", it)
+            }
+        }
+    }
+
+    private fun refreshImeSettings(context: Context) {
+        val resolver = context.contentResolver
+        cachedGestureNav = runCatching {
+            Settings.Secure.getInt(resolver, "navigation_mode", NAV_BAR_MODE_GESTURAL) ==
+                NAV_BAR_MODE_GESTURAL
+        }.getOrDefault(false)
+        cachedCurrentIme = runCatching {
+            Settings.Secure.getString(resolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        }.getOrNull()
     }
 
     /**

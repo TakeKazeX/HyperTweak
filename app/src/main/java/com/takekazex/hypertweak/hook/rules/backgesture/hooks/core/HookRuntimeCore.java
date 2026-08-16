@@ -134,10 +134,23 @@ public abstract class HookRuntimeCore {
      * warning, so a launcher or SystemUI build that shifted one signature degrades silently. Keep
      * WARN and above unconditional: without it a half-installed hook set is indistinguishable
      * from a working one. Everything below stays behind the switch so normal operation is quiet.
+     *
+     * The switch itself is cached for one second: INFO/DEBUG log calls are hot (the animTo path
+     * alone runs dozens per gesture), and reading it from the remote prefs on every call would
+     * cost a binder transaction per log line even with logging off. The lazy refresh keeps a
+     * toggle visible within a second without any per-call cost.
      */
+    private static volatile long lastBackLogSwitchCheckNanos = 0L;
+    private static volatile boolean cachedBackLogsEnabled = false;
+
     private static boolean isBackGestureLogPriorityEnabled(int priority) {
-        return priority >= Log.WARN
-                || Preferences.INSTANCE.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false);
+        if (priority >= Log.WARN) return true;
+        long now = System.nanoTime();
+        if (now - lastBackLogSwitchCheckNanos > 1_000_000_000L) {
+            cachedBackLogsEnabled = Preferences.INSTANCE.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false);
+            lastBackLogSwitchCheckNanos = now;
+        }
+        return cachedBackLogsEnabled;
     }
     protected abstract void invalidateOpenTransitionSnapshot(
             OpenTransitionSnapshot snapshot, String reason);

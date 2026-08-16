@@ -81,14 +81,19 @@ object BluetoothPluginHooker : StaticHooker() {
                     val title = invokeString(child, "getTitle")
                     val summary = invokeString(child, "getSummary")
                     val parentKey = invokeString(param.thisObject, "getKey")
+                    val spatial = isSpatial(key, title, summary)
+                    val anc = isAnc(key, parentKey, title, summary)
+                    if (!spatial && !anc) return@runCatching
+                    // `addPreference` fires for every preference in the whole Bluetooth app, but
+                    // only spatial/ANC entries need the AirPods object-graph traversal, so run it
+                    // exclusively on the keyword matches instead of per preference add.
                     val airPodsScope = AirPodsScope.isAirPodsPreferenceScope(child, param.thisObject, *param.args)
-                    if (isSpatial(key, title, summary)) {
+                    if (spatial) {
                         if (airPodsScope && disableSpatialEnabled()) {
                             invokeBoolean(param.thisObject, "removePreference", child)
                             Log.d(TAG, "BluetoothPluginHooker: removed spatial preference key=$key title=$title")
                         }
-                    } else if (isAnc(key, parentKey, title, summary) &&
-                        (title == "关闭" || title?.contains("关闭") == true)) {
+                    } else if (anc && (title == "关闭" || title?.contains("关闭") == true)) {
                         if (airPodsScope && forceAdaptiveEnabled()) invokeTitle(child, "自适应")
                     }
                 }.onFailure { t -> Log.e(TAG, "PreferenceGroup hook failed", t) } }

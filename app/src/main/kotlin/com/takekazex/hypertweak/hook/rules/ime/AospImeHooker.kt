@@ -56,6 +56,11 @@ object AospImeHooker : StaticHooker() {
     private var internationalBuildField: Field? = null
     private var imeSupportMethod: Method? = null
     private var imeSupportResolved = false
+
+    /** The injector singleton is process-stable; resolve `getInstance()` once instead of per call. */
+    private var imeInjectorInstance: Any? = null
+    private var imeInjectorResolved = false
+
     private var navBarServiceField: Field? = null
     private var navBarHorizontalField: Field? = null
     private var deadZoneSizeMinField: Field? = null
@@ -72,6 +77,8 @@ object AospImeHooker : StaticHooker() {
         internationalBuildField = null
         imeSupportMethod = null
         imeSupportResolved = false
+        imeInjectorInstance = null
+        imeInjectorResolved = false
         navBarServiceField = null
         navBarHorizontalField = null
         deadZoneSizeMinField = null
@@ -194,25 +201,27 @@ object AospImeHooker : StaticHooker() {
 
     private fun isMiuiCustomisedIme(context: Context): Boolean {
         val method = resolveImeSupportMethod() ?: return false
-        val injector = runCatching {
+        val injector = imeInjector() ?: return false
+        return runCatching { method.invoke(injector, context) as? Boolean }.getOrNull() == true
+    }
+
+    private fun imeInjector(): Any? {
+        if (imeInjectorResolved) return imeInjectorInstance
+        imeInjectorResolved = true
+        imeInjectorInstance = runCatching {
             INPUT_METHOD_SERVICE_STUB.toClassOrNull()
                 ?.getDeclaredMethod("getInstance")
                 ?.apply { isAccessible = true }
                 ?.invoke(null)
-        }.getOrNull() ?: return false
-        return runCatching { method.invoke(injector, context) as? Boolean }.getOrNull() == true
+        }.getOrNull()
+        return imeInjectorInstance
     }
 
     /** `isImeSupport` is private and declared on the injector, not on the stub interface. */
     private fun resolveImeSupportMethod(): Method? {
         if (imeSupportResolved) return imeSupportMethod
         imeSupportResolved = true
-        val injector = runCatching {
-            INPUT_METHOD_SERVICE_STUB.toClassOrNull()
-                ?.getDeclaredMethod("getInstance")
-                ?.apply { isAccessible = true }
-                ?.invoke(null)
-        }.getOrNull() ?: return null
+        val injector = imeInjector() ?: return null
 
         var clazz: Class<*>? = injector.javaClass
         while (clazz != null) {

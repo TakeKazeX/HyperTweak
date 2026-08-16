@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.util.DebugLog
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -234,6 +235,7 @@ object Preferences {
     fun clearAllSettings() {
         synchronized(logLock) {
             if (!isInitialized) return
+            memoClear()
             val epoch = runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }.getOrDefault(INITIAL_EPOCH) + 1
             runCatching {
                 remotePrefs.edit().clear().putLong(KEY_PREFS_EPOCH, epoch).commit()
@@ -264,7 +266,43 @@ object Preferences {
     /** Serializes debug-log writes so log I/O never shares the object monitor with preference reads. */
     private val logLock = Any()
 
+    /**
+     * Short-lived process-local read memo for the getters below. Without it every getter call
+     * pays at least one binder transaction to the LSPosed daemon even when the value has not
+     * changed, which adds up on per-event and per-frame preference reads (touch dispatch, wallpaper
+     * events, log gates, broadcast hooks). Entries expire after [MEMO_TTL_NANOS], so a setting
+     * written by the module is picked up on the next read shortly afterwards without turning every
+     * hot-path read into a binder round-trip. Puts, resets and full wipes invalidate eagerly.
+     */
+    private const val MEMO_TTL_NANOS = 100_000_000L // 100 ms
+
+    private class MemoEntry(val value: Any?, val expiresAtNanos: Long)
+
+    private val memo = ConcurrentHashMap<String, MemoEntry>()
+
+    private fun memoGet(key: String): Any? {
+        val entry = memo[key] ?: return null
+        if (entry.expiresAtNanos <= System.nanoTime()) {
+            memo.remove(key)
+            return null
+        }
+        return entry.value
+    }
+
+    private fun memoPut(key: String, value: Any?) {
+        memo[key] = MemoEntry(value, System.nanoTime() + MEMO_TTL_NANOS)
+    }
+
+    private fun memoInvalidate(key: String) {
+        memo.remove(key)
+    }
+
+    private fun memoClear() {
+        memo.clear()
+    }
+
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
+        memoClear()
         if (useLocalOnly) {
             localSourcePrefs = prefs
             // Only apply local prefs as fallback if remote prefs haven't been set yet
@@ -280,6 +318,7 @@ object Preferences {
     }
 
     fun useLocalBackend() {
+        memoClear()
         localSourcePrefs?.let { remotePrefs = it; isLocalOnly = true }
     }
 
@@ -321,111 +360,144 @@ object Preferences {
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
         if (!isInitialized) return default
-        try {
-        if (remotePrefs.contains(key)) {
-            val value = remotePrefs.getBoolean(key, default)
-            val cache = getLocalCache()
-            if (cache != null && (!cache.contains(key) || cache.getBoolean(key, !value) != value)) {
-                cache.edit { putBoolean(key, value) }
+        memoGet(key)?.let { return it as Boolean }
+        val value = try {
+            if (remotePrefs.contains(key)) {
+                val v = remotePrefs.getBoolean(key, default)
+                val cache = getLocalCache()
+                if (cache != null && (!cache.contains(key) || cache.getBoolean(key, !v) != v)) {
+                    cache.edit { putBoolean(key, v) }
+                }
+                v
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.getBoolean(key, default) ?: default
+            } else {
+                default
             }
-            return value
+        } catch (_: Throwable) {
+            localSourcePrefs?.getBoolean(key, default) ?: getLocalCache()?.getBoolean(key, default) ?: default
         }
-        if (cacheEpochMatchesRemote()) {
-            return getLocalCache()?.getBoolean(key, default) ?: default
-        }
-        return default
-        } catch (_: Throwable) { return localSourcePrefs?.getBoolean(key, default) ?: getLocalCache()?.getBoolean(key, default) ?: default }
+        memoPut(key, value)
+        return value
     }
 
     fun getInt(key: String, default: Int = 0): Int {
         if (!isInitialized) return default
-        try {
-        if (remotePrefs.contains(key)) {
-            val value = remotePrefs.getInt(key, default)
-            val cache = getLocalCache()
-            if (cache != null && (!cache.contains(key) || cache.getInt(key, value - 1) != value)) {
-                cache.edit { putInt(key, value) }
+        memoGet(key)?.let { return it as Int }
+        val value = try {
+            if (remotePrefs.contains(key)) {
+                val v = remotePrefs.getInt(key, default)
+                val cache = getLocalCache()
+                if (cache != null && (!cache.contains(key) || cache.getInt(key, v - 1) != v)) {
+                    cache.edit { putInt(key, v) }
+                }
+                v
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.getInt(key, default) ?: default
+            } else {
+                default
             }
-            return value
+        } catch (_: Throwable) {
+            localSourcePrefs?.getInt(key, default) ?: getLocalCache()?.getInt(key, default) ?: default
         }
-        if (cacheEpochMatchesRemote()) {
-            return getLocalCache()?.getInt(key, default) ?: default
-        }
-        return default
-        } catch (_: Throwable) { return localSourcePrefs?.getInt(key, default) ?: getLocalCache()?.getInt(key, default) ?: default }
+        memoPut(key, value)
+        return value
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
         if (!isInitialized) return default
-        try {
-        if (remotePrefs.contains(key)) {
-            val value = remotePrefs.getFloat(key, default)
-            val cache = getLocalCache()
-            if (cache != null && (!cache.contains(key) || cache.getFloat(key, value - 1f) != value)) {
-                cache.edit { putFloat(key, value) }
+        memoGet(key)?.let { return it as Float }
+        val value = try {
+            if (remotePrefs.contains(key)) {
+                val v = remotePrefs.getFloat(key, default)
+                val cache = getLocalCache()
+                if (cache != null && (!cache.contains(key) || cache.getFloat(key, v - 1f) != v)) {
+                    cache.edit { putFloat(key, v) }
+                }
+                v
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.getFloat(key, default) ?: default
+            } else {
+                default
             }
-            return value
+        } catch (_: Throwable) {
+            localSourcePrefs?.getFloat(key, default) ?: getLocalCache()?.getFloat(key, default) ?: default
         }
-        if (cacheEpochMatchesRemote()) {
-            return getLocalCache()?.getFloat(key, default) ?: default
-        }
-        return default
-        } catch (_: Throwable) { return localSourcePrefs?.getFloat(key, default) ?: getLocalCache()?.getFloat(key, default) ?: default }
+        memoPut(key, value)
+        return value
     }
 
     fun putBoolean(key: String, value: Boolean) {
+        memoInvalidate(key)
         write { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {
+        memoInvalidate(key)
         write { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {
+        memoInvalidate(key)
         write { putFloat(key, value) }
     }
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
         if (!isInitialized) return default
-        try {
-        if (remotePrefs.contains(key)) {
-            val value = remotePrefs.getStringSet(key, default) ?: default
-            val cache = getLocalCache()
-            if (cache != null && (!cache.contains(key) || cache.getStringSet(key, emptySet()) != value)) {
-                cache.edit { putStringSet(key, value) }
+        memoGet(key)?.let { return ((it as? Set<*>) ?: default).toSet() as Set<String> }
+        val value = try {
+            if (remotePrefs.contains(key)) {
+                val v = remotePrefs.getStringSet(key, default) ?: default
+                val cache = getLocalCache()
+                if (cache != null && (!cache.contains(key) || cache.getStringSet(key, emptySet()) != v)) {
+                    cache.edit { putStringSet(key, v) }
+                }
+                v
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.getStringSet(key, default) ?: default
+            } else {
+                default
             }
-            return value
+        } catch (_: Throwable) {
+            localSourcePrefs?.getStringSet(key, default) ?: getLocalCache()?.getStringSet(key, default) ?: default
         }
-        if (cacheEpochMatchesRemote()) {
-            return getLocalCache()?.getStringSet(key, default) ?: default
-        }
-        return default
-        } catch (_: Throwable) { return localSourcePrefs?.getStringSet(key, default) ?: getLocalCache()?.getStringSet(key, default) ?: default }
+        // Defensive copy: SharedPreferences returns a fresh set per call, and callers may hold on
+        // to the result, so the memoized instance must never be handed out directly.
+        val copy = value.toSet()
+        memoPut(key, copy)
+        return copy
     }
 
     fun putStringSet(key: String, value: Set<String>) {
+        memoInvalidate(key)
         write { putStringSet(key, value) }
     }
 
     fun getString(key: String, default: String = ""): String {
         if (!isInitialized) return default
-        try {
-        if (remotePrefs.contains(key)) {
-            val value = remotePrefs.getString(key, default) ?: default
-            val cache = getLocalCache()
-            if (cache != null && (!cache.contains(key) || cache.getString(key, "") != value)) {
-                cache.edit { putString(key, value) }
+        memoGet(key)?.let { return it as String }
+        val value = try {
+            if (remotePrefs.contains(key)) {
+                val v = remotePrefs.getString(key, default) ?: default
+                val cache = getLocalCache()
+                if (cache != null && (!cache.contains(key) || cache.getString(key, "") != v)) {
+                    cache.edit { putString(key, v) }
+                }
+                v
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.getString(key, default) ?: default
+            } else {
+                default
             }
-            return value
+        } catch (_: Throwable) {
+            localSourcePrefs?.getString(key, default) ?: getLocalCache()?.getString(key, default) ?: default
         }
-        if (cacheEpochMatchesRemote()) {
-            return getLocalCache()?.getString(key, default) ?: default
-        }
-        return default
-        } catch (_: Throwable) { return localSourcePrefs?.getString(key, default) ?: getLocalCache()?.getString(key, default) ?: default }
+        memoPut(key, value)
+        return value
     }
 
     fun putString(key: String, value: String) {
+        memoInvalidate(key)
         write { putString(key, value) }
     }
 
