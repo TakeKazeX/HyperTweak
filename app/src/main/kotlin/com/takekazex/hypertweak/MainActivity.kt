@@ -48,6 +48,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
         systemUi = true,
@@ -204,6 +205,14 @@ class MainActivity : ComponentActivity() {
             var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
+            var lockscreenFingerprintAvoid by remember {
+                mutableIntStateOf(
+                    Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
+                        Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+                    )
+                )
+            }
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
@@ -327,6 +336,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            /** Int-valued counterpart of [currentTweakValue] for restart-scope tracked selectors. */
+            fun currentTweakValueInt(key: String): Int {
+                return when (key) {
+                    Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID -> lockscreenFingerprintAvoid
+                    else -> Preferences.getInt(key, Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT)
+                }
+            }
+
             fun markTweaked(key: String, value: Boolean) {
                 val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
                 val baseline = if (localPrefs.contains(baselineKey)) {
@@ -355,6 +372,39 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            /**
+             * Int-valued counterpart of [markTweaked] for selector tweaks (e.g. the lockscreen
+             * fingerprint-avoidance mode). The baseline is stored as an Int in the same
+             * `tweak_baseline_` slot, so it must never be mixed with a Boolean-typed key.
+             */
+            fun markTweakedInt(key: String, value: Int) {
+                val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
+                val baseline = if (localPrefs.contains(baselineKey)) {
+                    localPrefs.getInt(baselineKey, value)
+                } else {
+                    Preferences.getInt(key, value)
+                }
+                val nextDirtyKeys = if (value == baseline) {
+                    dirtyTweakKeys - key
+                } else {
+                    dirtyTweakKeys + key
+                }
+                val nextPendingScopes = if (value == baseline) {
+                    effectivePendingRestartScopes(nextDirtyKeys, pendingRestartScopes)
+                } else {
+                    pendingRestartScopes.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
+                }
+
+                dirtyTweakKeys = nextDirtyKeys
+                pendingRestartScopes = nextPendingScopes
+                localPrefs.edit {
+                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    putInt(baselineKey, baseline)
+                    putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
+                    putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                }
+            }
+
             fun clearRestartedScopes(scopes: RestartScopeSelection) {
                 val nextPendingScopes = pendingRestartScopes.without(scopes)
                 val clearedKeys = dirtyTweakKeys.filter { key ->
@@ -366,7 +416,14 @@ class MainActivity : ComponentActivity() {
                 localPrefs.edit {
                     putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
                     clearedKeys.forEach { key ->
-                        putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValue(key))
+                        if (key == Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID) {
+                            // Int-typed selector tweaks store an Int baseline; the Boolean
+                            // branch below would write a Boolean into the same slot and crash
+                            // the next getInt baseline read with a ClassCastException.
+                            putInt("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValueInt(key))
+                        } else {
+                            putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", currentTweakValue(key))
+                        }
                     }
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
@@ -436,6 +493,10 @@ class MainActivity : ComponentActivity() {
                     quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+                    lockscreenFingerprintAvoid = Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
+                        Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+                    )
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
@@ -636,6 +697,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
                         hideLockscreenStatusBar = checked
                         Preferences.putBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
+                    },
+                    lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
+                    onLockscreenFingerprintAvoidChange = { mode ->
+                        markTweakedInt(Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
+                        lockscreenFingerprintAvoid = mode
+                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
                     },
                     onHideFingerprintChange = { checked ->
                         markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)

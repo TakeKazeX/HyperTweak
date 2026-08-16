@@ -75,6 +75,67 @@ recognizer is a SystemUI gesture `InputMonitor` that pilfers pointers once a
 gesture is recognized inside the handle region, so recognition works wherever
 SystemUI wins ownership and yields to Launcher everywhere else.
 
+## Lockscreen Notification Fingerprint Avoidance
+
+Settings → Experimental → Lockscreen Fingerprint Avoid
+(`KEY_LOCKSCREEN_FINGERPRINT_AVOID`, `KeyguardFingerprintAvoidHooker`) overrides
+how SystemUI keeps lockscreen notifications clear of the in-display (GXZW)
+fingerprint icon. Three modes: 0 follow the system, 1 no avoidance, 2 always
+avoid. OS4-only (the UI entry is gated on `PlatformLevel.isOs4`); requires a
+SystemUI restart and flows through `TWEAK_RESTART_SCOPES`, so the standard
+"Restart Scoped Apps" dialog covers it. It is one of the few Int-typed (selector)
+tweaks in that machinery: `markTweakedInt`/`currentTweakValueInt` store an Int
+baseline in the same `tweak_baseline_` slot, and `clearRestartedScopes` writes
+that slot as an Int — mixing a Boolean baseline into it would crash the next
+`getInt` read.
+
+The mechanism (OS4.0.0.15.XPMCNXM): `KeyguardPanelViewController.nsslLockYPosition`
+is a `StateFlow<Triple<Int,Int,Int>>` combining seven flows (two `nssl_lock_y`
+paddings, `keyguard_affordance_fixed_height`, `_remoteViewY`, `_indicationAreaTop`,
+`fingerApplyForKeyguard` = `Settings.Secure miui_keyguard` **== 2**, and the
+enrolled-templates flow). When `MiuiConfigs.GXZW_SENSOR` (ro.hardware.fp.fod) &&
+fingerprint applies && templates are enrolled, the stack bottom bound becomes
+`MiuiGxzwUtils.GXZW_ICON_Y + offset − 20dp` (above the icon); otherwise it falls
+back to the indication area. The triple feeds
+`MiuiKeyguardRepositoryImpl.notificationBottomOnKeyguard` (which on
+`isGxzwLowPosition` devices additionally subtracts the number-state view height +
+10dp so the 通知数量 view sits between the stack and the icon) and every
+stack/list/number strategy in `com.miui.systemui.notification.view.strategy.*`.
+
+The hook intercepts the combine lambda
+`KeyguardPanelViewController$nsslLockYPosition_delegate$lambda*$$inlined$combine$1$3`
+(its 3-arg `invoke(FlowCollector, Object[], Continuation)` bridge) and forces
+`Object[]` indices 5 (fingerprint-apply) and 6 (enrolled templates) for that
+single computation only: mode 2 sets both true so the GXZW branch always runs,
+mode 1 sets both false so it never does. `fingerApplyForKeyguard` is
+deliberately **not** replaced as a flow — it also drives fingerprint-icon
+visibility (`MiuiGxzwStateProviderImpl`) and the low-position indication area
+(`KeyguardBottomAreaInjector$gxzwLowPositionShow`), which must keep following
+the user's setting.
+
+Class resolution is by dex name, not `getDeclaredClasses()`: on the release
+SystemUI the Kotlin lambda classes are **not** reachable through
+`KeyguardPanelViewController.getDeclaredClasses()` — R8 folds the `lazy {}`
+lambda into the synthesized `$$ExternalSyntheticLambda6`, so the `$lambda*$`
+chain that would nest the combine classes no longer loads as enclosing classes
+(observed on-device 2026-08-17: the nested-class walk found nothing while the
+dex still carries the full class name). The resolver loads the class by its
+exact dex name (`...$lambda$106$$inlined$combine$1$3`), falling back to
+enumerating the class loader's dex entries and finally to probing the lambda
+ordinal, so the ordinal in the middle of the name does not matter.
+
+Agent verification (2026-08-17, OS4.0.0.15.XPMCNXM device): the first build
+silently skipped (`HOOK_SKIPPED ... combine lambda ... not found`) because of
+the R8 class-resolution issue above; with the dex-name resolver the hook
+installs (`HOOK_OK`) and logcat confirms the behavior flips: with mode 1 (不避让)
+`StackStateStrategy calculateTargetYPosition0` shows
+`notificationBottomOnKeyguard` = 2257 (`indicationAreaTop 2281 − 24` padding)
+instead of the avoided 1884 (`GXZW_ICON_Y 1956 − 60` gxzw padding). The
+notification stack bottom moves from just above the fingerprint icon down to
+the indication area. `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
+`assembleDebug` pass. Visual confirmation of the lockscreen layout is the
+user's.
+
 ## Status-Bar Icon Tuner
 
 Settings → Experimental → Icon Tuner

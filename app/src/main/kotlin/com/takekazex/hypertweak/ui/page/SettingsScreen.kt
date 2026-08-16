@@ -62,6 +62,8 @@ fun SettingsScreenContent(
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     immediateMonetRefresh: Boolean,
+    lockscreenFingerprintAvoid: Int,
+    onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     launcherMajor: Int,
     launcherSupportsBackRoute: Boolean,
     aospBackMiuiHomeHooks: Boolean,
@@ -200,6 +202,17 @@ fun SettingsScreenContent(
                         title = "Immediate Monet Refresh",
                         summary = "Apply new wallpaper colors when HyperOS misses or delays its Monet update"
                     )
+                    // The notification-stack fingerprint avoidance anchors on the OS4
+                    // `nsslLockYPosition` combine; OS3's keyguard uses a different container.
+                    if (PlatformLevel.isOs4) {
+                        OverlayDropdownPreference(
+                            title = "Lockscreen Fingerprint Avoid",
+                            summary = "Keep lockscreen notifications clear of the in-display fingerprint icon",
+                            items = listOf("System Default", "No Avoidance", "Always Avoid"),
+                            selectedIndex = lockscreenFingerprintAvoid.coerceIn(0, 2),
+                            onSelectedIndexChange = onLockscreenFingerprintAvoidChange
+                        )
+                    }
                     ArrowPreference(
                         title = "Icon Tuner",
                         summary = "Hide and customize status-bar icons (cellular, WiFi)",

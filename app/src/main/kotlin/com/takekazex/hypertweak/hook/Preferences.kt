@@ -26,6 +26,17 @@ object Preferences {
     const val KEY_QUICK_SHARE_ENABLED = "quick_share_enabled"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
+
+    /**
+     * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by
+     * `KeyguardFingerprintAvoidHooker` at hook-install time; requires a SystemUI restart.
+     * 0 = follow the system (avoid when fingerprint unlock is enabled and templates are enrolled),
+     * 1 = never avoid the in-display fingerprint icon, 2 = always avoid it.
+     */
+    const val KEY_LOCKSCREEN_FINGERPRINT_AVOID = "lockscreen_fingerprint_avoid"
+    const val LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT = 0
+    const val LOCKSCREEN_FINGERPRINT_AVOID_NO = 1
+    const val LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS = 2
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
     const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
     const val KEY_GESTURE_BAR_ACTIONS_ENABLED = "gesture_bar_actions_enabled"
