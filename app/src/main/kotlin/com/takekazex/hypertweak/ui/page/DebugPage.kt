@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -67,15 +68,17 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                         title = "Record Logs",
                         summary = "Persist module and hook runtime logs"
                     )
-                    SwitchPreference(
-                        checked = aospBackLogs,
-                        onCheckedChange = { enabled ->
-                            aospBackLogs = enabled
-                            Preferences.putBoolean(Preferences.KEY_AOSP_BACK_LOGS, enabled)
-                        },
-                        title = "AOSP Back Gesture Logs",
-                        summary = "Record detailed logs from the AOSP back gesture hook"
-                    )
+                    if (!PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = aospBackLogs,
+                            onCheckedChange = { enabled ->
+                                aospBackLogs = enabled
+                                Preferences.putBoolean(Preferences.KEY_AOSP_BACK_LOGS, enabled)
+                            },
+                            title = "AOSP Back Gesture Logs",
+                            summary = "Record detailed logs from the AOSP back gesture hook"
+                        )
+                    }
                     ArrowPreference(
                         title = "Logs",
                         summary = "View, filter, copy, and export recorded logs",

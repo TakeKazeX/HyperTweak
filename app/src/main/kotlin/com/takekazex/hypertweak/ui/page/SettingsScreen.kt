@@ -39,6 +39,7 @@ import com.takekazex.hypertweak.getSystemAccentColor
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.LauncherVersion
+import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.R
 import androidx.compose.ui.res.stringResource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -207,22 +208,25 @@ fun SettingsScreenContent(
 
             // Launcher-dependent halves of the AOSP back gesture. The gesture itself and its
             // SystemUI-only options stay under Features; only what hooks com.miui.home lives here.
-            SmallTitle(text = "Launcher Hooks")
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-            ) {
-                SwitchPreference(
-                    checked = aospBackMiuiHomeHooks && launcherSupportsBackRoute,
-                    onCheckedChange = onAospBackMiuiHomeHooksChange,
-                    title = "Predictive Return to Home",
-                    summary = launcherBackRouteSummary(launcherMajor, launcherSupportsBackRoute),
-                    enabled = launcherSupportsBackRoute
-                )
-                ArrowPreference(
-                    title = "Predictive Back Apps",
-                    summary = "Force predictive back for apps that never opted in",
-                    onClick = onNavigateToPredictiveBackApps
-                )
+            // Hidden on OS4 together with the AOSP back gesture feature.
+            if (!PlatformLevel.isOs4) {
+                SmallTitle(text = "Launcher Hooks")
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                ) {
+                    SwitchPreference(
+                        checked = aospBackMiuiHomeHooks && launcherSupportsBackRoute,
+                        onCheckedChange = onAospBackMiuiHomeHooksChange,
+                        title = "Predictive Return to Home",
+                        summary = launcherBackRouteSummary(launcherMajor, launcherSupportsBackRoute),
+                        enabled = launcherSupportsBackRoute
+                    )
+                    ArrowPreference(
+                        title = "Predictive Back Apps",
+                        summary = "Force predictive back for apps that never opted in",
+                        onClick = onNavigateToPredictiveBackApps
+                    )
+                }
             }
 
             SmallTitle(text = "AOSP Restore")

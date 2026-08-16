@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
+import com.takekazex.hypertweak.util.PlatformLevel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +42,8 @@ fun TweaksScreenContent(
     onAodFullscreenChange: (Boolean) -> Unit,
     removeGms: Boolean,
     onRemoveGmsChange: (Boolean) -> Unit,
+    quickShareEnabled: Boolean,
+    onQuickShareEnabledChange: (Boolean) -> Unit,
     hideFingerprint: Boolean,
     onHideFingerprintChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
@@ -231,59 +234,61 @@ fun TweaksScreenContent(
                             )
                         }
                     }
-                    SwitchPreference(
-                        checked = miuiBackGestureHook,
-                        onCheckedChange = onMiuiBackGestureHookChange,
-                        title = "AOSP Back Gesture",
-                        summary = if (launcherSupportsBackRoute) {
-                            "Restore the AOSP back gesture pipeline in MIUI SystemUI. " +
-                                "Needs \"System Launcher\" in the module's LSPosed scope, " +
-                                "which owns the screen edges on this launcher"
-                        } else {
-                            "Restore the AOSP back gesture pipeline in MIUI SystemUI"
-                        }
-                    )
-                    SwitchPreference(
-                        checked = crossTaskWallpaperBackground,
-                        onCheckedChange = onCrossTaskWallpaperBackgroundChange,
-                        title = "Cross Task Wallpaper Background",
-                        summary = "Use a blurred wallpaper behind cross-task back animations",
-                        enabled = miuiBackGestureHook
-                    )
-                    AnimatedVisibility(
-                        visible = miuiBackGestureHook,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            SwitchPreference(
-                                checked = aospBackIndicator,
-                                onCheckedChange = onAospBackIndicatorChange,
-                                title = "HyperOS Back Arrow",
-                                summary = "Replaces the AOSP indicator with the HyperOS arrow. " +
-                                    "Turn off to get the AOSP indicator back, at the cost of haptics"
-                            )
-                            SwitchPreference(
-                                checked = aospBackHaptics,
-                                onCheckedChange = onAospBackHapticsChange,
-                                title = "Back Gesture Haptics",
-                                summary = "Vibrate when the gesture arms and triggers. " +
-                                    "Driven by the arrow overlay, so it needs HyperOS Back Arrow",
-                                enabled = aospBackIndicator
-                            )
-                            SwitchPreference(
-                                checked = aospBackHapticsEnhanced,
-                                onCheckedChange = onAospBackHapticsEnhancedChange,
-                                title = "Enhanced Haptics",
-                                summary = "Use the richer HyperOS haptic pattern",
-                                enabled = aospBackIndicator && aospBackHaptics
-                            )
-                            SwitchPreference(
-                                checked = aospBackSlideAnimation,
-                                onCheckedChange = onAospBackSlideAnimationChange,
-                                title = "Slide Back Animation",
-                                summary = "Slide the previous activity in behind the gesture"
-                            )
+                    if (!PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = miuiBackGestureHook,
+                            onCheckedChange = onMiuiBackGestureHookChange,
+                            title = "AOSP Back Gesture",
+                            summary = if (launcherSupportsBackRoute) {
+                                "Restore the AOSP back gesture pipeline in MIUI SystemUI. " +
+                                    "Needs \"System Launcher\" in the module's LSPosed scope, " +
+                                    "which owns the screen edges on this launcher"
+                            } else {
+                                "Restore the AOSP back gesture pipeline in MIUI SystemUI"
+                            }
+                        )
+                        SwitchPreference(
+                            checked = crossTaskWallpaperBackground,
+                            onCheckedChange = onCrossTaskWallpaperBackgroundChange,
+                            title = "Cross Task Wallpaper Background",
+                            summary = "Use a blurred wallpaper behind cross-task back animations",
+                            enabled = miuiBackGestureHook
+                        )
+                        AnimatedVisibility(
+                            visible = miuiBackGestureHook,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                SwitchPreference(
+                                    checked = aospBackIndicator,
+                                    onCheckedChange = onAospBackIndicatorChange,
+                                    title = "HyperOS Back Arrow",
+                                    summary = "Replaces the AOSP indicator with the HyperOS arrow. " +
+                                        "Turn off to get the AOSP indicator back, at the cost of haptics"
+                                )
+                                SwitchPreference(
+                                    checked = aospBackHaptics,
+                                    onCheckedChange = onAospBackHapticsChange,
+                                    title = "Back Gesture Haptics",
+                                    summary = "Vibrate when the gesture arms and triggers. " +
+                                        "Driven by the arrow overlay, so it needs HyperOS Back Arrow",
+                                    enabled = aospBackIndicator
+                                )
+                                SwitchPreference(
+                                    checked = aospBackHapticsEnhanced,
+                                    onCheckedChange = onAospBackHapticsEnhancedChange,
+                                    title = "Enhanced Haptics",
+                                    summary = "Use the richer HyperOS haptic pattern",
+                                    enabled = aospBackIndicator && aospBackHaptics
+                                )
+                                SwitchPreference(
+                                    checked = aospBackSlideAnimation,
+                                    onCheckedChange = onAospBackSlideAnimationChange,
+                                    title = "Slide Back Animation",
+                                    summary = "Slide the previous activity in behind the gesture"
+                                )
+                            }
                         }
                     }
                 }
@@ -298,6 +303,14 @@ fun TweaksScreenContent(
                         onCheckedChange = onRemoveGmsChange,
                         title = "Bypass GMS China ROM Restrictions",
                         summary = "Remove Google Play Services installation restrictions on Chinese firmware"
+                    )
+                    SwitchPreference(
+                        checked = quickShareEnabled,
+                        onCheckedChange = onQuickShareEnabledChange,
+                        title = "Unlock Nearby Share (Quick Share)",
+                        summary = "Override the GMS phenotype flag sharing_supports_latchsky so Quick Share " +
+                            "appears on CN Google Play services. Prompts for GMS scope and restarts " +
+                            "Google Play services to apply."
                     )
                     SwitchPreference(
                         checked = unlockPasskey,

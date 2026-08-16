@@ -27,9 +27,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.LauncherVersion
+import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.LocaleHelper
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 
 internal fun getSystemAccentColor(context: Context): Int {
     return try {
@@ -86,6 +89,9 @@ private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
 private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
+
+/** Google Play services; the Quick Share phenotype override runs in its process. */
+private const val GMS_PACKAGE = "com.google.android.gms"
 
 private fun currentBootToken(): String {
     return runCatching {
@@ -155,6 +161,17 @@ class MainActivity : ComponentActivity() {
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
             var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
+            // HyperTweak: on OS4 the AOSP back gesture is hidden and force-disabled (the
+            // predictive-back Shell pipeline is broken platform-side). Retire the preference
+            // once per launch so the off state persists even though the switch is hidden.
+            val backGestureDisabledOnOs4 = remember {
+                if (PlatformLevel.isOs4 &&
+                    Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
+                ) {
+                    Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
+                }
+                PlatformLevel.isOs4
+            }
             var miuiBackGestureHook by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)) }
             var crossTaskWallpaperBackground by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) }
             var aospBackIndicator by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, false)) }
@@ -185,6 +202,7 @@ class MainActivity : ComponentActivity() {
             // State variables for toggles
             var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
             var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
+            var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
@@ -356,6 +374,69 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            /**
+             * Quick Share on CN GMS works through a phenotype override that only GMS's own
+             * process can write, so turning it on requests GMS scope and restarts Google Play
+             * services; the hooker then writes the `sharing_supports_latchsky` row at
+             * package-ready. Turning it off restarts GMS first (still scoped, so the hooker
+             * removes the row) and only then revokes the scope.
+             */
+            fun handleQuickShareChange(checked: Boolean) {
+                quickShareEnabled = checked
+                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
+                val managed = setOf(GMS_PACKAGE)
+                coroutineScope.launch {
+                    if (checked) {
+                        when (val result = ScopeManager.applyManagedDiff(context, managed, managed)) {
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
+                                RestartUtils.forceStopPackages(context, coroutineScope, managed)
+                            }
+                            is ScopeManager.Result.Rejected -> {
+                                quickShareEnabled = false
+                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+                                Toast.makeText(
+                                    context,
+                                    "GMS scope not granted; Quick Share stays off",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            is ScopeManager.Result.Failed -> {
+                                quickShareEnabled = false
+                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+                                Toast.makeText(
+                                    context,
+                                    "Could not update the scope: ${result.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            ScopeManager.Result.ServiceUnavailable -> {
+                                quickShareEnabled = false
+                                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+                                Toast.makeText(
+                                    context,
+                                    "The Xposed service is unavailable",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    } else {
+                        // Restart GMS while it is still scoped so the hooker removes the override
+                        // row, then revoke the scope. If the restart loses the race, the row
+                        // survives — a benign leftover that a later toggle-off retries.
+                        val restartJob = RestartUtils.forceStopPackages(context, coroutineScope, managed)
+                        restartJob.join()
+                        when (val result = ScopeManager.applyManagedDiff(context, emptySet(), managed)) {
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> Unit
+                            else -> Toast.makeText(
+                                context,
+                                "Quick Share disabled; GMS scope left in place",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
+
             LaunchedEffect(serviceConnected) {
                 // The remote copy of the settings lives in the LSPosed daemon and survives a
                 // module uninstall, so a reinstall would silently restore the old config.
@@ -403,6 +484,7 @@ class MainActivity : ComponentActivity() {
                     appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
                     aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
+                    quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
@@ -597,6 +679,8 @@ class MainActivity : ComponentActivity() {
                         removeGms = checked
                         Preferences.putBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, checked)
                     },
+                    quickShareEnabled = quickShareEnabled,
+                    onQuickShareEnabledChange = { checked -> handleQuickShareChange(checked) },
                     hideFingerprint = hideFingerprint,
                     hideLockscreenStatusBar = hideLockscreenStatusBar,
                     onHideLockscreenStatusBarChange = { checked ->

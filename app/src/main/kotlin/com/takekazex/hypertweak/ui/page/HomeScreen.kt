@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.launch
@@ -219,6 +221,7 @@ fun HomeScreenContent(
             }
 
             ScopeWarningCard()
+            Os4LauncherScopeSuggestionCard()
 
             // SmallTitle - proper 28dp left indent like miuix
             SmallTitle(text = "Diagnostics Details")
@@ -443,6 +446,73 @@ private fun ScopeWarningCard() {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             else -> Unit
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/**
+ * OS4: the launcher is never hooked (its gesture stack is native), so keeping `com.miui.home`
+ * in the LSPosed scope only widens the module's footprint. Suggest removing it.
+ */
+@Composable
+private fun Os4LauncherScopeSuggestionCard() {
+    if (!PlatformLevel.isOs4) return
+    val context = LocalContext.current
+    val service by XposedServiceManager.serviceFlow.collectAsState()
+    // Re-run the scope check after a successful removal so the card disappears in place.
+    val refreshKey = remember { mutableStateOf(0) }
+    val unneeded by produceState<Set<String>?>(
+        initialValue = null,
+        service,
+        refreshKey.value
+    ) {
+        value = if (service == null) null else ScopeManager.unneededScope(context)
+    }
+    val present = unneeded ?: return
+    if (present.isEmpty()) return
+
+    val scope = rememberCoroutineScope()
+
+    SmallTitle(text = "Scope")
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            present.sorted().forEach { packageName ->
+                key(packageName) {
+                    BasicComponent(
+                        title = friendlyProcessName(packageName),
+                        summary = packageName,
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "Unneeded scope",
+                                tint = Color(0xFF42A5F5)
+                            )
+                        }
+                    )
+                }
+            }
+            ArrowPreference(
+                title = "Remove Scope",
+                summary = "The launcher is not hooked on OS4; removing its scope is safe",
+                onClick = {
+                    scope.launch {
+                        when (val result = ScopeManager.remove(present)) {
+                            is ScopeManager.Result.Failed ->
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                            ScopeManager.Result.ServiceUnavailable ->
+                                Toast.makeText(
+                                    context,
+                                    "The Xposed service is unavailable",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            else -> refreshKey.value++
                         }
                     }
                 }

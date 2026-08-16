@@ -36,6 +36,9 @@ object ScopeManager {
     /** What LSPosed builds before the `system` rename call the system server. */
     private const val LEGACY_SYSTEM_SERVER = "android"
 
+    /** The system launcher; listed in the scope for Launcher 7 and older only. */
+    private const val LAUNCHER_PACKAGE = "com.miui.home"
+
     private val service: XposedService?
         get() = XposedServiceManager.currentService
 
@@ -57,7 +60,9 @@ object ScopeManager {
      * The module's own package is skipped: `getScope()` does not report self-scope, and the Home
      * page's module-status card already tells the user to check HyperTweak itself when the module
      * is not active. Older LSPosed builds name the system server `android` rather than `system`,
-     * so either satisfies the `system` entry.
+     * so either satisfies the `system` entry. On OS4 the launcher is never hooked (its gesture
+     * stack is native and the module exits early), so an unchecked launcher scope is not a
+     * missing-required-scope condition there.
      */
     suspend fun missingRequiredScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
@@ -65,7 +70,8 @@ object ScopeManager {
         return requiredScope(context).filterNot { required ->
             required in live ||
                 required == context.packageName ||
-                (required == SYSTEM_SERVER && systemPresent)
+                (required == SYSTEM_SERVER && systemPresent) ||
+                (PlatformLevel.isOs4 && required == LAUNCHER_PACKAGE)
         }.toSet()
     }
 
@@ -74,6 +80,32 @@ object ScopeManager {
         if (normalized.isEmpty()) return Result.NoChange
         val active = service ?: return Result.ServiceUnavailable
         return requestScope(active, normalized)
+    }
+
+    /** Removes [packages] from the scope without touching anything else. */
+    suspend fun remove(packages: Set<String>): Result {
+        val normalized = packages.mapNotNull(::normalize).toSet()
+        if (normalized.isEmpty()) return Result.NoChange
+        val active = service ?: return Result.ServiceUnavailable
+        val removed = withContext(Dispatchers.IO) {
+            runCatching { active.removeScope(normalized.toList()) }
+        }
+        removed.exceptionOrNull()?.let { t ->
+            return Result.Failed(t.message ?: "Could not update the scope")
+        }
+        return Result.Applied(added = emptySet(), removed = normalized)
+    }
+
+    /**
+     * Scope entries the module no longer needs on this platform. On OS4 the launcher is never
+     * hooked (its gesture stack is native), so keeping `com.miui.home` in the scope only widens
+     * the module's LSPosed footprint; the Home page suggests removing it. Null when the scope
+     * cannot be read.
+     */
+    suspend fun unneededScope(context: Context): Set<String>? {
+        val live = currentScope() ?: return null
+        if (!PlatformLevel.isOs4) return emptySet()
+        return live.filter { it == LAUNCHER_PACKAGE }.toSet()
     }
 
     /**

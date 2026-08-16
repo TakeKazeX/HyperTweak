@@ -889,6 +889,55 @@ run, so the bypass holds regardless of module hook order. Verified on-device
 (2026-08-15): after installing the hook, the queued FCM backlog was
 delivered instead of skipped and the `FcmRetry`/CANCELLED loop stopped.
 
+## Quick Share (Nearby Share) on CN GMS
+
+Settings → Tweaks → System Core → Unlock Nearby Share (Quick Share)
+(`KEY_QUICK_SHARE_ENABLED`, `hook/rules/gms/QuickSharePhenotypeHooker.kt`). CN
+(domestic) Google Play services hides Quick Share because its phenotype flag
+`sharing_supports_latchsky` (flag package `com.google.android.gms.nearby`) is
+`false`, and the latchsky module initializer refuses to enable Quick Share
+while it is false. The fix is a persistent override row in GMS's
+credential-encrypted `phenotype.db`
+(`/data/user/0/com.google.android.gms/databases/phenotype.db`), which wins over
+server-delivered flag values at read time.
+
+Mechanism, verified in `com.google.android.gms-OS4-device.apk` (26.31.31,
+classes2.dex + classes11.dex, temporary JADX output under
+`/tmp/gmsapk/jadx{2,11,12}`): the flag is read through `jnjr.dL()` →
+`guyf.a.i(261, "sharing_supports_latchsky", false)` from the flag container
+`jngf.a = guwl("com.google.android.gms.nearby", …)`. `PhenotypeDbHelper`
+(`fkyz`, DB file `phenotype.db`, opened via `context.getDatabasePath`) stores
+flags in the current schema's `flag_overrides(config_package_name,
+account_id, active, name, value, type, source)` + `accounts` tables (legacy
+pre-1001 schema: `FlagOverrides(packageName, user, name, flagType, intVal,
+boolVal, floatVal, stringVal, extensionVal, committed)`). Overrides are
+matched at read time (`flfi`) by `(config_packages.name = ? OR
+flag_overrides.config_package_name IS ?)` and `(accounts.name = ? OR
+accounts.name = '*')` with `active IS 1`, so a row keyed by
+`config_package_name` with the wildcard `*` account applies to every user.
+`type = 2` is boolean, `value = 1` is true, `source = 0` marks a local user
+override (GMS's own commit path treats `source = 0` rows as authoritative).
+Both SQL shapes were validated against a real SQLite with the extracted
+schema, including GMS's read-side EXISTS query.
+
+The hooker never hooks a GMS class — it only writes the DB — so a GMS update
+cannot break it; only the SQLite schema is touched (schema-variant detection
+via `sqlite_master`/`PRAGMA table_info`). It runs inside the GMS main process
+at package-ready (GMS must be in the module's Xposed scope), enforces the row
+at every GMS start (upsert on, delete off; idempotent), and retries once after
+30s when the CE database is not accessible yet (early boot). `PRAGMA
+busy_timeout = 5000` covers write locks held by GMS's own flag store.
+
+Scope is granted dynamically, mirroring the input-method flow: toggling on
+`ScopeManager.applyManagedDiff`s `com.google.android.gms` in and restarts GMS
+(`RestartUtils.forceStopPackages`, which now returns its `Job`); toggling off
+restarts GMS first — while it is still scoped, so the hooker removes the row —
+and then revokes the scope. If the restart loses the race, the override row
+survives; that is benign and a later toggle-off retries. GMS is deliberately
+**not** in `arrays.xml`/`scope.list` (no mandatory GMS hooking). Applying takes
+effect after the GMS restart; verification of the Quick Share UI is the
+user's.
+
 ## Module Configuration Storage
 
 The module's settings live in two independent copies, which is why they "survive

@@ -14,6 +14,13 @@ object Preferences {
     // Key names
     const val KEY_AOD_FULLSCREEN = "support_aod_fullscreen"
     const val KEY_REMOVE_GMS_RESTRICTION = "remove_gms_restriction"
+
+    /**
+     * Unlocks Nearby Share (Quick Share) on CN Google Play services by overriding the
+     * `sharing_supports_latchsky` phenotype flag to true in GMS's CE `phenotype.db`.
+     * GMS must be in the Xposed scope (requested when the switch is turned on).
+     */
+    const val KEY_QUICK_SHARE_ENABLED = "quick_share_enabled"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"

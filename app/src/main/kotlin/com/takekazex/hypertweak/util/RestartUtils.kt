@@ -5,6 +5,8 @@ import android.content.Intent
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -16,15 +18,17 @@ object RestartUtils {
      * Restarts packages that have no [RestartScopeSelection] field, such as the user-selected input
      * methods. The in-process receiver is already registered in every hooked package, so a newly
      * scoped app is reachable without any extra wiring.
+     *
+     * Returns the launched [Job]; callers that must sequence work after the restart (for example
+     * revoking a scope whose hooker has to run one last time) can `join()` it.
      */
     fun forceStopPackages(
         context: Context,
         coroutineScope: CoroutineScope,
         packages: Set<String>
-    ) {
-        if (packages.isEmpty()) return
-
-        coroutineScope.launch {
+    ): Job {
+        if (packages.isEmpty()) return SupervisorJob().apply { complete() }
+        return coroutineScope.launch {
             val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra(RestartProtocol.EXTRA_PACKAGES, packages.toTypedArray())

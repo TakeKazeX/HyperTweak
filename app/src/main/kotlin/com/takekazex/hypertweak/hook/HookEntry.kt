@@ -45,7 +45,9 @@ import com.takekazex.hypertweak.hook.rules.backgesture.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
+import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -357,6 +359,9 @@ class HookEntry : XposedModule() {
             ExtendUnlockHooker.syncTrustAgent(appContext)
             StackedSignalHooker.onPackageReady(appContext)
         }
+        if (packageName == "com.google.android.gms") {
+            QuickSharePhenotypeHooker.onPackageReady(appContext)
+        }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
 
@@ -382,6 +387,9 @@ class HookEntry : XposedModule() {
                 ProxyLaunchHooker.register(appContext)
                 ExtendUnlockHooker.syncTrustAgent(appContext)
                 StackedSignalHooker.onPackageReady(appContext)
+            }
+            if (state.packageName == "com.google.android.gms") {
+                QuickSharePhenotypeHooker.onPackageReady(appContext)
             }
             DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
         } else {
@@ -427,7 +435,10 @@ class HookEntry : XposedModule() {
     }
 
     private fun isMiuiBackGestureHookEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
+        // HyperTweak: on OS4 the predictive-back Shell pipeline is broken platform-side, so
+        // the AOSP back gesture is force-disabled regardless of the (hidden) preference.
+        !PlatformLevel.isOs4 &&
+            Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
 
     private fun dispatchSystemServerHookers(
         classLoader: ClassLoader,
@@ -529,6 +540,11 @@ class HookEntry : XposedModule() {
             "com.miui.powerkeeper" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(FcmLivePowerKeeperHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.google.android.gms" -> {
+                // Only the phenotype DB write runs in GMS (see QuickSharePhenotypeHooker);
+                // GMS is added to the scope dynamically when the Quick Share switch is on.
+                attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
