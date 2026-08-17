@@ -63,6 +63,16 @@ object Preferences {
     const val KEY_GESTURE_BAR_ACTIONS_ENABLED = "gesture_bar_actions_enabled"
     const val KEY_GESTURE_BAR_LONG_PRESS_ACTION = "gesture_bar_long_press_action"
     const val KEY_GESTURE_BAR_DOUBLE_TAP_ACTION = "gesture_bar_double_tap_action"
+
+    /**
+     * Re-binds the long-press power button to Circle to Search (长按电源键 → 即圈即搜).
+     * `PowerButtonCtsHooker` intercepts `PowerKeyRule.onMiuiLongPress` (the MIUI 快捷手势
+     * layer) and `PhoneWindowManager.powerLongPress` (the AOSP fallback) in system_server and
+     * starts the contextual-search service through `ContextualSearchSystemHooker`. The pref is
+     * read live at dispatch time, so turning it off takes effect without a reboot; turning it on
+     * needs a reboot for the system-server hooks (and the CTS bridge) to install.
+     */
+    const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"

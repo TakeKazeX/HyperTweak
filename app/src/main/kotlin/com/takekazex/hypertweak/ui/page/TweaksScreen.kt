@@ -58,6 +58,8 @@ fun TweaksScreenContent(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     gestureBarActionsEnabled: Boolean,
     onGestureBarActionsEnabledChange: (Boolean) -> Unit,
+    powerButtonCts: Boolean,
+    onPowerButtonCtsChange: (Boolean) -> Unit,
     gestureBarLongPressAction: Int,
     onGestureBarLongPressActionChange: (Int) -> Unit,
     gestureBarDoubleTapAction: Int,
@@ -234,6 +236,13 @@ fun TweaksScreenContent(
                             )
                         }
                     }
+                    SwitchPreference(
+                        checked = powerButtonCts,
+                        onCheckedChange = onPowerButtonCtsChange,
+                        title = "Power Button Circle to Search",
+                        summary = "Long-press power starts Circle to Search instead of the " +
+                            "system action, in any app. Requires a reboot to apply"
+                    )
                     if (!PlatformLevel.isOs4) {
                         SwitchPreference(
                             checked = miuiBackGestureHook,

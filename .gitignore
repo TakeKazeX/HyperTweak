@@ -24,3 +24,4 @@
 modules_config.db
 modules_config.db-shm
 modules_config.db-wal
+/.gradle-home

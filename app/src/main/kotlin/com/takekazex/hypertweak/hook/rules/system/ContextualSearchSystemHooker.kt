@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.system
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.IBinder
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -48,11 +49,15 @@ object ContextualSearchSystemHooker : StaticHooker() {
     /**
      * The system-side bridge exists solely to make SystemUI's Circle to Search gesture action
      * succeed, so it follows the same live predicate the SystemUI-side hookers read: gesture-bar
-     * actions enabled, with Circle to Search bound to the long-press or double-tap slot. Mirrors
+     * actions enabled, with Circle to Search bound to the long-press or double-tap slot, or the
+     * long-press power button re-bind ([Preferences.KEY_POWER_BUTTON_CTS]). Mirrors
      * [com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker] /
-     * [VoiceInteractionServiceRepairHooker].
+     * [VoiceInteractionServiceRepairHooker] / [PowerButtonCtsHooker].
      */
     private fun isCircleToSearchActionEnabled(): Boolean {
+        if (Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)) {
+            return true
+        }
         if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) {
             return false
         }
@@ -71,6 +76,49 @@ object ContextualSearchSystemHooker : StaticHooker() {
         return longPress == GestureBarAction.CIRCLE_TO_SEARCH ||
             doubleTap == GestureBarAction.CIRCLE_TO_SEARCH
     }
+
+    /**
+     * Starts Circle to Search from system_server itself (long-press power button). The bridge
+     * flag is set without the caller-uid check of [withBridgedInvocation] because the invoking
+     * thread is the system process: the service-side hooks then bypass `enforcePermission` and
+     * resolve the Google package name for exactly this call, on this thread.
+     */
+    fun startFromSystemServer(): Boolean {
+        // Re-checked live so turning the power-button re-bind off works without a reboot: the
+        // bridge flag is never set and the original power action runs.
+        if (!isCircleToSearchActionEnabled()) return false
+        activeBridgedInvocation.set(true)
+        return try {
+            invokeContextualSearchService()
+        } catch (t: Throwable) {
+            DebugLog.w(SCOPE, "contextual search service failed", t)
+            false
+        } finally {
+            activeBridgedInvocation.remove()
+        }
+    }
+
+    private fun invokeContextualSearchService(): Boolean {
+        val serviceManager = Class.forName("android.os.ServiceManager")
+        val binder = serviceManager.getMethod("getService", String::class.java)
+            .invoke(null, "contextual_search") as? IBinder ?: return false
+        val stubClass = Class.forName(
+            "android.app.contextualsearch.IContextualSearchManager\$Stub"
+        )
+        val service = stubClass.getMethod("asInterface", IBinder::class.java)
+            .invoke(null, binder) ?: return false
+        val interfaceClass = Class.forName(
+            "android.app.contextualsearch.IContextualSearchManager"
+        )
+        interfaceClass.getMethod(
+            "startContextualSearch",
+            Int::class.javaPrimitiveType
+        ).invoke(service, ENTRY_POINT)
+        return true
+    }
+
+    /** Mirrors the nav-handle entrypoint the SystemUI gesture path uses. */
+    private const val ENTRY_POINT = 1
 
     private fun hookServiceStartupGate() {
         val contextualSearchPackageId = classLoader

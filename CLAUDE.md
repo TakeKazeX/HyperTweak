@@ -491,6 +491,52 @@ generation. Fashion Gallery events remain excluded. The experimental setting
 defaults on and is read for every wallpaper event, so changing it does not
 require a SystemUI restart after the hook has been installed.
 
+## Power Button Circle to Search (长按电源键即圈即搜)
+
+Settings → Tweaks → Navigation Bar → Power Button Circle to Search
+(`KEY_POWER_BUTTON_CTS`, `hook/rules/system/PowerButtonCtsHooker.kt`) re-binds the
+long-press power button to Circle to Search instead of the system action. On the
+OS4 baseline the binding lives in system_server on two stacked layers:
+
+- `com.android.server.input.shortcut.singlekeyrule.PowerKeyRule#onMiuiLongPress(long)` —
+  the MIUI 快捷手势 layer driven by `Settings.System.long_press_power_key`
+  (`launch_voice_assistant` / `launch_google_search` / `launch_smarthome` / `none`,
+  set by `GestureShortcutSettingsSelectFragment`); it preempts the AOSP layer whenever
+  a function is configured, dispatching through
+  `ShortCutActionsUtils.triggerFunction` (e.g. `launchGoogleSearch` →
+  `BaseMiuiPhoneWindowManager.launchAssistAction`).
+- `PhoneWindowManager#powerLongPress(long)` — the AOSP fallback driven by
+  `Settings.Global.power_button_long_press` (1 = power menu, 2/3 = shutdown, 4 = voice
+  assist, 5 = assistant), reached through `OriginalPowerKeyRuleBridge` →
+  `PhoneWindowManager$PowerKeyRule.onLongPress` when MIUI does not own the long press.
+
+The hooker intercepts both before their original dispatch: the power key is marked
+handled (`PhoneWindowManager.setPowerKeyHandled(true)`, public) and
+`ContextualSearchSystemHooker.startFromSystemServer()` starts the contextual-search
+service directly — the same `IContextualSearchManager.startContextualSearch(1)`
+binder entry the SystemUI gesture path uses, with the bridge flag set without the
+caller-uid check (the invoking thread is the system process), so
+`getContextualSearchPackageName()` resolves Google's package for exactly that call.
+`powerLongPress`'s LPP squeeze-effect block is skipped along with the behavior
+switch; `powerVeryLongPress` / `onMiuiVeryLongPress` are untouched, so a configured
+very-long-press power menu still works. The two methods are deoptimized first
+(`onMiuiLongPress` is protected and small enough to be AOT-inlined).
+
+The preference gates hook installation at `onInit` (like the sibling system
+hookers) and is re-read live at dispatch time: turning the re-bind off applies
+immediately, turning it on needs a reboot for the system-server hooks — and for
+`ContextualSearchSystemHooker`'s install gate, which now also accepts
+`KEY_POWER_BUTTON_CTS` so the bridge is present when only the power-button entry is
+enabled. The switch is deliberately absent from `TWEAK_RESTART_SCOPES` (system_server
+has no restart path; the summary states the reboot requirement). Requires one reboot
+after module installation for the module to hook system_server at all.
+
+Agent verification (2026-08-17): `compileDebugKotlin`, `testDebugUnitTest`,
+`lintDebug` and `assembleDebug` pass. On-device verification — long-press power
+starts Circle to Search from any app, no power menu / 小爱 / 关机 leaks through, and
+logcat shows the power-button hooks firing with the CTS service invoked — is the
+user's.
+
 ## AOSP Restore
 
 Settings → AOSP Restore (`ui/page/AospRestorePage.kt`, `Route.AospRestore`) collects
