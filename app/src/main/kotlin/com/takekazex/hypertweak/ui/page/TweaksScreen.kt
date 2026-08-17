@@ -201,7 +201,8 @@ fun TweaksScreenContent(
                         checked = gestureBarActionsEnabled,
                         onCheckedChange = onGestureBarActionsEnabledChange,
                         title = "Gesture Bar Shortcuts",
-                        summary = "Handle long press and double tap in SystemUI"
+                        summary = "Handle long press and double tap in SystemUI",
+                        enabled = GestureBarAction.actionsAvailable
                     )
                     AnimatedVisibility(
                         visible = gestureBarActionsEnabled,

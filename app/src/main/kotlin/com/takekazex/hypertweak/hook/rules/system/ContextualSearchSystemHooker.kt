@@ -58,7 +58,9 @@ object ContextualSearchSystemHooker : StaticHooker() {
         if (Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)) {
             return true
         }
-        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) {
+        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) ||
+            !GestureBarAction.actionsAvailable
+        ) {
             return false
         }
         val longPress = GestureBarAction.fromPersistedId(

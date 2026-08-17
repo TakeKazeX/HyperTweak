@@ -240,7 +240,12 @@ class MainActivity : ComponentActivity() {
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
-            var gestureBarActionsEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) }
+            var gestureBarActionsEnabled by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
+                        GestureBarAction.actionsAvailable
+                )
+            }
             var powerButtonCts by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)) }
             var gestureBarLongPressAction by remember {
                 mutableIntStateOf(
@@ -538,7 +543,8 @@ class MainActivity : ComponentActivity() {
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-                    gestureBarActionsEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)
+                    gestureBarActionsEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
+                        GestureBarAction.actionsAvailable
                     powerButtonCts = Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)
                     gestureBarLongPressAction = Preferences.getInt(
                         Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,

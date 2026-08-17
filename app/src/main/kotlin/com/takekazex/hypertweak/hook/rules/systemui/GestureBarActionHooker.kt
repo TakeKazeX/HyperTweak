@@ -53,7 +53,9 @@ object GestureBarActionHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) {
+        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) ||
+            !GestureBarAction.actionsAvailable
+        ) {
             DebugLog.hookSkipped(SCOPE, "SystemUI gesture input", "disabled")
             return
         }
@@ -166,7 +168,9 @@ object GestureBarActionHooker : StaticHooker() {
         key: String,
         defaultAction: GestureBarAction
     ): GestureBarAction {
-        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false)) {
+        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) ||
+            !GestureBarAction.actionsAvailable
+        ) {
             return GestureBarAction.DISABLED
         }
         return GestureBarAction.fromPersistedId(
