@@ -9,11 +9,16 @@ import com.takekazex.hypertweak.util.DebugLog
  * Status-bar cellular icon visibility, ported from Hyper Helper's `CellularIcon` hooker
  * (see cache/xiaomihelper-2bfd4873a4138764, OS4 comparison in OS4_ADAPTATION_PLAN.md T3/T4).
  *
- * `MiuiCellularIconVM` exposes its visibility flags as `ReadonlyStateFlow<Boolean>` fields; the
- * hook replaces the enabled ones with a shared `false` flow right after the ViewModel is
- * constructed. Roam visibility is split across the VM methods (`getMobileRoamVisible`,
+ * `MiuiCellularIconVM` exposes its visibility flags as `ReadonlyStateFlow<Boolean>` fields; every
+ * consumer — the per-SIM `MiuiMobileIconVMImpl`'s `transformLatest` lambdas and
+ * `MiuiMobileIconBinder` — reads them through the `MiuiMobileIconViewModel` getters. The hook
+ * forces the enabled getters to a shared `false` flow. NOTE: the fields are assigned *after*
+ * construction by the factory `MiuiMobileIconVMImpl$$ExternalSyntheticLambda0.invoke()` (verified
+ * in smali/jadx on OS4.0.0.15.XPMCNXM), so an after-constructor write — what upstream does — is
+ * clobbered right after it lands and has no effect on OS4; forcing the getters instead covers the
+ * real read path. Roam visibility is split across the VM getters (`getMobileRoamVisible`,
  * `getSmallRoamVisible`) and a `StatusBarIconObserver.roamSettingBlock` field for the global
- * block. All targets are present unchanged on OS4. Requires a SystemUI restart.
+ * block. Requires a SystemUI restart.
  */
 object CellularIconHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -72,42 +77,30 @@ object CellularIconHooker : StaticHooker() {
             return
         }
 
-        // 1. ViewModel visibility fields: replace with a shared false flow after construction.
+        // 1. ViewModel visibility getters: force a shared false flow. The factory assigns the
+        //    fields after construction, so the fields themselves cannot be replaced in a ctor
+        //    hook; the getters are the only read path (impl transformLatest lambdas + binder).
         val vmClass = VM_CLASS.toClassOrNull()
         if (vmClass == null) {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        val fieldNames = buildList {
-            if (hideActivity) add("inOutVisible")
+        val getters = buildList {
+            if (hideActivity) add("getInOutVisible")
             if (hideType) {
-                add("mobileTypeVisible")
-                add("mobileTypeImageVisible")
+                add("getMobileTypeVisible")
+                add("getMobileTypeImageVisible")
             }
-            if (hideVoWifi) add("vowifiVisible")
-            if (hideVolte) add("volteVisibleGlobal")
-            if (hideVolteNoService) add("volteNoService")
-            if (hideSpeechHd) add("speechHd")
+            if (hideVoWifi) add("getVowifiVisible")
+            if (hideVolte) add("getVolteVisibleGlobal")
+            if (hideVolteNoService) add("getVolteNoService")
+            if (hideSpeechHd) add("getSpeechHd")
         }
-        val fields = fieldNames.mapNotNull { name ->
-            runCatching { vmClass.getDeclaredField(name) }.getOrNull()?.also {
-                DebugLog.d(TAG, "CellularIcon field $name -> ${it.type.name}")
-            }
-        }
-        DebugLog.i(TAG, "CellularIcon installing: fields=${fields.map { it.name }} roam=$hideRoam smallRoam=$hideSmallRoam roamGlobal=$hideRoamGlobal")
-        if (fields.isNotEmpty()) {
-            vmClass.hookAllConstructors {
-                after { param ->
-                    val vm = param.thisObject ?: return@after
-                    fields.forEach { field ->
-                        runCatching {
-                            IconTunerFlows.writeField(vm, field, IconTunerFlows.falseFlow)
-                        }.onFailure { t ->
-                            DebugLog.w(TAG, "CellularIcon failed to write ${field.name}", t)
-                        }
-                    }
-                }
-            }
+        DebugLog.i(TAG, "CellularIcon installing: getters=$getters roam=$hideRoam smallRoam=$hideSmallRoam roamGlobal=$hideRoamGlobal")
+        getters.forEach { getter ->
+            vmClass.findMethodOrNull { name(getter) }?.hook {
+                before { param -> param.result = IconTunerFlows.falseFlow }
+            } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
         }
 
         // 2. Roam indicator methods return the flow directly.

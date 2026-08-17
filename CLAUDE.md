@@ -206,9 +206,13 @@ noted. Two shared mechanisms recur:
 
 Current slice (cellular and WiFi visibility were the first slice):
 
-- `CellularIconHooker` — `MiuiCellularIconVM` visibility fields (`inOutVisible`,
-  `mobileTypeVisible`/`mobileTypeImageVisible`, `vowifiVisible`, `volteVisibleGlobal`,
-  `volteNoService`, `speechHd`) replaced after construction; roam visibility via
+- `CellularIconHooker` — `MiuiCellularIconVM` visibility getters (`getInOutVisible`,
+  `getMobileTypeVisible`/`getMobileTypeImageVisible`, `getVowifiVisible`, `getVolteVisibleGlobal`,
+  `getVolteNoService`, `getSpeechHd`) forced to a shared `false` flow. The fields are assigned
+  *after* construction by the factory `MiuiMobileIconVMImpl$$ExternalSyntheticLambda0.invoke()`
+  (verified on OS4.0.0.15.XPMCNXM), so upstream's after-constructor field write is clobbered and
+  has no effect on OS4 — the getters are the only read path (the per-SIM impl's `transformLatest`
+  lambdas and `MiuiMobileIconBinder`), so they are hooked instead; roam visibility via
   `getMobileRoamVisible`/`getSmallRoamVisible` before hooks plus a
   `StatusBarIconObserver.roamSettingBlock` constructor write.
 - `WifiIconHooker` — `WifiIcon$Companion.fromModel` substitutes `WifiIcon$Hidden` for a
