@@ -32,7 +32,10 @@ object IconManagerHooker : StaticHooker() {
         "dist_compute", "headset", "alarm_clock", "zen", "volume", "second_space"
     )
 
-    /** Only active while the compound icon feature is on. */
+    /**
+     * Only active while the compound icon feature is on (its slot mode is 1..3, mirroring
+     * upstream `IconManager.v()` / `CompoundIcon.n()`); all five slots share one key.
+     */
     private val compoundSlots = listOf(
         "compound_location", "compound_alarm_clock", "compound_zen",
         "compound_volume_vibrate", "compound_volume_mute"
@@ -63,13 +66,11 @@ object IconManagerHooker : StaticHooker() {
         baseSlots.forEach { slot ->
             applyMode(slotMode(slot), slot, right, cc)
         }
-        if (Preferences.getBoolean(Preferences.KEY_ICON_COMPOUND_ALARM, false) ||
-            Preferences.getBoolean(Preferences.KEY_ICON_COMPOUND_ZEN, false) ||
-            Preferences.getBoolean(Preferences.KEY_ICON_COMPOUND_LOCATION, false) ||
-            Preferences.getBoolean(Preferences.KEY_ICON_COMPOUND_VOLUME, false)
-        ) {
+        // The compound-icon slot mode doubles as the feature master switch (1..3); mode 0/4
+        // leaves the compound_* slots to the system lists untouched.
+        if (slotMode("compound_icon") in 1..3) {
             compoundSlots.forEach { slot ->
-                applyMode(slotMode(slot), slot, right, cc)
+                applyMode(slotMode("compound_icon"), slot, right, cc)
             }
         }
         if (Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)) {

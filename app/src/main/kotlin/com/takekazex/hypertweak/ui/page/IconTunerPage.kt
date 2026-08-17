@@ -39,6 +39,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -118,9 +119,12 @@ fun IconTunerPage(onBack: () -> Unit) {
         stringResource(R.string.icon_slot_mode_hidden)
     )
     val commonSlots = listOf(
-        "mobile", "no_sim", "airplane", "wifi", "hotspot", "vpn", "network_speed",
-        "bluetooth", "bluetooth_handsfree_battery", "handle_battery", "nfc", "gps",
-        "location", "headset", "alarm_clock", "zen", "volume", "second_space"
+        "mobile", "no_sim", "airplane", "wifi", "demo_wifi", "hotspot", "vpn",
+        "network_speed", "bluetooth", "bluetooth_handsfree_battery", "handle_battery",
+        "nfc", "gps", "location", "wireless_headset", "phone", "pad", "pc",
+        "sound_box_group", "stereo", "sound_box_screen", "sound_box", "tv", "glasses",
+        "car", "camera", "dist_compute", "headset", "alarm_clock", "zen", "volume",
+        "second_space", "compound_icon"
     )
 
     Scaffold(topBar = {
@@ -172,10 +176,37 @@ fun IconTunerPage(onBack: () -> Unit) {
                 }
             )
 
+            CellularTypeSection(
+                forceSingle = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+                useCustom = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
+                customValue = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
+                onChange = { key, value -> changed(key, value) }
+            )
+
             WifiSection(
                 activity = pref(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, false),
                 type = pref(Preferences.KEY_ICON_HIDE_WIFI_TYPE, false),
                 hideConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+                onChange = { key, value -> changed(key, value) }
+            )
+
+            CompoundSection(
+                slotMode = pref(Preferences.slotKey("compound_icon"), 0),
+                alarm = pref(Preferences.KEY_ICON_COMPOUND_ALARM, false),
+                zen = pref(Preferences.KEY_ICON_COMPOUND_ZEN, false),
+                location = pref(Preferences.KEY_ICON_COMPOUND_LOCATION, false),
+                volume = pref(Preferences.KEY_ICON_COMPOUND_VOLUME, false),
+                priority = pref(Preferences.KEY_ICON_COMPOUND_PRIORITY, "location,alarm_clock,zen,volume"),
+                slotModes = slotModes,
+                onChange = { key, value -> changed(key, value) }
+            )
+
+            CarrierSection(
+                hideOne = pref(Preferences.KEY_ICON_HIDE_CARRIER_ONE, false),
+                hideTwo = pref(Preferences.KEY_ICON_HIDE_CARRIER_TWO, false),
+                hideHd = pref(Preferences.KEY_ICON_HIDE_CARRIER_HD, false),
+                hideLsOne = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
+                hideLsTwo = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
                 onChange = { key, value -> changed(key, value) }
             )
 
@@ -185,6 +216,7 @@ fun IconTunerPage(onBack: () -> Unit) {
                 slotModeOf = { slot -> pref(Preferences.slotKey(slot), 0) },
                 ignoreSysHide = pref(Preferences.KEY_ICON_IGNORE_SYS_HIDE, false),
                 hidePrivacy = pref(Preferences.KEY_ICON_HIDE_PRIVACY, false),
+                regionSampling = pref(Preferences.KEY_STATUSBAR_REGION_SAMPLING, 0),
                 onChange = { key, value -> changed(key, value) }
             )
 
@@ -401,12 +433,139 @@ private fun WifiSection(
 }
 
 @Composable
+private fun CellularTypeSection(
+    forceSingle: Boolean,
+    useCustom: Boolean,
+    customValue: String,
+    onChange: (String, Any) -> Unit
+) {
+    SmallTitle(stringResource(R.string.icon_cellular_type_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(
+                forceSingle,
+                stringResource(R.string.icon_cellular_type_single),
+                stringResource(R.string.icon_cellular_type_single_summary)
+            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
+            TunerSwitch(
+                useCustom,
+                stringResource(R.string.icon_cellular_type_custom),
+                stringResource(R.string.icon_cellular_type_custom_summary)
+            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, it) }
+            if (useCustom) {
+                TextField(
+                    value = customValue,
+                    onValueChange = { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) },
+                    label = stringResource(R.string.icon_cellular_type_custom_val),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompoundSection(
+    slotMode: Int,
+    alarm: Boolean,
+    zen: Boolean,
+    location: Boolean,
+    volume: Boolean,
+    priority: String,
+    slotModes: List<String>,
+    onChange: (String, Any) -> Unit
+) {
+    SmallTitle(stringResource(R.string.icon_compound_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_compound_slot_mode),
+                summary = stringResource(R.string.icon_compound_slot_mode_summary),
+                items = slotModes,
+                selectedIndex = slotMode.coerceIn(0, slotModes.lastIndex),
+                onSelectedIndexChange = { onChange(Preferences.slotKey("compound_icon"), it) }
+            )
+            if (slotMode in 1..3) {
+                TunerSwitch(
+                    alarm,
+                    stringResource(R.string.icon_compound_alarm),
+                    stringResource(R.string.icon_compound_alarm_summary)
+                ) { onChange(Preferences.KEY_ICON_COMPOUND_ALARM, it) }
+                TunerSwitch(
+                    zen,
+                    stringResource(R.string.icon_compound_zen),
+                    stringResource(R.string.icon_compound_zen_summary)
+                ) { onChange(Preferences.KEY_ICON_COMPOUND_ZEN, it) }
+                TunerSwitch(
+                    location,
+                    stringResource(R.string.icon_compound_location),
+                    stringResource(R.string.icon_compound_location_summary)
+                ) { onChange(Preferences.KEY_ICON_COMPOUND_LOCATION, it) }
+                TunerSwitch(
+                    volume,
+                    stringResource(R.string.icon_compound_volume),
+                    stringResource(R.string.icon_compound_volume_summary)
+                ) { onChange(Preferences.KEY_ICON_COMPOUND_VOLUME, it) }
+                TextField(
+                    value = priority,
+                    onValueChange = { onChange(Preferences.KEY_ICON_COMPOUND_PRIORITY, it) },
+                    label = stringResource(R.string.icon_compound_priority),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CarrierSection(
+    hideOne: Boolean,
+    hideTwo: Boolean,
+    hideHd: Boolean,
+    hideLsOne: Boolean,
+    hideLsTwo: Boolean,
+    onChange: (String, Any) -> Unit
+) {
+    SmallTitle(stringResource(R.string.icon_carrier_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(
+                hideOne,
+                stringResource(R.string.icon_hide_carrier_one),
+                stringResource(R.string.icon_hide_carrier_one_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_ONE, it) }
+            TunerSwitch(
+                hideTwo,
+                stringResource(R.string.icon_hide_carrier_two),
+                stringResource(R.string.icon_hide_carrier_two_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_TWO, it) }
+            TunerSwitch(
+                hideHd,
+                stringResource(R.string.icon_hide_carrier_hd),
+                stringResource(R.string.icon_hide_carrier_hd_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_HD, it) }
+            TunerSwitch(
+                hideLsOne,
+                stringResource(R.string.icon_hide_ls_carrier_one),
+                stringResource(R.string.icon_hide_ls_carrier_one_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, it) }
+            TunerSwitch(
+                hideLsTwo,
+                stringResource(R.string.icon_hide_ls_carrier_two),
+                stringResource(R.string.icon_hide_ls_carrier_two_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
+        }
+    }
+}
+
+@Composable
 private fun SlotsSection(
     slotModes: List<String>,
     commonSlots: List<String>,
     slotModeOf: (String) -> Int,
     ignoreSysHide: Boolean,
     hidePrivacy: Boolean,
+    regionSampling: Int,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_slots_title))
@@ -433,6 +592,11 @@ private fun SlotsSection(
                 stringResource(R.string.icon_hide_privacy_indicator),
                 stringResource(R.string.icon_hide_privacy_indicator_summary)
             ) { onChange(Preferences.KEY_ICON_HIDE_PRIVACY, it) }
+            TunerSwitch(
+                regionSampling != 0,
+                stringResource(R.string.icon_region_sampling),
+                stringResource(R.string.icon_region_sampling_summary)
+            ) { onChange(Preferences.KEY_STATUSBAR_REGION_SAMPLING, if (it) 1 else 0) }
         }
     }
 }

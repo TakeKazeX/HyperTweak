@@ -24,6 +24,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IgnoreSysIconSettingsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.CompoundIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
@@ -517,6 +521,10 @@ class HookEntry : XposedModule() {
                 attachHooker(IconManagerHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
+                attachHooker(CompoundIconHooker, classLoader, ctx, replacementHandles)
+                attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)
+                attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
+                attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)

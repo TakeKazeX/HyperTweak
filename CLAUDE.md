@@ -228,6 +228,48 @@ Current slice (cellular and WiFi visibility were the first slice):
 - `HideCellularIconHooker` — captures `MobileIconsInteractorImpl.defaultDataSubId` and replaces
   `MobileIconViewModel.isVisible` with the false flow for the non-default SIM; gated by
   `icon_hide_sim_auto` and disabled while `icon_stacked_enabled` is on.
+- `CellularTypeIconHooker` — cellular single-type display (upstream `CellularTypeIcon`). On OS4
+  `IOperatorCustomizedPolicy$OperatorConfig` is rebuilt inside
+  `MiuiOperatorCustomizedPolicy.getMiuiOperatorConfig(int)` on every call (verified in smali — the
+  `new` + field writes live in the getter), so an after-constructor write would be clobbered; the
+  hook mutates the freshly returned config instead: `showMobileDataTypeSingle` forced true and
+  `mobileTypeName` replaced with the custom text (`icon_tuner_cellular_type_custom_val`; a single
+  value fills all 15 per-SIM entries, exactly 15 comma-separated values map one-to-one, anything
+  else is ignored, mirroring upstream). The upstream font half (`MobileTypeDrawable` paints) is
+  not ported.
+- `CompoundIconHooker` — 合成图标, the merged alarm / DND / location / mute-vibrate icon
+  (upstream `CompoundIcon`). Each source keeps its own `compound_*` status slot and a shared
+  per-controller merged state (upstream's `KEY_MERGED_ICON_STATE` weak cache) shows exactly the
+  highest-priority active source: `apply` lazily installs the five system drawables
+  (`stat_sys_alarm`/`stat_sys_gps_on`/`stat_sys_quiet_mode`/`stat_sys_ringer_silent`/
+  `stat_sys_ringer_vibrate`, resolved by name) via `StatusBarIconControllerImpl.setIcon` /
+  `setIconVisibility` (the OS4 `StatusBarIconController` interface itself carries no icon
+  methods; the impl does), then flips visibility to the priority winner from
+  `icon_tuner_compound_priority` ("location,alarm_clock,zen,volume"). State sources: after-hooks
+  on `MiuiPhoneStatusBarPolicy.updateVolumeZen` (mute/zen), `onLocationActiveChanged$1`
+  (location, guarded by `MiuiPrivacyControllerImpl.isCTARequiredLocation()`),
+  `PhoneStatusBarPolicy$$ExternalSyntheticLambda3.accept` classId 0 (zen lambda),
+  `PhoneStatusBarPolicy$4.onAlarmChanged`, and a main-thread post from the
+  `MiuiPrivacyControllerImpl` constructor mirroring the CTA-required location. The feature is
+  gated on the `compound_icon` slot mode being 1..3 (upstream g32.J / `zs0(16)`), which is also
+  how `IconManagerHooker` gates the five compound slots (all share one slot key, upstream `v()`).
+- `HideCarrierLabelHooker` — carrier label hiding (upstream `HideCarrierLabel`, T7). On OS4 the
+  rows live in `ControlCenterCarrierText` (`innerCarrierSlotId` 0/1) inside `MiuiCarrierTextLayout`,
+  reused for the control-center header and the lockscreen header (`isKeyguardLayout`). The hook
+  hides the row's `carrierTextView` right after the layout is built (`shouldShow()` reads the text
+  view visibility, so the row is fully treated as absent), re-hides it on every live
+  `ControlCenterCarrierText$mCarrierTextCallback$1.onCarrierTextChanged` update, and forces the
+  HD text hidden after `ControlCenterCarrierText.updateHDText`. Keys match upstream w22.* /
+  x22.e-f.
+- `RegionSamplingHooker` — forced status-bar region sampling (upstream `RegionSampling`, T6).
+  OS3 drove this through `LightBarControllerImplInjector.useRegionSampling`; on OS4 the gate is
+  `StatusBarRegionSamplingInteractor.regionSampling`, a combine flow whose collector starts/stops
+  the `RegionSamplingHelper`. The flow field is typed as the concrete inlined-combine class
+  (verified in smali), so replacing it with a `StateFlow` would fail the collector's check-cast
+  and crash the coroutine; instead the hook forces the transform lambda
+  `StatusBarRegionSamplingInteractor$regionSampling$1.invoke` (the `Function3` bridge
+  `CombineKt.combineInternal` calls) to always emit the requested value — `statusbar_region_sampling`
+  mode 1 always samples, mode 2 never does.
 - `StackedSignalHooker` + `StackedSignalRender` — the custom SVG signal icon. The renderer is a
   minimal parser for the exact SVG subset the bundled assets use (`path`/`rect` + `id`
   `signal_1..4` / `signal_1_1..signal_2_4` + `type_container` anchor), producing ALPHA_8 bitmaps.
@@ -241,12 +283,11 @@ Current slice (cellular and WiFi visibility were the first slice):
 
 Agent verification status (2026-08-15): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`
 and `assembleDebug` pass. On-device verification is performed by the user (see AGENTS.md).
-Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: compound icon (`CompoundIcon`,
-deeply coupled to MIUI's status-icon state machine), carrier label (`HideCarrierLabel`, T7),
-region sampling (`RegionSampling`, T6), and the left-container/island engine (`LeftContainer`,
-T2). The clock (`MiuiClockHooker`), network speed (`NetworkSpeedHooker`) and battery
-(`BatteryIndicatorHooker`) slices were removed again at the user's request on 2026-08-15 (their
-preference keys are deleted; the hookers and UI sections no longer exist).
+Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: the left-container/island engine
+(`LeftContainer`, T2) and Hyper Helper's remaining icon-tuner font slices. The clock
+(`MiuiClockHooker`), network speed (`NetworkSpeedHooker`) and battery (`BatteryIndicatorHooker`)
+slices were removed again at the user's request on 2026-08-15 (their preference keys are
+deleted; the hookers and UI sections no longer exist).
 
 ## AOSP Back Gesture
 
