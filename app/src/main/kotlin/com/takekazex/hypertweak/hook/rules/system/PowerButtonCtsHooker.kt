@@ -51,10 +51,16 @@ object PowerButtonCtsHooker : StaticHooker() {
             .toClassOrNull()
             ?: return DebugLog.hookSkipped(SCOPE, TARGET_MIUI, "class not found")
         runCatching {
-            val method = ruleClass.getDeclaredMethod(
-                "onMiuiLongPress",
-                Long::class.javaPrimitiveType
-            ).apply { isAccessible = true }
+            // OS4 grew a `singleKeyGestureEvent` parameter, so resolve by name and a trailing
+            // `long` instead of pinning one signature: `(long)` on older platforms,
+            // `(Object, long)` here.
+            val method = ruleClass.declaredMethods
+                .firstOrNull {
+                    it.name == "onMiuiLongPress" &&
+                        it.parameterTypes.lastOrNull() == Long::class.javaPrimitiveType
+                }
+                ?: return@runCatching DebugLog.hookSkipped(SCOPE, TARGET_MIUI, "method not found")
+            method.isAccessible = true
             // Protected and small, so ART is free to inline it; deoptimize first or the hook
             // never fires.
             deoptimize(method)

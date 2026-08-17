@@ -522,20 +522,37 @@ switch; `powerVeryLongPress` / `onMiuiVeryLongPress` are untouched, so a configu
 very-long-press power menu still works. The two methods are deoptimized first
 (`onMiuiLongPress` is protected and small enough to be AOT-inlined).
 
-The preference gates hook installation at `onInit` (like the sibling system
-hookers) and is re-read live at dispatch time: turning the re-bind off applies
-immediately, turning it on needs a reboot for the system-server hooks — and for
-`ContextualSearchSystemHooker`'s install gate, which now also accepts
-`KEY_POWER_BUTTON_CTS` so the bridge is present when only the power-button entry is
-enabled. The switch is deliberately absent from `TWEAK_RESTART_SCOPES` (system_server
-has no restart path; the summary states the reboot requirement). Requires one reboot
-after module installation for the module to hook system_server at all.
+**The reverse-engineering cache `framework-services-2e880646` is an older build for
+two of these targets — always verify against the versioned jars.** On the real
+OS4.0.0.15.XPMCNXM jars (`services-OS4.0.0.15.XPMCNXM.jar`,
+`miui-services-OS4.0.0.15.XPMCNXM.jar`):
+- `PowerKeyRule#onMiuiLongPress(Object singleKeyGestureEvent, long)` — the cache
+  shows `(long)`; the release grew a first `Object` parameter. The hooker resolves
+  by name plus a trailing `long` parameter so both shapes match.
+- `IContextualSearchManager.startContextualSearch(int, ContextualSearchConfig)` —
+  the AIDL grew a `ContextualSearchConfig` parameter (OS4/Android 16); the cache
+  shows the old `(int)`. Both `ContextualSearchSystemHooker`'s service hook and the
+  SystemUI-side `GestureBarActionHooker.ContextualSearchInvoker` resolve the method
+  by name and pass `null` (the service substitutes
+  `ContextualSearchConfig.DEFAULT_CONFIG`). On this device the one-arg forms did
+  not exist, so the pre-existing gesture-bar Circle to Search entry had also been
+  failing with `NoSuchMethodException` until the invoker was fixed the same way.
+- `PhoneWindowManager#powerLongPress(long)` matches the cache (verified `HOOK_OK`).
 
-Agent verification (2026-08-17): `compileDebugKotlin`, `testDebugUnitTest`,
-`lintDebug` and `assembleDebug` pass. On-device verification — long-press power
-starts Circle to Search from any app, no power menu / 小爱 / 关机 leaks through, and
-logcat shows the power-button hooks firing with the CTS service invoked — is the
-user's.
+Agent verification (2026-08-17, OS4.0.0.15.XPMCNXM device): the first on-device run
+failed to install the MIUI-layer hook (`HOOK_FAILED PowerKeyRule#onMiuiLongPress`
+NoSuchMethodException) and the CTS bridge (`failed to attach hooker:
+ContextualSearchSystemHooker`, same cause on the stub), so long-press power fell
+through to the user's configured 小爱 (`Settings.System.long_press_power_key` =
+`launch_voice_assistant`) and no CTS service was reachable. After fixing both
+signatures, the boot log shows `HOOK_OK` for
+`PowerKeyRule#onMiuiLongPress(Object,long)` and
+`...ContextualSearchManagerStub#startContextualSearch(int,ContextualSearchConfig)`
+plus every bridge hook, and each long-press power logs
+`PowerButtonCTS: MIUI long-press power -> Circle to Search` with no
+`contextual search service failed` afterwards. `compileDebugKotlin`,
+`testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. Visual confirmation of
+the Circle to Search overlay is the user's.
 
 ## AOSP Restore
 

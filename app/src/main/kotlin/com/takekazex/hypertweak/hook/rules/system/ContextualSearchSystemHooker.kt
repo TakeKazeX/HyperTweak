@@ -110,10 +110,19 @@ object ContextualSearchSystemHooker : StaticHooker() {
         val interfaceClass = Class.forName(
             "android.app.contextualsearch.IContextualSearchManager"
         )
-        interfaceClass.getMethod(
-            "startContextualSearch",
-            Int::class.javaPrimitiveType
-        ).invoke(service, ENTRY_POINT)
+        val method = interfaceClass.declaredMethods
+            .firstOrNull { it.name == "startContextualSearch" } ?: return false
+        val configClass = runCatching {
+            Class.forName("android.app.contextualsearch.ContextualSearchConfig")
+        }.getOrNull()
+        // OS4 (Android 16) grew a `ContextualSearchConfig` parameter to the AIDL method;
+        // null is fine — the service substitutes `ContextualSearchConfig.DEFAULT_CONFIG`.
+        val args = if (configClass != null && method.parameterTypes.lastOrNull() == configClass) {
+            arrayOf<Any?>(ENTRY_POINT, null)
+        } else {
+            arrayOf<Any?>(ENTRY_POINT)
+        }
+        method.invoke(service, *args)
         return true
     }
 
@@ -154,12 +163,18 @@ object ContextualSearchSystemHooker : StaticHooker() {
             "com.android.server.contextualsearch.ContextualSearchManagerService\$ContextualSearchManagerStub"
         )
 
-        stubClass.getDeclaredMethod(
-            "startContextualSearch",
-            Int::class.javaPrimitiveType
-        ).apply { isAccessible = true }.hook("gesture_bar_cts_systemui_call") {
-            intercept { chain ->
-                withBridgedInvocation(SYSTEM_UI_PACKAGE) { chain.proceed() }
+        // OS4's AIDL grew a `ContextualSearchConfig` parameter, so resolve by name and hook
+        // whatever overload this build ships (`(int)` on older platforms, `(int, Config)` here).
+        val startMethod = stubClass.declaredMethods
+            .firstOrNull { it.name == "startContextualSearch" }
+            ?.apply { isAccessible = true }
+        if (startMethod == null) {
+            DebugLog.hookSkipped(SCOPE, "ContextualSearchManagerStub#startContextualSearch", "method not found")
+        } else {
+            startMethod.hook("gesture_bar_cts_systemui_call") {
+                intercept { chain ->
+                    withBridgedInvocation(SYSTEM_UI_PACKAGE) { chain.proceed() }
+                }
             }
         }
 

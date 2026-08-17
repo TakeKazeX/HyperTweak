@@ -433,10 +433,19 @@ object GestureBarActionHooker : StaticHooker() {
             val interfaceClass = Class.forName(
                 "android.app.contextualsearch.IContextualSearchManager"
             )
-            interfaceClass.getMethod(
-                "startContextualSearch",
-                Int::class.javaPrimitiveType
-            ).invoke(service, ENTRY_POINT_NAV_HANDLE)
+            val method = interfaceClass.declaredMethods
+                .firstOrNull { it.name == "startContextualSearch" } ?: return false
+            val configClass = runCatching {
+                Class.forName("android.app.contextualsearch.ContextualSearchConfig")
+            }.getOrNull()
+            // OS4 (Android 16) grew a `ContextualSearchConfig` parameter to the AIDL method;
+            // null is fine — the service substitutes `ContextualSearchConfig.DEFAULT_CONFIG`.
+            val args = if (configClass != null && method.parameterTypes.lastOrNull() == configClass) {
+                arrayOf<Any?>(ENTRY_POINT_NAV_HANDLE, null)
+            } else {
+                arrayOf<Any?>(ENTRY_POINT_NAV_HANDLE)
+            }
+            method.invoke(service, *args)
             return true
         }
     }
