@@ -41,6 +41,7 @@ import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.WatermarkPage
+import com.takekazex.hypertweak.ui.page.ChargingDetailPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -110,14 +111,6 @@ fun HyperTweakNavContainer(
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
-    lockscreenChargingDetail: Boolean,
-    onLockscreenChargingDetailChange: (Boolean) -> Unit,
-    lockscreenChargingDetailFields: Int,
-    onLockscreenChargingDetailFieldsChange: (Int) -> Unit,
-    lockscreenChargingDetailIntervalMs: Int,
-    onLockscreenChargingDetailIntervalChange: (Int) -> Unit,
-    lockscreenChargingDetailMultiline: Boolean,
-    onLockscreenChargingDetailMultilineChange: (Boolean) -> Unit,
     sliderShowPercentage: Boolean,
     onSliderShowPercentageChange: (Boolean) -> Unit,
     sliderSamePercentageStyle: Boolean,
@@ -236,14 +229,9 @@ fun HyperTweakNavContainer(
                 onHideLockscreenStatusBarChange = onHideLockscreenStatusBarChange,
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
-                lockscreenChargingDetail = lockscreenChargingDetail,
-                onLockscreenChargingDetailChange = onLockscreenChargingDetailChange,
-                lockscreenChargingDetailFields = lockscreenChargingDetailFields,
-                onLockscreenChargingDetailFieldsChange = onLockscreenChargingDetailFieldsChange,
-                lockscreenChargingDetailIntervalMs = lockscreenChargingDetailIntervalMs,
-                onLockscreenChargingDetailIntervalChange = onLockscreenChargingDetailIntervalChange,
-                lockscreenChargingDetailMultiline = lockscreenChargingDetailMultiline,
-                onLockscreenChargingDetailMultilineChange = onLockscreenChargingDetailMultilineChange,
+                onNavigateToChargingDetail = {
+                    backStack.add(Route.ChargingDetail)
+                },
                 sliderShowPercentage = sliderShowPercentage,
                 onSliderShowPercentageChange = onSliderShowPercentageChange,
                 sliderSamePercentageStyle = sliderSamePercentageStyle,
@@ -429,6 +417,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.Watermark> {
             WatermarkPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.ChargingDetail> {
+            ChargingDetailPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

@@ -138,10 +138,13 @@ user's.
 
 ## Lockscreen Charging Detail (锁屏充电详情)
 
-Settings → Experimental → Charging Detail on Lockscreen
+Settings → Experimental → Charging Detail Options
 (`KEY_LOCKSCREEN_CHARGING_DETAIL`, `LockscreenChargingDetailHooker`, OS4-only in
-the UI) appends live charging telemetry to the bottom lockscreen charging
-indication — the line built by
+the UI; the master switch and every option live in the second-level
+`ChargingDetailPage`, which keeps its own state like `AospRestorePage` and is
+deliberately absent from `TWEAK_RESTART_SCOPES` — the page offers its own
+in-page "Restart SystemUI" row) appends live charging telemetry to the bottom
+lockscreen charging indication — the line built by
 `KeyguardIndicationController.updateDeviceEntryIndication(boolean)` that shows
 `keyguard_charged` (已充满电) at 100% or `keyguard_charging_*_and_level_tip`
 (极速/快速/充电中xx%) by `MiuiChargeManager.mBatteryStatus.chargeSpeed`, and is
@@ -172,8 +175,8 @@ sticky `ACTION_BATTERY_CHANGED` broadcast; real-time wattage =
 values live while the indication stays on screen; the pristine base message is
 remembered per view (WeakHashMap) and only reused when it still prefixes the
 current text, so a different system message (e.g. 充电保护中) is never glued to a
-stale base. Requires a SystemUI restart (registered in `TWEAK_RESTART_SCOPES` as
-SystemUI-only).
+stale base. The master switch needs a SystemUI restart, offered by the in-page
+"Restart SystemUI" row.
 
 Agent verification (2026-08-17): `compileDebugKotlin`, `testDebugUnitTest`,
 `lintDebug` and `assembleDebug` pass (only the project-wide `PrivateApi`
