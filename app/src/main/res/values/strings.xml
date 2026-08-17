@@ -304,6 +304,10 @@
     <string name="icon_style_custom">Custom</string>
     <string name="icon_type_text_size">Type Text Size (dp)</string>
     <string name="icon_type_text_weight">Type Text Weight</string>
+    <string name="icon_type_position">Type Text Position</string>
+    <string name="icon_type_position_auto">Auto (follow icon)</string>
+    <string name="icon_type_position_left">Left</string>
+    <string name="icon_type_position_right">Right</string>
     <string name="icon_wifi_title">WiFi</string>
     <string name="ime_applied">Keyboard selection applied</string>
     <string name="ime_apply_selection">Apply selection</string>

@@ -304,6 +304,10 @@
     <string name="icon_style_custom">自定义</string>
     <string name="icon_type_text_size">类型文字大小 (dp)</string>
     <string name="icon_type_text_weight">类型字重</string>
+    <string name="icon_type_position">类型文字位置</string>
+    <string name="icon_type_position_auto">自动（跟随图标）</string>
+    <string name="icon_type_position_left">左侧</string>
+    <string name="icon_type_position_right">右侧</string>
     <string name="icon_wifi_title">WiFi</string>
     <string name="ime_applied">键盘选择已应用</string>
     <string name="ime_apply_selection">应用选择</string>

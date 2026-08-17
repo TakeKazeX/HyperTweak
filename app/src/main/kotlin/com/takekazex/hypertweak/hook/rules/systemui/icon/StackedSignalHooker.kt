@@ -47,6 +47,7 @@ object StackedSignalHooker : StaticHooker() {
     @Volatile private var alphaError = 1f
     @Volatile private var typeSizeDp = 11f
     @Volatile private var typeWeight = 400
+    @Volatile private var typePosition = 0
     @Volatile private var showSingle = true
     @Volatile private var showStacked = false
     @Volatile private var showRoaming = false
@@ -54,8 +55,8 @@ object StackedSignalHooker : StaticHooker() {
 
     private var iconHeightPx = 0
 
-    private var singleSvg: StackedSignalRender.Doc? = null
-    private var stackedSvg: StackedSignalRender.Doc? = null
+    private var singleSvgs = mutableMapOf<Int, StackedSignalRender.Doc>()
+    private var stackedSvgs = mutableMapOf<Int, StackedSignalRender.Doc>()
 
     private var subscriptionField: Field? = null
     private var isStackableField: Field? = null
@@ -126,6 +127,14 @@ object StackedSignalHooker : StaticHooker() {
     private var renderEpoch = 0
     private val renderedCache = ConcurrentHashMap<RenderKey, android.graphics.Bitmap>()
 
+    /** Bundled style files; index matches the style dropdown (2 = custom → falls back to 0). */
+    private val bundledStyles = listOf(
+        "Signal-HyperOS" to "Signal-HyperOS",
+        "Signal-iOS" to "Signal-iOS",
+        null to null,
+        "Signal-iOS27" to "Signal-iOS27"
+    )
+
     /** Loads built-in SVGs and resolves the icon height; called from HookEntry.onPackageReady. */
     fun onPackageReady(context: Context) {
         rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
@@ -141,17 +150,25 @@ object StackedSignalHooker : StaticHooker() {
             context.createPackageContext("com.takekazex.hypertweak", Context.CONTEXT_IGNORE_SECURITY)
         }.getOrNull()
         if (moduleContext != null) {
-            singleSvg = readSvg(moduleContext, "Signal-HyperOS-Single.svg")
-            stackedSvg = readSvg(moduleContext, "Signal-HyperOS-Stacked.svg")
+            singleSvgs.clear()
+            stackedSvgs.clear()
+            bundledStyles.forEachIndexed { index, (singleName, stackedName) ->
+                if (singleName != null) {
+                    readSvg(moduleContext, "$singleName-Single.svg")?.let { singleSvgs[index] = it }
+                }
+                if (stackedName != null) {
+                    readSvg(moduleContext, "$stackedName-Stacked.svg")?.let { stackedSvgs[index] = it }
+                }
+            }
         }
         DebugLog.i(
             TAG,
-            "StackedSignal ready: h=${iconHeightPx}px rtl=$rtl single=${singleSvg != null} stacked=${stackedSvg != null}"
+            "StackedSignal ready: h=${iconHeightPx}px rtl=$rtl single=${singleSvgs.keys} stacked=${stackedSvgs.keys}"
         )
         // Render parameters (height, rtl) changed; any cached icon is stale.
         renderEpoch++
         // onHook may have run before package ready (SVGs missing then); install now.
-        if (enabled && singleSvg != null && hooksInstalled.compareAndSet(false, true)) {
+        if (enabled && singleSvgs.isNotEmpty() && hooksInstalled.compareAndSet(false, true)) {
             runCatching { installHooks() }.onFailure { t ->
                 hooksInstalled.set(false)
                 DebugLog.e(TAG, "StackedSignal late install failed", t)
@@ -170,8 +187,8 @@ object StackedSignalHooker : StaticHooker() {
         enabled = false
         states.clear()
         defaultSubId.set(Int.MIN_VALUE)
-        singleSvg = null
-        stackedSvg = null
+        singleSvgs.clear()
+        stackedSvgs.clear()
         subscriptionField = null
         isStackableField = null
         hooksInstalled.set(false)
@@ -193,6 +210,7 @@ object StackedSignalHooker : StaticHooker() {
         alphaError = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, 1f)
         typeSizeDp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 11f)
         typeWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 400)
+        typePosition = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_POSITION, 0)
         showSingle = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, true)
         showStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_STACKED, false)
         showRoaming = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, false)
@@ -202,7 +220,7 @@ object StackedSignalHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
             return
         }
-        if (singleSvg == null && stackedSvg == null) {
+        if (singleSvgs.isEmpty() && stackedSvgs.isEmpty()) {
             DebugLog.w(TAG, "StackedSignal deferred: SVGs not loaded yet (package ready pending)")
             return
         }
@@ -267,6 +285,18 @@ object StackedSignalHooker : StaticHooker() {
                 state.type = type
             }
         } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getNetworkTypeIcon", "method not found")
+
+        // 4. The module-drawn icon replaces the whole signal, so the separate data-activity
+        //    arrows (in/out) bound next to it are suppressed.
+        val cellClass = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
+            .toClassOrNull()
+        if (cellClass != null) {
+            cellClass.findMethodOrNull { name("getInOutVisible") }?.hook {
+                before { param -> param.result = IconTunerFlows.falseFlow }
+            } ?: DebugLog.hookSkipped(TAG, "$cellClass#getInOutVisible", "method not found")
+        } else {
+            DebugLog.hookSkipped(TAG, "MiuiCellularIconVM", "class not found")
+        }
     }
 
     private fun levelFromSystemIcon(icon: Icon): Int? {
@@ -295,10 +325,10 @@ object StackedSignalHooker : StaticHooker() {
     private fun buildIcon(subId: Int, state: SignalState): Icon? {
         val stacked = showStacked && states.size > 1
         val doc = if (stacked) {
-            stackedSvg ?: return null
+            stackedSvgs[stackedStyle] ?: stackedSvgs[0] ?: return null
         } else {
             if (!showSingle) return null
-            singleSvg ?: return null
+            singleSvgs[singleStyle] ?: singleSvgs[0] ?: return null
         }
         val height = (iconHeightPx * scale).toInt().coerceAtLeast(1)
         val other = if (stacked) states.keys.firstOrNull { it != defaultSubId.get() } else null
@@ -336,13 +366,14 @@ object StackedSignalHooker : StaticHooker() {
         } else {
             StackedSignalRender.renderBars(doc, 0, row1Level, height, alphaFg) ?: return null
         }
-        val typeBmp = StackedSignalRender.renderTypeText(
-            typeText, (height * 0.9f).toInt(), typeWeight, alphaFg
-        )
         val density = appResources()?.displayMetrics?.density ?: 1f
+        val typeBmp = StackedSignalRender.renderTypeText(
+            typeText, (typeSizeDp * density).toInt().coerceAtLeast(1), typeWeight, alphaFg
+        )
+        val position = StackedSignalRender.TypePosition.entries[typePosition.coerceIn(0, 2)]
         return StackedSignalRender.compose(
-            bars, typeBmp, doc.anchor, rtl,
-            (paddingStart * density).toInt(), (paddingEnd * density).toInt(), density
+            bars, typeBmp, position, doc.anchor, doc.width, rtl,
+            (paddingStart * density).toInt(), (paddingEnd * density).toInt()
         )
     }
 

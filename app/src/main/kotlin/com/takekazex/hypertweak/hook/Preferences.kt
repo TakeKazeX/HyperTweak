@@ -198,6 +198,7 @@ object Preferences {
     const val KEY_ICON_STACKED_ALPHA_ERROR = "icon_stacked_alpha_error"
     const val KEY_ICON_STACKED_TYPE_SIZE = "icon_stacked_type_size"
     const val KEY_ICON_STACKED_TYPE_WEIGHT = "icon_stacked_type_weight"
+    const val KEY_ICON_STACKED_TYPE_POSITION = "icon_stacked_type_position"
     const val KEY_ICON_STACKED_SHOW_SINGLE = "icon_stacked_show_single"
     const val KEY_ICON_STACKED_SHOW_STACKED = "icon_stacked_show_stacked"
     const val KEY_ICON_STACKED_SHOW_ROAMING = "icon_stacked_show_roaming"

@@ -154,6 +154,7 @@ fun IconTunerPage(onBack: () -> Unit) {
                 alphaBg = pref(Preferences.KEY_ICON_STACKED_ALPHA_BG, 1f),
                 typeSize = pref(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 11f),
                 typeWeight = pref(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 400),
+                typePosition = pref(Preferences.KEY_ICON_STACKED_TYPE_POSITION, 0),
                 showSingle = pref(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, false),
                 showStacked = pref(Preferences.KEY_ICON_STACKED_SHOW_STACKED, false),
                 showRoaming = pref(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, false),
@@ -258,6 +259,7 @@ private fun StackedSignalSection(
     alphaBg: Float,
     typeSize: Float,
     typeWeight: Int,
+    typePosition: Int,
     showSingle: Boolean,
     showStacked: Boolean,
     showRoaming: Boolean,
@@ -303,9 +305,19 @@ private fun StackedSignalSection(
                 SliderRow(stringResource(R.string.icon_second_row_alpha), alphaBg, 0.1f, 1f) {
                     onChange(Preferences.KEY_ICON_STACKED_ALPHA_BG, it)
                 }
-                SliderRow(stringResource(R.string.icon_type_text_size), typeSize, 6f, 20f) {
+                SliderRow(stringResource(R.string.icon_type_text_size), typeSize, 6f, 24f) {
                     onChange(Preferences.KEY_ICON_STACKED_TYPE_SIZE, it)
                 }
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.icon_type_position),
+                    items = listOf(
+                        stringResource(R.string.icon_type_position_auto),
+                        stringResource(R.string.icon_type_position_left),
+                        stringResource(R.string.icon_type_position_right)
+                    ),
+                    selectedIndex = typePosition.coerceIn(0, 2),
+                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_TYPE_POSITION, it) }
+                )
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_type_text_weight),
                     items = weights,

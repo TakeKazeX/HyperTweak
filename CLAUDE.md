@@ -281,9 +281,18 @@ Current slice (cellular and WiFi visibility were the first slice):
   `MobileIconsViewModel.isStackable` is forced to a shared `true` flow so SystemUI clears the
   ordinary mobile icons, and each real `MobileIconViewModel.getIcon()` returns the module-drawn
   icon; signal level and type text are derived from the original system `Icon` resource ids
-  (`stat_sys_signal_N`, `data_connection_*`), so no system state streams are read. Stacked mode
+  (`stat_sys_signal_0..4`, `data_connection_*`), so no system state streams are read. Stacked mode
   composites both SIM rows (default SIM on row 1). Six SVGs are bundled under
-  `app/src/main/assets/svg/`; `onPackageReady` loads them and resolves the status-bar icon height.
+  `app/src/main/assets/svg/` (HyperOS / iOS / iOS27, each single + stacked; the style dropdown
+  selects them — style 2 "custom" has no file and falls back to HyperOS); `onPackageReady` loads
+  them and resolves the status-bar icon height. Known renderer fixes: `renderBars` must scale the
+  picture exactly once (the earlier version also pre-scaled the recording canvas → the drawn bars
+  were scaled twice and the rightmost columns were cropped, so a full-signal icon showed only 2-3
+  bars), `renderTypeText` is sized from the `icon_stacked_type_size` pref (the slider previously
+  did nothing) and `compose` honors `icon_stacked_type_position` (0 auto/anchor — iOS SVGs have no
+  anchor, so auto falls to the trailing edge — 1 left, 2 right; RTL mirrors). The separate
+  data-activity arrows are suppressed by forcing `MiuiCellularIconVM.getInOutVisible` to the false
+  flow while the feature is on.
 
 Agent verification status (2026-08-15): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`
 and `assembleDebug` pass. On-device verification is performed by the user (see AGENTS.md).
