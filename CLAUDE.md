@@ -136,6 +136,52 @@ the indication area. `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
 `assembleDebug` pass. Visual confirmation of the lockscreen layout is the
 user's.
 
+## Lockscreen Charging Detail (锁屏充电详情)
+
+Settings → Experimental → Charging Detail on Lockscreen
+(`KEY_LOCKSCREEN_CHARGING_DETAIL`, `LockscreenChargingDetailHooker`, OS4-only in
+the UI) appends live charging telemetry to the bottom lockscreen charging
+indication — the line built by
+`KeyguardIndicationController.updateDeviceEntryIndication(boolean)` that shows
+`keyguard_charged` (已充满电) at 100% or `keyguard_charging_*_and_level_tip`
+(极速/快速/充电中xx%) by `MiuiChargeManager.mBatteryStatus.chargeSpeed`, and is
+rendered through `KeyguardIndicationRotateTextViewController.showIndication(int)`
+with the battery role `3` (same role as the reverse-charging hint; role 13 is the
+dismissible swipe hint) into `keyguard_indication_text_bottom`. The hooker is
+an after-hook on `showIndication(int)`: when `mCurrIndicationType == 3` it
+re-sets the view text with live values. The layout is user-configurable and
+re-read on every render (Preferences memo TTL is 100 ms, so the sub-options
+apply without a SystemUI restart once the master switch is on):
+- `KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE` (default on): detail on its own,
+  slightly smaller line (RelativeSizeSpan 0.8) below the charging text; the
+  view is switched off single-line/marquee once per instance, so the long text
+  no longer scrolls;
+- `KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS` (default `0b1111`): bitmask of
+  wattage / voltage / current / temperature;
+- `KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS` (default 2000, clamps 1000–10000):
+  both the data-fetch throttle and the main-thread refresh loop period.
+
+Data (all available to SystemUI, which holds BATTERY_STATS, and read defensively
+through reflection / try-catch so a failure cannot disturb the render): current
+from `BatteryManager.getIntProperty(BATTERY_PROPERTY_CURRENT_NOW, 2)` in µA,
+falling back to `CURRENT_AVERAGE (3)` and finally
+`/sys/class/power_supply/battery/current_now`; the sign is device-dependent so
+only the magnitude is used; voltage (mV) and temperature (0.1°C) come from the
+sticky `ACTION_BATTERY_CHANGED` broadcast; real-time wattage =
+`|µA| × mV / 1e9`. Reads are throttled to 2 s; a main-thread 3 s loop keeps the
+values live while the indication stays on screen; the pristine base message is
+remembered per view (WeakHashMap) and only reused when it still prefixes the
+current text, so a different system message (e.g. 充电保护中) is never glued to a
+stale base. Requires a SystemUI restart (registered in `TWEAK_RESTART_SCOPES` as
+SystemUI-only).
+
+Agent verification (2026-08-17): `compileDebugKotlin`, `testDebugUnitTest`,
+`lintDebug` and `assembleDebug` pass (only the project-wide `PrivateApi`
+reflection-family lint warning, same as every other reflection-based hooker).
+On-device visual confirmation of the lockscreen text — wattage / voltage /
+current / temperature appearing while charging, and the sign/normalization of
+the current value on this ROM — is the user's.
+
 ## Status-Bar Icon Tuner
 
 Settings → Experimental → Icon Tuner

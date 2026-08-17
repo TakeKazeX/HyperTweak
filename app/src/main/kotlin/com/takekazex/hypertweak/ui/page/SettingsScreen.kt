@@ -38,6 +38,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.getSystemAccentColor
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.util.LauncherVersion
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.R
@@ -64,6 +65,14 @@ fun SettingsScreenContent(
     immediateMonetRefresh: Boolean,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
+    lockscreenChargingDetail: Boolean,
+    onLockscreenChargingDetailChange: (Boolean) -> Unit,
+    lockscreenChargingDetailFields: Int,
+    onLockscreenChargingDetailFieldsChange: (Int) -> Unit,
+    lockscreenChargingDetailIntervalMs: Int,
+    onLockscreenChargingDetailIntervalChange: (Int) -> Unit,
+    lockscreenChargingDetailMultiline: Boolean,
+    onLockscreenChargingDetailMultilineChange: (Boolean) -> Unit,
     launcherMajor: Int,
     launcherSupportsBackRoute: Boolean,
     aospBackMiuiHomeHooks: Boolean,
@@ -213,6 +222,82 @@ fun SettingsScreenContent(
                             onSelectedIndexChange = onLockscreenFingerprintAvoidChange
                         )
                     }
+                    // Appends live charging telemetry (wattage / voltage / current / temperature)
+                    // to the bottom lockscreen indication, OS4 SystemUI. Sub-options apply live;
+                    // only the master switch needs a SystemUI restart.
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = lockscreenChargingDetail,
+                            onCheckedChange = onLockscreenChargingDetailChange,
+                            title = "Charging Detail on Lockscreen",
+                            summary = "Show live charging telemetry under the lockscreen charging text"
+                        )
+                        AnimatedVisibility(
+                            visible = lockscreenChargingDetail,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                SwitchPreference(
+                                    checked = lockscreenChargingDetailMultiline,
+                                    onCheckedChange = onLockscreenChargingDetailMultilineChange,
+                                    title = "Multi-line Layout",
+                                    summary = "Put the telemetry on its own line below the charging text instead of extending the scrolling single line"
+                                )
+                                OverlayDropdownPreference(
+                                    title = "Refresh Interval",
+                                    summary = "How often the telemetry values update",
+                                    items = listOf("1 second", "2 seconds", "3 seconds", "5 seconds"),
+                                    selectedIndex = when (lockscreenChargingDetailIntervalMs) {
+                                        1000 -> 0
+                                        3000 -> 2
+                                        5000 -> 3
+                                        else -> 1
+                                    },
+                                    onSelectedIndexChange = { index ->
+                                        listOf(1000, 2000, 3000, 5000).getOrNull(index)
+                                            ?.let(onLockscreenChargingDetailIntervalChange)
+                                    }
+                                )
+                                chargingFieldSwitch(
+                                    checked = (lockscreenChargingDetailFields and
+                                        LockscreenChargingDetailHooker.FIELD_WATTAGE) != 0,
+                                    title = "Wattage",
+                                    summary = "Real-time charging power (W)",
+                                    onChange = onLockscreenChargingDetailFieldsChange,
+                                    current = lockscreenChargingDetailFields,
+                                    bit = LockscreenChargingDetailHooker.FIELD_WATTAGE
+                                )
+                                chargingFieldSwitch(
+                                    checked = (lockscreenChargingDetailFields and
+                                        LockscreenChargingDetailHooker.FIELD_VOLTAGE) != 0,
+                                    title = "Voltage",
+                                    summary = "Battery voltage (V)",
+                                    onChange = onLockscreenChargingDetailFieldsChange,
+                                    current = lockscreenChargingDetailFields,
+                                    bit = LockscreenChargingDetailHooker.FIELD_VOLTAGE
+                                )
+                                chargingFieldSwitch(
+                                    checked = (lockscreenChargingDetailFields and
+                                        LockscreenChargingDetailHooker.FIELD_CURRENT) != 0,
+                                    title = "Current",
+                                    summary = "Charging current (A)",
+                                    onChange = onLockscreenChargingDetailFieldsChange,
+                                    current = lockscreenChargingDetailFields,
+                                    bit = LockscreenChargingDetailHooker.FIELD_CURRENT
+                                )
+                                chargingFieldSwitch(
+                                    checked = (lockscreenChargingDetailFields and
+                                        LockscreenChargingDetailHooker.FIELD_TEMPERATURE) != 0,
+                                    title = "Temperature",
+                                    summary = "Battery temperature (°C)",
+                                    onChange = onLockscreenChargingDetailFieldsChange,
+                                    current = lockscreenChargingDetailFields,
+                                    bit = LockscreenChargingDetailHooker.FIELD_TEMPERATURE
+                                )
+                            }
+                        }
+                    }
                     ArrowPreference(
                         title = "Icon Tuner",
                         summary = "Hide and customize status-bar icons (cellular, WiFi)",
@@ -352,4 +437,22 @@ private fun launcherBackRouteSummary(launcherMajor: Int, supported: Boolean): St
             "Unavailable: launcher $version has no hookable gesture code (needs Launcher 7)"
         else -> "Unavailable: could not detect the installed launcher"
     }
+}
+
+/** Toggle one bit of the charging-detail field bitmask. */
+@Composable
+private fun chargingFieldSwitch(
+    checked: Boolean,
+    title: String,
+    summary: String,
+    onChange: (Int) -> Unit,
+    current: Int,
+    bit: Int
+) {
+    SwitchPreference(
+        checked = checked,
+        onCheckedChange = { on -> onChange(if (on) current or bit else current and bit.inv()) },
+        title = title,
+        summary = summary
+    )
 }

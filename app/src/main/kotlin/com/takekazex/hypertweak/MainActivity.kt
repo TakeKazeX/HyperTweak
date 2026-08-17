@@ -17,6 +17,7 @@ import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
+import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -49,6 +50,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
         systemUi = true,
@@ -205,6 +207,28 @@ class MainActivity : ComponentActivity() {
             var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
+            var lockscreenChargingDetail by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)) }
+            var lockscreenChargingDetailFields by remember {
+                mutableIntStateOf(
+                    Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
+                        LockscreenChargingDetailHooker.DEFAULT_FIELDS
+                    )
+                )
+            }
+            var lockscreenChargingDetailIntervalMs by remember {
+                mutableIntStateOf(
+                    Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
+                        LockscreenChargingDetailHooker.DEFAULT_INTERVAL_MS
+                    )
+                )
+            }
+            var lockscreenChargingDetailMultiline by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, true)
+                )
+            }
             var lockscreenFingerprintAvoid by remember {
                 mutableIntStateOf(
                     Preferences.getInt(
@@ -319,6 +343,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
+                    Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL -> lockscreenChargingDetail
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
                     Preferences.KEY_MIUI_BACK_GESTURE_HOOK -> miuiBackGestureHook
                     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
@@ -493,6 +518,18 @@ class MainActivity : ComponentActivity() {
                     quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+                    lockscreenChargingDetail = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
+                    lockscreenChargingDetailFields = Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
+                        LockscreenChargingDetailHooker.DEFAULT_FIELDS
+                    )
+                    lockscreenChargingDetailIntervalMs = Preferences.getInt(
+                        Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
+                        LockscreenChargingDetailHooker.DEFAULT_INTERVAL_MS
+                    )
+                    lockscreenChargingDetailMultiline = Preferences.getBoolean(
+                        Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, true
+                    )
                     lockscreenFingerprintAvoid = Preferences.getInt(
                         Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
                         Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
@@ -708,6 +745,27 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)
                         hideFingerprint = checked
                         Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
+                    },
+                    lockscreenChargingDetail = lockscreenChargingDetail,
+                    onLockscreenChargingDetailChange = { checked ->
+                        markTweaked(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
+                        lockscreenChargingDetail = checked
+                        Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
+                    },
+                    lockscreenChargingDetailFields = lockscreenChargingDetailFields,
+                    onLockscreenChargingDetailFieldsChange = { value ->
+                        lockscreenChargingDetailFields = value
+                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                    },
+                    lockscreenChargingDetailIntervalMs = lockscreenChargingDetailIntervalMs,
+                    onLockscreenChargingDetailIntervalChange = { value ->
+                        lockscreenChargingDetailIntervalMs = value
+                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, value)
+                    },
+                    lockscreenChargingDetailMultiline = lockscreenChargingDetailMultiline,
+                    onLockscreenChargingDetailMultilineChange = { value ->
+                        lockscreenChargingDetailMultiline = value
+                        Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, value)
                     },
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->

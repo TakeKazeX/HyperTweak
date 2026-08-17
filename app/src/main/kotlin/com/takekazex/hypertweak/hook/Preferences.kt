@@ -37,6 +37,27 @@ object Preferences {
     const val LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT = 0
     const val LOCKSCREEN_FINGERPRINT_AVOID_NO = 1
     const val LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS = 2
+
+    /**
+     * Appends live charging telemetry (wattage / voltage / current / temperature) to the lock
+     * screen's bottom charging indication line, replacing the plain "充电中xx% / 已充满电" text
+     * with e.g. "极速充电 50% · 12.3W · 9.0V 1.4A · 35°C". Read by
+     * `LockscreenChargingDetailHooker`; requires a SystemUI restart (restart-scope key).
+     */
+    const val KEY_LOCKSCREEN_CHARGING_DETAIL = "lockscreen_charging_detail"
+
+    /**
+     * Live-read by the hooker each render (sub-options of the charging detail feature): which
+     * telemetry fields to show (bitmask of [LockscreenChargingDetailHooker]'s FIELD_* bits,
+     * all four on by default), how often the values refresh (ms), and whether the detail goes
+     * on its own line below the charging text instead of extending the single scrolling line.
+     * These three are read on every indication render, so they take effect without a SystemUI
+     * restart once the main switch is on.
+     */
+    const val KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS = "lockscreen_charging_detail_fields"
+    const val KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS = "lockscreen_charging_detail_interval_ms"
+    const val KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE = "lockscreen_charging_detail_multiline"
+
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
     const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
     const val KEY_GESTURE_BAR_ACTIONS_ENABLED = "gesture_bar_actions_enabled"
