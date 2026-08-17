@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
 import android.widget.Toast
@@ -12,7 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -26,6 +29,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun HiddenFeaturesPage(
     onBack: () -> Unit
@@ -49,7 +53,7 @@ fun HiddenFeaturesPage(
                 }
             }
             if (!launched) {
-                Toast.makeText(context, "Unable to open this settings page", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.hidden__unable_to_open_settings), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -57,11 +61,11 @@ fun HiddenFeaturesPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Hidden Features",
+                title = stringResource(R.string.hidden__page_title),
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
+                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.hidden__back))
                     }
                 }
             )
@@ -78,20 +82,20 @@ fun HiddenFeaturesPage(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            SmallTitle(text = "Quick Shortcuts")
+            SmallTitle(text = stringResource(R.string.hidden__quick_shortcuts))
 
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "Developer Settings",
-                        summary = "Open developer options and USB debugging settings",
+                        title = stringResource(R.string.hidden__developer_settings),
+                        summary = stringResource(R.string.hidden__developer_settings_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Code,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Developer Settings",
+                                contentDescription = stringResource(R.string.hidden__developer_settings),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -102,13 +106,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Google Services",
-                        summary = "Open Google Play Services settings and account management",
+                        title = stringResource(R.string.hidden__google_services),
+                        summary = stringResource(R.string.hidden__google_services_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.AccountCircle,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Google Services",
+                                contentDescription = stringResource(R.string.hidden__google_services),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -122,13 +126,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "FCM Debug",
-                        summary = "Open Firebase Cloud Messaging diagnostic and registration status",
+                        title = stringResource(R.string.hidden__fcm_debug),
+                        summary = stringResource(R.string.hidden__fcm_debug_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.BugReport,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "FCM Debug",
+                                contentDescription = stringResource(R.string.hidden__fcm_debug),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -145,20 +149,20 @@ fun HiddenFeaturesPage(
                 }
             }
 
-            SmallTitle(text = "App Shortcuts")
+            SmallTitle(text = stringResource(R.string.hidden__app_shortcuts))
 
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "LSPosed Manager",
-                        summary = "Open LSPosed framework manager (*#*#5776733#*#*)",
+                        title = stringResource(R.string.hidden__lsposed_manager),
+                        summary = stringResource(R.string.hidden__lsposed_manager_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Extension,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "LSPosed Manager",
+                                contentDescription = stringResource(R.string.hidden__lsposed_manager),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -171,7 +175,7 @@ fun HiddenFeaturesPage(
                                     }
                                 } catch (e: Exception) {
                                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                        Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.hidden__run_shell_failed, e.message), Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             }.start()
@@ -179,13 +183,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "InstallerX Revived",
-                        summary = "Open InstallerX package installer",
+                        title = stringResource(R.string.hidden__installerx_revived),
+                        summary = stringResource(R.string.hidden__installerx_revived_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.InstallMobile,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "InstallerX Revived",
+                                contentDescription = stringResource(R.string.hidden__installerx_revived),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -198,20 +202,20 @@ fun HiddenFeaturesPage(
                 }
             }
 
-            SmallTitle(text = "Hidden Features")
+            SmallTitle(text = stringResource(R.string.hidden__page_title))
 
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "Extra Dim",
-                        summary = "Open system-level extra dim settings (reduce screen minimum brightness)",
+                        title = stringResource(R.string.hidden__extra_dim),
+                        summary = stringResource(R.string.hidden__extra_dim_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.BrightnessMedium,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Extra Dim",
+                                contentDescription = stringResource(R.string.hidden__extra_dim),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -225,13 +229,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Battery Optimization",
-                        summary = "Manage app battery optimization and background restrictions",
+                        title = stringResource(R.string.hidden__battery_optimization),
+                        summary = stringResource(R.string.hidden__battery_optimization_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.BatteryChargingFull,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Battery Optimization",
+                                contentDescription = stringResource(R.string.hidden__battery_optimization),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -242,13 +246,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Running Services",
-                        summary = "View currently running background services and RAM usage",
+                        title = stringResource(R.string.hidden__running_services),
+                        summary = stringResource(R.string.hidden__running_services_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Memory,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Running Services",
+                                contentDescription = stringResource(R.string.hidden__running_services),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -269,13 +273,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Notification Settings",
-                        summary = "View advanced notification settings and notification history",
+                        title = stringResource(R.string.hidden__notification_settings),
+                        summary = stringResource(R.string.hidden__notification_settings_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Notification Settings",
+                                contentDescription = stringResource(R.string.hidden__notification_settings),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -289,13 +293,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Manage Applications",
-                        summary = "Manage all installed and system applications",
+                        title = stringResource(R.string.hidden__manage_applications),
+                        summary = stringResource(R.string.hidden__manage_applications_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.Apps,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Manage Applications",
+                                contentDescription = stringResource(R.string.hidden__manage_applications),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },
@@ -315,13 +319,13 @@ fun HiddenFeaturesPage(
                     )
 
                     ArrowPreference(
-                        title = "Default Apps",
-                        summary = "Configure default assistant, browser, home screen, and other apps",
+                        title = stringResource(R.string.hidden__default_apps),
+                        summary = stringResource(R.string.hidden__default_apps_summary),
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.SettingsSuggest,
                                 modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = "Default Apps",
+                                contentDescription = stringResource(R.string.hidden__default_apps),
                                 tint = MiuixTheme.colorScheme.primary
                             )
                         },

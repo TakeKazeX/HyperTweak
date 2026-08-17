@@ -20,7 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
@@ -43,9 +45,9 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
     var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
     Scaffold(topBar = {
         TopAppBar(
-            title = "Debug",
+            title = stringResource(R.string.debug_page_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.debug_back)) } }
         )
     }) { padding ->
         Column(
@@ -56,7 +58,7 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            SmallTitle("Diagnostics")
+            SmallTitle(stringResource(R.string.debug_diagnostics_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -65,8 +67,8 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                             recordLogs = enabled
                             Preferences.putBoolean(Preferences.KEY_RECORD_LOGS, enabled)
                         },
-                        title = "Record Logs",
-                        summary = "Persist module and hook runtime logs"
+                        title = stringResource(R.string.debug_record_logs_title),
+                        summary = stringResource(R.string.debug_record_logs_summary)
                     )
                     if (!PlatformLevel.isOs4) {
                         SwitchPreference(
@@ -75,13 +77,13 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                                 aospBackLogs = enabled
                                 Preferences.putBoolean(Preferences.KEY_AOSP_BACK_LOGS, enabled)
                             },
-                            title = "AOSP Back Gesture Logs",
-                            summary = "Record detailed logs from the AOSP back gesture hook"
+                            title = stringResource(R.string.debug_aosp_back_gesture_logs_title),
+                            summary = stringResource(R.string.debug_aosp_back_gesture_logs_summary)
                         )
                     }
                     ArrowPreference(
-                        title = "Logs",
-                        summary = "View, filter, copy, and export recorded logs",
+                        title = stringResource(R.string.debug_logs_title),
+                        summary = stringResource(R.string.debug_logs_summary),
                         onClick = onNavigateToLogs
                     )
                 }

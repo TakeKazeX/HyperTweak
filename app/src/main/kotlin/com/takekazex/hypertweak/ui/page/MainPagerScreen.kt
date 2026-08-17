@@ -31,7 +31,10 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
+import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -161,9 +164,9 @@ fun MainPagerScreen(
             if (useFloatingBottomBar) {
                 if (floatingBarStyle == 1) {
                     val items = listOf(
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Home", Icons.Rounded.Home),
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Tweaks", Icons.Rounded.Extension),
-                        top.yukonga.miuix.kmp.basic.NavigationItem("Settings", Icons.Rounded.Settings)
+                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_home), Icons.Rounded.Home),
+                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_tweaks), Icons.Rounded.Extension),
+                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_settings), Icons.Rounded.Settings)
                     )
                     IosLiquidGlassNavigationBar(
                         items = items,
@@ -199,7 +202,8 @@ fun MainPagerScreen(
                                 }
                             },
                             icon = Icons.Rounded.Home,
-                            label = "Home"
+                            label = stringResource(R.string.main_tab_home),
+                            iconSize = 32.dp
                         )
                         MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 1,
@@ -209,7 +213,8 @@ fun MainPagerScreen(
                                 }
                             },
                             icon = Icons.Rounded.Extension,
-                            label = "Tweaks"
+                            label = stringResource(R.string.main_tab_tweaks),
+                            iconSize = 28.0.dp
                         )
                         MyFloatingNavigationBarItem(
                             selected = pagerState.currentPage == 2,
@@ -219,7 +224,8 @@ fun MainPagerScreen(
                                 }
                             },
                             icon = Icons.Rounded.Settings,
-                            label = "Settings"
+                            label = stringResource(R.string.main_tab_settings),
+                            iconSize = 26.5.dp
                         )
                     }
                 }
@@ -247,7 +253,8 @@ fun MainPagerScreen(
                             }
                         },
                         icon = Icons.Rounded.Home,
-                        label = "Home"
+                        label = stringResource(R.string.main_tab_home),
+                        iconSize = 30.dp
                     )
                     MyNavigationBarItem(
                         selected = pagerState.currentPage == 1,
@@ -257,7 +264,8 @@ fun MainPagerScreen(
                             }
                         },
                         icon = Icons.Rounded.Extension,
-                        label = "Tweaks"
+                        label = stringResource(R.string.main_tab_tweaks),
+                        iconSize = 26.0.dp
                     )
                     MyNavigationBarItem(
                         selected = pagerState.currentPage == 2,
@@ -267,7 +275,8 @@ fun MainPagerScreen(
                             }
                         },
                         icon = Icons.Rounded.Settings,
-                        label = "Settings"
+                        label = stringResource(R.string.main_tab_settings),
+                        iconSize = 24.5.dp
                     )
                 }
             }
@@ -378,8 +387,11 @@ fun MainPagerScreen(
                                 onNavigateToIconTuner = onNavigateToIconTuner,
                                 onNavigateToGlassTuner = onNavigateToGlassTuner,
                                 onNavigateToWatermark = onNavigateToWatermark,
-                                themeSummary = listOf("Follow System", "Light", "Dark")
-                                    .getOrElse(themeMode) { "Follow System" },
+                                themeSummary = listOf(
+                                    stringResource(R.string.main_theme_follow_system),
+                                    stringResource(R.string.main_theme_light),
+                                    stringResource(R.string.main_theme_dark)
+                                ).getOrElse(themeMode) { stringResource(R.string.main_theme_follow_system) },
                                 onNavigateToAppearance = onNavigateToAppearance,
                                 allowLandscape = allowLandscape,
                                 onAllowLandscapeChange = onAllowLandscapeChange,
@@ -406,6 +418,7 @@ fun RowScope.MyNavigationBarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     modifier: Modifier = Modifier,
+    iconSize: Dp? = null,
     enabled: Boolean = true,
 ) {
     val itemHeight = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.ItemHeight
@@ -427,13 +440,7 @@ fun RowScope.MyNavigationBarItem(
     val fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
     val mode = top.yukonga.miuix.kmp.basic.LocalNavigationBarDisplayMode.current
 
-    // Adjust size based on label for optical balance
-    val customIconSize = when (label) {
-        "Home" -> 30.dp      // Visually smallest, scale up from 26.dp
-        "Tweaks" -> 26.0.dp  // Normal/average, original defaults to 26.dp
-        "Settings" -> 24.5.dp // Solid icon, scale down slightly from 26.dp
-        else -> top.yukonga.miuix.kmp.basic.NavigationBarDefaults.IconSize
-    }
+    val customIconSize = iconSize ?: top.yukonga.miuix.kmp.basic.NavigationBarDefaults.IconSize
 
     Column(
         modifier = modifier
@@ -545,6 +552,7 @@ fun MyFloatingNavigationBarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     modifier: Modifier = Modifier,
+    iconSize: Dp? = null,
     enabled: Boolean = true,
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -563,13 +571,7 @@ fun MyFloatingNavigationBarItem(
         else -> onSurfaceContainerColor.copy(top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.UnselectedAlpha)
     }
 
-    // Adjust size based on label for optical balance
-    val customIconSize = when (label) {
-        "Home" -> 32.dp      // Visually smallest, scale up from 28.dp
-        "Tweaks" -> 28.0.dp  // Normal/average, original defaults to 28.dp
-        "Settings" -> 26.5.dp // Solid icon, scale down slightly from 28.dp
-        else -> top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconSize
-    }
+    val customIconSize = iconSize ?: top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconSize
 
     Column(
         modifier = modifier

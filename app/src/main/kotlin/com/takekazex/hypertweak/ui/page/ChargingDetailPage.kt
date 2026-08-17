@@ -24,7 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -82,9 +84,9 @@ fun ChargingDetailPage(onBack: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "Charging Detail",
+            title = stringResource(R.string.charging_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.charging_back)) } }
         )
     }) { padding ->
         Column(
@@ -96,7 +98,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle("Charging Detail on Lockscreen")
+            SmallTitle(stringResource(R.string.charging_section_main))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -106,14 +108,13 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                             systemUiRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
                         },
-                        title = "Enabled",
-                        summary = "Show live charging telemetry under the lockscreen charging text. " +
-                            "Requires a SystemUI restart"
+                        title = stringResource(R.string.charging_enabled_title),
+                        summary = stringResource(R.string.charging_enabled_summary)
                     )
                     if (systemUiRestartPending) {
                         ArrowPreference(
-                            title = "Restart SystemUI",
-                            summary = "Apply the master switch change",
+                            title = stringResource(R.string.charging_restart_title),
+                            summary = stringResource(R.string.charging_restart_summary),
                             onClick = {
                                 RestartUtils.restartScope(
                                     context = context,
@@ -127,7 +128,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                 }
             }
 
-            SmallTitle("Layout")
+            SmallTitle(stringResource(R.string.charging_section_layout))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -136,19 +137,24 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                             multiline = enabled
                             Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, enabled)
                         },
-                        title = "Multi-line Layout",
-                        summary = "Put the telemetry on its own line below the charging text instead of extending the scrolling single line"
+                        title = stringResource(R.string.charging_multiline_title),
+                        summary = stringResource(R.string.charging_multiline_summary)
                     )
                 }
             }
 
-            SmallTitle("Refresh")
+            SmallTitle(stringResource(R.string.charging_section_refresh))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     OverlayDropdownPreference(
-                        title = "Refresh Interval",
-                        summary = "How often the telemetry values update",
-                        items = listOf("1 second", "2 seconds", "3 seconds", "5 seconds"),
+                        title = stringResource(R.string.charging_interval_title),
+                        summary = stringResource(R.string.charging_interval_summary),
+                        items = listOf(
+                            stringResource(R.string.charging_interval_1s),
+                            stringResource(R.string.charging_interval_2s),
+                            stringResource(R.string.charging_interval_3s),
+                            stringResource(R.string.charging_interval_5s)
+                        ),
                         selectedIndex = when (intervalMs) {
                             1000 -> 0
                             3000 -> 2
@@ -165,13 +171,13 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                 }
             }
 
-            SmallTitle("Fields")
+            SmallTitle(stringResource(R.string.charging_section_fields))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     chargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_WATTAGE) != 0,
-                        title = "Wattage",
-                        summary = "Real-time charging power (W)",
+                        title = stringResource(R.string.charging_field_wattage_title),
+                        summary = stringResource(R.string.charging_field_wattage_summary),
                         current = fields,
                         bit = LockscreenChargingDetailHooker.FIELD_WATTAGE
                     ) { value ->
@@ -180,8 +186,8 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                     }
                     chargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_VOLTAGE) != 0,
-                        title = "Voltage",
-                        summary = "Battery voltage (V)",
+                        title = stringResource(R.string.charging_field_voltage_title),
+                        summary = stringResource(R.string.charging_field_voltage_summary),
                         current = fields,
                         bit = LockscreenChargingDetailHooker.FIELD_VOLTAGE
                     ) { value ->
@@ -190,8 +196,8 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                     }
                     chargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_CURRENT) != 0,
-                        title = "Current",
-                        summary = "Charging current (A)",
+                        title = stringResource(R.string.charging_field_current_title),
+                        summary = stringResource(R.string.charging_field_current_summary),
                         current = fields,
                         bit = LockscreenChargingDetailHooker.FIELD_CURRENT
                     ) { value ->
@@ -200,8 +206,8 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                     }
                     chargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_TEMPERATURE) != 0,
-                        title = "Temperature",
-                        summary = "Battery temperature (°C)",
+                        title = stringResource(R.string.charging_field_temperature_title),
+                        summary = stringResource(R.string.charging_field_temperature_summary),
                         current = fields,
                         bit = LockscreenChargingDetailHooker.FIELD_TEMPERATURE
                     ) { value ->

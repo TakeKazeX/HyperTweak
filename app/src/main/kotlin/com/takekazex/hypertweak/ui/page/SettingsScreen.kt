@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -87,6 +88,7 @@ fun SettingsScreenContent(
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {
+    val context = LocalContext.current
     val surfaceColor = MiuixTheme.colorScheme.surface
     val topBarBackdrop = rememberLayerBackdrop {
         drawRect(surfaceColor)
@@ -98,7 +100,7 @@ fun SettingsScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Settings",
+                title = stringResource(R.string.settings_settings),
                 modifier = if (contentReady) {
                     Modifier.textureBlur(
                         backdrop = topBarBackdrop,
@@ -129,19 +131,19 @@ fun SettingsScreenContent(
             Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
 
-            SmallTitle(text = "Appearance")
+            SmallTitle(text = stringResource(R.string.settings_appearance))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
-                    title = "Appearance",
+                    title = stringResource(R.string.settings_appearance),
                     summary = themeSummary,
                     onClick = onNavigateToAppearance
                 )
             }
 
             // Module Preferences
-            SmallTitle(text = "Module Preferences")
+            SmallTitle(text = stringResource(R.string.settings_module_preferences))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
@@ -149,15 +151,15 @@ fun SettingsScreenContent(
                     SwitchPreference(
                         checked = showInSettings,
                         onCheckedChange = onShowInSettingsChange,
-                        title = "Show Entry in System Settings",
-                        summary = "Inject an entry point for HyperTweak in the system Settings app"
+                        title = stringResource(R.string.settings_show_entry_in_system_settings),
+                        summary = stringResource(R.string.settings_show_entry_in_system_settings_summary)
                     )
 
                     SwitchPreference(
                         checked = hideLauncherIcon,
                         onCheckedChange = onHideLauncherIconChange,
-                        title = "Hide Desktop Icon",
-                        summary = "Hide launcher icon (access module via LSPosed or system settings)"
+                        title = stringResource(R.string.settings_hide_desktop_icon),
+                        summary = stringResource(R.string.settings_hide_desktop_icon_summary)
                     )
 
                     AnimatedVisibility(
@@ -166,8 +168,8 @@ fun SettingsScreenContent(
                         exit = shrinkVertically() + fadeOut()
                     ) {
                         ArrowPreference(
-                            title = "App Shortcuts",
-                            summary = "Choose shortcuts shown in long-press app icon menu",
+                            title = stringResource(R.string.settings_app_shortcuts),
+                            summary = stringResource(R.string.settings_app_shortcuts_summary),
                             onClick = onNavigateToAppShortcuts
                         )
                     }
@@ -175,8 +177,8 @@ fun SettingsScreenContent(
                     SwitchPreference(
                         checked = allowLandscape,
                         onCheckedChange = onAllowLandscapeChange,
-                        title = "Allow Landscape Mode",
-                        summary = "Enable rotation to horizontal screen orientation"
+                        title = stringResource(R.string.settings_allow_landscape),
+                        summary = stringResource(R.string.settings_allow_landscape_summary)
                     )
 
                     OverlayDropdownPreference(
@@ -192,7 +194,7 @@ fun SettingsScreenContent(
                 }
             }
 
-            SmallTitle(text = "Experimental")
+            SmallTitle(text = stringResource(R.string.settings_experimental))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
@@ -200,16 +202,20 @@ fun SettingsScreenContent(
                     SwitchPreference(
                         checked = immediateMonetRefresh,
                         onCheckedChange = onImmediateMonetRefreshChange,
-                        title = "Immediate Monet Refresh",
-                        summary = "Apply new wallpaper colors when HyperOS misses or delays its Monet update"
+                        title = stringResource(R.string.settings_immediate_monet_refresh),
+                        summary = stringResource(R.string.settings_immediate_monet_refresh_summary)
                     )
                     // The notification-stack fingerprint avoidance anchors on the OS4
                     // `nsslLockYPosition` combine; OS3's keyguard uses a different container.
                     if (PlatformLevel.isOs4) {
                         OverlayDropdownPreference(
-                            title = "Lockscreen Fingerprint Avoid",
-                            summary = "Keep lockscreen notifications clear of the in-display fingerprint icon",
-                            items = listOf("System Default", "No Avoidance", "Always Avoid"),
+                            title = stringResource(R.string.settings_lockscreen_fingerprint_avoid),
+                            summary = stringResource(R.string.settings_lockscreen_fingerprint_avoid_summary),
+                            items = listOf(
+                                stringResource(R.string.settings_fingerprint_avoid_default),
+                                stringResource(R.string.settings_fingerprint_avoid_none),
+                                stringResource(R.string.settings_fingerprint_avoid_always)
+                            ),
                             selectedIndex = lockscreenFingerprintAvoid.coerceIn(0, 2),
                             onSelectedIndexChange = onLockscreenFingerprintAvoidChange
                         )
@@ -220,28 +226,27 @@ fun SettingsScreenContent(
                     // restart, offered in-page.
                     if (PlatformLevel.isOs4) {
                         ArrowPreference(
-                            title = "Charging Detail Options",
-                            summary = "Enable the lockscreen charging detail and configure its layout, " +
-                                "refresh interval, and fields",
+                            title = stringResource(R.string.settings_charging_detail_options),
+                            summary = stringResource(R.string.settings_charging_detail_options_summary),
                             onClick = onNavigateToChargingDetail
                         )
                     }
                     ArrowPreference(
-                        title = "Icon Tuner",
-                        summary = "Hide and customize status-bar icons (cellular, WiFi)",
+                        title = stringResource(R.string.settings_icon_tuner),
+                        summary = stringResource(R.string.settings_icon_tuner_summary),
                         onClick = onNavigateToIconTuner
                     )
                     ArrowPreference(
-                        title = "Watermark Unlock",
-                        summary = "Unlock Leica / Disney / POCO / festival watermarks in the media editor",
+                        title = stringResource(R.string.settings_watermark_unlock),
+                        summary = stringResource(R.string.settings_watermark_unlock_summary),
                         onClick = onNavigateToWatermark
                     )
                     // The material style (材质风格) with its two modes only exists on OS4;
                     // OS3 SystemUI has neither the bionics resources nor the material_style key.
                     if (PlatformLevel.isOs4) {
                         ArrowPreference(
-                            title = "Glass Material Tuner",
-                            summary = "Tune the blur and blend parameters behind 清透磨砂 / 柔光玻璃",
+                            title = stringResource(R.string.settings_glass_material_tuner),
+                            summary = stringResource(R.string.settings_glass_material_tuner_summary),
                             onClick = onNavigateToGlassTuner
                         )
                     }
@@ -252,54 +257,54 @@ fun SettingsScreenContent(
             // SystemUI-only options stay under Features; only what hooks com.miui.home lives here.
             // Hidden on OS4 together with the AOSP back gesture feature.
             if (!PlatformLevel.isOs4) {
-                SmallTitle(text = "Launcher Hooks")
+                SmallTitle(text = stringResource(R.string.settings_launcher_hooks))
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
                 ) {
                     SwitchPreference(
                         checked = aospBackMiuiHomeHooks && launcherSupportsBackRoute,
                         onCheckedChange = onAospBackMiuiHomeHooksChange,
-                        title = "Predictive Return to Home",
-                        summary = launcherBackRouteSummary(launcherMajor, launcherSupportsBackRoute),
+                        title = stringResource(R.string.settings_predictive_return_to_home),
+                        summary = launcherBackRouteSummary(context, launcherMajor, launcherSupportsBackRoute),
                         enabled = launcherSupportsBackRoute
                     )
                     ArrowPreference(
-                        title = "Predictive Back Apps",
-                        summary = "Force predictive back for apps that never opted in",
+                        title = stringResource(R.string.settings_predictive_back_apps),
+                        summary = stringResource(R.string.settings_predictive_back_apps_summary),
                         onClick = onNavigateToPredictiveBackApps
                     )
                 }
             }
 
-            SmallTitle(text = "AOSP Restore")
+            SmallTitle(text = stringResource(R.string.settings_aosp_restore))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
-                    title = "AOSP Restore",
-                    summary = "Hand HyperOS components back to their AOSP implementations",
+                    title = stringResource(R.string.settings_aosp_restore),
+                    summary = stringResource(R.string.settings_aosp_restore_summary),
                     onClick = onNavigateToAospRestore
                 )
             }
 
             // Other
-            SmallTitle(text = "Other")
+            SmallTitle(text = stringResource(R.string.settings_other))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
-                    title = "Debug",
-                    summary = "Logging and diagnostics",
+                    title = stringResource(R.string.settings_debug),
+                    summary = stringResource(R.string.settings_debug_summary),
                     onClick = onNavigateToDebugLogs
                 )
                 ArrowPreference(
-                    title = "About",
-                    summary = "HyperTweak v${BuildConfig.VERSION_NAME}",
+                    title = stringResource(R.string.settings_about),
+                    summary = stringResource(R.string.settings_about_summary, BuildConfig.VERSION_NAME),
                     onClick = onNavigateToAbout
                 )
                 ArrowPreference(
-                    title = "Clear All Settings",
-                    summary = "Reset every setting, including the LSPosed-side copy that survives uninstall",
+                    title = stringResource(R.string.settings_clear_all_settings),
+                    summary = stringResource(R.string.settings_clear_all_settings_summary),
                     onClick = { showClearAllDialog = true }
                 )
             }
@@ -326,21 +331,19 @@ private fun ClearAllSettingsDialog(
 ) {
     OverlayDialog(
         show = show,
-        title = "Clear All Settings",
-        summary = "This resets every module setting to its default and also wipes the copy " +
-            "stored by the LSPosed service, which normally survives module uninstall. " +
-            "Hooked processes pick the defaults up without a reboot.",
+        title = stringResource(R.string.settings_clear_all_settings),
+        summary = stringResource(R.string.settings_clear_all_dialog_summary),
         onDismissRequest = onDismissRequest,
         content = {
             Row(horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.settings_cancel),
                     onClick = onDismissRequest,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(20.dp))
                 TextButton(
-                    text = "Clear",
+                    text = stringResource(R.string.settings_clear),
                     onClick = onConfirm,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -354,15 +357,16 @@ private fun ClearAllSettingsDialog(
  * The predictive return-home animation hooks `com.miui.home` Java classes that only Launcher 7
  * and older ship, so explain why the switch is unavailable rather than just greying it out.
  */
-private fun launcherBackRouteSummary(launcherMajor: Int, supported: Boolean): String {
-    val version = LauncherVersion.versionName.ifBlank { "unknown" }
+private fun launcherBackRouteSummary(context: Context, launcherMajor: Int, supported: Boolean): String {
+    val version = LauncherVersion.versionName.ifBlank {
+        context.getString(R.string.settings_launcher_version_unknown)
+    }
     return when {
         // Upstream documents the launcher animation hooks as matched to 7.50.xx. Other 7.x
         // builds move the members it resolves, so show the exact version to compare against.
-        supported -> "Hand the back-to-home gesture to the launcher animation. " +
-            "Installed launcher $version; upstream targets 7.50.xx"
+        supported -> context.getString(R.string.settings_back_route_supported, version)
         launcherMajor > 0 ->
-            "Unavailable: launcher $version has no hookable gesture code (needs Launcher 7)"
-        else -> "Unavailable: could not detect the installed launcher"
+            context.getString(R.string.settings_back_route_unsupported_version, version)
+        else -> context.getString(R.string.settings_back_route_unsupported_unknown)
     }
 }

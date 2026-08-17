@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,6 +24,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 
 private data class OptInApp(val packageName: String, val label: String, val isSystem: Boolean)
@@ -80,11 +82,11 @@ fun PredictiveBackAppsPage(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Predictive Back Apps",
+                title = stringResource(R.string.predictive_back_apps_title),
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
+                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.predictive_back))
                     }
                 }
             )
@@ -101,15 +103,15 @@ fun PredictiveBackAppsPage(onBack: () -> Unit) {
                 TextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = "Search",
+                    label = stringResource(R.string.predictive_search),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
                 )
             }
             item("title") {
                 SmallTitle(
                     text = when {
-                        loading -> "Loading installed apps…"
-                        else -> "${selected.size} selected"
+                        loading -> stringResource(R.string.predictive_loading_apps)
+                        else -> stringResource(R.string.predictive_selected_count, selected.size)
                     }
                 )
             }

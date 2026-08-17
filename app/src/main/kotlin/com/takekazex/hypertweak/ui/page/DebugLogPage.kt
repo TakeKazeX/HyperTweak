@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -8,6 +9,7 @@ import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -46,11 +48,13 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.util.DebugLog
@@ -89,23 +93,23 @@ import java.util.Locale
 
 private const val FIELD_SEPARATOR = "\u001F"
 
-private enum class LogFilter(val label: String) {
-    All("All"),
-    Errors("Errors"),
-    Warnings("Warnings"),
-    Hooks("Hooks"),
-    FailedHooks("Hook Failed")
+private enum class LogFilter(@StringRes val labelRes: Int) {
+    All(R.string.logs_filter_all),
+    Errors(R.string.logs_filter_errors),
+    Warnings(R.string.logs_filter_warnings),
+    Hooks(R.string.logs_filter_hooks),
+    FailedHooks(R.string.logs_filter_hook_failed)
 }
 
 private val logFilters = LogFilter.entries.toList()
 
-private enum class LogLevelOption(val label: String, val priority: Int) {
-    Verbose("Verbose", android.util.Log.VERBOSE),
-    Debug("Debug", android.util.Log.DEBUG),
-    Info("Info", android.util.Log.INFO),
-    Warning("Warning", android.util.Log.WARN),
-    Error("Error", android.util.Log.ERROR),
-    Silent("Silent", android.util.Log.ASSERT + 1)
+private enum class LogLevelOption(@StringRes val labelRes: Int, val priority: Int) {
+    Verbose(R.string.logs_level_verbose, android.util.Log.VERBOSE),
+    Debug(R.string.logs_level_debug, android.util.Log.DEBUG),
+    Info(R.string.logs_level_info, android.util.Log.INFO),
+    Warning(R.string.logs_level_warning, android.util.Log.WARN),
+    Error(R.string.logs_level_error, android.util.Log.ERROR),
+    Silent(R.string.logs_level_silent, android.util.Log.ASSERT + 1)
 }
 
 private val logLevelOptions = LogLevelOption.entries.toList()
@@ -132,6 +136,7 @@ private data class DebugLogEntry(
     val id: String = "$index-$time-$pid-$scope"
 }
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun LogsPage(
     onBack: () -> Unit
@@ -176,7 +181,7 @@ fun LogsPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Logs",
+                title = stringResource(R.string.logs_title),
                 modifier = if (contentReady) {
                     Modifier.textureBlur(
                         backdrop = topBarBackdrop,
@@ -193,7 +198,10 @@ fun LogsPage(
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = stringResource(R.string.logs_back_content_description)
+                        )
                     }
                 },
             )
@@ -210,11 +218,11 @@ fun LogsPage(
         ) {
             item(key = "overview") {
                 Spacer(modifier = Modifier.height(8.dp))
-                SmallTitle(text = "Overview")
+                SmallTitle(text = stringResource(R.string.logs_overview))
                 SummaryCard(entries = entries)
             }
             item(key = "options") {
-                SmallTitle(text = "Options")
+                SmallTitle(text = stringResource(R.string.logs_options))
                 FilterCard(
                     selectedFilter = selectedFilter,
                     shownCount = filteredEntries.size,
@@ -228,7 +236,7 @@ fun LogsPage(
                 )
             }
             item(key = "runtime-title") {
-                SmallTitle(text = "Runtime (${filteredEntries.size})")
+                SmallTitle(text = stringResource(R.string.logs_runtime_title, filteredEntries.size))
             }
             if (loading) {
                 item(key = "runtime-loading") { LoadingLogCard() }
@@ -239,7 +247,7 @@ fun LogsPage(
                     LogEntryCard(
                         entry = entry,
                         onCopy = {
-                            copyText(context, "HyperTweak Log Entry", formatSingleEntry(entry))
+                            copyText(context, context.getString(R.string.logs_copy_label), formatSingleEntry(entry))
                         }
                     )
                 }
@@ -264,8 +272,8 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
         val hookFailedCount = entries.count { it.event == "HOOK_FAILED" }
 
         BasicComponent(
-            title = "Entries",
-            summary = "Runtime records kept by HyperTweak",
+            title = stringResource(R.string.logs_entries),
+            summary = stringResource(R.string.logs_entries_summary),
             endActions = {
                 Text(
                     text = entries.size.toString(),
@@ -277,8 +285,8 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
         )
         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
         BasicComponent(
-            title = "Issues",
-            summary = "Errors $errorCount · Warnings $warningCount",
+            title = stringResource(R.string.logs_issues),
+            summary = stringResource(R.string.logs_issues_summary, errorCount, warningCount),
             endActions = {
                 Text(
                     text = (errorCount + warningCount).toString(),
@@ -290,8 +298,8 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
         )
         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
         BasicComponent(
-            title = "Hooks",
-            summary = "Succeeded $hookOkCount · Failed $hookFailedCount",
+            title = stringResource(R.string.logs_filter_hooks),
+            summary = stringResource(R.string.logs_hooks_summary, hookOkCount, hookFailedCount),
             endActions = {
                 Text(
                     text = hookOkCount.toString(),
@@ -319,9 +327,9 @@ private fun FilterCard(
             .padding(horizontal = 12.dp)
     ) {
         OverlayDropdownPreference(
-            title = "Log Level",
-            summary = "Drop records below this level at the source",
-            items = logLevelOptions.map { it.label },
+            title = stringResource(R.string.logs_log_level),
+            summary = stringResource(R.string.logs_log_level_summary),
+            items = logLevelOptions.map { stringResource(it.labelRes) },
             selectedIndex = logLevelOptions.indexOf(logLevel),
             onSelectedIndexChange = { index ->
                 logLevelOptions.getOrNull(index)?.let(onLogLevelSelected)
@@ -329,16 +337,16 @@ private fun FilterCard(
         )
         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
         OverlayDropdownPreference(
-            title = "Log Filter",
-            summary = "$shownCount records shown",
+            title = stringResource(R.string.logs_log_filter),
+            summary = stringResource(R.string.logs_filter_summary, shownCount),
             startAction = {
                 Icon(
                     imageVector = MiuixIcons.Filter,
-                    contentDescription = "Filter",
+                    contentDescription = stringResource(R.string.logs_filter_content_description),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantActions
                 )
             },
-            items = logFilters.map { it.label },
+            items = logFilters.map { stringResource(it.labelRes) },
             selectedIndex = logFilters.indexOf(selectedFilter),
             onSelectedIndexChange = { index ->
                 logFilters.getOrNull(index)?.let(onSelected)
@@ -347,7 +355,7 @@ private fun FilterCard(
         if (exportStatus != null) {
             HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
             BasicComponent(
-                title = "Export",
+                title = stringResource(R.string.logs_export),
                 summary = exportStatus
             )
         }
@@ -359,6 +367,7 @@ private fun LogEntryCard(
     entry: DebugLogEntry,
     onCopy: () -> Unit
 ) {
+    val context = LocalContext.current
     var expanded by rememberSaveable(entry.id) { mutableStateOf(entry.isError || entry.isHookFailed) }
 
     Card(
@@ -409,7 +418,7 @@ private fun LogEntryCard(
             }
 
             Text(
-                text = buildPreviewText(entry),
+                text = buildPreviewText(context, entry),
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
@@ -423,7 +432,7 @@ private fun LogEntryCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "${entry.event} · PID ${entry.pid}",
+                        text = stringResource(R.string.logs_event_pid, entry.event, entry.pid),
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
@@ -461,8 +470,8 @@ private fun EmptyLogCard() {
             .padding(horizontal = 12.dp)
     ) {
         BasicComponent(
-            title = "No logs",
-            summary = "No records match the selected filter."
+            title = stringResource(R.string.logs_empty_title),
+            summary = stringResource(R.string.logs_empty_summary)
         )
     }
 }
@@ -475,8 +484,8 @@ private fun LoadingLogCard() {
             .padding(horizontal = 12.dp)
     ) {
         BasicComponent(
-            title = "Loading…",
-            summary = "Reading and parsing runtime records."
+            title = stringResource(R.string.logs_loading_title),
+            summary = stringResource(R.string.logs_loading_summary)
         )
     }
 }
@@ -499,8 +508,8 @@ private fun actionTint(enabled: Boolean): Color {
     }
 }
 
-private fun buildPreviewText(entry: DebugLogEntry): String {
-    val event = eventLabel(entry)
+private fun buildPreviewText(context: Context, entry: DebugLogEntry): String {
+    val event = eventLabel(context, entry)
     val message = entry.message.trim()
     return when {
         message.isBlank() -> event
@@ -511,12 +520,12 @@ private fun buildPreviewText(entry: DebugLogEntry): String {
 
 private fun buildExportText(
     entries: List<DebugLogEntry>,
-    filter: LogFilter,
+    filterLabel: String,
     totalCount: Int
 ): String {
     val header = buildString {
         append("HyperTweak Debug Logs\n")
-        append("Filter: ${filter.label}\n")
+        append("Filter: $filterLabel\n")
         append("Shown: ${entries.size} / $totalCount\n")
         append("Exported: ${formatExportTime()}\n\n")
     }
@@ -578,15 +587,15 @@ private fun DebugLogEntry.shortTime(): String {
     return time.substringAfter(' ', time)
 }
 
-private fun eventLabel(entry: DebugLogEntry): String {
+private fun eventLabel(context: Context, entry: DebugLogEntry): String {
     return when (entry.event) {
-        "HOOK_OK" -> "Hook OK"
-        "HOOK_FAILED" -> "Hook Failed"
-        "HOOK_SKIPPED" -> "Hook Skipped"
-        "FAILED" -> "Failed"
-        "MISSING" -> "Missing"
-        "SKIPPED" -> "Skipped"
-        "OK" -> "OK"
+        "HOOK_OK" -> context.getString(R.string.logs_event_hook_ok)
+        "HOOK_FAILED" -> context.getString(R.string.logs_event_hook_failed)
+        "HOOK_SKIPPED" -> context.getString(R.string.logs_event_hook_skipped)
+        "FAILED" -> context.getString(R.string.logs_event_failed)
+        "MISSING" -> context.getString(R.string.logs_event_missing)
+        "SKIPPED" -> context.getString(R.string.logs_event_skipped)
+        "OK" -> context.getString(R.string.logs_event_ok)
         else -> entry.level
     }
 }

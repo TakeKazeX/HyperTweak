@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import top.yukonga.miuix.kmp.basic.Card
@@ -29,6 +30,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.ShortcutUtils
 import kotlin.math.roundToInt
 
@@ -123,18 +125,18 @@ fun AppShortcutsPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "App Shortcuts",
+                title = stringResource(R.string.shortcuts_title),
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
+                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.shortcuts_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { reset() }, modifier = Modifier.padding(end = 4.dp)) {
                         Icon(
                             imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Reset",
+                            contentDescription = stringResource(R.string.shortcuts_reset),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
@@ -151,7 +153,7 @@ fun AppShortcutsPage(
         ) {
             item("spacer_top") { Spacer(modifier = Modifier.height(8.dp)) }
             item("title") {
-                SmallTitle(text = "Long press to drag, toggle to enable (max 5)")
+                SmallTitle(text = stringResource(R.string.shortcuts_hint))
             }
             item("card") {
                 Card(

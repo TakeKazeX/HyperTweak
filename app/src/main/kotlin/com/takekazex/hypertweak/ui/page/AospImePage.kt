@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.util.RestartUtils
@@ -46,7 +49,11 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 private data class InstalledIme(val packageName: String, val label: String)
 
 /** Order matches [NAV_BAR_KEY_VALUES]. */
-private val NAV_BAR_KEY_LABELS = listOf("Hide keyboard", "Switch keyboard", "None")
+private val NAV_BAR_KEY_LABELS = listOf(
+    R.string.ime_nav_key_hide,
+    R.string.ime_nav_key_switch,
+    R.string.ime_nav_key_none
+)
 
 private val NAV_BAR_KEY_VALUES = listOf(
     AospImeConfig.BUTTON_HIDE_IME,
@@ -63,6 +70,7 @@ private fun navBarKeyIndex(value: String): Int =
  * The selection is applied on demand rather than per toggle, because applying it requests Xposed
  * scope for the newly selected packages and that prompts the user.
  */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AospImePage(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -113,21 +121,21 @@ fun AospImePage(onBack: () -> Unit) {
                 is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
                     Preferences.putStringSet(Preferences.KEY_AOSP_IME_PACKAGES, selected)
                     applied = selected
-                    Toast.makeText(context, "Keyboard selection applied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
                 }
                 is ScopeManager.Result.Rejected -> Toast.makeText(
                     context,
-                    "Scope was not granted for ${result.missing.joinToString()}; selection unchanged",
+                    context.getString(R.string.ime_scope_not_granted, result.missing.joinToString()),
                     Toast.LENGTH_LONG
                 ).show()
                 is ScopeManager.Result.Failed -> Toast.makeText(
                     context,
-                    "Could not update the scope: ${result.message}",
+                    context.getString(R.string.ime_scope_update_failed, result.message),
                     Toast.LENGTH_LONG
                 ).show()
                 ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
                     context,
-                    "The Xposed service is unavailable",
+                    context.getString(R.string.ime_service_unavailable),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -137,9 +145,9 @@ fun AospImePage(onBack: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "AOSP Keyboard Bar",
+            title = stringResource(R.string.ime_page_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.ime_back)) } }
         )
     }) { padding ->
         LazyColumn(
@@ -159,12 +167,12 @@ fun AospImePage(onBack: () -> Unit) {
                                 enabled = it
                                 Preferences.putBoolean(Preferences.KEY_AOSP_IME_ENABLED, it)
                             },
-                            title = "AOSP Keyboard Navigation Bar",
-                            summary = "Draw the AOSP gesture navigation bar inside the selected keyboards"
+                            title = stringResource(R.string.ime_nav_bar_title),
+                            summary = stringResource(R.string.ime_nav_bar_summary)
                         )
                         OverlayDropdownPreference(
-                            title = "Left key",
-                            items = NAV_BAR_KEY_LABELS,
+                            title = stringResource(R.string.ime_left_key),
+                            items = NAV_BAR_KEY_LABELS.map { stringResource(it) },
                             selectedIndex = navBarKeyIndex(startKey),
                             onSelectedIndexChange = { index ->
                                 startKey = NAV_BAR_KEY_VALUES[index]
@@ -173,8 +181,8 @@ fun AospImePage(onBack: () -> Unit) {
                             enabled = enabled
                         )
                         OverlayDropdownPreference(
-                            title = "Right key",
-                            items = NAV_BAR_KEY_LABELS,
+                            title = stringResource(R.string.ime_right_key),
+                            items = NAV_BAR_KEY_LABELS.map { stringResource(it) },
                             selectedIndex = navBarKeyIndex(endKey),
                             onSelectedIndexChange = { index ->
                                 endKey = NAV_BAR_KEY_VALUES[index]
@@ -183,7 +191,7 @@ fun AospImePage(onBack: () -> Unit) {
                             enabled = enabled
                         )
                         BasicComponent(
-                            title = "Layout",
+                            title = stringResource(R.string.ime_layout_title),
                             summary = "$startKey[70AC];${AospImeConfig.BUTTON_HOME_HANDLE};$endKey[70AC]"
                         )
                         SwitchPreference(
@@ -192,9 +200,8 @@ fun AospImePage(onBack: () -> Unit) {
                                 miuiImeList = it
                                 Preferences.putBoolean(Preferences.KEY_AOSP_IME_MIUI_IME_LIST, it)
                             },
-                            title = "List All Keyboards in the Switcher",
-                            summary = "Show every enabled input method in MIUI's keyboard switcher. " +
-                                "Untested on this device",
+                            title = stringResource(R.string.ime_list_all_keyboards),
+                            summary = stringResource(R.string.ime_list_all_keyboards_summary),
                             enabled = enabled
                         )
                     }
@@ -204,9 +211,8 @@ fun AospImePage(onBack: () -> Unit) {
             item("restart_note") {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
                     BasicComponent(
-                        title = "Applying changes",
-                        summary = "Keyboard-side changes take effect once the keyboard process " +
-                            "restarts. The system server half needs a reboot."
+                        title = stringResource(R.string.ime_applying_changes),
+                        summary = stringResource(R.string.ime_applying_changes_summary)
                     )
                 }
             }
@@ -214,8 +220,8 @@ fun AospImePage(onBack: () -> Unit) {
             item("targets_title") {
                 SmallTitle(
                     text = when {
-                        loading -> "Loading input methods…"
-                        else -> "${selected.size} selected"
+                        loading -> stringResource(R.string.ime_loading)
+                        else -> stringResource(R.string.ime_selected_count, selected.size)
                     }
                 )
             }
@@ -247,7 +253,11 @@ fun AospImePage(onBack: () -> Unit) {
             item("actions") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
                     TextButton(
-                        text = if (applying) "Applying…" else "Apply selection",
+                        text = if (applying) {
+                            stringResource(R.string.ime_applying_button)
+                        } else {
+                            stringResource(R.string.ime_apply_selection)
+                        },
                         enabled = selected != applied && !applying,
                         onClick = { apply() },
                         modifier = Modifier.fillMaxWidth()
@@ -258,8 +268,8 @@ fun AospImePage(onBack: () -> Unit) {
             item("restart") {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     ArrowPreference(
-                        title = "Restart Selected Keyboards",
-                        summary = "Force-stop the selected input methods so the hooks take effect",
+                        title = stringResource(R.string.ime_restart_keyboards),
+                        summary = stringResource(R.string.ime_restart_keyboards_summary),
                         onClick = {
                             RestartUtils.forceStopPackages(
                                 context = context,

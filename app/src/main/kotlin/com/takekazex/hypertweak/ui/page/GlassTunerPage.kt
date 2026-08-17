@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
@@ -55,6 +58,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * `MainActivity`, so these keys do not feed the pending-restart-scope tracking; every change
  * requires a SystemUI restart and the page offers one.
  */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun GlassTunerPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -97,9 +101,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "Glass Material Tuner",
+            title = stringResource(R.string.glass_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.glass_back)) }
+            }
         )
     }) { padding ->
         Column(
@@ -111,19 +117,18 @@ fun GlassTunerPage(onBack: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle("Parameters")
+            SmallTitle(stringResource(R.string.glass_parameters))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = enabled,
                         onCheckedChange = { changed(Preferences.KEY_GLASS_TUNER_ENABLED, it) },
-                        title = "Custom Glass Parameters",
-                        summary = "Override the blur and blend resources behind 清透磨砂 / 柔光玻璃 " +
-                            "(Settings → Display → Visual style)"
+                        title = stringResource(R.string.glass_custom_parameters),
+                        summary = stringResource(R.string.glass_parameters_summary)
                     )
                     if (enabled) {
                         SliderRow(
-                            title = "Blend Opacity",
+                            title = stringResource(R.string.glass_blend_opacity),
                             value = blendAlpha,
                             rangeStart = 0f,
                             rangeEnd = 1f,
@@ -132,7 +137,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             changed(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, it)
                         }
                         SliderRow(
-                            title = "Blend Lightness",
+                            title = stringResource(R.string.glass_blend_lightness),
                             value = blendLightness,
                             rangeStart = 0f,
                             rangeEnd = 2f,
@@ -141,7 +146,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             changed(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, it)
                         }
                         SliderRow(
-                            title = "Blur Radius",
+                            title = stringResource(R.string.glass_blur_radius),
                             value = radiusScale,
                             rangeStart = 0f,
                             rangeEnd = 2f,
@@ -150,7 +155,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             changed(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, it)
                         }
                         SliderRow(
-                            title = "Glass Opacity",
+                            title = stringResource(R.string.glass_glass_opacity),
                             value = glassOpacity,
                             rangeStart = 0f,
                             rangeEnd = 1f,
@@ -159,7 +164,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             changed(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, it)
                         }
                         SliderRow(
-                            title = "Glass Tone",
+                            title = stringResource(R.string.glass_glass_tone),
                             value = glassTone,
                             rangeStart = 0f,
                             rangeEnd = 2f,
@@ -168,23 +173,17 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             changed(Preferences.KEY_GLASS_TUNER_GLASS_TONE, it)
                         }
                         Text(
-                            text = "Blend opacity controls the panel backdrop's tint strength, " +
-                                "blend lightness its color (below 100% darker, above lighter), " +
-                                "blur radius the frost, glass opacity the card material's " +
-                                "darkening/tint/highlights, and glass tone its base cast " +
-                                "(luminance, brightness, backdrop saturation — the grey-ish " +
-                                "look that survives even at 0% opacity; lower is lighter). " +
-                                "All apply to whichever system material mode is active.",
+                            text = stringResource(R.string.glass_parameters_help),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            SmallTitle("Original Parameters")
+            SmallTitle(stringResource(R.string.glass_original_parameters))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 TextButton(
-                    text = "Reset Sliders to Original Values",
+                    text = stringResource(R.string.glass_reset),
                     onClick = {
                         // Only reset the slider values; the master switch stays on and nothing
                         // restarts, so the user can keep tuning after seeing the defaults.
@@ -195,7 +194,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                         changed(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
                         android.widget.Toast.makeText(
                             context,
-                            "Sliders reset to original values.",
+                            context.getString(R.string.glass_reset_done),
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     },
@@ -205,11 +204,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
             }
 
             if (systemUiRestartPending) {
-                SmallTitle("Apply")
+                SmallTitle(stringResource(R.string.glass_apply))
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     ArrowPreference(
-                        title = "Restart SystemUI",
-                        summary = "Apply the changes made on this page",
+                        title = stringResource(R.string.glass_restart_systemui),
+                        summary = stringResource(R.string.glass_restart_systemui_summary),
                         onClick = {
                             // The remote (LSPosed daemon) copy is written asynchronously; make
                             // sure SystemUI starts after the daemon has the latest values.

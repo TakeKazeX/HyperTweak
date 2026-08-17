@@ -1,13 +1,15 @@
 package com.takekazex.hypertweak.ui.theme
 
+import androidx.annotation.StringRes
+import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 
 enum class PaletteStyleOption(
     val persistedId: Int,
-    val label: String,
+    @StringRes val labelRes: Int,
     val miuixStyle: ThemePaletteStyle
 ) {
-    TonalSpot(0, "Tonal Spot", ThemePaletteStyle.TonalSpot), Neutral(1, "Neutral", ThemePaletteStyle.Neutral), Vibrant(2, "Vibrant", ThemePaletteStyle.Vibrant), Expressive(3, "Expressive", ThemePaletteStyle.Expressive), Monochrome(4, "Monochrome", ThemePaletteStyle.Monochrome), Fidelity(5, "Fidelity", ThemePaletteStyle.Fidelity), Content(6, "Content", ThemePaletteStyle.Content), Rainbow(7, "Rainbow", ThemePaletteStyle.Rainbow), FruitSalad(8, "Fruit Salad", ThemePaletteStyle.FruitSalad)
+    TonalSpot(0, R.string.theme_palette_tonal_spot, ThemePaletteStyle.TonalSpot), Neutral(1, R.string.theme_palette_neutral, ThemePaletteStyle.Neutral), Vibrant(2, R.string.theme_palette_vibrant, ThemePaletteStyle.Vibrant), Expressive(3, R.string.theme_palette_expressive, ThemePaletteStyle.Expressive), Monochrome(4, R.string.theme_palette_monochrome, ThemePaletteStyle.Monochrome), Fidelity(5, R.string.theme_palette_fidelity, ThemePaletteStyle.Fidelity), Content(6, R.string.theme_palette_content, ThemePaletteStyle.Content), Rainbow(7, R.string.theme_palette_rainbow, ThemePaletteStyle.Rainbow), FruitSalad(8, R.string.theme_palette_fruit_salad, ThemePaletteStyle.FruitSalad)
 }
 
 val presetAccentColors = listOf(
@@ -21,7 +23,13 @@ val presetAccentColors = listOf(
 )
 
 val presetAccentLabels = listOf(
-    "Device color", "Blue", "Green", "Orange", "Red", "Purple", "Indigo"
+    R.string.theme_accent_device,
+    R.string.theme_accent_blue,
+    R.string.theme_accent_green,
+    R.string.theme_accent_orange,
+    R.string.theme_accent_red,
+    R.string.theme_accent_purple,
+    R.string.theme_accent_indigo
 )
 
 fun paletteStyleFromStored(value: Int): PaletteStyleOption =

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,8 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.launch
@@ -46,6 +49,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * watermark menu is opened; only the first enable of the master switch needs the editor process
  * restarted so the hooks are installed (LSPosed scope restart).
  */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun WatermarkPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -95,9 +99,9 @@ fun WatermarkPage(onBack: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "Watermark Unlock",
+            title = stringResource(R.string.watermark_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.watermark_back)) } }
         )
     }) { padding ->
         Column(
@@ -109,7 +113,7 @@ fun WatermarkPage(onBack: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle("Master")
+            SmallTitle(stringResource(R.string.watermark_master))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -125,35 +129,31 @@ fun WatermarkPage(onBack: () -> Unit) {
                                     when (val result = ScopeManager.request(setOf("com.miui.mediaeditor"))) {
                                         is ScopeManager.Result.Applied -> Toast.makeText(
                                             context,
-                                            "Scope added; restart 相册编辑 for the hooks to load",
+                                            context.getString(R.string.watermark_scope_added_editor),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.NoChange -> Unit
                                         is ScopeManager.Result.Rejected -> Toast.makeText(
                                             context,
-                                            "Scope request declined; enable com.miui.mediaeditor in LSPosed",
+                                            context.getString(R.string.watermark_scope_declined_editor),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         is ScopeManager.Result.Failed -> Toast.makeText(
                                             context,
-                                            "Scope request failed: ${result.message}",
+                                            context.getString(R.string.watermark_scope_failed, result.message),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
                                             context,
-                                            "Xposed service unavailable; enable com.miui.mediaeditor in LSPosed",
+                                            context.getString(R.string.watermark_scope_unavailable_editor),
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 }
                             }
                         },
-                        title = "Unlock Media Editor Watermarks",
-                        summary = "Show watermarks that are normally hidden on this device " +
-                            "(Leica, Disney, POCO, LCC, festival editions, ...), ignoring " +
-                            "region / time / length / version limits. Needs " +
-                            "com.miui.mediaeditor in the LSPosed scope; restart the editor " +
-                            "after enabling it the first time"
+                        title = stringResource(R.string.watermark_master_title),
+                        summary = stringResource(R.string.watermark_master_summary)
                     )
                     SwitchPreference(
                         checked = camera,
@@ -165,38 +165,36 @@ fun WatermarkPage(onBack: () -> Unit) {
                                     when (val result = ScopeManager.request(setOf("com.android.camera"))) {
                                         is ScopeManager.Result.Applied -> Toast.makeText(
                                             context,
-                                            "Scope added; restart 相机 for the hooks to load",
+                                            context.getString(R.string.watermark_scope_added_camera),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.NoChange -> Unit
                                         is ScopeManager.Result.Rejected -> Toast.makeText(
                                             context,
-                                            "Scope request declined; enable com.android.camera in LSPosed",
+                                            context.getString(R.string.watermark_scope_declined_camera),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         is ScopeManager.Result.Failed -> Toast.makeText(
                                             context,
-                                            "Scope request failed: ${result.message}",
+                                            context.getString(R.string.watermark_scope_failed_camera, result.message),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
                                             context,
-                                            "Xposed service unavailable; enable com.android.camera in LSPosed",
+                                            context.getString(R.string.watermark_scope_unavailable_camera),
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 }
                             }
                         },
-                        title = "Unlock Camera Watermarks",
-                        summary = "Show every watermark the camera app synced (Leica, festival, " +
-                            "sports, ...) instead of filtering by device properties. Needs " +
-                            "com.android.camera in the LSPosed scope"
+                        title = stringResource(R.string.watermark_camera_title),
+                        summary = stringResource(R.string.watermark_camera_summary)
                     )
                 }
             }
 
-            SmallTitle("Brand")
+            SmallTitle(stringResource(R.string.watermark_brand))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -205,8 +203,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             leica = enabled
                             set(Preferences.KEY_WM_LEICA, enabled)
                         },
-                        title = "Leica (徕卡)",
-                        summary = "Leica watermarks and the Leica template group",
+                        title = stringResource(R.string.watermark_leica_title),
+                        summary = stringResource(R.string.watermark_leica_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -215,8 +213,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             xiaomi = enabled
                             set(Preferences.KEY_WM_XIAOMI, enabled)
                         },
-                        title = "Xiaomi",
-                        summary = "Xiaomi-brand watermarks and template groups",
+                        title = stringResource(R.string.watermark_xiaomi_title),
+                        summary = stringResource(R.string.watermark_xiaomi_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -225,8 +223,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             redmi = enabled
                             set(Preferences.KEY_WM_REDMI, enabled)
                         },
-                        title = "Redmi",
-                        summary = "Redmi-brand watermarks and template groups",
+                        title = stringResource(R.string.watermark_redmi_title),
+                        summary = stringResource(R.string.watermark_redmi_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -235,14 +233,14 @@ fun WatermarkPage(onBack: () -> Unit) {
                             poco = enabled
                             set(Preferences.KEY_WM_POCO, enabled)
                         },
-                        title = "POCO",
-                        summary = "POCO-brand watermarks and template groups",
+                        title = stringResource(R.string.watermark_poco_title),
+                        summary = stringResource(R.string.watermark_poco_summary),
                         enabled = master
                     )
                 }
             }
 
-            SmallTitle("Theme")
+            SmallTitle(stringResource(R.string.watermark_theme))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -251,8 +249,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             disney1 = enabled
                             set(Preferences.KEY_WM_DISNEY1, enabled)
                         },
-                        title = "Disney 1 (west coast)",
-                        summary = "First Disney watermark set",
+                        title = stringResource(R.string.watermark_disney1_title),
+                        summary = stringResource(R.string.watermark_disney1_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -261,8 +259,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             disney2 = enabled
                             set(Preferences.KEY_WM_DISNEY2, enabled)
                         },
-                        title = "Disney 2 (west coast II)",
-                        summary = "Second Disney watermark set",
+                        title = stringResource(R.string.watermark_disney2_title),
+                        summary = stringResource(R.string.watermark_disney2_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -271,8 +269,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             disney3 = enabled
                             set(Preferences.KEY_WM_DISNEY3, enabled)
                         },
-                        title = "Disney 3 (west coast III)",
-                        summary = "Third Disney watermark set",
+                        title = stringResource(R.string.watermark_disney3_title),
+                        summary = stringResource(R.string.watermark_disney3_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -281,8 +279,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             victoria = enabled
                             set(Preferences.KEY_WM_VICTORIA, enabled)
                         },
-                        title = "Victoria",
-                        summary = "Victoria-limited watermark variants",
+                        title = stringResource(R.string.watermark_victoria_title),
+                        summary = stringResource(R.string.watermark_victoria_summary),
                         enabled = master
                     )
                     SwitchPreference(
@@ -291,14 +289,14 @@ fun WatermarkPage(onBack: () -> Unit) {
                             lcc = enabled
                             set(Preferences.KEY_WM_LCC, enabled)
                         },
-                        title = "LCC (Leitz / 17 Ultra by Leica)",
-                        summary = "LCC, Leitzphone and 17 Ultra by Leica watermarks (CN and global)",
+                        title = stringResource(R.string.watermark_lcc_title),
+                        summary = stringResource(R.string.watermark_lcc_summary),
                         enabled = master
                     )
                 }
             }
 
-            SmallTitle("Advanced")
+            SmallTitle(stringResource(R.string.watermark_advanced))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -307,9 +305,8 @@ fun WatermarkPage(onBack: () -> Unit) {
                             downloadAll = enabled
                             set(Preferences.KEY_WM_DOWNLOAD_ALL, enabled)
                         },
-                        title = "Download all cloud watermarks",
-                        summary = "Fetch every cloud watermark resource once the menu is built " +
-                            "(needs network; a one-time trigger per editor process)",
+                        title = stringResource(R.string.watermark_download_all_title),
+                        summary = stringResource(R.string.watermark_download_all_summary),
                         enabled = master
                     )
                 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,10 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -35,17 +38,17 @@ private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageNam
     }
 }
 
-private fun fallbackAppName(packageName: String): String = when (packageName) {
-    "com.android.systemui" -> "System UI"
-    "com.miui.home" -> "Miui Home"
-    "com.android.settings" -> "Settings"
-    "com.miui.aod" -> "Always-On Display"
-    "com.miui.securitycenter" -> "Security"
-    "com.xiaomi.scanner" -> "Scanner"
-    "com.milink.service" -> "MiLink Service"
-    "com.xiaomi.bluetooth" -> "Xiaomi Bluetooth"
-    "com.miui.powerkeeper" -> "Power Keeper"
-    "com.google.android.gms" -> "Google Play Services"
+private fun fallbackAppName(context: Context, packageName: String): String = when (packageName) {
+    "com.android.systemui" -> context.getString(R.string.restart_scope_system_ui)
+    "com.miui.home" -> context.getString(R.string.restart_scope_miui_home)
+    "com.android.settings" -> context.getString(R.string.restart_scope_settings)
+    "com.miui.aod" -> context.getString(R.string.restart_scope_aod)
+    "com.miui.securitycenter" -> context.getString(R.string.restart_scope_security)
+    "com.xiaomi.scanner" -> context.getString(R.string.restart_scope_scanner)
+    "com.milink.service" -> context.getString(R.string.restart_scope_milink)
+    "com.xiaomi.bluetooth" -> context.getString(R.string.restart_scope_bluetooth)
+    "com.miui.powerkeeper" -> context.getString(R.string.restart_scope_powerkeeper)
+    "com.google.android.gms" -> context.getString(R.string.restart_scope_gms)
     else -> packageName
 }
 
@@ -92,7 +95,7 @@ fun RestartScopeDialog(
 
     OverlayDialog(
         show = show,
-        title = "Restart Scoped Apps",
+        title = stringResource(R.string.restart_scoped_apps_title),
         onDismissRequest = onDismissRequest,
         content = {
             if (!initialSelection.isEmpty()) {
@@ -107,7 +110,7 @@ fun RestartScopeDialog(
                     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Text(
-                        text = "Detected modified tweaks and preselected the related scopes.",
+                        text = stringResource(R.string.restart_detected_tweaks_note),
                         color = MiuixTheme.colorScheme.onPrimaryContainer,
                         fontSize = 13.sp,
                         lineHeight = 18.sp
@@ -169,7 +172,7 @@ fun RestartScopeDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 TextButton(
-                    text = "Restart",
+                    text = stringResource(R.string.restart_button),
                     onClick = {
                         onConfirm(
                             RestartScopeSelection(
@@ -193,7 +196,7 @@ fun RestartScopeDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
                 TextButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.restart_cancel),
                     onClick = onDismissRequest,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -216,12 +219,12 @@ fun AppRestartPreference(
     // Label and icon are both PackageManager binder calls, and the icon additionally rasterizes a
     // bitmap; resolve them off the main thread. Seed the label with the offline fallback so the row
     // renders its correct name immediately, then fill in the resolved label and icon once ready.
-    val appName by produceState(initialValue = fallbackAppName(packageName), packageName) {
+    val appName by produceState(initialValue = fallbackAppName(context, packageName), packageName) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 val pm = context.packageManager
                 pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-            }.getOrDefault(fallbackAppName(packageName))
+            }.getOrDefault(fallbackAppName(context, packageName))
         }
     }
 

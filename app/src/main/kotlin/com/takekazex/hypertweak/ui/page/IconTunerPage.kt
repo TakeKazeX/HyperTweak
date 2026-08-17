@@ -25,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
@@ -108,7 +110,13 @@ fun IconTunerPage(onBack: () -> Unit) {
 
     // Modes follow Hyper Helper: 0 = follow system (lists untouched), 1 = visible everywhere,
     // 2 = status bar only, 3 = control center only, 4 = hidden everywhere.
-    val slotModes = listOf("Follow System", "Visible", "Status Bar Only", "Control Center Only", "Hidden")
+    val slotModes = listOf(
+        stringResource(R.string.icon_slot_mode_follow),
+        stringResource(R.string.icon_slot_mode_visible),
+        stringResource(R.string.icon_slot_mode_status_bar),
+        stringResource(R.string.icon_slot_mode_control_center),
+        stringResource(R.string.icon_slot_mode_hidden)
+    )
     val commonSlots = listOf(
         "mobile", "no_sim", "airplane", "wifi", "hotspot", "vpn", "network_speed",
         "bluetooth", "bluetooth_handsfree_battery", "handle_battery", "nfc", "gps",
@@ -117,9 +125,9 @@ fun IconTunerPage(onBack: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "Icon Tuner",
+            title = stringResource(R.string.icon_page_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.icon_back)) } }
         )
     }) { padding ->
         Column(
@@ -181,11 +189,11 @@ fun IconTunerPage(onBack: () -> Unit) {
             )
 
             if (systemUiRestartPending) {
-                SmallTitle("Apply")
+                SmallTitle(stringResource(R.string.icon_apply_title))
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     ArrowPreference(
-                        title = "Restart SystemUI",
-                        summary = "Apply the changes made on this page",
+                        title = stringResource(R.string.icon_restart_systemui),
+                        summary = stringResource(R.string.icon_restart_systemui_summary),
                         onClick = {
                             // The remote (LSPosed daemon) copy is written asynchronously; make
                             // sure SystemUI starts after the daemon has the latest values.
@@ -223,54 +231,70 @@ private fun StackedSignalSection(
     showRoaming: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    val styles = listOf("HyperOS", "iOS", "Custom", "iOS 27")
+    val styles = listOf("HyperOS", "iOS", stringResource(R.string.icon_style_custom), "iOS 27")
     val weights = (100..900 step 100).map { "$it" }
     fun weightIndex(w: Int): Int = ((w - 100) / 100).coerceIn(0, weights.lastIndex)
 
-    SmallTitle("Stacked Signal")
+    SmallTitle(stringResource(R.string.icon_stacked_signal_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            TunerSwitch(enabled, "Custom Signal Icon", "Replace the mobile signal icon with a custom SVG-drawn one") { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
+            TunerSwitch(
+                enabled,
+                stringResource(R.string.icon_custom_signal_icon),
+                stringResource(R.string.icon_custom_signal_icon_summary)
+            ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
             if (enabled) {
                 OverlayDropdownPreference(
-                    title = "Single Icon Style",
+                    title = stringResource(R.string.icon_single_style),
                     items = styles,
                     selectedIndex = singleStyle.coerceIn(0, styles.lastIndex),
                     onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SVG_SINGLE, it) }
                 )
                 OverlayDropdownPreference(
-                    title = "Stacked Icon Style",
+                    title = stringResource(R.string.icon_stacked_style),
                     items = styles,
                     selectedIndex = stackedStyle.coerceIn(0, styles.lastIndex),
                     onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SVG_STACKED, it) }
                 )
-                SliderRow("Icon Scale", scale, 0.5f, 1.5f) {
+                SliderRow(stringResource(R.string.icon_icon_scale), scale, 0.5f, 1.5f) {
                     onChange(Preferences.KEY_ICON_STACKED_SCALE, it)
                 }
-                SliderRow("Padding Start (dp)", paddingStart, 0f, 12f) {
+                SliderRow(stringResource(R.string.icon_padding_start), paddingStart, 0f, 12f) {
                     onChange(Preferences.KEY_ICON_STACKED_PADDING_START, it)
                 }
-                SliderRow("Padding End (dp)", paddingEnd, 0f, 12f) {
+                SliderRow(stringResource(R.string.icon_padding_end), paddingEnd, 0f, 12f) {
                     onChange(Preferences.KEY_ICON_STACKED_PADDING_END, it)
                 }
-                SliderRow("Signal Alpha", alphaFg, 0.1f, 1f) {
+                SliderRow(stringResource(R.string.icon_signal_alpha), alphaFg, 0.1f, 1f) {
                     onChange(Preferences.KEY_ICON_STACKED_ALPHA_FG, it)
                 }
-                SliderRow("Second Row Alpha", alphaBg, 0.1f, 1f) {
+                SliderRow(stringResource(R.string.icon_second_row_alpha), alphaBg, 0.1f, 1f) {
                     onChange(Preferences.KEY_ICON_STACKED_ALPHA_BG, it)
                 }
-                SliderRow("Type Text Size (dp)", typeSize, 6f, 20f) {
+                SliderRow(stringResource(R.string.icon_type_text_size), typeSize, 6f, 20f) {
                     onChange(Preferences.KEY_ICON_STACKED_TYPE_SIZE, it)
                 }
                 OverlayDropdownPreference(
-                    title = "Type Text Weight",
+                    title = stringResource(R.string.icon_type_text_weight),
                     items = weights,
                     selectedIndex = weightIndex(typeWeight),
                     onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, it * 100 + 100) }
                 )
-                TunerSwitch(showSingle, "Single SIM Icon", "Draw the single-SIM signal icon") { onChange(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, it) }
-                TunerSwitch(showStacked, "Stacked Dual SIM", "Combine both SIMs into one stacked icon") { onChange(Preferences.KEY_ICON_STACKED_SHOW_STACKED, it) }
-                TunerSwitch(showRoaming, "Show Roaming", "Keep the roaming indicator in the custom icon") { onChange(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, it) }
+                TunerSwitch(
+                    showSingle,
+                    stringResource(R.string.icon_single_sim_icon),
+                    stringResource(R.string.icon_single_sim_icon_summary)
+                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, it) }
+                TunerSwitch(
+                    showStacked,
+                    stringResource(R.string.icon_stacked_dual_sim),
+                    stringResource(R.string.icon_stacked_dual_sim_summary)
+                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_STACKED, it) }
+                TunerSwitch(
+                    showRoaming,
+                    stringResource(R.string.icon_show_roaming),
+                    stringResource(R.string.icon_show_roaming_summary)
+                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, it) }
             }
         }
     }
@@ -290,19 +314,59 @@ private fun CellularSection(
     hideNonDefaultSim: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    SmallTitle("Cellular")
+    SmallTitle(stringResource(R.string.icon_cellular_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            TunerSwitch(activity, "Hide Data Activity", "Hide the up/down arrows beside the signal icon") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, it) }
-            TunerSwitch(type, "Hide Network Type", "Hide the 4G/5G text next to the signal icon") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
-            TunerSwitch(roam, "Hide Roam Indicator", "Hide the roaming \"R\" next to the signal icon") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM, it) }
-            TunerSwitch(smallRoam, "Hide Small Roam Indicator", "Hide the small roaming indicator on the signal icon") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, it) }
-            TunerSwitch(roamGlobal, "Hide Roam Globally", "Block the roaming indicator in every status bar surface") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, it) }
-            TunerSwitch(voWifi, "Hide VoWiFi", "Hide the VoWiFi indicator when calling over WiFi") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOWIFI, it) }
-            TunerSwitch(volte, "Hide VoLTE", "Hide the VoLTE indicator") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE, it) }
-            TunerSwitch(volteNoService, "Hide VoLTE No-Service", "Hide the VoLTE indicator when there is no service") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, it) }
-            TunerSwitch(speechHd, "Hide HD Call", "Hide the HD voice indicator") { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, it) }
-            TunerSwitch(hideNonDefaultSim, "Hide Non-Default SIM Icon", "Hide the cellular icon of the SIM that is not the default data line") { onChange(Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM, it) }
+            TunerSwitch(
+                activity,
+                stringResource(R.string.icon_hide_data_activity),
+                stringResource(R.string.icon_hide_data_activity_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, it) }
+            TunerSwitch(
+                type,
+                stringResource(R.string.icon_hide_network_type),
+                stringResource(R.string.icon_hide_network_type_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
+            TunerSwitch(
+                roam,
+                stringResource(R.string.icon_hide_roam_indicator),
+                stringResource(R.string.icon_hide_roam_indicator_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM, it) }
+            TunerSwitch(
+                smallRoam,
+                stringResource(R.string.icon_hide_small_roam_indicator),
+                stringResource(R.string.icon_hide_small_roam_indicator_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, it) }
+            TunerSwitch(
+                roamGlobal,
+                stringResource(R.string.icon_hide_roam_globally),
+                stringResource(R.string.icon_hide_roam_globally_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, it) }
+            TunerSwitch(
+                voWifi,
+                stringResource(R.string.icon_hide_vowifi),
+                stringResource(R.string.icon_hide_vowifi_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOWIFI, it) }
+            TunerSwitch(
+                volte,
+                stringResource(R.string.icon_hide_volte),
+                stringResource(R.string.icon_hide_volte_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE, it) }
+            TunerSwitch(
+                volteNoService,
+                stringResource(R.string.icon_hide_volte_no_service),
+                stringResource(R.string.icon_hide_volte_no_service_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, it) }
+            TunerSwitch(
+                speechHd,
+                stringResource(R.string.icon_hide_hd_call),
+                stringResource(R.string.icon_hide_hd_call_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, it) }
+            TunerSwitch(
+                hideNonDefaultSim,
+                stringResource(R.string.icon_hide_non_default_sim_icon),
+                stringResource(R.string.icon_hide_non_default_sim_icon_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM, it) }
         }
     }
 }
@@ -314,12 +378,24 @@ private fun WifiSection(
     hideConnected: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    SmallTitle("WiFi")
+    SmallTitle(stringResource(R.string.icon_wifi_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            TunerSwitch(activity, "Hide WiFi Activity", "Hide the up/down arrows beside the WiFi icon") { onChange(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, it) }
-            TunerSwitch(type, "Hide WiFi Standard", "Hide the 6E/WiFi 6 text next to the WiFi icon") { onChange(Preferences.KEY_ICON_HIDE_WIFI_TYPE, it) }
-            TunerSwitch(hideConnected, "Hide Connected WiFi Icon", "Hide the WiFi icon while a network is connected") { onChange(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, it) }
+            TunerSwitch(
+                activity,
+                stringResource(R.string.icon_hide_wifi_activity),
+                stringResource(R.string.icon_hide_wifi_activity_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, it) }
+            TunerSwitch(
+                type,
+                stringResource(R.string.icon_hide_wifi_standard),
+                stringResource(R.string.icon_hide_wifi_standard_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_TYPE, it) }
+            TunerSwitch(
+                hideConnected,
+                stringResource(R.string.icon_hide_connected_wifi_icon),
+                stringResource(R.string.icon_hide_connected_wifi_icon_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, it) }
         }
     }
 }
@@ -333,7 +409,7 @@ private fun SlotsSection(
     hidePrivacy: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    SmallTitle("Slots")
+    SmallTitle(stringResource(R.string.icon_slots_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             commonSlots.forEach { slot ->
@@ -347,8 +423,16 @@ private fun SlotsSection(
                     }
                 )
             }
-            TunerSwitch(ignoreSysHide, "Ignore System Hiding", "Show icons the system hides on its own (privacy indicator and others)") { onChange(Preferences.KEY_ICON_IGNORE_SYS_HIDE, it) }
-            TunerSwitch(hidePrivacy, "Hide Privacy Indicator", "Hide the camera/mic privacy dot in the status bar") { onChange(Preferences.KEY_ICON_HIDE_PRIVACY, it) }
+            TunerSwitch(
+                ignoreSysHide,
+                stringResource(R.string.icon_ignore_system_hiding),
+                stringResource(R.string.icon_ignore_system_hiding_summary)
+            ) { onChange(Preferences.KEY_ICON_IGNORE_SYS_HIDE, it) }
+            TunerSwitch(
+                hidePrivacy,
+                stringResource(R.string.icon_hide_privacy_indicator),
+                stringResource(R.string.icon_hide_privacy_indicator_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_PRIVACY, it) }
         }
     }
 }

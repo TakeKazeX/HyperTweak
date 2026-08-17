@@ -309,10 +309,10 @@ fun IosLiquidGlassNavigationBar(
                 verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
                 horizontalAlignment = CenterHorizontally,
             ) {
-                val iconSize = when (item.label) {
-                    "Home" -> 25.dp
-                    "Tweaks" -> 22.dp
-                    "Settings" -> 20.5.dp
+                val iconSize = when (index) {
+                    0 -> 25.dp
+                    1 -> 22.dp
+                    2 -> 20.5.dp
                     else -> 22.dp
                 }
                 Box(

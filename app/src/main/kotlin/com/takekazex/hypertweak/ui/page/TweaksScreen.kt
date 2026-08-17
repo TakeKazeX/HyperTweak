@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.PlatformLevel
 import androidx.compose.foundation.layout.*
@@ -15,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -35,6 +39,7 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun TweaksScreenContent(
     padding: PaddingValues,
@@ -87,6 +92,7 @@ fun TweaksScreenContent(
     onFcmLiveEnabledChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
+    val context = LocalContext.current
     val surfaceColor = MiuixTheme.colorScheme.surface
     val topBarBackdrop = rememberLayerBackdrop {
         drawRect(surfaceColor)
@@ -96,15 +102,15 @@ fun TweaksScreenContent(
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     val gestureActionOptions = remember {
         listOf(
-            GestureBarAction.DISABLED to "Disabled",
-            GestureBarAction.DEFAULT_ASSISTANT to "Default assistant",
-            GestureBarAction.CIRCLE_TO_SEARCH to "Circle to Search"
+            GestureBarAction.DISABLED to context.getString(R.string.tweaks_action_disabled),
+            GestureBarAction.DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant),
+            GestureBarAction.CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search)
         )
     }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Features",
+                title = stringResource(R.string.tweaks_features),
                 modifier = if (contentReady) {
                     Modifier.textureBlur(
                         backdrop = topBarBackdrop,
@@ -136,72 +142,72 @@ fun TweaksScreenContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Scope 1: Lockscreen & Display
-            SmallTitle(text = "Lockscreen & Display")
+            SmallTitle(text = stringResource(R.string.tweaks_lockscreen_display_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = aodFullscreen,
                         onCheckedChange = onAodFullscreenChange,
-                        title = "Always-On Display Fullscreen",
-                        summary = "Unlock full screen background support for AOD"
+                        title = stringResource(R.string.tweaks_aod_fullscreen_title),
+                        summary = stringResource(R.string.tweaks_aod_fullscreen_summary)
                     )
                     SwitchPreference(
                         checked = hideFingerprint,
                         onCheckedChange = onHideFingerprintChange,
-                        title = "Hide Lockscreen Fingerprint",
-                        summary = "Completely remove the fingerprint sensor circle icon on lockscreen"
+                        title = stringResource(R.string.tweaks_hide_fingerprint_title),
+                        summary = stringResource(R.string.tweaks_hide_fingerprint_summary)
                     )
                     SwitchPreference(
                         checked = hideLockscreenStatusBar,
                         onCheckedChange = onHideLockscreenStatusBarChange,
-                        title = "Hide Lockscreen Status Bar",
-                        summary = "Hide the clock and status icons while the device is locked"
+                        title = stringResource(R.string.tweaks_hide_lockscreen_status_bar_title),
+                        summary = stringResource(R.string.tweaks_hide_lockscreen_status_bar_summary)
                     )
                 }
             }
 
             // Scope 2: Control Center
-            SmallTitle(text = "Control Center")
+            SmallTitle(text = stringResource(R.string.tweaks_control_center_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = sliderShowPercentage,
                         onCheckedChange = onSliderShowPercentageChange,
-                        title = "Slider Show Percentage Value",
-                        summary = "Show percentage values on the brightness and volume sliders"
+                        title = stringResource(R.string.tweaks_slider_show_percentage_title),
+                        summary = stringResource(R.string.tweaks_slider_show_percentage_summary)
                     )
                     SwitchPreference(
                         checked = sliderSamePercentageStyle && sliderShowPercentage,
                         onCheckedChange = onSliderSamePercentageChange,
-                        title = "Unify Percentage Style",
-                        summary = "Always keep the volume slider percentage text visible to match the brightness style",
+                        title = stringResource(R.string.tweaks_unify_percentage_style_title),
+                        summary = stringResource(R.string.tweaks_unify_percentage_style_summary),
                         enabled = sliderShowPercentage
                     )
                 }
             }
 
             // Scope 3: Navigation Bar
-            SmallTitle(text = "Navigation Bar")
+            SmallTitle(text = stringResource(R.string.tweaks_navigation_bar_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = hideGestureBar,
                         onCheckedChange = onHideGestureBarChange,
-                        title = "Hide Bottom Gesture Bar",
-                        summary = "Hide the bottom gesture line and multitasking split-screen bar"
+                        title = stringResource(R.string.tweaks_hide_gesture_bar_title),
+                        summary = stringResource(R.string.tweaks_hide_gesture_bar_summary)
                     )
                     SwitchPreference(
                         checked = gestureBarRaiseLayout && hideGestureBar,
                         onCheckedChange = onGestureBarRaiseLayoutChange,
-                        title = "Raise Layout",
-                        summary = "Keep the reserved navigation bar space so app content sits above the gesture area",
+                        title = stringResource(R.string.tweaks_raise_layout_title),
+                        summary = stringResource(R.string.tweaks_raise_layout_summary),
                         enabled = hideGestureBar
                     )
                     SwitchPreference(
                         checked = gestureBarActionsEnabled,
                         onCheckedChange = onGestureBarActionsEnabledChange,
-                        title = "Gesture Bar Shortcuts",
-                        summary = "Handle long press and double tap in SystemUI",
+                        title = stringResource(R.string.tweaks_gesture_bar_shortcuts_title),
+                        summary = stringResource(R.string.tweaks_gesture_bar_shortcuts_summary),
                         enabled = GestureBarAction.actionsAvailable
                     )
                     AnimatedVisibility(
@@ -211,8 +217,8 @@ fun TweaksScreenContent(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             OverlayDropdownPreference(
-                                title = "Long Press Action",
-                                summary = "Circle to Search does not require a default assistant",
+                                title = stringResource(R.string.tweaks_long_press_action_title),
+                                summary = stringResource(R.string.tweaks_long_press_action_summary),
                                 items = gestureActionOptions.map { it.second },
                                 selectedIndex = gestureActionOptions.indexOfFirst {
                                     it.first.persistedId == gestureBarLongPressAction
@@ -224,7 +230,7 @@ fun TweaksScreenContent(
                                 }
                             )
                             OverlayDropdownPreference(
-                                title = "Double Tap Action",
+                                title = stringResource(R.string.tweaks_double_tap_action_title),
                                 items = gestureActionOptions.map { it.second },
                                 selectedIndex = gestureActionOptions.indexOfFirst {
                                     it.first.persistedId == gestureBarDoubleTapAction
@@ -240,28 +246,25 @@ fun TweaksScreenContent(
                     SwitchPreference(
                         checked = powerButtonCts,
                         onCheckedChange = onPowerButtonCtsChange,
-                        title = "Power Button Circle to Search",
-                        summary = "Long-press power starts Circle to Search instead of the " +
-                            "system action, in any app. Requires a reboot to apply"
+                        title = stringResource(R.string.tweaks_power_button_cts_title),
+                        summary = stringResource(R.string.tweaks_power_button_cts_summary)
                     )
                     if (!PlatformLevel.isOs4) {
                         SwitchPreference(
                             checked = miuiBackGestureHook,
                             onCheckedChange = onMiuiBackGestureHookChange,
-                            title = "AOSP Back Gesture",
+                            title = stringResource(R.string.tweaks_aosp_back_gesture_title),
                             summary = if (launcherSupportsBackRoute) {
-                                "Restore the AOSP back gesture pipeline in MIUI SystemUI. " +
-                                    "Needs \"System Launcher\" in the module's LSPosed scope, " +
-                                    "which owns the screen edges on this launcher"
+                                stringResource(R.string.tweaks_aosp_back_gesture_summary_launcher_scope)
                             } else {
-                                "Restore the AOSP back gesture pipeline in MIUI SystemUI"
+                                stringResource(R.string.tweaks_aosp_back_gesture_summary)
                             }
                         )
                         SwitchPreference(
                             checked = crossTaskWallpaperBackground,
                             onCheckedChange = onCrossTaskWallpaperBackgroundChange,
-                            title = "Cross Task Wallpaper Background",
-                            summary = "Use a blurred wallpaper behind cross-task back animations",
+                            title = stringResource(R.string.tweaks_cross_task_wallpaper_title),
+                            summary = stringResource(R.string.tweaks_cross_task_wallpaper_summary),
                             enabled = miuiBackGestureHook
                         )
                         AnimatedVisibility(
@@ -273,30 +276,28 @@ fun TweaksScreenContent(
                                 SwitchPreference(
                                     checked = aospBackIndicator,
                                     onCheckedChange = onAospBackIndicatorChange,
-                                    title = "HyperOS Back Arrow",
-                                    summary = "Replaces the AOSP indicator with the HyperOS arrow. " +
-                                        "Turn off to get the AOSP indicator back, at the cost of haptics"
+                                    title = stringResource(R.string.tweaks_hyperos_back_arrow_title),
+                                    summary = stringResource(R.string.tweaks_hyperos_back_arrow_summary)
                                 )
                                 SwitchPreference(
                                     checked = aospBackHaptics,
                                     onCheckedChange = onAospBackHapticsChange,
-                                    title = "Back Gesture Haptics",
-                                    summary = "Vibrate when the gesture arms and triggers. " +
-                                        "Driven by the arrow overlay, so it needs HyperOS Back Arrow",
+                                    title = stringResource(R.string.tweaks_back_gesture_haptics_title),
+                                    summary = stringResource(R.string.tweaks_back_gesture_haptics_summary),
                                     enabled = aospBackIndicator
                                 )
                                 SwitchPreference(
                                     checked = aospBackHapticsEnhanced,
                                     onCheckedChange = onAospBackHapticsEnhancedChange,
-                                    title = "Enhanced Haptics",
-                                    summary = "Use the richer HyperOS haptic pattern",
+                                    title = stringResource(R.string.tweaks_enhanced_haptics_title),
+                                    summary = stringResource(R.string.tweaks_enhanced_haptics_summary),
                                     enabled = aospBackIndicator && aospBackHaptics
                                 )
                                 SwitchPreference(
                                     checked = aospBackSlideAnimation,
                                     onCheckedChange = onAospBackSlideAnimationChange,
-                                    title = "Slide Back Animation",
-                                    summary = "Slide the previous activity in behind the gesture"
+                                    title = stringResource(R.string.tweaks_slide_back_animation_title),
+                                    summary = stringResource(R.string.tweaks_slide_back_animation_summary)
                                 )
                             }
                         }
@@ -305,54 +306,51 @@ fun TweaksScreenContent(
             }
 
             // Scope 4: System Core
-            SmallTitle(text = "System Core")
+            SmallTitle(text = stringResource(R.string.tweaks_system_core_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = removeGms,
                         onCheckedChange = onRemoveGmsChange,
-                        title = "Bypass GMS China ROM Restrictions",
-                        summary = "Remove Google Play Services installation restrictions on Chinese firmware"
+                        title = stringResource(R.string.tweaks_gms_bypass_title),
+                        summary = stringResource(R.string.tweaks_gms_bypass_summary)
                     )
                     SwitchPreference(
                         checked = quickShareEnabled,
                         onCheckedChange = onQuickShareEnabledChange,
-                        title = "Unlock Nearby Share (Quick Share)",
-                        summary = "Unlocks Quick Share on CN Google Play services: overrides the phenotype " +
-                            "flag sharing_supports_latchsky in GMS's database and opens the CN " +
-                            "device-type gates. Prompts for GMS scope and restarts Google Play " +
-                            "services to apply."
+                        title = stringResource(R.string.tweaks_quick_share_title),
+                        summary = stringResource(R.string.tweaks_quick_share_summary)
                     )
                     SwitchPreference(
                         checked = unlockPasskey,
                         onCheckedChange = onUnlockPasskeyChange,
-                        title = "Unlock Google Passkey / Credential Manager",
-                        summary = "Allow using Google Passkey and third-party credential managers on domestic MIUI/HyperOS"
+                        title = stringResource(R.string.tweaks_passkey_title),
+                        summary = stringResource(R.string.tweaks_passkey_summary)
                     )
                     SwitchPreference(
                         checked = fcmLiveEnabled,
                         onCheckedChange = onFcmLiveEnabledChange,
-                        title = "Fix Google Push (FCM Live)",
-                        summary = "Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires reboot and PowerKeeper restart to apply."
+                        title = stringResource(R.string.tweaks_fcm_live_title),
+                        summary = stringResource(R.string.tweaks_fcm_live_summary)
                     )
                 }
             }
 
             // Scope 5: Bluetooth
-            SmallTitle(text = "Bluetooth")
+            SmallTitle(text = stringResource(R.string.tweaks_bluetooth_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = disableSpatialAudio,
                         onCheckedChange = onDisableSpatialAudioChange,
-                        title = "Block Spatial Audio",
-                        summary = "AirPods only, including AirPods Max. Prevent spatial audio from being enabled. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing."
+                        title = stringResource(R.string.tweaks_block_spatial_audio_title),
+                        summary = stringResource(R.string.tweaks_block_spatial_audio_summary)
                     )
                     SwitchPreference(
                         checked = forceAdaptiveAnc,
                         onCheckedChange = onForceAdaptiveAncChange,
-                        title = "Force Adaptive ANC",
-                        summary = "AirPods only, including AirPods Max. Replace Off mode with Adaptive noise cancellation. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing."
+                        title = stringResource(R.string.tweaks_force_adaptive_anc_title),
+                        summary = stringResource(R.string.tweaks_force_adaptive_anc_summary)
                     )
                 }
             }

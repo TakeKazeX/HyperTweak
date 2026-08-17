@@ -23,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.ExtendUnlockLauncher
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -82,9 +84,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = "AOSP Restore",
+            title = stringResource(R.string.aosp_page_title),
             scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "Back") } }
+            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.aosp_back)) } }
         )
     }) { padding ->
         Column(
@@ -96,7 +98,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle("System")
+            SmallTitle(stringResource(R.string.aosp_section_system))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -105,14 +107,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             packageInstaller = enabled
                             Preferences.putBoolean(Preferences.KEY_AOSP_PACKAGE_INSTALLER, enabled)
                         },
-                        title = "AOSP Package Installer",
-                        summary = "Install packages with the AOSP installer instead of the MIUI one. " +
-                            "Relaxes MIUI install verification. Requires a reboot"
+                        title = stringResource(R.string.aosp_package_installer),
+                        summary = stringResource(R.string.aosp_package_installer_summary)
                     )
                 }
             }
 
-            SmallTitle("System UI")
+            SmallTitle(stringResource(R.string.aosp_section_system_ui))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -122,9 +123,8 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             systemUiRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_AOSP_POWER_MENU, enabled)
                         },
-                        title = "AOSP Power Menu",
-                        summary = "Hide MIUI's global-actions plugin so the AOSP power menu is used. " +
-                            "Requires a SystemUI restart"
+                        title = stringResource(R.string.aosp_power_menu),
+                        summary = stringResource(R.string.aosp_power_menu_summary)
                     )
                     SwitchPreference(
                         checked = volumePanel,
@@ -133,9 +133,8 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             systemUiRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, enabled)
                         },
-                        title = "AOSP Volume Panel",
-                        summary = "Hide MIUI's volume-dialog plugin so the AOSP volume panel is used. " +
-                            "Other volume slider tweaks do not apply to it. Requires a SystemUI restart"
+                        title = stringResource(R.string.aosp_volume_panel),
+                        summary = stringResource(R.string.aosp_volume_panel_summary)
                     )
                     SwitchPreference(
                         checked = extendUnlockFix,
@@ -144,14 +143,12 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             systemUiRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, enabled)
                         },
-                        title = "Extend Unlock",
-                        summary = "Enable the Google trust agent HyperOS leaves off, and re-derive " +
-                            "keyguard trust when its cached state goes stale. Requires a SystemUI restart"
+                        title = stringResource(R.string.aosp_extend_unlock),
+                        summary = stringResource(R.string.aosp_extend_unlock_summary)
                     )
                     ArrowPreference(
-                        title = "Configure Extend Unlock",
-                        summary = "Open the Google configuration screen HyperOS hides. " +
-                            "Turn the switch on and restart SystemUI first",
+                        title = stringResource(R.string.aosp_configure_extend_unlock),
+                        summary = stringResource(R.string.aosp_configure_extend_unlock_summary),
                         enabled = extendUnlockFix,
                         onClick = { ExtendUnlockLauncher.launch(context) }
                     )
@@ -162,14 +159,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             systemUiRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
                         },
-                        title = "AOSP Clipboard Editor",
-                        summary = "Show the AOSP clipboard overlay when copying. HyperOS keeps " +
-                            "showing its own editor as well. Requires a SystemUI restart"
+                        title = stringResource(R.string.aosp_clipboard_editor),
+                        summary = stringResource(R.string.aosp_clipboard_editor_summary)
                     )
                     if (systemUiRestartPending) {
                         ArrowPreference(
-                            title = "Restart SystemUI",
-                            summary = "Apply the changes made on this page",
+                            title = stringResource(R.string.aosp_restart_system_ui),
+                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
                             onClick = {
                                 RestartUtils.restartScope(
                                     context = context,
@@ -183,7 +179,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                 }
             }
 
-            SmallTitle("Security Center")
+            SmallTitle(stringResource(R.string.aosp_section_security_center))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
@@ -193,9 +189,8 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             securityCenterRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, enabled)
                         },
-                        title = "AOSP App Info Entry",
-                        summary = "Add an entry to the app details page that opens Settings' AOSP " +
-                            "app info screen. Requires a Security Center restart"
+                        title = stringResource(R.string.aosp_app_info_entry),
+                        summary = stringResource(R.string.aosp_app_info_entry_summary)
                     )
                     SwitchPreference(
                         checked = appManagerEntry,
@@ -204,14 +199,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             securityCenterRestartPending = true
                             Preferences.putBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, enabled)
                         },
-                        title = "AOSP App Manager Entry",
-                        summary = "Add an overflow-menu entry to the app manager that opens " +
-                            "Settings' AOSP app list. Requires a Security Center restart"
+                        title = stringResource(R.string.aosp_app_manager_entry),
+                        summary = stringResource(R.string.aosp_app_manager_entry_summary)
                     )
                     if (securityCenterRestartPending) {
                         ArrowPreference(
-                            title = "Restart Security Center",
-                            summary = "Apply the changes made in this section",
+                            title = stringResource(R.string.aosp_restart_security_center),
+                            summary = stringResource(R.string.aosp_restart_security_center_summary),
                             onClick = {
                                 RestartUtils.restartScope(
                                     context = context,
@@ -225,11 +219,11 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                 }
             }
 
-            SmallTitle("Input Method")
+            SmallTitle(stringResource(R.string.aosp_section_input_method))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 ArrowPreference(
-                    title = "AOSP Keyboard Bar",
-                    summary = "Draw the AOSP gesture navigation bar inside selected keyboards",
+                    title = stringResource(R.string.aosp_keyboard_bar),
+                    summary = stringResource(R.string.aosp_keyboard_bar_summary),
                     onClick = onNavigateToAospIme
                 )
             }

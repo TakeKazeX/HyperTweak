@@ -8,7 +8,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -29,11 +31,11 @@ fun CreditsPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Credits",
+                title = stringResource(R.string.credits_title),
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = "Back")
+                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.credits_back))
                     }
                 }
             )
@@ -60,82 +62,82 @@ fun CreditsPage(
                 ) {
                     ArrowPreference(
                         title = "libxposed",
-                        summary = "Native Xposed API 102 framework · v102.0.0",
+                        summary = stringResource(R.string.credits_libxposed_desc),
                         onClick = { uriHandler.openUri("https://github.com/libxposed/api") }
                     )
                     ArrowPreference(
                         title = "LSPosed",
-                        summary = "Mainstream Xposed framework implementation",
+                        summary = stringResource(R.string.credits_lsposed_desc),
                         onClick = { uriHandler.openUri("https://github.com/LSPosed/LSPosed") }
                     )
                     ArrowPreference(
                         title = "EzHookTool",
-                        summary = "Kotlin Xposed helper library by lingqiqi5211 · v1.1.0-rc04",
+                        summary = stringResource(R.string.credits_ezhook_desc),
                         onClick = { uriHandler.openUri("https://github.com/lingqiqi5211/EzHookTool") }
                     )
                     ArrowPreference(
                         title = "DexKit",
-                        summary = "Powerful Dex analysis tool for finding hook points dynamically · v2.2.0",
+                        summary = stringResource(R.string.credits_dexkit_desc),
                         onClick = { uriHandler.openUri("https://github.com/LuckyPray/DexKit") }
                     )
                     ArrowPreference(
                         title = "HiddenApiBypass",
-                        summary = "Bypass restrictions on non-SDK interfaces in Android 9+",
+                        summary = stringResource(R.string.credits_hiddenapibypass_desc),
                         onClick = { uriHandler.openUri("https://github.com/LSPosed/AndroidHiddenApiBypass") }
                     )
                     ArrowPreference(
-                        title = "Miuix UI (compose-miuix-ui)",
-                        summary = "Modern MIUI/HyperOS style Compose components · v0.9.2",
+                        title = stringResource(R.string.credits_miuix_title),
+                        summary = stringResource(R.string.credits_miuix_desc),
                         onClick = { uriHandler.openUri("https://github.com/compose-miuix-ui/miuix") }
                     )
                     ArrowPreference(
                         title = "InstallerX Revived",
-                        summary = "Inspiration for theme configuration and UI/UX layout design",
+                        summary = stringResource(R.string.credits_installerx_desc),
                         onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/InstallerX-Revived") }
                     )
                     ArrowPreference(
                         title = "HyperOShape",
-                        summary = "Base logic for fingerprint icon drawing bypass",
+                        summary = stringResource(R.string.credits_hyperorch_desc),
                         onClick = { uriHandler.openUri("https://github.com/xzakota/HyperOShape") }
                     )
                     ArrowPreference(
                         title = "XiaomiHelper",
-                        summary = "References for Settings preference injection",
+                        summary = stringResource(R.string.credits_xiaomihelper_desc),
                         onClick = { uriHandler.openUri("https://github.com/HowieHChen/XiaomiHelper") }
                     )
                     ArrowPreference(
                         title = "HyperCeiler",
-                        summary = "All-in-one system enhancement references",
+                        summary = stringResource(R.string.credits_hyperceiler_desc),
                         onClick = { uriHandler.openUri("https://github.com/ReChronoRain/HyperCeiler") }
                     )
                     ArrowPreference(
                         title = "HyperPasskey",
-                        summary = "Unlock Google Passkey / Credential Manager by howard20181",
+                        summary = stringResource(R.string.credits_hyperpasskey_desc),
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperPasskey") }
                     )
                     ArrowPreference(
                         title = "HyperOS_FCM_Live",
-                        summary = "Google Push / FCM Live implementation by howard20181",
+                        summary = stringResource(R.string.credits_fcm_desc),
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperOS_FCM_Live") }
                     )
                     ArrowPreference(
                         title = "MiuiBackGestureHook",
-                        summary = "MIUI back gesture compatibility by wxxsfxyzm · v0.8.5 · git a5f1ae5 · Apache-2.0",
+                        summary = stringResource(R.string.credits_backgesture_desc),
                         onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook/commit/a5f1ae5d76609f8323d30ce108117081369c426f") }
                     )
                     ArrowPreference(
                         title = "AOSP Package Installer",
-                        summary = "AOSP installer restoration approach by tehcneko · GPL-3.0",
+                        summary = stringResource(R.string.credits_aospinstaller_desc),
                         onClick = { uriHandler.openUri("https://github.com/tehcneko/AospPackageInstaller") }
                     )
                     ArrowPreference(
                         title = "HyperTrust",
-                        summary = "Extend Unlock trust state repair by StevenWin818 · GPL-3.0",
+                        summary = stringResource(R.string.credits_hydtrust_desc),
                         onClick = { uriHandler.openUri("https://github.com/StevenWin818/HyperTrust") }
                     )
                     ArrowPreference(
                         title = "HighLight Icons",
-                        summary = "App shortcut icons by @GotohHitoriBocchi0221",
+                        summary = stringResource(R.string.credits_highlighticons_desc),
                         onClick = { uriHandler.openUri("https://t.me/HighLightIcons") }
                     )
                 }

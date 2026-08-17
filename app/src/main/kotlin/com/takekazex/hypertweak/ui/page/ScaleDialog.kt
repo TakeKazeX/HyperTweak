@@ -11,7 +11,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -28,8 +30,8 @@ fun ScaleDialog(
 ) {
     OverlayDialog(
         show = show,
-        title = "Interface Scale",
-        summary = "85% - 115%",
+        title = stringResource(R.string.scale_title),
+        summary = stringResource(R.string.scale_summary),
         onDismissRequest = onDismissRequest,
         content = {
             var text by remember(show) {
@@ -41,7 +43,7 @@ fun ScaleDialog(
                 maxLines = 1,
                 trailingIcon = {
                     Text(
-                        text = "%",
+                        text = stringResource(R.string.scale_percent),
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = colorScheme.onSurfaceVariantActions,
                     )
@@ -59,13 +61,13 @@ fun ScaleDialog(
             )
             Row(horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(
-                    text = "Cancel",
+                    text = stringResource(R.string.scale_cancel),
                     onClick = onDismissRequest,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(20.dp))
                 TextButton(
-                    text = "OK",
+                    text = stringResource(R.string.scale_ok),
                     onClick = {
                         val parsed = text.toIntOrNull()
                         val clamped = parsed?.coerceIn(85, 115) ?: (volumeState() * 100).toInt()

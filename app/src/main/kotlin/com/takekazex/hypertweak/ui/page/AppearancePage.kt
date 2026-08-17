@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -16,7 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.theme.*
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -27,6 +31,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AppearancePage(
     onBack: () -> Unit,
@@ -52,14 +57,17 @@ fun AppearancePage(
     onPageScaleChange: (Float) -> Unit
 ) {
     val scrollBehavior = MiuixScrollBehavior()
+    val context = LocalContext.current
     val systemAccent = rememberDeviceAccentColor()
     val resolvedSeed = if (seedColorHex == 0) systemAccent else seedColorHex
     val darkPreview = isEffectivelyDark(themeMode, isSystemInDarkTheme())
     val customSeed = seedColorHex !in presetAccentColors
     val accentLabels = remember(seedColorHex, customSeed) {
         buildList {
-            addAll(presetAccentLabels)
-            if (customSeed) add("Custom (${formatSeedColor(seedColorHex)})")
+            addAll(presetAccentLabels.map { context.getString(it) })
+            if (customSeed) {
+                add(context.getString(R.string.appearance_custom_accent, formatSeedColor(seedColorHex)))
+            }
         }
     }
     val accentColors = remember(seedColorHex, systemAccent, customSeed) {
@@ -100,7 +108,7 @@ fun AppearancePage(
     val paletteEntry = DropdownEntry(
         items = PaletteStyleOption.entries.mapIndexed { index, option ->
             DropdownItem(
-                text = option.label,
+                text = stringResource(option.labelRes),
                 selected = index == paletteStyleIndex(paletteStyle),
                 onClick = { onPaletteStyleChange(option.persistedId) },
                 icon = { modifier ->
@@ -121,11 +129,11 @@ fun AppearancePage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "Appearance",
+                title = stringResource(R.string.appearance_title),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(MiuixIcons.Back, contentDescription = "Back")
+                        Icon(MiuixIcons.Back, contentDescription = stringResource(R.string.appearance_back))
                     }
                 }
             )
@@ -140,20 +148,24 @@ fun AppearancePage(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(innerPadding.calculateTopPadding() + 8.dp))
-            SmallTitle("Theme")
+            SmallTitle(stringResource(R.string.appearance_theme))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     OverlayDropdownPreference(
-                        title = "Theme Mode",
-                        items = listOf("Follow System", "Light", "Dark"),
+                        title = stringResource(R.string.appearance_theme_mode),
+                        items = listOf(
+                            stringResource(R.string.appearance_theme_follow_system),
+                            stringResource(R.string.appearance_theme_light),
+                            stringResource(R.string.appearance_theme_dark)
+                        ),
                         selectedIndex = themeMode.coerceIn(0, 2),
                         onSelectedIndexChange = onThemeModeChange
                     )
                     SwitchPreference(
                         checked = useMonet,
                         onCheckedChange = onUseMonetChange,
-                        title = "Monet Color",
-                        summary = "Generate a Monet palette from the selected accent color"
+                        title = stringResource(R.string.appearance_monet_color),
+                        summary = stringResource(R.string.appearance_monet_color_summary)
                     )
                     AnimatedVisibility(
                         visible = useMonet,
@@ -161,27 +173,27 @@ fun AppearancePage(
                         exit = fadeOut() + shrinkVertically()
                     ) {
                         Column(Modifier.fillMaxWidth()) {
-                            OverlayDropdownPreference(entry = accentEntry, title = "Accent Color")
-                            OverlayDropdownPreference(entry = paletteEntry, title = "Color Style")
+                            OverlayDropdownPreference(entry = accentEntry, title = stringResource(R.string.appearance_accent_color))
+                            OverlayDropdownPreference(entry = paletteEntry, title = stringResource(R.string.appearance_color_style))
                         }
                     }
                     SwitchPreference(
                         checked = pureBlackDarkTheme,
                         onCheckedChange = onPureBlackDarkThemeChange,
-                        title = "Pure Black Background",
-                        summary = "Use pure black for the base background in dark mode"
+                        title = stringResource(R.string.appearance_pure_black_background),
+                        summary = stringResource(R.string.appearance_pure_black_background_summary)
                     )
                 }
             }
 
-            SmallTitle("Navigation")
+            SmallTitle(stringResource(R.string.appearance_navigation))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = useFloatingBottomBar,
                         onCheckedChange = onUseFloatingBottomBarChange,
-                        title = "Floating Bottom Bar",
-                        summary = "Enable floating style bottom navigation bar"
+                        title = stringResource(R.string.appearance_floating_bottom_bar),
+                        summary = stringResource(R.string.appearance_floating_bottom_bar_summary)
                     )
                     AnimatedVisibility(
                         visible = useFloatingBottomBar,
@@ -189,15 +201,19 @@ fun AppearancePage(
                         exit = fadeOut() + shrinkVertically()
                     ) {
                         OverlayDropdownPreference(
-                            title = "Floating Bottom Bar Style",
-                            items = listOf("Miuix", "iOS-like"),
+                            title = stringResource(R.string.appearance_floating_bar_style),
+                            items = listOf("Miuix", stringResource(R.string.appearance_bar_style_ios)),
                             selectedIndex = floatingBarStyle.coerceIn(0, 1),
                             onSelectedIndexChange = onFloatingBarStyleChange
                         )
                     }
                     OverlayDropdownPreference(
-                        title = "Predictive Back Style",
-                        items = listOf("Disabled", "Miuix", "Scale"),
+                        title = stringResource(R.string.appearance_back_style),
+                        items = listOf(
+                            stringResource(R.string.appearance_back_style_disabled),
+                            "Miuix",
+                            stringResource(R.string.appearance_back_style_scale)
+                        ),
                         selectedIndex = predictiveBackStyle.coerceIn(0, 2),
                         onSelectedIndexChange = onPredictiveBackStyleChange
                     )
@@ -209,20 +225,20 @@ fun AppearancePage(
                         SwitchPreference(
                             checked = predictiveBackFollowGesture,
                             onCheckedChange = onPredictiveBackFollowGestureChange,
-                            title = "Follow Gesture Direction",
-                            summary = "Adjust the transition based on the swipe edge"
+                            title = stringResource(R.string.appearance_follow_gesture_direction),
+                            summary = stringResource(R.string.appearance_follow_gesture_direction_summary)
                         )
                     }
                 }
             }
 
-            SmallTitle("Display")
+            SmallTitle(stringResource(R.string.appearance_display))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
                 var expanded by remember { mutableStateOf(false) }
                 ArrowPreference(
-                    title = "Interface Scale",
-                    summary = "Adjust the size of application interface elements",
+                    title = stringResource(R.string.appearance_interface_scale),
+                    summary = stringResource(R.string.appearance_interface_scale_summary),
                     endActions = {
                         Text("${(sliderValue * 100).toInt()}%", color = MiuixTheme.colorScheme.onSurfaceVariantActions)
                     },

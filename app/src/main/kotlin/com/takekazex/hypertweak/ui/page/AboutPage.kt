@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
 import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.R
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -272,7 +274,7 @@ fun AboutPage(
                                 versionCodeY = y + size.height
                             },
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        text = "Version v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
@@ -312,7 +314,7 @@ fun AboutPage(
                     }
 
                     item {
-                        SmallTitle(text = "PROJECT")
+                        SmallTitle(text = stringResource(R.string.about_project))
                     }
 
                     item {
@@ -331,13 +333,13 @@ fun AboutPage(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 ArrowPreference(
-                                    title = "View Source Code",
-                                    summary = "Check the GitHub repository",
+                                    title = stringResource(R.string.about_view_source_code),
+                                    summary = stringResource(R.string.about_view_source_code_summary),
                                     onClick = onViewSourceCode
                                 )
                                 ArrowPreference(
-                                    title = "Credits & Acknowledgements",
-                                    summary = "View open source libraries and contributors",
+                                    title = stringResource(R.string.about_credits_acknowledgements),
+                                    summary = stringResource(R.string.about_credits_acknowledgements_summary),
                                     onClick = onNavigateToCredits
                                 )
                             }
@@ -358,7 +360,7 @@ private fun AboutTopBar(
     val scrollProgress = scrollProgressProvider()
     val layoutDirection = LocalLayoutDirection.current
     SmallTopAppBar(
-        title = "About",
+        title = stringResource(R.string.about_title),
         scrollBehavior = topAppBarScrollBehavior,
         color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
         titleColor = MiuixTheme.colorScheme.onSurface.copy(
@@ -375,7 +377,7 @@ private fun AboutTopBar(
                     },
                     imageVector = MiuixIcons.Back,
                     tint = MiuixTheme.colorScheme.onSurface,
-                    contentDescription = "Back"
+                    contentDescription = stringResource(R.string.about_back)
                 )
             }
         }

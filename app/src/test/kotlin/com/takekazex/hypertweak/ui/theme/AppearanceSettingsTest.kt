@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import com.takekazex.hypertweak.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -11,10 +12,11 @@ class AppearanceSettingsTest {
     @Test
     fun `all nine stored palette values map in stable display order`() {
         val expected = listOf(
-            "Tonal Spot", "Neutral", "Vibrant", "Expressive", "Monochrome",
-            "Fidelity", "Content", "Rainbow", "Fruit Salad"
+            R.string.theme_palette_tonal_spot, R.string.theme_palette_neutral, R.string.theme_palette_vibrant,
+            R.string.theme_palette_expressive, R.string.theme_palette_monochrome, R.string.theme_palette_fidelity,
+            R.string.theme_palette_content, R.string.theme_palette_rainbow, R.string.theme_palette_fruit_salad
         )
-        assertEquals(expected, expected.indices.map { paletteStyleFromStored(it).label })
+        assertEquals(expected, expected.indices.map { paletteStyleFromStored(it).labelRes })
     }
 
     @Test
