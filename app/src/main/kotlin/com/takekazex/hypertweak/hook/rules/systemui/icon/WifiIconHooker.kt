@@ -11,9 +11,9 @@ import com.takekazex.hypertweak.util.DebugLog
  *
  * `WifiIcon$Companion.fromModel` builds the displayed icon model; the hook substitutes the
  * `Hidden` instance for a connected (`Active`) model so the icon never shows. The
- * `WifiViewModel` activity/standard fields (`ReadonlyStateFlow<Int>`) are replaced with a shared
- * `0` flow after construction, mirroring the cellular VM treatment. All targets are present
- * unchanged on OS4. Requires a SystemUI restart.
+ * `WifiViewModel` activity/standard getters return a shared `0` flow. The OS4 factory assigns the
+ * backing fields after construction, so getter hooks are the stable read boundary. Requires a
+ * SystemUI restart.
  */
 object WifiIconHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -77,32 +77,23 @@ object WifiIconHooker : StaticHooker() {
             }
         }
 
-        // 2. ViewModel fields: replace with a shared zero flow after construction.
+        // 2. The factory assigns the fields after construction. Hook the getters, the stable
+        // read boundary used by MiuiWifiViewBinder, instead of writing fields that are clobbered.
         if (hideActivity || hideType) {
             val vmClass = VM_CLASS.toClassOrNull()
             if (vmClass == null) {
                 DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
                 return
             }
-            val fields = buildList {
+            val getters = buildList {
                 if (hideActivity) add("activityInOutRes")
                 if (hideType) add("wifiStandard")
-            }.mapNotNull { name ->
-                runCatching { vmClass.getDeclaredField(name) }.getOrNull()
             }
-            if (fields.isNotEmpty()) {
-                vmClass.hookAllConstructors {
-                    after { param ->
-                        val vm = param.thisObject ?: return@after
-                        fields.forEach { field ->
-                            runCatching {
-                                IconTunerFlows.writeField(vm, field, IconTunerFlows.zeroFlow)
-                            }.onFailure { t ->
-                                DebugLog.w(TAG, "WifiIcon failed to write ${field.name}", t)
-                            }
-                        }
-                    }
-                }
+            getters.forEach { property ->
+                val getter = "get" + property.replaceFirstChar { it.uppercase() }
+                vmClass.findMethodOrNull { name(getter); noParams() }?.hook {
+                    before { param -> param.result = IconTunerFlows.zeroFlow }
+                } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
             }
         }
     }

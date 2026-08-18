@@ -186,22 +186,11 @@ object Preferences {
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
 
-    // Stacked mobile signal (custom SVG signal icon).
+    // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
+    // FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The former SVG-render keys (styles, paddings, alphas,
+    // type text, show-single/stacked/roaming) were deleted with the renderer.
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
-    const val KEY_ICON_STACKED_SVG_SINGLE = "icon_stacked_svg_single"
-    const val KEY_ICON_STACKED_SVG_STACKED = "icon_stacked_svg_stacked"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
-    const val KEY_ICON_STACKED_PADDING_START = "icon_stacked_padding_start"
-    const val KEY_ICON_STACKED_PADDING_END = "icon_stacked_padding_end"
-    const val KEY_ICON_STACKED_ALPHA_FG = "icon_stacked_alpha_fg"
-    const val KEY_ICON_STACKED_ALPHA_BG = "icon_stacked_alpha_bg"
-    const val KEY_ICON_STACKED_ALPHA_ERROR = "icon_stacked_alpha_error"
-    const val KEY_ICON_STACKED_TYPE_SIZE = "icon_stacked_type_size"
-    const val KEY_ICON_STACKED_TYPE_WEIGHT = "icon_stacked_type_weight"
-    const val KEY_ICON_STACKED_TYPE_POSITION = "icon_stacked_type_position"
-    const val KEY_ICON_STACKED_SHOW_SINGLE = "icon_stacked_show_single"
-    const val KEY_ICON_STACKED_SHOW_STACKED = "icon_stacked_show_stacked"
-    const val KEY_ICON_STACKED_SHOW_ROAMING = "icon_stacked_show_roaming"
 
     // Compound icon feature (merges alarm / DND / location / volume into one status-bar icon),
     // ported from Hyper Helper's `CompoundIcon`. The individual source toggles match upstream

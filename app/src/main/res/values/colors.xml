@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stacked signal drawable colors (light theme = white bars, dark theme = black bars). -->
+    <color name="light_mode_icon_color_single_tone">#e6ffffff</color>
+    <color name="light_mode_icon_transparent_color_single_tone">#5cffffff</color>
+    <color name="dark_mode_icon_color_single_tone">#bf000000</color>
+    <color name="dark_mode_icon_transparent_color_single_tone">#4c000000</color>
+</resources>

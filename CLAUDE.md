@@ -198,9 +198,10 @@ offers its own SystemUI restart action.
 Ported hookers live in `hook/rules/systemui/icon/`, all targets verified present on OS4 unless
 noted. Two shared mechanisms recur:
 
-- `IconTunerFlows` builds shared `ReadonlyStateFlow` instances (`false` / `0`) reflectively;
-  the visibility hooks replace the ViewModel's flow fields with them right after construction,
-  mirroring Hyper Helper.
+- `IconTunerFlows` builds shared `ReadonlyStateFlow` instances (`false` / `0`) reflectively with
+  the host class loader; the visibility hooks replace the ViewModel's flow fields with them right
+  after construction, mirroring Hyper Helper. It also provides host-loader `kotlin.Pair` creation,
+  `$$delegate_0` unwrapping, `setValue`, and flow-value reading for the stacked-signal machinery.
 - Font-weight overrides use the system `MiSansVF.ttf` variable font (`'wght'` axis); Hyper
   Helper's user-font-file and bundled MiSansCondensed/SFPro subset support is not ported.
 
@@ -216,13 +217,15 @@ Current slice (cellular and WiFi visibility were the first slice):
   `getMobileRoamVisible`/`getSmallRoamVisible` before hooks plus a
   `StatusBarIconObserver.roamSettingBlock` constructor write.
 - `WifiIconHooker` — `WifiIcon$Companion.fromModel` substitutes `WifiIcon$Hidden` for a
-  connected `WifiNetworkModel$Active` (flag argument false); `WifiViewModel`
-  `activityInOutRes`/`wifiStandard` replaced with a `0` flow.
+  connected `WifiNetworkModel$Active` (flag argument false); the `WifiViewModel`
+  `getActivityInOutRes`/`getWifiStandard` getters are hooked to return a shared `0` flow —
+  the OS4 factory assigns the backing fields after construction, so getter hooks (not
+  constructor field writes) are the stable read boundary.
 - `IconManagerHooker` — mutates the static `MiuiIconManagerUtils.RIGHT_BLOCK_LIST` /
   `CONTROL_CENTER_BLOCK_LIST` ArrayLists (consumers hold the same instance) per slot mode
   (0 follow system = lists untouched, 1 visible everywhere, 2 status bar only, 3 control center
-  only, 4 hidden everywhere; only `single_mobile_sim1`/`single_mobile_sim2` default 0→4 so the
-  stacked icon can take over).
+  only, 4 hidden everywhere; every unset slot stays on 0 — the stacked signal no longer blocks
+  `single_mobile_sim1`/`sim2`, the view-level renderer hides the non-data SIM itself).
   Keys are `Preferences.slotKey(slot)`; `icon_ext_blocked` adds extra slots from a list.
 - `IgnoreSysIconSettingsHooker` — OS4 moved `isIconBlocked` off `StatusBarIconObserver` onto
   `StatusBarIconView`, so the hook target differs from upstream (OS4_ADAPTATION_PLAN.md T3):
@@ -274,28 +277,55 @@ Current slice (cellular and WiFi visibility were the first slice):
   `StatusBarRegionSamplingInteractor$regionSampling$1.invoke` (the `Function3` bridge
   `CombineKt.combineInternal` calls) to always emit the requested value — `statusbar_region_sampling`
   mode 1 always samples, mode 2 never does.
-- `StackedSignalHooker` + `StackedSignalRender` — the custom SVG signal icon. The renderer is a
-  minimal parser for the exact SVG subset the bundled assets use (`path`/`rect` + `id`
-  `signal_1..4` / `signal_1_1..signal_2_4` + `type_container` anchor), producing ALPHA_8 bitmaps.
-  The hook takes over the mobile pipeline without fighting OS4's Compose stacked renderer:
-  `MobileIconsViewModel.isStackable` is forced to a shared `true` flow so SystemUI clears the
-  ordinary mobile icons, and each real `MobileIconViewModel.getIcon()` returns the module-drawn
-  icon; signal level and type text are derived from the original system `Icon` resource ids
-  (`stat_sys_signal_0..4`, `data_connection_*`), so no system state streams are read. Stacked mode
-  composites both SIM rows (default SIM on row 1). Six SVGs are bundled under
-  `app/src/main/assets/svg/` (HyperOS / iOS / iOS27, each single + stacked; the style dropdown
-  selects them — style 2 "custom" has no file and falls back to HyperOS); `onPackageReady` loads
-  them and resolves the status-bar icon height. Known renderer fixes: `renderBars` must scale the
-  picture exactly once (the earlier version also pre-scaled the recording canvas → the drawn bars
-  were scaled twice and the rightmost columns were cropped, so a full-signal icon showed only 2-3
-  bars), `renderTypeText` is sized from the `icon_stacked_type_size` pref (the slider previously
-  did nothing) and `compose` honors `icon_stacked_type_position` (0 auto/anchor — iOS SVGs have no
-  anchor, so auto falls to the trailing edge — 1 left, 2 right; RTL mirrors). The separate
-  data-activity arrows are suppressed by forcing `MiuiCellularIconVM.getInOutVisible` to the false
-  flow while the feature is on.
+- `StackedSignalHooker` — 堆叠信号, rebuilt on Flux Decor 2.0.3's view-level model (upstream
+  `Flux_Decor_OS4-2.0.3.apk` decoded at `/tmp/deobf/flux/`; full analysis in
+  `FLUX_DECOR_STACKED_SIGNAL_PLAN.md`). The old implementations are gone: the native
+  `isStackable`-slot hack and the Compose/SVG `getIcon()` renderer were both deleted with their
+  keys. The hooker intercepts the mobile icon at the view layer, mirroring Flux Decor:
+  a before-hook on `ImageView.setImageResource(int)` loads module drawables directly and renders
+  `statusbar_signal_1_{0..5}` into the data SIM's
+  `mobile_signal` ImageView and the other SIM's `statusbar_signal_2_{0..5}` into a second
+  `AlphaOptimizedImageView` (tag `0x7F000001`) added to the same `MobileSignalAnimatorView`
+  container, so the two rows compose into one stacked icon. Level is read live from
+  `MiuiCellularIconVM.signalIconId` (collected in the factory
+  `MiuiMobileIconVMImpl$$ExternalSyntheticLambda0.invoke()` after-hook — the only VM
+  construction site on OS4; the VM has no constructor), subId comes from
+  `originIconInteractor.subId`, and the data SIM is tracked by `activeMobileDataSubscriptionId`
+  (via `JavaAdapter.alwaysCollectFlow` on `MobileUiAdapter.start`). The non-data SIM's own view is
+  set `GONE`, and the inherited `ModernStatusBarView.isIconVisible()` is hooked only when the
+  receiver is exactly `ModernStatusBarMobileView`; it returns false for the non-data subId so the
+  status icon container does not retain an empty slot. No VM flow is replaced and no framework
+  `View`/`Resources` method is hooked globally. The data SIM's slot stays untouched, so
+  `IconManagerHooker` no longer blocks `single_mobile_sim1`/`sim2`.
+  Theme is tracked through `MiuiStatusBarIconViewHelper.transformResId(int,boolean,boolean)`
+  args; module `_tint`/`_dark` drawables are loaded directly and installed with
+  `ImageView.setImageDrawable`. Do not pass the internal `0x7e...` ids to
+  `ImageView.setImageResource`: on this build the framework resolves them below the hooked
+  `Resources` API and throws `Resources.NotFoundException`, leaving the stock icon in place.
+  **Do not write fake ids into the views' `tag` fields either**: the binder's theme-change
+  collector re-applies the signal drawable by reading `View.getTag()` and re-feeding it into
+  `setImageResource`, so a fake id stored in `mobile_signal`'s tag throws `NotFoundException`
+  inside the binder's collector coroutine, killing the whole collector scope — observed on
+  device as every flow-driven cellular feature (data-activity arrows, roaming, VoLTE, VoWiFi,
+  type, 5G, satellite) freezing at its initial state while the stacked composite stayed on
+  screen. The tag is left untouched; `interceptMobileImage` also skips any fake-id
+  `setImageResource` call (`param.result = null`) as defense in depth.
+  Keys: `icon_stacked_enabled`, `icon_stacked_scale` (0.5–1.5 ×0.1); requires a SystemUI restart.
 
-Agent verification status (2026-08-15): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`
-and `assembleDebug` pass. On-device verification is performed by the user (see AGENTS.md).
+Agent verification status (2026-08-19): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`,
+and `assembleDebug` pass. On-device (OS4.0.0.15.XPMCNXM) the user confirmed the fix works:
+the stacked signal icon renders (two rows), the non-data SIM no longer leaves an empty slot or a
+stale drawn icon, and the cellular visibility switches (隐藏数据活动 / roaming / VoLTE / VoWiFi /
+type / 5G / satellite) work again. Regression history — do not reintroduce:
+- The `mobile_signal` view's `tag` must never hold a fake `0x7e...` id: the binder's theme-change
+  collector re-applies the drawable from `View.getTag()` via `setImageResource`, which resolves
+  fake ids below the hooks and throws `Resources.NotFoundException`, killing the whole binder
+  collector scope (all flow-driven cellular features freeze). The tag is left untouched.
+- `idRes()` must resolve `com.android.systemui` ids from the host view's resources, never from the
+  module package context (module AssetManager cannot see SystemUI tables, returns 0 → the synthetic
+  sub ImageView is never created → no stacked icon).
+- `icon_stacked_scale` is a direct 0.5–1.5 factor; do not multiply by 0.1 (that was the old
+  int-pref convention; applying it renders the composite at 5–15%, invisible but slot-holding).
 Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: the left-container/island engine
 (`LeftContainer`, T2) and Hyper Helper's remaining icon-tuner font slices. The clock
 (`MiuiClockHooker`), network speed (`NetworkSpeedHooker`) and battery (`BatteryIndicatorHooker`)

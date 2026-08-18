@@ -13,8 +13,7 @@ import com.takekazex.hypertweak.util.DebugLog
  * and friends) hold the same instance, so mutating the list contents at hook time takes effect
  * immediately. Each slot has a mode: 0 = follow system (lists untouched), 1 = visible everywhere,
  * 2 = status bar only (block control center), 3 = control center only, 4 = hidden everywhere.
- * Only the two single-SIM stacked slots default to 4 so the stacked icon can take over; every
- * other slot leaves the system lists alone on 0, mirroring Hyper Helper's `IconManager.v()`.
+ * Every slot leaves the system lists alone on 0, mirroring Hyper Helper's `IconManager.v()`.
  * Verified present unchanged on OS4. Requires a SystemUI restart.
  */
 object IconManagerHooker : StaticHooker() {
@@ -39,11 +38,6 @@ object IconManagerHooker : StaticHooker() {
     private val compoundSlots = listOf(
         "compound_location", "compound_alarm_clock", "compound_zen",
         "compound_volume_vibrate", "compound_volume_mute"
-    )
-
-    /** Only active while the stacked signal feature is on. */
-    private val stackedSlots = listOf(
-        "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2"
     )
 
     override fun onHook() {
@@ -73,11 +67,11 @@ object IconManagerHooker : StaticHooker() {
                 applyMode(slotMode("compound_icon"), slot, right, cc)
             }
         }
-        if (Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)) {
-            stackedSlots.forEach { slot ->
-                applyMode(slotMode(slot), slot, right, cc)
-            }
-        }
+        // NOTE: the stacked signal no longer touches the single_mobile_sim1/sim2 slots. The old
+        // native-slot approach blocked them so the Compose stacked slot could take over; the new
+        // view-level renderer (StackedSignalHooker) keeps the system slots and hides the non-data
+        // SIM through its own visibility mechanism — blocking the slots here would kill the data
+        // SIM's own icon too.
 
         // Extra blocked slots from a free-form list.
         Preferences.getString(Preferences.KEY_ICON_EXT_BLOCKED, "")
@@ -93,11 +87,7 @@ object IconManagerHooker : StaticHooker() {
     }
 
     private fun slotMode(slot: String): Int {
-        val mode = Preferences.getInt(Preferences.slotKey(slot), 0)
-        // Only the single-SIM stacked slots default to "hidden everywhere" (4) so the stacked
-        // icon can take over; every other unset slot (0) must leave the system lists untouched,
-        // otherwise resetting to defaults blocks every base slot in both areas.
-        return if (mode == 0 && (slot == "single_mobile_sim1" || slot == "single_mobile_sim2")) 4 else mode
+        return Preferences.getInt(Preferences.slotKey(slot), 0)
     }
 
     private fun applyMode(

@@ -36,7 +36,8 @@ object IconTunerFlows {
     val zeroFlow: Any by lazy { createReadonlyStateFlow(0) }
     val trueFlow: Any by lazy { createReadonlyStateFlow(true) }
 
-    private fun createReadonlyStateFlow(value: Any): Any {
+    /** Creates a `ReadonlyStateFlow` (host loader) seeded with [value]. */
+    fun createReadonlyStateFlow(value: Any): Any {
         val loader = cl()
         val mutable = runCatching {
             val stateFlowKt = Class.forName("kotlinx.coroutines.flow.StateFlowKt", false, loader)
@@ -54,6 +55,49 @@ object IconTunerFlows {
             DebugLog.d("IconTunerFlows", "ReadonlyStateFlow wrapper unavailable, using MutableStateFlow")
             mutable
         }
+    }
+
+    /** Creates a `kotlin.Pair` (host loader), used by SystemUI flows typed as `StateFlow<Pair<...>>`. */
+    fun createPair(first: Any, second: Any): Any? = runCatching {
+        Class.forName("kotlin.Pair", false, cl())
+            .getConstructor(Any::class.java, Any::class.java)
+            .newInstance(first, second)
+    }.getOrNull()
+
+    /** Creates a raw `MutableStateFlow` (host loader) seeded with [value], so callers can push
+     *  updates through [setFlowValue]. The pipeline only reads the `StateFlow` interface. */
+    fun createMutableStateFlow(value: Any): Any? = runCatching {
+        val stateFlowKt = Class.forName("kotlinx.coroutines.flow.StateFlowKt", false, cl())
+        stateFlowKt.getMethod("MutableStateFlow", Any::class.java).invoke(null, value)
+    }.getOrNull()
+
+    /** Unwraps the `MutableStateFlow` behind a `ReadonlyStateFlow` (`$$delegate_0`). */
+    fun mutableOfReadonly(flow: Any): Any? = runCatching {
+        flow.javaClass.getDeclaredField("\$\$delegate_0").apply { isAccessible = true }.get(flow)
+    }.getOrNull()
+
+    /** Calls `MutableStateFlow.setValue(value)` reflectively. */
+    fun setFlowValue(mutable: Any, value: Any) {
+        runCatching {
+            mutable.javaClass.getMethod("setValue", Any::class.java).invoke(mutable, value)
+        }.onFailure { t ->
+            DebugLog.w("IconTunerFlows", "setValue failed (${t.javaClass.simpleName})", t)
+        }
+    }
+
+    /** Reads the current value of a `StateFlow` via `getValue()`, unwrapping `Pair` firsts. */
+    fun readFlowValue(flow: Any): Any? = runCatching {
+        flow.javaClass.getMethod("getValue").invoke(flow)
+    }.getOrNull()
+
+    /** Boolean from a flow value, tolerating `Boolean` or `Pair(Boolean, *)` shapes. */
+    fun readFlowBoolean(value: Any?): Boolean {
+        if (value == null) return true
+        if (value is Boolean) return value
+        return runCatching {
+            val first = value.javaClass.getMethod("getFirst").invoke(value)
+            first as? Boolean ?: true
+        }.getOrDefault(true)
     }
 
     private val unsafe: sun.misc.Unsafe by lazy {

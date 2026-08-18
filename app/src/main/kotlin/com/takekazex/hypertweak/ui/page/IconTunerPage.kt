@@ -145,19 +145,7 @@ fun IconTunerPage(onBack: () -> Unit) {
 
             StackedSignalSection(
                 enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
-                singleStyle = pref(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0),
-                stackedStyle = pref(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0),
                 scale = pref(Preferences.KEY_ICON_STACKED_SCALE, 1f),
-                paddingStart = pref(Preferences.KEY_ICON_STACKED_PADDING_START, 0f),
-                paddingEnd = pref(Preferences.KEY_ICON_STACKED_PADDING_END, 0f),
-                alphaFg = pref(Preferences.KEY_ICON_STACKED_ALPHA_FG, 1f),
-                alphaBg = pref(Preferences.KEY_ICON_STACKED_ALPHA_BG, 1f),
-                typeSize = pref(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 11f),
-                typeWeight = pref(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 400),
-                typePosition = pref(Preferences.KEY_ICON_STACKED_TYPE_POSITION, 0),
-                showSingle = pref(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, false),
-                showStacked = pref(Preferences.KEY_ICON_STACKED_SHOW_STACKED, false),
-                showRoaming = pref(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, false),
                 onChange = { key, value -> changed(key, value) }
             )
 
@@ -250,25 +238,9 @@ fun IconTunerPage(onBack: () -> Unit) {
 @Composable
 private fun StackedSignalSection(
     enabled: Boolean,
-    singleStyle: Int,
-    stackedStyle: Int,
     scale: Float,
-    paddingStart: Float,
-    paddingEnd: Float,
-    alphaFg: Float,
-    alphaBg: Float,
-    typeSize: Float,
-    typeWeight: Int,
-    typePosition: Int,
-    showSingle: Boolean,
-    showStacked: Boolean,
-    showRoaming: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    val styles = listOf("HyperOS", "iOS", stringResource(R.string.icon_style_custom), "iOS 27")
-    val weights = (100..900 step 100).map { "$it" }
-    fun weightIndex(w: Int): Int = ((w - 100) / 100).coerceIn(0, weights.lastIndex)
-
     SmallTitle(stringResource(R.string.icon_stacked_signal_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -278,67 +250,9 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_custom_signal_icon_summary)
             ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
             if (enabled) {
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_single_style),
-                    items = styles,
-                    selectedIndex = singleStyle.coerceIn(0, styles.lastIndex),
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SVG_SINGLE, it) }
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_stacked_style),
-                    items = styles,
-                    selectedIndex = stackedStyle.coerceIn(0, styles.lastIndex),
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SVG_STACKED, it) }
-                )
                 SliderRow(stringResource(R.string.icon_icon_scale), scale, 0.5f, 1.5f) {
                     onChange(Preferences.KEY_ICON_STACKED_SCALE, it)
                 }
-                SliderRow(stringResource(R.string.icon_padding_start), paddingStart, 0f, 12f) {
-                    onChange(Preferences.KEY_ICON_STACKED_PADDING_START, it)
-                }
-                SliderRow(stringResource(R.string.icon_padding_end), paddingEnd, 0f, 12f) {
-                    onChange(Preferences.KEY_ICON_STACKED_PADDING_END, it)
-                }
-                SliderRow(stringResource(R.string.icon_signal_alpha), alphaFg, 0.1f, 1f) {
-                    onChange(Preferences.KEY_ICON_STACKED_ALPHA_FG, it)
-                }
-                SliderRow(stringResource(R.string.icon_second_row_alpha), alphaBg, 0.1f, 1f) {
-                    onChange(Preferences.KEY_ICON_STACKED_ALPHA_BG, it)
-                }
-                SliderRow(stringResource(R.string.icon_type_text_size), typeSize, 6f, 24f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_SIZE, it)
-                }
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_type_position),
-                    items = listOf(
-                        stringResource(R.string.icon_type_position_auto),
-                        stringResource(R.string.icon_type_position_left),
-                        stringResource(R.string.icon_type_position_right)
-                    ),
-                    selectedIndex = typePosition.coerceIn(0, 2),
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_TYPE_POSITION, it) }
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_type_text_weight),
-                    items = weights,
-                    selectedIndex = weightIndex(typeWeight),
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, it * 100 + 100) }
-                )
-                TunerSwitch(
-                    showSingle,
-                    stringResource(R.string.icon_single_sim_icon),
-                    stringResource(R.string.icon_single_sim_icon_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, it) }
-                TunerSwitch(
-                    showStacked,
-                    stringResource(R.string.icon_stacked_dual_sim),
-                    stringResource(R.string.icon_stacked_dual_sim_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_STACKED, it) }
-                TunerSwitch(
-                    showRoaming,
-                    stringResource(R.string.icon_show_roaming),
-                    stringResource(R.string.icon_show_roaming_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, it) }
             }
         }
     }

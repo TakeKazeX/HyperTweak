@@ -1,382 +1,628 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.Context
-import android.graphics.drawable.Icon
+import android.util.SparseIntArray
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import java.lang.reflect.Field
-import java.util.concurrent.ConcurrentHashMap
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import java.util.regex.Pattern
 
 /**
- * Custom stacked mobile signal, ported from Hyper Helper's `StackedMobileIcon` + render engine.
+ * True stacked mobile signal, rebuilt on Flux Decor 2.0.3's view-level model — NOT the native
+ * Compose stacked slot and NOT a custom `getIcon()` renderer (both former approaches are gone).
+ * See FLUX_DECOR_STACKED_SIGNAL_PLAN.md for the full analysis and port notes.
  *
- * The hook takes over the mobile icon pipeline instead of fighting OS4's Compose stacked renderer:
- * `MobileIconsViewModel.isStackable` is forced true so SystemUI clears its ordinary mobile icons,
- * and each real `MobileIconViewModel.getIcon()` returns a module-drawn ALPHA_8 icon instead of the
- * system one. Signal level and type text are derived from the original system `Icon` resource ids
- * (`stat_sys_signal_N`, `data_connection_*`), so no system state streams need to be understood.
- * In stacked mode the default-SIM icon composites both SIM rows from a stacked SVG.
+ * How it works (all targets verified on OS4.0.0.15.XPMCNXM):
+ *
+ * 1. **Rendering** — every level change funnels through `ImageView.setImageResource(int)` on the
+ *    `mobile_signal` view (OS4 inlines `MiuiStatusBarIconViewHelper.transformResId` into the binder;
+ *    the `access$setImageResWithTintLight` helpers Flux Decor hooks do not exist on this baseline).
+ *    The before-hook parses the level out of the `stat_sys_signal_N` resource name, remembers it per
+ *    sub id, and for the **data SIM** replaces the image with a module drawable
+ *    (`statusbar_signal_1_{level}`) plus a synthetic second ImageView
+ *    (`statusbar_signal_2_{otherLevel}`, id [StackedSignalResources.SUB_MOBILE_ID]) added next to
+ *    the real one — the two vectors draw the data SIM's bars on the upper half and the other SIM's
+ *    bars on the lower half, composing the stacked icon. The non-data SIM's own image is skipped and
+ *    its group force-hidden.
+ * 2. **Drawable loading** — module vectors are loaded **directly** from the module package's own
+ *    `Resources` (by drawable name) and installed with `ImageView.setImageDrawable`. Fake ids
+ *    (`0x7E000000`-based) are only used as stable tags for the composite bookkeeping and are NEVER
+ *    passed to `setImageResource` — on this build the framework resolves them below the hooked
+ *    `Resources` API and throws `Resources.NotFoundException`, which would kill the binder's
+ *    collector coroutines (that is also why the views' `tag` fields are left alone: the binder's
+ *    theme-change collector re-applies the drawable id it reads back from `View.getTag()`, so a
+ *    fake id stored there gets re-fed into `setImageResource` and crashes the flow collection —
+ *    which breaks every other cellular feature, e.g. hiding the data-activity arrows).
+ * 3. **State** — the data sub id is read from `MobileIconsViewModel.activeMobileDataSubscriptionId`
+ *    (`MobileUiAdapter.start` after-hook) and refreshed through the adapter's
+ *    `javaAdapter.alwaysCollectFlow`. Per-SIM levels come from the res-id parse of the binder's own
+ *    `setImageResource` calls (flow-driven, so they fire even while the group is gone); no VM-level
+ *    flow collection is needed. The dark/light/tint state is tracked from the args of
+ *    `MiuiStatusBarIconViewHelper.transformResId(int,boolean,boolean)` before-hooks.
+ * 4. **Hiding the other SIM** — `ModernStatusBarView.isIconVisible()` is hooked only when the
+ *    receiver is exactly `ModernStatusBarMobileView` and returns false for the non-data subId, so
+ *    `StatusIconContainer` stops measuring that view entirely (it keys slots on `isIconVisible()`,
+ *    not on `View.getVisibility()` — a plain GONE leaves an empty slot). The
+ *    `ModernStatusBarMobileView` group is also force-hidden (tag [StackedSignalResources.TAG_FORCE_GONE]
+ *    + GONE), and a `View.setVisibility`/`MobileSignalAnimatorContainer.setChildVisible` guard keeps
+ *    the binder's own visibility collector from flipping it back visible.
+ *
+ * Requires a SystemUI restart (the page offers one). The master switch and every option are read at
+ * `onHook()`.
  */
 object StackedSignalHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
-    private const val ICONS_VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel"
-    private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel"
-    private const val SVG_DIR = "svg"
 
-    private class SignalState {
-        @Volatile var level = 0
-        @Volatile var type = ""
-    }
+    private const val ADAPTER_CLASS =
+        "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
+    private const val BINDER_CLASS =
+        "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder"
+    private const val ICONS_VM_CLASS =
+        "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel"
+    private const val ICON_VIEW_HELPER = "com.android.systemui.statusbar.MiuiStatusBarIconViewHelper"
+    private const val ALPHA_IMAGE_VIEW = "com.android.systemui.statusbar.AlphaOptimizedImageView"
+    private const val MOBILE_ANIM_CONTAINER =
+        "com.android.systemui.statusbar.views.MobileSignalAnimatorContainer"
+    private const val MODERN_STATUS_BAR_MOBILE_VIEW =
+        "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView"
 
-    private val states = ConcurrentHashMap<Int, SignalState>()
-    private val defaultSubId = AtomicInteger(Int.MIN_VALUE)
+    /** Drawable-name prefix shared with the module vectors and [StackedSignalResources]. */
+    private val signalLevelName = Pattern.compile("stat_sys_signal_(\\d)")
 
-    @Volatile private var enabled = false
-    @Volatile private var singleStyle = 0
-    @Volatile private var stackedStyle = 0
-    @Volatile private var scale = 1f
-    @Volatile private var paddingStart = 0f
-    @Volatile private var paddingEnd = 0f
-    @Volatile private var alphaFg = 1f
-    @Volatile private var alphaBg = 1f
-    @Volatile private var alphaError = 1f
-    @Volatile private var typeSizeDp = 11f
-    @Volatile private var typeWeight = 400
-    @Volatile private var typePosition = 0
-    @Volatile private var showSingle = true
-    @Volatile private var showStacked = false
-    @Volatile private var showRoaming = false
-    @Volatile private var rtl = false
+    // ─── Settings (read at onHook) ────────────────────────────────────────────
+    @Volatile
+    private var enabled = false
+    @Volatile
+    private var scale = 1f
 
-    private var iconHeightPx = 0
-
-    private var singleSvgs = mutableMapOf<Int, StackedSignalRender.Doc>()
-    private var stackedSvgs = mutableMapOf<Int, StackedSignalRender.Doc>()
-
-    private var subscriptionField: Field? = null
-    private var isStackableField: Field? = null
-    private val hooksInstalled = java.util.concurrent.atomic.AtomicBoolean(false)
-
-    /** Cached `ActivityThread.currentApplication()` reflection; resolves once, never per call. */
-    private val activityThreadCurrentApplicationMethod by lazy {
-        runCatching {
-            Class.forName("android.app.ActivityThread")
-                .getMethod("currentApplication")
-                .apply { isAccessible = true }
-        }.getOrNull()
-    }
+    // ─── Runtime state ────────────────────────────────────────────────────────
+    private val installed = AtomicBoolean(false)
+    private val dataSubId = AtomicInteger(Int.MIN_VALUE)
+    private val otherLevel = AtomicInteger(0)
+    private val subIdLevels = SparseIntArray()
+    private val javaAdapterRef = AtomicReference<Any?>(null)
+    private val adapterFlowHooked = AtomicBoolean(false)
+    private val signalResToLevel = SparseIntArray()
+    private val subIdCache = WeakHashMap<View, Int>()
+    private val boundRoots = CopyOnWriteArrayList<WeakReference<ViewGroup>>()
+    private val applyingIcons = ThreadLocal.withInitial { false }
 
     @Volatile
-    private var appContext: android.content.Context? = null
-
-    private fun appResources(): android.content.res.Resources? {
-        appContext?.let { return it.resources }
-        val method = activityThreadCurrentApplicationMethod ?: return null
-        val resolved = runCatching { method.invoke(null) as? android.content.Context }.getOrNull()
-        if (resolved != null) appContext = resolved
-        return resolved?.resources
-    }
-
-    /** Resource-name lookups are per-icon-request hot; cache by resource id (small, bounded set). */
-    private val resourceNameCache = ConcurrentHashMap<Int, String>()
-
-    private fun resourceNameOf(resId: Int): String? {
-        resourceNameCache[resId]?.let { return it }
-        val name = runCatching { appResources()?.getResourceEntryName(resId) }.getOrNull()
-        if (name != null) resourceNameCache[resId] = name
-        return name
-    }
-
-    /**
-     * The composed icon only changes when the signal level, type text or a render parameter
-     * changes, but `getIcon()` is called on every status-bar refresh. Cache the composed bitmap
-     * by those inputs instead of re-rendering (3-5 ALPHA_8 bitmaps plus Pictures) per request.
-     * [renderEpoch] is bumped whenever a parameter outside the key changes (style, scale, alphas,
-     * weight, paddings, rtl, icon height), which only happens on (re)install.
-     */
-    private class RenderKey(
-        val epoch: Int,
-        val stacked: Boolean,
-        val row1Level: Int,
-        val row2Level: Int,
-        val typeText: String
-    ) {
-        override fun equals(other: Any?): Boolean =
-            other is RenderKey && other.epoch == epoch && other.stacked == stacked &&
-                other.row1Level == row1Level && other.row2Level == row2Level &&
-                other.typeText == typeText
-
-        override fun hashCode(): Int {
-            var result = epoch
-            result = 31 * result + if (stacked) 1 else 0
-            result = 31 * result + row1Level
-            result = 31 * result + row2Level
-            result = 31 * result + typeText.hashCode()
-            return result
-        }
-    }
-
-    private const val MAX_RENDER_CACHE_ENTRIES = 16
-
+    private var lastUseTint = false
     @Volatile
-    private var renderEpoch = 0
-    private val renderedCache = ConcurrentHashMap<RenderKey, android.graphics.Bitmap>()
+    private var lastIsLight = true
+    @Volatile
+    private var cachedMobileSignalId = 0
 
-    /** Bundled style files; index matches the style dropdown (2 = custom → falls back to 0). */
-    private val bundledStyles = listOf(
-        "Signal-HyperOS" to "Signal-HyperOS",
-        "Signal-iOS" to "Signal-iOS",
-        null to null,
-        "Signal-iOS27" to "Signal-iOS27"
-    )
-
-    /** Loads built-in SVGs and resolves the icon height; called from HookEntry.onPackageReady. */
+    /** Called from HookEntry once the SystemUI application context exists. */
     fun onPackageReady(context: Context) {
-        rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
-        val density = context.resources.displayMetrics.density
-        val heightRes = context.resources.getIdentifier(
-            "status_bar_icon_height", "dimen", "com.android.systemui"
-        )
-        iconHeightPx = if (heightRes != 0) {
-            runCatching { context.resources.getDimensionPixelSize(heightRes) }.getOrDefault(0)
-        } else 0
-        if (iconHeightPx <= 0) iconHeightPx = (20 * density).toInt()
-        val moduleContext = runCatching {
-            context.createPackageContext("com.takekazex.hypertweak", Context.CONTEXT_IGNORE_SECURITY)
-        }.getOrNull()
-        if (moduleContext != null) {
-            singleSvgs.clear()
-            stackedSvgs.clear()
-            bundledStyles.forEachIndexed { index, (singleName, stackedName) ->
-                if (singleName != null) {
-                    readSvg(moduleContext, "$singleName-Single.svg")?.let { singleSvgs[index] = it }
-                }
-                if (stackedName != null) {
-                    readSvg(moduleContext, "$stackedName-Stacked.svg")?.let { stackedSvgs[index] = it }
-                }
-            }
-        }
-        DebugLog.i(
-            TAG,
-            "StackedSignal ready: h=${iconHeightPx}px rtl=$rtl single=${singleSvgs.keys} stacked=${stackedSvgs.keys}"
-        )
-        // Render parameters (height, rtl) changed; any cached icon is stale.
-        renderEpoch++
-        // onHook may have run before package ready (SVGs missing then); install now.
-        if (enabled && singleSvgs.isNotEmpty() && hooksInstalled.compareAndSet(false, true)) {
-            runCatching { installHooks() }.onFailure { t ->
-                hooksInstalled.set(false)
-                DebugLog.e(TAG, "StackedSignal late install failed", t)
-            }
+        StackedSignalResources.setModuleContext(context)
+        if (enabled) {
+            ensureDrawables()
+            DebugLog.i(TAG, "StackedSignal resources ready: ${StackedSignalResources.isRegistered()}")
         }
     }
 
-    private fun readSvg(context: Context, name: String): StackedSignalRender.Doc? {
-        val text = runCatching {
-            context.assets.open("$SVG_DIR/$name").bufferedReader().use { it.readText() }
-        }.getOrNull() ?: return null
-        return StackedSignalRender.parse(text)
+    private fun styleSuffix(): String = ""
+
+    private fun ensureDrawables() {
+        if (StackedSignalResources.isRegistered()) return
+        if (!StackedSignalResources.isReady()) return
+        runCatching { StackedSignalResources.register(styleSuffix(), classLoader) }
+            .onFailure { DebugLog.w(TAG, "drawable registration failed", it) }
     }
 
     override fun onPrepareHotReload() {
         enabled = false
-        states.clear()
-        defaultSubId.set(Int.MIN_VALUE)
-        singleSvgs.clear()
-        stackedSvgs.clear()
-        subscriptionField = null
-        isStackableField = null
-        hooksInstalled.set(false)
-        appContext = null
-        resourceNameCache.clear()
-        renderedCache.clear()
+        StackedSignalResources.resetForReload()
+        removeAllSubMobileViews()
+        installed.set(false)
+        dataSubId.set(Int.MIN_VALUE)
+        otherLevel.set(0)
+        subIdLevels.clear()
+        subIdCache.clear()
+        cachedMobileSignalId = 0
+        adapterFlowHooked.set(false)
+        javaAdapterRef.set(null)
     }
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         enabled = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
-        singleStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0)
-        stackedStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0)
-        scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f)
-        paddingStart = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_START, 0f)
-        paddingEnd = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_END, 0f)
-        alphaFg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_FG, 1f)
-        alphaBg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_BG, 1f)
-        alphaError = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, 1f)
-        typeSizeDp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 11f)
-        typeWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 400)
-        typePosition = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_POSITION, 0)
-        showSingle = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_SINGLE, true)
-        showStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_STACKED, false)
-        showRoaming = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_SHOW_ROAMING, false)
-        // Render parameters changed; any cached icon is stale.
-        renderEpoch++
+        scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f).coerceIn(0.5f, 1.5f)
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
             return
         }
-        if (singleSvgs.isEmpty() && stackedSvgs.isEmpty()) {
-            DebugLog.w(TAG, "StackedSignal deferred: SVGs not loaded yet (package ready pending)")
-            return
-        }
-        if (hooksInstalled.compareAndSet(false, true)) {
-            runCatching { installHooks() }.onFailure { t ->
-                hooksInstalled.set(false)
-                DebugLog.e(TAG, "StackedSignal install failed", t)
-            }
-        }
+        if (!installed.compareAndSet(false, true)) return
+
+        installTransformResId()
+        installImageViewSetImageResource()
+        installBinderBind()
+        installAdapterStart()
+        installMobileVisibility()
+        installVisibilityGuard()
+        DebugLog.hookRegistered(TAG, "StackedSignal view-level stacked signal (scale=$scale)")
     }
 
-    private fun installHooks() {
-        val iconsVmClass = ICONS_VM_CLASS.toClassOrNull()
-        if (iconsVmClass == null) {
-            DebugLog.hookSkipped(TAG, ICONS_VM_CLASS, "class not found")
+    // ─── 1. Dark/light/tint tracking ──────────────────────────────────────────
+
+    private fun installTransformResId() {
+        val helper = ICON_VIEW_HELPER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ICON_VIEW_HELPER, "class not found")
             return
         }
-        isStackableField = iconsVmClass.fieldOrNull("isStackable")
-
-        val vmClass = VM_CLASS.toClassOrNull()
-        if (vmClass == null) {
-            DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
-            return
-        }
-        subscriptionField = vmClass.fieldOrNull("subscriptionId")
-
-        // 1. Force the stacked pipeline so SystemUI clears the ordinary mobile icons.
-        if (isStackableField != null) {
-            iconsVmClass.hookAllConstructors {
-                after { param ->
-                    val vm = param.thisObject ?: return@after
-                    runCatching { IconTunerFlows.writeField(vm, isStackableField!!, IconTunerFlows.trueFlow) }
-                        .onFailure { DebugLog.w(TAG, "isStackable write failed", it) }
+        helper.findMethodOrNull { name("transformResId"); paramCount(3) }?.hook {
+            before { param ->
+                val args = param.args
+                if (args.size >= 3) {
+                    (args[1] as? Boolean)?.let { lastUseTint = it }
+                    (args[2] as? Boolean)?.let { lastIsLight = it }
                 }
             }
-        } else {
-            DebugLog.hookSkipped(TAG, "$ICONS_VM_CLASS#isStackable", "field not found")
-        }
+        } ?: DebugLog.hookSkipped(TAG, "$ICON_VIEW_HELPER#transformResId", "method not found")
+    }
 
-        // 2. Replace each ViewModel's icon output with the module-drawn one.
-        vmClass.findMethodOrNull { name("getIcon") }?.hook {
-            after { param ->
-                val vm = param.thisObject ?: return@after
-                val subId: Int = runCatching { subscriptionField?.getInt(vm) }.getOrDefault(-1) ?: -1
-                val sysIcon = param.result as? Icon ?: return@after
-                val level = levelFromSystemIcon(sysIcon) ?: return@after
-                if (defaultSubId.get() == Int.MIN_VALUE) defaultSubId.set(subId)
-                val state = states.getOrPut(subId) { SignalState() }
-                state.level = level
-                param.result = buildIcon(subId, state)
+    // ─── 2. Main interception: ImageView.setImageResource ─────────────────────
+
+    private fun installImageViewSetImageResource() {
+        val imageViewClass = runCatching {
+            Class.forName("android.widget.ImageView", false, classLoader)
+        }.getOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, "ImageView", "class not found")
+            return
+        }
+        imageViewClass.findMethodOrNull { name("setImageResource"); paramCount(1) }?.hook {
+            before { param ->
+                if (applyingIcons.get()) return@before
+                if (!enabled) return@before
+                val view = param.thisObject as? ImageView ?: return@before
+                if (!isMobileSignalView(view)) return@before
+                val resId = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@before
+                runCatching { interceptMobileImage(view, resId, param) }
+                    .onFailure { DebugLog.w(TAG, "interceptMobileImage failed", it) }
             }
-        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getIcon", "method not found")
-
-        // 3. Capture the network type text from the system type icon resource.
-        vmClass.findMethodOrNull { name("getNetworkTypeIcon") }?.hook {
-            after { param ->
-                val vm = param.thisObject ?: return@after
-                val subId: Int = runCatching { subscriptionField?.getInt(vm) }.getOrDefault(-1) ?: -1
-                val sysIcon = param.result as? Icon ?: return@after
-                val type = typeFromSystemIcon(sysIcon) ?: return@after
-                val state = states.getOrPut(subId) { SignalState() }
-                state.type = type
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getNetworkTypeIcon", "method not found")
-
-        // 4. The module-drawn icon replaces the whole signal, so the separate data-activity
-        //    arrows (in/out) bound next to it are suppressed.
-        val cellClass = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
-            .toClassOrNull()
-        if (cellClass != null) {
-            cellClass.findMethodOrNull { name("getInOutVisible") }?.hook {
-                before { param -> param.result = IconTunerFlows.falseFlow }
-            } ?: DebugLog.hookSkipped(TAG, "$cellClass#getInOutVisible", "method not found")
-        } else {
-            DebugLog.hookSkipped(TAG, "MiuiCellularIconVM", "class not found")
-        }
+        } ?: DebugLog.hookSkipped(TAG, "ImageView#setImageResource", "method not found")
     }
 
-    private fun levelFromSystemIcon(icon: Icon): Int? {
-        val resId = runCatching { icon.resId }.getOrDefault(0)
-        if (resId == 0) return null
-        val name = resourceNameOf(resId) ?: return null
-        val prefix = "stat_sys_signal_"
-        if (!name.startsWith(prefix)) return null
-        val digits = name.removePrefix(prefix).takeWhile { it.isDigit() }
-        return digits.toIntOrNull()
-    }
-
-    private fun typeFromSystemIcon(icon: Icon): String? {
-        val resId = runCatching { icon.resId }.getOrDefault(0)
-        if (resId == 0) return null
-        val name = resourceNameOf(resId) ?: return null
-        return when {
-            "5ga" in name || "5g_a" in name -> "5GA"
-            "5g" in name -> if ("plus" in name) "5G+" else "5G"
-            "4g" in name || "lte" in name -> if ("plus" in name) "4G+" else "4G"
-            "3g" in name -> "3G"
-            else -> null
-        }
-    }
-
-    private fun buildIcon(subId: Int, state: SignalState): Icon? {
-        val stacked = showStacked && states.size > 1
-        val doc = if (stacked) {
-            stackedSvgs[stackedStyle] ?: stackedSvgs[0] ?: return null
-        } else {
-            if (!showSingle) return null
-            singleSvgs[singleStyle] ?: singleSvgs[0] ?: return null
-        }
-        val height = (iconHeightPx * scale).toInt().coerceAtLeast(1)
-        val other = if (stacked) states.keys.firstOrNull { it != defaultSubId.get() } else null
-        val row1Level = state.level
-        val row2Level = other?.let { states[it]?.level } ?: 0
-        val typeText = if (subId == defaultSubId.get()) state.type else ""
-
-        val key = RenderKey(renderEpoch, stacked, row1Level, row2Level, typeText)
-        renderedCache[key]?.let { return Icon.createWithBitmap(it) }
-        val composed = renderIcon(doc, stacked, row1Level, row2Level, height, typeText) ?: return null
-        if (renderedCache.size >= MAX_RENDER_CACHE_ENTRIES) renderedCache.clear()
-        renderedCache[key] = composed
-        return Icon.createWithBitmap(composed)
-    }
-
-    private fun renderIcon(
-        doc: StackedSignalRender.Doc,
-        stacked: Boolean,
-        row1Level: Int,
-        row2Level: Int,
-        height: Int,
-        typeText: String
-    ): android.graphics.Bitmap? {
-        val bars: android.graphics.Bitmap = if (stacked) {
-            // Default SIM on row 1, the other SIM on row 2.
-            val b1 = StackedSignalRender.renderBars(doc, 1, row1Level, height / 2, alphaFg) ?: return null
-            val b2 = StackedSignalRender.renderBars(doc, 2, row2Level, height / 2, alphaBg) ?: return null
-            val out = android.graphics.Bitmap.createBitmap(
-                maxOf(b1.width, b2.width), height, android.graphics.Bitmap.Config.ALPHA_8
+    private fun isMobileSignalView(view: View): Boolean {
+        if (cachedMobileSignalId == 0) {
+            cachedMobileSignalId = view.resources.getIdentifier(
+                "mobile_signal", "id", "com.android.systemui"
             )
-            val canvas = android.graphics.Canvas(out)
-            canvas.drawBitmap(b1, 0f, 0f, null)
-            canvas.drawBitmap(b2, 0f, height / 2f, null)
-            out
-        } else {
-            StackedSignalRender.renderBars(doc, 0, row1Level, height, alphaFg) ?: return null
+            if (cachedMobileSignalId == 0) return false
         }
-        val density = appResources()?.displayMetrics?.density ?: 1f
-        val typeBmp = StackedSignalRender.renderTypeText(
-            typeText, (typeSizeDp * density).toInt().coerceAtLeast(1), typeWeight, alphaFg
-        )
-        val position = StackedSignalRender.TypePosition.entries[typePosition.coerceIn(0, 2)]
-        return StackedSignalRender.compose(
-            bars, typeBmp, position, doc.anchor, doc.width, rtl,
-            (paddingStart * density).toInt(), (paddingEnd * density).toInt()
-        )
+        return view.id == cachedMobileSignalId
     }
 
-    private fun Class<*>.fieldOrNull(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+    private fun interceptMobileImage(
+        mobile: ImageView,
+        resId: Int,
+        param: io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
+    ) {
+        ensureDrawables()
+        if (StackedSignalResources.isFakeId(resId)) {
+            // Defense in depth: a fake id must never reach the framework's resource resolution
+            // (it resolves below our hooks and throws Resources.NotFoundException, killing the
+            // binder's collector scope — which breaks every other cellular feature). The
+            // composite is already on the view; skip the original and keep it.
+            param.result = null
+            return
+        }
+        val subId = resolveMobileSubId(mobile) ?: return
+        val level = levelFromResId(mobile, resId) ?: return
+        val changed = noteLevel(subId, level)
+        val outer = findMobileOuter(mobile)
+        if (outer != null) {
+            rememberMobileRoot(outer)
+            applyNonDataSimVisibility(outer)
+        }
+        val dataId = dataSubId.get()
+        if (dataId != Int.MIN_VALUE && subId != dataId) {
+            // Non-data SIM: its own icon never shows (the composite carries its bars).
+            param.result = null
+            if (changed) refreshDataSimIcons()
+            return
+        }
+        if (dataId == Int.MIN_VALUE || subId != dataId) {
+            // Data SIM unknown yet: leave the stock icon until the adapter reports it.
+            return
+        }
+        val container = mobile.parent as? ViewGroup
+        val sub = container?.findViewById(StackedSignalResources.SUB_MOBILE_ID) as? ImageView
+        if (applyDualSimIcons(mobile, sub)) {
+            param.result = null
+        }
+    }
+
+    /** Renders the composite on the data-SIM view (+ sub view) with module drawables. */
+    private fun applyDualSimIcons(mobile: ImageView, sub: ImageView?): Boolean {
+        val suffix = styleSuffix()
+        val dataId = dataSubId.get()
+        val dLevel = displayLevel(subIdLevels.get(dataId, 0))
+        val oLevel = displayLevel(otherLevel.get())
+        val baseName = "statusbar_signal_1_$dLevel$suffix"
+        if (!StackedSignalResources.has(baseName)) return false
+        applyingIcons.set(true)
+        try {
+            val baseDrawable = themedDrawable(baseName) ?: return false
+            // Never write fake ids into the view tag: the binder's theme-change collector reads
+            // the tag back and re-feeds it into setImageResource, which would resolve the fake id
+            // below our hooks and throw Resources.NotFoundException (killing the collector scope).
+            mobile.setImageDrawable(baseDrawable)
+            if (sub != null) {
+                val subName = "statusbar_signal_2_$oLevel$suffix"
+                if (StackedSignalResources.has(subName)) {
+                    themedDrawable(subName)?.let(sub::setImageDrawable)
+                    runCatching {
+                        sub.alpha = mobile.alpha
+                        sub.visibility = mobile.visibility
+                        sub.imageTintList = mobile.imageTintList
+                    }
+                }
+            }
+            return true
+        } finally {
+            applyingIcons.set(false)
+        }
+    }
+
+    private fun themedDrawable(baseName: String): android.graphics.drawable.Drawable? {
+        val variant = when {
+            lastUseTint -> "${baseName}_tint"
+            !lastIsLight -> "${baseName}_dark"
+            else -> baseName
+        }
+        return StackedSignalResources.drawable(variant)
+            ?: StackedSignalResources.drawable(baseName)
+    }
+
+    private fun refreshDataSimIcons() {
+        val dataId = dataSubId.get()
+        for (ref in boundRoots) {
+            val root = ref.get() ?: continue
+            if (intFieldOrZero(root, "subId", Int.MIN_VALUE) != dataId) continue
+            val mobile = root.findViewById(idRes(root, "mobile_signal")) as? ImageView ?: continue
+            val container = mobile.parent as? ViewGroup
+            val sub = container?.findViewById(StackedSignalResources.SUB_MOBILE_ID) as? ImageView
+            applyDualSimIcons(mobile, sub)
+        }
+    }
+
+    // ─── 3. Binder bind: group bookkeeping, spacing, sub-view creation ────────
+
+    private fun installBinderBind() {
+        val binder = BINDER_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, BINDER_CLASS, "class not found")
+            return
+        }
+        binder.findMethodOrNull { name("bind") }?.hook {
+            after { param ->
+                val root = param.args.firstOrNull() as? ViewGroup ?: return@after
+                runCatching {
+                    rememberMobileRoot(root)
+                    applyNonDataSimVisibility(root)
+                    initMobileBind(root)
+                }.onFailure { DebugLog.w(TAG, "bind patch failed", it) }
+            }
+        } ?: DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "method not found")
+    }
+
+    private fun initMobileBind(root: ViewGroup) {
+        val mobileGroup = root.findViewById(idRes(root, "mobile_group")) as? ViewGroup ?: return
+        val mobile = mobileGroup.findViewById(idRes(root, "mobile_signal")) as? ImageView ?: return
+        val container = mobile.parent as? ViewGroup ?: return
+        if (container.findViewById<View>(StackedSignalResources.SUB_MOBILE_ID) != null) return
+
+        // The pref is already a direct 0.5..1.5 factor (1.0 = full size). Do NOT scale it by 0.1:
+        // that was the Flux Decor convention where the pref was an int (10 = 100%), and applying it
+        // here would render the composite at 5..15% — invisible while its layout slot stays put.
+        val f = scale
+        if (f != 1f) {
+            container.clipChildren = false
+            container.clipToPadding = false
+            mobile.scaleX = f
+            mobile.scaleY = f
+        }
+        val sub = runCatching {
+            val cls = ALPHA_IMAGE_VIEW.toClass()
+            cls.getConstructor(Context::class.java).newInstance(root.context) as ImageView
+        }.getOrElse { ImageView(root.context) }
+        sub.id = StackedSignalResources.SUB_MOBILE_ID
+        sub.adjustViewBounds = true
+        sub.scaleType = ImageView.ScaleType.FIT_CENTER
+        // Copy (not share) the mobile view's layout params: both views must sit at the same slot
+        // in the container, but two children must never own the same LayoutParams instance.
+        // ViewGroup.generateLayoutParams is protected, so copy through the params' own copy
+        // constructor (ConstraintLayout.LayoutParams declares one) and fall back to sharing.
+        sub.layoutParams = runCatching {
+            val lp = mobile.layoutParams
+            lp.javaClass.getConstructor(lp.javaClass).newInstance(lp) as ViewGroup.LayoutParams
+        }.getOrElse { mobile.layoutParams }
+        if (f != 1f) {
+            sub.scaleX = f
+            sub.scaleY = f
+        }
+        container.addView(sub)
+        applyDualSimIcons(mobile, sub)
+    }
+
+    private fun rememberMobileRoot(root: ViewGroup) {
+        if (boundRoots.any { it.get() === root }) return
+        boundRoots.add(WeakReference(root))
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+            override fun onViewDetachedFromWindow(v: View) {
+                boundRoots.removeAll { it.get() === root }
+            }
+        })
+    }
+
+    // ─── 4. Hiding the non-data SIM ───────────────────────────────────────────
+
+    private fun applyNonDataSimVisibility(root: ViewGroup) {
+        val subId = intFieldOrZero(root, "subId", Int.MIN_VALUE)
+        val dataId = dataSubId.get()
+        if (dataId == Int.MIN_VALUE || subId == Int.MIN_VALUE || subId == dataId) {
+            clearForceGone(root)
+        } else {
+            forceGone(root)
+        }
+    }
+
+    private fun updateVisibilityForDataChange(dataId: Int) {
+        for (ref in boundRoots) {
+            val root = ref.get() ?: continue
+            applyNonDataSimVisibility(root)
+        }
+    }
+
+    private fun forceGone(view: View) {
+        view.setTag(StackedSignalResources.TAG_FORCE_GONE, true)
+        if (view.visibility != View.GONE) view.visibility = View.GONE
+        requestLayoutUp(view)
+    }
+
+    private fun clearForceGone(view: View) {
+        if (view.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
+            view.setTag(StackedSignalResources.TAG_FORCE_GONE, null)
+            if (view.visibility != View.VISIBLE) view.visibility = View.VISIBLE
+            requestLayoutUp(view)
+        }
+    }
+
+    private fun requestLayoutUp(view: View) {
+        var v: View? = view.parent as? View
+        for (i in 0 until 8) {
+            if (v == null) {
+                view.requestLayout()
+                return
+            }
+            if (v.javaClass.name.contains("StatusIconContainer")) {
+                v.requestLayout()
+                return
+            }
+            v = v.parent as? View
+        }
+        view.requestLayout()
+    }
+
+    /**
+     * Keeps the force-gone root gone: the binder's own visibility collector re-applies
+     * `View.setVisibility(0/8)` from the VM's original `isVisible` flow, which would undo the
+     * GONE and leave a stale drawn icon at the non-data SIM's last layout bounds. The guard
+     * rewrites those calls back to GONE for tagged views only.
+     */
+    private fun installVisibilityGuard() {
+        runCatching {
+            val viewClass = Class.forName("android.view.View", false, classLoader)
+            viewClass.findMethodOrNull { name("setVisibility"); paramCount(1) }?.hook {
+                before { param ->
+                    val view = param.thisObject as? View ?: return@before
+                    if (view.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
+                        val wanted = (param.args.getOrNull(0) as? Number)?.toInt()
+                        if (wanted != View.GONE) param.args[0] = View.GONE
+                    }
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "View.setVisibility guard failed", it) }
+        runCatching {
+            MOBILE_ANIM_CONTAINER.toClassOrNull()
+                ?.findMethodOrNull { name("setChildVisible"); paramCount(2) }
+                ?.hook {
+                    before { param ->
+                        val child = param.args.getOrNull(0) as? View ?: return@before
+                        if (child.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
+                            param.args[1] = false
+                        }
+                    }
+                }
+        }.onFailure { DebugLog.w(TAG, "setChildVisible guard failed", it) }
+    }
+
+    private fun installMobileVisibility() {
+        val modernView = "com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView"
+            .toClassOrNull() ?: return
+        modernView.findMethodOrNull { name("isIconVisible"); noParams() }?.hook {
+            before { param ->
+                val view = param.thisObject as? View ?: return@before
+                if (view.javaClass.name != MODERN_STATUS_BAR_MOBILE_VIEW) return@before
+                val dataId = dataSubId.get()
+                val subId = intFieldOrZero(view, "subId", Int.MIN_VALUE)
+                if (dataId != Int.MIN_VALUE && subId != Int.MIN_VALUE && subId != dataId) {
+                    param.result = false
+                }
+            }
+        }
+    }
+
+    // ─── 5. Adapter flows: data sub id + javaAdapter ──────────────────────────
+
+    private fun installAdapterStart() {
+        val adapterClass = ADAPTER_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ADAPTER_CLASS, "class not found")
+            return
+        }
+        adapterClass.findMethodOrNull { name("start"); noParams() }?.hook {
+            after { param ->
+                runCatching { setupAdapterFlows(param.thisObject) }
+                    .onFailure { DebugLog.w(TAG, "setupAdapterFlows failed", it) }
+            }
+        } ?: DebugLog.hookSkipped(TAG, "$ADAPTER_CLASS#start", "method not found")
+    }
+
+    private fun setupAdapterFlows(adapter: Any) {
+        if (adapterFlowHooked.get()) return
+        val iconsVmRaw = readField(adapter, "mobileIconsViewModel") ?: return
+        val iconsVm = unwrapLazy(iconsVmRaw) ?: iconsVmRaw
+        val dataSubIdFlow = readField(iconsVm, "activeMobileDataSubscriptionId") ?: return
+        val javaAdapter = resolveJavaAdapter(adapter) ?: return
+        if (!adapterFlowHooked.compareAndSet(false, true)) return
+        javaAdapterRef.set(javaAdapter)
+
+        IconTunerFlows.readFlowValue(dataSubIdFlow)
+            ?.let { (it as? Number)?.toInt() }
+            ?.let { newDataId ->
+                dataSubId.set(newDataId)
+                updateVisibilityForDataChange(newDataId)
+            }
+        alwaysCollectFlow(javaAdapter, dataSubIdFlow) { value ->
+            (value as? Number)?.toInt()?.let { newDataId ->
+                dataSubId.set(newDataId)
+                updateVisibilityForDataChange(newDataId)
+                refreshDataSimIcons()
+            }
+        }
+    }
+
+    // ─── 6. Shared helpers ────────────────────────────────────────────────────
+
+    private fun noteLevel(subId: Int, level: Int): Boolean {
+        val previous = subIdLevels.get(subId, Int.MIN_VALUE)
+        subIdLevels.put(subId, level)
+        val dataId = dataSubId.get()
+        if (dataId == Int.MIN_VALUE) return previous != level
+        return if (subId == dataId) {
+            previous != level
+        } else {
+            otherLevel.set(level)
+            previous != level
+        }
+    }
+
+    private fun displayLevel(raw: Int): Int = raw.coerceIn(0, 5)
+
+    private fun levelFromResId(view: View, resId: Int): Int? {
+        if (resId == 0 || StackedSignalResources.isFakeId(resId)) return null
+        signalResToLevel.get(resId, -1).let { if (it >= 0) return it }
+        val name = runCatching { view.resources.getResourceEntryName(resId) }.getOrNull()
+            ?: return null
+        val level = signalLevelName.matcher(name).let { m ->
+            if (m.find()) m.group(1).toIntOrNull()?.coerceIn(0, 5) else null
+        } ?: return null
+        signalResToLevel.put(resId, level)
+        return level
+    }
+
+    private fun resolveMobileSubId(mobile: View): Int? {
+        subIdCache[mobile]?.let { return it }
+        var v: View? = mobile
+        for (i in 0 until 6) {
+            if (v == null) break
+            val subId = intFieldOrZero(v, "subId", Int.MIN_VALUE)
+            if (subId != Int.MIN_VALUE) {
+                subIdCache[mobile] = subId
+                return subId
+            }
+            v = v.parent as? View
+        }
+        return null
+    }
+
+    private fun findMobileOuter(mobile: View): ViewGroup? {
+        var v: View? = mobile
+        for (i in 0 until 8) {
+            val parent = v?.parent as? View ?: break
+            if (parent.javaClass.name == MODERN_STATUS_BAR_MOBILE_VIEW) {
+                return parent as? ViewGroup
+            }
+            v = parent
+        }
+        return null
+    }
+
+    private fun resolveJavaAdapter(adapter: Any): Any? {
+        readField(adapter, "mJavaAdapter")?.let { return it }
+        readField(adapter, "javaAdapter")?.let { return it }
+        val hd = readField(adapter, "hdController")
+        if (hd != null) {
+            readField(hd, "javaAdapter")?.let { return it }
+            readField(hd, "mJavaAdapter")?.let { return it }
+        }
+        return null
+    }
+
+    private fun alwaysCollectFlow(javaAdapter: Any, flow: Any, consumer: (Any?) -> Unit) {
+        runCatching {
+            val flowClass = Class.forName("kotlinx.coroutines.flow.Flow", false, classLoader)
+            val consumerClass = java.util.function.Consumer::class.java
+            javaAdapter.javaClass.getMethod("alwaysCollectFlow", flowClass, consumerClass)
+                .invoke(javaAdapter, flow, java.util.function.Consumer<Any?> { consumer(it) })
+        }.onFailure { DebugLog.w(TAG, "alwaysCollectFlow failed", it) }
+    }
+
+    private fun readField(target: Any, name: String): Any? = runCatching {
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }.getOrNull()
+
+    private fun unwrapLazy(raw: Any): Any? = runCatching {
+        raw.javaClass.getMethod("get").invoke(raw)
+    }.getOrNull()
+
+    private fun intFieldOrZero(target: Any, name: String, missing: Int = 0): Int = runCatching {
+        val f = target.javaClass.getDeclaredField(name).apply { isAccessible = true }
+        if (f.type == Int::class.javaPrimitiveType) f.getInt(target) else f.get(target) as? Int ?: missing
+    }.getOrDefault(missing)
+
+    private fun idRes(view: View, name: String): Int =
+        // Must resolve from the host view's resources (SystemUI). The module package context's
+        // AssetManager cannot see SystemUI resource tables, so a module-context lookup returns 0.
+        view.resources.getIdentifier(name, "id", "com.android.systemui")
+
+    private fun removeAllSubMobileViews() {
+        runCatching {
+            val global = Class.forName("android.view.WindowManagerGlobal")
+            val instance = global.getMethod("getInstance").invoke(null)
+            val rootViews = global.getMethod("getWindowViews").invoke(instance) as? Array<*> ?: return
+            for (root in rootViews) scanRemoveSubMobile(root as? View)
+        }.onFailure { DebugLog.w(TAG, "removeAllSubMobileViews failed", it) }
+    }
+
+    private fun scanRemoveSubMobile(view: View?) {
+        if (view !is ViewGroup) return
+        val victims = ArrayList<View>()
+        for (i in 0 until view.childCount) {
+            val child = view.getChildAt(i)
+            if (child.id == StackedSignalResources.SUB_MOBILE_ID) {
+                victims.add(child)
+            } else {
+                scanRemoveSubMobile(child)
+            }
+        }
+        for (victim in victims) {
+            (victim.parent as? ViewGroup)?.removeView(victim)
+        }
+    }
 }
