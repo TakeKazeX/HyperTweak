@@ -222,7 +222,17 @@ class MainActivity : ComponentActivity() {
                         GestureBarAction.actionsAvailable
                 )
             }
-            var powerButtonCts by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)) }
+            var powerButtonAction by remember {
+                mutableIntStateOf(Preferences.powerButtonAction())
+            }
+            var powerButtonHaptic by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(
+                        Preferences.KEY_POWER_BUTTON_HAPTIC,
+                        Preferences.DEFAULT_POWER_BUTTON_HAPTIC
+                    )
+                )
+            }
             var gestureBarLongPressAction by remember {
                 mutableIntStateOf(
                     Preferences.getInt(
@@ -508,7 +518,11 @@ class MainActivity : ComponentActivity() {
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     gestureBarActionsEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
                         GestureBarAction.actionsAvailable
-                    powerButtonCts = Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)
+                    powerButtonAction = Preferences.powerButtonAction()
+                    powerButtonHaptic = Preferences.getBoolean(
+                        Preferences.KEY_POWER_BUTTON_HAPTIC,
+                        Preferences.DEFAULT_POWER_BUTTON_HAPTIC
+                    )
                     gestureBarLongPressAction = Preferences.getInt(
                         Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
                         GestureBarAction.DEFAULT_ASSISTANT.persistedId
@@ -738,13 +752,19 @@ class MainActivity : ComponentActivity() {
                             checked
                         )
                     },
-                    powerButtonCts = powerButtonCts,
-                    onPowerButtonCtsChange = { checked ->
+                    powerButtonAction = powerButtonAction,
+                    onPowerButtonActionChange = { action ->
                         // System-server hooks: no restart scope exists, so no markTweaked; the
-                        // hookers read the preference live at dispatch time, so turning it off
-                        // applies immediately once the hooks are installed.
-                        powerButtonCts = checked
-                        Preferences.putBoolean(Preferences.KEY_POWER_BUTTON_CTS, checked)
+                        // hookers read the action live at dispatch time, so switching actions (or
+                        // off) applies immediately once the hooks are installed. Turning the
+                        // feature on from disabled still needs a reboot for the hooks to install.
+                        powerButtonAction = action
+                        Preferences.setPowerButtonAction(action)
+                    },
+                    powerButtonHaptic = powerButtonHaptic,
+                    onPowerButtonHapticChange = { checked ->
+                        powerButtonHaptic = checked
+                        Preferences.putBoolean(Preferences.KEY_POWER_BUTTON_HAPTIC, checked)
                     },
                     gestureBarLongPressAction = gestureBarLongPressAction,
                     onGestureBarLongPressActionChange = { action ->

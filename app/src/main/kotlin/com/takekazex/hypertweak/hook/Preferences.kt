@@ -65,13 +65,26 @@ object Preferences {
     const val KEY_GESTURE_BAR_DOUBLE_TAP_ACTION = "gesture_bar_double_tap_action"
 
     /**
-     * Re-binds the long-press power button to Circle to Search (长按电源键 → 即圈即搜).
-     * `PowerButtonCtsHooker` intercepts `PowerKeyRule.onMiuiLongPress` (the MIUI 快捷手势
-     * layer) and `PhoneWindowManager.powerLongPress` (the AOSP fallback) in system_server and
-     * starts the contextual-search service through `ContextualSearchSystemHooker`. The pref is
-     * read live at dispatch time, so turning it off takes effect without a reboot; turning it on
-     * needs a reboot for the system-server hooks (and the CTS bridge) to install.
+     * Long-press power button action (长按电源键操作). `PowerButtonCtsHooker` intercepts
+     * `PowerKeyRule.onMiuiLongPress` (the MIUI 快捷手势 layer) and
+     * `PhoneWindowManager.powerLongPress` (the AOSP fallback) in system_server and dispatches
+     * the selected action: [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] starts the contextual-search
+     * service through `ContextualSearchSystemHooker`, [POWER_BUTTON_ACTION_DEFAULT_ASSISTANT]
+     * launches the user's default digital assistant (Google Assistant / Gemini / 小爱) through
+     * the platform assist pipeline. [POWER_BUTTON_ACTION_DISABLED] leaves the system's own
+     * long-press action untouched. The action and the haptic toggle are read live at dispatch
+     * time, so switching between actions (or off) takes effect without a reboot once the
+     * system-server hooks are installed; turning the feature on from disabled still needs a
+     * reboot for those hooks (and the CTS bridge) to install.
      */
+    const val KEY_POWER_BUTTON_ACTION = "power_button_long_press_action"
+    const val KEY_POWER_BUTTON_HAPTIC = "power_button_long_press_haptic"
+    const val POWER_BUTTON_ACTION_DISABLED = 0
+    const val POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH = 1
+    const val POWER_BUTTON_ACTION_DEFAULT_ASSISTANT = 2
+    const val DEFAULT_POWER_BUTTON_HAPTIC = true
+
+    /** Legacy single-switch Circle to Search enable; superseded by [KEY_POWER_BUTTON_ACTION]. */
     const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
@@ -259,6 +272,37 @@ object Preferences {
 
     // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
     fun slotKey(slot: String): String = "icon_tuner_slot_$slot"
+
+    /**
+     * The current long-press power action ([POWER_BUTTON_ACTION_*]). Reads
+     * [KEY_POWER_BUTTON_ACTION]; when it is unset it migrates the legacy
+     * [KEY_POWER_BUTTON_CTS] boolean (on → [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH]), so
+     * existing users keep their Circle to Search binding without touching the setting.
+     */
+    fun powerButtonAction(): Int {
+        val action = getInt(KEY_POWER_BUTTON_ACTION, -1)
+        if (action == POWER_BUTTON_ACTION_DISABLED ||
+            action == POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
+            action == POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
+        ) {
+            return action
+        }
+        return if (getBoolean(KEY_POWER_BUTTON_CTS, false)) {
+            POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+        } else {
+            POWER_BUTTON_ACTION_DISABLED
+        }
+    }
+
+    /** Persists the long-press power action and drops the superseded legacy boolean. */
+    fun setPowerButtonAction(action: Int) {
+        memoInvalidate(KEY_POWER_BUTTON_ACTION)
+        memoInvalidate(KEY_POWER_BUTTON_CTS)
+        write {
+            putInt(KEY_POWER_BUTTON_ACTION, action)
+            remove(KEY_POWER_BUTTON_CTS)
+        }
+    }
 
     // Media-editor watermark unlock (com.miui.mediaeditor). See
     // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of

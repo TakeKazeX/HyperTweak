@@ -500,8 +500,11 @@
     <string name="tweaks_navigation_bar_title">Navigation Bar</string>
     <string name="tweaks_passkey_summary">Allow using Google Passkey and third-party credential managers on domestic MIUI/HyperOS</string>
     <string name="tweaks_passkey_title">Unlock Google Passkey / Credential Manager</string>
-    <string name="tweaks_power_button_cts_summary">Long-press power starts Circle to Search instead of the system action, in any app. Requires a reboot to apply</string>
-    <string name="tweaks_power_button_cts_title">Power Button Circle to Search</string>
+    <string name="tweaks_power_button_action_follow_system">Follow system</string>
+    <string name="tweaks_power_button_action_summary">Run the selected action on a long-press power button instead of the system action, in any app. Requires a reboot to apply</string>
+    <string name="tweaks_power_button_action_title">Power Button Long Press</string>
+    <string name="tweaks_power_button_haptic_summary">Vibrate when the long-press power action triggers</string>
+    <string name="tweaks_power_button_haptic_title">Power Button Haptic Feedback</string>
     <string name="tweaks_quick_share_summary">Unlocks Quick Share on CN Google Play services: overrides the phenotype flag sharing_supports_latchsky in GMS\'s database and opens the CN device-type gates. Prompts for GMS scope and restarts Google Play services to apply.</string>
     <string name="tweaks_quick_share_title">Unlock Nearby Share (Quick Share)</string>
     <string name="tweaks_raise_layout_summary">Keep the reserved navigation bar space so app content sits above the gesture area</string>

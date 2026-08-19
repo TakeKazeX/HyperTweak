@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.page
 
 import android.annotation.SuppressLint
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.PlatformLevel
 import androidx.compose.foundation.layout.*
@@ -63,8 +64,10 @@ fun TweaksScreenContent(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     gestureBarActionsEnabled: Boolean,
     onGestureBarActionsEnabledChange: (Boolean) -> Unit,
-    powerButtonCts: Boolean,
-    onPowerButtonCtsChange: (Boolean) -> Unit,
+    powerButtonAction: Int,
+    onPowerButtonActionChange: (Int) -> Unit,
+    powerButtonHaptic: Boolean,
+    onPowerButtonHapticChange: (Boolean) -> Unit,
     gestureBarLongPressAction: Int,
     onGestureBarLongPressActionChange: (Int) -> Unit,
     gestureBarDoubleTapAction: Int,
@@ -105,6 +108,13 @@ fun TweaksScreenContent(
             GestureBarAction.DISABLED to context.getString(R.string.tweaks_action_disabled),
             GestureBarAction.DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant),
             GestureBarAction.CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search)
+        )
+    }
+    val powerButtonActionOptions = remember {
+        listOf(
+            Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
+            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
+            Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
         )
     }
     Scaffold(
@@ -243,12 +253,33 @@ fun TweaksScreenContent(
                             )
                         }
                     }
-                    SwitchPreference(
-                        checked = powerButtonCts,
-                        onCheckedChange = onPowerButtonCtsChange,
-                        title = stringResource(R.string.tweaks_power_button_cts_title),
-                        summary = stringResource(R.string.tweaks_power_button_cts_summary)
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.tweaks_power_button_action_title),
+                        summary = stringResource(R.string.tweaks_power_button_action_summary),
+                        items = powerButtonActionOptions.map { it.second },
+                        selectedIndex = powerButtonActionOptions.indexOfFirst {
+                            it.first == powerButtonAction
+                        }.coerceAtLeast(0),
+                        onSelectedIndexChange = { index ->
+                            powerButtonActionOptions.getOrNull(index)?.first?.let(
+                                onPowerButtonActionChange
+                            )
+                        }
                     )
+                    AnimatedVisibility(
+                        visible = powerButtonAction != Preferences.POWER_BUTTON_ACTION_DISABLED,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                checked = powerButtonHaptic,
+                                onCheckedChange = onPowerButtonHapticChange,
+                                title = stringResource(R.string.tweaks_power_button_haptic_title),
+                                summary = stringResource(R.string.tweaks_power_button_haptic_summary)
+                            )
+                        }
+                    }
                     if (!PlatformLevel.isOs4) {
                         SwitchPreference(
                             checked = miuiBackGestureHook,

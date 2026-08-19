@@ -578,14 +578,20 @@ generation. Fashion Gallery events remain excluded. The experimental setting
 defaults on and is read for every wallpaper event, so changing it does not
 require a SystemUI restart after the hook has been installed.
 
-## Power Button Circle to Search (长按电源键即圈即搜)
+## Power Button Long Press (长按电源键操作)
 
-Settings → Tweaks → Navigation Bar → Power Button Circle to Search
-(`KEY_POWER_BUTTON_CTS`, `hook/rules/system/PowerButtonCtsHooker.kt`) re-binds the
-long-press power button to Circle to Search instead of the system action. On the
-OS4 baseline the binding lives in system_server on two stacked layers:
+Settings → Tweaks → Navigation Bar → Power Button Long Press
+(`KEY_POWER_BUTTON_ACTION`, `hook/rules/system/PowerButtonCtsHooker.kt`) re-binds the
+long-press power button to a configurable action instead of the system action:
+`POWER_BUTTON_ACTION_DISABLED` (0, follow the system), `POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH`
+(1), or `POWER_BUTTON_ACTION_DEFAULT_ASSISTANT` (2, default digital assistant — Google
+Assistant / Gemini / 小爱). A separate `KEY_POWER_BUTTON_HAPTIC` switch (default on) plays
+the platform's `LONG_PRESS_POWER_BUTTON` haptic when the custom action actually fires.
+The legacy single-switch `KEY_POWER_BUTTON_CTS` boolean is superseded: reading the action
+migrates it (on → Circle to Search) and `setPowerButtonAction` drops it. On the OS4
+baseline the binding lives in system_server on two stacked layers:
 
-- `com.android.server.input.shortcut.singlekeyrule.PowerKeyRule#onMiuiLongPress(long)` —
+- `com.android.server.input.shortcut.singlekeyrule.PowerKeyRule#onMiuiLongPress(Object, long)` —
   the MIUI 快捷手势 layer driven by `Settings.System.long_press_power_key`
   (`launch_voice_assistant` / `launch_google_search` / `launch_smarthome` / `none`,
   set by `GestureShortcutSettingsSelectFragment`); it preempts the AOSP layer whenever
@@ -598,16 +604,31 @@ OS4 baseline the binding lives in system_server on two stacked layers:
   `PhoneWindowManager$PowerKeyRule.onLongPress` when MIUI does not own the long press.
 
 The hooker intercepts both before their original dispatch: the power key is marked
-handled (`PhoneWindowManager.setPowerKeyHandled(true)`, public) and
-`ContextualSearchSystemHooker.startFromSystemServer()` starts the contextual-search
-service directly — the same `IContextualSearchManager.startContextualSearch(1)`
-binder entry the SystemUI gesture path uses, with the bridge flag set without the
-caller-uid check (the invoking thread is the system process), so
-`getContextualSearchPackageName()` resolves Google's package for exactly that call.
-`powerLongPress`'s LPP squeeze-effect block is skipped along with the behavior
-switch; `powerVeryLongPress` / `onMiuiVeryLongPress` are untouched, so a configured
-very-long-press power menu still works. The two methods are deoptimized first
-(`onMiuiLongPress` is protected and small enough to be AOT-inlined).
+handled (`PhoneWindowManager.setPowerKeyHandled(true)`, public), the selected action runs,
+and the haptic plays only when the action actually fired (a failed dispatch degrades to the
+original system action without a phantom vibration). Circle to Search goes through
+`ContextualSearchSystemHooker.startFromSystemServer()` — the same
+`IContextualSearchManager.startContextualSearch(1)` binder entry the SystemUI gesture path
+uses, with the bridge flag set without the caller-uid check (the invoking thread is the
+system process), so `getContextualSearchPackageName()` resolves Google's package for exactly
+that call. The default-assistant action calls the policy's private
+`launchAssistAction(String, int, long, int)` with the same arguments the AOSP "assistant"
+long-press (setting 5) uses on this build (`null, -2, eventTime, 6`), which routes through
+`SearchManager.launchAssist` to the platform assist pipeline — deliberately **not** the MIUI
+overload `launchAssistAction(String, Bundle)` (`BaseMiuiPhoneWindowManager:2198`), which
+forks to the MIUI 小爱 path; the platform pipeline creates a real assist-framework session,
+so the default assistant's voice UI engages (bare activity launches of Gemini/ChatGPT
+self-terminate without one). The haptic invokes the policy's private
+`performHapticFeedback(int, String)` with `LONG_PRESS_POWER_BUTTON` (10003, @SystemApi so
+a local constant in the hooker), the same effect the platform's own long-press paths play.
+Neither method is overridden on `MiuiPhoneWindowManager`/`BaseMiuiPhoneWindowManager`.
+`powerLongPress`'s LPP squeeze-effect block is skipped along with the behavior switch;
+`powerVeryLongPress` / `onMiuiVeryLongPress` are untouched, so a configured very-long-press
+power menu still works. The two long-press methods are deoptimized first (`onMiuiLongPress`
+is protected and small enough to be AOT-inlined). Actions and the haptic toggle are read
+live at dispatch time, so switching actions (or off) takes effect without a reboot once the
+hooks are installed; enabling from disabled still needs a reboot for the system-server hooks
+(and the CTS bridge gate in `ContextualSearchSystemHooker`).
 
 **The reverse-engineering cache `framework-services-2e880646` is an older build for
 two of these targets — always verify against the versioned jars.** On the real
@@ -639,7 +660,8 @@ plus every bridge hook, and each long-press power logs
 `PowerButtonCTS: MIUI long-press power -> Circle to Search` with no
 `contextual search service failed` afterwards. `compileDebugKotlin`,
 `testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. Visual confirmation of
-the Circle to Search overlay is the user's.
+the Circle to Search overlay and of the default-assistant / haptic behavior is the
+user's.
 
 ## AOSP Restore
 

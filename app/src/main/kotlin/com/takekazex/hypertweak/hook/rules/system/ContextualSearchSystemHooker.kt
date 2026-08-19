@@ -50,12 +50,15 @@ object ContextualSearchSystemHooker : StaticHooker() {
      * The system-side bridge exists solely to make SystemUI's Circle to Search gesture action
      * succeed, so it follows the same live predicate the SystemUI-side hookers read: gesture-bar
      * actions enabled, with Circle to Search bound to the long-press or double-tap slot, or the
-     * long-press power button re-bind ([Preferences.KEY_POWER_BUTTON_CTS]). Mirrors
+     * long-press power button action set to [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH].
+     * Mirrors
      * [com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker] /
      * [VoiceInteractionServiceRepairHooker] / [PowerButtonCtsHooker].
      */
     private fun isCircleToSearchActionEnabled(): Boolean {
-        if (Preferences.getBoolean(Preferences.KEY_POWER_BUTTON_CTS, false)) {
+        if (Preferences.powerButtonAction() ==
+            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+        ) {
             return true
         }
         if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) ||
