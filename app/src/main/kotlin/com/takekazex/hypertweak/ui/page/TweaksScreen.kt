@@ -346,11 +346,15 @@ fun TweaksScreenContent(
                         title = stringResource(R.string.tweaks_gms_bypass_title),
                         summary = stringResource(R.string.tweaks_gms_bypass_summary)
                     )
+                    // Bypassing the GMS China ROM restrictions already removes the CN markers that
+                    // gate Quick Share, so the phenotype override is redundant while it is on; grey
+                    // the switch out instead of force-unlocking share with it.
                     SwitchPreference(
                         checked = quickShareEnabled,
                         onCheckedChange = onQuickShareEnabledChange,
                         title = stringResource(R.string.tweaks_quick_share_title),
-                        summary = stringResource(R.string.tweaks_quick_share_summary)
+                        summary = stringResource(R.string.tweaks_quick_share_summary),
+                        enabled = !removeGms
                     )
                     SwitchPreference(
                         checked = unlockPasskey,

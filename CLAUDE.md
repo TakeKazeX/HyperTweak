@@ -1171,6 +1171,58 @@ run, so the bypass holds regardless of module hook order. Verified on-device
 (2026-08-15): after installing the hook, the queued FCM backlog was
 delivered instead of skipped and the `FcmRetry`/CANCELLED loop stopped.
 
+## Bypass GMS China ROM Restrictions (卸载国行 GMS 限制)
+
+Settings → Tweaks → System Core → Bypass GMS China ROM Restrictions
+(`KEY_REMOVE_GMS_RESTRICTION`, `hook/rules/system/SystemConfigHooker.kt`) makes
+GMS treat the device as non-CN by removing the two CN-marker features from
+`SystemConfig`'s `mAvailableFeatures` at boot. The markers are declared in
+`/product/etc/permissions/cn.google.services.xml`:
+
+```xml
+<feature name="cn.google.services" />
+<feature name="com.google.android.feature.services_updater" />
+```
+
+read into `mAvailableFeatures` during the no-arg `SystemConfig()` constructor
+(`readPermissions` → `addFeature`), so the hooker's `after` hook on that
+constructor calls the private `removeFeature(String)` once per process to drop
+them. The hook runs only in system_server (`scope.list` → `system`) and requires
+a **full device reboot** — `SystemConfig` is a singleton built once at
+system_server boot, so a scoped-app restart never re-runs it.
+
+OS4 facts verified on OS4.0.0.15.XPMCNXM device (2026-08-19): `SystemConfig()`
+is a private no-arg constructor and `getInstance()` builds it under
+`synchronized(SystemConfig.class)`; `RoSystemFeatures.getReadOnlySystemEnabled
+Features()` returns an empty `ArrayMap` and `Injection.maybeHasFeature` returns
+null on both OS3 and OS4, so `removeFeature` scores neither the
+read-only-skip branch nor a stale map — the two CN features are always removable.
+LSPosed log confirms `SystemConfigHooker: HOOK_OK
+target=com.android.server.SystemConfig#<init>()` installs in system_server
+during early boot, so class/method resolution is fine on OS4.
+
+The one genuine fragility is **timing of the preference read**: the removal was
+gated on `Preferences.getBoolean(KEY_REMOVE_GMS_RESTRICTION)` read *inside* the
+constructor callback, but `SystemConfig()` can be constructed at an arbitrary
+point in early boot. If `Preferences` is not yet initialized/has not received
+the daemon value at that moment, the read falls back to `false`, the removal is
+silently skipped, and — because the singleton never constructs again — it is
+skipped forever until the next full reboot. The hooker now captures the desired
+state once at `onHook()` (after `initPreferences()` has run on the
+system_server path, so the read is reliable) and only installs the constructor
+hook when the switch is on; `onHook` logs
+`removeGmsRestrictions=enabled/disabled` and `removeGmsRestrictions` logs a
+success line after removal so the user can confirm on the next boot via logcat
+(`TAG HyperTweak`, LSPosed verbose). It also hardens the toggle: with the switch
+off, no constructor hook is installed, so no features are removed.
+
+Note: toggling the switch is **not** part of `TWEAK_RESTART_SCOPES` (the
+`onRemoveGmsChange` handler in `MainActivity` writes the preference directly,
+without `markTweaked`); it takes effect only on the next full device reboot.
+Because Bypass also removes the same two CN gates Quick Share relies on, the
+"Unlock Nearby Share" switch is greyed out (`enabled = !removeGms`) while it is
+on — see `TweaksScreen`.
+
 ## Quick Share (Nearby Share) on CN GMS
 
 Settings → Tweaks → System Core → Unlock Nearby Share (Quick Share)

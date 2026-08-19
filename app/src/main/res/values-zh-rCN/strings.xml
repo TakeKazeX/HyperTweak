@@ -505,7 +505,7 @@
     <string name="tweaks_power_button_action_title">长按电源键</string>
     <string name="tweaks_power_button_haptic_summary">触发长按电源键操作时震动</string>
     <string name="tweaks_power_button_haptic_title">电源键震动反馈</string>
-    <string name="tweaks_quick_share_summary">在国行 Google Play 服务上解锁 Quick Share：覆盖 GMS 数据库中的 phenotype 标志 sharing_supports_latchsky，并开放国行设备类型限制。将请求 GMS 作用域并重启 Google Play 服务以生效。</string>
+    <string name="tweaks_quick_share_summary">在国行 Google Play 服务上解锁 Quick Share：覆盖 GMS 数据库中的 phenotype 标志 sharing_supports_latchsky，并开放国行设备类型限制。开启「绕过 GMS 国行 ROM 限制」后这些限制已随之打开，本开关将变灰不可用。将请求 GMS 作用域并重启 Google Play 服务以生效。</string>
     <string name="tweaks_quick_share_title">解锁附近分享（Quick Share）</string>
     <string name="tweaks_raise_layout_summary">保留导航栏预留空间，让应用内容位于手势区域上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>

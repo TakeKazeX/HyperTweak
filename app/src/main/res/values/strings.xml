@@ -505,7 +505,7 @@
     <string name="tweaks_power_button_action_title">Power Button Long Press</string>
     <string name="tweaks_power_button_haptic_summary">Vibrate when the long-press power action triggers</string>
     <string name="tweaks_power_button_haptic_title">Power Button Haptic Feedback</string>
-    <string name="tweaks_quick_share_summary">Unlocks Quick Share on CN Google Play services: overrides the phenotype flag sharing_supports_latchsky in GMS\'s database and opens the CN device-type gates. Prompts for GMS scope and restarts Google Play services to apply.</string>
+    <string name="tweaks_quick_share_summary">Unlocks Quick Share on CN Google Play services: overrides the phenotype flag sharing_supports_latchsky in GMS\'s database and opens the CN device-type gates. Disabled while Bypass GMS China ROM Restrictions is on, which already opens those gates. Prompts for GMS scope and restarts Google Play services to apply.</string>
     <string name="tweaks_quick_share_title">Unlock Nearby Share (Quick Share)</string>
     <string name="tweaks_raise_layout_summary">Keep the reserved navigation bar space so app content sits above the gesture area</string>
     <string name="tweaks_raise_layout_title">Raise Layout</string>
