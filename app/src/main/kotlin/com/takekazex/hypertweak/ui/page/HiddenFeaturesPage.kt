@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.ui.page
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -242,6 +243,24 @@ fun HiddenFeaturesPage(
                         onClick = {
                             val intent = Intent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS")
                             launchSafe(intent, emptyList())
+                        }
+                    )
+
+                    ArrowPreference(
+                        title = stringResource(R.string.hidden__privacy),
+                        summary = stringResource(R.string.hidden__privacy_summary),
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.PrivacyTip,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.hidden__privacy),
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_PRIVACY_SETTINGS)
+                            val fallback = Intent("android.settings.SETTINGS")
+                            launchSafe(intent, listOf(fallback))
                         }
                     )
 

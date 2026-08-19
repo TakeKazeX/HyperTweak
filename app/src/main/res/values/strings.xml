@@ -157,6 +157,8 @@
     <string name="hidden__notification_settings">Notification Settings</string>
     <string name="hidden__notification_settings_summary">View advanced notification settings and notification history</string>
     <string name="hidden__page_title">Hidden Features</string>
+    <string name="hidden__privacy">Privacy</string>
+    <string name="hidden__privacy_summary">Open the AOSP native privacy settings (permissions, camera, microphone, and more)</string>
     <string name="hidden__quick_shortcuts">Quick Shortcuts</string>
     <string name="hidden__run_shell_failed">Failed: %1$s</string>
     <string name="hidden__running_services">Running Services</string>

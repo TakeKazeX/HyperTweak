@@ -157,6 +157,8 @@
     <string name="hidden__notification_settings">通知设置</string>
     <string name="hidden__notification_settings_summary">查看高级通知设置和通知历史</string>
     <string name="hidden__page_title">隐藏功能</string>
+    <string name="hidden__privacy">隐私</string>
+    <string name="hidden__privacy_summary">打开 AOSP 原生隐私设置（权限、摄像头、麦克风等）</string>
     <string name="hidden__quick_shortcuts">快捷入口</string>
     <string name="hidden__run_shell_failed">失败：%1$s</string>
     <string name="hidden__running_services">正在运行的服务</string>
