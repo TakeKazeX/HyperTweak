@@ -334,6 +334,17 @@ object Preferences {
     /** Camera app (com.android.camera) watermark unlock; see `CameraWatermarkHooker`. */
     const val KEY_WM_CAMERA = "wm_camera"
 
+    /**
+     * Camera app (com.android.camera) flagship impersonation unlock; see
+     * `CameraImpersonationHooker`. Keys are read live (100 ms memo) inside the hooks; only the
+     * first enable of KEY_CAMERA_IMPERSONATE needs a camera app restart (to install the hooks).
+     * KEY_CAMERA_WM_KEEP_MODEL re-forces the on-picture watermark back to this device's own
+     * brand + model so impersonation can never change the watermark model.
+     */
+    const val KEY_CAMERA_IMPERSONATE = "camera_impersonate"
+    const val KEY_CAMERA_WM_KEEP_MODEL = "camera_wm_keep_model"
+    const val KEY_CAMERA_IMPERSONATE_THEME_LCC = "camera_impersonate_theme_lcc"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

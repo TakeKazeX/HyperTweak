@@ -149,6 +149,7 @@ fun MainPagerScreen(
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
     onNavigateToWatermark: () -> Unit,
+    onNavigateToCameraUnlock: () -> Unit,
     onClearAllSettings: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
@@ -395,6 +396,7 @@ fun MainPagerScreen(
                                 onNavigateToIconTuner = onNavigateToIconTuner,
                                 onNavigateToGlassTuner = onNavigateToGlassTuner,
                                 onNavigateToWatermark = onNavigateToWatermark,
+                                onNavigateToCameraUnlock = onNavigateToCameraUnlock,
                                 themeSummary = listOf(
                                     stringResource(R.string.main_theme_follow_system),
                                     stringResource(R.string.main_theme_light),

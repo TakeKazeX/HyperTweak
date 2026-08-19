@@ -15,6 +15,7 @@ sealed interface Route : NavKey {
     data object IconTuner : Route
     data object GlassTuner : Route
     data object Watermark : Route
+    data object CameraUnlock : Route
     data object ChargingDetail : Route
     data object Debug : Route
     data object DebugLogs : Route
@@ -39,6 +40,7 @@ val Route.saveKey: String
         Route.IconTuner -> "IconTuner"
         Route.GlassTuner -> "GlassTuner"
         Route.Watermark -> "Watermark"
+        Route.CameraUnlock -> "CameraUnlock"
         Route.ChargingDetail -> "ChargingDetail"
         Route.Debug -> "Debug"
         Route.DebugLogs -> "DebugLogs"
@@ -58,6 +60,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "IconTuner" -> Route.IconTuner
     "GlassTuner" -> Route.GlassTuner
     "Watermark" -> Route.Watermark
+    "CameraUnlock" -> Route.CameraUnlock
     "ChargingDetail" -> Route.ChargingDetail
     "Debug" -> Route.Debug
     "DebugLogs" -> Route.DebugLogs

@@ -76,6 +76,7 @@ fun SettingsScreenContent(
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
     onNavigateToWatermark: () -> Unit,
+    onNavigateToCameraUnlock: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -240,6 +241,11 @@ fun SettingsScreenContent(
                         title = stringResource(R.string.settings_watermark_unlock),
                         summary = stringResource(R.string.settings_watermark_unlock_summary),
                         onClick = onNavigateToWatermark
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_camera_unlock),
+                        summary = stringResource(R.string.settings_camera_unlock_summary),
+                        onClick = onNavigateToCameraUnlock
                     )
                     // The material style (材质风格) with its two modes only exists on OS4;
                     // OS3 SystemUI has neither the bionics resources nor the material_style key.

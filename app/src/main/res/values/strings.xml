@@ -438,6 +438,8 @@
     <string name="settings_show_entry_in_system_settings_summary">Inject an entry point for HyperTweak in the system Settings app</string>
     <string name="settings_watermark_unlock">Watermark Unlock</string>
     <string name="settings_watermark_unlock_summary">Unlock Leica / Disney / POCO / festival watermarks in the media editor</string>
+    <string name="settings_camera_unlock">Camera Unlock</string>
+    <string name="settings_camera_unlock_summary">Impersonate the flagship camera config while keeping the on-picture watermark model on this device</string>
     <string name="shortcuts_back">Back</string>
     <string name="shortcuts_hint">Long press to drag, toggle to enable (max 5)</string>
     <string name="shortcuts_reset">Reset</string>
@@ -559,4 +561,17 @@
     <string name="watermark_victoria_title">Victoria</string>
     <string name="watermark_xiaomi_summary">Xiaomi-brand watermarks and template groups</string>
     <string name="watermark_xiaomi_title">Xiaomi</string>
+
+    <string name="camera_unlock_back">Back</string>
+    <string name="camera_unlock_keep_model_summary">Keep the on-picture watermark brand and model on this device (re-forces Je/c#x()/#v()); impersonation can never change the watermark model. EXIF Model always stays on this device</string>
+    <string name="camera_unlock_keep_model_title">Keep watermark model</string>
+    <string name="camera_unlock_master">Flagship Impersonation</string>
+    <string name="camera_unlock_master_summary">Treat this device as a flagship (switch the capability config to com.mi.device.Nezha) so every camera mode and capability opens on any device. Needs a camera app restart after the first enable</string>
+    <string name="camera_unlock_master_title">Impersonate flagship camera config</string>
+    <string name="camera_unlock_note_exif">EXIF (Model/Make) and the watermark model always stay on this device own brand and model, independent of the impersonation</string>
+    <string name="camera_unlock_note_restart">Restart the camera app after enabling the master switch for the first time; toggling afterwards is live</string>
+    <string name="camera_unlock_notes">Notes</string>
+    <string name="camera_unlock_theme_lcc_summary">Also open features gated on the Leica LCC theme (e.g. Legendary portrait) without changing any real device theme property</string>
+    <string name="camera_unlock_theme_lcc_title">Fake Leica LCC theme</string>
+    <string name="camera_unlock_title">Camera Unlock</string>
 </resources>

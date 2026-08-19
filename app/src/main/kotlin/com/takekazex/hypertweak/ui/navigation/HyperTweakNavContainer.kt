@@ -41,6 +41,7 @@ import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.WatermarkPage
+import com.takekazex.hypertweak.ui.page.CameraUnlockPage
 import com.takekazex.hypertweak.ui.page.ChargingDetailPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
@@ -332,6 +333,9 @@ fun HyperTweakNavContainer(
                 onNavigateToWatermark = {
                     backStack.add(Route.Watermark)
                 },
+                onNavigateToCameraUnlock = {
+                    backStack.add(Route.CameraUnlock)
+                },
                 onClearAllSettings = onClearAllSettings,
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
@@ -425,6 +429,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.Watermark> {
             WatermarkPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.CameraUnlock> {
+            CameraUnlockPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

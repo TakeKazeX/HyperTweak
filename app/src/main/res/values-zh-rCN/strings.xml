@@ -438,6 +438,8 @@
     <string name="settings_show_entry_in_system_settings_summary">在系统设置应用中为 HyperTweak 注入入口</string>
     <string name="settings_watermark_unlock">水印解锁</string>
     <string name="settings_watermark_unlock_summary">在相册编辑中解锁徕卡 / Disney / POCO / 节日水印</string>
+    <string name="settings_camera_unlock">相机解锁</string>
+    <string name="settings_camera_unlock_summary">伪装旗舰相机配置，同时保持照片水印机型为本机</string>
     <string name="shortcuts_back">返回</string>
     <string name="shortcuts_hint">长按拖动排序，开关以启用（最多 5 个）</string>
     <string name="shortcuts_reset">重置</string>
@@ -559,4 +561,17 @@
     <string name="watermark_victoria_title">Victoria</string>
     <string name="watermark_xiaomi_summary">Xiaomi 品牌水印及模板组</string>
     <string name="watermark_xiaomi_title">Xiaomi</string>
+
+    <string name="camera_unlock_back">返回</string>
+    <string name="camera_unlock_keep_model_summary">保持照片水印的品牌与机型为本机（重新强制 Je/c#x()/#v() 为本机值）；机型伪装永远不会改变水印机型。EXIF Model 也始终为本机</string>
+    <string name="camera_unlock_keep_model_title">保持水印机型</string>
+    <string name="camera_unlock_master">机型伪装</string>
+    <string name="camera_unlock_master_summary">把本设备当作旗舰机型（将能力配置切换为 com.mi.device.Nezha），在任何设备上都能开启全部相机模式与能力。首次启用后需重启相机应用</string>
+    <string name="camera_unlock_master_title">伪装旗舰相机配置</string>
+    <string name="camera_unlock_note_exif">EXIF（Model/Make）与水印机型始终为本机自身的品牌与型号，不受机型伪装影响</string>
+    <string name="camera_unlock_note_restart">首次启用总开关后请重启相机应用；此后切换开关即时生效</string>
+    <string name="camera_unlock_notes">说明</string>
+    <string name="camera_unlock_theme_lcc_summary">同时开启依赖徕卡 LCC 主题的功能（如传奇人像），不修改任何真实设备主题属性</string>
+    <string name="camera_unlock_theme_lcc_title">伪装 LCC 主题</string>
+    <string name="camera_unlock_title">相机解锁</string>
 </resources>

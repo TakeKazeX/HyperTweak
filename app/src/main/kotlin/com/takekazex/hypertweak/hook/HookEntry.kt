@@ -57,6 +57,7 @@ import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -576,6 +577,9 @@ class HookEntry : XposedModule() {
             }
             "com.android.camera" -> {
                 attachHooker(CameraWatermarkHooker, classLoader, ctx, replacementHandles)
+                // Must attach after CameraWatermarkHooker: both touch Je.c#x(), and the
+                // impersonation override needs to win (later callback) when both are on.
+                attachHooker(CameraImpersonationHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
