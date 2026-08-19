@@ -50,6 +50,8 @@ fun TweaksScreenContent(
     onRemoveGmsChange: (Boolean) -> Unit,
     quickShareEnabled: Boolean,
     onQuickShareEnabledChange: (Boolean) -> Unit,
+    fullScreenTranslate: Boolean,
+    onFullScreenTranslateChange: (Boolean) -> Unit,
     hideFingerprint: Boolean,
     onHideFingerprintChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
@@ -355,6 +357,12 @@ fun TweaksScreenContent(
                         title = stringResource(R.string.tweaks_quick_share_title),
                         summary = stringResource(R.string.tweaks_quick_share_summary),
                         enabled = !removeGms
+                    )
+                    SwitchPreference(
+                        checked = fullScreenTranslate,
+                        onCheckedChange = onFullScreenTranslateChange,
+                        title = stringResource(R.string.tweaks_full_screen_translate_title),
+                        summary = stringResource(R.string.tweaks_full_screen_translate_summary)
                     )
                     SwitchPreference(
                         checked = unlockPasskey,

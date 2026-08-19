@@ -54,6 +54,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -563,6 +564,12 @@ class HookEntry : XposedModule() {
                 // Only the phenotype DB write runs in GMS (see QuickSharePhenotypeHooker);
                 // GMS is added to the scope dynamically when the Quick Share switch is on.
                 attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.google.android.googlequicksearchbox" -> {
+                // Only acts while the full-screen live-translate switch is on (the package is a
+                // declared required scope, see `scope.list` + `ScopeManager`); the hooker itself
+                // returns early when the preference is off. See GoogleAppLiveTranslateHooker.
+                attachHooker(GoogleAppLiveTranslateHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.mediaeditor" -> {
                 attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)

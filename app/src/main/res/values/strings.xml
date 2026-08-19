@@ -507,6 +507,11 @@
     <string name="tweaks_power_button_haptic_title">Power Button Haptic Feedback</string>
     <string name="tweaks_quick_share_summary">Unlocks Quick Share on CN Google Play services: overrides the phenotype flag sharing_supports_latchsky in GMS\'s database and opens the CN device-type gates. Disabled while Bypass GMS China ROM Restrictions is on, which already opens those gates. Prompts for GMS scope and restarts Google Play services to apply.</string>
     <string name="tweaks_quick_share_title">Unlock Nearby Share (Quick Share)</string>
+    <string name="tweaks_full_screen_translate_title">Full-screen Translate in Circle to Search</string>
+    <string name="tweaks_full_screen_translate_summary">Shows the live screen-translate button inside the Circle to Search (即圈即搜) overlay. Opens the Google-side gates that keep it hidden; the first tap still asks for the system screen-recording permission. The Google app is a required scope; enabling flips the preference and restarts it.</string>
+    <string name="full_screen_translate_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
+    <string name="full_screen_translate_scope_failed">Could not update the scope: %1$s</string>
+    <string name="full_screen_translate_scope_unavailable">The Xposed service is unavailable</string>
     <string name="tweaks_raise_layout_summary">Keep the reserved navigation bar space so app content sits above the gesture area</string>
     <string name="tweaks_raise_layout_title">Raise Layout</string>
     <string name="tweaks_slide_back_animation_summary">Slide the previous activity in behind the gesture</string>

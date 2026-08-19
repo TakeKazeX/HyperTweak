@@ -10,5 +10,6 @@ com.xiaomi.scanner
 com.milink.service
 com.xiaomi.bluetooth
 com.google.android.gms
+com.google.android.googlequicksearchbox
 com.miui.mediaeditor
 com.android.camera

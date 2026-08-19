@@ -507,6 +507,11 @@
     <string name="tweaks_power_button_haptic_title">电源键震动反馈</string>
     <string name="tweaks_quick_share_summary">在国行 Google Play 服务上解锁 Quick Share：覆盖 GMS 数据库中的 phenotype 标志 sharing_supports_latchsky，并开放国行设备类型限制。开启「绕过 GMS 国行 ROM 限制」后这些限制已随之打开，本开关将变灰不可用。将请求 GMS 作用域并重启 Google Play 服务以生效。</string>
     <string name="tweaks_quick_share_title">解锁附近分享（Quick Share）</string>
+    <string name="tweaks_full_screen_translate_title">即圈即搜内全屏翻译</string>
+    <string name="tweaks_full_screen_translate_summary">在即圈即搜（Circle to Search）浮层内显示全屏翻译按钮。绕过隐藏按钮的 Google 侧开关；首次点击仍会请求系统「屏幕录制」授权。Google 应用为必备作用域；开启仅写入偏好并重启应用生效。</string>
+    <string name="full_screen_translate_scope_not_granted">未能授予 %1$s 作用域；功能保持关闭</string>
+    <string name="full_screen_translate_scope_failed">作用域更新失败：%1$s</string>
+    <string name="full_screen_translate_scope_unavailable">Xposed 服务不可用</string>
     <string name="tweaks_raise_layout_summary">保留导航栏预留空间，让应用内容位于手势区域上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>
     <string name="tweaks_slide_back_animation_summary">在手势后方滑入上一个界面</string>

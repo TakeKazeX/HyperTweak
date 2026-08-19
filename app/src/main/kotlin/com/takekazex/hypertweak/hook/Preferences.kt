@@ -24,6 +24,18 @@ object Preferences {
      * GMS must be in the Xposed scope (requested when the switch is turned on).
      */
     const val KEY_QUICK_SHARE_ENABLED = "quick_share_enabled"
+
+    /**
+     * Shows the full-screen live-translate (屏幕实时翻译) button inside Circle to Search
+     * (即圈即搜) on the Google app (`com.google.android.googlequicksearchbox`).
+     * `GoogleAppLiveTranslateHooker` opens the three gates that keep the button hidden (the
+     * `com.google.android.apps.search.lens.user/45785436` master flag, the
+     * `CONTEXTUAL_SEARCH_LIVE_TRANSLATE` system feature, and the EXTRA_MEDIA_PROJECTION display
+     * predicate). The Google app is a declared required Xposed scope (see `scope.list`); the
+     * switch flips the preference and restarts the app, and disabled (default) installs nothing
+     * and leaves the app untouched.
+     */
+    const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
 
