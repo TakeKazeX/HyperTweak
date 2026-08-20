@@ -114,8 +114,10 @@ object CameraWatermarkHooker : StaticHooker() {
                 if (!Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) return@after
                 val logo = param.result as? String
                 if (logo.isNullOrEmpty()) {
-                    param.result = "REDMI"
-                    DebugLog.d(TAG, "logo was empty; using REDMI")
+                    // Custom brand honoured here too (shared resolution with the impersonation
+                    // keep-model hooks); falls back to the built-in device-family brand.
+                    param.result = CameraWatermarkBrand.brand()
+                    DebugLog.d(TAG, "logo was empty; using ${CameraWatermarkBrand.brand()}")
                 }
             }
         }

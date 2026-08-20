@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.page
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +32,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -37,9 +40,13 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -50,9 +57,11 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * When the master switch is on, `CameraImpersonationHooker` swaps the per-device capability
  * config for a flagship (`com.mi.device.Nezha`) instance so every capability gate opens on any
  * device. The "keep model" switch (on by default) re-forces the on-picture watermark back to
- * this device's own brand + model, so impersonation can never change the watermark model.
- * The initial enable needs a camera app restart (the hooks are installed on attach); toggling
- * the switches afterwards is live.
+ * this device's own brand + model (or a custom brand/model typed below); the "keep focal
+ * lengths" switch (on by default) keeps the zoom/focal line-up (焦段) on this device's own
+ * config while every capability boolean still comes from the flagship. The initial enable needs
+ * a camera app restart (the hooks are installed on attach); toggling the switches afterwards is
+ * live.
  */
 @Composable
 fun CameraUnlockPage(onBack: () -> Unit) {
@@ -69,6 +78,24 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var themeLcc by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
     }
+    var keepFocal by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true))
+    }
+    var customBrand by remember {
+        mutableStateOf(Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND))
+    }
+    var customModel by remember {
+        mutableStateOf(Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL))
+    }
+    var editingBrand by remember { mutableStateOf(false) }
+    var editingModel by remember { mutableStateOf(false) }
+
+    // Hoisted string resources (LocalContextGetResourceValueCall): resolved in composition,
+    // referenced from the coroutine below.
+    val scopeAdded = stringResource(R.string.watermark_scope_added_camera)
+    val scopeDeclined = stringResource(R.string.watermark_scope_declined_camera)
+    val scopeFailedFormat = stringResource(R.string.watermark_scope_failed_camera)
+    val scopeUnavailable = stringResource(R.string.watermark_scope_unavailable_camera)
 
     fun set(key: String, value: Boolean) {
         Preferences.putBoolean(key, value)
@@ -107,23 +134,23 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                                     when (val result = ScopeManager.request(setOf("com.android.camera"))) {
                                         is ScopeManager.Result.Applied -> Toast.makeText(
                                             context,
-                                            context.getString(R.string.watermark_scope_added_camera),
+                                            scopeAdded,
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.NoChange -> Unit
                                         is ScopeManager.Result.Rejected -> Toast.makeText(
                                             context,
-                                            context.getString(R.string.watermark_scope_declined_camera),
+                                            scopeDeclined,
                                             Toast.LENGTH_LONG
                                         ).show()
                                         is ScopeManager.Result.Failed -> Toast.makeText(
                                             context,
-                                            context.getString(R.string.watermark_scope_failed_camera, result.message),
+                                            String.format(scopeFailedFormat, result.message),
                                             Toast.LENGTH_LONG
                                         ).show()
                                         ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
                                             context,
-                                            context.getString(R.string.watermark_scope_unavailable_camera),
+                                            scopeUnavailable,
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
@@ -143,6 +170,15 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.camera_unlock_keep_model_summary)
                     )
                     SwitchPreference(
+                        checked = keepFocal,
+                        onCheckedChange = { enabled ->
+                            keepFocal = enabled
+                            set(Preferences.KEY_CAMERA_KEEP_FOCAL, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_keep_focal_title),
+                        summary = stringResource(R.string.camera_unlock_keep_focal_summary)
+                    )
+                    SwitchPreference(
                         checked = themeLcc,
                         onCheckedChange = { enabled ->
                             themeLcc = enabled
@@ -150,6 +186,24 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_theme_lcc_title),
                         summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.camera_unlock_custom_brand_title),
+                        summary = if (customBrand.isEmpty()) {
+                            stringResource(R.string.camera_unlock_custom_unset)
+                        } else {
+                            customBrand
+                        },
+                        onClick = { editingBrand = true }
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.camera_unlock_custom_model_title),
+                        summary = if (customModel.isEmpty()) {
+                            stringResource(R.string.camera_unlock_custom_unset)
+                        } else {
+                            customModel
+                        },
+                        onClick = { editingModel = true }
                     )
                 }
             }
@@ -173,4 +227,67 @@ fun CameraUnlockPage(onBack: () -> Unit) {
             Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
         }
     }
+
+    CameraWatermarkTextDialog(
+        show = editingBrand,
+        title = stringResource(R.string.camera_unlock_custom_brand_title),
+        initial = customBrand,
+        onDismissRequest = { editingBrand = false },
+        onConfirm = { value ->
+            customBrand = value
+            Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
+            editingBrand = false
+        }
+    )
+    CameraWatermarkTextDialog(
+        show = editingModel,
+        title = stringResource(R.string.camera_unlock_custom_model_title),
+        initial = customModel,
+        onDismissRequest = { editingModel = false },
+        onConfirm = { value ->
+            customModel = value
+            Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
+            editingModel = false
+        }
+    )
+}
+
+/** Small text-input dialog for the custom watermark brand / model values. */
+@Composable
+private fun CameraWatermarkTextDialog(
+    show: Boolean,
+    title: String,
+    initial: String,
+    onDismissRequest: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    OverlayDialog(
+        show = show,
+        title = title,
+        summary = stringResource(R.string.camera_unlock_custom_dialog_summary),
+        onDismissRequest = onDismissRequest,
+        content = {
+            var text by remember(show) { mutableStateOf(initial) }
+            TextField(
+                modifier = Modifier.padding(bottom = 16.dp),
+                value = text,
+                maxLines = 1,
+                onValueChange = { text = it }
+            )
+            Row {
+                TextButton(
+                    text = stringResource(R.string.scale_cancel),
+                    onClick = onDismissRequest,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = stringResource(R.string.camera_unlock_custom_ok),
+                    onClick = { onConfirm(text.trim()) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            }
+        }
+    )
 }

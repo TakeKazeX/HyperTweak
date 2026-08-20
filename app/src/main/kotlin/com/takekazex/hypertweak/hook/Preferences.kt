@@ -345,6 +345,21 @@ object Preferences {
     const val KEY_CAMERA_WM_KEEP_MODEL = "camera_wm_keep_model"
     const val KEY_CAMERA_IMPERSONATE_THEME_LCC = "camera_impersonate_theme_lcc"
 
+    /**
+     * While impersonating a flagship, keep this device's own focal-length line-up (焦段) by
+     * delegating the config's focal getters (B1/q0/e1/A1/C1/v1/x1/y0/h1) to the real device
+     * config instance. Default on (true).
+     */
+    const val KEY_CAMERA_KEEP_FOCAL = "camera_keep_focal"
+
+    /**
+     * Optional custom watermark brand / model overrides for `CameraImpersonationHooker` and
+     * `CameraWatermarkHooker.hookDeviceLogo`. Empty string = the feature is off (falls back to
+     * the device's own brand / marketname).
+     */
+    const val KEY_CAMERA_WM_CUSTOM_BRAND = "camera_wm_custom_brand"
+    const val KEY_CAMERA_WM_CUSTOM_MODEL = "camera_wm_custom_model"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

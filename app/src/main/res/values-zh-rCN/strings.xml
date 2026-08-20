@@ -573,5 +573,12 @@
     <string name="camera_unlock_notes">说明</string>
     <string name="camera_unlock_theme_lcc_summary">同时开启依赖徕卡 LCC 主题的功能（如传奇人像），不修改任何真实设备主题属性</string>
     <string name="camera_unlock_theme_lcc_title">伪装 LCC 主题</string>
+    <string name="camera_unlock_keep_focal_summary">在伪装旗舰机型期间保留本机自身的相机焦段（变焦档位 / mm 焦距标注）。其余旗舰能力开关仍然生效。首次修改后需重启相机应用</string>
+    <string name="camera_unlock_keep_focal_title">保留本机焦段</string>
+    <string name="camera_unlock_custom_brand_title">自定义水印厂商</string>
+    <string name="camera_unlock_custom_model_title">自定义水印机型</string>
+    <string name="camera_unlock_custom_unset">未设置——使用本机自身的值</string>
+    <string name="camera_unlock_custom_dialog_summary">留空则使用本机自身的值</string>
+    <string name="camera_unlock_custom_ok">确定</string>
     <string name="camera_unlock_title">相机解锁</string>
 </resources>

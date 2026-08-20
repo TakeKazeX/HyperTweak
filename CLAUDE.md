@@ -1541,6 +1541,64 @@ fix the issue because it forces `switchImplementationIfNeededLocked(true)`.
 `/Users/ink/developer/reverse/cache/systemui-beaebb7f1314`; it is not the
 current OS 3.0.308.0 SystemUI baseline.
 
+## Camera Unlock (相机解锁)
+
+Settings → Tweaks → Camera Unlock (`ui/page/CameraUnlockPage.kt`, `Route.CameraUnlock`)
+is the flagship impersonation for `com.android.camera` (MiuiCamera). Reverse-engineering
+notes live in the camera cache:
+`/Users/ink/developer/reverse/cache/camera-5cd70925b1646cdf/CAMERA_UNLOCK_EVALUATION.md`
+and `CAMERA_FEATURE_GATES_17ULTRA.md`. On OS4.0.0.15.XPMCNXM the whole capability
+surface funnels through one object `Je.c.b.f8427a.f8420e` (the per-device config,
+`com.mi.device.<Device>` created by the single factory `Je/e.q()`, resolved through the
+host's R8 name-rewrite wrapper `Uf.c.a`).
+
+`CameraImpersonationHooker` hooks `Je/e.q()` and returns a flagship instance
+(`com.mi.device.Nezha` built via the host's own `Uf.c.a` so `instanceof <flagship>`
+branches work), unlocking every capability/mode gate on any device. The hooks re-read
+`Preferences` live (100 ms memo), so toggles apply without a camera restart once the
+master switch is on; the first enable needs a camera restart (hooks install on attach).
+
+- `KEY_CAMERA_IMPERSONATE` (master, default off).
+- `KEY_CAMERA_WM_KEEP_MODEL` (default on): re-forces the on-picture watermark back to
+  this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]` brand) and
+  `Je/c#v()` (returns the platform's 3-slot `[brand, model, third]` array so `y()`/`w()`
+  keep working). The model channel is `y()=v()[1]`, brand `x()=v()[0]`, third `w()=v()[2]`
+  (`Je/c.java`). EXIF `Model` is `ro.product.marketname` (`Je.d.f8434h`), never the
+  config, so EXIF is unaffected. `CameraWatermarkBrand` (shared with
+  `CameraWatermarkHooker.hookDeviceLogo`) resolves the values: custom brand/model wins,
+  else normalized `Build.BRAND` and `ro.product.marketname` (`Build.MODEL` fallback).
+- `KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL` (empty = off): user-typed
+  custom watermark brand/model, applied in the `x()/v()` keep hooks and the device-logo
+  repair.
+- `KEY_CAMERA_IMPERSONATE_THEME_LCC` (default off): forces `Je/c#V()` true so LCC-gated
+  flagship branches (e.g. Legendary portrait) open without touching any real theme prop.
+- `KEY_CAMERA_KEEP_FOCAL` (default on): while impersonating, delegate the config's focal
+  getters (`B1/q0/e1/A1/C1/v1/x1/y0/h1`, the zoom line-up / mm labels; all confirmed
+  declared on `defpackage/C1178` = Nezha) to the REAL device config instance so 焦段 stays
+  the device's own while every capability boolean still comes from the flagship. The
+  original instance is rebuilt by replaying `Je/e.q()`'s full fallback chain with the real
+  device base name (`Je/a.f8410c` → `com.mi.device.<Cap>` → `com.mi.device.others.<Mfr>`
+  → `new Ne.a()`, the low-spec weak default a non-flagship Redmi actually uses) — the
+  cache `Je.e.b` is deliberately not read (it holds the impersonated flagship). Original
+  getter `Method`s are cached once (not per call).
+
+`CameraWatermarkHooker` (separate) unlocks the cloud watermark gallery via the
+`camera.cloud.watermark.debug` property read (`Gg.C1686u$b.invoke`), with DexKit
+fallback by the property string. Its `hookDeviceLogo` (`Je/c#x()`) fills an empty
+classic-watermark logo with `CameraWatermarkBrand.brand()` when `KEY_WM_CAMERA` is on.
+
+The LCC impersonation normally hides the camera's built-in 相机配色 (tint color) settings
+entry: `CameraCommonPreferenceFragment.addCustomizationPreferences` gates it on
+`p496o9.a.f53967a.d().i()`, and `p496o9/a` selects the provider holder from
+`Je/c.V()` — the LCC branch `Ox.g(5).i()` returns false, the non-LCC `Hz.h.i()` true.
+`hookLccCustomizationProvider` therefore forces `Ox.g#i()` true whenever the master
+switch is on, keeping the tint-color entry visible. `f53967a.d().i()` has no other
+consumers in the APK, so this is side-effect free.
+
+`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. On-device
+visual confirmation (watermark model/custom brand+model, 焦段 line-up, 相机配色 entry) is
+the user's.
+
 ## Build and Test
 
 ```bash

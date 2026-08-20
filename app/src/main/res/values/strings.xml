@@ -573,5 +573,12 @@
     <string name="camera_unlock_notes">Notes</string>
     <string name="camera_unlock_theme_lcc_summary">Also open features gated on the Leica LCC theme (e.g. Legendary portrait) without changing any real device theme property</string>
     <string name="camera_unlock_theme_lcc_title">Fake Leica LCC theme</string>
+    <string name="camera_unlock_keep_focal_summary">Keep this device\'s own zoom focal line-up (焦段 / mm labels) while impersonating a flagship. All other flagship capabilities stay on. Needs a camera app restart after the first change</string>
+    <string name="camera_unlock_keep_focal_title">Keep device focal lengths</string>
+    <string name="camera_unlock_custom_brand_title">Custom watermark brand</string>
+    <string name="camera_unlock_custom_model_title">Custom watermark model</string>
+    <string name="camera_unlock_custom_unset">Not set — using the device\'s own value</string>
+    <string name="camera_unlock_custom_dialog_summary">Leave empty to use the device\'s own value</string>
+    <string name="camera_unlock_custom_ok">OK</string>
     <string name="camera_unlock_title">Camera Unlock</string>
 </resources>
