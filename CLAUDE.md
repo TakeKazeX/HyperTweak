@@ -1559,15 +1559,17 @@ branches work), unlocking every capability/mode gate on any device. The hooks re
 master switch is on; the first enable needs a camera restart (hooks install on attach).
 
 - `KEY_CAMERA_IMPERSONATE` (master, default off).
-- Watermark keep-model is **unconditional** while impersonating (there is no
-  `KEY_CAMERA_WM_KEEP_MODEL` switch any more): the on-picture watermark is always
-  re-forced back to this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]`
-  brand) and `Je/c#v()` (returns the platform's 3-slot `[brand, model, third]` array so
-  `y()`/`w()` keep working). The model channel is `y()=v()[1]`, brand `x()=v()[0]`, third
-  `w()=v()[2]` (`Je/c.java`). EXIF `Model` is `ro.product.marketname` (`Je.d.f8434h`),
-  never the config, so EXIF is unaffected. `CameraWatermarkBrand` (shared with
-  `CameraWatermarkHooker.hookDeviceLogo`) resolves the values: custom brand/model wins,
-  else normalized `Build.BRAND` and `ro.product.marketname` (`Build.MODEL` fallback).
+- Watermark keep-model is **unconditional** (there is no `KEY_CAMERA_WM_KEEP_MODEL` switch any
+  more, and it is not even gated on the master): the on-picture watermark is always re-forced
+  back to this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]` brand) and
+  `Je/c#v()` (returns the platform's 3-slot `[brand, model, third]` array so `y()`/`w()` keep
+  working). The model channel is `y()=v()[1]`, brand `x()=v()[0]`, third `w()=v()[2]`
+  (`Je/c.java`). EXIF `Model` is `ro.product.marketname` (`Je.d.f8434h`), never the config, so
+  EXIF is unaffected. `CameraWatermarkBrand` (shared with `CameraWatermarkHooker.hookDeviceLogo`)
+  resolves the values: custom brand/model wins, else normalized `Build.BRAND` and
+  `ro.product.marketname` (`Build.MODEL` fallback). `CameraWatermarkBrand` caches the resolved
+  values and only recomputes when the custom master/values or `Build.BRAND` change, so the hot
+  `x()/v()` hooks never pay the reflective property read per call.
 - `KEY_CAMERA_WM_CUSTOM` (default off): custom-watermark master switch. When on,
   `KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL` (blank = device default)
   override the on-picture watermark brand/model in the `x()/v()` keep hooks and the
@@ -1584,11 +1586,27 @@ master switch is on; the first enable needs a camera restart (hooks install on a
   cache `Je.e.b` is deliberately not read (it holds the impersonated flagship). Original
   getter `Method`s are cached once (not per call).
 
-Regression history — do not reintroduce: the `v()` keep-model after-hook MUST return a real
-`String[]`. `arrayOf(brand, model, third)` with an `Any?` third slot infers `Array<Any?>`
-(`Object[]`), and the caller's `String[] v()` check-cast throws `ClassCastException`, which
-dead-locked the camera on open with keep-model on. Always use `arrayOf<String?>(...)` and keep
-the third slot `String?`-typed.
+**Watermark config cache (`S8.d`)**: the camera caches the classic/Leica watermark brand+model
+ONCE in the `S8.d` singleton (`S8.d.f15058a.f68841a`, a `p288i5.d` built from `Je/c#x()/#y()`
+at first construction, jadx `S8/d.java:36`); renderers (`p890zi/b.d()` etc.) read that cache
+(`f43446a`=brand, `b`=model). Two failure modes mattered on the device: (a) if the singleton is
+constructed before `Preferences` is ready in the camera process the old master-gated keep hooks
+no-op and Nezha's own strings get baked — the "17 Ultra" watermark shown right after capture
+that only reverts after a later live re-read; (b) a custom-watermark change made later never
+reaches the process-lifetime cache. Fixes: keep hooks are now unconditional, and
+`hookWatermarkConfigCache` hooks `S8.d#a()` (the singleton accessor) to re-assert `f68841a`
+with the current brand()/model() on every access (gated on the master), so the watermark fires
+this device's values or the custom override at every render.
+
+Regression history — do not reintroduce:
+- The `v()` keep-model after-hook MUST return a real `String[]`. `arrayOf(brand, model, third)`
+  with an `Any?` third slot infers `Array<Any?>` (`Object[]`), and the caller's `String[] v()`
+  check-cast throws `ClassCastException`, which dead-locked the camera on open with keep-model
+  on. Always use `arrayOf<String?>(...)` and keep the third slot `String?`-typed.
+- Do not gate the watermark keep hooks on the master preference read: before `Preferences` is
+  initialized in the camera process `getBoolean` returns its default (`false`), the hooks no-op,
+  and the `S8.d` watermark-config singleton caches the impersonated flagship's strings for the
+  process lifetime (the "17 Ultra" watermark flash). Keep is unconditional.
 
 `CameraWatermarkHooker` (separate) unlocks the cloud watermark gallery via the
 `camera.cloud.watermark.debug` property read (`Gg.C1686u$b.invoke`), with DexKit

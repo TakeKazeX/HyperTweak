@@ -11,9 +11,18 @@ import com.takekazex.hypertweak.util.DebugLog
  *
  * The brand is the classic-watermark logo string (XIAOMI / REDMI / POCO); the model is the
  * on-picture model text which by default mirrors the EXIF `Model` tag
- * (`ro.product.marketname`). A user-supplied custom brand/model wins over both.
+ * (`ro.product.marketname`). A user-supplied custom brand/model wins over both, gated on the
+ * custom-watermark master switch `KEY_CAMERA_WM_CUSTOM`.
+ *
+ * The resolved values are cached and only recomputed when the mutable inputs (custom master /
+ * custom brand / custom model / `Build.BRAND`) change, so the hot watermark keep hooks never pay
+ * the reflective `ro.product.marketname` read per call.
  */
 object CameraWatermarkBrand {
+
+    @Volatile private var cachedSig: String? = null
+    @Volatile private var cachedBrand: String = ""
+    @Volatile private var cachedModel: String = ""
 
     /**
      * Custom brand override; only honoured when the custom-watermark master switch
@@ -40,12 +49,8 @@ object CameraWatermarkBrand {
      * `Build.BRAND` is normalized the same way.
      */
     fun brand(): String {
-        customBrand().takeIf { it.isNotEmpty() }?.let { return it.uppercase() }
-        val brand = Build.BRAND
-        return when (brand?.lowercase()) {
-            "xiaomi", "redmi", "poco" -> brand.uppercase()
-            else -> brand?.uppercase() ?: "XIAOMI"
-        }
+        refreshIfChanged()
+        return cachedBrand
     }
 
     /**
@@ -55,6 +60,32 @@ object CameraWatermarkBrand {
      * never throws.
      */
     fun model(): String {
+        refreshIfChanged()
+        return cachedModel
+    }
+
+    /** Signature of the mutable inputs; when it changes the resolved brand/model are recomputed. */
+    private fun signatureOfInputs(): String =
+        "${customBrand()}|${customModel()}|${Build.BRAND}"
+
+    private fun refreshIfChanged() {
+        val sig = signatureOfInputs()
+        if (sig == cachedSig) return
+        cachedBrand = resolveBrand()
+        cachedModel = resolveModel()
+        cachedSig = sig
+    }
+
+    private fun resolveBrand(): String {
+        customBrand().takeIf { it.isNotEmpty() }?.let { return it.uppercase() }
+        val brand = Build.BRAND
+        return when (brand?.lowercase()) {
+            "xiaomi", "redmi", "poco" -> brand.uppercase()
+            else -> brand?.uppercase() ?: "XIAOMI"
+        }
+    }
+
+    private fun resolveModel(): String {
         customModel().takeIf { it.isNotEmpty() }?.let { return it }
         return readMarketName() ?: Build.MODEL
     }

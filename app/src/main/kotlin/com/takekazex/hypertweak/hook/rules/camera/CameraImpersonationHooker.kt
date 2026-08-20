@@ -69,6 +69,7 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun installHooks() {
         hookConfigFactory()
         hookWatermarkKeep()
+        hookWatermarkConfigCache()
         hookLccTheme()
         hookLccCustomizationProvider()
         hookKeepFocal()
@@ -244,7 +245,72 @@ object CameraImpersonationHooker : StaticHooker() {
         }
     }
 
-    // ─── 3. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
+    // ─── 3. Keep the watermark config cache (S8.d) fresh with this device's brand/model ─
+
+    /**
+     * The camera caches the classic/Leica-watermark brand + model once in the `S8.d` singleton
+     * (`S8.d.f15058a.f68841a`, a `p288i5.d` built from `Je/c#x()/#y()` at first construction,
+     * jadx `S8/d.java:36`). Because that cache is process-lifetime, two problems surfaced:
+     * (a) if the singleton is built before `Preferences` is ready in the camera process the
+     * keep hooks no-op and Nezha's own strings get baked ("17 Ultra" watermark right after
+     * capture, reverting only after a later live re-read), and (b) a custom-watermark change
+     * made later never reaches the cached config at all. Hooking the singleton accessor
+     * `S8.d.a()` re-asserts `f68841a` with the current brand()/model() on every access, so the
+     * watermark fires this device's values (or the custom override) at every render.
+     */
+    private fun hookWatermarkConfigCache() {
+        val clazz = "S8.d".toClassOrNull() ?: run {
+            DebugLog.w(TAG, "S8.d watermark manager not resolved; config cache refresh skipped")
+            return
+        }
+        val aMethod = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "a" && it.parameterTypes.isEmpty() &&
+                    java.lang.reflect.Modifier.isStatic(it.modifiers) && it.returnType == clazz
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "S8.d#a() not found; config cache refresh skipped")
+            return
+        }
+        deoptimize(aMethod)
+        aMethod.hook("cam_wm_config_refresh") {
+            after { param ->
+                if (!enabled()) return@after
+                refreshWatermarkConfigCache(param.result ?: return@after)
+            }
+        }
+        DebugLog.d(TAG, "watermark config cache refresh hooked on ${clazz.name}#a()")
+    }
+
+    /** Re-assert `f68841a` (brand+model) into the `S8.d` singleton unless it already matches. */
+    private fun refreshWatermarkConfigCache(singleton: Any) {
+        runCatching {
+            val brand = CameraWatermarkBrand.brand()
+            val model = CameraWatermarkBrand.model()
+            val holderField = singleton.javaClass.getDeclaredField("f15058a").apply { isAccessible = true }
+            val holder = holderField.get(singleton) ?: return
+            val cacheField = holder.javaClass.getDeclaredField("f68841a").apply { isAccessible = true }
+            val current = cacheField.get(holder)
+            // Best-effort equality guard; if the current value can't be read, just rebuild.
+            val same = runCatching {
+                val curBrand = current?.javaClass
+                    ?.getDeclaredField("f43446a")?.apply { isAccessible = true }?.get(current)
+                val curModel = current?.javaClass
+                    ?.getDeclaredField("b")?.apply { isAccessible = true }?.get(current)
+                curBrand == brand && curModel == model
+            }.getOrDefault(false)
+            if (same) return
+            val dClass = "p288i5.d".toClassOrNull() ?: return
+            val ctor = dClass.getDeclaredConstructor(Any::class.java, Any::class.java).apply {
+                isAccessible = true
+            }
+            cacheField.set(holder, ctor.newInstance(brand, model))
+        }.onFailure { t ->
+            DebugLog.w(TAG, "watermark config cache refresh failed (defensive)", t)
+        }
+    }
+
+    // ─── 4. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
 
     private fun hookLccTheme() {
         val clazz = "Je.c".toClassOrNull() ?: return
@@ -267,7 +333,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "LCC theme impersonation hooked on ${clazz.name}#V()")
     }
 
-    // ─── 4. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
+    // ─── 5. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
 
     /**
      * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
@@ -299,7 +365,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#i()")
     }
 
-    // ─── 5. Keep this device's own focal lengths (焦段) while impersonating ─────────
+    // ─── 6. Keep this device's own focal lengths (焦段) while impersonating ─────────
 
     /**
      * After `Je/e.q()` returns a flagship, the bottom zoom line-up / mm labels come from Nezha.
@@ -429,7 +495,16 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun enabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE, false)
 
-    private fun keepModel(): Boolean = enabled()
+    /**
+     * Watermark keep is UNCONDITIONAL: the on-picture watermark brand + model always stays on
+     * this device's own values (or the user custom override), independent of the impersonation
+     * master. Gating it on the master read made the very first watermark reads (before
+     * `Preferences` is initialized in the camera process) return the impersonated flagship's
+     * strings, which the `S8.d` watermark-config singleton cached — the "17 Ultra" watermark
+     * shown right after capture. Unconditional also never shows a wrong model on devices that
+     * cannot resolve a real market name.
+     */
+    private fun keepModel(): Boolean = true
 
     private fun keepFocal(): Boolean =
         enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true)
