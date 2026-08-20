@@ -568,6 +568,14 @@
     <string name="camera_unlock_master">机型伪装</string>
     <string name="camera_unlock_master_summary">把本设备当作旗舰机型（将能力配置切换为 com.mi.device.Nezha），在任何设备上都能开启全部相机模式与能力。首次启用后需重启相机应用</string>
     <string name="camera_unlock_master_title">伪装旗舰相机配置</string>
+    <string name="camera_unlock_target_title">REDMI K100 Pro Max 配置（推荐）</string>
+    <string name="camera_unlock_target_summary">冒充 REDMI K100 Pro Max 配置：传感器轴与本机一致（色彩正确——不再变紫），实况运镜用红米运镜表，红米系水印。关闭=旧的 17 Ultra 配置（在非旗舰上会卡死实况运镜/街拍）。修改后需重启相机</string>
+    <string name="camera_unlock_street_title">启用街拍</string>
+    <string name="camera_unlock_street_summary">把街拍支持位（a3）强制为真，让 街拍 显示并打开真实主摄；快捷拍照路径保持一致</string>
+    <string name="camera_unlock_leica_style_title">保留徕卡风格（经典/生动）</string>
+    <string name="camera_unlock_leica_style_summary">把配置的徕卡标志位（F3/X2）强制为真，让 K100 Pro Max 配置下 摄影风格 的 徕卡经典 ↔ 徕卡生动 切换重新出现（红米配置 F3=false 导致丢失）。不重启传奇人像、不引入 231 原图流。修改后需重启相机</string>
+    <string name="camera_unlock_opmode_title">实况运镜安全会话（高级）</string>
+    <string name="camera_unlock_opmode_summary">把实况运镜拍摄会话固定为普通 ALGO_UP_SAT 会话（一定产帧）；仅在真机日志确认 op-mode 1 不产帧时开启。修改后需重启相机</string>
     <string name="camera_unlock_note_exif">EXIF（Model/Make）与水印机型始终为本机自身的品牌与型号，不受机型伪装影响</string>
     <string name="camera_unlock_note_restart">首次启用总开关后请重启相机应用；此后切换开关即时生效</string>
     <string name="camera_unlock_notes">说明</string>
@@ -575,6 +583,12 @@
     <string name="camera_unlock_theme_lcc_title">伪装 LCC 主题</string>
     <string name="camera_unlock_keep_focal_summary">在伪装旗舰机型期间保留本机自身的相机焦段（变焦档位 / mm 焦距标注）。其余旗舰能力开关仍然生效。首次修改后需重启相机应用</string>
     <string name="camera_unlock_keep_focal_title">保留本机焦段</string>
+    <string name="camera_unlock_keep_imaging_title">成像身份保持本机</string>
+    <string name="camera_unlock_keep_imaging_summary">伪装期间把传感器/镜头身份（O1/D/q1/r1/o0/S6/M/K2）保持在本机自身的值，让 MIVI 色彩校准（CCM/WB）正确。修复“徕卡经典 + 长焦 → 相册后期处理变紫”。能力解锁不受影响</string>
+    <string name="camera_unlock_guard_modes_title">隐藏无硬件支撑的模式</string>
+    <string name="camera_unlock_guard_modes_summary">隐藏需要本机不具备的硬件才能运行的模式（实况运镜 / 街拍 / 装备街拍 / 传奇人像），伪装开启后不再卡死或闪退。在真旗舰机上自动不生效</string>
+    <string name="camera_unlock_guard_camera_id_title">使用真实主摄（高级）</string>
+    <string name="camera_unlock_guard_camera_id_summary">把旗舰主摄机位（8/13/3001）退回本机真实相机，让 街拍 能正常打开——但依赖这些机位的旗舰 8K/4K 录像档位会关闭。默认关；仅在关闭模式防护时有用</string>
     <string name="camera_unlock_custom_brand_title">自定义水印厂商</string>
     <string name="camera_unlock_custom_model_title">自定义水印机型</string>
     <string name="camera_unlock_custom_unset">未设置——使用本机自身的值</string>

@@ -568,6 +568,14 @@
     <string name="camera_unlock_master">Flagship Impersonation</string>
     <string name="camera_unlock_master_summary">Treat this device as a flagship (switch the capability config to com.mi.device.Nezha) so every camera mode and capability opens on any device. Needs a camera app restart after the first enable</string>
     <string name="camera_unlock_master_title">Impersonate flagship camera config</string>
+    <string name="camera_unlock_target_title">REDMI K100 Pro Max config (recommended)</string>
+    <string name="camera_unlock_target_summary">Impersonate the REDMI K100 Pro Max config: same sensor axis as this device (correct colours — no purple), MasterLive with a Redmi effect table, Redmi watermark strings. Off = legacy 17 Ultra config (old behaviour — freezes MasterLive/Street on non-flagships). Needs a camera restart after changing</string>
+    <string name="camera_unlock_street_title">Enable Street mode</string>
+    <string name="camera_unlock_street_summary">Force the street-support gate (a3) true so 街拍 shows and opens the real main camera; the quick-launch photo route stays consistent</string>
+    <string name="camera_unlock_leica_style_title">Keep Leica style (classic/vivid)</string>
+    <string name="camera_unlock_leica_style_summary">Force the config\'s Leica flag (F3/X2) true so the 摄影风格 徕卡经典 ↔ 徕卡生动 switcher reappears with the K100 Pro Max config (lost because a Redmi config reports F3=false). No legendary/RAW side effects. Needs a camera restart after changing</string>
+    <string name="camera_unlock_opmode_title">MasterLive safe session (advanced)</string>
+    <string name="camera_unlock_opmode_summary">Force the MasterLive capture session to a plain ALGO_UP_SAT session that always produces frames; use only if on-device logs show op-mode 1 stalls. Needs a camera restart after changing</string>
     <string name="camera_unlock_note_exif">EXIF (Model/Make) and the watermark model always stay on this device own brand and model, independent of the impersonation</string>
     <string name="camera_unlock_note_restart">Restart the camera app after enabling the master switch for the first time; toggling afterwards is live</string>
     <string name="camera_unlock_notes">Notes</string>
@@ -575,6 +583,12 @@
     <string name="camera_unlock_theme_lcc_title">Fake Leica LCC theme</string>
     <string name="camera_unlock_keep_focal_summary">Keep this device\'s own zoom focal line-up (焦段 / mm labels) while impersonating a flagship. All other flagship capabilities stay on. Needs a camera app restart after the first change</string>
     <string name="camera_unlock_keep_focal_title">Keep device focal lengths</string>
+    <string name="camera_unlock_keep_imaging_title">Keep device imaging identity</string>
+    <string name="camera_unlock_keep_imaging_summary">Keep the sensor/lens identity (O1/D/q1/r1/o0/S6/M/K2) on this device\'s own values while impersonating, so MIVI colour calibration (CCM/WB) is correct. Fixes Leica Classic + tele photos turning purple after gallery re-processing. Capability unlocks stay on</string>
+    <string name="camera_unlock_guard_modes_title">Hide unsupported flagship modes</string>
+    <string name="camera_unlock_guard_modes_summary">Hide modes that need hardware this device lacks (实况运镜 / 街拍 / 装备街拍 / 传奇人像) so they no longer freeze or crash when impersonated. A no-op on a real flagship</string>
+    <string name="camera_unlock_guard_camera_id_title">Use the real main camera (advanced)</string>
+    <string name="camera_unlock_guard_camera_id_summary">Revert the flagship main-camera ids (8/13/3001) to the device\'s real camera so 街拍 can open normally — but the flagship 8K/4K camera-profile extras that key on those ids close. Default off; only useful with mode-guard off</string>
     <string name="camera_unlock_custom_brand_title">Custom watermark brand</string>
     <string name="camera_unlock_custom_model_title">Custom watermark model</string>
     <string name="camera_unlock_custom_unset">Not set — using the device\'s own value</string>

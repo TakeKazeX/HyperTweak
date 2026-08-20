@@ -78,6 +78,32 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var keepFocal by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true))
     }
+    var keepImaging by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_IMAGING, true))
+    }
+    var guardModes by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_GUARD_MODES, true))
+    }
+    var guardCameraId by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_GUARD_CAMERA_ID, false))
+    }
+    var targetK100ProMax by remember {
+        mutableStateOf(
+            Preferences.getString(Preferences.KEY_CAMERA_IMPERSONATE_TARGET, "k100promax") ==
+                "k100promax"
+        )
+    }
+    var streetEnable by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_STREET_ENABLE, true))
+    }
+    var leicaStyle by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true))
+    }
+    var mlOpModeSafe by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
+        )
+    }
     var customWm by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false))
     }
@@ -161,6 +187,45 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.camera_unlock_master_summary)
                     )
                     SwitchPreference(
+                        checked = targetK100ProMax,
+                        onCheckedChange = { enabled ->
+                            targetK100ProMax = enabled
+                            Preferences.putString(
+                                Preferences.KEY_CAMERA_IMPERSONATE_TARGET,
+                                if (enabled) "k100promax" else "nezha"
+                            )
+                        },
+                        title = stringResource(R.string.camera_unlock_target_title),
+                        summary = stringResource(R.string.camera_unlock_target_summary)
+                    )
+                    SwitchPreference(
+                        checked = streetEnable,
+                        onCheckedChange = { enabled ->
+                            streetEnable = enabled
+                            set(Preferences.KEY_CAMERA_STREET_ENABLE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_street_title),
+                        summary = stringResource(R.string.camera_unlock_street_summary)
+                    )
+                    SwitchPreference(
+                        checked = leicaStyle,
+                        onCheckedChange = { enabled ->
+                            leicaStyle = enabled
+                            set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_leica_style_title),
+                        summary = stringResource(R.string.camera_unlock_leica_style_summary)
+                    )
+                    SwitchPreference(
+                        checked = mlOpModeSafe,
+                        onCheckedChange = { enabled ->
+                            mlOpModeSafe = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_opmode_title),
+                        summary = stringResource(R.string.camera_unlock_opmode_summary)
+                    )
+                    SwitchPreference(
                         checked = keepFocal,
                         onCheckedChange = { enabled ->
                             keepFocal = enabled
@@ -168,6 +233,33 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_keep_focal_title),
                         summary = stringResource(R.string.camera_unlock_keep_focal_summary)
+                    )
+                    SwitchPreference(
+                        checked = keepImaging,
+                        onCheckedChange = { enabled ->
+                            keepImaging = enabled
+                            set(Preferences.KEY_CAMERA_KEEP_IMAGING, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_keep_imaging_title),
+                        summary = stringResource(R.string.camera_unlock_keep_imaging_summary)
+                    )
+                    SwitchPreference(
+                        checked = guardModes,
+                        onCheckedChange = { enabled ->
+                            guardModes = enabled
+                            set(Preferences.KEY_CAMERA_GUARD_MODES, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_guard_modes_title),
+                        summary = stringResource(R.string.camera_unlock_guard_modes_summary)
+                    )
+                    SwitchPreference(
+                        checked = guardCameraId,
+                        onCheckedChange = { enabled ->
+                            guardCameraId = enabled
+                            set(Preferences.KEY_CAMERA_GUARD_CAMERA_ID, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_guard_camera_id_title),
+                        summary = stringResource(R.string.camera_unlock_guard_camera_id_summary)
                     )
                     SwitchPreference(
                         checked = themeLcc,

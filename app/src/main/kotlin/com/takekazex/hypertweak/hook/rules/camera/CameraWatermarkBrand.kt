@@ -58,6 +58,15 @@ object CameraWatermarkBrand {
      * real marketing name by reading `ro.product.marketname` (the EXIF `Model` source, the same
      * property `Je/d.f8434h` is initialised from), falling back to `Build.MODEL`. Defensive and
      * never throws.
+     *
+     * The leading brand token is stripped ("REDMI K90 Pro Max" → "K90 Pro Max"): on-picture the
+     * classic watermark shows the brand as a separate logo (`@{logo}` / the red REDMI wordmark),
+     * so the model line must not repeat it — feeding the full market name through
+     * `hookWatermarkRender`/the `S8.d` cache made `fs/m.o` render "REDMI REDMI K90 Pro Max"
+     * (one red logo "REDMI" + black "REDMI K90 Pro Max"). This matches the app's own
+     * `Ku.b.a()` model and the stock `Je.c.v()[1]`. EXIF `Model` is unaffected (it reads
+     * `ro.product.marketname` directly via `Je/d.f8434h`, never this value). A custom model is
+     * never touched.
      */
     fun model(): String {
         refreshIfChanged()
@@ -87,7 +96,27 @@ object CameraWatermarkBrand {
 
     private fun resolveModel(): String {
         customModel().takeIf { it.isNotEmpty() }?.let { return it }
-        return readMarketName() ?: Build.MODEL
+        return stripLeadingBrand(readMarketName() ?: Build.MODEL)
+    }
+
+    /**
+     * Drop a leading XIAOMI/REDMI/POCO token (+ space) from a device model string. Only strips
+     * when the first word is one of the bundled logo brands (so `Build.MODEL` fallbacks like
+     * "2407FPN8DG" or "MIX Fold 4" are preserved verbatim); anything else is returned untouched.
+     */
+    private fun stripLeadingBrand(model: String): String {
+        val trimmed = model.trim()
+        val space = trimmed.indexOf(' ')
+        if (space > 0) {
+            val first = trimmed.substring(0, space)
+            if (first.equals("xiaomi", ignoreCase = true) ||
+                first.equals("redmi", ignoreCase = true) ||
+                first.equals("poco", ignoreCase = true)
+            ) {
+                return trimmed.substring(space + 1).trim()
+            }
+        }
+        return trimmed
     }
 
     /**

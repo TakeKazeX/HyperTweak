@@ -352,6 +352,91 @@ object Preferences {
     const val KEY_CAMERA_KEEP_FOCAL = "camera_keep_focal"
 
     /**
+     * While impersonating a flagship, ALSO delegate the *imaging identity* getters
+     * (O1/D/q1/r1/o0/S6/M/K2) back to the real device config instance, so every mode whose
+     * output is colour-sensitive (Leica Classic + tele on LCC/RAW, gallery re-processing)
+     * feeds the REAL sensor/lens identity to MIVI/HAL CCM·WB selection. Capability booleans
+     * (`instanceof`-based gates) stay flagship; only the colour/imaging identity returns to
+     * native. This is the fix for "徕卡经典 + 长焦 → 相册后期处理变紫" (see
+     * `RESEARCH_LEICA_CLASSIC_PURPLE.md`). Default on (true).
+     */
+    const val KEY_CAMERA_KEEP_IMAGING = "camera_keep_imaging"
+
+    /**
+     * Keep the hardware-dependent flagship modes CLOSED while impersonating a flagship on a
+     * device that lacks the physical hardware: 实况运镜 / 街拍 / 装备街拍 / 传奇人像
+     * (`C1178#y4()`/`C1178#a3()`/`Je.c#M()`/`LegendaryEnter.support()`). Without the tele
+     * periscope, SMVR-HSR and the flagship camera ids (8/13/3001) these modes open a camera
+     * that does not exist and freeze/crash (见 `RESEARCH_LIVE_MOTION.md` /
+     * `RESEARCH_STREET_MODE.md`). On a real flagship (real nezha) the delegated values are
+     * the flagship values, so this is a no-op there. Default on (true).
+     */
+    const val KEY_CAMERA_GUARD_MODES = "camera_guard_modes"
+
+    /**
+     * Root fix for the flagship camera-id scheme: delegate `C1178#b6()` back to the real
+     * device config, so `C3550e.e()/f()` stop reporting the flagship main cameras
+     * (8/13/3001) and the mode-opening path falls back to the real camera. This is the switch
+     * that makes 街拍 usable on the real camera *if* `KEY_CAMERA_GUARD_MODES` is off (modes
+     * stay visible) — at the cost of closing the `b6`-gated flagship extras (8K video etc.).
+     * Default off (false); keep on-guard modes unless you specifically want that tradeoff.
+     */
+    const val KEY_CAMERA_GUARD_CAMERA_ID = "camera_guard_camera_id"
+
+    /**
+     * Impersonation target config class. `"k100promax"` (default) = REDMI K100 Pro Max / POCO
+     * F9 Ultra (jadx C1151): sensor axis `q1={17}/O1="3"/D=6579300/r1=6` — byte-identical to
+     * myron's own `com.mi.device.Myron` (C1209), so MIVI/HAL CCM·WB selection is correct
+     * (徕卡经典 no longer turns purple after gallery re-processing); `y4()=true` with a REDMI
+     * MasterLive effect table (ends 15x via `Standalone`, no 17U tele/12.9x crash path); REDMI
+     * watermark strings. `"nezha"` = legacy 17 Ultra unlock (old behaviour; on non-flagships it
+     * opens hardware that does not exist → MasterLive/Street freeze and purple).
+     */
+    const val KEY_CAMERA_IMPERSONATE_TARGET = "camera_impersonate_target"
+
+    /**
+     * Force the street-support gate (`a3()`) true on the impersonated config so 街拍 (Street
+     * 225) becomes visible AND the quick-launch STREET route stays consistent with a working
+     * mode (it opens the HAL role-0 main camera). Only meaningful with the K100 Pro Max target
+     * — no REDMI config ships `a3=true`. Default on.
+     */
+    const val KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
+
+    /**
+     * Restore the Leica photography-style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher while
+     * impersonating. The 摄影风格 component and the top-bar style entries gate on the config's
+     * `F3()` (Leica-level device flag; `X2()` for the specific-capture path): `true` on the
+     * CommonFlagship (Nezha) branch, `false` on the REDMI C1199 branch that both C1151 (K100
+     * Pro Max) and myron's own C1209 inherit — so the K100 Pro Max impersonation drops the
+     * Leica style switcher that the legacy 17-Ultra impersonation had. Forcing `F3()`/`X2()`
+     * to true on the impersonated config brings it back. Does NOT reopen Legendary (gated on
+     * `W0()=instanceof C1178`) nor the 231 LCC-RAW stream (`M()` stays keep-imaging-delegated),
+     * so no purple/RAW regression. Side effect: the shutter-sound list gains the four Leica
+     * entries (`f2.c.b()` adds them when `F3()` is true). Only meaningful with the K100 Pro Max
+     * target. Default on.
+     */
+    const val KEY_CAMERA_LEICA_STYLE = "camera_impersonate_leica_style"
+
+    /**
+     * MasterLive (实况运镜) role-23 (`Standalone`) -> role-20 (`tele`) fallback on the role
+     * adapter (`u6.e`/jadx `p703u6.e` `M()`), so the 15x endpoint of the K100 Pro Max effect
+     * table resolves on devices whose tele is only labelled role 20 (Samsung JN5). Harmless
+     * when role 23 exists (falls back only when `get(23)==-1`). Default on.
+     */
+    const val KEY_CAMERA_MASTERLIVE_TELE_FALLBACK = "camera_masterlive_tele_fallback"
+
+    /**
+     * MasterLive (实况运镜) op-mode safety net. On Qualcomm the MasterLive session would normally
+     * run CONFIRMED_HIGH_SPEED (op-mode 1); if the HAL does not produce frames in that mode the
+     * capture never completes and the mode appears frozen. When this switch is on, the MasterLive
+     * branch of the module device's getOperatingMode is forced to ALGO_UP_SAT (36866), a plain
+     * session that always produces frames — at the cost of the high-speed motion semantics (the
+     * K100 Pro Max effect table has no 120fps type anyway). Default off; enable only if on-device
+     * logs show op-mode 1 does not produce frames. Requires a camera restart after changing.
+     */
+    const val KEY_CAMERA_MASTERLIVE_OPMODE_SAFE = "camera_masterlive_opmode_safe"
+
+    /**
      * Custom watermark master switch. When on, the user-typed brand / model overrides
      * (`KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL`) replace the device's own
      * watermark text in `CameraImpersonationHooker` and `CameraWatermarkHooker.hookDeviceLogo`;
