@@ -71,6 +71,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookWatermarkKeep()
         hookWatermarkConfigCache()
         hookWatermarkRender()
+        hookWatermarkBrandText()
         hookLccTheme()
         hookLccCustomizationProvider()
         hookKeepFocal()
@@ -357,7 +358,57 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "watermark render keep hooked on com.xiaomi.cam.watermark.a#J0")
     }
 
-    // ─── 5. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
+    // ─── 5. Render the custom watermark brand as plain text when it has no logo ────
+
+    /**
+     * The classic/Leica watermark layout renders the brand as a LOGO IMAGE (`${logo}` in the
+     * template, `x()=v()[0]` → `ic_device_watermark_logo_{redmi,xiaomi,poco}`), so an arbitrary
+     * custom brand has no image asset and never shows. The model text goes through the
+     * `WmModelView` (`p203fs/m#o`, = brand, model, textUpper, isCN), which fills a per-layout set
+     * of model lines from `@{series}@{versionNumber}` / `@{versionName}`. For a custom model the
+     * series/version-number line is empty. After-hooking `p203fs/m.o` and filling an empty model
+     * line with the custom BRAND (as plain text) shows "厂商 / 机型" as two text lines for any
+     * custom brand, logo or not. Non-empty model lines (the actual model) are left untouched.
+     */
+    private fun hookWatermarkBrandText() {
+        val clazz = "p203fs.m".toClassOrNull() ?: run {
+            DebugLog.w(TAG, "WmModelView not resolved; brand-as-text skipped")
+            return
+        }
+        val oMethod = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "o" && it.parameterTypes.size == 4 &&
+                    it.parameterTypes[0] == String::class.java &&
+                    it.parameterTypes[1] == String::class.java &&
+                    it.parameterTypes[2] == java.lang.Boolean.TYPE &&
+                    it.parameterTypes[3] == java.lang.Boolean.TYPE
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "WmModelView#o not found; brand-as-text skipped")
+            return
+        }
+        deoptimize(oMethod)
+        oMethod.hook("cam_wm_brand_text") {
+            after { param ->
+                val customBrand =
+                    CameraWatermarkBrand.customBrand().takeIf { it.isNotEmpty() } ?: return@after
+                val receiver = param.thisObject ?: return@after
+                runCatching {
+                    // the model text field lives (public) on the WmModelView base p203fs.o
+                    val textField = receiver.javaClass.getField("f40639p")
+                    val current = textField.get(receiver) as? String
+                    if (current.isNullOrBlank()) {
+                        textField.set(receiver, customBrand)
+                    }
+                }.onFailure { t ->
+                    DebugLog.w(TAG, "brand-as-text injection failed (defensive)", t)
+                }
+            }
+        }
+        DebugLog.d(TAG, "brand-as-text hooked on p203fs.m#o()")
+    }
+
+    // ─── 6. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
 
     private fun hookLccTheme() {
         val clazz = "Je.c".toClassOrNull() ?: return
@@ -380,7 +431,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "LCC theme impersonation hooked on ${clazz.name}#V()")
     }
 
-    // ─── 6. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
+    // ─── 7. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
 
     /**
      * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
@@ -412,7 +463,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#i()")
     }
 
-    // ─── 7. Keep this device's own focal lengths (焦段) while impersonating ─────────
+    // ─── 8. Keep this device's own focal lengths (焦段) while impersonating ─────────
 
     /**
      * After `Je/e.q()` returns a flagship, the bottom zoom line-up / mm labels come from Nezha.

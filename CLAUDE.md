@@ -1606,10 +1606,13 @@ the 17-Ultra-style watermark — the origin of the "17U watermark right after ca
 some capture-time reads still see the impersonated strings. `hookWatermarkRender` before-hooks
 `J0` and forces both args to `CameraWatermarkBrand.brand()/model()` (only when the incoming call
 is non-blank, i.e. an active watermark), making that lcc_gl branch unreachable for every render
-including the immediate capture one. Note the brand is a LOGO IMAGE (`x()=v()[0]` →
-`ic_device_watermark_logo_{redmi,xiaomi,poco}.xml`), so a custom brand only renders for names
-that have a bundled logo; arbitrary text brands cannot appear as a logo. The model is plain text
-and renders any custom value.
+including the immediate capture one. The brand is a LOGO IMAGE in the classic/Leica template
+(`${logo}`, `x()=v()[0]` → `ic_device_watermark_logo_{redmi,xiaomi,poco}.xml`), so a custom brand
+that is not one of the bundled logo names would not show. `hookWatermarkBrandText` therefore
+after-hooks the model view `p203fs/m#o` (WmModelView) and fills an EMPTY model text line with the
+custom brand as PLAIN TEXT (for a custom model the `@{series}`/`@{versionNumber}` line is empty),
+so 厂商 shows as text alongside the 机型 text for any custom brand — logo or not. The model itself
+is plain text and renders any custom value.
 
 Regression history — do not reintroduce:
 - The `v()` keep-model after-hook MUST return a real `String[]`. `arrayOf(brand, model, third)`
