@@ -59,7 +59,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
     private val flagshipInstance = AtomicReference<Any?>(null)
     private val originalInstance = AtomicReference<Any?>(null)
-    private val originalThirdSlot = AtomicReference<Any?>(null)
+    private val originalThirdSlot = AtomicReference<String?>(null)
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -205,8 +205,12 @@ object CameraImpersonationHooker : StaticHooker() {
             after { param ->
                 if (!keepModel()) return@after
                 // Mirror the platform's 3-slot shape [brand, model, third] so `w()` (=v()[2])
-                // keeps behaving; `y()` (=v()[1]) and `x()` (=v()[0]) read back our values.
-                param.result = arrayOf(
+                // keeps behaving and `y()` (=v()[1]) / `x()` (=v()[0]) read back our values.
+                // WARNING: `v()` returns `String[]` — the array MUST materialize as a real
+                // String[] (Kotlin Array<String?>). A bare `arrayOf(brand, model, Any?)` infers
+                // Array<Any?> -> Object[] and the caller's `String[] v()` check-cast then throws
+                // ClassCastException, which dead-locked the camera with keep-model on.
+                param.result = arrayOf<String?>(
                     CameraWatermarkBrand.brand(),
                     CameraWatermarkBrand.model(),
                     originalThirdSlot.get()
@@ -228,7 +232,7 @@ object CameraImpersonationHooker : StaticHooker() {
         runCatching {
             val v = original.javaClass.getMethod("v")
             val arr = v.invoke(original) as? Array<*> ?: return@runCatching
-            if (arr.size > 2) originalThirdSlot.set(arr[2])
+            if (arr.size > 2) originalThirdSlot.set(arr[2] as? String)
         }.onFailure { t ->
             // NoSuchMethodException on the config class is expected (v() is a facade method);
             // only surface unexpected failures.
@@ -425,8 +429,7 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun enabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE, false)
 
-    private fun keepModel(): Boolean =
-        enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_WM_KEEP_MODEL, true)
+    private fun keepModel(): Boolean = enabled()
 
     private fun keepFocal(): Boolean =
         enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true)

@@ -56,12 +56,12 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  *
  * When the master switch is on, `CameraImpersonationHooker` swaps the per-device capability
  * config for a flagship (`com.mi.device.Nezha`) instance so every capability gate opens on any
- * device. The "keep model" switch (on by default) re-forces the on-picture watermark back to
- * this device's own brand + model (or a custom brand/model typed below); the "keep focal
- * lengths" switch (on by default) keeps the zoom/focal line-up (焦段) on this device's own
- * config while every capability boolean still comes from the flagship. The initial enable needs
- * a camera app restart (the hooks are installed on attach); toggling the switches afterwards is
- * live.
+ * device. The on-picture watermark is ALWAYS kept on this device's own brand + model
+ * (unconditional — "keep model" is not a switch any more); turning the "custom watermark" switch
+ * on reveals two text rows to override the brand and the model. The "keep focal lengths" switch
+ * (on by default) keeps the zoom/focal line-up (焦段) on this device's own config while every
+ * capability boolean still comes from the flagship. The initial enable needs a camera app restart
+ * (the hooks are installed on attach); toggling the switches afterwards is live.
  */
 @Composable
 fun CameraUnlockPage(onBack: () -> Unit) {
@@ -72,14 +72,14 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var master by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE, false))
     }
-    var keepModel by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_WM_KEEP_MODEL, true))
-    }
     var themeLcc by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
     }
     var keepFocal by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true))
+    }
+    var customWm by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false))
     }
     var customBrand by remember {
         mutableStateOf(Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND))
@@ -161,15 +161,6 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.camera_unlock_master_summary)
                     )
                     SwitchPreference(
-                        checked = keepModel,
-                        onCheckedChange = { enabled ->
-                            keepModel = enabled
-                            set(Preferences.KEY_CAMERA_WM_KEEP_MODEL, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_keep_model_title),
-                        summary = stringResource(R.string.camera_unlock_keep_model_summary)
-                    )
-                    SwitchPreference(
                         checked = keepFocal,
                         onCheckedChange = { enabled ->
                             keepFocal = enabled
@@ -187,24 +178,41 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         title = stringResource(R.string.camera_unlock_theme_lcc_title),
                         summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
                     )
-                    ArrowPreference(
-                        title = stringResource(R.string.camera_unlock_custom_brand_title),
-                        summary = if (customBrand.isEmpty()) {
-                            stringResource(R.string.camera_unlock_custom_unset)
-                        } else {
-                            customBrand
+                    SwitchPreference(
+                        checked = customWm,
+                        onCheckedChange = { enabled ->
+                            customWm = enabled
+                            set(Preferences.KEY_CAMERA_WM_CUSTOM, enabled)
+                            if (!enabled) {
+                                editingBrand = false
+                                editingModel = false
+                            }
                         },
-                        onClick = { editingBrand = true }
+                        title = stringResource(R.string.camera_unlock_custom_title),
+                        summary = stringResource(R.string.camera_unlock_custom_summary)
                     )
-                    ArrowPreference(
-                        title = stringResource(R.string.camera_unlock_custom_model_title),
-                        summary = if (customModel.isEmpty()) {
-                            stringResource(R.string.camera_unlock_custom_unset)
-                        } else {
-                            customModel
-                        },
-                        onClick = { editingModel = true }
-                    )
+                    if (customWm) {
+                        ArrowPreference(
+                            title = stringResource(R.string.camera_unlock_custom_brand_title),
+                            summary = if (customBrand.isEmpty()) {
+                                stringResource(R.string.camera_unlock_custom_unset)
+                            } else {
+                                customBrand
+                            },
+                            onClick = { editingBrand = true },
+                            holdDownState = editingBrand
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.camera_unlock_custom_model_title),
+                            summary = if (customModel.isEmpty()) {
+                                stringResource(R.string.camera_unlock_custom_unset)
+                            } else {
+                                customModel
+                            },
+                            onClick = { editingModel = true },
+                            holdDownState = editingModel
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -224,32 +232,33 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                     )
                 }
             }
+            // Dialogs composed INSIDE the scaffold content (like ScaleDialog in AppearancePage);
+            // OverlayDialog positioned outside the Scaffold subtree did not show.
+            CameraWatermarkTextDialog(
+                show = editingBrand,
+                title = stringResource(R.string.camera_unlock_custom_brand_title),
+                initial = customBrand,
+                onDismissRequest = { editingBrand = false },
+                onConfirm = { value ->
+                    customBrand = value
+                    Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
+                    editingBrand = false
+                }
+            )
+            CameraWatermarkTextDialog(
+                show = editingModel,
+                title = stringResource(R.string.camera_unlock_custom_model_title),
+                initial = customModel,
+                onDismissRequest = { editingModel = false },
+                onConfirm = { value ->
+                    customModel = value
+                    Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
+                    editingModel = false
+                }
+            )
             Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
         }
     }
-
-    CameraWatermarkTextDialog(
-        show = editingBrand,
-        title = stringResource(R.string.camera_unlock_custom_brand_title),
-        initial = customBrand,
-        onDismissRequest = { editingBrand = false },
-        onConfirm = { value ->
-            customBrand = value
-            Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
-            editingBrand = false
-        }
-    )
-    CameraWatermarkTextDialog(
-        show = editingModel,
-        title = stringResource(R.string.camera_unlock_custom_model_title),
-        initial = customModel,
-        onDismissRequest = { editingModel = false },
-        onConfirm = { value ->
-            customModel = value
-            Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
-            editingModel = false
-        }
-    )
 }
 
 /** Small text-input dialog for the custom watermark brand / model values. */

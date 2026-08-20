@@ -338,11 +338,10 @@ object Preferences {
      * Camera app (com.android.camera) flagship impersonation unlock; see
      * `CameraImpersonationHooker`. Keys are read live (100 ms memo) inside the hooks; only the
      * first enable of KEY_CAMERA_IMPERSONATE needs a camera app restart (to install the hooks).
-     * KEY_CAMERA_WM_KEEP_MODEL re-forces the on-picture watermark back to this device's own
-     * brand + model so impersonation can never change the watermark model.
+     * While impersonating, the on-picture watermark is ALWAYS re-forced back to this device's own
+     * brand + model (unconditional), so impersonation can never change the watermark model.
      */
     const val KEY_CAMERA_IMPERSONATE = "camera_impersonate"
-    const val KEY_CAMERA_WM_KEEP_MODEL = "camera_wm_keep_model"
     const val KEY_CAMERA_IMPERSONATE_THEME_LCC = "camera_impersonate_theme_lcc"
 
     /**
@@ -353,9 +352,16 @@ object Preferences {
     const val KEY_CAMERA_KEEP_FOCAL = "camera_keep_focal"
 
     /**
-     * Optional custom watermark brand / model overrides for `CameraImpersonationHooker` and
-     * `CameraWatermarkHooker.hookDeviceLogo`. Empty string = the feature is off (falls back to
-     * the device's own brand / marketname).
+     * Custom watermark master switch. When on, the user-typed brand / model overrides
+     * (`KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL`) replace the device's own
+     * watermark text in `CameraImpersonationHooker` and `CameraWatermarkHooker.hookDeviceLogo`;
+     * when off, the values are ignored. Default off.
+     */
+    const val KEY_CAMERA_WM_CUSTOM = "camera_wm_custom"
+
+    /**
+     * User-typed custom watermark brand / model, honoured only while `KEY_CAMERA_WM_CUSTOM`
+     * is on; blank = fall back to the device's own brand / marketname.
      */
     const val KEY_CAMERA_WM_CUSTOM_BRAND = "camera_wm_custom_brand"
     const val KEY_CAMERA_WM_CUSTOM_MODEL = "camera_wm_custom_model"

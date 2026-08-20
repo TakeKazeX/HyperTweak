@@ -1559,17 +1559,19 @@ branches work), unlocking every capability/mode gate on any device. The hooks re
 master switch is on; the first enable needs a camera restart (hooks install on attach).
 
 - `KEY_CAMERA_IMPERSONATE` (master, default off).
-- `KEY_CAMERA_WM_KEEP_MODEL` (default on): re-forces the on-picture watermark back to
-  this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]` brand) and
-  `Je/c#v()` (returns the platform's 3-slot `[brand, model, third]` array so `y()`/`w()`
-  keep working). The model channel is `y()=v()[1]`, brand `x()=v()[0]`, third `w()=v()[2]`
-  (`Je/c.java`). EXIF `Model` is `ro.product.marketname` (`Je.d.f8434h`), never the
-  config, so EXIF is unaffected. `CameraWatermarkBrand` (shared with
+- Watermark keep-model is **unconditional** while impersonating (there is no
+  `KEY_CAMERA_WM_KEEP_MODEL` switch any more): the on-picture watermark is always
+  re-forced back to this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]`
+  brand) and `Je/c#v()` (returns the platform's 3-slot `[brand, model, third]` array so
+  `y()`/`w()` keep working). The model channel is `y()=v()[1]`, brand `x()=v()[0]`, third
+  `w()=v()[2]` (`Je/c.java`). EXIF `Model` is `ro.product.marketname` (`Je.d.f8434h`),
+  never the config, so EXIF is unaffected. `CameraWatermarkBrand` (shared with
   `CameraWatermarkHooker.hookDeviceLogo`) resolves the values: custom brand/model wins,
   else normalized `Build.BRAND` and `ro.product.marketname` (`Build.MODEL` fallback).
-- `KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL` (empty = off): user-typed
-  custom watermark brand/model, applied in the `x()/v()` keep hooks and the device-logo
-  repair.
+- `KEY_CAMERA_WM_CUSTOM` (default off): custom-watermark master switch. When on,
+  `KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL` (blank = device default)
+  override the on-picture watermark brand/model in the `x()/v()` keep hooks and the
+  device-logo repair; when off the stored values are ignored.
 - `KEY_CAMERA_IMPERSONATE_THEME_LCC` (default off): forces `Je/c#V()` true so LCC-gated
   flagship branches (e.g. Legendary portrait) open without touching any real theme prop.
 - `KEY_CAMERA_KEEP_FOCAL` (default on): while impersonating, delegate the config's focal
@@ -1581,6 +1583,12 @@ master switch is on; the first enable needs a camera restart (hooks install on a
   → `new Ne.a()`, the low-spec weak default a non-flagship Redmi actually uses) — the
   cache `Je.e.b` is deliberately not read (it holds the impersonated flagship). Original
   getter `Method`s are cached once (not per call).
+
+Regression history — do not reintroduce: the `v()` keep-model after-hook MUST return a real
+`String[]`. `arrayOf(brand, model, third)` with an `Any?` third slot infers `Array<Any?>`
+(`Object[]`), and the caller's `String[] v()` check-cast throws `ClassCastException`, which
+dead-locked the camera on open with keep-model on. Always use `arrayOf<String?>(...)` and keep
+the third slot `String?`-typed.
 
 `CameraWatermarkHooker` (separate) unlocks the cloud watermark gallery via the
 `camera.cloud.watermark.debug` property read (`Gg.C1686u$b.invoke`), with DexKit

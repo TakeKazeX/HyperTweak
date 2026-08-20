@@ -563,8 +563,8 @@
     <string name="watermark_xiaomi_title">Xiaomi</string>
 
     <string name="camera_unlock_back">返回</string>
-    <string name="camera_unlock_keep_model_summary">保持照片水印的品牌与机型为本机（重新强制 Je/c#x()/#v() 为本机值）；机型伪装永远不会改变水印机型。EXIF Model 也始终为本机</string>
-    <string name="camera_unlock_keep_model_title">保持水印机型</string>
+    <string name="camera_unlock_custom_summary">用自定义的品牌与机型覆盖照片水印。默认仍保持本机自身的品牌与机型</string>
+    <string name="camera_unlock_custom_title">自定义水印</string>
     <string name="camera_unlock_master">机型伪装</string>
     <string name="camera_unlock_master_summary">把本设备当作旗舰机型（将能力配置切换为 com.mi.device.Nezha），在任何设备上都能开启全部相机模式与能力。首次启用后需重启相机应用</string>
     <string name="camera_unlock_master_title">伪装旗舰相机配置</string>

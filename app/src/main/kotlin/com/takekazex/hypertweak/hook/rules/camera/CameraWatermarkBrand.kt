@@ -15,13 +15,24 @@ import com.takekazex.hypertweak.util.DebugLog
  */
 object CameraWatermarkBrand {
 
-    /** Custom brand override; blank ("" = feature off) means fall back to the device brand. */
+    /**
+     * Custom brand override; only honoured when the custom-watermark master switch
+     * (`KEY_CAMERA_WM_CUSTOM`) is on and the value is non-blank.
+     */
     fun customBrand(): String =
-        Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, "").trim()
+        if (Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false)) {
+            Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, "").trim()
+        } else {
+            ""
+        }
 
-    /** Custom model override; blank ("" = feature off) means fall back to the device marketname. */
+    /** Custom model override; only honoured when `KEY_CAMERA_WM_CUSTOM` is on. */
     fun customModel(): String =
-        Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, "").trim()
+        if (Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false)) {
+            Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, "").trim()
+        } else {
+            ""
+        }
 
     /**
      * The classic-watermark brand logo. A custom brand is passed through uppercased (the same
