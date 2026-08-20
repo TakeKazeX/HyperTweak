@@ -1598,6 +1598,19 @@ reaches the process-lifetime cache. Fixes: keep hooks are now unconditional, and
 with the current brand()/model() on every access (gated on the master), so the watermark fires
 this device's values or the custom override at every render.
 
+**Watermark render funnel (`J0`)**: `com.xiaomi.cam.watermark.a#J0(String deviceLogo, String model,
+boolean)` is the final funnel every classic/cloud watermark render passes through (called by
+`p890zi/b.d()` with the `S8.d` cached brand+model). The watermark model view `p203fs/m.o()` treats
+a model of "17 ultra by leica" / "leitzphone powered by xiaomi" as an lcc_gl device and renders
+the 17-Ultra-style watermark — the origin of the "17U watermark right after capture" leak, since
+some capture-time reads still see the impersonated strings. `hookWatermarkRender` before-hooks
+`J0` and forces both args to `CameraWatermarkBrand.brand()/model()` (only when the incoming call
+is non-blank, i.e. an active watermark), making that lcc_gl branch unreachable for every render
+including the immediate capture one. Note the brand is a LOGO IMAGE (`x()=v()[0]` →
+`ic_device_watermark_logo_{redmi,xiaomi,poco}.xml`), so a custom brand only renders for names
+that have a bundled logo; arbitrary text brands cannot appear as a logo. The model is plain text
+and renders any custom value.
+
 Regression history — do not reintroduce:
 - The `v()` keep-model after-hook MUST return a real `String[]`. `arrayOf(brand, model, third)`
   with an `Any?` third slot infers `Array<Any?>` (`Object[]`), and the caller's `String[] v()`

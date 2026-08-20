@@ -70,6 +70,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookConfigFactory()
         hookWatermarkKeep()
         hookWatermarkConfigCache()
+        hookWatermarkRender()
         hookLccTheme()
         hookLccCustomizationProvider()
         hookKeepFocal()
@@ -310,7 +311,53 @@ object CameraImpersonationHooker : StaticHooker() {
         }
     }
 
-    // ─── 4. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
+    // ─── 4. Force this device's brand/model into every watermark render ───────────
+
+    /**
+     * `com.xiaomi.cam.watermark.a#J0(String deviceLogo, String model, boolean)` is the final
+     * funnel every classic/cloud watermark render passes through (called by `p890zi/b.d()` with
+     * the `S8.d` cached brand+model). Two reasons to force it:
+     * (a) the watermark model view `p203fs/m.o()` treats a model of "17 ultra by leica" /
+     *     "leitzphone powered by xiaomi" as an lcc_gl device and renders the 17-Ultra-style
+     *     watermark — that is the "17U watermark right after capture" leak, because some
+     *     capture-time reads still see the impersonated strings. Forcing the J0 args to
+     *     `CameraWatermarkBrand` values makes the lcc_gl branch unreachable (the model is
+     *     never a 17U string) for EVERY render, including the immediate capture one;
+     * (b) the custom brand/model reach the renderer regardless of which intermediate
+     *     cache/path fed J0.
+     * Only a non-blank incoming render is overridden; an explicitly blank (watermark-off) call
+     * is left untouched.
+     */
+    private fun hookWatermarkRender() {
+        val clazz = "com.xiaomi.cam.watermark.a".toClassOrNull() ?: run {
+            DebugLog.w(TAG, "watermark renderer not resolved; render keep skipped")
+            return
+        }
+        val j0 = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "J0" && it.parameterTypes.size == 3 &&
+                    it.parameterTypes[0] == String::class.java &&
+                    it.parameterTypes[1] == String::class.java &&
+                    it.parameterTypes[2] == java.lang.Boolean.TYPE
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "watermark renderer#J0 not found; render keep skipped")
+            return
+        }
+        deoptimize(j0)
+        j0.hook("cam_wm_render_keep") {
+            before { param ->
+                val incomingBrand = param.args[0] as? String
+                val incomingModel = param.args[1] as? String
+                if (incomingBrand.isNullOrEmpty() && incomingModel.isNullOrEmpty()) return@before
+                param.args[0] = CameraWatermarkBrand.brand()
+                param.args[1] = CameraWatermarkBrand.model()
+            }
+        }
+        DebugLog.d(TAG, "watermark render keep hooked on com.xiaomi.cam.watermark.a#J0")
+    }
+
+    // ─── 5. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
 
     private fun hookLccTheme() {
         val clazz = "Je.c".toClassOrNull() ?: return
@@ -333,7 +380,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "LCC theme impersonation hooked on ${clazz.name}#V()")
     }
 
-    // ─── 5. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
+    // ─── 6. Keep the 相机配色 (tint color) settings entry visible under LCC impersonation ─
 
     /**
      * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
@@ -365,7 +412,7 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#i()")
     }
 
-    // ─── 6. Keep this device's own focal lengths (焦段) while impersonating ─────────
+    // ─── 7. Keep this device's own focal lengths (焦段) while impersonating ─────────
 
     /**
      * After `Je/e.q()` returns a flagship, the bottom zoom line-up / mm labels come from Nezha.
