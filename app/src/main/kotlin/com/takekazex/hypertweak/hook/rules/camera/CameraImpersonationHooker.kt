@@ -186,9 +186,14 @@ object CameraImpersonationHooker : StaticHooker() {
         hookLccCustomizationProvider()
         hookKeepFocal()
         hookImagingIdentity()
+        // 兼容模式街拍 MUST install unconditionally: it does not depend on the flagship
+        // instance resolving (that is its whole point), so it can never live behind
+        // hookModeGuards()'s `flagshipInstance() ?: return`.
+        hookCompatStreetSupport()
         hookModeGuards()
         hookLeicaStyle()
         hookMasterLiveModePlacement()
+        hookMasterLiveSupportGate()
         hookMasterLiveOrderFunnel()
         hookMasterLiveSupportEntry()
         hookMasterLiveTeleFallback()
@@ -1010,16 +1015,28 @@ object CameraImpersonationHooker : StaticHooker() {
      *    `b6()` stays true (= the device's own native main-id scheme). Only 装备街拍
      *    (hard-opens cameras 13/7 that do not exist) and 传奇人像 (RAW+LUT reprocessing)
      *    stay closed.
-     *  - Legacy Nezha target: keep the old delegation guards — `y4/a3` hidden by
-     *    `KEY_CAMERA_GUARD_MODES` (their 17U hardware doesn't exist here), `b6` clampable via
-     *    `KEY_CAMERA_GUARD_CAMERA_ID`.
+     *  - Legacy Nezha target: `y4/a3` are delegated to the REAL config (hidden) by
+     *    `KEY_CAMERA_GUARD_MODES` — EXCEPT while the user explicitly unlocks them: the
+     *    MasterLive switch ([Preferences.KEY_CAMERA_MASTERLIVE_ENABLE], default on) suppresses
+     *    the `y4` delegation and [hookMasterLiveSupportGate] forces the gate true, and the
+     *    新街拍 mode suppresses the `a3` delegation while [hookStreetEnable] forces it true.
+     *    Without that suppression the two hooks would fight over one Method in
+     *    registration order. `b6` remains clampable via `KEY_CAMERA_GUARD_CAMERA_ID`.
      */
     private fun hookModeGuards() {
-        val flagship = flagshipInstance() ?: return
+        val flagship = flagshipInstance() ?: run {
+            DebugLog.w(TAG, "flagship instance not resolved; config mode guards skipped (compat street stays installed independently)")
+            return
+        }
         val target = flagship.javaClass
-        // Legacy Nezha target only: hide the 17U hardware-dependent modes on non-flagships.
-        hookDelegateBoolean(target, "y4", "cam_guard_mode_masterlive") { guardModes() && targetIsNezha() }
-        hookDelegateBoolean(target, "a3", "cam_guard_mode_street") { guardModes() && targetIsNezha() }
+        // Legacy Nezha target only: hide the 17U hardware-dependent modes on non-flagships —
+        // unless the corresponding unlock switch wants them (see the KDoc above).
+        hookDelegateBoolean(target, "y4", "cam_guard_mode_masterlive") {
+            guardModes() && targetIsNezha() && !masterliveEnabled()
+        }
+        hookDelegateBoolean(target, "a3", "cam_guard_mode_street") {
+            guardModes() && targetIsNezha() && streetMode() != CameraStreetMode.MODE_NEW
+        }
         hookDelegateBoolean(target, "b6", "cam_guard_camera_id") { guardCameraId() && targetIsNezha() }
         // 装备街拍 can never work without the 17U module-lens cameras (13/7) — always closed on
         // impersonated non-flagships (K100 Pro Max target yields false naturally; Nezha target
@@ -1027,10 +1044,9 @@ object CameraImpersonationHooker : StaticHooker() {
         hookFacadeEquipStreetGate()
         hookLegendarySupport()
         // 街拍 (225): 新街拍 = force a3() on the impersonated config (needs the master);
-        // 兼容模式街拍 = force StreetModuleEntry.support() on the REAL config (does not).
+        // 兼容模式街拍 = hookCompatStreetSupport(), installed independently in [installHooks].
         hookStreetEnable()
-        hookCompatStreetSupport()
-        DebugLog.i(TAG, "mode guards installed on ${target.name}; street mode=${streetMode()}")
+        DebugLog.i(TAG, "mode guards installed on ${target.name}; street mode=${streetMode()}; masterlive unlock=${masterliveEnabled()}")
     }
 
     /** Delegate a zero-arg boolean getter on the flagship config class to the original config. */
@@ -1070,19 +1086,21 @@ object CameraImpersonationHooker : StaticHooker() {
     /**
      * 新街拍 (street unlock mode `"new"`, [Preferences.KEY_CAMERA_STREET_MODE]): force the
      * street-support gate `a3()` true on the IMPERSONATED config. No REDMI config ships
-     * `a3=true`, so with the K100 Pro Max target street is invisible/quick-launch CAPTURE until
-     * this hook turns it on; the mode then opens the real HAL role-0 main camera (its
-     * `b6=true` = native main-id scheme). `hookDelegateBoolean("a3", ...)` above is only armed
-     * for the Nezha target, so the two never fight.
+     * `a3=true`, and the Nezha config does not either (510: `a3()` = `instanceof C1172`,
+     * declared once on the base and inherited by BOTH targets), so street is invisible until
+     * this hook turns it on; the mode then opens the real HAL role-0 main camera (the
+     * flagship's `b6=true` native main-id scheme). Works under EITHER impersonation target —
+     * both config classes resolve `a3` to the same declaring base Method.
      *
      * Because `a3()` is the single switch behind BOTH street visibility and the quick-launch
      * re-classification (`p700u2.S` IntentParser: STILL_IMAGE + launch source
      * `launch_camera_and_take_photo` → candidate mode 225 when `a3() && J.f()`), forcing it
      * keeps every consumer consistent with a WORKING street mode — that consistency is exactly
-     * what distinguishes this mode from `"compat"`. Requires the impersonation master AND the
-     * K100 Pro Max target; when those do not hold the hook does NOT force anything (it never
-     * LOWERS a native `a3()` — a real flagship's own street entry stays untouched with the
-     * master off).
+     * what distinguishes this mode from `"compat"`. Requires the impersonation master; when it
+     * is off the hook does NOT force anything (it never LOWERS a native `a3()` — a real
+     * flagship's own street entry stays untouched). While this mode is active, the Nezha-target
+     * `a3` delegation guard in [hookModeGuards] suppresses itself, so the two hooks on the same
+     * Method can never fight in registration order.
      */
     private fun hookStreetEnable() {
         val flagship = flagshipInstance() ?: return
@@ -1102,14 +1120,14 @@ object CameraImpersonationHooker : StaticHooker() {
                 // is off leaves native configs untouched — an earlier build always set the
                 // result, which hid NATIVE street on genuinely capable devices whenever the
                 // master switch was off.
-                if (!(enabled() && targetIsK100Promax() && streetMode() == CameraStreetMode.MODE_NEW)) {
+                if (!(enabled() && streetMode() == CameraStreetMode.MODE_NEW)) {
                     return@before
                 }
                 param.result = true
                 logStreetApplyOnce("new(a3)")
             }
         }
-        DebugLog.d(TAG, "street-enable hooked on ${target.name}#a3() (mode=new)")
+        DebugLog.i(TAG, "street-enable hooked on ${target.name}#a3() (mode=new)")
     }
 
     /**
@@ -1180,7 +1198,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 logStreetApplyOnce("compat(support)")
             }
         }
-        DebugLog.d(TAG, "street compat support hooked on ${clazz.name}#support() (mode=compat)")
+        DebugLog.i(TAG, "street compat support hooked on ${clazz.name}#support() (mode=compat)")
     }
 
     /** Plaintext dex name of the street module entry (stable across 460/510). */
@@ -1331,7 +1349,10 @@ object CameraImpersonationHooker : StaticHooker() {
      */
     private fun hookMasterLiveModePlacement() {
         val flagship = flagshipInstance() ?: return
-        if (!targetIsK100Promax()) return // nezha target fronts 231 natively via its own M()
+        // Installed under EITHER target: the nezha config fronts 231 natively, and
+        // CameraIdentity.frontMasterLiveMode is a no-op for arrays that already contain it,
+        // so this is inert there — but it keeps the K100-style fronting available if the
+        // flagship fallback ever lands on a class whose own M() lacks 231.
         val method = runCatching { flagship.javaClass.getMethod("M") }
             .getOrNull()
             ?.takeIf { it.parameterTypes.isEmpty() && it.returnType == IntArray::class.java }
@@ -1342,13 +1363,56 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_masterlive_mode_front") {
             after { param ->
-                if (!enabled() || !masterliveTeleFallback()) return@after
+                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
                 val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
                 if (fronted != null) param.result = fronted
             }
         }
         DebugLog.d(TAG, "masterlive placement hooked on ${flagship.javaClass.name}#M()")
     }
+
+    /**
+     * MasterLive (实况运镜) REGISTRY gate: force the impersonated config's `y4()` true while
+     * [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE] is on.
+     *
+     * WHY THIS EXISTS (2026-08-22, "没开 k100 配置时实况运镜依旧用不了"): under the legacy
+     * Nezha target with `KEY_CAMERA_GUARD_MODES` on (its default), `hookModeGuards` delegated
+     * `y4()` back to the REAL device config — false on myron — so
+     * `MasterLiveModuleEntry.support()` stayed false and mode 231 never registered, no matter
+     * what the ordering hooks did. The unlock switch suppresses that delegation (see
+     * [hookModeGuards]) and this hook actively pins the gate true, so the mode registers under
+     * EVERY target. `y4()` has seven consumers on 510 (module entry, first-run guide,
+     * capture-method settings rows, special-mode description list) and all of them describe a
+     * flagship capability the user is already impersonating, so one forced gate keeps them all
+     * coherent. When the switch is off the hook is inert and the guard semantics return.
+     */
+    private fun hookMasterLiveSupportGate() {
+        val flagship = flagshipInstance() ?: return
+        val target = flagship.javaClass
+        val method = runCatching {
+            target.getMethod("y4").takeIf {
+                it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "masterlive registry getter ${target.name}#y4() not found; support gate skipped")
+            return
+        }
+        deoptimize(method)
+        method.hook("cam_masterlive_support_gate") {
+            after { param ->
+                if (!enabled() || !masterliveEnabled()) return@after
+                if ((param.result as? Boolean) == true) return@after
+                param.result = true
+                if (mlGateLogged.getAndSet(true) == false) {
+                    DebugLog.i(TAG, "masterlive registry gate y4() forced true")
+                }
+            }
+        }
+        DebugLog.i(TAG, "masterlive support gate hooked on ${target.name}#y4()")
+    }
+
+    /** Logs the y4 force ONCE per process, not per dispatch. */
+    private val mlGateLogged = AtomicReference(false)
 
     /**
      * Resolve `u2.P` (ComponentModuleList; jadx alias `p700u2.P`, 460 build `u2.U`) once for
@@ -1445,7 +1509,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(yMethod)
         yMethod.hook("cam_masterlive_order_funnel") {
             after { param ->
-                if (!enabled() || !masterliveTeleFallback()) return@after
+                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
                 val placed = CameraIdentity.placeMasterLiveModeBeforeMarker(param.result as? IntArray)
                 if (placed != null) param.result = placed
             }
@@ -1486,7 +1550,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(eMethod)
         eMethod.hook("cam_masterlive_support_entry") {
             after { param ->
-                if (!enabled() || !masterliveTeleFallback()) return@after
+                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
                 if ((param.result as? Boolean) != false) return@after
                 if ((param.args?.getOrNull(0) as? Int) != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
                 param.result = true
@@ -1848,6 +1912,10 @@ object CameraImpersonationHooker : StaticHooker() {
 
     private fun leicaStyle(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true)
+
+    /** 实况运镜 unlock master (default ON); suppresses the Nezha-target `y4` guard. */
+    private fun masterliveEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true)
 
     private fun masterliveTeleFallback(): Boolean =
         enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, true)

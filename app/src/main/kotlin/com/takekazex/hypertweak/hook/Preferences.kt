@@ -535,6 +535,18 @@ object Preferences {
     /** Legacy single-switch street enable; superseded by [KEY_CAMERA_STREET_MODE]. */
     const val LEGACY_KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
 
+    /**
+     * 实况运镜 (MasterLive, camera mode id 231) unlock master; default ON. While on, the
+     * impersonated config's registry gate `y4()` (`MasterLiveModuleEntry.support()`) is forced
+     * true and the Nezha-target `KEY_CAMERA_GUARD_MODES` delegation for `y4` suppresses itself
+     * — without this, the legacy-Nezha target hid MasterLive entirely (the guard delegated y4
+     * to the real device config, false on myron), no matter what the ordering hooks did.
+     * Carousel placement itself is handled by the `u2.P#y(Q)` order funnel; capture function
+     * can be tuned with [KEY_CAMERA_MASTERLIVE_OPMODE_SAFE]. Turn off to restore the stock /
+     * guarded behaviour.
+     */
+    const val KEY_CAMERA_MASTERLIVE_ENABLE = "camera_masterlive_enable"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

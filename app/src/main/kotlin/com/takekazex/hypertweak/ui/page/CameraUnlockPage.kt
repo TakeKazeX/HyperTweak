@@ -104,6 +104,9 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var ultraHdQuality by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
     }
+    var masterLiveEnable by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true))
+    }
     var mlOpModeSafe by remember {
         mutableStateOf(
             Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
@@ -238,6 +241,15 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_ultra_hd_title),
                         summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
+                    )
+                    SwitchPreference(
+                        checked = masterLiveEnable,
+                        onCheckedChange = { enabled ->
+                            masterLiveEnable = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_masterlive_title),
+                        summary = stringResource(R.string.camera_unlock_masterlive_summary)
                     )
                     SwitchPreference(
                         checked = mlOpModeSafe,

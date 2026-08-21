@@ -592,6 +592,8 @@
     <string name="camera_unlock_leica_style_summary">Force the config\'s Leica flag (F3/X2) true so the 摄影风格 徕卡经典 ↔ 徕卡生动 switcher reappears with the K100 Pro Max config (lost because a Redmi config reports F3=false). No legendary/RAW side effects. Needs a camera restart after changing</string>
     <string name="camera_unlock_ultra_hd_title">Ultra-high image quality (fixed unlock)</string>
     <string name="camera_unlock_ultra_hd_summary">Force the 图片质量 setting to offer and keep 超高 (JPEG quality 100) by pinning the device-config gate (l7) that hides it on this device. Off = stock behaviour (max 高); a stale 超高 selection is clamped back. Toggling is live — reopen the settings page to refresh the list; first enable needs a camera restart</string>
+    <string name="camera_unlock_masterlive_title">实况运镜 (MasterLive)</string>
+    <string name="camera_unlock_masterlive_summary">Force the MasterLive registry gate (y4) true under every impersonation target — the legacy Nezha target + mode guard used to hide the mode entirely. Placement in the mode strip is handled automatically; if captures stall, also enable the safe session below. Visibility changes need a camera restart</string>
     <string name="camera_unlock_opmode_title">MasterLive safe session (advanced)</string>
     <string name="camera_unlock_opmode_summary">Force the MasterLive capture session to a plain ALGO_UP_SAT session that always produces frames; use only if on-device logs show op-mode 1 stalls. Needs a camera restart after changing</string>
     <string name="camera_unlock_note_exif">EXIF (Model/Make) and the watermark model always stay on this device own brand and model, independent of the impersonation</string>

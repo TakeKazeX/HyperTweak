@@ -7,6 +7,8 @@
     <string name="pref_language_en">English</string>
     <string name="camera_unlock_ultra_hd_title">Qualité d\'image ultra-élevée (déverrouillage fixe)</string>
     <string name="camera_unlock_ultra_hd_summary">Verrouille l\'interrupteur de configuration appareil (l7) qui masque le niveau Ultra élevé, afin que Paramètres → Qualité d\'image propose et conserve Ultra élevé (qualité JPEG 100). Désactivé = comportement d\'origine (max Élevée) ; une sélection Ultra élevé enregistrée est ramenée. Le basculement est immédiat — rouvrez la page des paramètres pour actualiser la liste ; la première activation nécessite un redémarrage de l\'appareil photo</string>
+    <string name="camera_unlock_masterlive_title">实况运镜 (MasterLive)</string>
+    <string name="camera_unlock_masterlive_summary">Force la porte de registre de MasterLive (y4) quel que soit le ciblage d\'usurpation : l\'ancien ciblage Nezha avec le garde-modes cachait entièrement le mode. Le placement dans la bande de modes est corrigé automatiquement ; si les captures se bloquent, activez aussi la session sûre ci-dessous. Les changements de visibilité nécessitent un redémarrage de l\'appareil photo</string>
 
     <string name="camera_unlock_street_title">Mode photo de rue</string>
     <string name="camera_unlock_street_summary">Comment débloquer 街拍 (mode 225). « Nouvelle photo de rue » force la porte de support de la config usurpée (nécessite l\'interrupteur principal) ; « Photo de rue compatible » ouvre la vraie caméra principale sans usurpation. L\'entrée apparaît dans Plus après un redémarrage de l\'appareil photo ; 装备街拍 nécessite le matériel du 17 Ultra et reste indisponible</string>
