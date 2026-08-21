@@ -1808,6 +1808,23 @@ method candidates `["s","i"]`, boolean zero-arg) true whenever the master switch
 the tint-color entry visible. This gate has no other consumers in the APK, so it is
 side-effect free.
 
+**Shutter-sound bounds guard (`f2.c#a()` clamp) is UNCONDITIONAL**: `f2.c` (jadx `p180f2/c`)
+builds the shutter-sound style list — 4 entries (old/art/default/modern) while `F3()` is false
+(native C1209 AND impersonated C1151 are both C1199) — and its raw getter `a()` reads the
+stored `key_shutter_sound` with NO bounds check. `MiuiCameraSound(D3)#g()` then does
+`b().get(a())` and an out-of-range stored value (typically 4, a leftover from the Leica
+8-entry era) throws `IndexOutOfBoundsException` on CAM-Work → RxJava Completable without an
+error handler → FATAL → the camera crashes on open (RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md).
+Because the persisted value outlives the impersonation (the `Ac/e` version migration only
+keeps it), the crash also fires when `KEY_CAMERA_IMPERSONATE` is OFF ("不打开伪装旗舰机相机配置
+时打开相机闪退") — do NOT gate this clamp on the master; it only ever re-maps an out-of-range
+index to `c()` (the app's own bounds-safe default, 0) and passes valid selections through.
+
+Agent verification (2026-08-22, master-off crash fix): the `cam_shutter_sound_bounds` after-hook
+is no longer gated on `enabled()`; `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
+`assembleDebug` pass. On-device confirmation — camera opens with impersonation off while a
+stale `key_shutter_sound` ≥ 4 is stored — is the user's.
+
 Agent verification (2026-08-21, OS4.0.0.19.XPMCNXM + camera 6.6.000510.0 device): before the
 fix, on-device LSPosed log showed exactly two hard failures (`Je.e#q() not found; impersonation
 skipped` and `Ox.g#i() not found; tint-color restore skipped`) while every other camera hook

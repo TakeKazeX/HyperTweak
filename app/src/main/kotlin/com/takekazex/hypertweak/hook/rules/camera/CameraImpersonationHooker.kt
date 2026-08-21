@@ -1678,10 +1678,18 @@ object CameraImpersonationHooker : StaticHooker() {
      * `a()` reads the stored `key_shutter_sound` (=4 from an old Leica-list migration) with NO
      * bounds check, so `MiuiCameraSound(D3)#g()` → `b().get(a())` throws
      * `IndexOutOfBoundsException: Index 4 out of bounds for length 4` on every shutter-sound
-     * preload (CAM-Work) → RxJava onError (no handler) → FATAL → the camera cannot start under
-     * impersonation. This hook clamps an out-of-range `a()` result back to `c()` — the getter
-     * that already applies the `F3`-offset and bounds check (returns 0 when out of range).
-     * Gated on the impersonation master; see RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md.
+     * preload (CAM-Work) → RxJava onError (no handler) → FATAL → the camera cannot start.
+     * This hook clamps an out-of-range `a()` result back to `c()` — the getter that already
+     * applies the `F3`-offset and bounds check (returns 0 when out of range).
+     *
+     * UNCONDITIONAL — deliberately NOT gated on the impersonation master. The persisted
+     * `key_shutter_sound` outlives the impersonation (the `Ac/e` version migration only keeps it,
+     * never rewrites it), so a value taken from the Leica 8-entry era keeps crashing the NATIVE
+     * 4-entry list after the master is turned off — the "不打开伪装旗舰机相机配置时打开相机闪退"
+     * report. `RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md` §4 anticipated exactly this and §6.3
+     * concluded "该修复与冒充无关、应常驻启用". The clamp only ever re-maps an out-of-range index
+     * to the app's own bounds-safe default, so valid selections (0-3 native, 0-7 Leica) pass
+     * through untouched in every configuration.
      */
     private fun hookShutterSoundBoundary() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
@@ -1726,7 +1734,6 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(aMethod)
         aMethod.hook("cam_shutter_sound_bounds") {
             after { param ->
-                if (!enabled()) return@after
                 val idx = (param.result as? Int) ?: return@after
                 val size = bMethod?.let { runCatching { (it.invoke(null) as? List<*>)?.size }.getOrNull() }
                     ?: return@after
