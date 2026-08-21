@@ -20,6 +20,14 @@ import com.takekazex.hypertweak.util.DebugLog
  */
 object CameraWatermarkBrand {
 
+    /**
+     * The `@{logo}` template token of the classic/Leica watermark model view (`fs.m#o`,
+     * jadx `p203fs/m.java:74` substitutes it with the brand string). The stock renderer is the
+     * SINGLE place that turns a brand into visible watermark content, so every brand render
+     * must go through it.
+     */
+    const val LOGO_TOKEN = "@{logo}"
+
     @Volatile private var cachedSig: String? = null
     @Volatile private var cachedBrand: String = ""
     @Volatile private var cachedModel: String = ""
@@ -42,6 +50,36 @@ object CameraWatermarkBrand {
         } else {
             ""
         }
+
+    /**
+     * True when [brand] names one of the three bundled watermark logo brands. Those render as
+     * the stock logo IMAGE (`<brand>_<color>.webp` resolved from the brand the `J0` funnel
+     * stores on the watermark config, `com/xiaomi/cam/watermark/b.smali` `loadAndScaleImage`
+     * pathType=fill; plus `ic_device_watermark_logo_*` on the MIVI device-watermark path), so
+     * they must never ALSO be injected as a text line.
+     */
+    fun isBundledLogoBrand(brand: String): Boolean =
+        brand.equals("XIAOMI", ignoreCase = true) ||
+            brand.equals("REDMI", ignoreCase = true) ||
+            brand.equals("POCO", ignoreCase = true)
+
+    /**
+     * The model-view format with a leading `@{logo}` line injected, or null when the brand must
+     * NOT be injected: blank brand, a bundled logo brand (renders as the logo image), or a
+     * format that already resolves the brand through `@{logo}` (the stock substitution would
+     * then render it exactly once and an extra line would duplicate it).
+     *
+     * This is the whole custom-品牌 text render: instead of composing onto the rendered output
+     * (which produced duplicated/stacked brand lines whenever a template already contained the
+     * token or a layout carried more than one model view), the STOCK `fs.m#o` substitution does
+     * the rendering from the format, so the brand can only ever appear once per view.
+     */
+    fun formatWithLogoLine(format: String?, brand: String): String? {
+        if (brand.isBlank() || isBundledLogoBrand(brand)) return null
+        val fmt = format ?: return null
+        if (fmt.contains(LOGO_TOKEN)) return null
+        return "$LOGO_TOKEN\n$fmt"
+    }
 
     /**
      * The classic-watermark brand logo. A custom brand is passed through uppercased (the same

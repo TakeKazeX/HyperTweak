@@ -707,22 +707,34 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "watermark render keep hooked on ${clazz.name}#J0")
     }
 
-    // ─── 5. Render the custom watermark brand as plain text when it has no logo ────
+    // ─── 5. Render the custom watermark brand through the stock logo slot ─────────
 
     /**
-     * The classic/Leica watermark layout renders the brand as a LOGO IMAGE (`${logo}` in the
-     * template, `x()=v()[0]` -> `ic_device_watermark_logo_{redmi,xiaomi,poco}`), so an arbitrary
-     * custom brand (any name that is NOT one of the three bundled logo names) has no image asset
-     * and never shows. The model text goes through the `WmModelView` (`fs/m#o`, jadx
-     * `p203fs/m#o`; = brand, model, textUpper, isCN), which fills a per-layout set of model lines
-     * from its `text` format (`@{logo}`, `@{series}`, `@{versionNumber}`, `@{versionName}`) into
-     * the public `p` field on the base `fs.o` (jadx `p203fs.o.f40639p`) — the actual model line
-     * ("K90 Pro Max" on this device), which is NEVER blank on a real unit. After-hooking
-     * `fs/m.o` and PREPENDING the custom BRAND as its own leading line (the view renderer splits
-     * on "\n" and draws each line) shows "厂商 / 机型" as two text lines for any custom brand.
-     * `m.o()` rebuilds the field from its format on every call, so the prepend is naturally
-     * idempotent; a contains/first-line guard protects against a format that already embeds the
-     * brand via `@{logo}`.
+     * Single-render design for the custom 厂商 (brand).
+     *
+     * Render chain (verified in `cache/camera-8f41d7b82453cdeb`): `S8.d` caches the brand+model
+     * entry (`S8/d.java:36`), `zi/b.d()` feeds it to the one and only `J0` funnel
+     * (`p890zi/b.java:110-119`), and `com.xiaomi.cam.watermark.a#J0`
+     * (`com/xiaomi/cam/watermark/a.java:902-931`) (a) stores the brand/model on the watermark
+     * config — from where the logo IMAGE view loads `<brand>_<color>.webp`
+     * (`com/xiaomi/cam/watermark/b.smali` `loadAndScaleImage`, pathType=fill) — and (b) calls
+     * `fs.m#o` on every WmModelView, whose format substitution replaces `@{logo}` with the brand
+     * STRING (`p203fs/m.java:74`). A brand therefore becomes visible exactly once, through the
+     * stock renderer: as the logo image when the asset exists (XIAOMI/REDMI/POCO), or as the
+     * `@{logo}` text line when it does not. A missing logo asset renders NOTHING (the view is
+     * skipped with a "bitmap is null" log), so there is no stock fallback that could duplicate
+     * the brand.
+     *
+     * REGRESSION HISTORY (do not reintroduce): an earlier implementation after-hooked `fs.m#o`
+     * and PREPENDED the brand onto the rendered text field, guarded by a `contains()` check on
+     * the output. That composed onto values another path had already filled (a template whose
+     * format carries `@{logo}` natively, the parse-time `m.c()` call that seeds the field with
+     * the market-name values before `J0` runs, or layouts with more than one model view), so
+     * the brand appeared in several places at once — stacked as two lines. The fix removes ALL
+     * output composition: the hook now injects a leading `@{logo}` line into the view's FORMAT
+     * (`fs.m` field `B`, jadx `f40617B`) before the original `o()` runs and restores the format
+     * afterwards, so the stock substitution renders the brand line itself — exactly once per
+     * view, by construction, whatever the template looks like.
      */
     private fun hookWatermarkBrandText() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
@@ -741,12 +753,21 @@ object CameraImpersonationHooker : StaticHooker() {
                         it.parameterTypes[1] == String::class.java &&
                         it.parameterTypes[2] == java.lang.Boolean.TYPE &&
                         it.parameterTypes[3] == java.lang.Boolean.TYPE
-                }
+                } &&
+                    // The model format field (real dex name `B`, jadx alias `f40617B`) must
+                    // exist — it is what the injection rewrites. Without it the hook cannot
+                    // work and must not install.
+                    (resolvePublicField(c, "B", "f40617B") != null)
             },
         ) ?: run {
-            DebugLog.w(TAG, "WmModelView (fs.m) not resolved; brand-as-text skipped")
+            DebugLog.w(TAG, "WmModelView (fs.m) not resolved; brand logo-line skipped")
             return
         }
+        val formatField = resolvePublicField(clazz, "B", "f40617B")?.apply { isAccessible = true }
+            ?: run {
+                DebugLog.w(TAG, "${clazz.name} model format field not found; brand logo-line skipped")
+                return
+            }
         val oMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "wm_model_view_o", clazz = clazz,
             names = listOf("o"),
@@ -758,46 +779,36 @@ object CameraImpersonationHooker : StaticHooker() {
                     m.parameterTypes[3] == java.lang.Boolean.TYPE
             },
         ) ?: run {
-            DebugLog.w(TAG, "${clazz.name}#o not found; brand-as-text skipped")
+            DebugLog.w(TAG, "${clazz.name}#o not found; brand logo-line skipped")
             return
         }
         deoptimize(oMethod)
+        // Saved format for the current invocation. before/after of one call always run on the
+        // same thread; J0 updates views sequentially, so the pairs never interleave.
+        val pendingFormat = ThreadLocal<String?>()
         oMethod.hook("cam_wm_brand_text") {
-            after { param ->
-                val customBrand =
-                    CameraWatermarkBrand.customBrand().takeIf { it.isNotEmpty() } ?: return@after
-                val receiver = param.thisObject ?: return@after
-                // Match the case the renderer would use for the brand (`m.o()` uppercases it
-                // under `text_upper`, and the bundled logos are XIAOMI / REDMI / POCO).
-                val brandText = customBrand.uppercase()
-                // Bundled logo brands already render as a real logo image (`ic_device_watermark_logo_*`
-                // resolved from `Je.c#x()`), so prepending them as text would duplicate the logo
-                // ("REDMI" image + "REDMI" text) exactly like the market-name bug. Only a brand with
-                // NO logo asset (an arbitrary custom word) needs the text line.
-                if (brandText == "XIAOMI" || brandText == "REDMI" || brandText == "POCO") return@after
+            before { param ->
+                val customBrand = CameraWatermarkBrand.customBrand().takeIf { it.isNotEmpty() }
+                    ?: return@before
+                val receiver = param.thisObject ?: return@before
                 runCatching {
-                    // the model text field lives (public, real dex name `p` / jadx alias
-                    // `f40639p`) on the WmModelView base `fs.o` (jadx p203fs.o)
-                    val textField = resolvePublicField(receiver.javaClass, "p", "f40639p")
-                        ?.apply { isAccessible = true } ?: return@runCatching
-                    val current = textField.get(receiver) as? String ?: ""
-                    val modelLines = current.lines().filter { it.isNotBlank() }
-                    // Keep the actual model line(s); prepend the brand as its own line so the
-                    // brand shows as text. The old blank-only injection never fired because the
-                    // model line is populated on a real unit — hence the brand never appeared.
-                    val composed = when {
-                        modelLines.isEmpty() -> brandText
-                        modelLines.first() == brandText -> current
-                        current.contains(brandText) -> current
-                        else -> (listOf(brandText) + modelLines).joinToString("\n")
-                    }
-                    textField.set(receiver, composed)
+                    val format = formatField.get(receiver) as? String
+                    val injected = CameraWatermarkBrand.formatWithLogoLine(format, customBrand)
+                        ?: return@runCatching
+                    pendingFormat.set(format)
+                    formatField.set(receiver, injected)
                 }.onFailure { t ->
-                    DebugLog.w(TAG, "brand-as-text injection failed (defensive)", t)
+                    DebugLog.w(TAG, "brand logo-line injection failed (defensive)", t)
                 }
             }
+            after { param ->
+                val saved = pendingFormat.get() ?: return@after
+                pendingFormat.set(null)
+                val receiver = param.thisObject ?: return@after
+                runCatching { formatField.set(receiver, saved) }
+            }
         }
-        DebugLog.d(TAG, "brand-as-text hooked on ${clazz.name}#o()")
+        DebugLog.d(TAG, "brand logo-line hooked on ${clazz.name}#o()")
     }
 
     // ─── 6. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
