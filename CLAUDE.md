@@ -1961,6 +1961,34 @@ logo image with no text line; master off → fully stock immediately. Helpers
 `CameraWatermarkBrandTest`. The separate MIVI 机型水印 path falls back to the XIAOMI
 drawable for unknown brands (`S8/g.java`) — out of scope, unchanged.
 
+### Follow-up (2026-08-22): unlocks were target-coupled — nezha target hid both modes
+
+User report with the impersonation master ON but the **K100 target switch OFF** (= legacy
+Nezha target): 兼容模式街拍 still showed nothing and 实况运镜 was still unusable. Two
+structural causes, both fixed:
+
+- **MasterLive under Nezha + `KEY_CAMERA_GUARD_MODES` (default ON) was hidden BY DESIGN**:
+  the guard delegated `y4()` back to the real device config (false on myron), so
+  `MasterLiveModuleEntry.support()` stayed false and mode 231 never registered — the ordering
+  funnel never got the chance to matter. New `KEY_CAMERA_MASTERLIVE_ENABLE` (default ON):
+  the `y4` delegation suppresses itself while it is on, and `hookMasterLiveSupportGate`
+  after-hooks the flagship's `y4()` to true (one gate, all seven 510 consumers coherent);
+  the placement/funnel/E hooks now gate on it too. Off = stock guard semantics.
+- **兼容模式街拍 was not standalone**: `hookCompatStreetSupport()` was called from inside
+  `hookModeGuards()`, after that method's `flagshipInstance() ?: return` — any flagship
+  resolution failure silently skipped it, the opposite of its purpose. It now installs
+  directly from `installHooks()`. Registry path re-verified (`p666t3.a.d()` keeps only
+  `support()==true` entries keyed by `getModuleId()`; the registry is cached in a static, so
+  visibility changes need a camera restart).
+- 新街拍 no longer requires the K100 target: both config classes resolve `a3` to the same
+  declaring base Method (510: `instanceof C1172` on `C1174`), and the Nezha `a3` delegation
+  guard now suppresses itself while the mode is active so the two hooks on one Method can
+  never fight in registration order.
+- `hookMasterLiveModePlacement` no longer early-returns on the Nezha target (fronting is
+  inert when the array already fronts 231). Install/applied logs for street and the
+  MasterLive gate are INFO-level and one-line-per-flip, so the next on-device test is
+  conclusive from logcat alone.
+
 ## Build and Test
 
 ```bash
