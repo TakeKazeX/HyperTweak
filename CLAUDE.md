@@ -1883,6 +1883,84 @@ the mode still does not show, reset the camera's mode sort. Verification:
 `HOOK_OK target=쌴쌸…#M() id=cam_masterlive_mode_front` with zero new failures. Visual
 confirmation that 实况运镜 is back in the carousel is the user's.
 
+### Four-fix round (2026-08-22): 超高画质 / 实况运镜 / 街拍双模式 / 水印厂商去重
+
+Four parallel agent fixes, merged to dev and verified by
+`compileDebugKotlin` + `testDebugUnitTest` (92 tests, 0 failures) + `lintDebug` +
+`assembleDebug`. On-device confirmation of all four is the user's.
+
+**1. 超高图片质量 fixed unlock (`CameraUltraQualityHooker`, `KEY_CAMERA_ULTRA_HD_QUALITY`,
+default ON).** The 设置→图片质量 list gains 超高 only while the config gate `l7()` is true —
+declared ONCE on the config base (510 `C1174` / 460 `C1143`) as `return this instanceof
+C1148` (flagship marker). Neither the real `Myron` config (C1196) nor the K100 target
+`Songyuan` (C1200) overrides it, so 超高 was hidden on BOTH paths; only the Nezha family
+(C1160/C1204/C1209) overrides it final-true (under the legacy nezha target the toggle is
+therefore a no-op — documented). Consumers: capture option list (`features/mode/capture/Y`
+~L3489), settings page (`fragment/settings/e` ~L1667), and the clamp `data/data/j#t()`
+(~L4417, caps at `F1.g3.SUPER` = JPEG quality 100 only when l7 true). The enum is plain
+JPEG-quality ints (LOW 67 / NORMAL 87 / HIGH 96 / SUPER 100) — no HAL dependency. The hook
+resolves the gate through the `Je.c` facade (declared config-field type → `getMethod("l7")`
+returns the DECLARING base-class Method, so one hook intercepts every non-overriding
+subclass instance — Myron native AND impersonated K100; runtime-singleton channel as
+fallback), before-style `param.result = cameraUltraHdQuality()`, attached after
+`CameraImpersonationHooker`.
+
+**2. 实况运镜: the M() fronting fix was a provable no-op, and cached mode orders win over
+`M()` anyway.** Two root causes, both fixed on the same round:
+- `hookMasterLiveModePlacement` was a `before` hook reading `param.result`; in ezhooktool
+  1.1.2 a before callback runs before the original and `result` is only populated by
+  `proceed()`, so it read null every time (`frontMasterLiveMode(null)` → null). Now an
+  `after` hook (kept as defense-in-depth).
+- `u2.P` (ComponentModuleList; real dex name `u2/P.smali`, jadx alias `p700u2.P`) order
+  funnel `y(Q)` (P.java:895-915) prefers (1) the in-memory `f62389h` cache — rewritten with
+  the support-filtered render by `K(iArr3,false)` after every render (P.java:822-824), so
+  one session without 231 erases it — and (2) the persisted `pref_camera_sort_modes_key`
+  (written on user mode edit, migrated across camera upgrades by `Ac/e.java`), and only
+  when both are cold (3) `t(Q)`, the sole reader of config `M()`. K100 `C1200.M()` has no
+  231, and even the static default `f62382k` lists 231 AFTER the 254 marker; `C()` splits
+  carousel vs 更多 overflow at the first 254. New `hookMasterLiveOrderFunnel`: after-hook on
+  `u2.P#y(Q)[I` re-places 231 immediately before the first 254 in whichever source wins —
+  rendered orders feed back through `K()`/`H()`, so the stock caches self-heal instead of
+  fighting. New `hookMasterLiveSupportEntry`: `u2.P#E(I)` true for 231 (heals the stale
+  `all_support_mode_list` path). Resolution via CameraResolver L1 `u2.P`/`u2.U`, L2 DexKit
+  `usingStrings("ComponentModuleList","setAllSupportModeList")`, shape validation = static
+  int[] containing both 254 and 231. Pure logic in `CameraIdentity`
+  (`placeMasterLiveModeBeforeMarker`); no new pref keys (the tele-fallback switch remains
+  the MasterLive kill switch). A camera data/mode-sort reset is NOT required.
+
+**3. 街拍 is now a selector (`KEY_CAMERA_STREET_MODE`: `"off"` / `"new"` / `"compat"`,
+legacy boolean `camera_street_enable` migrated in memory, default `"new"`).** Traced on
+510: `p666t3.a.d()` registers only `support()==true` entries; `StreetModuleEntry.support()`
+= config `a3()`; NO config `M()` carries 225 and the static default list puts it after the
+254 marker, so street's home is the 更多 overflow grid — the same place native
+street-capable devices show it (no carousel injection needed or attempted). `新街拍`
+forces `a3()` true on the impersonated K100 config (needs master + k100promax target) and
+now only RAISES the gate when active — fixing a latent bug where master-off forced street
+hidden even on natively capable devices; quick-launch re-classification (`p700u2.S:566`,
+`a3() && J.f()`) stays consistent because `a3()` drives both consumers. `兼容模式街拍`
+forces `StreetModuleEntry.support()` itself true via CameraResolver (shape: zero-arg
+boolean support + int getModuleId; DexKit probe on the plaintext entry name) — independent
+of impersonation, `a3()` untouched so quick-launch keeps stock classification. 装备街拍
+stays closed in every mode (needs 17U cameras 13/7). Pure parse/migration logic in
+`hook/CameraStreetMode.kt` + `CameraStreetModeTest`.
+
+**4. Custom-watermark 厂商 duplication: our own composition, removed.** The render chain is
+`S8.d` cache → `zi/b.d` → `com.xiaomi.cam.watermark.a#J0`, which (a) lowercases brand/model
+into the config from which the logo IMAGE view loads `<brand>_<color>.webp` (a missing
+asset renders NOTHING — no raw-string fallback) and (b) substitutes the `@{logo}` TEXT
+token inside every `WmModelView` format (`fs/m.java:74`). The old `hookWatermarkBrandText`
+prepended the brand onto the rendered text of every `fs.m#o` call guarded only by a
+`contains()` — composing onto templates that natively carry `@{logo}`, the parse-time
+`m.c()` market-name seeding, and multi-view layouts → brand twice, stacked as two lines.
+The hook now injects a leading `@{logo}\n` into the view's FORMAT field **before** `o()`
+runs (only when the custom brand is active, non-bundled, and the format lacks the token)
+and restores it after — the stock substitution renders the brand line exactly once per
+view by construction. Bundled brands (XIAOMI/REDMI/POCO, case-insensitive) keep the stock
+logo image with no text line; master off → fully stock immediately. Helpers
+`isBundledLogoBrand`/`formatWithLogoLine` in `CameraWatermarkBrand.kt` +
+`CameraWatermarkBrandTest`. The separate MIVI 机型水印 path falls back to the XIAOMI
+drawable for unknown brands (`S8/g.java`) — out of scope, unchanged.
+
 ## Build and Test
 
 ```bash
