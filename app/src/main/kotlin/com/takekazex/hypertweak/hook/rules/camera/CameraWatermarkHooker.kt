@@ -1,16 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import java.io.File
 
 /**
  * Unlocks watermark categories in the Xiaomi camera app (`com.android.camera`,
- * MiuiCamera). Verified against 6.6.000460.0 on OS4.0.0.15.XPMCNXM (REDMI K90 Pro Max,
- * `myron`); reverse-engineering notes live in the reverse workspace at
- * `cache/camera-5cd70925b1646cdf/`.
+ * MiuiCamera). First verified against 6.6.000460.0 on OS4.0.0.15.XPMCNXM and re-verified
+ * (via DexKit string fallback) against 6.6.000510.0 on OS4.0.0.19.XPMCNXM; reverse-engineering
+ * notes live in the reverse workspace at `cache/camera-5cd70925b1646cdf/` and
+ * `cache/camera-8f41d7b82453cdeb/`.
  *
  * The camera keeps its watermark resources under `files/watermarks/` (downloaded by its
  * cloud sync — the sync itself receives the full set, including festival editions such as
@@ -18,9 +17,9 @@ import java.io.File
  * reads the scanned groups through `Gg.P` (the `WmBaseManager`), whose `d(boolean)`
  * (`filterData`) applies a filter chain — id whitelist, validity time window,
  * device-type whitelist, system-properties match, theme, region, name length — that hides
- * entries whose `config.json` `limitation` does not match this device. On this baseline the
- * Leica set (ids 88..94, 111) all require `"ro.boot.product.theme_customize": "lcc"`, so a
- * non-LCC device like myron gets **no** Leica watermarks at all.
+ * entries whose `config.json` `limitation` does not match this device. On the verified
+ * baselines the Leica set (ids 88..94, 111) all require `"ro.boot.product.theme_customize":
+ * "lcc"`, so a non-LCC device like myron gets **no** Leica watermarks at all.
  *
  * The whole chain is wrapped in `if (!C1686u.f6071a.getValue()) { ... }`, where
  * `C1686u$b.invoke()` reads the system property `camera.cloud.watermark.debug` — the same
@@ -35,8 +34,19 @@ object CameraWatermarkHooker : StaticHooker() {
     private const val TAG = "CamWmUnlock"
     private const val PACKAGE = "com.android.camera"
 
-    /** Obfuscated property-reader class of the verified baseline. */
-    private const val DEBUG_FLAG_CLASS = "Gg.C1686u\$b"
+    /**
+     * Class-name candidates for the watermark debug-gate holder, newest builds first. The
+     * holder is the `$b` inner class of a `Gg` lazy property that reads
+     * `camera.cloud.watermark.debug`:
+     *  - 6.6.000510.0 (OS4.0.0.19): `Gg.u$b`
+     *  - 6.6.000460.0 (OS4.0.0.15): `Gg.C1686u$b`
+     * `camera.cloud.watermark.debug` stays a plaintext dex string across builds, so the
+     * DexKit probe in [installHooks] is the durable layer.
+     */
+    private val DEBUG_FLAG_CANDIDATES = listOf("Gg.u\$b", "Gg.C1686u\$b")
+
+    /** Device-config facade candidates (`Je.c` survived 460 -> 510 unchanged). */
+    private val DEVICE_FACADE_CANDIDATES = listOf("Je.c")
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -44,30 +54,31 @@ object CameraWatermarkHooker : StaticHooker() {
     }
 
     private fun installHooks() {
-        val info = hookParam.appInfo ?: return
-        val clazz = DEBUG_FLAG_CLASS.toClassOrNull() ?: run {
-            // Fallback: resolve by the property string signature (R8 names can change).
-            val baseDir = info.deviceProtectedDataDir ?: info.dataDir ?: return
-            val apkPath = info.sourceDir ?: return
-            DexKitManager.resolveClasses(
-                cacheDir = File(baseDir, "cache"),
-                apkPath = apkPath,
-                classLoader = classLoader,
-                queries = mapOf(
-                    "debugFlag" to { bridge ->
-                        bridge.findClass { matcher { usingStrings("camera.cloud.watermark.debug") } }
-                            .firstOrNull { it.name.endsWith("\$b") }?.name
-                    }
-                )
-            )["debugFlag"] ?: run {
-                DebugLog.e(TAG, "watermark debug flag class not resolved")
-                return
-            }
+        // appInfo is only needed by the DexKit probe branch; L1 candidate names must keep
+        // working when it is unavailable (CameraResolver skips the probe on its own).
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+
+        // L1 known names, L2 DexKit probe by the surviving plaintext property string.
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG,
+            key = "wm_debug_flag",
+            ctx = ctx,
+            candidates = DEBUG_FLAG_CANDIDATES,
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("camera.cloud.watermark.debug") } }
+                    .firstOrNull { it.name.endsWith("\$b") }?.name
+            },
+            validate = { c -> c.declaredMethods.any { it.name == "invoke" && it.parameterTypes.isEmpty() } },
+        ) ?: run {
+            DebugLog.e(TAG, "watermark debug flag class not resolved (L1 candidates + DexKit probe exhausted)")
+            return
         }
 
-        val invoke = runCatching {
-            clazz.declaredMethods.first { it.parameterTypes.isEmpty() }.apply { isAccessible = true }
-        }.getOrNull() ?: run {
+        val invoke = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_debug_flag_invoke", clazz = clazz,
+            names = listOf("invoke"),
+            shape = { it.parameterTypes.isEmpty() },
+        ) ?: run {
             DebugLog.e(TAG, "invoke() not found on ${clazz.name}")
             return
         }
@@ -81,31 +92,41 @@ object CameraWatermarkHooker : StaticHooker() {
         }
         DebugLog.d(TAG, "camera watermark debug flag hooked on ${clazz.name}")
 
-        hookDeviceLogo()
+        hookDeviceLogo(ctx)
     }
 
     /**
      * Repairs the classic-watermark brand logo on devices whose capability config leaves it
      * empty. The watermark templates reference `${logo}` (resolved to `xiaomi_black.webp` /
      * `redmi_black.webp` / `poco_black.webp` per device), and the value comes from
-     * `Je.c.x()` = `v()[0]`. On this baseline `myron` (REDMI K90 Pro Max) falls through the
-     * `v()` brand-array switch to an empty array (only the `ALSC` market-name variant gets
-     * `{"REDMI","Turbo 5"}`), so classic watermarks render with no logo at all — neither
-     * brand nor Leica (classic watermarks never carry the Leica mark; `leica.webp` only
-     * exists in the Leica category). With the camera switch on, a null/empty logo is
+     * `Je.c.x()` = `v()[0]`. On the verified baseline `myron` (REDMI K90 Pro Max) falls
+     * through the `v()` brand-array switch to an empty array (only the `ALSC` market-name
+     * variant gets `{"REDMI","Turbo 5"}`), so classic watermarks render with no logo at all —
+     * neither brand nor Leica (classic watermarks never carry the Leica mark; `leica.webp`
+     * only exists in the Leica category). With the camera switch on, a null/empty logo is
      * replaced by the brand of the device family.
      */
-    private fun hookDeviceLogo() {
-        val clazz = "Je.c".toClassOrNull() ?: run {
+    private fun hookDeviceLogo(ctx: CameraResolver.Ctx) {
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG,
+            key = "wm_device_facade",
+            ctx = ctx,
+            candidates = DEVICE_FACADE_CANDIDATES,
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
+                }
+            },
+        ) ?: run {
             DebugLog.w(TAG, "Je.c device config not resolved; logo repair skipped")
             return
         }
-        val xMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
-            }.apply { isAccessible = true }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.c#x() not found; logo repair skipped")
+        val xMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_device_logo_x", clazz = clazz,
+            names = listOf("x"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == String::class.java },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#x() not found; logo repair skipped")
             return
         }
         deoptimize(xMethod)

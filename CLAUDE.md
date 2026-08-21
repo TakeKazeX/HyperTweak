@@ -1671,18 +1671,47 @@ current OS 3.0.308.0 SystemUI baseline.
 
 Settings → Tweaks → Camera Unlock (`ui/page/CameraUnlockPage.kt`, `Route.CameraUnlock`)
 is the flagship impersonation for `com.android.camera` (MiuiCamera). Reverse-engineering
-notes live in the camera cache:
-`/Users/ink/developer/reverse/cache/camera-5cd70925b1646cdf/CAMERA_UNLOCK_EVALUATION.md`
-and `CAMERA_FEATURE_GATES_17ULTRA.md`. On OS4.0.0.15.XPMCNXM the whole capability
-surface funnels through one object `Je.c.b.f8427a.f8420e` (the per-device config,
-`com.mi.device.<Device>` created by the single factory `Je/e.q()`, resolved through the
-host's R8 name-rewrite wrapper `Uf.c.a`).
+notes live in the camera caches:
+`/Users/ink/developer/reverse/cache/camera-5cd70925b1646cdf/CAMERA_UNLOCK_EVALUATION.md`,
+`CAMERA_FEATURE_GATES_17ULTRA.md`, and (new baseline)
+`camera-8f41d7b82453cdeb/OLD_TO_NEW_MAPPING.md` + `GENERIC_RESOLUTION_PLAN.md`.
+Verified baselines: **OS4.0.0.15.XPMCNXM + camera 6.6.000460.0** and
+**OS4.0.0.19.XPMCNXM + camera 6.6.000510.0**. On both, the whole capability surface funnels
+through one object `Je.c.b.f8427a.f8420e` (the per-device config, `com.mi.device.<Device>`
+created by the single factory `Je/e.q()` on 460 — **renamed `Je/e.G0()` on 510** — resolved
+through the host's R8 name-rewrite wrapper `Uf.c.a`).
 
-`CameraImpersonationHooker` hooks `Je/e.q()` and returns a flagship instance
-(`com.mi.device.Nezha` built via the host's own `Uf.c.a` so `instanceof <flagship>`
-branches work), unlocking every capability/mode gate on any device. The hooks re-read
-`Preferences` live (100 ms memo), so toggles apply without a camera restart once the
-master switch is on; the first enable needs a camera restart (hooks install on attach).
+### Version-generic resolution (相机 hook 抗版本机制, 2026-08-21)
+
+The camera APK is re-obfuscated on every release, but only a **subset** of names change per
+build (增量混淆), and surviving names can be **reused for unrelated classes** (`Ox.g` was the
+LCC provider on 460, a StateListDrawable helper on 510; `i5.d` was the watermark entry holder
+on 460, a font-menu ViewModel on 510). Method names can be renamed too (`q`→`G0`, `i`→`s`),
+and most dex strings are encrypted (`com.mi.device.` / `K100 Pro Max` are NOT plaintext; a
+handful survive: `camera.cloud.watermark.debug`, `key_shutter_sound`,
+`Camera2CompatAdapterRole`, `MasterLiveModuleDevice`, `WmModelView`,
+`isSupportLegendaryMode`, `CloudWatermark`). All camera resolution therefore goes through
+`hook/rules/camera/CameraResolver.kt`:
+
+- **L1** known dex names, newest first, each validated by method shape (a repurposed name must
+  be rejected); candidates accumulate across versions and are never removed (old names tend to
+  come back).
+- **L2** DexKit probes on surviving plaintext strings (results cached by `DexKitManager`,
+  auto-rescanned when the camera APK mtime changes — i.e. after every camera update).
+- **L3** per-target behavioural chains: the config factory method is also found structurally
+  (static zero-arg method whose return type equals the static `b` cache field type — name
+  independent), and `com.mi.device.*` configs resolve through the app's own resolver
+  `Uf.c.a(sourceName)`, validated by imaging identity against the real device config.
+
+A failed layer skips only the affected sub-feature with a log line (`CameraResolver` logs
+`<key>` resolved by candidate/probe or the layer that failed); it never throws and never
+disturbs the other hooks.
+
+`CameraImpersonationHooker` hooks the factory (`Je/e.G0()` — candidates `["G0","q"]` plus the
+structural fallback) and returns a flagship instance, unlocking every capability/mode gate on
+any device. The hooks re-read `Preferences` live (100 ms memo), so toggles apply without a
+camera restart once the master switch is on; the first enable needs a camera restart (hooks
+install on attach).
 
 - `KEY_CAMERA_IMPERSONATE` (master, default off).
 - Watermark keep-model is **unconditional** (there is no `KEY_CAMERA_WM_KEEP_MODEL` switch any
@@ -1703,30 +1732,37 @@ master switch is on; the first enable needs a camera restart (hooks install on a
 - `KEY_CAMERA_IMPERSONATE_THEME_LCC` (default off): forces `Je/c#V()` true so LCC-gated
   flagship branches (e.g. Legendary portrait) open without touching any real theme prop.
 - `KEY_CAMERA_KEEP_FOCAL` (default on): while impersonating, delegate the config's focal
-  getters (`B1/q0/e1/A1/C1/v1/x1/y0/h1`, the zoom line-up / mm labels; all confirmed
-  declared on `defpackage/C1178` = Nezha) to the REAL device config instance so 焦段 stays
-  the device's own while every capability boolean still comes from the flagship. The
-  original instance is rebuilt by replaying `Je/e.q()`'s full fallback chain with the real
-  device base name (`Je/a.f8410c` → `com.mi.device.<Cap>` → `com.mi.device.others.<Mfr>`
-  → `new Ne.a()`, the low-spec weak default a non-flagship Redmi actually uses) — the
-  cache `Je.e.b` is deliberately not read (it holds the impersonated flagship). Original
-  getter `Method`s are cached once (not per call).
+  getters (`B1/q0/e1/A1/C1/v1/x1/y0/h1`, the zoom line-up / mm labels) to the REAL device
+  config instance so 焦段 stays the device's own while every capability boolean still comes
+  from the flagship. The original instance is rebuilt by replaying the factory's full fallback
+  chain with the real device base name (`Je/a.f8410c` → `com.mi.device.<Cap>` →
+  `com.mi.device.others.<Mfr>` → `new Ne.a()`, the low-spec weak default a non-flagship Redmi
+  actually uses) — the cache field is deliberately not read (it holds the impersonated
+  flagship). Original getter `Method`s are cached once (not per call).
+
+**Impersonation target (`KEY_CAMERA_IMPERSONATE_TARGET`)**: `"k100promax"` (default) and
+`"nezha"`. The K100 Pro Max / POCO F9 Ultra config is resolved by `resolveK100Config`: known
+dex names (`쌴쌸쌺썹…` C1200 on 510, `峡峭峯…` C1151 on 460) first, then the app's own
+`Uf.c.a("com.mi.device.Songyuan")` source-name channel (the K100 source name is stable across
+both verified builds — mapped in the `Uf.a.f16897a` hash table both times), each candidate
+validated: flagship getter surface (`a3/y4/F3/X2`), NOT the device's own config class, and
+imaging identity (`O1/D/q1/r1`) equal to the REAL device config — the exact invariant the
+original pick was verified on (correct CCM/WB, no purple). Fallback chain: Nezha →
+CommonFlagship. `"nezha"` targets `com.mi.device.Nezha` (C1178 on 460 → `콫콧콥켦…` C1209 on
+510) via the resolver, exactly as the app does.
 
 **Watermark config cache (`S8.d`)**: the camera caches the classic/Leica watermark brand+model
-ONCE in the `S8.d` singleton (`S8.d.f15058a.f68841a`, a `p288i5.d` built from `Je/c#x()/#y()`
-at first construction, jadx `S8/d.java:36`); renderers (`p890zi/b.d()` etc.) read that cache
-(`f43446a`=brand, `b`=model). Two failure modes mattered on the device: (a) if the singleton is
-constructed before `Preferences` is ready in the camera process the old master-gated keep hooks
-no-op and Nezha's own strings get baked — the "17 Ultra" watermark shown right after capture
-that only reverts after a later live re-read; (b) a custom-watermark change made later never
-reaches the process-lifetime cache. Fixes: keep hooks are now unconditional, and
-`hookWatermarkConfigCache` hooks `S8.d#a()` (the singleton accessor) to re-assert `f68841a`
-with the current brand()/model() on every access (gated on the master), so the watermark fires
-this device's values or the custom override at every render.
+ONCE in the `S8.d` singleton (field `a` → `zi.b` → field `a`; the entry holder was `i5.d`
+(brand/model fields a/b, (String,String) ctor) on 460 and became **`Ft.a`** on 510 — verified
+in smali: `zi/b.smali` field `->a:LFt/a;`, same fields+ctor; the 510 name `i5.d` belongs to an
+unrelated font-menu ViewModel). The refresh hooks `S8.d#a()` (the singleton accessor) to
+re-assert the entry with the current brand()/model() on every access (gated on the master).
+The 2-arg ctor is looked up by its OWN parameter types (`getDeclaredConstructor(Object,Object)`
+would not match `(String,String)`). Renderers (`p890zi/b.d()` et al.) read that cache.
 
 **Watermark render funnel (`J0`)**: `com.xiaomi.cam.watermark.a#J0(String deviceLogo, String model,
 boolean)` is the final funnel every classic/cloud watermark render passes through (called by
-`p890zi/b.d()` with the `S8.d` cached brand+model). The watermark model view `p203fs/m.o()` treats
+`p890zi/b.d()` with the `S8.d` cached brand+model). The watermark model view `fs/m.o()` treats
 a model of "17 ultra by leica" / "leitzphone powered by xiaomi" as an lcc_gl device and renders
 the 17-Ultra-style watermark — the origin of the "17U watermark right after capture" leak, since
 some capture-time reads still see the impersonated strings. `hookWatermarkRender` before-hooks
@@ -1735,7 +1771,7 @@ is non-blank, i.e. an active watermark), making that lcc_gl branch unreachable f
 including the immediate capture one. The brand is a LOGO IMAGE in the classic/Leica template
 (`${logo}`, `x()=v()[0]` → `ic_device_watermark_logo_{redmi,xiaomi,poco}.xml`), so a custom brand
 that is not one of the bundled logo names would not show. `hookWatermarkBrandText` therefore
-after-hooks the model view `p203fs/m#o` (WmModelView) and fills an EMPTY model text line with the
+after-hooks the model view `fs/m#o` (WmModelView) and fills an EMPTY model text line with the
 custom brand as PLAIN TEXT (for a custom model the `@{series}`/`@{versionNumber}` line is empty),
 so 厂商 shows as text alongside the 机型 text for any custom brand — logo or not. The model itself
 is plain text and renders any custom value.
@@ -1749,23 +1785,103 @@ Regression history — do not reintroduce:
   initialized in the camera process `getBoolean` returns its default (`false`), the hooks no-op,
   and the `S8.d` watermark-config singleton caches the impersonated flagship's strings for the
   process lifetime (the "17 Ultra" watermark flash). Keep is unconditional.
+- Never "re-point" a resolved class by name alone: `Ox.g`/`i5.d` prove the obfuscator reuses
+  names for unrelated classes. Every camera class resolution carries a method-shape validation
+  (`CameraResolver.validate`) that rejects a repurposed name and falls through to the next layer.
+- The `S8.d` entry holder ctor must be resolved by its own 2-arg parameter types, not
+  `(Object,Object)` (exact-match reflection would silently no-op the cache refresh on `Ft.a`).
 
 `CameraWatermarkHooker` (separate) unlocks the cloud watermark gallery via the
-`camera.cloud.watermark.debug` property read (`Gg.C1686u$b.invoke`), with DexKit
-fallback by the property string. Its `hookDeviceLogo` (`Je/c#x()`) fills an empty
-classic-watermark logo with `CameraWatermarkBrand.brand()` when `KEY_WM_CAMERA` is on.
+`camera.cloud.watermark.debug` property read (`Gg.u$b.invoke` on 510 / `Gg.C1686u$b` on 460),
+with the DexKit usingStrings probe as the durable layer (the property string is still
+plaintext in the 510 dex). Its `hookDeviceLogo` (`Je/c#x()`) fills an empty classic-watermark
+logo with `CameraWatermarkBrand.brand()` when `KEY_WM_CAMERA` is on.
 
 The LCC impersonation normally hides the camera's built-in 相机配色 (tint color) settings
 entry: `CameraCommonPreferenceFragment.addCustomizationPreferences` gates it on
-`p496o9.a.f53967a.d().i()`, and `p496o9/a` selects the provider holder from
-`Je/c.V()` — the LCC branch `Ox.g(5).i()` returns false, the non-LCC `Hz.h.i()` true.
-`hookLccCustomizationProvider` therefore forces `Ox.g#i()` true whenever the master
-switch is on, keeping the tint-color entry visible. `f53967a.d().i()` has no other
-consumers in the APK, so this is side-effect free.
+`o9.a.f53945a.d().s()` (real names; the fragment's `p497o9.a` is jadx's alias for `o9.a`), and
+the holder selects the provider from `Je/c.V()` — the LCC branch provider was `Ox.g#i()`
+(false) on 460 and became **`Gt.a#s()`** (false) on 510 (`Gt.a` implements `p9.f` whose boolean
+`s()` is the gate; the 510 `Ox.g` name is an unrelated StateListDrawable helper).
+`hookLccCustomizationProvider` therefore forces `Gt.a#s()` (candidates `["Gt.a","Ox.g"]`,
+method candidates `["s","i"]`, boolean zero-arg) true whenever the master switch is on, keeping
+the tint-color entry visible. This gate has no other consumers in the APK, so it is
+side-effect free.
 
-`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. On-device
-visual confirmation (watermark model/custom brand+model, 焦段 line-up, 相机配色 entry) is
-the user's.
+Agent verification (2026-08-21, OS4.0.0.19.XPMCNXM + camera 6.6.000510.0 device): before the
+fix, on-device LSPosed log showed exactly two hard failures (`Je.e#q() not found; impersonation
+skipped` and `Ox.g#i() not found; tint-color restore skipped`) while every other camera hook
+survived under its old name (`Gg.u$b`, `Je.c#x/v/V/M`, `S8.d#a`, `watermark.a#J0`, `fs.m#o`,
+`u6.e#M`, `U3.p#i`, `f2.c#a`, `LegendaryEnter#support`) and the K100 target silently fell back
+to Nezha. After the fix: `compileDebugKotlin`, `testDebugUnitTest` (12 suites incl. new
+`CameraResolverTest`), `lintDebug` and `assembleDebug` pass; the debug APK is installed. The
+new resolsolution paths (factory `G0`, LCC provider `Gt.a#s`, K100 dex name + Songyuan channel)
+are grounded in byte-exact dex evidence.
+
+### K100 resolution silently rejected: array identity comparison (2026-08-21 晚, do not reintroduce)
+
+The first on-device run of the version-generic resolution still logged `K100 config not resolved
+by candidates or source-name probes; using built-in fallback`: every candidate (dex name AND the
+`Uf.c.a("com.mi.device.Songyuan")` channel, both of which produce a valid C1200 instance) was
+rejected by `sharesImagingIdentity`. Root cause: the identity getters were compared with plain
+`==`, and `q1()` returns a **freshly allocated `int[]` on every call** — C1200 (Songyuan) and the
+real device config C1196 (Myron) both return `new int[]{17}`, so reference equality never held.
+Values are otherwise byte-identical between Songyuan and Myron on 510 (`O1="3"`, `D=6579300`,
+`q1={17}`, `r1=6`) — the exact invariant that prevents Leica-classic purple. Comparison now goes
+through `CameraIdentity.valueEquals` (scalars by value, arrays element-wise recursive, null only
+equals null, getter failure rejects). The same bug existed on 460 — the old byte-exact-name path
+only ever "worked" when the original config was not yet built (shape-only acceptance).
+
+Other hardening from the same audit round: `CameraIdentity.kt` extracts the invariant for unit
+tests (`CameraIdentityTest`, including the fresh-array regression); the source-name resolver
+(`Uf.c#a(String) -> Class`, static, single String param — validated by shape, loud log on miss)
+is now resolved through `SOURCE_RESOLVER_CANDIDATES` instead of two bare `getDeclaredMethod`
+calls whose failure would kill impersonation AND focal delegation together; the `Je.e` factory
+name match requires return type == static field `b`'s type; `CameraResolver.resolveClass`
+requires an explicit `validate` (no silent `{ true }` default); `hookFacadeEquipStreetGate`
+migrated to `CameraResolver`; `K100_SOURCE_NAME_CANDIDATES` trimmed to `com.mi.device.Songyuan`
+(the other six spellings are guaranteed CNFE — all 88 entries of the 510 resolver table decode
+to other devices); per-candidate `shaped=` debug logs make future rejections one-logcat-line
+diagnosable. A full 19-target conflict audit against the 510 smali found every remaining hook
+correct and firing under the K100 target (the double-hook of `Je.c#x()` by both hookers is
+redundant-but-identical; `F3/X2` live on the C1200 chain at C1135/C1174 so Leica-style restore
+works under K100; `Je.c$b.a` static-final is only read, `Je.c.e` final-instance write is legal).
+
+On-device confirmation after the fix (user-verified): `K100 config resolved by dex name 쌴쌸…`,
+focal/imaging hooks attach to the C1200 class, camera works under the k100promax target. NOTE:
+the device had `camera_impersonate_target=nezha` left over from the broken round — under it the
+K100 path never runs (by design); the target must be k100promax for this feature.
+
+### 实况运镜 vanished under the K100 target: mode ORDER array, not a capability gate (2026-08-21 晚)
+
+User report right after the K100 fix landed: camera fine overall but 实况运镜 (MasterLive,
+mode id 231) gone from the mode switcher. Trace on 510 (agent-verified, file:line in the
+session log): visibility is TWO-level —
+- **Registry** (does the mode exist at all): `MasterLiveModuleEntry.support()` → config
+  `y4()`; true on BOTH C1200 and C1209 (`y4` has 7 direct consumers on 510: module entry,
+  first-run guide, capture-method settings rows, special-mode description list). NOT the
+  differentiator.
+- **Placement**: the per-device config's **`M()[I`** array is the sole ordering input of
+  `u2.P` (ComponentModuleList), which splits the strip at the 254 (更多) marker — modes absent
+  from the array land in the overflow list, not the carousel. Nezha C1209 fronts
+  `{231,167,…}`; K100 C1200 omits 231 entirely. Stock myron (C1196) never shows it at all
+  (no `y4` override).
+
+Compounding regression: commit `8b202b7` mis-classified `"M"` as an imaging-identity getter
+(its doc called it "output-format set") and delegated it back to the original myron config —
+which also lacks 231 — so MasterLive was hidden under BOTH targets since then. `"M"` is now
+removed from `IDENTITY_GETTERS` (its only consumer in the whole dex is `u2/P.smali`; it feeds
+no colour pipeline). Fix: `hookMasterLiveModePlacement` before-hooks the impersonated
+instance's `M()` and prepends 231 via `CameraIdentity.frontMasterLiveMode` (no-op when the
+array already contains it, e.g. the nezha target's own `{231,…}`), gated on the impersonation
+master AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on — doubles as the kill switch).
+K100's own REDMI effect table (`q0()`), 装备街拍 clamp and Legendary closure are untouched.
+Caveat: a saved custom mode sort (`pref_user_edit_modes`) overrides `M()` in `u2.P.y()` — if
+the mode still does not show, reset the camera's mode sort. Verification:
+`compileDebugKotlin`, `testDebugUnitTest` (new `CameraIdentityTest` placement cases),
+`lintDebug`, `assembleDebug` pass; debug APK installed; on-device log shows
+`HOOK_OK target=쌴쌸…#M() id=cam_masterlive_mode_front` with zero new failures. Visual
+confirmation that 实况运镜 is back in the carousel is the user's.
 
 ## Build and Test
 

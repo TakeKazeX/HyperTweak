@@ -42,6 +42,12 @@ android {
         }
     }
 
+    testOptions {
+        // JVM unit tests touch android.util.Log via DebugLog (e.g. the resolver's
+        // degraded-resolution warnings); return defaults instead of failing on stubs.
+        unitTests.isReturnDefaultValues = true
+    }
+
     signingConfigs {
         create("release") {
             val keystoreFile = file("release.keystore")

@@ -47,39 +47,63 @@ object CameraImpersonationHooker : StaticHooker() {
     private const val TAG = "CamImpersonate"
     private const val PACKAGE = "com.android.camera"
 
-    /** Obfuscated (visible-name) config-factory class and flagship device classes. */
-    private const val CONFIG_FACTORY = "Uf.c"
+    /**
+     * Name candidates for each hooked class, newest builds first, accumulated across verified
+     * versions. Camera releases re-obfuscate a per-build subset of class names and can also
+     * REUSE a surviving name for an unrelated class (`Ox.g` was the LCC provider on 460, a
+     * state-list helper on 510; `i5.d` was the watermark entry holder on 460, a font-menu
+     * ViewModel on 510), so every candidate is validated by method shape before use.
+     */
+
+    /** Device-config facade `Je.c` (stable across 460/510): x/y/w/v/V/M + singleton `Je.c$b`. */
+    private val CONFIG_FACADE_CANDIDATES = listOf("Je.c")
+
+    /** Device-config factory `Je.e` (class stable; factory method renamed `q` -> `G0` on 510). */
+    private val CONFIG_FACTORY_CLASS_CANDIDATES = listOf("Je.e")
+    private val CONFIG_FACTORY_METHOD_NAMES = listOf("G0", "q")
+
+    /** Flagship targets resolvable through the app's own `Uf.c.a(sourceName)` channel (version-independent). */
     private const val DEVICE_NEZHA = "com.mi.device.Nezha"
     private const val DEVICE_FLAGSHIP = "com.mi.device.xiaomi.CommonFlagship"
 
     /**
-     * Dex class name of the REDMI K100 Pro Max / POCO F9 Ultra config (jadx `defpackage/C1151`).
-     * Verified byte-exact in the APK's dex string tables (2026-08-20). The app's own resolver
-     * `Uf.c.a` maps the `com.mi.device.*` source name onto this obfuscated dex name; for an
-     * already-obfuscated name the same resolver falls through to plain `Class.forName`, so a
-     * direct `loadClass` is the deterministic loading path for `KEY_CAMERA_IMPERSONATE_TARGET`.
+     * Dex class names of the REDMI K100 Pro Max / POCO F9 Ultra config, newest first
+     * (full mapping: `camera-8f41d7b82453cdeb/OLD_TO_NEW_MAPPING.md`):
+     *  - 6.6.000510.0: `쌴쌸쌺썹쌺쌾썹쌳쌲쌡쌾쌴쌲썹쌄쌸쌹쌰쌮쌢쌶쌹` (jadx C1200)
+     *  - 6.6.000460.0: `峡峭峯岬峯峫岬峦峧峴峫峡峧岬峑峭峬峥峻峷峣峬` (jadx `defpackage/C1151`)
+     * The app's own resolver `Uf.c.a` maps `com.mi.device.*` source names onto the per-build
+     * obfuscated dex names and is the version-independent channel — the K100 config's SOURCE
+     * name `com.mi.device.Songyuan` resolves on both verified builds
+     * ([K100_SOURCE_NAME_CANDIDATES], validated by imaging identity against the REAL device
+     * config so a wrong pick can never reach the watermark/capability logic).
      */
-    private const val DEVICE_K100PROMAX_DEX = "峡峭峯岬峯峫岬峦峧峴峫峡峧岬峑峭峬峥峻峷峣峬"
+    private val DEVICE_K100PROMAX_CANDIDATES = listOf(
+        "쌴쌸쌺썹쌺쌾썹쌳쌲쌡쌾쌴쌲썹쌄쌸쌹쌰쌮쌢쌶쌹",
+        "峡峭峯岬峯峫岬峦峧峴峫峡峧岬峑峭峬峥峻峷峣峬",
+    )
+
+    /**
+     * Watermark entry holder class used by `S8.d`'s brand/model cache (the value of `zi.b`'s
+     * field `a`; fields a/b + (String,String) ctor):
+     *  - 6.6.000510.0: `Ft.a` (verified in smali: `zi/b.smali` field `->a:LFt/a;`, ctor
+     *    `(String,String)`; jadx misrendered the type as `a`/`zi.a`)
+     *  - 6.6.000460.0: `i5.d` (jadx `p288i5.d`, imported type in `zi/b.java`)
+     */
+    private val WATERMARK_ENTRY_CANDIDATES = listOf("Ft.a", "i5.d", "p288i5.d")
 
     /** `KEY_CAMERA_IMPERSONATE_TARGET` values. */
     private const val TARGET_K100PROMAX = "k100promax"
     private const val TARGET_NEZHA = "nezha"
 
     /**
-     * Real dex class names of jadx-renamed classes used by this hooker. Verified byte-exact in
-     * the APK dex string pools (RESEARCH_MYRON_ONDEVICE_EVIDENCE 2026-08-21): jadx renames dex
-     * packages it cannot emit as valid Java packages (`u6`, `i5`, `fs` — the obfuscator's short
-     * package names) onto synthetic `p####` names, and renames FIELDS colliding with root package
-     * names onto `f#####` names. Method names are NOT renamed and always resolve. Using the jadx
-     * aliases (e.g. `"p703u6.e"`) made the affected lookups return null on the device; the dex
-     * names below load directly on the real class loader.
-     *  - `p703u6.e` (Camera2CompatAdapterRole) -> `u6.e` -- classes.dex
-     *  - `p288i5.d` (S8.d watermark entry holder)  -> `i5.d` -- classes.dex
-     *  - `p203fs.m` (WmModelView)                  -> `fs.m` -- classes10.dex
+     * Method/field names in the camera dex are NOT obfuscated per build — the class names are
+     * (jadx renders those as `p####` packages plus `f#####` field aliases when they collide
+     * with root-package names; the on-device names are the short letters, e.g. `u6.e`,
+     * `fs.m`, field `a`). The migration on 6.6.000510.0 (OS4.0.0.19) confirmed class names are
+     * ALSO not stable and can even be REUSED for unrelated classes, so every resolution goes
+     * through [CameraResolver] with candidate lists + semantic validation instead of bare
+     * `toClassOrNull()`.
      */
-    private const val ROLE_ADAPTER_DEX = "u6.e"
-    private const val WATERMARK_HOLDER_DEX = "i5.d"
-    private const val WM_MODEL_VIEW_DEX = "fs.m"
 
     /** Resolve a class by its real dex name, falling back to the jadx alias for older ROMs. */
     private fun resolveClass(vararg names: String): Class<Any>? {
@@ -122,8 +146,15 @@ object CameraImpersonationHooker : StaticHooker() {
      * to the REAL device config fixes the colour while all `instanceof`-based capability gates
      * (and the modes they open) stay flagship. Includes `B1` implicitly via FOCAL_GETTERS and
      * the mode gates (`y4/a3/b6`) separately.
+     *
+     * REGRESSION HISTORY (do not reintroduce): `M` was listed here from `8b202b7` until
+     * 2026-08-21, but the config's `M()[I` is NOT imaging identity — its sole consumer in the
+     * whole dex is `u2.P` (ComponentModuleList), which uses it to ORDER the mode carousel
+     * against the 更多 (254) marker. Delegating it to the original myron config stripped mode
+     * 231 (实况运镜) from the carousel under EVERY impersonation target. See
+     * [hookMasterLiveModePlacement].
      */
-    private val IDENTITY_GETTERS = arrayOf("O1", "D", "q1", "r1", "o0", "S6", "M", "K2")
+    private val IDENTITY_GETTERS = arrayOf("O1", "D", "q1", "r1", "o0", "S6", "K2")
 
     /**
      * Every zero-arg getter we may delegate to the original config instance (focal lengths,
@@ -156,6 +187,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookImagingIdentity()
         hookModeGuards()
         hookLeicaStyle()
+        hookMasterLiveModePlacement()
         hookMasterLiveTeleFallback()
         hookMasterLiveOpModeSafe()
         hookShutterSoundBoundary()
@@ -164,16 +196,41 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 1. Replace the per-device capability config with a flagship instance ──────
 
     private fun hookConfigFactory() {
-        val clazz = "Je.e".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "config_factory_class", ctx = ctx,
+            candidates = CONFIG_FACTORY_CLASS_CANDIDATES,
+            // A repurposed `Je.e` would not carry the static config-cache field `b`.
+            validate = { c ->
+                runCatching {
+                    c.getDeclaredField("b").let { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+                }.getOrDefault(false)
+            },
+        ) ?: run {
             DebugLog.w(TAG, "Je.e config factory not resolved; impersonation skipped")
             return
         }
-        val qMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "q" && it.parameterTypes.isEmpty()
-            }
+        // Method names change between builds (`q` on 460 -> `G0` on 510); the structural
+        // fallback recognises the factory purely by shape: static, zero-arg, return type
+        // matches the static cache field `b` — independent of any method name.
+        val cacheFieldType = runCatching {
+            clazz.getDeclaredField("b").takeIf { java.lang.reflect.Modifier.isStatic(it.modifiers) }?.type
         }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.e#q() not found; impersonation skipped")
+            DebugLog.w(TAG, "$CONFIG_FACTORY_CLASS_CANDIDATES has no static cache field b; impersonation skipped")
+            return
+        }
+        val qMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "config_factory_method", clazz = clazz,
+            names = CONFIG_FACTORY_METHOD_NAMES,
+            // The factory is static, zero-arg AND its return type IS the cached config type —
+            // the same invariant the structural fallback uses, so a second unrelated static
+            // zero-arg method can never win the name match.
+            shape = {
+                it.parameterTypes.isEmpty() && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                    it.returnType == cacheFieldType
+            },
+        ) ?: CameraResolver.findFactoryMethod(clazz) ?: run {
+            DebugLog.w(TAG, "${clazz.name} factory method not found (names $CONFIG_FACTORY_METHOD_NAMES; no structural match); impersonation skipped")
             return
         }
         deoptimize(qMethod)
@@ -186,7 +243,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 patchConfigCacheFields(flagship)
             }
         }
-        DebugLog.d(TAG, "impersonation hooked on ${clazz.name}#q()")
+        DebugLog.d(TAG, "impersonation hooked on ${clazz.name}#${qMethod.name}()")
     }
 
     /**
@@ -197,9 +254,12 @@ object CameraImpersonationHooker : StaticHooker() {
      */
     private fun patchConfigCacheFields(flagship: Any) {
         runCatching {
-            val jeE = "Je.e".toClassOrNull()
-            // Je.e.b is the static factory cache (real dex field name `b`).
-            val bField = jeE?.getDeclaredField("b") ?: return
+            val jeE = resolveClass(*CONFIG_FACTORY_CLASS_CANDIDATES.toTypedArray())
+            // The factory cache field is the static field `b` on every verified build.
+            val bField = jeE?.getDeclaredField("b")?.apply { isAccessible = true } ?: return
+            // Skip the (possibly Unsafe-backed) write when we already own the cache — the
+            // after-hook fires on EVERY factory call for the process lifetime.
+            if (bField.get(null) === flagship) return
             StaticFieldWriter.set(bField, flagship)
         }.onFailure { t ->
             DebugLog.w(TAG, "Je.e.b cache patch failed", t)
@@ -214,6 +274,7 @@ object CameraImpersonationHooker : StaticHooker() {
             val singleton = singletonField.get(null) ?: return
             val configField = resolveField(singleton.javaClass, "e", "f8420e") ?: return
             configField.isAccessible = true
+            if (configField.get(singleton) === flagship) return
             configField.set(singleton, flagship)
         }.onFailure { t ->
             DebugLog.w(TAG, "Je.c singleton cache patch failed (defensive; usually not needed)", t)
@@ -233,8 +294,10 @@ object CameraImpersonationHooker : StaticHooker() {
     /**
      * Load the impersonated config instance. The target is chosen by
      * `KEY_CAMERA_IMPERSONATE_TARGET`:
-     *  - `"k100promax"` (default): REDMI K100 Pro Max / POCO F9 Ultra (jadx C1151), loaded by its
-     *    obfuscated dex name. Best target for REDMI K-series devices (myron): sensor axis
+     *  - `"k100promax"` (default): REDMI K100 Pro Max / POCO F9 Ultra (jadx C1200 on 510 /
+     *    C1151 on 460), resolved by [resolveK100Config]: known dex names first, then the app's
+     *    own `Uf.c.a` source-name channel (`com.mi.device.Songyuan`), all validated against the
+     *    REAL device config. Best target for REDMI K-series devices (myron): sensor axis
      *    byte-identical to the device's own config (correct CCM/WB — no purple), `y4()=true` with
      *    a REDMI MasterLive effect table (no 17U tele/12.9x crash path), REDMI watermark strings.
      *  - `"nezha"`: legacy 17 Ultra (old behaviour). Loaded through the host's class-name rewrite
@@ -245,10 +308,10 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun buildFlagshipInstance(): Any? {
         val loader = classLoader ?: return null
         return runCatching {
-            val factory = loader.loadClass(CONFIG_FACTORY)
-            val resolver = factory.getDeclaredMethod("a", String::class.java)
+            val resolver = resolveSourceNameResolver(loader)
+                ?: return@runCatching null
             if (targetIsK100Promax()) {
-                runCatching { loader.loadClass(DEVICE_K100PROMAX_DEX).newInstance() }.getOrNull()
+                resolveK100Config(loader, resolver)
                     ?: buildFrom(loader, resolver, DEVICE_NEZHA)
                     ?: buildFrom(loader, resolver, DEVICE_FLAGSHIP)
             } else {
@@ -263,6 +326,80 @@ object CameraImpersonationHooker : StaticHooker() {
         }
     }
 
+    /**
+     * Version-generic resolution of the REDMI K100 Pro Max / POCO F9 Ultra config.
+     *
+     * Two channels, both validated against the REAL device config so a wrong pick (a renamed
+     * or repurposed class) can never reach the watermark/capability logic:
+     *  - L1: known dex names ([DEVICE_K100PROMAX_CANDIDATES], newest first) loaded directly;
+     *  - L2: the app's own source-name resolver `Uf.c.a("com.mi.device.<name>")` — the same
+     *    channel `Je.e` uses, which maps obfuscated dex names per build (version-independent);
+     *    only names that survive the [K100_SOURCE_NAME_CANDIDATES] validation are accepted.
+     *
+     * Validation: the candidate must (a) expose the flagship getter surface (a3/y4/F3/X2/B1/…),
+     * (b) NOT be the device's own config class, and (c) when the real device config is
+     * resolvable, share its imaging identity (O1/D/q1/r1) — the exact invariant the original
+     * K100 pick was verified on (correct CCM/WB, no purple). Any failure falls through to the
+     * `buildFrom` Nezha / CommonFlagship chain at the call site.
+     */
+    private fun resolveK100Config(loader: ClassLoader, resolver: Method): Any? {
+        // Snapshot the original ONCE, before any candidate work: every candidate is validated
+        // against the SAME original instance, and the nested `originalInstance` monitor is not
+        // acquired inside the flagship lock mid-loop (host newInstance() runs in between).
+        val original = originalConfigInstance().get()
+        for (name in DEVICE_K100PROMAX_CANDIDATES) {
+            val instance = runCatching { loader.loadClass(name).getDeclaredConstructor().newInstance() }
+                .getOrNull() ?: continue
+            val shaped = isK100Shaped(instance)
+            if (shaped && isK100Candidate(instance, original)) {
+                DebugLog.i(TAG, "K100 config resolved by dex name $name")
+                return instance
+            }
+            DebugLog.d(TAG, "K100 candidate $name rejected (shaped=$shaped)")
+        }
+        for (sourceName in K100_SOURCE_NAME_CANDIDATES) {
+            val instance = buildFrom(loader, resolver, sourceName) ?: continue
+            val shaped = isK100Shaped(instance)
+            if (shaped && isK100Candidate(instance, original)) {
+                DebugLog.i(TAG, "K100 config resolved via resolver source name $sourceName -> ${instance.javaClass.name}")
+                return instance
+            }
+            DebugLog.d(TAG, "K100 source probe $sourceName -> ${instance.javaClass.name} rejected (shaped=$shaped)")
+        }
+        DebugLog.w(TAG, "K100 config not resolved by candidates or source-name probes; using built-in fallback")
+        return null
+    }
+
+    /**
+     * Source names probed through the app's own resolver (`Uf.c.a`) when no newer dex name is
+     * known. `com.mi.device.Songyuan` is the K100 Pro Max / POCO F9 Ultra source name — the
+     * ONLY K100-role key in the 510 resolver table (all 88 entries decoded: the guessed
+     * `K100ProMax`/`K100`/`PocoF9Ultra`/... spellings are guaranteed ClassNotFoundException,
+     * so they are not probed). A source name the resolver maps onto SOME config must still
+     * pass [isK100Candidate].
+     */
+    private val K100_SOURCE_NAME_CANDIDATES = listOf(
+        "com.mi.device.Songyuan",
+    )
+
+    /** Shape + identity validation for a K100-role config candidate. */
+    private fun isK100Candidate(instance: Any, original: Any?): Boolean {
+        if (!isK100Shaped(instance)) return false
+        if (original == null) return true // no original -> shape only
+        val clazz = instance.javaClass
+        if (clazz == original.javaClass || clazz.name == original.javaClass.name) return false
+        return CameraIdentity.sharesImagingIdentity(instance, original)
+    }
+
+    /** Flagship getter surface (`a3/y4/F3/X2`, all public zero-arg on every verified build). */
+    private fun isK100Shaped(instance: Any): Boolean = runCatching {
+        val clazz = instance.javaClass
+        clazz.getMethod("a3").parameterCount == 0 &&
+            clazz.getMethod("y4").parameterCount == 0 &&
+            clazz.getMethod("F3").parameterCount == 0 &&
+            clazz.getMethod("X2").parameterCount == 0
+    }.getOrDefault(false)
+
     private fun buildFrom(
         loader: ClassLoader,
         resolver: java.lang.reflect.Method,
@@ -272,20 +409,65 @@ object CameraImpersonationHooker : StaticHooker() {
         cls.newInstance()
     }.getOrNull()
 
+    /**
+     * Class-name candidates for the app's own source-name resolver — the version-independent
+     * channel every `com.mi.device.*` config resolves through (`Uf.c.a(String) -> Class<*>`,
+     * the same call the config factory `Je.e.G0()` makes).
+     */
+    private val SOURCE_RESOLVER_CANDIDATES = listOf("Uf.c")
+
+    /**
+     * Resolve + validate the source-name resolver: a STATIC single-`String` method returning
+     * `Class`. Shape-only validation (no dex string survives for `Uf.c` to probe), but the
+     * shape is narrow and every downstream consumer re-checks the produced instance (the K100
+     * identity invariant, or the known flagship source names), so a repurposed `Uf.c` degrades
+     * to a logged skip instead of a wrong hook. Without this channel BOTH the impersonation
+     * target build AND the original-config rebuild are dead, so the failure is logged loudly.
+     */
+    private fun resolveSourceNameResolver(loader: ClassLoader): java.lang.reflect.Method? {
+        for (name in SOURCE_RESOLVER_CANDIDATES) {
+            val clazz = runCatching { loader.loadClass(name) }.getOrNull() ?: continue
+            val method = clazz.declaredMethods.firstOrNull {
+                java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                    it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0] == String::class.java &&
+                    it.returnType == Class::class.java
+            } ?: continue
+            method.isAccessible = true
+            DebugLog.d(TAG, "source-name resolver resolved on $name#${method.name}")
+            return method
+        }
+        DebugLog.w(
+            TAG,
+            "source-name resolver not resolved (candidates $SOURCE_RESOLVER_CANDIDATES); " +
+                "impersonation target + original-config rebuild unavailable"
+        )
+        return null
+    }
+
     // ─── 2. Keep this device's brand + model on the watermark (or a user custom one) ─
 
     private fun hookWatermarkKeep() {
         captureOriginalThirdSlot()
-        val clazz = "Je.c".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "wm_keep_facade", ctx = ctx,
+            candidates = CONFIG_FACADE_CANDIDATES,
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
+                }
+            },
+        ) ?: run {
             DebugLog.w(TAG, "Je.c not resolved; watermark keep skipped")
             return
         }
-        val xMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.c#x() not found; watermark keep skipped")
+        val xMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_keep_x", clazz = clazz,
+            names = listOf("x"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == String::class.java },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#x() not found; watermark keep skipped")
             return
         }
         deoptimize(xMethod)
@@ -296,12 +478,12 @@ object CameraImpersonationHooker : StaticHooker() {
             }
         }
 
-        val vMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "v" && it.parameterTypes.isEmpty() && it.returnType.isArray
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.c#v() not found; watermark keep skipped")
+        val vMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_keep_v", clazz = clazz,
+            names = listOf("v"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType.isArray },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#v() not found; watermark keep skipped")
             return
         }
         deoptimize(vMethod)
@@ -363,17 +545,31 @@ object CameraImpersonationHooker : StaticHooker() {
      * override) at every render.
      */
     private fun hookWatermarkConfigCache() {
-        val clazz = "S8.d".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "wm_config_singleton", ctx = ctx,
+            candidates = listOf("S8.d"),
+            // `CloudWatermark` survives as a plaintext dex string (classes.dex).
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("CloudWatermark") } }
+                    .firstOrNull { it.name == "S8.d" || it.name.contains("S8") }?.name
+            },
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "a" && it.parameterTypes.isEmpty() &&
+                        java.lang.reflect.Modifier.isStatic(it.modifiers) && it.returnType == c
+                }
+            },
+        ) ?: run {
             DebugLog.w(TAG, "S8.d watermark manager not resolved; config cache refresh skipped")
             return
         }
-        val aMethod = runCatching {
-            clazz.declaredMethods.firstOrNull {
-                it.name == "a" && it.parameterTypes.isEmpty() &&
-                    java.lang.reflect.Modifier.isStatic(it.modifiers) && it.returnType == clazz
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "S8.d#a() not found; config cache refresh skipped")
+        val aMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_config_singleton_a", clazz = clazz,
+            names = listOf("a"),
+            shape = { it.parameterTypes.isEmpty() && java.lang.reflect.Modifier.isStatic(it.modifiers) },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#a() not found; config cache refresh skipped")
             return
         }
         deoptimize(aMethod)
@@ -386,19 +582,28 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "watermark config cache refresh hooked on ${clazz.name}#a()")
     }
 
-    /** Re-assert the brand+model watermark entry (`i5.d`, jadx `p288i5.d`) into the `S8.d` singleton unless it already matches. */
+    /**
+     * Re-assert the brand+model watermark entry into the `S8.d` singleton unless it already
+     * matches. The cache chain moved between builds: the entry holder was `i5.d` on
+     * 6.6.000460.0 (fields a/b, (String,String) ctor) and became `Ft.a` on 6.6.000510.0
+     * (verified in smali: `zi.b`'s field `a` is typed `LFt/a;`, class exposes the same
+     * a/b fields + (String,String) ctor). The `S8.d` singleton field (`a`), the `zi.b` field
+     * name (`a`) and the guarded field names (`a`/`b`) are stable across both builds, so only
+     * the entry CLASS needs the candidate list; a failure here is defensive/logged and never
+     * disturbs rendering (the J0 render-keep hook still forces brand/model per render).
+     */
     private fun refreshWatermarkConfigCache(singleton: Any) {
         runCatching {
             val brand = CameraWatermarkBrand.brand()
             val model = CameraWatermarkBrand.model()
-            // Real dex fields: S8.d.a (jadx `f15058a`), zi.b.a (jadx `f68841a`),
-            // i5.d.a/b (jadx `f43446a`/`b`) — jadx renamed the colliding ones on root-package
-            // collisions; the on-device names are the short letters.
-            val holderField = resolveField(singleton.javaClass, "a", "f15058a")?.apply { isAccessible = true }
-                ?: return
+            // Real dex fields: S8.d.a (jadx `f15058a`/`f15059a`), zi.b.a (jadx `f68841a`/`f68816a`),
+            // entry a/b (jadx renamed the root-package-colliding ones to `f#####`; the on-device
+            // names are the short letters).
+            val holderField = resolveField(singleton.javaClass, "a", "f15058a", "f15059a")
+                ?.apply { isAccessible = true } ?: return
             val holder = holderField.get(singleton) ?: return
-            val cacheField = resolveField(holder.javaClass, "a", "f68841a")?.apply { isAccessible = true }
-                ?: return
+            val cacheField = resolveField(holder.javaClass, "a", "f68841a", "f68816a")
+                ?.apply { isAccessible = true } ?: return
             val current = cacheField.get(holder)
             // Best-effort equality guard; if the current value can't be read, just rebuild.
             val same = runCatching {
@@ -411,15 +616,36 @@ object CameraImpersonationHooker : StaticHooker() {
                 curBrand == brand && curModel == model
             }.getOrDefault(false)
             if (same) return
-            val dClass = resolveClass(WATERMARK_HOLDER_DEX, "p288i5.d") ?: return
-            val ctor = dClass.getDeclaredConstructor(Any::class.java, Any::class.java).apply {
-                isAccessible = true
+            val entryClass = WATERMARK_ENTRY_CANDIDATES.asSequence()
+                .mapNotNull { ctxLoadOrNull(it) }
+                .firstOrNull { c ->
+                    // The holder's ctor is `(String,String)` — require BOTH params to be String
+                    // so a repurposed 2-arg candidate (non-String) can never be picked.
+                    c.declaredConstructors.any {
+                        it.parameterTypes.size == 2 &&
+                            it.parameterTypes[0] == String::class.java &&
+                            it.parameterTypes[1] == String::class.java
+                    }
+                } ?: run {
+                DebugLog.w(TAG, "watermark entry holder not resolved (candidates $WATERMARK_ENTRY_CANDIDATES)")
+                return
             }
+            // Use the (String,String) ctor by ITS OWN parameter types: looking it up as
+            // `(Object,Object)` exact-match reflection would silently no-op the refresh.
+            val ctor = entryClass.declaredConstructors.firstOrNull {
+                it.parameterTypes.size == 2 &&
+                    it.parameterTypes[0] == String::class.java &&
+                    it.parameterTypes[1] == String::class.java
+            } ?: return
+            ctor.isAccessible = true
             cacheField.set(holder, ctor.newInstance(brand, model))
         }.onFailure { t ->
             DebugLog.w(TAG, "watermark config cache refresh failed (defensive)", t)
         }
     }
+
+    private fun ctxLoadOrNull(name: String): Class<*>? =
+        runCatching { classLoader.loadClass(name) }.getOrNull()
 
     // ─── 4. Force this device's brand/model into every watermark render ───────────
 
@@ -439,19 +665,33 @@ object CameraImpersonationHooker : StaticHooker() {
      * is left untouched.
      */
     private fun hookWatermarkRender() {
-        val clazz = "com.xiaomi.cam.watermark.a".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "wm_renderer", ctx = ctx,
+            candidates = listOf("com.xiaomi.cam.watermark.a"),
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "J0" && it.parameterTypes.size == 3 &&
+                        it.parameterTypes[0] == String::class.java &&
+                        it.parameterTypes[1] == String::class.java &&
+                        it.parameterTypes[2] == java.lang.Boolean.TYPE
+                }
+            },
+        ) ?: run {
             DebugLog.w(TAG, "watermark renderer not resolved; render keep skipped")
             return
         }
-        val j0 = runCatching {
-            clazz.declaredMethods.firstOrNull {
-                it.name == "J0" && it.parameterTypes.size == 3 &&
-                    it.parameterTypes[0] == String::class.java &&
-                    it.parameterTypes[1] == String::class.java &&
-                    it.parameterTypes[2] == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "watermark renderer#J0 not found; render keep skipped")
+        val j0 = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_renderer_j0", clazz = clazz,
+            names = listOf("J0"),
+            shape = { m ->
+                m.parameterTypes.size == 3 &&
+                    m.parameterTypes[0] == String::class.java &&
+                    m.parameterTypes[1] == String::class.java &&
+                    m.parameterTypes[2] == java.lang.Boolean.TYPE
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#J0 not found; render keep skipped")
             return
         }
         deoptimize(j0)
@@ -464,7 +704,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 param.args[1] = CameraWatermarkBrand.model()
             }
         }
-        DebugLog.d(TAG, "watermark render keep hooked on com.xiaomi.cam.watermark.a#J0")
+        DebugLog.d(TAG, "watermark render keep hooked on ${clazz.name}#J0")
     }
 
     // ─── 5. Render the custom watermark brand as plain text when it has no logo ────
@@ -485,20 +725,40 @@ object CameraImpersonationHooker : StaticHooker() {
      * brand via `@{logo}`.
      */
     private fun hookWatermarkBrandText() {
-        val clazz = resolveClass(WM_MODEL_VIEW_DEX, "p203fs.m") ?: run {
-            DebugLog.w(TAG, "WmModelView ($WM_MODEL_VIEW_DEX) not resolved; brand-as-text skipped")
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "wm_model_view", ctx = ctx,
+            candidates = listOf("fs.m", "p203fs.m"),
+            // `WmModelView` survives as a plaintext dex string (classes10.dex).
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("WmModelView") } }
+                    .firstOrNull()?.name
+            },
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "o" && it.parameterTypes.size == 4 &&
+                        it.parameterTypes[0] == String::class.java &&
+                        it.parameterTypes[1] == String::class.java &&
+                        it.parameterTypes[2] == java.lang.Boolean.TYPE &&
+                        it.parameterTypes[3] == java.lang.Boolean.TYPE
+                }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "WmModelView (fs.m) not resolved; brand-as-text skipped")
             return
         }
-        val oMethod = runCatching {
-            clazz.declaredMethods.firstOrNull {
-                it.name == "o" && it.parameterTypes.size == 4 &&
-                    it.parameterTypes[0] == String::class.java &&
-                    it.parameterTypes[1] == String::class.java &&
-                    it.parameterTypes[2] == java.lang.Boolean.TYPE &&
-                    it.parameterTypes[3] == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "WmModelView#o not found; brand-as-text skipped")
+        val oMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "wm_model_view_o", clazz = clazz,
+            names = listOf("o"),
+            shape = { m ->
+                m.parameterTypes.size == 4 &&
+                    m.parameterTypes[0] == String::class.java &&
+                    m.parameterTypes[1] == String::class.java &&
+                    m.parameterTypes[2] == java.lang.Boolean.TYPE &&
+                    m.parameterTypes[3] == java.lang.Boolean.TYPE
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#o not found; brand-as-text skipped")
             return
         }
         deoptimize(oMethod)
@@ -543,13 +803,21 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 6. (Optional) fake the LCC theme so LCC-gated flagship branches open too ──
 
     private fun hookLccTheme() {
-        val clazz = "Je.c".toClassOrNull() ?: return
-        val vMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "V" && it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.c#V() LCC gate not found; theme impersonation skipped")
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "lcc_theme_facade", ctx = ctx,
+            candidates = CONFIG_FACADE_CANDIDATES,
+            validate = { CameraResolver.hasBooleanMethod(it, listOf("V")) },
+        ) ?: run {
+            DebugLog.w(TAG, "Je.c not resolved; LCC theme impersonation skipped")
+            return
+        }
+        val vMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "lcc_theme_v", clazz = clazz,
+            names = listOf("V"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#V() LCC gate not found; theme impersonation skipped")
             return
         }
         deoptimize(vMethod)
@@ -567,32 +835,43 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
-     * `p496o9.a.f53967a.d().i()`. `p496o9/a` picks the provider holder from `Je/c.V()`: the LCC
-     * branch uses `Ox.g(5)` whose `i()` returns false (jadx `Ox/g.java:195`), so forcing the
-     * LCC theme hides the entry. Forcing `Ox.g#i()` to true whenever the master switch is on
-     * restores it; a genuinely-LCC device without the master switch keeps its stock behaviour.
+     * `p497o9.a.f53945a.d().s()` (jadx aliases; real names `o9.a.f53945a.d().s()`). The holder
+     * picks the provider from `Je/c.V()`: the LCC branch's provider returns false, hiding the
+     * entry — on 6.6.000460.0 that provider was `Ox.g` with method `i()`, on 6.6.000510.0 it is
+     * `Gt.a` with method `s()` (`Gt.a` implements `p9.f`, whose boolean `s()` is the gate;
+     * verified in smali: `y9.c.d()` returns the `Gt.a` instance). Note the obfuscator REUSED
+     * the name `Ox.g` for an unrelated state-list helper on 510, so the semantic check (a
+     * boolean zero-arg `s`/`i` method) is what rejects the trap; a repurposed name degrades to
+     * a logged skip, never a wrong hook. Forcing the gate true whenever the master switch is on
+     * restores the entry; a genuinely-LCC device without the master switch keeps stock behaviour.
      */
     private fun hookLccCustomizationProvider() {
-        val clazz = "Ox.g".toClassOrNull() ?: run {
-            DebugLog.w(TAG, "Ox.g LCC customization provider not resolved; tint-color restore skipped")
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "lcc_provider", ctx = ctx,
+            // Gt.a = 6.6.000510.0 provider; Ox.g = 6.6.000460.0 (repurposed on 510, rejected by
+            // the validation).
+            candidates = listOf("Gt.a", "Ox.g"),
+            validate = { CameraResolver.hasBooleanMethod(it, listOf("s", "i")) },
+        ) ?: run {
+            DebugLog.w(TAG, "LCC customization provider not resolved; tint-color restore skipped")
             return
         }
-        val iMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "i" && it.parameterTypes.isEmpty() &&
-                    it.returnType == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Ox.g#i() not found; tint-color restore skipped")
+        val gateMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "lcc_provider_gate", clazz = clazz,
+            names = listOf("s", "i"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name} tint-color gate method not found; restore skipped")
             return
         }
-        deoptimize(iMethod)
-        iMethod.hook("cam_restore_tint_color") {
+        deoptimize(gateMethod)
+        gateMethod.hook("cam_restore_tint_color") {
             before { param ->
                 if (enabled()) param.result = true
             }
         }
-        DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#i()")
+        DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#${gateMethod.name}()")
     }
 
     // ─── 8. Keep this device's own focal lengths (焦段) while impersonating ─────────
@@ -709,10 +988,12 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * Mode-gate plan per impersonation target (see RESEARCH_MYRON_00_SYNTHESIS.md):
-     *  - K100 Pro Max target (default): `y4()` stays true (实况运镜 visible, its REDMI effect table
-     *    is hardware-realistic), `a3()` is forced true by `hookStreetEnable` (街拍 visible, opens
-     *    the HAL role-0 main camera), `b6()` stays true (= the device's own native main-id scheme,
-     *    `C1209` also has `b6=true`). Only 装备街拍 (hard-opens cameras 13/7 that do not exist) and
+     *  - K100 Pro Max target (default): `y4()` stays true — it is the REGISTRY gate
+     *    (`MasterLiveModuleEntry.support()` → mode 231 exists at all), true on C1200 and C1209
+     *    alike; CAROUSEL placement is a different mechanism (the `M()[I` order array, see
+     *    [hookMasterLiveModePlacement]). `a3()` is forced true by `hookStreetEnable` (街拍
+     *    visible, opens the HAL role-0 main camera), `b6()` stays true (= the device's own
+     *    native main-id scheme). Only 装备街拍 (hard-opens cameras 13/7 that do not exist) and
      *    传奇人像 (RAW+LUT reprocessing) stay closed.
      *  - Legacy Nezha target: keep the old delegation guards — `y4/a3` hidden by
      *    `KEY_CAMERA_GUARD_MODES` (their 17U hardware doesn't exist here), `b6` clampable via
@@ -845,17 +1126,21 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /** `Je.c#M()` (boolean) = `e.B4() && e.l2()` (jadx shows the config field as `f8420e`) — the 装备街拍 gate. */
     private fun hookFacadeEquipStreetGate() {
-        val clazz = "Je.c".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "equip_street_facade", ctx = ctx,
+            candidates = CONFIG_FACADE_CANDIDATES,
+            validate = { CameraResolver.hasBooleanMethod(it, listOf("M")) },
+        ) ?: run {
             DebugLog.w(TAG, "Je.c not resolved; equip-street guard skipped")
             return
         }
-        val mMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "M" && it.parameterTypes.isEmpty() &&
-                    it.returnType == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "Je.c#M() not found; equip-street guard skipped")
+        val mMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "equip_street_gate", clazz = clazz,
+            names = listOf("M"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#M() not found; equip-street guard skipped")
             return
         }
         deoptimize(mMethod)
@@ -871,18 +1156,26 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /** 传奇人像 (Legendary 256) RAW / re-processing pipeline — keep it closed on non-flagships. */
     private fun hookLegendarySupport() {
-        val clazz = "com.android.camera.features.mode.legendary.LegendaryEnter"
-            .toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "legendary_enter", ctx = ctx,
+            candidates = listOf("com.android.camera.features.mode.legendary.LegendaryEnter"),
+            // `isSupportLegendaryMode` survives as a plaintext dex string (classes.dex).
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("isSupportLegendaryMode") } }
+                    .firstOrNull()?.name
+            },
+            validate = { CameraResolver.hasBooleanMethod(it, listOf("support")) },
+        ) ?: run {
             DebugLog.w(TAG, "LegendaryEnter not resolved; legendary guard skipped")
             return
         }
-        val support = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "support" && it.parameterTypes.isEmpty() &&
-                    it.returnType == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "LegendaryEnter#support() not found; legendary guard skipped")
+        val support = CameraResolver.resolveMethod(
+            scope = TAG, key = "legendary_support", clazz = clazz,
+            names = listOf("support"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#support() not found; legendary guard skipped")
             return
         }
         deoptimize(support)
@@ -892,6 +1185,49 @@ object CameraImpersonationHooker : StaticHooker() {
             }
         }
         DebugLog.d(TAG, "legendary guard hooked on ${clazz.name}#support()")
+    }
+
+    /**
+     * Front-load 实况运镜 (MasterLive, mode id 231) into the impersonated config's mode
+     * ordering array `M()[I` under the k100promax target.
+     *
+     * REGRESSION (2026-08-21, "没有实况运镜了"): the per-device config's `M()` array is the
+     * sole ordering input of `u2.P` (ComponentModuleList), which splits the mode strip at the
+     * 254 (更多) marker — modes absent from the array land in the overflow, not the carousel.
+     * The Nezha config fronts `{231,…}` (carousel first); the K100 Pro Max config omits 231,
+     * so switching targets moved the mode into the overflow even though `y4()` (the registry
+     * gate, `MasterLiveModuleEntry.support()`) stays true on both. Commit `8b202b7` also
+     * mis-classified `"M"` as an imaging-identity getter and delegated it to the original
+     * myron config — which likewise has no 231 — hiding it under BOTH targets; `"M"` is since
+     * removed from [IDENTITY_GETTERS] (its only consumer is the list orderer; it feeds no
+     * colour pipeline).
+     *
+     * This hook prepends 231 to the K100 instance's own array (see
+     * [CameraIdentity.frontMasterLiveMode]) so MasterLive reopens at the carousel front while
+     * keeping C1200's REDMI effect table (`q0()`) — no Nezha tele/12.9x crash path. Gated on
+     * the impersonation master AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on, doubling
+     * as this feature's kill switch); inert on a native nezha device and when the array
+     * already contains 231 (e.g. the legacy nezha target, whose own array fronts it).
+     */
+    private fun hookMasterLiveModePlacement() {
+        val flagship = flagshipInstance() ?: return
+        if (!targetIsK100Promax()) return // nezha target fronts 231 natively via its own M()
+        val method = runCatching { flagship.javaClass.getMethod("M") }
+            .getOrNull()
+            ?.takeIf { it.parameterTypes.isEmpty() && it.returnType == IntArray::class.java }
+            ?: run {
+                DebugLog.w(TAG, "${flagship.javaClass.name}#M()[I not found; masterlive placement skipped")
+                return
+            }
+        deoptimize(method)
+        method.hook("cam_masterlive_mode_front") {
+            before { param ->
+                if (!enabled() || !masterliveTeleFallback()) return@before
+                val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
+                if (fronted != null) param.result = fronted
+            }
+        }
+        DebugLog.d(TAG, "masterlive placement hooked on ${flagship.javaClass.name}#M()")
     }
 
     /**
@@ -905,19 +1241,25 @@ object CameraImpersonationHooker : StaticHooker() {
      * it is a no-op. Gated on `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on).
      */
     private fun hookMasterLiveTeleFallback() {
-        val clazz = resolveClass(ROLE_ADAPTER_DEX, "p703u6.e") ?: run {
-            DebugLog.w(
-                TAG,
-                "Camera2CompatAdapterRole ($ROLE_ADAPTER_DEX) not resolved; masterlive tele fallback skipped"
-            )
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "role_adapter", ctx = ctx,
+            candidates = listOf("u6.e", "p703u6.e"),
+            // `Camera2CompatAdapterRole` survives as a plaintext dex string (classes.dex).
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("Camera2CompatAdapterRole") } }
+                    .firstOrNull()?.name
+            },
+            validate = { c -> c.declaredMethods.any { it.name == "M" && it.returnType == java.lang.Integer.TYPE } },
+        ) ?: run {
+            DebugLog.w(TAG, "Camera2CompatAdapterRole (u6.e) not resolved; masterlive tele fallback skipped")
             return
         }
-        val mMethod = runCatching {
-            clazz.declaredMethods.first {
-                it.name == "M" && it.parameterTypes.isEmpty() &&
-                    it.returnType == java.lang.Integer.TYPE
-            }
-        }.getOrNull() ?: run {
+        val mMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "role_adapter_m", clazz = clazz,
+            names = listOf("M"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Integer.TYPE },
+        ) ?: run {
             DebugLog.w(TAG, "${clazz.name}#M() not found; masterlive tele fallback skipped")
             return
         }
@@ -956,7 +1298,17 @@ object CameraImpersonationHooker : StaticHooker() {
      * name (verified in the on-device APK). Enable only if on-device logs confirm op-mode 1 stalls.
      */
     private fun hookMasterLiveOpModeSafe() {
-        val clazz = "U3.p".toClassOrNull() ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "masterlive_module", ctx = ctx,
+            candidates = listOf("U3.p"),
+            // `MasterLiveModuleDevice` survives as a plaintext dex string (classes.dex).
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("MasterLiveModuleDevice") } }
+                    .firstOrNull()?.name
+            },
+            validate = { c -> c.declaredMethods.any { it.name == "i" && it.returnType == java.lang.Integer.TYPE } },
+        ) ?: run {
             DebugLog.w(TAG, "U3.p (MasterLiveModuleDevice) not resolved; op-mode safe hook skipped")
             return
         }
@@ -1003,7 +1355,25 @@ object CameraImpersonationHooker : StaticHooker() {
      * Gated on the impersonation master; see RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md.
      */
     private fun hookShutterSoundBoundary() {
-        val clazz = resolveClass("f2.c", "p180f2.c") ?: run {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "shutter_cfg", ctx = ctx,
+            candidates = listOf("f2.c", "p180f2.c"),
+            // `key_shutter_sound` survives as a plaintext dex string on both verified builds,
+            // so a renamed shutter-config class can still be found by it; the method-shape
+            // filter (int-returning zero-arg `a()`) disambiguates any other string user.
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("key_shutter_sound") } }
+                    .firstOrNull { cd ->
+                        cd.methods.any { m -> m.name == "a" && m.returnTypeName == "int" }
+                    }?.name
+            },
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "a" && it.parameterCount == 0 && it.returnType == java.lang.Integer.TYPE
+                }
+            },
+        ) ?: run {
             DebugLog.w(TAG, "f2.c (shutter sound config) not resolved; shutter-sound guard skipped")
             return
         }
@@ -1126,8 +1496,8 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun buildOriginalConfigInstance(): Any? {
         val loader = classLoader ?: return null
         return runCatching {
-            val factory = loader.loadClass(CONFIG_FACTORY)
-            val resolver = factory.getDeclaredMethod("a", String::class.java)
+            val resolver = resolveSourceNameResolver(loader)
+                ?: return@runCatching null
             val deviceBase = readDeviceBaseName() ?: Build.DEVICE
             buildFrom(loader, resolver, "com.mi.device.${capitalize(deviceBase)}")
                 ?: buildFrom(
