@@ -188,6 +188,8 @@ object CameraImpersonationHooker : StaticHooker() {
         hookModeGuards()
         hookLeicaStyle()
         hookMasterLiveModePlacement()
+        hookMasterLiveOrderFunnel()
+        hookMasterLiveSupportEntry()
         hookMasterLiveTeleFallback()
         hookMasterLiveOpModeSafe()
         hookShutterSoundBoundary()
@@ -1196,18 +1198,24 @@ object CameraImpersonationHooker : StaticHooker() {
      * 254 (更多) marker — modes absent from the array land in the overflow, not the carousel.
      * The Nezha config fronts `{231,…}` (carousel first); the K100 Pro Max config omits 231,
      * so switching targets moved the mode into the overflow even though `y4()` (the registry
-     * gate, `MasterLiveModuleEntry.support()`) stays true on both. Commit `8b202b7` also
-     * mis-classified `"M"` as an imaging-identity getter and delegated it to the original
-     * myron config — which likewise has no 231 — hiding it under BOTH targets; `"M"` is since
-     * removed from [IDENTITY_GETTERS] (its only consumer is the list orderer; it feeds no
-     * colour pipeline).
+     * gate, `MasterLiveModuleEntry.support()`) stays true on both.
      *
-     * This hook prepends 231 to the K100 instance's own array (see
-     * [CameraIdentity.frontMasterLiveMode]) so MasterLive reopens at the carousel front while
-     * keeping C1200's REDMI effect table (`q0()`) — no Nezha tele/12.9x crash path. Gated on
-     * the impersonation master AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on, doubling
-     * as this feature's kill switch); inert on a native nezha device and when the array
-     * already contains 231 (e.g. the legacy nezha target, whose own array fronts it).
+     * SECOND REGRESSION (2026-08-24, "实况运镜依旧失效"): the original hook ran in the
+     * `before` stage and read `param.result` to decide whether fronting was needed. In
+     * ezhooktool a `before` callback runs BEFORE the original method (`BeforeChainStage.
+     * intercept` invokes the callback first and only calls `proceed()` when the result was
+     * not replaced), so `param.result` was always null there,
+     * `CameraIdentity.frontMasterLiveMode(null)` always returned null, and the hook NEVER
+     * fronted anything. It is now an `after` hook reading the real return value.
+     *
+     * Even fixed, this hook alone cannot restore visibility: `M()` is read only by
+     * `u2.P.t(Q)`, which loses to the in-memory sort cache `f62389h` (rewritten by `K()`
+     * after every render) and the persisted `pref_camera_sort_modes_key` order — see
+     * [hookMasterLiveOrderFunnel], which corrects whichever source wins. This hook stays as
+     * defense-in-depth so the config itself reports a Nezha-shaped array (also keeps the
+     * `t(Q)`/`o()` empty-`M()` fallback lists out of play). Gated on the impersonation master
+     * AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on, doubling as the MasterLive kill
+     * switch); inert on a native nezha device and when the array already contains 231.
      */
     private fun hookMasterLiveModePlacement() {
         val flagship = flagshipInstance() ?: return
@@ -1221,13 +1229,158 @@ object CameraImpersonationHooker : StaticHooker() {
             }
         deoptimize(method)
         method.hook("cam_masterlive_mode_front") {
-            before { param ->
-                if (!enabled() || !masterliveTeleFallback()) return@before
+            after { param ->
+                if (!enabled() || !masterliveTeleFallback()) return@after
                 val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
                 if (fronted != null) param.result = fronted
             }
         }
         DebugLog.d(TAG, "masterlive placement hooked on ${flagship.javaClass.name}#M()")
+    }
+
+    /**
+     * Resolve `u2.P` (ComponentModuleList; jadx alias `p700u2.P`, 460 build `u2.U`) once for
+     * both MasterLive list hooks. Validation survives renames:
+     *  - L1 candidates: the real dex names of the two verified builds (`p699u2`/`p700u2` are
+     *    jadx display aliases for collisions with root packages — the aliases themselves do
+     *    not exist in the dex).
+     *  - L2 DexKit probe: `"ComponentModuleList"` is the plaintext log tag used by
+     *    `Log.d(...)` throughout the class AND `"setAllSupportModeList  = "` its unique
+     *    write-site string (`P.java:238`), together pinning exactly one class.
+     *  - shape: a declared static int[] field whose contents contain BOTH the 254 更多 marker
+     *    and mode 231 ([CameraIdentity.defaultModeListShape] — the default list `f62382k`,
+     *    `P.java:51`; smali clinit `{…0xfe…0xe7…}`), plus an instance int[]-returning
+     *    single-parameter method (the `y(Q)` funnel shape, `P.java:895`).
+     */
+    private val componentModuleList = AtomicReference<Class<*>?>()
+
+    private fun resolveComponentModuleList(): Class<*>? {
+        componentModuleList.get()?.let { return it }
+        synchronized(componentModuleList) {
+            componentModuleList.get()?.let { return it }
+            val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+            val resolved = CameraResolver.resolveClass(
+                scope = TAG, key = "component_module_list", ctx = ctx,
+                candidates = listOf("u2.P", "u2.U"),
+                probe = { bridge ->
+                    // Both strings are CONTAINS-matched; the pair pins exactly one class.
+                    bridge.findClass {
+                        matcher { usingStrings("ComponentModuleList", "setAllSupportModeList") }
+                    }.firstOrNull()?.name
+                },
+                validate = { c ->
+                    hasDefaultModeListField(c) &&
+                        c.declaredMethods.any {
+                            !it.isSynthetic && it.returnType == IntArray::class.java && it.parameterCount == 1
+                        }
+                },
+            )
+            componentModuleList.set(resolved)
+            return resolved
+        }
+    }
+
+    /** True when [clazz] declares a static int[] holding both 254 and 231 (see [CameraIdentity.defaultModeListShape]). */
+    private fun hasDefaultModeListField(clazz: Class<*>): Boolean =
+        clazz.declaredFields.any { field ->
+            java.lang.reflect.Modifier.isStatic(field.modifiers) && field.type == IntArray::class.java &&
+                runCatching {
+                    field.isAccessible = true
+                    CameraIdentity.defaultModeListShape(field.get(null) as? IntArray)
+                }.getOrDefault(false)
+        }
+
+    /**
+     * MasterLive (实况运镜) carousel placement, part 2: correct the ORDER FUNNEL itself.
+     *
+     * ROOT CAUSE this covers (why fixing only `M()` could never work): every consumer of the
+     * mode order goes through `u2.P.y(Q)[I` / its zero-arg wrapper `x()[I`
+     * (`p700u2/P.java:895-915/891-893`), which returns whichever source wins:
+     *  1. the in-memory sort cache `f62389h` — seeded by the constructor (`P.java:110`) and
+     *     rewritten by `K(iArr3,false)` after EVERY render (`o()`, `P.java:822-824`) with the
+     *     support-filtered rendered order, so a single session without 231 erases it;
+     *  2. the persisted `pref_camera_sort_modes_key` string (written by `H()` when the user
+     *     edits modes, `P.java:568-583` + editor call site `S4/f.java#Nq` → `K(iArr,true)`,
+     *     and migrated across camera app upgrades by `Ac/e.java:155-246`);
+     *  3. only when BOTH are cold, the freshly built `t(Q)` — the sole reader of config `M()`.
+     *
+     * An after-hook here re-places 231 immediately before the FIRST 254 marker in whatever
+     * array leaves the funnel ([CameraIdentity.placeMasterLiveModeBeforeMarker]), which makes
+     * `C()`'s carousel/overflow split (`P.java:469-490`) put MasterLive in the strip. Because
+     * `K(iArr3,false)` stores back what was rendered from our corrected order, the in-memory
+     * cache converges to a corrected layout by itself, and any later user edit persists
+     * (`H()` → `I(x())`) an already-corrected order — the stock caches heal instead of
+     * fighting us. No-op (returns untouched) whenever 231 already leads the marker (Nezha
+     * arrays, prior corrections) or the feature gates are off.
+     *
+     * NOT covered here and deliberately skipped: `E(int)` prefers the persisted
+     * `all_support_mode_list` over `x()` (`P.java:511-550`) — see
+     * [hookMasterLiveSupportEntry]. Gated like [hookMasterLiveModePlacement].
+     */
+    private fun hookMasterLiveOrderFunnel() {
+        val clazz = resolveComponentModuleList() ?: run {
+            DebugLog.w(TAG, "u2.P (ComponentModuleList) not resolved; masterlive order funnel skipped")
+            return
+        }
+        val yMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "component_module_list_y", clazz = clazz,
+            names = listOf("y"),
+            shape = { it.parameterCount == 1 && it.returnType == IntArray::class.java },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#y(Q)[I not found; masterlive order funnel skipped")
+            return
+        }
+        deoptimize(yMethod)
+        yMethod.hook("cam_masterlive_order_funnel") {
+            after { param ->
+                if (!enabled() || !masterliveTeleFallback()) return@after
+                val placed = CameraIdentity.placeMasterLiveModeBeforeMarker(param.result as? IntArray)
+                if (placed != null) param.result = placed
+            }
+        }
+        DebugLog.d(TAG, "masterlive order funnel hooked on ${clazz.name}#y(Q)")
+    }
+
+    /**
+     * MasterLive carousel placement, part 3 (defense-in-depth): force `u2.P.E(231)` true.
+     *
+     * When the config's `L2()` is true (base impl `!(this instanceof C1198)`, C1174.java:488 —
+     * true on the K100 target), `E(int)` ignores `x()` and consults the PERSISTED pref string
+     * `all_support_mode_list` instead (`p700u2/P.java:511-550`); a list persisted before
+     * MasterLive was visible (or before impersonation was enabled) lacks 231 and fails the
+     * before-the-marker check. Its only two consumers are the retain-camera-mode decision
+     * (`u2.S#a`, smali `Lu2/P;->E(I)Z` call sites) and the new-user mode guide
+     * (`com.android.camera.guide.b`) — neither hides the mode, but both misbehave for exactly
+     * the mode we inject above. Forcing E(231)=true while our placement is active keeps them
+     * consistent; every other id computes normally. Gated like [hookMasterLiveModePlacement];
+     * z(231)==231 (no legacy alias maps to 231, `P.java:343-395`), so the id check is exact.
+     */
+    private fun hookMasterLiveSupportEntry() {
+        val clazz = resolveComponentModuleList() ?: run {
+            DebugLog.w(TAG, "u2.P (ComponentModuleList) not resolved; masterlive support entry skipped")
+            return
+        }
+        val eMethod = CameraResolver.resolveMethod(
+            scope = TAG, key = "component_module_list_e", clazz = clazz,
+            names = listOf("E"),
+            shape = {
+                it.parameterCount == 1 && it.parameterTypes[0] == java.lang.Integer.TYPE &&
+                    it.returnType == java.lang.Boolean.TYPE
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#E(I)Z not found; masterlive support entry skipped")
+            return
+        }
+        deoptimize(eMethod)
+        eMethod.hook("cam_masterlive_support_entry") {
+            after { param ->
+                if (!enabled() || !masterliveTeleFallback()) return@after
+                if ((param.result as? Boolean) != false) return@after
+                if ((param.args?.getOrNull(0) as? Int) != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
+                param.result = true
+            }
+        }
+        DebugLog.d(TAG, "masterlive support entry hooked on ${clazz.name}#E(I)")
     }
 
     /**
