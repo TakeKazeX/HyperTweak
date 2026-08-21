@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -93,8 +95,8 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                 "k100promax"
         )
     }
-    var streetEnable by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_STREET_ENABLE, true))
+    var streetMode by remember {
+        mutableStateOf(Preferences.cameraStreetMode())
     }
     var leicaStyle by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true))
@@ -201,14 +203,23 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         title = stringResource(R.string.camera_unlock_target_title),
                         summary = stringResource(R.string.camera_unlock_target_summary)
                     )
-                    SwitchPreference(
-                        checked = streetEnable,
-                        onCheckedChange = { enabled ->
-                            streetEnable = enabled
-                            set(Preferences.KEY_CAMERA_STREET_ENABLE, enabled)
-                        },
+                    // 街拍 (mode 225) unlock selector: 新街拍 rides on the impersonated
+                    // flagship config; 兼容模式街拍 opens the entry without impersonation.
+                    // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
+                    OverlayDropdownPreference(
                         title = stringResource(R.string.camera_unlock_street_title),
-                        summary = stringResource(R.string.camera_unlock_street_summary)
+                        summary = stringResource(R.string.camera_unlock_street_summary),
+                        items = listOf(
+                            stringResource(R.string.camera_unlock_street_off),
+                            stringResource(R.string.camera_unlock_street_new),
+                            stringResource(R.string.camera_unlock_street_compat)
+                        ),
+                        selectedIndex = CameraStreetMode.index(streetMode),
+                        onSelectedIndexChange = { index ->
+                            val mode = CameraStreetMode.fromIndex(index)
+                            streetMode = mode
+                            Preferences.setCameraStreetMode(mode)
+                        }
                     )
                     SwitchPreference(
                         checked = leicaStyle,

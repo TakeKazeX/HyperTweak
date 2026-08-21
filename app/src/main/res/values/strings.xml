@@ -583,8 +583,11 @@
     <string name="camera_unlock_master_title">Impersonate flagship camera config</string>
     <string name="camera_unlock_target_title">REDMI K100 Pro Max config (recommended)</string>
     <string name="camera_unlock_target_summary">Impersonate the REDMI K100 Pro Max config: same sensor axis as this device (correct colours — no purple), MasterLive with a Redmi effect table, Redmi watermark strings. Off = legacy 17 Ultra config (old behaviour — freezes MasterLive/Street on non-flagships). Needs a camera restart after changing</string>
-    <string name="camera_unlock_street_title">Enable Street mode</string>
-    <string name="camera_unlock_street_summary">Force the street-support gate (a3) true so 街拍 shows and opens the real main camera; the quick-launch photo route stays consistent</string>
+    <string name="camera_unlock_street_title">Street snap mode</string>
+    <string name="camera_unlock_street_summary">How 街拍 (mode 225) is unlocked. 新街拍 forces the impersonated flagship\'s street-support gate (needs the master switch); 兼容模式街拍 opens the real main camera without impersonation. The entry appears in 更多 after a camera restart; 装备街拍 needs 17 Ultra hardware and stays unavailable</string>
+    <string name="camera_unlock_street_off">Off</string>
+    <string name="camera_unlock_street_new">New street snap (impersonation unlock)</string>
+    <string name="camera_unlock_street_compat">Compatible street snap (no impersonation)</string>
     <string name="camera_unlock_leica_style_title">Keep Leica style (classic/vivid)</string>
     <string name="camera_unlock_leica_style_summary">Force the config\'s Leica flag (F3/X2) true so the 摄影风格 徕卡经典 ↔ 徕卡生动 switcher reappears with the K100 Pro Max config (lost because a Redmi config reports F3=false). No legendary/RAW side effects. Needs a camera restart after changing</string>
     <string name="camera_unlock_ultra_hd_title">Ultra-high image quality (fixed unlock)</string>

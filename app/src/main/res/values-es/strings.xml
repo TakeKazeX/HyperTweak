@@ -7,4 +7,10 @@
     <string name="pref_language_en">English</string>
     <string name="camera_unlock_ultra_hd_title">Calidad de imagen ultraalta (desbloqueo fijo)</string>
     <string name="camera_unlock_ultra_hd_summary">Fija el interruptor de la configuración del dispositivo (l7) que oculta el nivel Ultra alto, para que Ajustes → Calidad de imagen ofrezca y conserve Ultra alta (calidad JPEG 100). Desactivado = comportamiento de fábrica (máximo Alta); una selección Ultra alta guardada se reajusta. El cambio es inmediato: vuelve a abrir la página de ajustes para actualizar la lista; el primer encendido requiere reiniciar la cámara</string>
+
+    <string name="camera_unlock_street_title">Modo de foto callejera</string>
+    <string name="camera_unlock_street_summary">Cómo se desbloquea 街拍 (modo 225). «Nueva foto callejera» fuerza la puerta de soporte de la configuración suplantada (requiere el interruptor principal); «Foto callejera compatible» abre la cámara principal real sin suplantación. La entrada aparece en Más tras reiniciar la cámara; 装备街拍 requiere hardware del 17 Ultra y sigue sin estar disponible</string>
+    <string name="camera_unlock_street_off">Apagado</string>
+    <string name="camera_unlock_street_new">Nueva foto callejera (desbloqueo por suplantación)</string>
+    <string name="camera_unlock_street_compat">Foto callejera compatible (sin suplantación)</string>
 </resources>
