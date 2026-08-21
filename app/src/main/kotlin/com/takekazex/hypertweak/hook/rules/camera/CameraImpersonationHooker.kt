@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
 import android.os.Build
+import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -991,10 +992,11 @@ object CameraImpersonationHooker : StaticHooker() {
      *  - K100 Pro Max target (default): `y4()` stays true — it is the REGISTRY gate
      *    (`MasterLiveModuleEntry.support()` → mode 231 exists at all), true on C1200 and C1209
      *    alike; CAROUSEL placement is a different mechanism (the `M()[I` order array, see
-     *    [hookMasterLiveModePlacement]). `a3()` is forced true by `hookStreetEnable` (街拍
-     *    visible, opens the HAL role-0 main camera), `b6()` stays true (= the device's own
-     *    native main-id scheme). Only 装备街拍 (hard-opens cameras 13/7 that do not exist) and
-     *    传奇人像 (RAW+LUT reprocessing) stay closed.
+     *    [hookMasterLiveModePlacement]). 街拍 (225) is unlocked per [Preferences]
+     *    `.KEY_CAMERA_STREET_MODE` (see [hookStreetEnable] / [hookCompatStreetSupport]);
+     *    `b6()` stays true (= the device's own native main-id scheme). Only 装备街拍
+     *    (hard-opens cameras 13/7 that do not exist) and 传奇人像 (RAW+LUT reprocessing)
+     *    stay closed.
      *  - Legacy Nezha target: keep the old delegation guards — `y4/a3` hidden by
      *    `KEY_CAMERA_GUARD_MODES` (their 17U hardware doesn't exist here), `b6` clampable via
      *    `KEY_CAMERA_GUARD_CAMERA_ID`.
@@ -1011,9 +1013,11 @@ object CameraImpersonationHooker : StaticHooker() {
         // needs the clamp).
         hookFacadeEquipStreetGate()
         hookLegendarySupport()
-        // K100 Pro Max target only: make 街拍 visible + consistent with the quick-launch.
+        // 街拍 (225): 新街拍 = force a3() on the impersonated config (needs the master);
+        // 兼容模式街拍 = force StreetModuleEntry.support() on the REAL config (does not).
         hookStreetEnable()
-        DebugLog.d(TAG, "mode guards installed on ${target.name}")
+        hookCompatStreetSupport()
+        DebugLog.i(TAG, "mode guards installed on ${target.name}; street mode=${streetMode()}")
     }
 
     /** Delegate a zero-arg boolean getter on the flagship config class to the original config. */
@@ -1051,12 +1055,21 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
-     * Force `a3()` (street support) true on the impersonated config. No REDMI config ships
+     * 新街拍 (street unlock mode `"new"`, [Preferences.KEY_CAMERA_STREET_MODE]): force the
+     * street-support gate `a3()` true on the IMPERSONATED config. No REDMI config ships
      * `a3=true`, so with the K100 Pro Max target street is invisible/quick-launch CAPTURE until
      * this hook turns it on; the mode then opens the real HAL role-0 main camera (its
      * `b6=true` = native main-id scheme). `hookDelegateBoolean("a3", ...)` above is only armed
-     * for the Nezha target, so the two never fight. Gated on `KEY_CAMERA_STREET_ENABLE`
-     * (default on) + the K100 Pro Max target.
+     * for the Nezha target, so the two never fight.
+     *
+     * Because `a3()` is the single switch behind BOTH street visibility and the quick-launch
+     * re-classification (`p700u2.S` IntentParser: STILL_IMAGE + launch source
+     * `launch_camera_and_take_photo` → candidate mode 225 when `a3() && J.f()`), forcing it
+     * keeps every consumer consistent with a WORKING street mode — that consistency is exactly
+     * what distinguishes this mode from `"compat"`. Requires the impersonation master AND the
+     * K100 Pro Max target; when those do not hold the hook does NOT force anything (it never
+     * LOWERS a native `a3()` — a real flagship's own street entry stays untouched with the
+     * master off).
      */
     private fun hookStreetEnable() {
         val flagship = flagshipInstance() ?: return
@@ -1066,20 +1079,108 @@ object CameraImpersonationHooker : StaticHooker() {
                 it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
             }
         }.getOrNull() ?: run {
-            DebugLog.d(TAG, "street-enable getter ${target.name}#a3() not found; skipped")
+            DebugLog.w(TAG, "street-enable getter ${target.name}#a3() not found; new-mode street skipped")
             return
         }
         deoptimize(method)
         method.hook("cam_street_enable") {
             before { param ->
-                // Always short-circuit (set result true|false) so `proceed` is never re-entered
-                // (same SOE-safe pattern as the other delegating before-hooks). When the gate is
-                // off, forcing false equals C1151's own inherited `a3()=false`, so no behaviour
-                // is changed by always setting.
-                param.result = enabled() && streetEnable() && targetIsK100Promax()
+                // Only ever turn the gate ON. Skipping (instead of forcing false) when the mode
+                // is off leaves native configs untouched — an earlier build always set the
+                // result, which hid NATIVE street on genuinely capable devices whenever the
+                // master switch was off.
+                if (!(enabled() && targetIsK100Promax() && streetMode() == CameraStreetMode.MODE_NEW)) {
+                    return@before
+                }
+                param.result = true
+                logStreetApplyOnce("new(a3)")
             }
         }
-        DebugLog.d(TAG, "street-enable hooked on ${target.name}#a3()")
+        DebugLog.d(TAG, "street-enable hooked on ${target.name}#a3() (mode=new)")
+    }
+
+    /**
+     * 兼容模式街拍 (street unlock mode `"compat"`): force
+     * `com.android.camera.features.mode.street.StreetModuleEntry.support()` true — the REAL
+     * registry gate (`p666t3.a.d()` instantiates all module entries and keeps only those whose
+     * `support()` is true) — WITHOUT depending on the capability-config impersonation at all.
+     *
+     * Use case: the flagship swap failed to resolve, the user turned the impersonation master
+     * off, or another mod owns the config. Street still registers (it lands in the 更多
+     * overflow grid, like on natively street-capable devices — no verified config `M()[I`
+     * carries 225), and `StreetModule` has no camera-id override, so it opens through the
+     * module framework's HAL role-0 path = the REAL main camera. Nothing else changes: `a3()`
+     * stays native (quick-launch keeps its stock CAPTURE classification), 装备街拍 stays closed,
+     * colour pipelines stay on the device's own calibration.
+     *
+     * The class name is plaintext in every verified dex (the entry registry references it
+     * literally), but resolution still goes through [CameraResolver] with a shape validation
+     * (zero-arg boolean `support()` + zero-arg int `getModuleId()`) plus a DexKit probe keyed
+     * on `getEntryName()`'s constant, so a repurposed name can never win. The after-hook only
+     * ever RAISES the result (never lowers a native true), and the applied state is logged
+     * once per flip so an on-device failure is one-logcat-line diagnosable.
+     */
+    private fun hookCompatStreetSupport() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "street_module_entry", ctx = ctx,
+            candidates = listOf("com.android.camera.features.mode.street.StreetModuleEntry"),
+            // `getEntryName()` returns the class name constant — plaintext in classes.dex on
+            // both verified builds; filter to the shape below so a mere REFERENCE to the name
+            // (the registry class) can never match.
+            probe = { bridge ->
+                bridge.findClass {
+                    matcher { usingStrings(STREET_ENTRY_CLASS) }
+                }.firstOrNull { cd ->
+                    cd.methods.any { m ->
+                        m.name == "support" && m.returnTypeName == "boolean" &&
+                            m.paramTypes.isEmpty()
+                    }
+                }?.name
+            },
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "support" && it.parameterCount == 0 &&
+                        it.returnType == java.lang.Boolean.TYPE && !it.isSynthetic
+                } && c.declaredMethods.any {
+                    it.name == "getModuleId" && it.parameterCount == 0 &&
+                        it.returnType == java.lang.Integer.TYPE
+                }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "StreetModuleEntry not resolved; compat-mode street skipped")
+            return
+        }
+        val support = CameraResolver.resolveMethod(
+            scope = TAG, key = "street_module_entry_support", clazz = clazz,
+            names = listOf("support"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#support() not found; compat-mode street skipped")
+            return
+        }
+        deoptimize(support)
+        support.hook("cam_street_compat_support") {
+            after { param ->
+                if (streetMode() != CameraStreetMode.MODE_COMPAT) return@after
+                param.result = true
+                logStreetApplyOnce("compat(support)")
+            }
+        }
+        DebugLog.d(TAG, "street compat support hooked on ${clazz.name}#support() (mode=compat)")
+    }
+
+    /** Plaintext dex name of the street module entry (stable across 460/510). */
+    private const val STREET_ENTRY_CLASS =
+        "com.android.camera.features.mode.street.StreetModuleEntry"
+
+    /** Last logged street-apply state, so each hook logs ONE line per flip, not per call. */
+    private val streetApplyLogged = AtomicReference<String?>(null)
+
+    private fun logStreetApplyOnce(hook: String) {
+        if (streetApplyLogged.getAndUpdate { hook } != hook) {
+            DebugLog.i(TAG, "street unlock applied via $hook (mode=${streetMode()})")
+        }
     }
 
     /**
@@ -1578,8 +1679,8 @@ object CameraImpersonationHooker : StaticHooker() {
 
     private fun targetIsNezha(): Boolean = !targetIsK100Promax()
 
-    private fun streetEnable(): Boolean =
-        enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_STREET_ENABLE, true)
+    /** Resolved street unlock mode ([CameraStreetMode] constant), re-read live (100 ms memo). */
+    private fun streetMode(): String = Preferences.cameraStreetMode()
 
     private fun leicaStyle(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true)

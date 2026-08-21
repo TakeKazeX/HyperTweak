@@ -335,6 +335,35 @@ object Preferences {
         }
     }
 
+    /**
+     * The current street-snap unlock mode (a [CameraStreetMode] constant). Reads
+     * [KEY_CAMERA_STREET_MODE]; when that key was never written it migrates the legacy
+     * [LEGACY_KEY_CAMERA_STREET_ENABLE] boolean in memory (true → `"new"`, false → `"off"`),
+     * so existing users keep their stored street behaviour without a data rewrite. An
+     * unparsable stored value falls back to [CameraStreetMode.DEFAULT]. Read live by the
+     * camera hooks (100 ms memo), so switching modes applies without a restart once the hooks
+     * are installed — except entry VISIBILITY, which the camera caches per process.
+     */
+    fun cameraStreetMode(): String {
+        val stored = if (containsKey(KEY_CAMERA_STREET_MODE)) getString(KEY_CAMERA_STREET_MODE, "") else null
+        val legacy = if (stored == null) getBoolean(LEGACY_KEY_CAMERA_STREET_ENABLE, true) else null
+        return CameraStreetMode.resolve(stored, legacy)
+    }
+
+    /** Persists the street mode and drops the superseded legacy boolean. */
+    fun setCameraStreetMode(mode: String) {
+        memoInvalidate(KEY_CAMERA_STREET_MODE)
+        memoInvalidate(LEGACY_KEY_CAMERA_STREET_ENABLE)
+        write {
+            putString(KEY_CAMERA_STREET_MODE, mode)
+            remove(LEGACY_KEY_CAMERA_STREET_ENABLE)
+        }
+    }
+
+    /** True when [key] exists in the authoritative remote store (memo bypassed). */
+    private fun containsKey(key: String): Boolean =
+        isInitialized && runCatching { remotePrefs.contains(key) }.getOrDefault(false)
+
     // Media-editor watermark unlock (com.miui.mediaeditor). See
     // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
     // KEY_WM_UNLOCK_MASTER needs the editor process restarted (to install the hooks).
@@ -414,14 +443,6 @@ object Preferences {
     const val KEY_CAMERA_IMPERSONATE_TARGET = "camera_impersonate_target"
 
     /**
-     * Force the street-support gate (`a3()`) true on the impersonated config so 街拍 (Street
-     * 225) becomes visible AND the quick-launch STREET route stays consistent with a working
-     * mode (it opens the HAL role-0 main camera). Only meaningful with the K100 Pro Max target
-     * — no REDMI config ships `a3=true`. Default on.
-     */
-    const val KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
-
-    /**
      * Restore the Leica photography-style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher while
      * impersonating. The 摄影风格 component and the top-bar style entries gate on the config's
      * `F3()` (Leica-level device flag; `X2()` for the specific-capture path): `true` on the
@@ -469,6 +490,34 @@ object Preferences {
      */
     const val KEY_CAMERA_WM_CUSTOM_BRAND = "camera_wm_custom_brand"
     const val KEY_CAMERA_WM_CUSTOM_MODEL = "camera_wm_custom_model"
+
+    /**
+     * 街拍 (Street snap, camera mode id 225) unlock mode. One of [CameraStreetMode.MODES]:
+     *  - `"off"` — street stays stock (hidden on myron and every other REDMI config);
+     *  - `"new"` (新街拍) — force the street-support gate (`a3()`) true on the IMPERSONATED
+     *    flagship config, so the mode registers (`StreetModuleEntry.support()`) and the
+     *    quick-launch photo route re-classifies consistently with a working street. Needs the
+     *    camera-impersonation master on the K100 Pro Max target; no REDMI config ships
+     *    `a3=true` natively;
+     *  - `"compat"` (兼容模式街拍) — force `StreetModuleEntry.support()` itself true on the
+     *    REAL device config, independent of the impersonation: works even when the master
+     *    switch is off or the flagship swap fails to resolve, touches nothing else (`a3()`
+     *    stays native so quick-launch keeps its stock classification), and still opens the
+     *    HAL role-0 main camera.
+     *
+     * In both non-off modes the entry lands in the camera's 更多 overflow grid (no verified
+     * config `M()` order array carries 225), which is exactly where natively street-capable
+     * devices show it; visibility changes need a camera app restart because `p666t3.a`
+     * caches its support()-filtered entry registry for the process lifetime. 装备街拍 (229)
+     * depends on 17-Ultra modular-lens cameras (13/7) and stays closed in every mode.
+     *
+     * Supersedes the legacy boolean [LEGACY_KEY_CAMERA_STREET_ENABLE]; read through
+     * [cameraStreetMode], written through [setCameraStreetMode]. Default `"new"`.
+     */
+    const val KEY_CAMERA_STREET_MODE = "camera_street_mode"
+
+    /** Legacy single-switch street enable; superseded by [KEY_CAMERA_STREET_MODE]. */
+    const val LEGACY_KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
 
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"

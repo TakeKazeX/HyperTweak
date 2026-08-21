@@ -5,4 +5,10 @@
     <string name="pref_language_device_default">Predeterminado</string>
     <string name="pref_language_zh_cn">简体中文</string>
     <string name="pref_language_en">English</string>
+
+    <string name="camera_unlock_street_title">Modo de foto callejera</string>
+    <string name="camera_unlock_street_summary">Cómo se desbloquea 街拍 (modo 225). «Nueva foto callejera» fuerza la puerta de soporte de la configuración suplantada (requiere el interruptor principal); «Foto callejera compatible» abre la cámara principal real sin suplantación. La entrada aparece en Más tras reiniciar la cámara; 装备街拍 requiere hardware del 17 Ultra y sigue sin estar disponible</string>
+    <string name="camera_unlock_street_off">Apagado</string>
+    <string name="camera_unlock_street_new">Nueva foto callejera (desbloqueo por suplantación)</string>
+    <string name="camera_unlock_street_compat">Foto callejera compatible (sin suplantación)</string>
 </resources>

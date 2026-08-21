@@ -5,4 +5,10 @@
     <string name="pref_language_device_default">Par défaut</string>
     <string name="pref_language_zh_cn">简体中文</string>
     <string name="pref_language_en">English</string>
+
+    <string name="camera_unlock_street_title">Mode photo de rue</string>
+    <string name="camera_unlock_street_summary">Comment débloquer 街拍 (mode 225). « Nouvelle photo de rue » force la porte de support de la config usurpée (nécessite l\'interrupteur principal) ; « Photo de rue compatible » ouvre la vraie caméra principale sans usurpation. L\'entrée apparaît dans Plus après un redémarrage de l\'appareil photo ; 装备街拍 nécessite le matériel du 17 Ultra et reste indisponible</string>
+    <string name="camera_unlock_street_off">Désactivé</string>
+    <string name="camera_unlock_street_new">Nouvelle photo de rue (déverrouillage par usurpation)</string>
+    <string name="camera_unlock_street_compat">Photo de rue compatible (sans usurpation)</string>
 </resources>

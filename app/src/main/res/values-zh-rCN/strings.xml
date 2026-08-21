@@ -583,8 +583,11 @@
     <string name="camera_unlock_master_title">伪装旗舰相机配置</string>
     <string name="camera_unlock_target_title">REDMI K100 Pro Max 配置（推荐）</string>
     <string name="camera_unlock_target_summary">冒充 REDMI K100 Pro Max 配置：传感器轴与本机一致（色彩正确——不再变紫），实况运镜用红米运镜表，红米系水印。关闭=旧的 17 Ultra 配置（在非旗舰上会卡死实况运镜/街拍）。修改后需重启相机</string>
-    <string name="camera_unlock_street_title">启用街拍</string>
-    <string name="camera_unlock_street_summary">把街拍支持位（a3）强制为真，让 街拍 显示并打开真实主摄；快捷拍照路径保持一致</string>
+    <string name="camera_unlock_street_title">街拍模式</string>
+    <string name="camera_unlock_street_summary">选择 街拍（模式 225）的解锁方式。「新街拍」在机型伪装开启时把旗舰配置的街拍支持位（a3）强制为真，快捷拍照路径保持一致；「兼容模式街拍」直接解锁街拍入口，不依赖机型伪装（主开关关闭也可用），打开的是真实主摄。入口出现在 更多 列表，切换后需重启相机应用；装备街拍依赖 17 Ultra 硬件，始终不可用</string>
+    <string name="camera_unlock_street_off">关闭</string>
+    <string name="camera_unlock_street_new">新街拍（伪装解锁）</string>
+    <string name="camera_unlock_street_compat">兼容模式街拍（不依赖伪装）</string>
     <string name="camera_unlock_leica_style_title">保留徕卡风格（经典/生动）</string>
     <string name="camera_unlock_leica_style_summary">把配置的徕卡标志位（F3/X2）强制为真，让 K100 Pro Max 配置下 摄影风格 的 徕卡经典 ↔ 徕卡生动 切换重新出现（红米配置 F3=false 导致丢失）。不重启传奇人像、不引入 231 原图流。修改后需重启相机</string>
     <string name="camera_unlock_opmode_title">实况运镜安全会话（高级）</string>
