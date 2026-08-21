@@ -111,4 +111,60 @@ class CameraIdentityTest {
             CameraIdentity.frontMasterLiveMode(IntArray(0))!!.contentEquals(intArrayOf(231))
         )
     }
+
+    // ── MasterLive order-funnel correction (u2.P.y) ──────────────────────────────
+
+    @Test
+    fun `funnel inserts 231 before the more marker of a stale persisted order`() {
+        // Shape of a persisted pref_camera_sort_modes_key captured before MasterLive existed.
+        val stale = intArrayOf(167, 162, 163, 254, 232, 173)
+        val fixed = CameraIdentity.placeMasterLiveModeBeforeMarker(stale)
+        assertTrue(fixed!!.contentEquals(intArrayOf(167, 162, 163, 231, 254, 232, 173)))
+        // The caller's array must not be mutated in place.
+        assertTrue(stale.contentEquals(intArrayOf(167, 162, 163, 254, 232, 173)))
+    }
+
+    @Test
+    fun `funnel moves 231 from behind the marker to the carousel side`() {
+        // The static default list f62382k lists 231 AFTER the 254 marker (P.java index 12 vs 7).
+        val defaultShaped = intArrayOf(167, 256, 186, 254, 232, 173, 231, 172)
+        val fixed = CameraIdentity.placeMasterLiveModeBeforeMarker(defaultShaped)
+        assertTrue(fixed!!.contentEquals(intArrayOf(167, 256, 186, 231, 254, 232, 173, 172)))
+    }
+
+    @Test
+    fun `funnel leaves an already corrected order untouched`() {
+        val good = intArrayOf(231, 167, 175, 162, 163, 171, 186, 254) // nezha-native shape
+        assertNull(CameraIdentity.placeMasterLiveModeBeforeMarker(good))
+        // 231 anywhere before the FIRST marker counts as correct.
+        assertNull(CameraIdentity.placeMasterLiveModeBeforeMarker(intArrayOf(167, 231, 254)))
+    }
+
+    @Test
+    fun `funnel handles arrays without a more marker`() {
+        // No marker at all -> C() treats every item as carousel; 231 absent still gets fronted defensively.
+        val fixed = CameraIdentity.placeMasterLiveModeBeforeMarker(intArrayOf(167, 173))
+        assertTrue(fixed!!.contentEquals(intArrayOf(231, 167, 173)))
+        // 231 present without a marker is already visible everywhere.
+        assertNull(CameraIdentity.placeMasterLiveModeBeforeMarker(intArrayOf(167, 231, 173)))
+    }
+
+    @Test
+    fun `funnel ignores null and empty orders`() {
+        assertNull(CameraIdentity.placeMasterLiveModeBeforeMarker(null))
+        assertNull(CameraIdentity.placeMasterLiveModeBeforeMarker(IntArray(0)))
+    }
+
+    @Test
+    fun `default mode list shape requires both marker and masterlive ids`() {
+        // Exact u2.P clinit list (smali): {167,162,163,168,171,256,186,254,232,173,175,225,231,...}.
+        assertTrue(
+            CameraIdentity.defaultModeListShape(
+                intArrayOf(167, 162, 163, 168, 171, 256, 186, 254, 232, 173, 175, 225, 231, 172)
+            )
+        )
+        assertFalse(CameraIdentity.defaultModeListShape(intArrayOf(167, 254)))
+        assertFalse(CameraIdentity.defaultModeListShape(intArrayOf(167, 231)))
+        assertFalse(CameraIdentity.defaultModeListShape(null))
+    }
 }
