@@ -5,4 +5,6 @@
     <string name="pref_language_device_default">Predeterminado</string>
     <string name="pref_language_zh_cn">简体中文</string>
     <string name="pref_language_en">English</string>
+    <string name="camera_unlock_ultra_hd_title">Calidad de imagen ultraalta (desbloqueo fijo)</string>
+    <string name="camera_unlock_ultra_hd_summary">Fija el interruptor de la configuración del dispositivo (l7) que oculta el nivel Ultra alto, para que Ajustes → Calidad de imagen ofrezca y conserve Ultra alta (calidad JPEG 100). Desactivado = comportamiento de fábrica (máximo Alta); una selección Ultra alta guardada se reajusta. El cambio es inmediato: vuelve a abrir la página de ajustes para actualizar la lista; el primer encendido requiere reiniciar la cámara</string>
 </resources>

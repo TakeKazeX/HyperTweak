@@ -99,6 +99,9 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var leicaStyle by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true))
     }
+    var ultraHdQuality by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
+    }
     var mlOpModeSafe by remember {
         mutableStateOf(
             Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
@@ -215,6 +218,15 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_leica_style_title),
                         summary = stringResource(R.string.camera_unlock_leica_style_summary)
+                    )
+                    SwitchPreference(
+                        checked = ultraHdQuality,
+                        onCheckedChange = { enabled ->
+                            ultraHdQuality = enabled
+                            set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_ultra_hd_title),
+                        summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
                     )
                     SwitchPreference(
                         checked = mlOpModeSafe,

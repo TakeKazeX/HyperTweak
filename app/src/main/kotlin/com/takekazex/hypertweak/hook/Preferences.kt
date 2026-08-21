@@ -470,6 +470,22 @@ object Preferences {
     const val KEY_CAMERA_WM_CUSTOM_BRAND = "camera_wm_custom_brand"
     const val KEY_CAMERA_WM_CUSTOM_MODEL = "camera_wm_custom_model"
 
+    /**
+     * Camera app (com.android.camera) 超高图片质量 (ultra-high image quality) fixed unlock;
+     * see `CameraUltraQualityHooker`. The 设置→图片质量 option list (`SettingImageQuality`,
+     * pref key `pref_camera_jpegquality_key`) gains its 超高 entry only while the per-device
+     * capability config reports `l7() == true` — a base-class method declared as
+     * `return this instanceof C1148` (flagship-only marker) that neither this device's own
+     * `com.mi.device.Myron` config nor the K100 Pro Max impersonation target
+     * `com.mi.device.Songyuan` overrides, so 超高 is hidden on both the native and the
+     * impersonated path. The hook forces that one gate (declared once on the config base and
+     * inherited by both) to this preference's live value: on = 超高 offered and the quality
+     * clamp `j#t()` caps at `F1.g3.SUPER` (JPEG quality 100); off = forced false, exactly the
+     * stock behaviour here, which also re-clamps a stale stored 超高 selection back to 高.
+     * Plain JPEG-quality values with no HAL dependency. Read live (100 ms memo); default ON.
+     */
+    const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

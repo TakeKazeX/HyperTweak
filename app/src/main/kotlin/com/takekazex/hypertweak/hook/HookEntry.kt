@@ -59,6 +59,7 @@ import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooke
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -582,6 +583,10 @@ class HookEntry : XposedModule() {
                 // Must attach after CameraWatermarkHooker: both touch Je.c#x(), and the
                 // impersonation override needs to win (later callback) when both are on.
                 attachHooker(CameraImpersonationHooker, classLoader, ctx, replacementHandles)
+                // Must attach after CameraImpersonationHooker: the ultra-quality gate is
+                // resolved through the same Je.c facade, and its live-singleton fallback only
+                // reads the config after the impersonation factory hook owns it.
+                attachHooker(CameraUltraQualityHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

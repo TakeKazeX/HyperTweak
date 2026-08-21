@@ -587,6 +587,8 @@
     <string name="camera_unlock_street_summary">把街拍支持位（a3）强制为真，让 街拍 显示并打开真实主摄；快捷拍照路径保持一致</string>
     <string name="camera_unlock_leica_style_title">保留徕卡风格（经典/生动）</string>
     <string name="camera_unlock_leica_style_summary">把配置的徕卡标志位（F3/X2）强制为真，让 K100 Pro Max 配置下 摄影风格 的 徕卡经典 ↔ 徕卡生动 切换重新出现（红米配置 F3=false 导致丢失）。不重启传奇人像、不引入 231 原图流。修改后需重启相机</string>
+    <string name="camera_unlock_ultra_hd_title">超高图片质量（固定解锁）</string>
+    <string name="camera_unlock_ultra_hd_summary">固定本机隐藏 超高 档位的设备配置开关（l7），让 设置→图片质量 始终提供并保留 超高（JPEG 质量 100）。关闭=原生行为（最高 高）；已存的 超高 选择会被钳回。切换即时生效——重新打开设置页即可刷新列表；首次启用需重启相机</string>
     <string name="camera_unlock_opmode_title">实况运镜安全会话（高级）</string>
     <string name="camera_unlock_opmode_summary">把实况运镜拍摄会话固定为普通 ALGO_UP_SAT 会话（一定产帧）；仅在真机日志确认 op-mode 1 不产帧时开启。修改后需重启相机</string>
     <string name="camera_unlock_note_exif">EXIF（Model/Make）与水印机型始终为本机自身的品牌与型号，不受机型伪装影响</string>
