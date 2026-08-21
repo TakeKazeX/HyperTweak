@@ -72,6 +72,19 @@ private fun TunerSwitch(
 }
 
 @Composable
+private fun TunerSwitch(
+    checked: Boolean,
+    title: String,
+    onChange: (Boolean) -> Unit
+) {
+    SwitchPreference(
+        checked = checked,
+        onCheckedChange = onChange,
+        title = title
+    )
+}
+
+@Composable
 fun IconTunerPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
@@ -146,6 +159,21 @@ fun IconTunerPage(onBack: () -> Unit) {
             StackedSignalSection(
                 enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
                 scale = pref(Preferences.KEY_ICON_STACKED_SCALE, 1f),
+                onChange = { key, value -> changed(key, value) }
+            )
+
+            LeftContainerSection(
+                enabled = pref(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED, false),
+                zen = pref(Preferences.KEY_ICON_LEFT_ZEN, false),
+                volume = pref(Preferences.KEY_ICON_LEFT_VOLUME, false),
+                hotspot = pref(Preferences.KEY_ICON_LEFT_HOTSPOT, false),
+                alarmClock = pref(Preferences.KEY_ICON_LEFT_ALARM_CLOCK, false),
+                location = pref(Preferences.KEY_ICON_LEFT_LOCATION, false),
+                bluetooth = pref(Preferences.KEY_ICON_LEFT_BLUETOOTH, false),
+                nfc = pref(Preferences.KEY_ICON_LEFT_NFC, false),
+                vpn = pref(Preferences.KEY_ICON_LEFT_VPN, false),
+                airplane = pref(Preferences.KEY_ICON_LEFT_AIRPLANE, false),
+                headset = pref(Preferences.KEY_ICON_LEFT_HEADSET, false),
                 onChange = { key, value -> changed(key, value) }
             )
 
@@ -252,6 +280,65 @@ private fun StackedSignalSection(
             if (enabled) {
                 SliderRow(stringResource(R.string.icon_icon_scale), scale, 0.5f, 1.5f) {
                     onChange(Preferences.KEY_ICON_STACKED_SCALE, it)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LeftContainerSection(
+    enabled: Boolean,
+    zen: Boolean,
+    volume: Boolean,
+    hotspot: Boolean,
+    alarmClock: Boolean,
+    location: Boolean,
+    bluetooth: Boolean,
+    nfc: Boolean,
+    vpn: Boolean,
+    airplane: Boolean,
+    headset: Boolean,
+    onChange: (String, Any) -> Unit
+) {
+    SmallTitle(stringResource(R.string.icon_left_container_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(
+                enabled,
+                stringResource(R.string.icon_left_container_master),
+                stringResource(R.string.icon_left_container_master_summary)
+            ) { onChange(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED, it) }
+            if (enabled) {
+                TunerSwitch(zen, stringResource(R.string.icon_left_zen)) {
+                    onChange(Preferences.KEY_ICON_LEFT_ZEN, it)
+                }
+                TunerSwitch(volume, stringResource(R.string.icon_left_volume)) {
+                    onChange(Preferences.KEY_ICON_LEFT_VOLUME, it)
+                }
+                TunerSwitch(hotspot, stringResource(R.string.icon_left_hotspot)) {
+                    onChange(Preferences.KEY_ICON_LEFT_HOTSPOT, it)
+                }
+                TunerSwitch(alarmClock, stringResource(R.string.icon_left_alarm_clock)) {
+                    onChange(Preferences.KEY_ICON_LEFT_ALARM_CLOCK, it)
+                }
+                TunerSwitch(location, stringResource(R.string.icon_left_location)) {
+                    onChange(Preferences.KEY_ICON_LEFT_LOCATION, it)
+                }
+                TunerSwitch(bluetooth, stringResource(R.string.icon_left_bluetooth)) {
+                    onChange(Preferences.KEY_ICON_LEFT_BLUETOOTH, it)
+                }
+                TunerSwitch(nfc, stringResource(R.string.icon_left_nfc)) {
+                    onChange(Preferences.KEY_ICON_LEFT_NFC, it)
+                }
+                TunerSwitch(vpn, stringResource(R.string.icon_left_vpn)) {
+                    onChange(Preferences.KEY_ICON_LEFT_VPN, it)
+                }
+                TunerSwitch(airplane, stringResource(R.string.icon_left_airplane)) {
+                    onChange(Preferences.KEY_ICON_LEFT_AIRPLANE, it)
+                }
+                TunerSwitch(headset, stringResource(R.string.icon_left_headset)) {
+                    onChange(Preferences.KEY_ICON_LEFT_HEADSET, it)
                 }
             }
         }

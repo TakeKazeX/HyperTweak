@@ -217,6 +217,25 @@ object Preferences {
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
 
+    /**
+     * 图标左置 (left-container icon placement), ported from Hyper Helper's `LeftContainer`
+     * (OS4_ADAPTATION_PLAN.md T2) and rebuilt for the OS4 home status bar. The master switch
+     * installs the left container next to the clock; each per-slot toggle moves that status-bar
+     * slot's icon out of the right cluster into the left container (e.g. 勿扰/静音/热点 to the
+     * right of the clock). All keys are read at `onHook()`; a SystemUI restart applies changes.
+     */
+    const val KEY_ICON_LEFT_CONTAINER_ENABLED = "icon_left_container_enabled"
+    const val KEY_ICON_LEFT_ZEN = "icon_left_zen"
+    const val KEY_ICON_LEFT_VOLUME = "icon_left_volume"
+    const val KEY_ICON_LEFT_HOTSPOT = "icon_left_hotspot"
+    const val KEY_ICON_LEFT_ALARM_CLOCK = "icon_left_alarm_clock"
+    const val KEY_ICON_LEFT_LOCATION = "icon_left_location"
+    const val KEY_ICON_LEFT_BLUETOOTH = "icon_left_bluetooth"
+    const val KEY_ICON_LEFT_NFC = "icon_left_nfc"
+    const val KEY_ICON_LEFT_VPN = "icon_left_vpn"
+    const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
+    const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
+
     // Compound icon feature (merges alarm / DND / location / volume into one status-bar icon),
     // ported from Hyper Helper's `CompoundIcon`. The individual source toggles match upstream
     // g32.K..N; the master switch is the `compound_icon` slot mode (1..3, see IconManagerHooker).

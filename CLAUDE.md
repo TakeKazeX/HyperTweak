@@ -326,11 +326,137 @@ type / 5G / satellite) work again. Regression history — do not reintroduce:
   sub ImageView is never created → no stacked icon).
 - `icon_stacked_scale` is a direct 0.5–1.5 factor; do not multiply by 0.1 (that was the old
   int-pref convention; applying it renders the composite at 5–15%, invisible but slot-holding).
-Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: the left-container/island engine
-(`LeftContainer`, T2) and Hyper Helper's remaining icon-tuner font slices. The clock
-(`MiuiClockHooker`), network speed (`NetworkSpeedHooker`) and battery (`BatteryIndicatorHooker`)
-slices were removed again at the user's request on 2026-08-15 (their preference keys are
-deleted; the hookers and UI sections no longer exist).
+Not yet ported, documented in `OS4_ADAPTATION_PLAN.md`: Hyper Helper's remaining icon-tuner font
+slices. The left-container/island engine (`LeftContainer`, T2) **is ported now** — see
+[Icon Left Placement (图标左置)] below. The clock (`MiuiClockHooker`), network speed
+(`NetworkSpeedHooker`) and battery (`BatteryIndicatorHooker`) slices were removed again at the
+user's request on 2026-08-15 (their preference keys are deleted; the hookers and UI sections no
+longer exist).
+
+### "Icon tweaks stopped applying" diagnosis (2026-08-21)
+
+The user reported 状态栏图标修改失效 again. On-device forensics (LSPosed
+`modules_config.db`, module log): every HyperTweak Icon Tuner hook installs (`HOOK_OK`) and
+`IconManagerHooker` runs, but the final list sizes equal the stock ones (`right=17 cc=12`) —
+**no slot mode was ever set in HyperTweak** (zero `icon_tuner_slot_*` keys in either the daemon
+DB or the app's local prefs; `icon_stacked_enabled` = false). The user's slot hiding
+(bluetooth/vpn/net_speed/wireless_headset) and left placement (zen/volume/location/alarm_clock)
+were configured in **Hyper Helper** (`dev.lackluster.mihelper`, config group `config`), and
+mihelper is no longer in the `com.android.systemui` LSPosed scope (scope table: only
+noactive/hyperceiler/hyperlyricsenhanced/hypertweak hook SystemUI) — so all of its icon tweaks
+silently stopped. Its `LeftContainer` could not have worked on OS4 anyway: it hooks
+`MiuiCollapsedStatusBarFragment`, which OS4 removed. Also noted: HyperCeiler's own StatusBarIcon
+hook fails on this device with `IllegalAccessException: Cannot set public static final field
+MiuiIconManagerUtils.RIGHT_BLOCK_LIST` (static-final reflective write, same ART restriction as
+`UnlockClipboardHooker`'s original bug) — that is HyperCeiler's bug, not ours, and it does not
+affect our content-mutation approach. No HyperTweak code change was needed for the report; the
+fix for the user is re-configuring the tweaks in HyperTweak's Icon Tuner.
+
+### Release-build R8 regression: flow-replaced visibility tweaks die (2026-08-21)
+
+Symptom: after installing the **release (R8-obfuscated)** APK, all `IconTunerFlows`-driven
+tweaks silently stopped (隐藏数据活动/网络类型, WiFi 活动/类型, roam/VoLTE/VoWiFi/HD, and
+anything else whose getter returns `falseFlow`/`zeroFlow`), while prefs, 左置 cloning and
+live pref reads kept working. On-device forensics (KernelSU adb root):
+
+- logcat: `IconTuner: CellularIcon installing: getters=[...]` then, at first dispatch,
+  `[Hook] E: before hook failed for ... MiuiCellularIconVM.getInOutVisible()` with
+  `java.lang.ClassNotFoundException: z12` — repeated on every getter call. No module crash,
+  the framework catches the throw and the original getter runs, so the tweak just never applies.
+- Dex strings of the installed APK: `kotlinx.coroutines.flow.StateFlowKt` /
+  `ReadonlyStateFlow` / `kotlin.Pair` literals are **gone** (R8 rewrote the
+  `Class.forName` constants to the renamed names, `z12` etc.); SystemUI's own dex (checked
+  `MiuiSystemUI.apk` 0.19, three dex files) still carries the original `kotlinx` names.
+- Preferences were healthy end-to-end (daemon `modules_config.db` + WAL had
+  `icon_hide_cellular_activity/type = true`; SystemUI cache/epoch consistent).
+
+Root cause: release R8 obfuscates the module's **bundled** kotlinx-coroutines and rewrites
+`Class.forName` string constants that match renamed class names (`StateFlowKt` → `z12`).
+`IconTunerFlows` then looked the module-private renamed name up in the **host** (SystemUI)
+loader → CNFE at the first `falseFlow` lazy access → every `before`-hook that sets
+`param.result = IconTunerFlows.falseFlow` threw at dispatch. Debug builds (no R8) worked —
+all prior on-device verification used debug APKs, which is why only the release install broke.
+
+Fix (do not revert): `IconTunerFlows.kt` builds the host class FQNs at runtime
+(`hostClassName(pkg, simple)`, StringBuilder — R8 cannot fold/rewrite non-constant
+fragments) for `kotlinx.coroutines.flow.StateFlowKt` / `ReadonlyStateFlow` / `StateFlow` /
+`kotlin.Pair`, and `proguard-rules.pro` keeps `kotlinx.coroutines.flow.**` + `kotlin.Pair`
+unobfuscated so no other string/ref usage can break. Verified on device with the release
+APK: `CellularIcon installing: getters=[getInOutVisible, getMobileTypeVisible,
+getMobileTypeImageVisible]`, zero `before hook failed` afterwards. General rule: the icon
+tuner's in-page restart already calls `Preferences.flush()` before broadcasting; **test the
+release variant on device** whenever a hooker reflectively touches bundled-library classes by
+name, and keep those names under `-keep` or assemble them at runtime.
+
+### Icon Left Placement (图标左置)
+
+Settings → Experimental → Icon Tuner → 图标左置 (`LeftContainerHooker`, keys `icon_left_*`,
+OS4-only targets; live on/off, no SystemUI restart). Shows selected status-bar slots (勿扰 zen,
+静音/振动 volume+mute, 热点 hotspot, 闹钟 alarm_clock, 定位 location+gps, 蓝牙 bluetooth, NFC,
+VPN, 飞行模式 airplane, 耳机 headset+wireless_headset) in a LinearLayout right after the
+home-screen clock inside `R.id.phone_status_bar_left_container` (status_bar.xml: clock →
+[left icons] → chips → notification area). Ported from Hyper Helper's `LeftContainer`
+(OS4_ADAPTATION_PLAN.md T2, `icon_tuner_left_*` keys) and rebuilt for the OS4 home status bar:
+upstream registered a SECOND icon group and hid slots via `RIGHT_BLOCK_LIST`; on OS4 a second
+`DarkIconManager` cannot be built without the Dagger factory and would double-bind the Kairos
+cellular/WiFi pipeline, so this port uses **block-hide + self-rendered clones** and never moves a
+system view:
+
+- **Right-cluster hiding**: the home manager's `setBlockList(List)` (final, declared on
+  `IconManager`) is hooked to append the selected slots to the pristine system block list that
+  `HomeStatusBarIconBlockListBinder`/`HomeStatusBarIconBlockListInteractor` feed it. Blocked
+  holders are still added by `addHolder` (z flag) but are not measured
+  (`MiuiStatusIconContainer.onMeasure` skips `isIconBlocked()` children) and not visible —
+  the system's own icon_blacklist behavior. The hook remembers the pristine list on every
+  emission and re-applies system ∪ selected (a re-entrancy guard keeps our merged list from
+  polluting the snapshot); a 1.5 s main-thread ticker re-applies it whenever the selection
+  changes, so toggling the master or one slot takes effect live in both directions.
+- **Left rendering**: for each selected slot a fresh icon-less→populated `StatusBarIconView`
+  clone (module-created, host class) is added to the left container in right-container order.
+  Its `layoutParams` are copied from the system's own right-cluster view of the same slot at
+  every sync (box + glyph match exactly via `set(mIcon)` — same `mIconScale`), its visibility
+  mirrors `isIconVisible()`, and it is registered as a dark receiver with the manager's
+  `DarkIconDispatcher`. `onIconAdded`/`onSetIcon`/`onRemoveIcon` after-hooks re-run the
+  idempotent slot-scan sync (no index bookkeeping exists anymore).
+- **Island**: an after-hook on `StatusBarIslandControllerImpl$IslandStateHandler.islandUpdate`
+  reads the handler's `islandShowing` field and hides the left container.
+
+**Threading / hot reload (regression history — do not reintroduce)**: `onPrepareHotReload` runs
+on the LSPosed binder thread and must NEVER touch views. Version 2 relocated the system's actual
+icon views and reverted them from `onPrepareHotReload`, throwing
+`CalledFromWrongThreadException` (plus `IllegalStateException: child already has a parent` after
+the pairing map desynced), so the relocated icons were left stuck — that was the
+"关掉之后图标不会消失" root cause. v3 sets a `resetPending` flag only; the main-thread ticker
+performs the teardown (clones/container removed via a `hypertweak_left_container` tag on our own
+container, pristine system list re-applied, legacy raw-LinearLayout containers from earlier
+builds swept) on its next tick. Version 1's placeholder also had to be a host `StatusBarIconView`
+because `MiuiStatusIconContainer` layout and `StatusBarIconControllerImpl` lambdas cast children
+to `StatusIconDisplayable` without instanceof — a module `View` crashed SystemUI with
+ClassCastException; v3 adds no placeholder at all. The moved-view versions also drifted in icon
+height because the views left `MiuiStatusIconContainer`'s manual layout; cloning with copied
+layoutParams avoids that.
+
+**Vertical centering (2026-08-23, "图标还是被抬高")**: the right cluster is *not* vertically
+centered by gravity — `MiuiStatusIconContainer.onLayout` manually places every child at
+`top = (paddingTop + height)/2 − measuredHeight/2` (OS4 `onLayout` L283-292); classic slot views
+are small boxes (`LinearLayout.LayoutParams(WRAP or 20dp FIXED_SPACE, status_bar_icon_height
+20dp)` from `IconManager.onCreateLayoutParams` L223-225, margins `status_bar_icon_horizontal_margin`
+0sp, gravity -1 — never MATCH_PARENT) whose glyph paints centered inside the box
+(`setScaleType(CENTER)` L203, `onDraw` scales about the box center L505-516). So matching the
+right cluster means: keep the copied 20dp box and center the box in the bar. The "raised" look
+came from `ensureContainer` never setting the module LinearLayout's **own** `gravity` — setting
+it on the container's `layoutParams` (how the host aligns the full-height container — a no-op)
+was mistaken for it; LinearLayout's default is TOP, so the 20dp clones were parked at
+`top = 0`, glyph centers 10dp from the top instead of `H/2` (raised by `H/2 − 10dp`). Fix:
+`left.gravity = Gravity.CENTER_VERTICAL` on the container **and** `copy.gravity =
+CENTER_VERTICAL` on every copied clone layoutParams (per-child gravity overrides the container
+gravity, so no source params can ever top-align a clone). Full verification of the fix:
+`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug` pass; on-device visual
+confirmation is the user's. Do not "fix" by switching the clone height to MATCH_PARENT — the
+source box is genuinely 20dp and manually centered; a MATCH_PARENT clone only coincidentally
+centers its glyph and breaks the box match.
+
+The master switch is `icon_left_container_enabled` and every slot toggle is its own boolean key.
 
 ## AOSP Back Gesture
 
