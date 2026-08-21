@@ -32,6 +32,25 @@ object IconTunerFlows {
         ?: IconTunerFlows::class.java.classLoader
         ?: ClassLoader.getSystemClassLoader()
 
+    /**
+     * Host class names assembled at runtime. R8 rewrites `Class.forName` string constants that
+     * match renamed bundled-class names: in release builds the module's bundled
+     * kotlinx-coroutines is obfuscated (`kotlinx.coroutines.flow.StateFlowKt` → `z12`), so a
+     * literal would look the module-private renamed name up in the HOST (SystemUI) loader and
+     * throw `ClassNotFoundException` at the first flow access — observed on-device (release APK)
+     * as `[Hook] E: before hook failed ... ClassNotFoundException: z12` on every
+     * `MiuiCellularIconVM` getter, silently killing all flow-replaced visibility tweaks
+     * (debug builds without R8 worked). Splitting the name into fragments that are not class
+     * names keeps R8 from rewriting them; the host keeps the original kotlinx names (verified
+     * in the OS4 0.19 SystemUI dex), so the host-loader lookup succeeds.
+     */
+    private fun hostClassName(pkg: String, simple: String): String =
+        StringBuilder(pkg.length + 1 + simple.length)
+            .append(pkg)
+            .append('.')
+            .append(simple)
+            .toString()
+
     val falseFlow: Any by lazy { createReadonlyStateFlow(false) }
     val zeroFlow: Any by lazy { createReadonlyStateFlow(0) }
     val trueFlow: Any by lazy { createReadonlyStateFlow(true) }
@@ -40,7 +59,9 @@ object IconTunerFlows {
     fun createReadonlyStateFlow(value: Any): Any {
         val loader = cl()
         val mutable = runCatching {
-            val stateFlowKt = Class.forName("kotlinx.coroutines.flow.StateFlowKt", false, loader)
+            val stateFlowKt = Class.forName(
+                hostClassName("kotlinx.coroutines.flow", "StateFlowKt"), false, loader
+            )
             val mutableStateFlow = stateFlowKt.getMethod("MutableStateFlow", Any::class.java)
             mutableStateFlow.invoke(null, value)
         }.getOrElse { t ->
@@ -48,8 +69,14 @@ object IconTunerFlows {
             throw t
         }
         return runCatching {
-            val readonly = Class.forName("kotlinx.coroutines.flow.ReadonlyStateFlow", false, loader)
-            val ctor = readonly.getConstructor(Class.forName("kotlinx.coroutines.flow.StateFlow", false, loader))
+            val readonly = Class.forName(
+                hostClassName("kotlinx.coroutines.flow", "ReadonlyStateFlow"), false, loader
+            )
+            val ctor = readonly.getConstructor(
+                Class.forName(
+                    hostClassName("kotlinx.coroutines.flow", "StateFlow"), false, loader
+                )
+            )
             ctor.newInstance(mutable)
         }.getOrElse {
             DebugLog.d("IconTunerFlows", "ReadonlyStateFlow wrapper unavailable, using MutableStateFlow")
@@ -59,7 +86,7 @@ object IconTunerFlows {
 
     /** Creates a `kotlin.Pair` (host loader), used by SystemUI flows typed as `StateFlow<Pair<...>>`. */
     fun createPair(first: Any, second: Any): Any? = runCatching {
-        Class.forName("kotlin.Pair", false, cl())
+        Class.forName(hostClassName("kotlin", "Pair"), false, cl())
             .getConstructor(Any::class.java, Any::class.java)
             .newInstance(first, second)
     }.getOrNull()
@@ -67,7 +94,9 @@ object IconTunerFlows {
     /** Creates a raw `MutableStateFlow` (host loader) seeded with [value], so callers can push
      *  updates through [setFlowValue]. The pipeline only reads the `StateFlow` interface. */
     fun createMutableStateFlow(value: Any): Any? = runCatching {
-        val stateFlowKt = Class.forName("kotlinx.coroutines.flow.StateFlowKt", false, cl())
+        val stateFlowKt = Class.forName(
+            hostClassName("kotlinx.coroutines.flow", "StateFlowKt"), false, cl()
+        )
         stateFlowKt.getMethod("MutableStateFlow", Any::class.java).invoke(null, value)
     }.getOrNull()
 

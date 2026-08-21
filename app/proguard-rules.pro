@@ -26,5 +26,15 @@
     public boolean isModuleActive();
 }
 
+# IconTunerFlows resolves kotlinx-coroutines classes in the HOST (SystemUI) class loader
+# reflectively by their original names. Release R8 obfuscates the module's bundled
+# kotlinx-coroutines and rewrites Class.forName string constants to the renamed names
+# (StateFlowKt -> z12), which then throw ClassNotFoundException in the host loader and kill
+# every flow-replaced visibility tweak (observed: "before hook failed ... CNFE z12" on all
+# MiuiCellularIconVM getters). Keeping the bundled names unrenamed (plus the runtime name
+# assembly in IconTunerFlows) keeps the host lookup on the original FQN.
+-keep class kotlinx.coroutines.flow.** { *; }
+-keep class kotlin.Pair
+
 # Suppress missing class warnings for KavaRef / Java reflect
 -dontwarn java.lang.reflect.AnnotatedType
