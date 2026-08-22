@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
+import com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -17,7 +18,8 @@ import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 object SystemUIPluginHooker : StaticHooker() {
     private data class PluginHookSession(
         val state: HotReloadPluginState,
-        val hooker: SliderPercentageHooker
+        val sliderPercentHooker: SliderPercentageHooker,
+        val cornerHooker: ControlCenterCornerHooker
     )
 
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
@@ -27,7 +29,9 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) {
+        val sliderPercentEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+        val cornerEnabled = Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false)
+        if (!sliderPercentEnabled && !cornerEnabled) {
             DebugLog.hookSkipped("SystemUIPlugin", "control center plugin hooks", "disabled")
             return
         }
@@ -68,8 +72,10 @@ object SystemUIPluginHooker : StaticHooker() {
                         val pluginInstance = param.thisObject
                         val session = activeSessions.remove(pluginInstance)
                         if (session != null) {
-                            runCatching { session.hooker.prepareForHotReload() }
-                            detach(session.hooker)
+                            runCatching { session.sliderPercentHooker.prepareForHotReload() }
+                            runCatching { session.cornerHooker.prepareForHotReload() }
+                            detach(session.sliderPercentHooker)
+                            detach(session.cornerHooker)
                         }
                     }
                 }
@@ -144,9 +150,26 @@ object SystemUIPluginHooker : StaticHooker() {
             Log.w("HyperTweak", "SystemUIPluginHooker: Missing context or APK paths, instantiating with default fallback")
             SliderPercentageHooker()
         }
+        val cornerHooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
+            ControlCenterCornerHooker(state.appContext, state.pluginApkPath)
+        } else {
+            ControlCenterCornerHooker()
+        }
 
-        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker)
-        attach(hooker, state.classLoader)
+        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker)
+        // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
+        // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
+        // hooker uninstalled while the session entry suppressed later retries.
+        runCatching { attach(hooker, state.classLoader) }
+            .onFailure { t ->
+                DebugLog.e("SystemUIPlugin", "failed to attach slider-percent plugin hook", t)
+                Log.e("HyperTweak", "SystemUIPluginHooker: slider-percent attach failed", t)
+            }
+        runCatching { attach(cornerHooker, state.classLoader) }
+            .onFailure { t ->
+                DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
+                Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
+            }
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")
     }
 

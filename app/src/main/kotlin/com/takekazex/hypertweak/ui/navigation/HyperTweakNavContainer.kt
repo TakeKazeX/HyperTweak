@@ -43,6 +43,7 @@ import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.WatermarkPage
 import com.takekazex.hypertweak.ui.page.CameraUnlockPage
 import com.takekazex.hypertweak.ui.page.ChargingDetailPage
+import com.takekazex.hypertweak.ui.page.ControlCenterCornerPage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -336,6 +337,9 @@ fun HyperTweakNavContainer(
                 onNavigateToCameraUnlock = {
                     backStack.add(Route.CameraUnlock)
                 },
+                onNavigateToControlCenterCorner = {
+                    backStack.add(Route.ControlCenterCorner)
+                },
                 onClearAllSettings = onClearAllSettings,
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
@@ -439,6 +443,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.ChargingDetail> {
             ChargingDetailPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.ControlCenterCorner> {
+            ControlCenterCornerPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

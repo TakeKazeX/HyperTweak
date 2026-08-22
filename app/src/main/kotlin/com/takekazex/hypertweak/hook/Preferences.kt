@@ -102,6 +102,17 @@ object Preferences {
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
+
+    // Control Center corner-radius overrides. Each group keeps its own dp value (Float);
+    // 0 means "no override" (follow the system design), any positive value is applied as the
+    // GradientDrawable/outline corner radius of the corresponding control center element.
+    // The hooker converts dp → px at hook time (plugins expect px for these APIs).
+    const val KEY_CC_CORNER_ENABLED = "systemui_control_center_corner_enabled"
+    const val KEY_CC_CORNER_SLIDER = "systemui_control_center_corner_slider_dp"
+    const val KEY_CC_CORNER_TILE = "systemui_control_center_corner_tile_dp"
+    const val KEY_CC_CORNER_CARD = "systemui_control_center_corner_card_dp"
+    const val KEY_CC_CORNER_DEVICE = "systemui_control_center_corner_device_dp"
+    const val KEY_CC_CORNER_MEDIA = "systemui_control_center_corner_media_dp"
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"

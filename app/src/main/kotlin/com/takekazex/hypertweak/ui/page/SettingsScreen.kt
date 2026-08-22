@@ -77,6 +77,7 @@ fun SettingsScreenContent(
     onNavigateToGlassTuner: () -> Unit,
     onNavigateToWatermark: () -> Unit,
     onNavigateToCameraUnlock: () -> Unit,
+    onNavigateToControlCenterCorner: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -254,6 +255,15 @@ fun SettingsScreenContent(
                             title = stringResource(R.string.settings_glass_material_tuner),
                             summary = stringResource(R.string.settings_glass_material_tuner_summary),
                             onClick = onNavigateToGlassTuner
+                        )
+                    }
+                    // Control Center custom corner radius. The radius lives in the OS4 control
+                    // center plugin classes, so the entry is OS4-only.
+                    if (PlatformLevel.isOs4) {
+                        ArrowPreference(
+                            title = stringResource(R.string.tweaks_cc_corner_enabled_title),
+                            summary = stringResource(R.string.tweaks_cc_corner_enabled_summary),
+                            onClick = onNavigateToControlCenterCorner
                         )
                     }
                 }

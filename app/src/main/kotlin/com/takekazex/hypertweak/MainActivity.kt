@@ -65,6 +65,11 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
+    // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
+    // tracked here (markTweaked stores Boolean baselines — Float keys would crash the baseline
+    // read in clearRestartedScopes). Changing a slider takes effect on the next SystemUI restart,
+    // which the master-switch restart dialog or the manual scope restart already covers.
+    Preferences.KEY_CC_CORNER_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,

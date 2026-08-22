@@ -1022,7 +1022,72 @@ logcat. On-device functional testing (percentage visibility and live updates in
 the control center and the volume panel) is performed by the user, not by the
 agent (see AGENTS.md).
 
-## AOSP IME Full Screen
+## Control Center Corner Radius (控制中心圆角)
+
+Settings → Experimental → Custom Corner Radius
+(`ControlCenterCornerPage.kt`, `control/rules/slider/ControlCenterCornerHooker.kt`; keys
+`KEY_CC_CORNER_*`, all Float dp values where 0 = follow system) overrides the corner radius of
+the OS4 collapsed control center surfaces. The page keeps its own state like `ChargingDetailPage`
+and is deliberately absent from `TWEAK_RESTART_SCOPES` (master switch → in-page SystemUI restart).
+
+The OS4 `miui.systemui.plugin` (verified on OS4.0.0.15.XPMCNXM, plugin sha
+`7a0dfbe892f55839…`, cache `systemui-plugin-7a0dfbe892f55839`) does **not** read one global
+dimen for all these surfaces — each element re-applies its radius from
+`control_center_universal_corner_radius` (24dp) / `qs_tile_item_icon_size` (tiles draw a
+**circle** = `tileSize/2`) on a different rebuild method, and the visible painting splits into
+two modes:
+
+- **Drawable mode** (background material / 玻璃 OFF or the normal tile path): the corner lives on
+  `GradientDrawable`s (`qs_background_enabled|disabled`, `qs_card_background_enabled|disabled`,
+  `external_entry_background`, ToggleSlider tracks). Forcing `setCornerRadius` + mutating the
+  drawables works.
+- **Bionics/glass blend mode** (background material ON — the default glass look): cards take
+  `QSCardItemView.updateBlurBlendBackground` which clears the drawable background, installs the
+  `_cornerRadius`-driven `backgroundOutlineProvider` and repaints via `MiBackgroundStyle` glass
+  tokens; tiles paint the glass on the inner `icon` view (`applyTileBackgroundStyle`). This path
+  **never calls `setCornerRadius`**, so arg-forcing hooks silently do nothing there. The corner
+  that renders on a glass surface is the blur round-rect, which the platform itself drives with
+  `MiBlurCompat.setBlurOutlineRoundRect(View, float)` — the media player panel calls exactly this
+  from its own `setCornerRadius` (why 播控中心 already worked).
+
+The hooker therefore applies every override through **both** mechanisms —
+`GradientDrawable.setCornerRadius` (mutated copies) **and** a reflective
+`MiBlurCompat.setBlurOutlineRoundRect(view, radius)` (resolved from the plugin class loader,
+static method, cached) — after every relevant rebuild point:
+
+- `KEY_CC_CORNER_SLIDER` (亮度/音量滑条) → `ToggleSliderViewHolder`: `updateResources` /
+  `updateSize` / `setDisableState` after-hooks mutate the binding's
+  `progressBg`/`progress`/`bionicsProgressBg` drawables and re-set
+  `setProgressRadius`/`setOutlineRadius`.
+- `KEY_CC_CORNER_TILE` (快捷操作, the bottom grid) → `QSTileItemIconView`: `setCornerRadius`
+  intercept plus after-hooks on `setEnabledBg`/`setDisabledBg` (drawable rebuild on every state
+  change), `updateSize`, `updateResources`, `liteIconUpdate` and `applyTileBackgroundStyle`
+  (glass path). The blur corner is applied to the inner `icon` view (resolved by the private
+  `icon` field), which is where the glass lives.
+- `KEY_CC_CORNER_CARD` (大卡片, the top WiFi/蜂窝 cards via `QSCardsController`,
+  `card_style_tiles_mobile` = `wifi`,`cell`) → `QSCardItemView`: `setCornerRadius` intercept plus
+  after-hooks on `updateSize` / `updateResources(boolean)` / `updateBackground(boolean,boolean)`
+  covering both the drawable and the blend path (`setCornerRadius` also re-writes the private
+  `_cornerRadius` the card's own outline provider reads).
+- `KEY_CC_CORNER_DEVICE` (设备中心, the 融合设备中心 — `mi_smart_hub_entry_title` — entry row) →
+  `DeviceCenterEntryFrameLayout` (`onFinishInflate` after-hook) and
+  `DeviceCenterEntryViewHolder` (`onConfigurationChanged(int)` after-hook; its itemView is the
+  frame layout, and the holder re-applies `external_entry_background` on config changes). Both
+  run the same corner applier (GradientDrawable + blur round-rect + `invalidateOutline`).
+- `KEY_CC_CORNER_MEDIA` (播控中心) → `MediaPlayerController$MediaPlayerViewHolder`:
+  `setCornerRadius` intercept + `updateRadius` after-hook (unchanged; its internal
+  `MediaPlayerPanel.setCornerRadius` routes to `MiBlurCompat.setBlurOutlineRoundRect` itself).
+
+Class resolution follows the other plugin hookers (DexKit on `pluginApkPath` with a
+`className.toClassOrNull()` fast path); `MiBlurCompat` resolves from the plugin loader and is
+cached per hooker instance, cleared on `onPrepareHotReload` with the other reflection caches.
+Do not replace the class-name string constants with R8-foldable lookups — they reference host
+(plugin) classes, not bundled library names.
+
+Agent verification (2026-08-30): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
+`assembleDebug` pass. Not yet re-verified on device with the glass theme ON (the exact reason
+the previous drawable-only build showed "no effect" on the top card / device center / bottom
+tiles); on-device visual confirmation is the user's.
 
 Restores AOSP's full-screen IME navigation bar for input methods the user selects,
 ported from Howard20181's Mi_AOSP_IME (GPL-3.0). It spans three places.
