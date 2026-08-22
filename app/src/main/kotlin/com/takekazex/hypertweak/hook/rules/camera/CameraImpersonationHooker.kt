@@ -128,6 +128,9 @@ object CameraImpersonationHooker : StaticHooker() {
         // 新街拍 forces the street-support gate `a3()` on the REAL config's base Method —
         // master-independent by design, so it installs directly (no mode-guard wrapper).
         hookStreetEnable()
+        // 快捷抢拍走街拍 (lock-screen fast-camera quick-capture → street) — independent of
+        // `a3()`, complements both street modes.
+        hookStreetQuickLaunch()
         hookLeicaStyle()
         hookLegendarySupport()
         hookSmartComposition()
@@ -856,6 +859,151 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.i(TAG, "street unlock applied via $hook (mode=${streetMode()})")
         }
     }
+
+    /** Plaintext launch-source extra (stable across verified builds). */
+    private const val CAMERA_LAUNCH_SOURCE_EXTRA = "com.android.systemui.camera_launch_source"
+
+    /** The 设置→锁屏→其他→急速相机「打开相机并拍照」 launch source value. */
+    private const val CAMERA_LAUNCH_SOURCE_TAKE_PHOTO = "launch_camera_and_take_photo"
+
+    /**
+     * 快捷抢拍走街拍 (`Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH`, default OFF): makes the
+     * lock-screen fast-camera quick-capture route classify as 街拍 even when the street-support
+     * gate `a3()` is native-false. The route: 设置→锁屏→其他→急速相机「打开相机并拍照」
+     * (`Settings.System.volumekey_launch_camera` = 2) → system_server double-tap volume-down →
+     * `STILL_IMAGE_CAMERA` intent with `camera_launch_source=launch_camera_and_take_photo`. The
+     * camera's intent classifier (`CameraIntentManager.e()`; real dex `vr.l`/`vr.m`, jadx
+     * `p757vr.C4755l`/`C4751m`) returns
+     * `(a3() && launchSource == launch_camera_and_take_photo) ? "STREET" : "CAPTURE"`, which is
+     * exactly the "quick-launch photo route re-classifies" switch behind `W/S.d()`'s module
+     * mapping (STREET → 225) — so 新街拍 (a3 forced true) already classifies street there, while
+     * 兼容模式街拍 (a3 stays native) keeps CAPTURE. This hook closes that gap independent of
+     * `a3()`: an after-hook on `e()` forces "STREET" for the take-photo launch source. It only
+     * RAISES (CAPTURE → STREET, never lowers a native STREET) and only fires while the switch is
+     * on AND a street mode is active (the street module must be registered for 225 to open —
+     * with street OFF nothing is forced, so no broken route is requested). Requires a camera app
+     * restart for the hook to install; afterwards toggling is live.
+     */
+    private fun hookStreetQuickLaunch() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        // Independent half: the guide gate must install even if the classifier resolution below
+        // fails — a partial completion is still useful (module opens with take-photo semantics).
+        hookStreetQuickLaunchGuideGate(ctx)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "camera_intent_manager", ctx = ctx,
+            // Real dex names, newest build first; jadx renames these to p757vr.C4751m/C4755l
+            // only for display.
+            candidates = listOf("vr.m", "vr.l"),
+            // The launch-source extra constant is plaintext in the dex; combined with the
+            // shape check this pins vr.m/vr.l version-generically.
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings(CAMERA_LAUNCH_SOURCE_EXTRA) } }
+                    .firstOrNull { cd ->
+                        ctx.loadOrNull(cd.name)?.let(::isCameraIntentManager) == true
+                    }?.name
+            },
+            validate = ::isCameraIntentManager,
+        ) ?: run {
+            DebugLog.w(TAG, "CameraIntentManager not resolved; street quick-launch skipped")
+            return
+        }
+        val classify = CameraResolver.resolveMethod(
+            scope = TAG, key = "camera_intent_manager_e", clazz = clazz,
+            names = listOf("e"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == String::class.java },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#e() not found; street quick-launch skipped")
+            return
+        }
+        deoptimize(classify)
+        classify.hook("cam_street_quick_launch_e") {
+            after { param ->
+                if (!streetQuickLaunchActive()) return@after
+                if (param.result != "CAPTURE") return@after
+                val intent = runCatching {
+                    readCameraIntentField(param.thisObject)
+                }.getOrNull() ?: return@after
+                if (intent.getStringExtra(CAMERA_LAUNCH_SOURCE_EXTRA) != CAMERA_LAUNCH_SOURCE_TAKE_PHOTO) {
+                    return@after
+                }
+                param.result = "STREET"
+                logStreetApplyOnce("quicklaunch(e)")
+            }
+        }
+        DebugLog.i(TAG, "street quick-launch classification hooked on ${clazz.name}#e()")
+    }
+
+    /**
+     * The guide-state half of the quick-launch street gate. `StreetModule.setParameter` only
+     * CONSUMES the launch source when `Q5.J#f()` is true (`mLunchSource = J.f() ? f62426w :
+     * null`), and the `W.g()` inline module decision plus the launch-source clearing
+     * (`W.g():1871`, `v() && !z37` → drop the take-photo source) gate on `z37 = a3() && J.f()`.
+     * On myron `J.f()` = (`pref_camera_global_guide_shown_key` == 2), i.e. false until the
+     * camera's global guide is fully seen — so even 新街拍 (a3 forced) would open the module
+     * WITHOUT the take-photo semantics. Raising `J.f()` — only while the quick-launch switch is
+     * on AND a street mode is active — restores consumption. RAISE-ONLY and live-read; the
+     * side effect (camera treats the global guide as shown) applies only while the switch is on.
+     */
+    private fun hookStreetQuickLaunchGuideGate(ctx: CameraResolver.Ctx) {
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "camera_guide_manager", ctx = ctx,
+            candidates = listOf("Q5.J"),
+            validate = { c ->
+                c.declaredMethods.any {
+                    it.name == "f" && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                        it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE && !it.isSynthetic
+                }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "Q5.J not resolved; street quick-launch guide gate skipped")
+            return
+        }
+        val guideShown = CameraResolver.resolveMethod(
+            scope = TAG, key = "camera_guide_manager_f", clazz = clazz,
+            names = listOf("f"),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+        ) ?: run {
+            DebugLog.w(TAG, "Q5.J#f() not found; street quick-launch guide gate skipped")
+            return
+        }
+        deoptimize(guideShown)
+        guideShown.hook("cam_street_quick_launch_guide") {
+            after { param ->
+                if (!streetQuickLaunchActive()) return@after
+                param.result = true
+                logStreetApplyOnce("quicklaunch(J.f)")
+            }
+        }
+        DebugLog.i(TAG, "street quick-launch guide gate hooked on ${clazz.name}#f()")
+    }
+
+    /** Shape contract of the CameraIntentManager (`vr.l`/`vr.m`): the classifier trio. */
+    private fun isCameraIntentManager(clazz: Class<*>): Boolean =
+        clazz.declaredMethods.any {
+            it.name == "e" && it.parameterCount == 0 && it.returnType == String::class.java && !it.isSynthetic
+        } && clazz.declaredMethods.any {
+            it.name == "v" && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                it.parameterCount == 1 && it.parameterTypes[0] == android.content.Intent::class.java &&
+                it.returnType == java.lang.Boolean.TYPE && !it.isSynthetic
+        } && clazz.declaredMethods.any {
+            it.name == "f" && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                it.parameterCount == 1 && it.parameterTypes[0] == android.content.Intent::class.java &&
+                it.returnType == String::class.java && !it.isSynthetic
+        } && clazz.declaredFields.any { it.type == android.content.Intent::class.java }
+
+    /** The manager instance's held intent (real dex field `a`, jadx f64809a/f64792a). */
+    private fun readCameraIntentField(receiver: Any?): android.content.Intent? {
+        if (receiver == null) return null
+        val field = resolveField(receiver.javaClass, "a", "f64809a", "f64792a")
+            ?.takeIf { it.type == android.content.Intent::class.java }
+            ?.apply { isAccessible = true }
+            ?: return null
+        return runCatching { field.get(receiver) as? android.content.Intent }.getOrNull()
+    }
+
+    /** True while the quick-launch street completion is live (switch on + street mode active). */
+    private fun streetQuickLaunchActive(): Boolean =
+        Preferences.cameraStreetQuickLaunch() && streetMode() != CameraStreetMode.MODE_OFF
 
     /**
      * Restore the Leica photography style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher. The 摄影风格

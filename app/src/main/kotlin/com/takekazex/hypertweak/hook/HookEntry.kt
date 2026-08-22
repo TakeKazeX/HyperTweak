@@ -45,6 +45,7 @@ import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
+import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
@@ -553,6 +554,7 @@ class HookEntry : XposedModule() {
                 // attached in this process as well as the Bluetooth service process.
                 attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
+                attachHooker(FastCameraSettingsHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

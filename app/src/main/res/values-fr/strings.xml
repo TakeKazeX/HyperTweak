@@ -21,4 +21,6 @@
     <string name="camera_unlock_street_off">Désactivé</string>
     <string name="camera_unlock_street_new">Nouvelle photo de rue</string>
     <string name="camera_unlock_street_compat">Photo de rue compatible</string>
+    <string name="camera_unlock_street_quick_launch_title">Photo de rue pour la caméra rapide</string>
+    <string name="camera_unlock_street_quick_launch_summary">La caméra rapide de l\'écran de verrouillage (设置→锁屏→其他→急速相机「打开相机并拍照», double pression sur Volume bas verrouillé) ouvre 街拍 au lieu d\'une capture normale — aussi avec 兼容模式街拍, prise automatique après lancement. Révèle aussi l\'option「打开相机并拍照」 dans les réglages système. Nécessite un mode photo de rue activé et un redémarrage de l\'appareil photo</string>
 </resources>

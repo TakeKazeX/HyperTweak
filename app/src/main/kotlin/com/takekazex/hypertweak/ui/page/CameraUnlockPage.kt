@@ -68,6 +68,9 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var streetMode by remember {
         mutableStateOf(Preferences.cameraStreetMode())
     }
+    var streetQuickLaunch by remember {
+        mutableStateOf(Preferences.cameraStreetQuickLaunch())
+    }
     var leicaStyle by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true))
     }
@@ -161,6 +164,15 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                             streetMode = mode
                             Preferences.setCameraStreetMode(mode)
                         }
+                    )
+                    SwitchPreference(
+                        checked = streetQuickLaunch,
+                        onCheckedChange = { enabled ->
+                            streetQuickLaunch = enabled
+                            set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_street_quick_launch_title),
+                        summary = stringResource(R.string.camera_unlock_street_quick_launch_summary)
                     )
                     SwitchPreference(
                         checked = leicaStyle,

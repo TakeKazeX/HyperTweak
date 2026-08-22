@@ -586,6 +586,32 @@ object Preferences {
     const val LEGACY_KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
 
     /**
+     * 快捷抢拍走街拍 (street quick-launch completion, default OFF): makes the lock-screen fast
+     * camera route (设置→锁屏→其他→急速相机「打开相机并拍照」, `Settings.System.volumekey_launch_camera`
+     * = 2 → system_server double-tap volume-down → `STILL_IMAGE_CAMERA` intent with
+     * `camera_launch_source=launch_camera_and_take_photo`) classify as 街拍 (module 225) instead
+     * of stock CAPTURE. Stock classification is
+     * `CameraIntentManager.e()` = `a3() && v()` (`vr.l`/`vr.m`, jadx p757vr.C4755l/C4751m); the
+     * compat street mode keeps `a3()` native, so the quick-launch route stays CAPTURE there.
+     * This hook forces `e()` → "STREET" when the launch source is exactly
+     * `launch_camera_and_take_photo`, and forces the guide gate (`Q5.J#f()`) true so
+     * `StreetModule.setParameter` actually consumes the launch source. Read live (100 ms memo),
+     * so it complements [KEY_CAMERA_STREET_MODE] without a restart; needs a camera app restart
+     * for the hooks to install.
+     *
+     * Settings side ([rules.settings.FastCameraSettingsHooker]): the same switch forces
+     * `LockscreenOthersHelper.supportCameraStreetMode()` true in the Settings process, so
+     * 设置→锁屏→其他→急速相机 shows the「打开相机并拍照」 dropdown option instead of only the
+     * plain switch — without it that option is `removePreference`d away on devices whose
+     * `persist.vendor.camera.IsVariableApertureSupported`/`IsStreetModeSupported` are unset.
+     */
+    const val KEY_CAMERA_STREET_QUICK_LAUNCH = "camera_street_quick_launch"
+
+    /** True when the lock-screen quick-capture route should classify as street. */
+    fun cameraStreetQuickLaunch(): Boolean =
+        getBoolean(KEY_CAMERA_STREET_QUICK_LAUNCH, false)
+
+    /**
      * 实况运镜 (MasterLive, camera mode id 231) unlock master; default ON. While on, the
      * registry gate `y4()` (`MasterLiveModuleEntry.support()`) is forced true on the REAL
      * device config's base Method (C1143 — the one stock Redmi configs dispatch to, false on

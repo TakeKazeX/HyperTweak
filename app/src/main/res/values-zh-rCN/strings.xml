@@ -582,6 +582,8 @@
     <string name="camera_unlock_street_off">关闭</string>
     <string name="camera_unlock_street_new">新街拍</string>
     <string name="camera_unlock_street_compat">兼容模式街拍</string>
+    <string name="camera_unlock_street_quick_launch_title">快捷抢拍走街拍</string>
+    <string name="camera_unlock_street_quick_launch_summary">锁屏急速相机「打开相机并拍照」（锁屏或息屏时双击音量下键）改为进入街拍而非普通拍照——兼容模式街拍下也生效，打开后自动连拍。同时让系统设置「锁屏→其他→急速相机」显示「打开相机并拍照」下拉。需先开启街拍模式；修改后需重启相机</string>
     <string name="camera_unlock_leica_style_title">徕卡经典/生动风格</string>
     <string name="camera_unlock_leica_style_summary">让相机的「摄影风格」里显示「徕卡经典」和「徕卡生动」两种风格。修改后需重启相机</string>
     <string name="camera_unlock_ultra_hd_title">超高图片质量</string>

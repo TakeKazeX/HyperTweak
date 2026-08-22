@@ -21,4 +21,6 @@
     <string name="camera_unlock_street_off">Apagado</string>
     <string name="camera_unlock_street_new">Foto callejera nueva</string>
     <string name="camera_unlock_street_compat">Foto callejera compatible</string>
+    <string name="camera_unlock_street_quick_launch_title">Foto callejera para la cámara rápida</string>
+    <string name="camera_unlock_street_quick_launch_summary">La cámara rápida de la pantalla de bloqueo (设置→锁屏→其他→急速相机「打开相机并拍照», doble pulsación de Volumen abajo con pantalla bloqueada) abre 街拍 en vez de una captura normal — también con 兼容模式街拍, disparando automáticamente. También muestra la opción「打开相机并拍照」 en los ajustes del sistema. Necesita un modo callejero activado y reiniciar la cámara</string>
 </resources>

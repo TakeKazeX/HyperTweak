@@ -582,6 +582,8 @@
     <string name="camera_unlock_street_off">Off</string>
     <string name="camera_unlock_street_new">New street snap</string>
     <string name="camera_unlock_street_compat">Compatible street snap</string>
+    <string name="camera_unlock_street_quick_launch_title">Street snap for the quick camera</string>
+    <string name="camera_unlock_street_quick_launch_summary">The lock-screen fast camera (设置→锁屏→其他→急速相机「打开相机并拍照」, double-tap Volume down while locked) opens 街拍 instead of a normal capture — also with 兼容模式街拍 active, automatically shooting after launch. Also reveals the「打开相机并拍照」 dropdown in system Settings lock screen. Needs a street mode enabled and a camera restart</string>
     <string name="camera_unlock_leica_style_title">Leica classic/vivid style</string>
     <string name="camera_unlock_leica_style_summary">Show 徕卡经典 and 徕卡生动 in 摄影风格. Needs a camera restart after changing</string>
     <string name="camera_unlock_ultra_hd_title">Ultra-high image quality</string>

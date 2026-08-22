@@ -1987,6 +1987,45 @@ of impersonation, `a3()` untouched so quick-launch keeps stock classification. �
 stays closed in every mode (needs 17U cameras 13/7). Pure parse/migration logic in
 `hook/CameraStreetMode.kt` + `CameraStreetModeTest`.
 
+**3a. 快捷抢拍走街拍 (`KEY_CAMERA_STREET_QUICK_LAUNCH`, default off, complements the street
+selector).** The lock-screen fast-camera route — 设置→锁屏→其他→急速相机「打开相机并拍照」
+(title `pref_volume_launch_camera_title`=急速相机; three dropdown values 关闭/打开相机/打开相机并拍照
+backed by `Settings.System.volumekey_launch_camera` = 0/1/2; the dropdown itself is gated on
+`miui.hardware.input.InputFeature.supportCameraStreetMode()` = `persist.vendor.camera.
+IsVariableApertureSupported || IsStreetModeSupported`) — is dispatched by system_server
+`VolumeDownKeyRule` (double-tap volume-down while locked/off) → `MiuiShortcutTriggerHelper.
+getDoubleVolumeDownKeyFunction` (1 = "launch_camera", 2 = "launch_camera_and_take_photo") →
+`ShortCutActionsUtils.launchCamera` builds `STILL_IMAGE_CAMERA` + `StartActivityWhenLocked` +
+`com.android.systemui.camera_launch_source`. On the camera side `CameraIntentManager.e()`
+(real dex `vr.l`/`vr.m`, jadx `p757vr.C4755l`/`C4751m`) classifies that intent as
+`(a3() && v()) ? "STREET" : "CAPTURE"`, and `W/S.d()` maps STREET → module 225 — so 新街拍
+(a3 forced) already routes quick-launch to street, while 兼容模式街拍 (a3 native-false on
+myron) keeps CAPTURE. This hook closes the compat gap independent of `a3()`: an after-hook
+on `e()` forces "STREET" (RAISE-only, CAPTURE→STREET) when the switch is on, a street mode
+is active, and the intent's `camera_launch_source` is exactly `launch_camera_and_take_photo`
+(the full take-photo semantics, not the plain `double_click_volume_down` source). The guide
+half forces `Q5.J#f()` true too — `StreetModule.setParameter` only consumes the launch
+source when `J.f()` is true (`mLunchSource = J.f() ? f62426w : null`), and the `W.g()` inline
+module decision + launch-source clearing (`:1871`) gate on `z37 = a3() && J.f()`; on myron
+`J.f()` = (`pref_camera_global_guide_shown_key` == 2), false until the camera's global guide
+is fully seen, so without it even 新街拍 opens street WITHOUT take-photo semantics. Both
+halves are read live (100 ms memo) and RAISE-only; they need a camera app restart for the
+hooks to install. Side effect while on: the camera treats its global guide as shown.
+
+**Settings side (`hook/rules/settings/FastCameraSettingsHooker`, attached in the
+`com.android.settings` process):** the same switch forces
+`LockscreenOthersHelper.supportCameraStreetMode()` (static, zero-arg boolean; itself a
+reflection wrapper over `InputFeature.supportCameraStreetMode()`, called by both
+`LockscreenOthersHelper.initCameraSettings()` and `AodAndLockScreenSettings.
+supportCameraStreetMode()`) true. On myron both vendor props are unset, so `initCameraSettings`
+runs the false branch — `removePreference` on the「打开相机并拍照」dropdown, leaving only the
+plain「锁屏后双击音量下键打开相机」checkbox — which is exactly why the user sees no other
+option in 设置→锁屏→其他. Forcing it true makes the dropdown (关闭/打开相机/打开相机并拍照,
+writes `volumekey_launch_camera` = 0/1/2 through `handleVolumeDownKeyLaunchCameraChange`)
+appear, completing the route end to end. Only RAISES while the switch is on; the Settings
+UI re-reads it when the lock-screen settings page is rebuilt, so reopening the page shows the
+dropdown without a Settings restart (the hook itself installs at Settings attach).
+
 **4. Custom-watermark 厂商 duplication: our own composition, removed.** The render chain is
 `S8.d` cache → `zi/b.d` → `com.xiaomi.cam.watermark.a#J0`, which (a) lowercases brand/model
 into the config from which the logo IMAGE view loads `<brand>_<color>.webp` (a missing
