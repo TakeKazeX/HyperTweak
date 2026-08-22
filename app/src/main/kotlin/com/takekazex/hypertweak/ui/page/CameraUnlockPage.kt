@@ -107,9 +107,34 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var masterLiveEnable by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true))
     }
+    var mlRedCarpet by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, true)
+        )
+    }
+    var mlFullFocal by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, true)
+        )
+    }
     var mlOpModeSafe by remember {
         mutableStateOf(
             Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
+        )
+    }
+    var mlCodecPin by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_CODEC_PIN, false)
+        )
+    }
+    var mlVideoSizeProbe by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+        )
+    }
+    var mlAutoZoomCollapse by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE, false)
         )
     }
     var customWm by remember {
@@ -252,6 +277,24 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.camera_unlock_masterlive_summary)
                     )
                     SwitchPreference(
+                        checked = mlRedCarpet,
+                        onCheckedChange = { enabled ->
+                            mlRedCarpet = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_red_carpet_title),
+                        summary = stringResource(R.string.camera_unlock_red_carpet_summary)
+                    )
+                    SwitchPreference(
+                        checked = mlFullFocal,
+                        onCheckedChange = { enabled ->
+                            mlFullFocal = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_full_focal_title),
+                        summary = stringResource(R.string.camera_unlock_full_focal_summary)
+                    )
+                    SwitchPreference(
                         checked = mlOpModeSafe,
                         onCheckedChange = { enabled ->
                             mlOpModeSafe = enabled
@@ -259,6 +302,33 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_opmode_title),
                         summary = stringResource(R.string.camera_unlock_opmode_summary)
+                    )
+                    SwitchPreference(
+                        checked = mlCodecPin,
+                        onCheckedChange = { enabled ->
+                            mlCodecPin = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_CODEC_PIN, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_codec_pin_title),
+                        summary = stringResource(R.string.camera_unlock_codec_pin_summary)
+                    )
+                    SwitchPreference(
+                        checked = mlVideoSizeProbe,
+                        onCheckedChange = { enabled ->
+                            mlVideoSizeProbe = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_video_size_probe_title),
+                        summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
+                    )
+                    SwitchPreference(
+                        checked = mlAutoZoomCollapse,
+                        onCheckedChange = { enabled ->
+                            mlAutoZoomCollapse = enabled
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_auto_zoom_collapse_title),
+                        summary = stringResource(R.string.camera_unlock_auto_zoom_collapse_summary)
                     )
                     SwitchPreference(
                         checked = keepFocal,

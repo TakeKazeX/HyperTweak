@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -166,5 +167,27 @@ class CameraIdentityTest {
         assertFalse(CameraIdentity.defaultModeListShape(intArrayOf(167, 254)))
         assertFalse(CameraIdentity.defaultModeListShape(intArrayOf(167, 231)))
         assertFalse(CameraIdentity.defaultModeListShape(null))
+    }
+
+    // ── MasterLive full focal line-up (v1()[231]) ────────────────────────────────
+
+    @Test
+    fun `masterlive focal stops are the K100 line-up in device-optics order`() {
+        assertTrue(
+            CameraIdentity.MASTER_LIVE_FOCAL_STOPS.contentEquals(floatArrayOf(0.7f, 1.0f, 2.0f, 5.0f, 10.0f))
+        )
+    }
+
+    @Test
+    fun `masterlive focal stops match the existing v1 value type`() {
+        // Verified builds store Float[]; a primitive float[] table is mirrored defensively.
+        assertEquals(
+            CameraIdentity.MASTER_LIVE_FOCAL_STOPS.toList(),
+            (CameraIdentity.masterLiveFocalStops(arrayOf(0.7f)) as Array<*>).map { it as Float }
+        )
+        assertTrue(CameraIdentity.masterLiveFocalStops(null) is Array<*>)
+        val primitive = CameraIdentity.masterLiveFocalStops(floatArrayOf(1.0f))
+        assertTrue(primitive is FloatArray)
+        assertTrue((primitive as FloatArray).contentEquals(CameraIdentity.MASTER_LIVE_FOCAL_STOPS))
     }
 }

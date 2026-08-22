@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
 import android.os.Build
+import android.util.Size
+import android.util.SparseArray
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -9,6 +11,7 @@ import com.takekazex.hypertweak.util.StaticFieldWriter
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -194,10 +197,16 @@ object CameraImpersonationHooker : StaticHooker() {
         hookLeicaStyle()
         hookMasterLiveModePlacement()
         hookMasterLiveSupportGate()
+        hookMasterLiveRealEffectTable()
+        hookMasterLiveFullFocal()
         hookMasterLiveOrderFunnel()
         hookMasterLiveSupportEntry()
         hookMasterLiveTeleFallback()
         hookMasterLiveOpModeSafe()
+        hookMasterLiveCodecPin()
+        hookMasterLiveVideoSizeProbe()
+        hookMasterLiveVideoSurfaceSize()
+        hookMasterLiveAutoZoomCollapse()
         hookShutterSoundBoundary()
     }
 
@@ -1085,49 +1094,82 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * 新街拍 (street unlock mode `"new"`, [Preferences.KEY_CAMERA_STREET_MODE]): force the
-     * street-support gate `a3()` true on the IMPERSONATED config. No REDMI config ships
-     * `a3=true`, and the Nezha config does not either (510: `a3()` = `instanceof C1172`,
-     * declared once on the base and inherited by BOTH targets), so street is invisible until
-     * this hook turns it on; the mode then opens the real HAL role-0 main camera (the
-     * flagship's `b6=true` native main-id scheme). Works under EITHER impersonation target —
-     * both config classes resolve `a3` to the same declaring base Method.
+     * street-support gate `a3()` true on EVERY dispatch class [configDispatchClasses] reports —
+     * the ORIGINAL device config's Method (the dispatch target whenever the impersonation
+     * master is off) AND the flagship config's Method (the target while it is on). No REDMI
+     * config ships `a3=true` (510: `a3()` = `instanceof C1172`, declared ONCE on the base
+     * C1143), so street is invisible until this hook turns it on. The mode then opens the REAL
+     * HAL role-0 main camera (myron role 0 = camera 2): `StreetModule` has no camera-id
+     * override, so the module framework's role-0 path opens the real main camera; `b6()` is
+     * natively true on myron and must NOT be clamped.
+     *
+     * METHOD UNION (deduplicated by Method identity): under the K100 Pro Max target C1151
+     * inherits the base C1143#a3 WITHOUT override, so the original class (myron C1209) and the
+     * flagship class resolve the SAME Method — ONE hook covers BOTH the impersonated dispatch
+     * AND the master-off real-config dispatch. Under the legacy Nezha target the C1136 branch
+     * OVERRIDES `a3()` (`instanceof C1189`), so the flagship class supplies its own C1136#a3
+     * hook while the original class still supplies the base C1143#a3 — both are hooked, which
+     * is what keeps the master-off path working under the legacy target too.
      *
      * Because `a3()` is the single switch behind BOTH street visibility and the quick-launch
      * re-classification (`p700u2.S` IntentParser: STILL_IMAGE + launch source
      * `launch_camera_and_take_photo` → candidate mode 225 when `a3() && J.f()`), forcing it
      * keeps every consumer consistent with a WORKING street mode — that consistency is exactly
-     * what distinguishes this mode from `"compat"`. Requires the impersonation master; when it
-     * is off the hook does NOT force anything (it never LOWERS a native `a3()` — a real
-     * flagship's own street entry stays untouched). While this mode is active, the Nezha-target
-     * `a3` delegation guard in [hookModeGuards] suppresses itself, so the two hooks on the same
-     * Method can never fight in registration order.
+     * what distinguishes this mode from `"compat"`.
+     *
+     * MASTER-INDEPENDENT (the "修复没打开伪装旗舰相机配置时街拍用不了" fix): the callback does
+     * NOT read `enabled()` — 新街拍 works with the impersonation master ON and OFF, because the
+     * base C1143#a3 that serves the real config is the SAME Method the K100 impersonation
+     * dispatches to. Master-off usage: the entry lands in the 更多 overflow (no config `M()`
+     * carries 225) and opens through the module framework's HAL role-0 path = the REAL main
+     * camera; a camera restart is needed for visibility because the entry registry caches per
+     * process. The callback is RAISE-ONLY: when the mode is off or compat it leaves the native
+     * value untouched — it never LOWERS a native `a3()` (a genuinely street-capable device
+     * keeps its own entry). While this mode is active, the Nezha-target `a3` delegation guard
+     * in [hookModeGuards] suppresses itself, so the hooks on the same Method can never fight
+     * in registration order.
      */
     private fun hookStreetEnable() {
-        val flagship = flagshipInstance() ?: return
-        val target = flagship.javaClass
-        val method = runCatching {
-            target.getMethod("a3").takeIf {
-                it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+        val methods = LinkedHashSet<Method>()
+        for (clazz in configDispatchClasses()) {
+            val method = runCatching {
+                clazz.getMethod("a3").takeIf {
+                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+                }
+            }.getOrNull() ?: run {
+                DebugLog.d(TAG, "street-enable getter ${clazz.name}#a3() not found; skipped")
+                continue
             }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "street-enable getter ${target.name}#a3() not found; new-mode street skipped")
+            methods.add(method)
+        }
+        if (methods.isEmpty()) {
+            DebugLog.w(TAG, "street-enable getter a3() not resolved on any dispatch class; new-mode street skipped")
             return
         }
-        deoptimize(method)
-        method.hook("cam_street_enable") {
-            before { param ->
-                // Only ever turn the gate ON. Skipping (instead of forcing false) when the mode
-                // is off leaves native configs untouched — an earlier build always set the
-                // result, which hid NATIVE street on genuinely capable devices whenever the
-                // master switch was off.
-                if (!(enabled() && streetMode() == CameraStreetMode.MODE_NEW)) {
-                    return@before
+        var hooked = 0
+        for (method in methods) {
+            deoptimize(method)
+            method.hook("cam_street_enable_${method.declaringClass.name}") {
+                before { param ->
+                    // RAISE-ONLY and MASTER-INDEPENDENT: only ever turn the gate ON. Skipping
+                    // (instead of forcing false) when the mode is off or compat leaves native
+                    // configs untouched — an earlier build always set the result, which hid
+                    // NATIVE street on genuinely capable devices whenever the master switch
+                    // was off.
+                    if (streetMode() != CameraStreetMode.MODE_NEW) {
+                        return@before
+                    }
+                    param.result = true
+                    logStreetApplyOnce("new(a3)")
                 }
-                param.result = true
-                logStreetApplyOnce("new(a3)")
             }
+            hooked++
         }
-        DebugLog.i(TAG, "street-enable hooked on ${target.name}#a3() (mode=new)")
+        DebugLog.i(
+            TAG,
+            "street-enable hooked on $hooked a3() dispatch method(s): " +
+                methods.joinToString { "${it.declaringClass.name}#${it.name}" } + " (mode=new)"
+        )
     }
 
     /**
@@ -1215,45 +1257,77 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
-     * Restore the Leica photography style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher on the
-     * impersonated config. The 摄影风格 component (`C4164m` F3-gate at :148) and every top-bar /
-     * mode style entry gate on the config's `F3()` (`X2()` additionally for the specific-capture
-     * path `capture/h0`) — `true` on the CommonFlagship (Nezha) branch, `false` on the REDMI
-     * C1199 branch that C1151 (K100 Pro Max) inherits. The K100 Pro Max impersonation therefore
-     * drops the 徕卡经典/徕卡生动 switcher that the legacy 17-Ultra impersonation had (agent +
-     * jadx verified: `C1136#F3()/X2()=true`, `C1199#F3()=instanceof C1156=false`,
-     * `C1143#X2()=false`). Forcing `F3()/X2()` to `true` on the impersonated config brings it
-     * back. Legendary stays closed (`LegendaryEnter.support()=W0() && V()` with
+     * Restore the Leica photography style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher. The 摄影风格
+     * component (`C4164m` F3-gate at :148) and every top-bar / mode style entry gate on the
+     * config's `F3()` (`X2()` additionally for the specific-capture path `capture/h0`) — `true`
+     * on the CommonFlagship (Nezha) branch, `false` on the REDMI C1199 branch that C1151 (K100
+     * Pro Max) inherits. The K100 Pro Max impersonation therefore drops the 徕卡经典/徕卡生动 switcher
+     * that the legacy 17-Ultra impersonation had (agent + jadx verified: `C1136#F3()/X2()=true`,
+     * `C1199#F3()=instanceof C1156=false`, `C1143#X2()=false`).
+     *
+     * Works WITH and WITHOUT the impersonation master, gated only on `KEY_CAMERA_LEICA_STYLE`
+     * (default on). The hooks install on the UNION of the real device config class and the
+     * flagship class ([configDispatchClasses]): while the master is ON those are exactly the
+     * Methods the K100 impersonation dispatches to (C1151 inherits C1199#F3 / C1143#X2 without
+     * override, so forcing them `true` brings the switcher back); with the master OFF the same
+     * Methods resolve from the REAL device's own config class (myron, C1209, inheriting the same
+     * C1199/C1143 getters), so the switcher appears without impersonation. The callback is
+     * RAISE-ONLY — it never lowers a native value: with the user switch ON it forces `true`;
+     * with the switch OFF it returns without touching the result, so a natively-true gate stays
+     * native (the CommonFlagship/nezha branch declares its own true `F3()/X2()` overrides, so
+     * the nezha impersonation target keeps its native switcher and never reaches this hook's
+     * Methods). Legendary stays closed (`LegendaryEnter.support()=W0() && V()` with
      * `W0()=instanceof C1178=false`) and `M()` is keep-imaging-delegated to C1209 (no 231
      * LCC-RAW), so no purple/RAW regression. Side effect: `f2.c.b()` adds the four Leica shutter
      * sounds when `F3()` is true — benign (the 8-entry list also removes the IOOBE that the
-     * legacy `key_shutter_sound=4` used to hit). Gated on `KEY_CAMERA_LEICA_STYLE` (default on)
-     * + the K100 Pro Max target.
+     * legacy `key_shutter_sound=4` used to hit) and bounded by the resident
+     * [hookShutterSoundBoundary] clamp.
      */
     private fun hookLeicaStyle() {
-        val flagship = flagshipInstance() ?: return
-        val target = flagship.javaClass
-        var hooked = 0
-        for (name in arrayOf("F3", "X2")) {
-            val method = runCatching {
-                target.getMethod(name).takeIf {
-                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+        val dispatchClasses = configDispatchClasses()
+        // Resolve F3/X2 from BOTH dispatch classes (original device config class + flagship
+        // class), the union covering the getters the real config dispatches to while the
+        // impersonation master is off and the (identical, inherited) ones the K100 target
+        // dispatches to while it is on. Deduplicate by Method identity: `getMethod` on the two
+        // classes returns the SAME base Method for inherited getters (e.g. C1199#F3 inherited
+        // unchanged by C1151), which must be hooked exactly once.
+        val seen = IdentityHashMap<Method, Boolean>()
+        val resolved = ArrayList<Pair<Method, String>>()
+        for (clazz in dispatchClasses) {
+            for (name in arrayOf("F3", "X2")) {
+                val method = runCatching {
+                    clazz.getMethod(name).takeIf {
+                        it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+                    }
+                }.getOrNull() ?: run {
+                    DebugLog.d(TAG, "leica-style getter ${clazz.name}#$name() not found; skipped")
+                    continue
                 }
-            }.getOrNull() ?: run {
-                DebugLog.d(TAG, "leica-style getter ${target.name}#$name() not found; skipped")
-                continue
+                if (seen.put(method, true) != null) continue
+                resolved += method to name
             }
+        }
+        var hooked = 0
+        for ((method, name) in resolved) {
             deoptimize(method)
             method.hook("cam_leica_style_$name") {
                 before { param ->
-                    // Always short-circuit (set result) so `proceed` is never re-entered (SOE-safe,
-                    // same pattern as the other config before-hooks).
-                    param.result = enabled() && targetIsK100Promax() && leicaStyle()
+                    // RAISE-ONLY: with the user switch on force the gate open; with it off
+                    // leave the native result untouched (never lower a native true). The
+                    // `if (!leicaStyle()) return@before; param.result = true` shape always
+                    // either returns or sets the result, so `proceed` is never re-entered
+                    // (SOE-safe, same pattern as hookKeepFocal / hookStreetEnable).
+                    if (!leicaStyle()) return@before
+                    param.result = true
                 }
             }
             hooked++
         }
-        DebugLog.d(TAG, "leica-style flags hooked on ${target.name}: $hooked/2")
+        DebugLog.d(
+            TAG,
+            "leica-style flags hooked on ${dispatchClasses.joinToString { it.name }}: " +
+                "$hooked/${resolved.size} getters"
+        )
     }
 
     /** `Je.c#M()` (boolean) = `e.B4() && e.l2()` (jadx shows the config field as `f8420e`) — the 装备街拍 gate. */
@@ -1343,37 +1417,54 @@ object CameraImpersonationHooker : StaticHooker() {
      * after every render) and the persisted `pref_camera_sort_modes_key` order — see
      * [hookMasterLiveOrderFunnel], which corrects whichever source wins. This hook stays as
      * defense-in-depth so the config itself reports a Nezha-shaped array (also keeps the
-     * `t(Q)`/`o()` empty-`M()` fallback lists out of play). Gated on the impersonation master
-     * AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on, doubling as the MasterLive kill
-     * switch); inert on a native nezha device and when the array already contains 231.
+     * `t(Q)`/`o()` empty-`M()` fallback lists out of play). Gated on
+     * `KEY_CAMERA_MASTERLIVE_ENABLE` only — NOT on the impersonation master (master-off
+     * MasterLive must front the base `M()[I` the real config dispatches to, see below);
+     * inert on a native nezha device and when the array already contains 231.
+     *
+     * MASTER-OFF (2026-08-26, "没打开伪装旗舰相机配置时没有能用的实况运镜"): the real device
+     * config (C1209 myron) INHERITS the base C1143#M() ({167,175,232,233,234,254} — no 231),
+     * so with the impersonation master off the running camera dispatches to that base Method
+     * and it must be fronted as well. The hook is therefore installed on the union of
+     * [configDispatchClasses] (the ORIGINAL class's `M()` plus the flagship class's `M()`,
+     * deduplicated by Method identity so the same Method is never hooked twice). Base-class
+     * hooks are safe: ONLY classes that do NOT override `M()` dispatch to the base Method, so
+     * a real flagship's own `M()` override is never touched.
      */
     private fun hookMasterLiveModePlacement() {
-        val flagship = flagshipInstance() ?: return
-        // Installed under EITHER target: the nezha config fronts 231 natively, and
-        // CameraIdentity.frontMasterLiveMode is a no-op for arrays that already contain it,
-        // so this is inert there — but it keeps the K100-style fronting available if the
-        // flagship fallback ever lands on a class whose own M() lacks 231.
-        val method = runCatching { flagship.javaClass.getMethod("M") }
-            .getOrNull()
-            ?.takeIf { it.parameterTypes.isEmpty() && it.returnType == IntArray::class.java }
-            ?: run {
-                DebugLog.w(TAG, "${flagship.javaClass.name}#M()[I not found; masterlive placement skipped")
-                return
-            }
-        deoptimize(method)
-        method.hook("cam_masterlive_mode_front") {
-            after { param ->
-                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
-                val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
-                if (fronted != null) param.result = fronted
-            }
+        // Installed under EITHER target AND with the master off: the nezha config fronts 231
+        // natively, and CameraIdentity.frontMasterLiveMode is a no-op for arrays that already
+        // contain it, so this is inert there — but it keeps the fronting available whenever a
+        // dispatch class's own M() lacks 231 (the K100 C1151 override and the base C1143 the
+        // real config inherits both do).
+        val methods = LinkedHashSet<Method>()
+        for (target in configDispatchClasses()) {
+            runCatching { target.getMethod("M") }
+                .getOrNull()
+                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType == IntArray::class.java }
+                ?.let { methods.add(it) }
         }
-        DebugLog.d(TAG, "masterlive placement hooked on ${flagship.javaClass.name}#M()")
+        if (methods.isEmpty()) {
+            DebugLog.w(TAG, "config M()[I not found on dispatch classes; masterlive placement skipped")
+            return
+        }
+        for (method in methods) {
+            deoptimize(method)
+            method.hook("cam_masterlive_mode_front_${method.declaringClass.name}") {
+                after { param ->
+                    if (!masterliveEnabled()) return@after
+                    val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
+                    if (fronted != null) param.result = fronted
+                }
+            }
+            DebugLog.d(TAG, "masterlive placement hooked on ${method.declaringClass.name}#M()")
+        }
     }
 
     /**
-     * MasterLive (实况运镜) REGISTRY gate: force the impersonated config's `y4()` true while
-     * [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE] is on.
+     * MasterLive (实况运镜) REGISTRY gate: force the config's `y4()` true while
+     * [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE] is on — with AND without the impersonation
+     * master.
      *
      * WHY THIS EXISTS (2026-08-22, "没开 k100 配置时实况运镜依旧用不了"): under the legacy
      * Nezha target with `KEY_CAMERA_GUARD_MODES` on (its default), `hookModeGuards` delegated
@@ -1381,38 +1472,343 @@ object CameraImpersonationHooker : StaticHooker() {
      * `MasterLiveModuleEntry.support()` stayed false and mode 231 never registered, no matter
      * what the ordering hooks did. The unlock switch suppresses that delegation (see
      * [hookModeGuards]) and this hook actively pins the gate true, so the mode registers under
-     * EVERY target. `y4()` has seven consumers on 510 (module entry, first-run guide,
-     * capture-method settings rows, special-mode description list) and all of them describe a
-     * flagship capability the user is already impersonating, so one forced gate keeps them all
-     * coherent. When the switch is off the hook is inert and the guard semantics return.
+     * EVERY target.
+     *
+     * MASTER-OFF (2026-08-26, "没打开伪装旗舰相机配置时没有能用的实况运镜"): the `y4()`
+     * dispatch split is per-class — the K100 flagship OVERRIDES it (C1151, native true), while
+     * the real device config (C1209 myron) INHERITS the base C1143#y4 (`instanceof C1214` →
+     * false). With the impersonation master off the running camera dispatches to the base
+     * Method, so this hook installs the same RAISE-ONLY callback there too (both Methods are
+     * hooked; deduplicated by identity when they coincide — the Flagship class's own y4 hook
+     * stays as-is for impersonated dispatch). Base-class hooks are safe: ONLY classes that do
+     * NOT override `y4()` dispatch to the base Method, so a real flagship's own override is
+     * never touched. The gate is `masterliveEnabled()` ONLY (no impersonation master): when
+     * the switch is off nothing is raised (the native false on myron is left untouched; a
+     * genuinely-capable device's native true is never lowered). `y4()` has seven consumers on
+     * 510 (module entry, first-run guide, capture-method settings rows, special-mode
+     * description list) and all of them describe a flagship capability the user wants to
+     * unlock, so one forced gate keeps them all coherent.
      */
     private fun hookMasterLiveSupportGate() {
-        val flagship = flagshipInstance() ?: return
-        val target = flagship.javaClass
-        val method = runCatching {
-            target.getMethod("y4").takeIf {
-                it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-            }
-        }.getOrNull() ?: run {
-            DebugLog.w(TAG, "masterlive registry getter ${target.name}#y4() not found; support gate skipped")
+        val methods = LinkedHashSet<Method>()
+        flagshipInstance()?.javaClass?.let { target ->
+            runCatching { target.getMethod("y4") }
+                .getOrNull()
+                ?.takeIf { it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE }
+                ?.let { methods.add(it) }
+        }
+        originalConfigInstance().get()?.javaClass?.let { target ->
+            runCatching { target.getMethod("y4") }
+                .getOrNull()
+                ?.takeIf { it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE }
+                ?.let { methods.add(it) }
+        }
+        if (methods.isEmpty()) {
+            DebugLog.w(TAG, "masterlive registry getter y4() not found on dispatch classes; support gate skipped")
             return
         }
-        deoptimize(method)
-        method.hook("cam_masterlive_support_gate") {
-            after { param ->
-                if (!enabled() || !masterliveEnabled()) return@after
-                if ((param.result as? Boolean) == true) return@after
-                param.result = true
-                if (mlGateLogged.getAndSet(true) == false) {
-                    DebugLog.i(TAG, "masterlive registry gate y4() forced true")
+        for (method in methods) {
+            deoptimize(method)
+            method.hook("cam_masterlive_support_gate_${method.declaringClass.name}") {
+                after { param ->
+                    if (!masterliveEnabled()) return@after
+                    if ((param.result as? Boolean) == true) return@after
+                    param.result = true
+                    if (mlGateLogged.getAndSet(true) == false) {
+                        DebugLog.i(TAG, "masterlive registry gate y4() forced true on ${method.declaringClass.name}")
+                    }
                 }
             }
+            DebugLog.i(TAG, "masterlive support gate hooked on ${method.declaringClass.name}#y4()")
         }
-        DebugLog.i(TAG, "masterlive support gate hooked on ${target.name}#y4()")
     }
 
     /** Logs the y4 force ONCE per process, not per dispatch. */
     private val mlGateLogged = AtomicReference(false)
+
+    /**
+     * MasterLive (实况运镜) EFFECT TABLE: borrow the REDMI (K100 Pro Max) table for the real
+     * config's `q0()` AND inject the 红毯运镜 (type "1") entry
+     * ([CameraMasterLiveRedCarpet], `Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET`).
+     *
+     * `C4682e0`/`C4673d0` (the MasterLive effect-table consumer, jadx `v2.e0`/`v2.d0`) caches
+     * `Collections.unmodifiableMap(config.q0())` once per process (`q()`, :86/:310): the K100
+     * flagship OVERRIDES `q0()` with the REDMI table (types "0"/"2"/"3", roles
+     * ultra/wide/Standalone, ends 15x — SAFE), while the real device config INHERITS the base
+     * `q0()` which returns **null** — no effect list. Under the impersonation master the
+     * consumer sees the flagship's REDMI table through dispatch; with the master OFF the real
+     * config's null table leaves MasterLive without a usable effect list.
+     *
+     * The hook therefore installs on the `q0()` Method of EVERY dispatch class
+     * ([configDispatchClasses]: the original device config class for master-off, the flagship
+     * instance's class — whose own override serves master-on — deduplicated by Method
+     * identity), and the after-callback (a) borrows the K100 table when the original returned
+     * null (through [resolveK100Config] ONLY — never the Nezha/CommonFlagship fallback, whose
+     * 12.9x tele table crashes myron), then (b) merges a synthesized 红毯运镜 type-"1" entry
+     * ([injectRedCarpetEntry]) while `KEY_CAMERA_MASTERLIVE_RED_CARPET` is on. The 红毯 entry
+     * is a CLONE of the proven-working linear entry with a changed type id and cleared default
+     * flag — every decrypted role/range string stays byte-identical to what already resolves,
+     * so nothing new is decoded and the panel/guide UI pick the entry up natively (they are
+     * type-switch driven). Gated on [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE].
+     */
+    private fun hookMasterLiveRealEffectTable() {
+        if (configDispatchClasses().isEmpty()) {
+            DebugLog.w(TAG, "no config dispatch classes; masterlive effect table hook skipped")
+            return
+        }
+        val seen = HashSet<Method>()
+        var hooked = 0
+        for (clazz in configDispatchClasses()) {
+            val method = runCatching { clazz.getMethod("q0") }
+                .getOrNull()
+                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE }
+                ?: continue
+            if (!seen.add(method)) continue
+            deoptimize(method)
+            method.hook("cam_masterlive_effect_table_${method.declaringClass.name}") {
+                after { param ->
+                    if (!masterliveEnabled()) return@after
+                    var table = param.result
+                    if (table == null) {
+                        table = borrowK100EffectTable() ?: return@after
+                        param.result = table
+                        if (mlTableBorrowLogged.getAndSet(true) == false) {
+                            DebugLog.i(TAG, "masterlive effect table borrowed from K100 config (real config q0() is null)")
+                        }
+                    }
+                    if (!redCarpetEnabled()) return@after
+                    val merged = injectRedCarpetEntry(table) ?: return@after
+                    param.result = merged
+                    if (mlRedCarpetLogged.getAndSet(true) == false) {
+                        DebugLog.i(TAG, "masterlive effect table: injected 红毯运镜 (type 1) entry")
+                    }
+                }
+            }
+            hooked++
+        }
+        if (hooked == 0) {
+            DebugLog.w(TAG, "no q0() Method resolved on any dispatch class; masterlive effect table hook skipped")
+        } else {
+            DebugLog.i(TAG, "masterlive effect table hook installed on $hooked q0() Method(s)")
+        }
+    }
+
+    /** Logs the first 红毯运镜 injection ONCE per process, not per dispatch. */
+    private val mlRedCarpetLogged = AtomicReference(false)
+
+    /**
+     * Real dex field names of the MasterLive effect-entry bean (`Le.a`; the jadx display
+     * aliases `f9658a..f9664h` exist only because single letters collide with package names).
+     */
+    private val ENTRY_FIELD_TYPE = arrayOf("a", "f9658a", "f9655a")
+    private val ENTRY_FIELD_ROLES = arrayOf("b")
+    private val ENTRY_FIELD_ZOOMS = arrayOf("c", "f9659c", "f9656c")
+    private val ENTRY_FIELD_FLAGS = arrayOf("d", "f9660d", "f9657d")
+    private val ENTRY_FIELD_RANGES = arrayOf("e", "f9661e", "f9658e")
+    private val ENTRY_FIELD_HANDLES = arrayOf("f", "f9662f", "f9659f")
+    private val ENTRY_FIELD_DEFAULT = arrayOf("g", "f9663g", "f9660g")
+    private val ENTRY_FIELD_LENS = arrayOf("h", "f9664h", "f9661h")
+
+    /**
+     * Build a copy of the MasterLive effect [table] (`Map<String, Le.a>`) with an injected
+     * 红毯运镜 (`"1"`) entry, or null when nothing changes / the injection is not safe:
+     * the table already contains `"1"`; no clone-source entry ("3"/"2") exists; the entry bean
+     * fields cannot be resolved; or the cloned segment lists violate
+     * [CameraMasterLiveRedCarpet.segmentsConsistent] (which would make the component throw
+     * IOOBE mid-capture). The input map is NEVER mutated — consumers wrap it in
+     * `unmodifiableMap`, and `C4673d0#r()` writes range strings back into the entries'
+     * list fields, so every list is deep-copied per entry.
+     */
+    private fun injectRedCarpetEntry(table: Any): Any? {
+        if (table !is Map<*, *>) return null
+        if (table.containsKey(CameraMasterLiveRedCarpet.RED_CARPET_TYPE)) return null
+        val source = CameraMasterLiveRedCarpet.CLONE_SOURCE_TYPES.firstNotNullOfOrNull { table[it] }
+            ?: return null
+        val entryClass = source.javaClass
+        val typeField = resolveField(entryClass, *ENTRY_FIELD_TYPE)?.apply { isAccessible = true } ?: return null
+        val rolesField = resolveField(entryClass, *ENTRY_FIELD_ROLES)?.apply { isAccessible = true } ?: return null
+        val zoomsField = resolveField(entryClass, *ENTRY_FIELD_ZOOMS)?.apply { isAccessible = true } ?: return null
+        val flagsField = resolveField(entryClass, *ENTRY_FIELD_FLAGS)?.apply { isAccessible = true }
+        val rangesField = resolveField(entryClass, *ENTRY_FIELD_RANGES)?.apply { isAccessible = true } ?: return null
+        val handlesField = resolveField(entryClass, *ENTRY_FIELD_HANDLES)?.apply { isAccessible = true }
+        val defaultField = resolveField(entryClass, *ENTRY_FIELD_DEFAULT)?.apply { isAccessible = true } ?: return null
+        val lensField = resolveField(entryClass, *ENTRY_FIELD_LENS)?.apply { isAccessible = true }
+
+        val read: (Field) -> Any? = { field -> runCatching { field.get(source) }.getOrNull() }
+        val roles = read(rolesField) as? List<*>
+        val zooms = read(zoomsField) as? List<*>
+        val ranges = read(rangesField) as? List<*>
+        if (!CameraMasterLiveRedCarpet.segmentsConsistent(
+                roles?.size, zooms?.size, ranges?.size
+            )
+        ) {
+            DebugLog.w(TAG, "masterlive red carpet: clone-source segments inconsistent ($roles/$zooms/$ranges); skipped")
+            return null
+        }
+
+        val entry = runCatching { entryClass.getDeclaredConstructor().newInstance() }.getOrNull() ?: return null
+        // Deep-copy every list so C4673d0#r()'s range write-back can never leak across types.
+        val set: (Field, Any?) -> Unit = { field, value ->
+            runCatching { field.set(entry, value) }
+        }
+        fun copyList(field: Field): List<*>? = (read(field) as? List<*>)?.let { ArrayList(it) }
+        set(typeField, CameraMasterLiveRedCarpet.RED_CARPET_TYPE)
+        set(rolesField, roles?.let { ArrayList(it) })
+        set(zoomsField, zooms?.let { ArrayList(it) })
+        flagsField?.let { f -> set(f, copyList(f)) }
+        set(rangesField, ranges?.let { ArrayList(it) })
+        handlesField?.let { f -> set(f, copyList(f)) }
+        // CRITICAL: the clone must NOT become the DEFAULT effect (that would boot the camera
+        // into 红毯 instead of 超清实况 — getDefaultValue picks the g=true entry).
+        set(defaultField, false)
+        lensField?.let { f -> set(f, read(f)) }
+
+        val ordered = CameraMasterLiveRedCarpet.orderedKeys(table.keys.filterIsInstance<String>())
+            ?: (table.keys.filterIsInstance<String>() + CameraMasterLiveRedCarpet.RED_CARPET_TYPE)
+        val merged = LinkedHashMap<Any?, Any?>()
+        var placed = false
+        for (key in ordered) {
+            if (key == CameraMasterLiveRedCarpet.RED_CARPET_TYPE) {
+                // Place the synthetic entry exactly once, at the canonical position.
+                if (!placed) {
+                    merged[key] = entry
+                    placed = true
+                }
+                continue
+            }
+            table[key]?.let { merged[key] = it }
+        }
+        return merged.takeIf { placed }
+    }
+
+    /** Cached K100 config instance + its `q0()` Method for the master-off effect-table borrow. */
+    private val k100EffectTableInstance = AtomicReference<Any?>(null)
+    private val k100EffectTableMethod = AtomicReference<Method?>(null)
+
+    /** Logs the effect-table borrow / unavailability ONCE per process, not per dispatch. */
+    private val mlTableBorrowLogged = AtomicReference(false)
+    private val mlTableUnavailableLogged = AtomicReference(false)
+
+    /**
+     * Resolve + cache the K100 (REDMI) config instance and its `q0()` Method exactly like the
+     * k100 target path does — [resolveK100Config] only, NEVER the Nezha/CommonFlagship
+     * fallback (the 17U table ends 12.9x and crashes myron's camera) — then invoke `q0()` for
+     * the borrowed effect table.
+     */
+    private fun borrowK100EffectTable(): Any? {
+        k100EffectTableInstance.get()?.let { instance ->
+            k100EffectTableMethod.get()?.let { method ->
+                return runCatching { method.invoke(instance) }.getOrNull()
+            }
+        }
+        synchronized(k100EffectTableInstance) {
+            k100EffectTableInstance.get()?.let { instance ->
+                k100EffectTableMethod.get()?.let { method ->
+                    return runCatching { method.invoke(instance) }.getOrNull()
+                }
+            }
+            val loader = classLoader ?: run {
+                logEffectTableUnavailableOnce("no class loader")
+                return null
+            }
+            val resolver = resolveSourceNameResolver(loader) ?: run {
+                logEffectTableUnavailableOnce("source-name resolver unavailable")
+                return null
+            }
+            val k100 = resolveK100Config(loader, resolver) ?: run {
+                logEffectTableUnavailableOnce("K100 config not resolved by candidates or source probes")
+                return null
+            }
+            val q0Method = runCatching {
+                k100.javaClass.getMethod("q0").takeIf {
+                    it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE
+                }
+            }.getOrNull() ?: run {
+                logEffectTableUnavailableOnce("${k100.javaClass.name}#q0() not found")
+                return null
+            }
+            k100EffectTableInstance.set(k100)
+            k100EffectTableMethod.set(q0Method)
+            val table = runCatching { q0Method.invoke(k100) }.getOrNull()
+            if (table == null) logEffectTableUnavailableOnce("${k100.javaClass.name}#q0() returned null")
+            return table
+        }
+    }
+
+    private fun logEffectTableUnavailableOnce(reason: String) {
+        if (mlTableUnavailableLogged.getAndSet(true) == false) {
+            DebugLog.w(TAG, "masterlive effect table borrow unavailable: $reason")
+        }
+    }
+
+    /**
+     * MasterLive (实况运镜) full focal line-up for the zoom-toggle strip
+     * (`Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default on; research:
+     * RESEARCH_MYRON_12_MASTERLIVE_FOCAL_STRIP.md).
+     *
+     * The 焦段 strip inside 实况运镜 (`FragmentZoomToggle`'s `ZoomRatioToggleView` row) reads
+     * the config's per-mode zoom stops `v1()` keyed by mode id — `j.U(231,false)` → `j.S` →
+     * `j.R` → `p723ur.i#q(231,…)` → `v1().get(231)`. The real myron config has NO 231 key, so
+     * the camera falls back to the hardcoded `{1.0x, 2.0x}` pair and 超清实况 shows only 1x/2x
+     * where a full unlock shows the whole line-up. This hook appends
+     * `231 → [CameraIdentity.MASTER_LIVE_FOCAL_STOPS]` (the K100 Pro Max stops {0.7, 1, 2, 5,
+     * 10} — bit-identical sensor axis to myron and exactly myron's real optics) to the result
+     * whenever the key is absent; an existing key is never touched and no other mode's stops
+     * change. Installs on the `v1()` Method of EVERY dispatch class ([configDispatchClasses],
+     * dedup by Method identity), which covers master-off AND both impersonation paths: the
+     * keep-focal delegation invokes the original class Method, so its result passes through
+     * this hook too. Gated on [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE] and the switch.
+     */
+    private fun hookMasterLiveFullFocal() {
+        if (configDispatchClasses().isEmpty()) {
+            DebugLog.w(TAG, "no config dispatch classes; masterlive full focal hook skipped")
+            return
+        }
+        val seen = HashSet<Method>()
+        var hooked = 0
+        for (clazz in configDispatchClasses()) {
+            val method = runCatching { clazz.getMethod("v1") }
+                .getOrNull()
+                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE }
+                ?: continue
+            if (!seen.add(method)) continue
+            deoptimize(method)
+            method.hook("cam_masterlive_full_focal_${method.declaringClass.name}") {
+                after { param ->
+                    if (!masterliveEnabled() || !fullFocalEnabled()) return@after
+                    val array = param.result as? SparseArray<*> ?: return@after
+                    if (array.indexOfKey(CameraIdentity.MASTER_LIVE_MODE_ID) >= 0) return@after
+                    // Copy before mutating: v1() results can be shared instances, and the hook
+                    // must never widen the native table's visible state.
+                    val clone = runCatching { array.javaClass.getMethod("clone") }.getOrNull()
+                        ?: return@after
+                    val copy = runCatching { clone.invoke(array) as? SparseArray<Any> }
+                        .getOrNull() ?: return@after
+                    copy.put(
+                        CameraIdentity.MASTER_LIVE_MODE_ID,
+                        // Mirror the value type of the existing table (boxed on every verified
+                        // build); an empty table gets the boxed default.
+                        CameraIdentity.masterLiveFocalStops(
+                            if (array.size() > 0) array.valueAt(0) else null
+                        )
+                    )
+                    param.result = copy
+                    if (fullFocalLogged.getAndSet(true) == false) {
+                        DebugLog.i(TAG, "masterlive full focal: v1()[231] = ${CameraIdentity.MASTER_LIVE_FOCAL_STOPS.contentToString()}")
+                    }
+                }
+            }
+            hooked++
+        }
+        if (hooked == 0) {
+            DebugLog.w(TAG, "no v1() Method resolved on any dispatch class; masterlive full focal hook skipped")
+        } else {
+            DebugLog.i(TAG, "masterlive full focal hook installed on $hooked v1() Method(s)")
+        }
+    }
+
+    /** Logs the first full-focal substitution ONCE per process, not per call. */
+    private val fullFocalLogged = AtomicReference(false)
 
     /**
      * Resolve `u2.P` (ComponentModuleList; jadx alias `p700u2.P`, 460 build `u2.U`) once for
@@ -1491,7 +1887,9 @@ object CameraImpersonationHooker : StaticHooker() {
      *
      * NOT covered here and deliberately skipped: `E(int)` prefers the persisted
      * `all_support_mode_list` over `x()` (`P.java:511-550`) — see
-     * [hookMasterLiveSupportEntry]. Gated like [hookMasterLiveModePlacement].
+     * [hookMasterLiveSupportEntry]. Gated on `KEY_CAMERA_MASTERLIVE_ENABLE` only — NOT on
+     * the impersonation master: `u2.P` is config-independent, so the funnel correction applies
+     * under master-off MasterLive as well.
      */
     private fun hookMasterLiveOrderFunnel() {
         val clazz = resolveComponentModuleList() ?: run {
@@ -1509,7 +1907,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(yMethod)
         yMethod.hook("cam_masterlive_order_funnel") {
             after { param ->
-                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
+                if (!masterliveEnabled()) return@after
                 val placed = CameraIdentity.placeMasterLiveModeBeforeMarker(param.result as? IntArray)
                 if (placed != null) param.result = placed
             }
@@ -1528,8 +1926,10 @@ object CameraImpersonationHooker : StaticHooker() {
      * (`u2.S#a`, smali `Lu2/P;->E(I)Z` call sites) and the new-user mode guide
      * (`com.android.camera.guide.b`) — neither hides the mode, but both misbehave for exactly
      * the mode we inject above. Forcing E(231)=true while our placement is active keeps them
-     * consistent; every other id computes normally. Gated like [hookMasterLiveModePlacement];
-     * z(231)==231 (no legacy alias maps to 231, `P.java:343-395`), so the id check is exact.
+     * consistent; every other id computes normally. Gated on `KEY_CAMERA_MASTERLIVE_ENABLE`
+     * only — NOT on the impersonation master (config-independent hook, applies under
+     * master-off MasterLive too). `z(231)==231` (no legacy alias maps to 231,
+     * `P.java:343-395`), so the id check is exact.
      */
     private fun hookMasterLiveSupportEntry() {
         val clazz = resolveComponentModuleList() ?: run {
@@ -1550,7 +1950,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(eMethod)
         eMethod.hook("cam_masterlive_support_entry") {
             after { param ->
-                if (!enabled() || !masterliveEnabled() || !masterliveTeleFallback()) return@after
+                if (!masterliveEnabled()) return@after
                 if ((param.result as? Boolean) != false) return@after
                 if ((param.args?.getOrNull(0) as? Int) != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
                 param.result = true
@@ -1566,17 +1966,31 @@ object CameraImpersonationHooker : StaticHooker() {
      * exist in the dex and resolved to null on the device). A device whose tele is only labelled
      * role 20 (Samsung JN5) has no role-23 camera -> -1 -> the 15x endpoint never resolves. This
      * hook falls back to the role-20 tele camera (`r()`) only when role 23 is absent
-     * (RESEARCH_MYRON_02 §6.2); on a device that really has role 23 (myron: role 23 <-> camera 4)
-     * it is a no-op. Gated on `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on).
+     * (RESEARCH_MYRON_02 §6.2); on a device that really has role 23 (myron: role 23 <-> camera 4
+     * and no role 20) it is a no-op.
+     *
+     * MASTER-OFF (2026-08-26): the role adapter is config-independent, so the fallback must
+     * also work for master-off MasterLive. The gate is the user's own
+     * `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` switch (default on) alone — no impersonation
+     * master.
+     *
+     * ON-DEVICE RESOLUTION FIX (2026-08-26, RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1): the
+     * DexKit probe previously used `"Camera2CompatAdapterRole"`, but the class's log-tag
+     * constant in the dex is `MCAM_Camera2CompatAdapterRole` (MCAM_ prefix) — the probe never
+     * matched and the hook was skipped on-device ("Camera2CompatAdapterRole not resolved"). The
+     * probe string is now `MCAM_...`; the method-shape validation (int-returning `M()`) is
+     * unchanged.
      */
     private fun hookMasterLiveTeleFallback() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "role_adapter", ctx = ctx,
             candidates = listOf("u6.e", "p703u6.e"),
-            // `Camera2CompatAdapterRole` survives as a plaintext dex string (classes.dex).
+            // `MCAM_Camera2CompatAdapterRole` is the class's plaintext log-tag constant in the
+            // dex (verified on-device; the bare `Camera2CompatAdapterRole` probe never matched,
+            // see RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1).
             probe = { bridge ->
-                bridge.findClass { matcher { usingStrings("Camera2CompatAdapterRole") } }
+                bridge.findClass { matcher { usingStrings("MCAM_Camera2CompatAdapterRole") } }
                     .firstOrNull()?.name
             },
             validate = { c -> c.declaredMethods.any { it.name == "M" && it.returnType == java.lang.Integer.TYPE } },
@@ -1625,6 +2039,11 @@ object CameraImpersonationHooker : StaticHooker() {
      * ALGO_UP_SAT (36866) uses a plain session that always produces frames; the K100 Pro Max effect
      * table has no 120fps type, so no high-speed semantics are lost. Class `U3/p` is a real dex
      * name (verified in the on-device APK). Enable only if on-device logs confirm op-mode 1 stalls.
+     *
+     * MASTER-OFF (2026-08-26): `U3/p` is config-independent, so the safety net must also apply
+     * to master-off MasterLive. The gate is the user's own
+     * `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE` switch (default off) + `!deviceIsNezha()` — no
+     * impersonation master.
      */
     private fun hookMasterLiveOpModeSafe() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
@@ -1669,6 +2088,470 @@ object CameraImpersonationHooker : StaticHooker() {
             }
         }
         DebugLog.d(TAG, "masterlive op-mode safety hook installed on ${clazz.name}#i()")
+    }
+
+    /**
+     * MasterLive (实况运镜) circular-encoder size pin — experimental probe for the
+     * "left green / right repeated lines" motion-photo artifact
+     * (`KEY_CAMERA_MASTERLIVE_CODEC_PIN`, default off; mechanism [M0] of
+     * RESEARCH_MYRON_09_MASTERLIVE_ARTIFACT.md, all line refs below are 6.6.000510.0).
+     *
+     * The LiveShot circular encoder (real dex names `ym.d` = CircularVideoEncoder, `ym.f` =
+     * V2 override — jadx displays them as `p859ym.d`/`p859ym.f`) receives the per-shot
+     * preview-snapshot size on every capture: `CircularMediaRecorderV2` (real `xm.c`, jadx
+     * `p824xm.c`, `j()/k()` :216-231) calls `dVar.E(size)` (the encoder field `b`), and the
+     * base `ym.d#E(Size)` (:134-138, logs "updateCodecSize E size = …") stores it; the V2
+     * subclass `ym.f` (override :248-257, MTK branch then `super.E(size)`) reconfigures
+     * the codec when the stored size differs from the current format, while the GL render
+     * canvas stays at the construction size (`zm.c:342-346`, FBO fixed at `zm/b.g`).
+     * Under a forced ALGO_UP_SAT session (`KEY_CAMERA_MASTERLIVE_OPMODE_SAFE`) the preview
+     * snapshot size and the construction video size diverge, so every capture rewrites the
+     * codec format and the input surface ends up partially unwritten — NV12 zero-fill decodes
+     * to pure green — with edge clamp/wrap producing the repeated lines.
+     *
+     * The hook substitutes the incoming `Size` argument with the encoder's INITIAL format size
+     * (final int fields `A`/`B`, `ym.d:23-26`, read from the MediaFormat at
+     * construction) whenever it differs ([CameraCodecSizePin.pinnedSize]); the original still
+     * runs, so the stored size can never diverge from what the render canvas was built for and
+     * the rewrite path becomes a no-op. Matching sizes pass through untouched (normal case).
+     *
+     * Resolution is build-agnostic: L1 candidates are the verified real dex names (`ym.d`
+     * base, `ym.f` V2 override, `ym.e` 460-era; the jadx `p859ym.*` spellings never exist in
+     * the dex and are kept only as cheap fallbacks), L2 DexKit iterates the classes carrying
+     * the plaintext `updateCodecSize` log string and takes the first whose `E(Size)` shape
+     * validates (a sibling class — e.g. the GL render thread — can reference the string
+     * without declaring `E`), and the method is matched by shape
+     * (one `android.util.Size` parameter, void return). Gated on
+     * `KEY_CAMERA_MASTERLIVE_CODEC_PIN` only — NOT on the impersonation master (master-off
+     * MasterLive needs the pin too). Requires a camera restart after changing.
+     */
+    private fun hookMasterLiveCodecPin() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "circular_video_encoder", ctx = ctx,
+            // REAL dex names on the verified builds: 510 `ym.d`/`ym.f`/`ym.e`
+            // (`p859ym.d` etc. are jadx DISPLAY aliases that never exist in the dex — the
+            // 460/510 mapping rule strips the `p<digits>` prefix: p859ym -> ym, p824xm -> xm).
+            // The jadx-alias spellings are kept as cheap fallbacks for unverified builds.
+            candidates = listOf("ym.d", "ym.f", "ym.e", "p859ym.d", "p859ym.f", "p859ym.e"),
+            // "updateCodecSize" is plaintext in the 510 dex string pool (classes8.dex,
+            // byte-verified 2026-08-27). Iterate ALL classes carrying it and pick the first
+            // whose E(Size) shape validates — the first dex-order match can be a sibling
+            // class (e.g. the GL render thread) that references the string but declares no
+            // `E(Size)`.
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("updateCodecSize") } }
+                    .firstOrNull { cd ->
+                        ctx.loadOrNull(cd.name)?.let { resolveUpdateCodecSizeMethod(it, quiet = true) != null } == true
+                    }?.name
+            },
+            validate = { c -> resolveUpdateCodecSizeMethod(c, quiet = true) != null },
+        ) ?: run {
+            DebugLog.w(TAG, "CircularVideoEncoder (ym.d) not resolved; masterlive codec pin skipped")
+            return
+        }
+        val method = resolveUpdateCodecSizeMethod(clazz) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#E(Size) not found; masterlive codec pin skipped")
+            return
+        }
+        deoptimize(method)
+        method.hook("cam_masterlive_codec_pin") {
+            before { param ->
+                if (!codecPinEnabled()) return@before
+                val receiver = param.thisObject ?: return@before
+                val initial = codecInitialSize(receiver) ?: return@before
+                val current = param.args?.getOrNull(0) as? Size ?: return@before
+                val pinned = CameraCodecSizePin.pinnedSize(
+                    current.width, current.height, initial.first, initial.second
+                ) ?: return@before
+                param.args[0] = Size(pinned.first, pinned.second)
+                if (codecPinLogged.getAndSet(true) == false) {
+                    DebugLog.i(
+                        TAG,
+                        "masterlive codec size pinned: updateCodecSize $current -> ${pinned.first}x${pinned.second}"
+                    )
+                }
+            }
+        }
+        DebugLog.i(TAG, "masterlive codec pin hooked on ${method.declaringClass.name}#E(Size)")
+    }
+
+    /** Logs the first codec-size pin ONCE per process, not per shot. */
+    private val codecPinLogged = AtomicReference(false)
+
+    /** Cached initial-format size fields (`A`/`B`, final ints) of the circular encoder. */
+    private val codecInitialSizeFields = AtomicReference<Pair<Field, Field>?>(null)
+
+    /**
+     * The encoder's construction-time format size (`A`/`B`, read from the MediaFormat at
+     * `ym.d` construction, :81-82; real dex names — jadx shows `f67755A`/`f67756B` display
+     * aliases). Resolved once per process and cached; walks the receiver's class hierarchy so
+     * V2 receivers (`ym.f` extends `ym.d`) resolve the base fields. null when the fields are
+     * unreadable — the pin then does nothing (the encode size is never substituted), which
+     * is the safe failure mode.
+     */
+    private fun codecInitialSize(receiver: Any): Pair<Int, Int>? {
+        val cached = codecInitialSizeFields.get()
+        val fields = cached ?: synchronized(codecInitialSizeFields) {
+            codecInitialSizeFields.get() ?: run {
+                val found = resolveSizeFields(receiver.javaClass)
+                found?.let { (wField, hField) ->
+                    wField.isAccessible = true
+                    hField.isAccessible = true
+                }
+                found?.also { codecInitialSizeFields.set(it) }
+            }
+        } ?: return null
+        val w = runCatching { fields.first.getInt(receiver) }.getOrNull() ?: return null
+        val h = runCatching { fields.second.getInt(receiver) }.getOrNull() ?: return null
+        if (w <= 0 || h <= 0) return null
+        return w to h
+    }
+
+    /**
+     * Resolve the encoder's initial-format int fields on [clazz] or any superclass: real dex
+     * names `A`/`B` (510, `p859ym/d.java:23-26`), with the jadx display aliases as harmless
+     * fallbacks. Both fields must be plain `int`s.
+     */
+    private fun resolveSizeFields(clazz: Class<*>): Pair<Field, Field>? {
+        var c: Class<*>? = clazz
+        while (c != null) {
+            val w = runCatching { c.getDeclaredField("A") }.getOrNull()
+            val h = runCatching { c.getDeclaredField("B") }.getOrNull()
+            if (w != null && h != null && w.type == java.lang.Integer.TYPE && h.type == java.lang.Integer.TYPE) {
+                return w to h
+            }
+            c = c.superclass
+        }
+        val w = runCatching { clazz.getDeclaredField("f67755A") }.getOrNull()
+        val h = runCatching { clazz.getDeclaredField("f67756B") }.getOrNull()
+        return if (w != null && h != null && w.type == java.lang.Integer.TYPE && h.type == java.lang.Integer.TYPE) {
+            w to h
+        } else {
+            null
+        }
+    }
+
+    /**
+     * The `E(Size)` method on a circular-encoder class: declared first (covers the base and
+     * the V2 override), then inherited-public as a fallback (older builds may declare it only
+     * on a superclass). Shape: one `android.util.Size` parameter, void return, not synthetic.
+     */
+    private fun resolveUpdateCodecSizeMethod(clazz: Class<*>, quiet: Boolean = false): Method? {
+        val match: (Method) -> Boolean = { m ->
+            !m.isSynthetic && m.parameterCount == 1 &&
+                m.parameterTypes[0] == Size::class.java && m.returnType == java.lang.Void.TYPE
+        }
+        val declared = clazz.declaredMethods.firstOrNull(match)
+        val resolved = declared ?: clazz.methods.firstOrNull(match)
+        if (resolved == null && !quiet) {
+            DebugLog.w(TAG, "${clazz.name}#E(Size) not found by shape")
+        }
+        return resolved?.apply { isAccessible = true }
+    }
+
+    /**
+     * MasterLive (实况运镜) video-size probe — experimental
+     * (`KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`, default off).
+     *
+     * On-device forensics (2026-08-27, OS4.0.0.19.XPMCNXM; RESEARCH_MYRON_09): the MasterLive
+     * live-video stream on myron is sized via the HAL masterlive ratio tag `G()` (reads a
+     * myron-native vendor tag, `C3545f#G`) into 16:9 streams (2560x1440, or per-role pairs
+     * from the HAL list), and those frames arrive damaged — content squeezed into the bottom
+     * ~44%, the rest zero-chroma (renders as pure green after the app's 90° rotation; the
+     * still is clean because it uses a different stream). Normal 实况照片 uses the `A()` ratio
+     * and a 4:3 stream (source 1728x1296) that is CLEAN on this device (user-verified). This
+     * hook forces the mode-231 branch of `getLivePhotoVideoSize` (`C3652n#c(Size, a)`, jadx
+     * `p391l6/C3652n`, log strings "getLivePhotoVideoSize roleId = …" survive plaintext) to a
+     * PER-EFFECT-TYPE bound size ([CameraMasterLiveSizeBinding]): 16:9 2304x1296 for the
+     * movement effects (红毯/主角/自由 — user-verified clean captures), 4:3 1728x1296 for the
+     * ultra-pixel 超清实况 effect (a global 16:9 pin broke it with green frames again,
+     * 2026-08-28 user round). The current effect type comes from the camera's own MasterLive
+     * component value (`j#A(231)`, [currentMasterLiveType]); an unreadable type falls back to
+     * the globally verified 16:9. Matching/absent results pass through; only the mode-231
+     * result is substituted, and only when the probe switch is on.
+     */
+    private fun hookMasterLiveVideoSizeProbe() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        // Real dex name verified on 510: `l6.n` (jadx display p391l6/C3652n, "renamed from:
+        // l6.n"); older builds use sibling size-base classes. The plaintext log-string probe
+        // is backup only — "getLivePhotoVideoSize" is NOT plaintext in the dex (runtime
+        // concatenation), so candidates are the primary path.
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "livephoto_size_base", ctx = ctx,
+            candidates = listOf("l6.n", "l6.q", "l6.p", "l6.o"),
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("getLivePhotoVideoSize") } }
+                    .firstOrNull()?.name
+            },
+            validate = { c -> resolveLivePhotoVideoSizeMethod(c, quiet = true) != null },
+        ) ?: run {
+            DebugLog.w(TAG, "live-photo size base not resolved; masterlive video size probe skipped")
+            return
+        }
+        val method = resolveLivePhotoVideoSizeMethod(clazz) ?: run {
+            DebugLog.w(TAG, "getLivePhotoVideoSize method not found; masterlive video size probe skipped")
+            return
+        }
+        deoptimize(method)
+        method.hook("cam_masterlive_video_size_probe") {
+            after { param ->
+                if (!videoSizeProbeEnabled()) return@after
+                if ((param.result as? Size) == null) return@after
+                val receiver = param.args?.getOrNull(1) ?: return@after
+                val mode = readModuleIndex(receiver) ?: return@after
+                if (mode != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
+                val original = param.result as? Size ?: return@after
+                val pinned = CameraMasterLiveSizeBinding.boundSize(
+                    currentMasterLiveType(), original.width, original.height
+                ) ?: return@after
+                param.result = Size(pinned.first, pinned.second)
+                if (videoSizeProbeLogged.getAndSet(true) == false) {
+                    DebugLog.i(
+                        TAG,
+                        "masterlive video size probe: getLivePhotoVideoSize $original " +
+                            "(type ${currentMasterLiveType() ?: "?"}) -> ${pinned.first}x${pinned.second}"
+                    )
+                }
+            }
+        }
+        DebugLog.i(TAG, "masterlive video size probe hooked on ${method.declaringClass.name}#${method.name}(Size,..)")
+    }
+
+    /**
+     * The camera's own MasterLive effect type (`pref_master_live_key` via the static
+     * `com.android.camera.data.data.j#A(231)`), or null when it cannot be read. `j#A` returns
+     * "" unless mode 231 is the ACTIVE mode — exactly the scope our size hooks run in — and
+     * reads the component value live, so switching effects applies without a restart.
+     */
+    private val masterLiveTypeMethod = AtomicReference<Method?>(null)
+    private val masterLiveTypeResolved = AtomicReference(false)
+
+    private fun currentMasterLiveType(): String? {
+        val loader = classLoader ?: return null
+        if (!masterLiveTypeResolved.get() || masterLiveTypeMethod.get() == null) {
+            synchronized(masterLiveTypeMethod) {
+                if (!masterLiveTypeResolved.get() || masterLiveTypeMethod.get() == null) {
+                    val resolved = runCatching {
+                        loader.loadClass("com.android.camera.data.data.j")
+                    }.getOrNull()?.declaredMethods?.firstOrNull {
+                        !it.isSynthetic && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                            it.name == "A" && it.parameterCount == 1 &&
+                            it.parameterTypes[0] == Integer.TYPE && it.returnType == String::class.java
+                    }?.apply { isAccessible = true }
+                    masterLiveTypeMethod.set(resolved)
+                    // Resolution is attempted exactly once per process: a miss stays a miss
+                    // (the class/method shape is build-stable), so hot paths never re-scan.
+                    masterLiveTypeResolved.set(resolved != null)
+                }
+            }
+        }
+        val method = masterLiveTypeMethod.get() ?: return null
+        // j#A can NPE while the component manager is still booting; that reads as "unknown".
+        return runCatching { method.invoke(null, CameraIdentity.MASTER_LIVE_MODE_ID) as? String }
+            .getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Logs the first size substitution ONCE per process, not per size call. */
+    private val videoSizeProbeLogged = AtomicReference(false)
+
+    /**
+     * The `getLivePhotoVideoSize(Size, camera-size-base)` method: static, first parameter
+     * `android.util.Size`, second parameter anything, returns `Size`. Resolved on the
+     * declaration or via inherited-public methods.
+     */
+    private fun resolveLivePhotoVideoSizeMethod(clazz: Class<*>, quiet: Boolean = false): Method? {
+        val match: (Method) -> Boolean = { m ->
+            !m.isSynthetic && java.lang.reflect.Modifier.isStatic(m.modifiers) &&
+                m.parameterCount == 2 && m.parameterTypes[0] == Size::class.java &&
+                m.returnType == Size::class.java
+        }
+        val declared = clazz.declaredMethods.firstOrNull(match)
+        val resolved = declared ?: clazz.methods.firstOrNull(match)
+        if (resolved == null && !quiet) {
+            DebugLog.w(TAG, "${clazz.name}#getLivePhotoVideoSize not found by shape")
+        }
+        return resolved?.apply { isAccessible = true }
+    }
+
+    /**
+     * The module index of the size-base instance (real field `d`, the module the size
+     * computation runs for; 231 = MasterLive). Walks the receiver's class hierarchy.
+     */
+    private fun readModuleIndex(receiver: Any): Int? {
+        var c: Class<*>? = receiver.javaClass
+        while (c != null) {
+            val field = runCatching { c.getDeclaredField("d") }.getOrNull()
+                ?: runCatching { c.getDeclaredField("f47815d") }.getOrNull()
+            if (field != null && field.type == java.lang.Integer.TYPE) {
+                field.isAccessible = true
+                return runCatching { field.getInt(receiver) }.getOrNull()
+            }
+            c = c.superclass
+        }
+        return null
+    }
+
+    /**
+     * MasterLive (实况运镜) video-surface size — companion of [hookMasterLiveVideoSizeProbe].
+     *
+     * The video-compose consumer `Kj.D#c()` (real dex name `Kj.D`, classes6.dex,
+     * `Kj/D.java:43-47`) returns the live-photo video stream size from the camera manager's
+     * config (`f45848w`) and falls back to a HARDCODED 16:9 `Size(2304, 1296)` when that field
+     * is null. With the video-size probe active the stream is bound per effect type
+     * ([CameraMasterLiveSizeBinding]), so an un-bound fallback mismatches the stream: when a
+     * capture request builds its output buffer from this value the CamX HAL aborts
+     * (`CamX::ImageBuffer::Import` SIGABRT, observed on-device: "WxH 2304x1296" in the
+     * tombstone, provider `vendor.qti.camera.provider` dies → the app freezes/crashes after
+     * the shutter on types 2/3). This hook binds `c()`'s result to the SAME per-type size while
+     * the probe is on, keeping every buffer coherent.
+     *
+     * MODE GATE (2026-08-28): the previous build substituted UNCONDITIONALLY, which also
+     * rewrote the 4:3 result of the normal 实况照片 modes (171/188/230) that share this
+     * consumer — a latent regression. The receiver's camera-manager handle carries the active
+     * module id (`Kj/F.java:125` reads the same `a.g` chain); substitution now happens only
+     * when it equals 231, and never when the chain is unreadable.
+     */
+    private fun hookMasterLiveVideoSurfaceSize() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "liveshot_video_surface", ctx = ctx,
+            candidates = listOf("Kj.D"),
+            validate = { c ->
+                c.declaredMethods.any {
+                    !it.isSynthetic && it.name == "c" && it.parameterCount == 0 &&
+                        it.returnType == Size::class.java
+                }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "Kj.D (liveshot video surface) not resolved; masterlive video surface size skipped")
+            return
+        }
+        val method = runCatching { clazz.getMethod("c") }
+            .getOrNull()
+            ?.takeIf { it.parameterCount == 0 && it.returnType == Size::class.java }
+            ?: run {
+                DebugLog.w(TAG, "${clazz.name}#c() not found; masterlive video surface size skipped")
+                return
+            }
+        deoptimize(method)
+        method.hook("cam_masterlive_video_surface_size") {
+            after { param ->
+                if (!videoSizeProbeEnabled()) return@after
+                val original = param.result as? Size ?: return@after
+                val receiver = param.thisObject ?: return@after
+                // Mode gate: only rewrite inside MasterLive (the same consumer also serves the
+                // normal live-photo modes' 4:3 geometry).
+                if (readSurfaceReceiverModule(receiver) != CameraIdentity.MASTER_LIVE_MODE_ID) {
+                    return@after
+                }
+                val pinned = CameraMasterLiveSizeBinding.boundSize(
+                    currentMasterLiveType(), original.width, original.height
+                ) ?: return@after
+                param.result = Size(pinned.first, pinned.second)
+                if (videoSurfaceProbeLogged.getAndSet(true) == false) {
+                    DebugLog.i(
+                        TAG,
+                        "masterlive video surface size: Kj.D#c() $original " +
+                            "(type ${currentMasterLiveType() ?: "?"}) -> ${pinned.first}x${pinned.second}"
+                    )
+                }
+            }
+        }
+        DebugLog.i(TAG, "masterlive video surface size hooked on ${clazz.name}#c()")
+    }
+
+    /** Logs the first surface-size substitution ONCE per process. */
+    private val videoSurfaceProbeLogged = AtomicReference(false)
+
+    /**
+     * The active module id carried by [receiver]'s camera-manager handle: real dex fields
+     * `D.a` (`Zg.a`, jadx alias `f9165a`) → `Zg.a#g` (int, jadx alias `f21563g`; the same
+     * chain `Kj/F.java:125` reads). null when any step fails — callers then skip instead of
+     * guessing.
+     */
+    private fun readSurfaceReceiverModule(receiver: Any): Int? {
+        val managerField = resolveField(receiver.javaClass, "a", "f9165a")?.apply { isAccessible = true }
+            ?: return null
+        val manager = runCatching { managerField.get(receiver) }.getOrNull() ?: return null
+        val modeField = resolveField(manager.javaClass, "g", "f21563g")?.apply { isAccessible = true }
+            ?: return null
+        if (modeField.type != Integer.TYPE) return null
+        return runCatching { modeField.getInt(manager) }.getOrNull()
+    }
+
+    /**
+     * MasterLive (实况运镜) auto-zoom collapse — experimental
+     * (`KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE`, default off).
+     *
+     * On-device forensics (2026-08-27): on myron the types-2/3 auto-zoom trip drives the
+     * SAT-composite zoom in an endless `MCAM_ZoomManager: onZoomingActionUpdate ... action =
+     * 12/13` loop (hundreds of calls per second with a constant value), the zoom never
+     * converges and `mIsCaptureZoomCompleted` is never set — the capture freezes after the
+     * shutter and the motion photo is never saved. The ValueAnimator's completion IS the
+     * completion chain, so the trip cannot simply be skipped. This hook collapses the
+     * animator's TARGET zoom to its START value (`startAutoZoom(from, to, …)` → `to = from`):
+     * the animator runs its zero-length course and completes normally (unblocking
+     * `mIsCaptureZoomCompleted`), but no real zoom driving happens — the capture finishes
+     * like type 0 and saves a clean motion photo at the current zoom (the automatic dolly is
+     * lost). Gated on the key only; requires a camera restart after changing.
+     */
+    private fun hookMasterLiveAutoZoomCollapse() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "masterlive_module", ctx = ctx,
+            candidates = listOf("com.android.camera.features.mode.masterlive.MasterLiveModule"),
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("MasterLiveModule") } }
+                    .firstOrNull { cd ->
+                        ctx.loadOrNull(cd.name)?.let { resolveStartAutoZoom(it, quiet = true) != null } == true
+                    }?.name
+            },
+            validate = { c -> resolveStartAutoZoom(c, quiet = true) != null },
+        ) ?: run {
+            DebugLog.w(TAG, "MasterLiveModule not resolved; masterlive auto-zoom collapse skipped")
+            return
+        }
+        val method = resolveStartAutoZoom(clazz) ?: run {
+            DebugLog.w(TAG, "MasterLiveModule#startAutoZoom not found; masterlive auto-zoom collapse skipped")
+            return
+        }
+        deoptimize(method)
+        method.hook("cam_masterlive_auto_zoom_collapse") {
+            before { param ->
+                if (!autoZoomCollapseEnabled()) return@before
+                val args = param.args ?: return@before
+                if (args.size < 2) return@before
+                val from = args[0] as? Float ?: return@before
+                val to = args[1] as? Float ?: return@before
+                if (from == to) return@before
+                args[1] = from
+                if (autoZoomCollapseLogged.getAndSet(true) == false) {
+                    DebugLog.i(TAG, "masterlive auto-zoom collapsed: trip $from -> $to becomes $from -> $from")
+                }
+            }
+        }
+        DebugLog.i(TAG, "masterlive auto-zoom collapse hooked on ${clazz.name}#startAutoZoom")
+    }
+
+    /** Logs the first collapsed trip ONCE per process, not per animator tick. */
+    private val autoZoomCollapseLogged = AtomicReference(false)
+
+    /** `startAutoZoom(float from, float to, float speed, int kind, boolean flip)` -> void. */
+    private fun resolveStartAutoZoom(clazz: Class<*>, quiet: Boolean = false): Method? {
+        val match: (Method) -> Boolean = { m ->
+            !m.isSynthetic && m.name == "startAutoZoom" && m.parameterCount == 5 &&
+                m.parameterTypes[0] == java.lang.Float.TYPE && m.parameterTypes[1] == java.lang.Float.TYPE &&
+                m.parameterTypes[2] == java.lang.Float.TYPE && m.parameterTypes[3] == java.lang.Integer.TYPE &&
+                m.parameterTypes[4] == java.lang.Boolean.TYPE && m.returnType == java.lang.Void.TYPE
+        }
+        val declared = clazz.declaredMethods.firstOrNull(match)
+        val resolved = declared ?: clazz.methods.firstOrNull(match)
+        if (resolved == null && !quiet) {
+            DebugLog.w(TAG, "${clazz.name}#startAutoZoom not found by shape")
+        }
+        return resolved?.apply { isAccessible = true }
     }
 
     /**
@@ -1817,6 +2700,26 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
+     * The config classes the running camera may dispatch capability getters to: the ORIGINAL
+     * device config class (the dispatch target whenever the impersonation master is off, and
+     * whenever the flagship build failed) plus the flagship instance's class (the dispatch
+     * target while the master is on).
+     *
+     * Master-off unlocks hook the Methods the ORIGINAL class resolves — for getters the real
+     * config inherits without overriding (F3/X2/a3/M/q0/y4 on C1143/C1199) these are often
+     * the SAME Methods the impersonated K100 config dispatches to (C1151 overrides only
+     * y4/q0/M), so a hook installed on the union covers both power states with one callback.
+     * Callers deduplicate by Method identity and only ever RAISE gates: when the user switch
+     * is off they leave the native value untouched (never lower a native true).
+     */
+    private fun configDispatchClasses(): List<Class<*>> {
+        val classes = LinkedHashSet<Class<*>>()
+        originalConfigInstance().get()?.javaClass?.let { classes.add(it) }
+        flagshipInstance()?.javaClass?.let { classes.add(it) }
+        return classes.toList()
+    }
+
+    /**
      * Replays `Je/e.q()`'s full fallback chain (jadx `Je/e.java:47-72`) with the REAL device
      * base name, so the ORIGINAL config instance resolves exactly as it would without
      * impersonation — including devices whose per-device class is not shipped in the APK
@@ -1924,9 +2827,55 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun masterliveEnabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true)
 
+    /**
+     * 实况运镜 role-23 tele fallback switch (default ON) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs the fallback too. Only the key, never `enabled()`.
+     */
     private fun masterliveTeleFallback(): Boolean =
-        enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, true)
 
+    /**
+     * 实况运镜 op-mode safety net switch (default OFF) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs the safety net too, gated only on this key.
+     */
     private fun opModeSafe(): Boolean =
-        enabled() && Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
+
+    /**
+     * 实况运镜 circular-encoder size pin (experimental probe, default OFF) — read WITHOUT the
+     * impersonation master: master-off MasterLive needs the pin too. Only the key, never
+     * `enabled()`.
+     */
+    private fun codecPinEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_CODEC_PIN, false)
+
+    /**
+     * 实况运镜 video-size probe (experimental, default OFF) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs the probe too. Only the key, never `enabled()`.
+     */
+    private fun videoSizeProbeEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+
+    /**
+     * 实况运镜 auto-zoom collapse (experimental, default OFF) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs the collapse too. Only the key, never `enabled()`.
+     */
+    private fun autoZoomCollapseEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE, false)
+
+    /**
+     * 实况运镜 红毯运镜 (type-1) injection (default ON) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs it too, so only this key plus [masterliveEnabled],
+     * never `enabled()`.
+     */
+    private fun redCarpetEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, true)
+
+    /**
+     * 实况运镜 full focal line-up (超清实况焦段条, default ON) — read WITHOUT the impersonation
+     * master: master-off MasterLive needs it too, so only this key plus [masterliveEnabled],
+     * never `enabled()`.
+     */
+    private fun fullFocalEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, true)
 }

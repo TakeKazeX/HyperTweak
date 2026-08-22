@@ -19,6 +19,25 @@ internal object CameraIdentity {
     const val MASTER_LIVE_MODE_ID = 231
 
     /**
+     * The full zoom-toggle stops served for mode 231 when the config has none
+     * (`CameraImpersonationHooker.hookMasterLiveFullFocal`): the K100 Pro Max `v1()[231]`
+     * line-up {0.7x, 1x, 2x, 5x, 10x} (510 `C1200.java:549-550`). K100 shares myron's
+     * sensor axis bit-for-bit and these stops are exactly myron's real optics (0.7x OV50M
+     * ultra / 1x OV50Q main / 2x digital / 5x·120mm JN5 tele / 10x digital), so the strip
+     * shows the camera's complete focal range instead of the stock `{1.0x, 2.0x}` fallback
+     * (`j.R` → `p723ur.i#q` fallback; RESEARCH_MYRON_12_MASTERLIVE_FOCAL_STRIP.md).
+     */
+    val MASTER_LIVE_FOCAL_STOPS = floatArrayOf(0.7f, 1.0f, 2.0f, 5.0f, 10.0f)
+
+    /**
+     * [MASTER_LIVE_FOCAL_STOPS] boxed as the `v1()` value type. The verified builds store
+     * `Float[]` values (`SparseArray<Float[]>`); an existing primitive `float[]` entry is
+     * mirrored defensively so a consumer's check-cast can never fail on the injected key.
+     */
+    fun masterLiveFocalStops(existingValue: Any?): Any =
+        if (existingValue is FloatArray) MASTER_LIVE_FOCAL_STOPS else MASTER_LIVE_FOCAL_STOPS.toTypedArray()
+
+    /**
      * The 更多 (more/overflow) marker mode id. `u2.P` (ComponentModuleList) splits the mode
      * strip at the FIRST item whose id is this marker (`C()`, jadx `p700u2/P.java:469-490`):
      * items before it form the carousel (`s()`), items after it the overflow panel (`v()`).

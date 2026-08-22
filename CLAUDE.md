@@ -2006,6 +2006,154 @@ structural causes, both fixed:
   MasterLive gate are INFO-level and one-line-per-flip, so the next on-device test is
   conclusive from logcat alone.
 
+### Master-off unlocks: 徕卡风格 / 实况运镜 / 街拍 now work with the impersonation master OFF (2026-08-26)
+
+User report ("没打开伪装旗舰相机配置时：没有徕卡风格切换 / 没有能用的实况运镜 / 街拍还是不能用"):
+with `KEY_CAMERA_IMPERSONATE` off, all three unlocks were dead. Root cause: they installed
+only on the flagship instance's class AND gated their callbacks on `enabled()`, so with the
+master off the REAL device config (`com.mi.device.Myron`, C1209) dispatched native getters —
+`F3/X2=false` (no 摄影风格 switcher), `y4=false` (mode 231 never registers), `a3=false`
+(街拍 225 hidden unless 兼容模式街拍 was selected). Fix: the three unlocks are now
+master-independent — installed on the union of dispatch classes
+(`configDispatchClasses()`, `CameraImpersonationHooker.kt`: the original device config class
++ the flagship instance's class, Method-object dedup by identity) and gated on their own
+switches only. All callbacks are RAISE-ONLY: switch off → native value untouched (never
+lower a native true, so genuinely-capable devices are unaffected).
+
+- **徕卡风格 (`KEY_CAMERA_LEICA_STYLE`)** — `hookLeicaStyle()` hooks `F3()/X2()` on both
+  dispatch classes. F3/X2 are inherited WITHOUT override by both C1151 (K100 target) and
+  C1209 (myron) from C1199/C1143, so the SAME Methods serve master-on (K100 impersonation)
+  and master-off (real config) with one hook each; the CommonFlagship branch declares its own
+  true overrides and never reaches these Methods, keeping the nezha target's native switcher.
+  The old `param.result = enabled() && targetIsK100Promax() && leicaStyle()` expression (which
+  forced FALSE under the nezha target + master on) is gone — raise-only `leicaStyle()`.
+- **实况运镜 (`KEY_CAMERA_MASTERLIVE_ENABLE` / `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` /
+  `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE`)**:
+  - registry gate `y4()` forced true on BOTH dispatch classes (`hookMasterLiveSupportGate`;
+    the base C1143#y4 Method the real config inherits is false on myron), gate
+    `masterliveEnabled()` only;
+  - NEW `hookMasterLiveRealEffectTable()` borrows the REDMI K100 `q0()` effect table for the
+    real config's null `q0()` — resolved via `resolveK100Config` ONLY (never the
+    Nezha/CommonFlagship fallback, whose 12.9x table crashes myron), cached, borrowed /
+    unavailable logged once each;
+  - config `M()` placement (`hookMasterLiveModePlacement`) fronts 231 on both dispatch
+    classes; the `u2.P#y(Q)` order funnel and `E(231)` entry gates dropped `enabled()`
+    (config-independent hooks);
+  - tele fallback (`u6.e#M` role-23→20) gated on `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK`
+    alone AND its DexKit probe string fixed to `MCAM_Camera2CompatAdapterRole` — the bare
+    `Camera2CompatAdapterRole` probe never matched on-device (the class's log-tag constant is
+    `MCAM_…`, RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1), so the hook previously never installed;
+  - op-mode safe (`U3/p#i`) gated on `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE` alone.
+- **街拍 (`KEY_CAMERA_STREET_MODE` = `"new"` 新街拍)** — `hookStreetEnable()` hooks `a3()` on
+  both dispatch classes (base C1143#a3 serves the real config AND the K100 impersonation in
+  one Method; C1136#a3 additionally for the nezha target's master-on path), raise-only gate
+  `streetMode() == MODE_NEW` (`enabled()` dropped). `hookCompatStreetSupport()` (兼容模式街拍)
+  was audited and is genuinely master-independent — no change. 新街拍 now works with the
+  master off: entry lands in the 更多 overflow grid, opens the HAL role-0 main camera
+  (camera 2 on myron); quick-launch re-classification stays consistent because `a3()` drives
+  both consumers.
+
+Facts grounding the base-class approach (RESEARCH_MYRON_01_CONFIG_CENSUS.md /
+RESEARCH_MYRON_02_MASTERLIVE.md / RESEARCH_MYRON_03_STREET.md): C1151 overrides only
+y4/q0/M; F3/X2/a3 are inherited from C1199/C1143 by BOTH C1151 and C1209. A hook on the base
+Method fires only for classes that do NOT override it, so a real flagship's own overrides are
+never touched. String summaries in all four locales updated. Agent verification (2026-08-26):
+`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. On-device
+confirmation — with the master off: 摄影风格 switcher visible, mode 231 in the carousel with
+a usable effect list, 街拍 225 in 更多 capturing via the real main camera (each needs a
+camera restart for entry visibility) — is the user's.
+
+### MasterLive motion-photo artifact probe: circular-encoder codec-size pin (2026-08-27)
+
+User report: 实况运镜 motion-photo output (实况动态) is corrupted — left side green, right side
+repeated lines — while the still frame and camera UI are fine, with the impersonation master
+OFF and `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE` ON. Four parallel agents + first-hand source
+verification converged on mechanism [M0] (research: `RESEARCH_MYRON_09_MASTERLIVE_ARTIFACT.md`
+in the camera-5cd70925b1646cdf cache): the LiveShot circular encoder (`p859ym.d` =
+CircularVideoEncoder, `p859ym.f` = V2 override) receives the per-shot preview-snapshot size on
+every capture (`CircularMediaRecorderV2` `p824xm.c#j()/k()` → encoder `E(Size)` /
+"updateCodecSize"); when it differs from the current format the codec is reconfigured while
+the GL render canvas stays at the construction size (no `glClear` anywhere in
+`zm/c`+`zm/b`+`p824xm/p859ym`), so the input surface ends up partially unwritten — NV12
+zero-fill decodes to pure green — plus edge clamp/wrap (repeated lines). Under the forced
+ALGO_UP_SAT session (op-mode 36866) the preview-snapshot size and the construction video size
+diverge, making the rewrite a real change; the native op-mode 1 design point kept them close.
+
+Experimental fix (probe switch): `KEY_CAMERA_MASTERLIVE_CODEC_PIN` (`camera_masterlive_codec_pin`,
+default OFF, UI row on the Camera Unlock page, requires a camera restart after changing). While
+on, `hookMasterLiveCodecPin` before-hooks the encoder's `E(Size)` method and substitutes the
+incoming size with the encoder's construction-time format size (final int fields `A`/`B`,
+fallback jadx aliases `f67755A`/`f67756B`, resolved by walking the receiver's class hierarchy,
+cached per process) via the pure helper `CameraCodecSizePin.pinnedSize` (unit-tested). Matching
+sizes pass through untouched; unreadable fields fail safe (no substitution). Gated on the key
+only, not the impersonation master. **Resolution gotcha (2026-08-27 on-device forensics): the
+first build used the jadx DISPLAY aliases as L1 candidates (`p859ym.d`/`p824xm.c`) and the trace
+failed to install on the device — those names never exist in the dex; the 460/510 mapping rule
+strips the `p<digits>` prefix (`p859ym`→`ym`, `p824xm`→`xm`), so the candidates are the REAL
+dex names `ym.d`/`ym.f`/`ym.e`. The DexKit probe (`usingStrings("updateCodecSize")`, plaintext
+in 510 classes8.dex — byte-verified) now iterates ALL matching classes and picks the first whose
+`E(Size)` shape validates, because the first dex-order match can be a sibling class that merely
+references the string. Verified on-device (OS4.0.0.19.XPMCNXM): `masterlive codec pin hooked on
+ym.d#E(Size)`.** Build verification (2026-08-27): `compileDebugKotlin`,
+`testDebugUnitTest` (ram: 92+5), `lintDebug`, `assembleDebug` pass with no new lint findings.
+On-device verification (does the pin make the 实况运镜 motion photo clean, and does it regress
+anything else that relied on the per-shot codec-size rewrite) is the user's.
+
+### MasterLive three-fix round: 红毯运镜 injection / per-type video size / full focal strip (2026-08-28)
+
+Three parallel research agents + user round ("17u 的红毯运镜没出现 / 16:9 2304x1296 只能拍主角和自由、
+4:3 的超清实况绿屏 / 别人的超清实况焦段是完整的，我只有 1x/2x"), all grounded in the new research
+docs in the camera-5cd70925b1646cdf cache: `RESEARCH_MYRON_10_MASTERLIVE_REDCARPET.md`,
+`RESEARCH_MYRON_11_MASTERLIVE_PER_MODE_SIZE.md`, `RESEARCH_MYRON_12_MASTERLIVE_FOCAL_STRIP.md`.
+Build verification: `compileDebugKotlin`, `testDebugUnitTest` (+13 cases across
+`CameraMasterLiveRedCarpetTest`/`CameraMasterLiveSizeBindingTest`/`CameraIdentityTest`),
+`lintDebug` and `assembleDebug` pass. On-device confirmation of all three is the user's.
+
+1. **红毯运镜 (`KEY_CAMERA_MASTERLIVE_RED_CARPET`, default ON).** The K100 effect table
+   (`q0()` → `Map<String, Le.a>`) ships only types "0"(超清实况)/"2"(主角)/"3"(自由) — type
+   "1" (红毯, slow-motion tail) is 17U-exclusive, but every UI resource for it ships on every ROM
+   (the panel hints are hard-coded per type in `C4673d0#initItems`; guide list too), so a
+   synthesized entry appears natively with zero string work. The effect-table hook now installs on
+   `q0()` of EVERY dispatch class (the borrow path for master-off AND the flagship's own override
+   for master-on — previously only the original class was hooked, so the k100-target table never
+   gained anything), and merges a synthesized `"1"` entry: a CLONE of the proven-working linear
+   entry with the type id rewritten and the default flag (`g`) forced false — no decrypted
+   role/range data is ever invented, and 超清实况 stays the default effect. Key facts: the bean
+   `Le.a` has public non-final fields with real dex names `a..h` (the jadx `f9658a..` aliases are
+   display-only); lists MUST be deep-copied per entry because `C4673d0#r()` writes range strings
+   back into them; segment lengths must satisfy roles×2==zooms && ranges∈{roles,null} or the
+   component throws IOOBE mid-capture ([CameraMasterLiveRedCarpet.segmentsConsistent]); map order
+   is rebuilt `[超清, 红毯, 主角, 自由]`. Selecting 红毯 flips `j.O0(231)` true which BYPASSES the
+   native ALGO_UP_SAT early-return in `U3/p#i` → keep 安全会话 (opmode-safe) ON or Qualcomm falls
+   to op-mode 1 (may stall); without HAL {8,120} the slow-motion tail degrades to normal speed
+   (capture still completes).
+2. **Per-effect-type video size (`CameraMasterLiveSizeBinding`).** The global 16:9 pin broke the
+   4:3 超清实况 (type "0") with green frames again. The probe and surface hooks now bind per type:
+   movement types ("1"/"2"/"3") → 16:9 2304x1296 (user-verified clean), ultra-pixel ("0") → 4:3
+   1728x1296 (same height as the verified-clean 16:9; the geometry of this device's clean normal
+   live-photo stream). The current type is read through the camera's own static
+   `com.android.camera.data.data.j#A(231)` (= `pref_master_live_key`, returns "" unless mode 231
+   is active); unreadable falls back to the globally-verified 16:9 — never skip the substitution,
+   that would restore the damaged native sizes. `Kj.D#c()` additionally gained the missing MODE
+   GATE (receiver `a.g == 231`, the same chain `Kj/F.java:125` reads): it previously rewrote the
+   normal 实况照片 modes' (171/188/230) 4:3 results unconditionally — a latent regression now
+   fixed. The codec pin needs NO per-type logic (it pins to the encoder's own construction size,
+   which follows the bound stream automatically).
+3. **超清实况完整焦段 (`KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default ON).** The zoom strip inside
+   MasterLive reads config `v1()` keyed by mode id (`j.U/S/R` → `p723ur.i#q`); myron's config has
+   NO 231 key so the camera falls back to hardcoded {1x, 2x}. New hook on `v1()` of every dispatch
+   class appends `231 → {0.7, 1.0, 2.0, 5.0, 10.0}` (K100 stops = myron's real optics:
+   0.7x OV50M / 1x OV50Q / 2x digital / 5x·120mm JN5 / 10x digital) into a CLONED SparseArray when
+   absent — an existing key is never touched, other modes unaffected. This also covers the
+   impersonation paths for free: keep-focal delegates THROUGH the hooked original Method.
+   Value type mirrors the existing entries (`Float[]` verified; primitive mirrored defensively).
+
+Regression history — do not reintroduce: the injected 红毯 entry must keep `g=false` (a true flag
+makes `getDefaultValue` boot the camera INTO 红毯 instead of 超清实况); the effect-table merge must
+deep-copy every List field (shared `Arrays.asList` instances let one effect's range write-back
+corrupt another's); unknown/unreadable effect types fall back to 16:9 rather than skipping the
+substitution; `Kj.D#c()` substitution requires the mode gate.
+
 ## Build and Test
 
 ```bash
