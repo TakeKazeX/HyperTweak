@@ -2154,6 +2154,85 @@ deep-copy every List field (shared `Arrays.asList` instances let one effect's ra
 corrupt another's); unknown/unreadable effect types fall back to 16:9 rather than skipping the
 substitution; `Kj.D#c()` substitution requires the mode gate.
 
+### Four hidden-setting unlocks: 徕卡一瞬 / 智能构图 / 内容凭证 / 自适应镜头 (2026-08-29)
+
+Four independent switches on Camera Unlock (`CameraUnlockPage`, after 超高图片质量), all
+master-independent (work with the impersonation ON or OFF) and default OFF, implemented in
+`CameraImpersonationHooker` so they reuse `configDispatchClasses()`/`flagshipInstance()`.
+Gates traced in the 510 dex (`camera-8f41d7b82453cdeb`):
+
+1. **徕卡一瞬 (`KEY_CAMERA_LEGENDARY_MOMENT`)** — camera mode id 256, jadx
+   `com.android.camera.features.mode.legendary.LegendaryEnter` (the older docs mislabel it
+   传奇人像; its mode-item title resource is R.string.gtu = 徕卡一瞬). The entry registry
+   `p666t3.a.d()` keeps an entry only while `support()` is true, and
+   `LegendaryEnter.support()` = `Je.c.W0() && Je.c.V()`: W0() is `config instanceof Nezha`
+   (C1209 on 510; C1178 on 460 — NOT myron's class despite what some stale hooker comments
+   say: myron = C1196 per OLD_TO_NEW_MAPPING.md §255-256) and V() is the static LCC theme
+   check `Qa.b.ro_theme_customize == "lcc"`. The existing `cam_guard_mode_legendary`
+   after-hook was extended into guard+unlock in ONE callback (exclusive branches, so hooks
+   can never fight): unlock on → force true; else master-on non-nezha → false (stock guard).
+   The hook MOVED from `hookModeGuards()` (flagship-gated) to `installHooks()` because the
+   unlock half must exist even when the flagship instance fails to build. Mode lands in the
+   更多 grid (no config `M()` carries 256); needs a camera restart (registry caches per
+   process). The RAW/re-processing pipeline behind the mode is unverified on this HAL.
+2. **智能构图 (`KEY_CAMERA_SMART_COMPOSITION`)** — three levers, one switch:
+   - 设置→拍照 entry `pref_camera_crop_preferred_key`, gated on device-config `D3()` declared
+     once on the base C1174 as `return this instanceof C1199` (510: C1199 is a REDMI **leaf** —
+     `C1199 extends C1203 extends C1135(CommonKseries) extends C1174` — so only C1199 itself is
+     true natively; 460's REDMI-flagship base was RENUMBERED to C1135 on 510). myron (C1196 →
+     C1135) sits on a sibling branch so D3=false natively AND under both impersonation targets.
+     Hooked RAISE-only on the union of dispatch classes PLUS the config BASE class (Je.e.b type),
+     dedup by Method identity — on-device logs confirm it collapses to one hook on the base
+     `Common#D3`, exactly the single dispatch target for every runtime config type including the
+     `Ne.a` weak default (Ne.a extends C1174, verified). Reads at `p148e5/a.java:57` are the ONLY
+     visibility gate; no consumer hides the entry when D3 is true.
+   - **Top-level row injection**: the camera folds the whole recommendation-toggle list into the
+     「AI智能推荐」 sub-page whenever its size>1, which is ALWAYS on myron (扫码 unconditional +
+     横竖屏引导 natively true), so the D3 row alone was easy to miss ("没找到"). A second hook
+     after-hooks `CameraCapturePreferenceFragment.addPhotoPreferences()` and reuses the
+     fragment's own `addCheckBoxPreference(PreferenceGroup,String,boolean,int,int)` helper
+     (title/summary res ids `h24`/`h23` via `getIdentifier`) to inject a top-level 智能构图
+     checkbox into `category_photo_setting`. Persistence flows through the generic
+     registerListener wiring → `b.onPreferenceChange` → `updateSharePreference`, and reopen
+     re-syncs state via `updatePreferences` — identical to every native checkbox. The injected
+     `AccessibleCheckBoxPreference` shares the one pref key with the sub-page row.
+   - **Viewfinder feature-bar (id 2853) gate `M3()`**: `C3545f.M3(C3542e)` =
+     HAL characteristics `com.xiaomi.camera.autoCrop.autoCropVersion == 2`; forced true
+     (RAISE-only) so the icon appears in the capture feature bar. **Empty-switch reality
+     (verified 2026-08-29 on myron): the whole autoCrop feature lives in the HAL/ISP — the v2
+     app side (`p599r6/t0.java` SmartCompositionV2MultipleASD) only renders
+     `autoCropData` float[6] {x,y,w,h,zoom,tips} the HAL returns. myron's /odm camera
+     binaries contain NO autoCrop strings at all and `dumpsys media.camera` lists zero
+     `com.xiaomi.camera.autoCrop.*` keys (control dump proves the method: 144
+     supportedfeatures keys DO enumerate), so the icon is cosmetic — clicking runs
+     `X#I6`'s Q0(autoCropEnable) check and shows the "not supported" hint, capture skips the
+     wiring safely, no guidance can ever render. KSU/porting routes are dead ends.
+3. **内容凭证 (`KEY_CAMERA_CONTENT_CREDENTIAL`)** — 设置→水印 entry `pref_cai_type_key`
+   (→ `CaiSettingFragment`), gated on a `static final boolean` in the debug-flag holder
+   (jadx `Qa.b.u`; real dex name is the short letter `u`, jadx alias `f13393u`) initialised
+   once from system property `ro.product.odm.support_cai` (sole reference in the whole dex;
+   plaintext anchor verified byte-exact in classes3.dex). Resolution: L1 candidate `Qa.b`,
+   L2 DexKit probe keyed on the property string with the static-boolean-field shape checked
+   inside the probe; write via `StaticFieldWriter.setBoolean` after a `getBoolean(null)`
+   that forces `<clinit>`. Applied ONLY when the switch is already on at attach — enabling
+   AND disabling need a camera restart (static-final write-once); whether photos actually
+   carry verifiable C2PA credentials still depends on the HAL/mivi pipeline.
+4. **自适应镜头 (`KEY_CAMERA_ADAPTIVE_LENS`, experimental)** — 设置→拍照 entry
+   `pref_camera_auto_fallback` (+ `AutoFallbackFragment` sub-page + module-level zoom state),
+   gated on TWO static capability getters of the capabilities-util helper (jadx C3545f,
+   ~211 same-shape methods!): near-range smooth transition (`xiaomi.smoothTransition.
+   nearRangeMode` characteristics key plus the `disablefallback` request / `fallbackRole`
+   result keys available) and tele fallback (`com.xiaomi.teleFallback.isSupported`). The
+   CLASS resolves through the DexKit anchor string `getSupportedHfrSettings: CameraCapabilities
+   is null!!!` (byte-verified in classes.dex, single user); each METHOD must match its short
+   name (`g5`/`i5` on 510) EXACTLY ONCE as a static boolean single-param method and the pair
+   must share one parameter type — otherwise the whole feature skips instead of forcing an
+   unknown gate. RAISE-only after-hooks, live-read.
+
+Build verification: `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`
+pass (lint exit 0; only the pre-existing DexKit-`firstOrNull` warning family all hookers
+carry). On-device confirmation of all four entries/modes is the user's.
+
 ## Build and Test
 
 ```bash

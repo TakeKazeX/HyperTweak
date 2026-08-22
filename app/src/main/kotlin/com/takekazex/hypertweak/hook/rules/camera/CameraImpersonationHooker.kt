@@ -195,6 +195,12 @@ object CameraImpersonationHooker : StaticHooker() {
         hookCompatStreetSupport()
         hookModeGuards()
         hookLeicaStyle()
+        hookLegendarySupport()
+        hookSmartComposition()
+        hookSmartCompositionTopRow()
+        hookSmartCompositionFeatureBar()
+        hookContentCredential()
+        hookAdaptiveLens()
         hookMasterLiveModePlacement()
         hookMasterLiveSupportGate()
         hookMasterLiveRealEffectTable()
@@ -1051,7 +1057,8 @@ object CameraImpersonationHooker : StaticHooker() {
         // impersonated non-flagships (K100 Pro Max target yields false naturally; Nezha target
         // needs the clamp).
         hookFacadeEquipStreetGate()
-        hookLegendarySupport()
+        // 徕卡一瞬 guard+unlock moved to installHooks(): the hook must exist even when the
+        // flagship instance fails to resolve, because the unlock half is master-independent.
         // 街拍 (225): 新街拍 = force a3() on the impersonated config (needs the master);
         // 兼容模式街拍 = hookCompatStreetSupport(), installed independently in [installHooks].
         hookStreetEnable()
@@ -1276,9 +1283,9 @@ object CameraImpersonationHooker : StaticHooker() {
      * with the switch OFF it returns without touching the result, so a natively-true gate stays
      * native (the CommonFlagship/nezha branch declares its own true `F3()/X2()` overrides, so
      * the nezha impersonation target keeps its native switcher and never reaches this hook's
-     * Methods). Legendary stays closed (`LegendaryEnter.support()=W0() && V()` with
-     * `W0()=instanceof C1178=false`) and `M()` is keep-imaging-delegated to C1209 (no 231
-     * LCC-RAW), so no purple/RAW regression. Side effect: `f2.c.b()` adds the four Leica shutter
+     * Methods). Legendary stays closed by default ([hookLegendarySupport] guard; unless
+     * [Preferences.KEY_CAMERA_LEGENDARY_MOMENT] forces it open) and `M()` is
+     * keep-imaging-delegated to C1209 (no 231 LCC-RAW), so no purple/RAW regression. Side effect: `f2.c.b()` adds the four Leica shutter
      * sounds when `F3()` is true — benign (the 8-entry list also removes the IOOBE that the
      * legacy `key_shutter_sound=4` used to hit) and bounded by the resident
      * [hookShutterSoundBoundary] clamp.
@@ -1360,7 +1367,23 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "equip-street guard hooked on ${clazz.name}#M()")
     }
 
-    /** 传奇人像 (Legendary 256) RAW / re-processing pipeline — keep it closed on non-flagships. */
+    /**
+     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx `LegendaryEnter` — older builds
+     * mislabelled it 传奇人像; the zh-CN string resource for its mode item is 徕卡一瞬) — one
+     * hook serving two opposite, mutually exclusive behaviours:
+     *
+     *  - GUARD (stock since the Nezha-target era): with the impersonation master on a
+     *    non-Nezha target and [Preferences.KEY_CAMERA_LEGENDARY_MOMENT] off, force
+     *    `support()` false so the RAW/re-processing pipeline behind the mode stays closed.
+     *  - UNLOCK ([Preferences.KEY_CAMERA_LEGENDARY_MOMENT], default OFF): raise `support()`
+     *    to true so the entry registry (`p666t3.a.d()`, support()-filtered and cached per
+     *    process) registers mode 256 into the 更多 overflow grid. The stock gate is
+     *    `Je.c.W0() && Je.c.V()` = config-is-Nezha && LCC theme (`ro.theme_customize`),
+     *    false on every non-flagship non-LCC device regardless of the impersonation master,
+     *    which is exactly what this switch overrides. Needs a camera restart after toggling
+     *    (the registry caches); the unlock wins over the guard by construction — the two
+     *    branches are exclusive in the same callback, so hooks can never fight in order.
+     */
     private fun hookLegendarySupport() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
@@ -1387,10 +1410,354 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(support)
         support.hook("cam_guard_mode_legendary") {
             after { param ->
-                if (enabled() && !deviceIsNezha()) param.result = false
+                when {
+                    legendaryMomentUnlock() -> param.result = true
+                    enabled() && !deviceIsNezha() -> param.result = false
+                }
             }
         }
         DebugLog.d(TAG, "legendary guard hooked on ${clazz.name}#support()")
+    }
+
+    /**
+     * 智能构图 setting unlock ([Preferences.KEY_CAMERA_SMART_COMPOSITION], default OFF).
+     * The 设置→拍照 entry `pref_camera_crop_preferred_key` is added only while the device
+     * config's `D3()` reports true — declared once on the config base as
+     * `return this instanceof <REDMI-flagship marker>` and overridden per branch, so devices
+     * outside that branch (this one: `com.mi.device.Myron`) ship it false natively AND under
+     * the K100 Pro Max impersonation. The hook raises `D3()` on the UNION of dispatch classes
+     * ([configDispatchClasses] plus the config BASE class taken from the factory's static
+     * cache field type), deduplicated by Method identity — the same pattern as
+     * [hookLeicaStyle]. RAISE-ONLY and live-read: with the switch off the native value is
+     * untouched; turning it on shows the entry (reopen the settings page) and consistently
+     * enables the capture-time consumers of the same gate.
+     */
+    private fun hookSmartComposition() {
+        val classes = LinkedHashSet<Class<*>>()
+        classes.addAll(configDispatchClasses())
+        // Always include the config BASE class: the factory's static cache field is typed to
+        // it (the same invariant [hookConfigFactory]'s structural fallback relies on), and
+        // `getMethod` from it resolves the base declaration every non-overriding subclass
+        // dispatches to — even when neither instance could be built.
+        runCatching {
+            resolveClass(*CONFIG_FACTORY_CLASS_CANDIDATES.toTypedArray())
+                ?.getDeclaredField("b")
+                ?.takeIf { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+                ?.type?.let { classes.add(it) }
+        }.onFailure { t ->
+            DebugLog.w(TAG, "config base class unavailable for smart-composition union", t)
+        }
+        if (classes.isEmpty()) {
+            DebugLog.w(TAG, "no dispatch class resolved; smart-composition unlock skipped")
+            return
+        }
+        val seen = IdentityHashMap<Method, Boolean>()
+        var hooked = 0
+        for (clazz in classes) {
+            val method = runCatching {
+                clazz.getMethod("D3").takeIf {
+                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+                }
+            }.getOrNull() ?: run {
+                DebugLog.d(TAG, "smart-composition getter ${clazz.name}#D3() not found; skipped")
+                continue
+            }
+            if (seen.put(method, true) != null) continue
+            deoptimize(method)
+            method.hook("cam_smart_composition_d3") {
+                before { param ->
+                    if (!smartCompositionUnlock()) return@before
+                    param.result = true
+                }
+            }
+            hooked++
+        }
+        DebugLog.i(TAG, "smart-composition hooked on $hooked D3() dispatch method(s): " +
+            seen.keys.joinToString { "${it.declaringClass.name}#${it.name}" })
+    }
+
+    /** 智能构图 settings-preference key and its string resource names (obfuscated-but-stable). */
+    private const val SMART_COMPOSITION_PREF_KEY = "pref_camera_crop_preferred_key"
+    private const val SMART_COMPOSITION_TITLE_RES = "h24"
+    private const val SMART_COMPOSITION_SUMMARY_RES = "h23"
+
+    /** Plaintext class name of the capture-settings fragment (stable across verified builds). */
+    private const val SETTINGS_CAPTURE_FRAGMENT =
+        "com.android.camera.fragment.settings.CameraCapturePreferenceFragment"
+
+    /**
+     * 智能构图 top-level row injection: the camera's own photo-settings page folds the whole
+     * recommendation-toggle list (`p148e5.a.a()`, which the D3 hook feeds) into the
+     * 「AI智能推荐」sub-page whenever its size is > 1, which is ALWAYS on this device (扫码
+     * unconditional + 横竖屏引导 natively true). The other three unlocks (超高画质/内容凭证/
+     * 自适应镜头) render as top-level rows, so 智能构图 was easy to miss. This hook makes the
+     * checkbox appear directly in 拍照设置 too: an after-hook on
+     * `addPhotoPreferences()` reuses the fragment's OWN `addCheckBoxPreference` helper
+     * (title/summary from the host resources), so the row is byte-for-byte the same kind of
+     * `AccessibleCheckBoxPreference` the sub-page builds — persistence flows through the
+     * generic registerListener wiring (`Preference` -> fragment `onPreferenceChange` ->
+     * `updateSharePreference`) exactly like every native checkbox, and reopening the page
+     * re-syncs the checked state. Live-read: with the switch off the injection stops on the
+     * next page build; the row and the sub-page row share the one pref key.
+     */
+    private fun hookSmartCompositionTopRow() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "settings_capture_fragment", ctx = ctx,
+            candidates = listOf(SETTINGS_CAPTURE_FRAGMENT),
+            validate = { c ->
+                c.declaredMethods.any { it.name == "addPhotoPreferences" && it.parameterCount == 0 }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "$SETTINGS_CAPTURE_FRAGMENT not resolved; top-row smart composition skipped")
+            return
+        }
+        val add = CameraResolver.resolveMethod(
+            scope = TAG, key = "settings_add_photo_prefs", clazz = clazz,
+            names = listOf("addPhotoPreferences"),
+            shape = { it.parameterCount == 0 },
+        ) ?: run {
+            DebugLog.w(TAG, "${clazz.name}#addPhotoPreferences() not found; top-row smart composition skipped")
+            return
+        }
+        deoptimize(add)
+        add.hook("cam_smart_composition_top_row") {
+            after { param ->
+                if (!smartCompositionUnlock()) return@after
+                injectSmartCompositionTopRow(param.thisObject)
+            }
+        }
+        DebugLog.i(TAG, "smart-composition top-row hook installed on ${clazz.name}#addPhotoPreferences()")
+    }
+
+    /** Add the 智能构图 checkbox into 拍照设置's `category_photo_setting` group (idempotent). */
+    private fun injectSmartCompositionTopRow(fragment: Any?) {
+        if (fragment == null) return
+        runCatching {
+            val fragClass = fragment.javaClass
+            // mPreferenceGroup is declared on the settings base classes; walk the hierarchy.
+            var holder: Class<*>? = fragClass
+            var groupField: Field? = null
+            while (holder != null && groupField == null) {
+                groupField = runCatching { holder.getDeclaredField("mPreferenceGroup") }.getOrNull()
+                holder = holder.superclass
+            }
+            val groupField0 = groupField ?: run {
+                DebugLog.d(TAG, "mPreferenceGroup not found on $fragClass; top row skipped")
+                return
+            }
+            groupField0.isAccessible = true
+            val screen = groupField0.get(fragment) ?: return
+            // androidx.preference.PreferenceGroup is host-bundled and its findPreference was
+            // R8-renamed to `k0` on this build — resolve by name candidates + single-arg shape.
+            val groupClass = "androidx.preference.PreferenceGroup".toClassOrNull() ?: return
+            val find = groupClass.methods.firstOrNull {
+                (it.name == "findPreference" || it.name == "k0") && it.parameterCount == 1
+            } ?: return
+            val category = find.invoke(screen, "category_photo_setting") ?: return
+            if (find.invoke(screen, SMART_COMPOSITION_PREF_KEY) != null) return
+            val res = fragClass.getMethod("getResources").invoke(fragment) as android.content.res.Resources
+            val titleRes = res.getIdentifier(SMART_COMPOSITION_TITLE_RES, "string", PACKAGE)
+            val summaryRes = res.getIdentifier(SMART_COMPOSITION_SUMMARY_RES, "string", PACKAGE)
+            if (titleRes == 0 || summaryRes == 0) {
+                DebugLog.w(TAG, "smart-composition string resources unresolved " +
+                    "($SMART_COMPOSITION_TITLE_RES=$titleRes, $SMART_COMPOSITION_SUMMARY_RES=$summaryRes); top row skipped")
+                return
+            }
+            val helper = fragClass.getMethod(
+                "addCheckBoxPreference", groupClass, String::class.java,
+                java.lang.Boolean.TYPE, java.lang.Integer.TYPE, java.lang.Integer.TYPE,
+            )
+            helper.invoke(fragment, category, SMART_COMPOSITION_PREF_KEY, true, titleRes, summaryRes)
+            DebugLog.i(TAG, "smart-composition top row injected into category_photo_setting")
+        }.onFailure { t ->
+            DebugLog.w(TAG, "smart-composition top-row injection failed", t)
+        }
+    }
+
+    /** Plaintext system property feeding the camera's 内容凭证 (C2PA / CAI) master flag. */
+    private const val CAI_SUPPORT_PROPERTY = "ro.product.odm.support_cai"
+
+    /**
+     * Field-name candidates of the static boolean flag inside the property-holder class:
+     * the real dex name is the short letter (`u`; jadx renders it `f13393u` because it
+     * collides with a root-package name). Validated as a static boolean before use.
+     */
+    private val CAI_FLAG_FIELD_CANDIDATES = listOf("u", "f13393u")
+
+    private fun caiFlagField(clazz: Class<*>): Field? =
+        CAI_FLAG_FIELD_CANDIDATES.firstNotNullOfOrNull { name ->
+            runCatching { clazz.getDeclaredField(name) }.getOrNull()?.takeIf {
+                java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                    it.type == java.lang.Boolean.TYPE
+            }
+        }
+
+    /**
+     * 内容凭证 (Content Credentials, C2PA) setting unlock
+     * ([Preferences.KEY_CAMERA_CONTENT_CREDENTIAL], default OFF). The 设置→水印 entry
+     * `pref_cai_type_key` (→ `CaiSettingFragment`) is gated on a `static final boolean` in
+     * the camera's debug-flag holder, initialised once in `<clinit>` from the system
+     * property `ro.product.odm.support_cai`. The holder resolves through the plaintext
+     * property constant (unique to this class across verified builds), the field through
+     * [CAI_FLAG_FIELD_CANDIDATES]; the write goes through `StaticFieldWriter`
+     * (reflective write first, Unsafe fallback — same path as `Je.e.b`). Because the value
+     * is baked at class-init, enabling/disabling needs a camera restart; when the switch is
+     * off at attach NOTHING is written, so the stock process stays untouched.
+     */
+    private fun hookContentCredential() {
+        if (!contentCredentialUnlock()) return
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG, key = "cai_flag_holder", ctx = ctx,
+            candidates = listOf("Qa.b"),
+            validate = { caiFlagField(it) != null },
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings(CAI_SUPPORT_PROPERTY) } }
+                    .firstOrNull { cd ->
+                        ctx.loadOrNull(cd.name)?.let(::caiFlagField) != null
+                    }?.name
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "CAI flag holder not resolved; content-credential unlock skipped")
+            return
+        }
+        val field = caiFlagField(clazz) ?: return
+        runCatching {
+            // Reading first forces <clinit> so the property-derived value exists, then the
+            // write replaces it for the process lifetime.
+            val original = field.getBoolean(null)
+            StaticFieldWriter.setBoolean(field, true)
+            DebugLog.i(TAG, "content-credential flag ${clazz.name}#${field.name}: $original -> true")
+        }.onFailure { t ->
+            DebugLog.w(TAG, "content-credential flag write failed on ${clazz.name}", t)
+        }
+    }
+
+    /**
+     * Log string unique to the camera's capabilities-util helper class on verified builds
+     * (jadx C3545f): the anchor lives inside one of its ~200 capability getters, so a DexKit
+     * class probe keyed on it pins the obfuscated class name version-generically.
+     */
+    private const val CAPABILITIES_UTIL_ANCHOR =
+        "getSupportedHfrSettings: CameraCapabilities is null!!!"
+
+    /**
+     * Resolve ONE static boolean single-arg method named [name] on [clazz]. The class carries
+     * hundreds of same-shape capability getters, so the exact name must match EXACTLY ONE
+     * declaration — multiple matches mean the name was repurposed on this build and the
+     * caller must skip instead of guessing.
+     */
+    private fun uniqueCapabilityMethod(clazz: Class<*>, name: String): Method? {
+        val matches = clazz.declaredMethods.filter {
+            it.name == name && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                it.parameterCount == 1 && it.returnType == java.lang.Boolean.TYPE &&
+                !it.isSynthetic
+        }
+        return matches.singleOrNull()
+    }
+
+    /** Shape contract of the adaptive-lens gate pair ([uniqueCapabilityMethod] plus sameness). */
+    private fun isAdaptiveLensUtil(clazz: Class<*>): Boolean {
+        val near = uniqueCapabilityMethod(clazz, "g5") ?: return false
+        val tele = uniqueCapabilityMethod(clazz, "i5") ?: return false
+        // Both gates take the SAME capabilities object type; a repurposed name pair would
+        // almost certainly diverge here.
+        return near.parameterTypes.contentEquals(tele.parameterTypes)
+    }
+
+    /**
+     * Resolve the camera's capabilities-util helper class (jadx C3545f, real dex name e.g.
+     * `j9.f`) through the DexKit anchor string unique to it. [key] distinguishes the
+     * DexKit cache entries (same class, different validation per feature); [validate] is
+     * applied both inside the probe and again by [CameraResolver] so a wrong anchor hit is
+     * rejected at every layer.
+     */
+    private fun resolveCapabilitiesUtil(
+        ctx: CameraResolver.Ctx,
+        key: String,
+        validate: (Class<*>) -> Boolean,
+    ): Class<*>? = CameraResolver.resolveClass(
+        scope = TAG, key = key, ctx = ctx,
+        candidates = emptyList(),
+        validate = validate,
+        probe = { bridge ->
+            bridge.findClass { matcher { usingStrings(CAPABILITIES_UTIL_ANCHOR) } }
+                .firstOrNull { cd -> ctx.loadOrNull(cd.name)?.let(validate) == true }
+                ?.name
+        },
+    )
+
+    /**
+     * 自适应镜头 (adaptive lens / auto fallback) setting unlock
+     * ([Preferences.KEY_CAMERA_ADAPTIVE_LENS], default OFF, experimental). The 设置→拍照
+     * entry `pref_camera_auto_fallback` shows only while BOTH capabilities-util gates report
+     * true: the near-range smooth-transition gate (HAL characteristics
+     * `xiaomi.smoothTransition.nearRangeMode` plus the `disablefallback`/`fallbackRole` keys
+     * available) and the tele-fallback gate (`com.xiaomi.teleFallback.isSupported`). The
+     * sub-page (`AutoFallbackFragment`) and the module-level consumers read the same two
+     * static getters, so forcing them keeps everything consistent. RAISE-ONLY and live-read;
+     * reopen the settings page to refresh. Both methods must resolve uniquely or the whole
+     * feature skips (fail-safe rather than half-open).
+     */
+    private fun hookAdaptiveLens() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = resolveCapabilitiesUtil(ctx, "capabilities_util", ::isAdaptiveLensUtil) ?: run {
+            DebugLog.w(TAG, "capabilities util not resolved; adaptive-lens unlock skipped")
+            return
+        }
+        var hooked = 0
+        for (name in listOf("g5", "i5")) {
+            val method = uniqueCapabilityMethod(clazz, name) ?: continue
+            deoptimize(method)
+            method.hook("cam_adaptive_lens_$name") {
+                after { param ->
+                    if (!adaptiveLensUnlock()) return@after
+                    param.result = true
+                }
+            }
+            hooked++
+        }
+        if (hooked == 0) {
+            DebugLog.w(TAG, "adaptive-lens gates not resolvable on ${clazz.name}; skipped")
+        } else {
+            DebugLog.i(TAG, "adaptive-lens hooked on $hooked gate(s) of ${clazz.name}")
+        }
+    }
+
+    /**
+     * 智能构图 viewfinder feature-bar entry (功能条 id 2853) force-open
+     * ([Preferences.KEY_CAMERA_SMART_COMPOSITION]). The entry is built only while
+     * `C3545f.M3()` = HAL characteristics `com.xiaomi.camera.autoCrop.autoCropVersion == 2`
+     * (jadx C3545f.java:1178), which this device's HAL does not publish — the icon is
+     * otherwise skipped at list construction (`C2418c`). RAISE-ONLY and live-read.
+     *
+     * IMPORTANT on-device reality (verified 2026-08-29, myron OS4.0.0.19): the whole
+     * autoCrop implementation lives in the camera HAL/ISP and the v2 app side is only a
+     * renderer of `autoCropData` (float[6]). myron's /odm HAL binaries contain NO autoCrop
+     * strings — not even the characteristics key — so forcing M3 produces an EMPTY SWITCH:
+     * the feature-bar icon appears and is clickable, the click shows the camera's "not
+     * supported" hint (`X#I6` Q0(autoCropEnable) check), and capture safely skips the
+     * request/result wiring. No composition guidance can ever appear; the setting row
+     * (D3) stays useful for the mode-175 capture metadata path.
+     */
+    private fun hookSmartCompositionFeatureBar() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = resolveCapabilitiesUtil(ctx, "capabilities_util_m3") {
+            uniqueCapabilityMethod(it, "M3") != null
+        } ?: run {
+            DebugLog.w(TAG, "capabilities util M3 not resolved; smart-composition feature-bar skipped")
+            return
+        }
+        val m3 = uniqueCapabilityMethod(clazz, "M3") ?: return
+        deoptimize(m3)
+        m3.hook("cam_smart_composition_m3") {
+            before { param ->
+                if (!smartCompositionUnlock()) return@before
+                param.result = true
+            }
+        }
+        DebugLog.i(TAG, "smart-composition feature-bar gate M3 hooked on ${clazz.name}#M3()")
     }
 
     /**
@@ -2822,6 +3189,22 @@ object CameraImpersonationHooker : StaticHooker() {
 
     private fun leicaStyle(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true)
+
+    /** 徕卡一瞬 (mode 256) unlock; read WITHOUT the impersonation master — master-independent. */
+    private fun legendaryMomentUnlock(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
+
+    /** 智能构图 setting unlock; read WITHOUT the impersonation master — master-independent. */
+    private fun smartCompositionUnlock(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false)
+
+    /** 内容凭证 setting unlock; applied once per camera process at attach (restart to change). */
+    private fun contentCredentialUnlock(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+
+    /** 自适应镜头 setting unlock; read WITHOUT the impersonation master — master-independent. */
+    private fun adaptiveLensUnlock(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false)
 
     /** 实况运镜 unlock master (default ON); suppresses the Nezha-target `y4` guard. */
     private fun masterliveEnabled(): Boolean =

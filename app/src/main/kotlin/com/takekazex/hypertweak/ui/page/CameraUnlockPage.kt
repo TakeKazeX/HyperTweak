@@ -104,6 +104,18 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var ultraHdQuality by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
     }
+    var legendaryMoment by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false))
+    }
+    var smartComposition by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false))
+    }
+    var contentCredential by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false))
+    }
+    var adaptiveLens by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false))
+    }
     var masterLiveEnable by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true))
     }
@@ -266,6 +278,42 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_ultra_hd_title),
                         summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
+                    )
+                    SwitchPreference(
+                        checked = legendaryMoment,
+                        onCheckedChange = { enabled ->
+                            legendaryMoment = enabled
+                            set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_legendary_moment_title),
+                        summary = stringResource(R.string.camera_unlock_legendary_moment_summary)
+                    )
+                    SwitchPreference(
+                        checked = smartComposition,
+                        onCheckedChange = { enabled ->
+                            smartComposition = enabled
+                            set(Preferences.KEY_CAMERA_SMART_COMPOSITION, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_smart_composition_title),
+                        summary = stringResource(R.string.camera_unlock_smart_composition_summary)
+                    )
+                    SwitchPreference(
+                        checked = contentCredential,
+                        onCheckedChange = { enabled ->
+                            contentCredential = enabled
+                            set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_content_credential_title),
+                        summary = stringResource(R.string.camera_unlock_content_credential_summary)
+                    )
+                    SwitchPreference(
+                        checked = adaptiveLens,
+                        onCheckedChange = { enabled ->
+                            adaptiveLens = enabled
+                            set(Preferences.KEY_CAMERA_ADAPTIVE_LENS, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_adaptive_lens_title),
+                        summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
                     )
                     SwitchPreference(
                         checked = masterLiveEnable,

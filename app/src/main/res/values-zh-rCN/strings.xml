@@ -592,6 +592,14 @@
     <string name="camera_unlock_leica_style_summary">把配置的徕卡标志位（F3/X2）强制为真，让 摄影风格 的 徕卡经典 ↔ 徕卡生动 切换重新出现——无论是否开启机型伪装，红米配置都报告 F3=false。不重启传奇人像、不引入 231 原图流。修改后需重启相机</string>
     <string name="camera_unlock_ultra_hd_title">超高图片质量（固定解锁）</string>
     <string name="camera_unlock_ultra_hd_summary">固定本机隐藏 超高 档位的设备配置开关（l7），让 设置→图片质量 始终提供并保留 超高（JPEG 质量 100）。关闭=原生行为（最高 高）；已存的 超高 选择会被钳回。切换即时生效——重新打开设置页即可刷新列表；首次启用需重启相机</string>
+    <string name="camera_unlock_legendary_moment_title">徕卡一瞬</string>
+    <string name="camera_unlock_legendary_moment_summary">强制注册相机模式 256（其支持门要求 17 Ultra 配置类且 LCC 主题，本机两者皆不满足所以被隐藏）。开启并重启相机后出现在「更多」列表。实验性：其 RAW/后期链路未在本机 HAL 上验证——若色彩异常请关闭</string>
+    <string name="camera_unlock_smart_composition_title">智能构图</string>
+    <string name="camera_unlock_smart_composition_summary">把智能构图各道门强制为真：设备配置门（D3）让 拍照设置 直接出现「智能构图」顶层开关（不再只藏在 AI智能推荐 子页里）；能力门（M3）强开取景器功能条图标。注意：本机 HAL 无 autoCrop 实现，功能条图标是空开关——点击提示「不支持」，不会出现构图引导。切换即时生效——重新打开设置页即可刷新</string>
+    <string name="camera_unlock_content_credential_title">内容凭证</string>
+    <string name="camera_unlock_content_credential_summary">把相机的 ro.product.odm.support_cai 能力标志强制为 true，让 水印设置 提供 内容凭证（C2PA）入口。启用与停用都需要重启相机；照片是否真正携带可验证凭证仍取决于 HAL</string>
+    <string name="camera_unlock_adaptive_lens_title">自适应镜头</string>
+    <string name="camera_unlock_adaptive_lens_summary">把近焦平滑切换与长焦回落两个能力门强制为真，让 拍照设置 提供 自适应镜头。切换即时生效；实验性：HAL 不含对应厂商键时变焦可能异常——若变焦行为不对请关闭</string>
     <string name="camera_unlock_masterlive_title">实况运镜（MasterLive）</string>
     <string name="camera_unlock_masterlive_summary">强制实况运镜的注册门（y4）与红米运镜效果表为真——无论是否开启机型伪装（原生红米配置会把该模式整个藏掉）。模式条位置自动修正；若拍摄卡住再开启下方安全会话。可见性变化需重启相机</string>
     <string name="camera_unlock_red_carpet_title">红毯运镜（17U 效果注入）</string>

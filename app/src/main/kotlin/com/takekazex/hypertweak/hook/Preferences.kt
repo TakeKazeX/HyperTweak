@@ -592,6 +592,79 @@ object Preferences {
     const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
 
     /**
+     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; default
+     * OFF. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
+     * `support()` is true, and `LegendaryEnter.support()` is
+     * `Je.c.W0() && Je.c.V()`: W0() demands the 17-Ultra Nezha config class
+     * (`instanceof com.mi.device.Nezha`, jadx C1209 on 6.6.000510.0) and V() the LCC
+     * theme customisation (`ro.theme_customize == "lcc"`), so every non-flagship,
+     * non-LCC device ships the mode closed. With this switch on,
+     * [com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker] raises
+     * `LegendaryEnter.support()` to true (and suppresses its own non-Nezha legendary
+     * guard), which registers mode 256 into the 更多 overflow grid — no verified config
+     * `M()` order array carries 256. Needs a camera app restart (the registry caches per
+     * process). The RAW/re-processing pipeline behind the mode is NOT validated on
+     * non-flagship HALs; turn it off if colours misbehave.
+     */
+    const val KEY_CAMERA_LEGENDARY_MOMENT = "camera_legendary_moment"
+
+    /**
+     * 智能构图 (smart composition) unlock; default OFF. Three independent levers, one switch:
+     *
+     *  1. The 设置→拍照 entry (`pref_camera_crop_preferred_key`, added by the photo-preferences
+     *     builder, rendered inside the pre-existing 「AI智能推荐」 sub-page) is gated on the
+     *     device-config `D3()` getter, declared once on the config base as
+     *     `return this instanceof <REDMI-flagship-branch marker>` (jadx C1199 on 510); this
+     *     device's own config (`com.mi.device.Myron`) sits on a sibling branch, so D3 is false
+     *     natively and under the K100 Pro Max impersonation alike. The hook raises `D3()` on the
+     *     union of dispatch classes (original config class + flagship class + config base class),
+     *     which shows the setting AND consistently enables the capture-time consumers of the
+     *     same gate (the 超清-mode composition metadata paths).
+     *  2. Because the whole recommendation-toggle list always collapses into the 「AI智能推荐」
+     *     sub-page on this device (size > 1 is guaranteed), a second hook injects the checkbox
+     *     as a TOP-LEVEL row directly in 拍照设置 (`CameraCapturePreferenceFragment.
+     *     addPhotoPreferences` after-hook reusing the fragment's own `addCheckBoxPreference`
+     *     helper) so it is findable like 超高画质/内容凭证/自适应镜头.
+     *  3. The viewfinder feature-bar entry (id 2853) is gated on the capabilities-util
+     *     `M3()` = HAL `com.xiaomi.camera.autoCrop.autoCropVersion == 2`; the hook raises it
+     *     too. On this device the HAL has NO autoCrop implementation at all (verified in
+     *     /odm binaries + dumpsys media.camera, 2026-08-29), so this lever is an EMPTY SWITCH:
+     *     the icon appears and is clickable, clicking shows the "not supported" hint, capture
+     *     skips the wiring safely, and no composition guidance can ever render.
+     *
+     * Read live; reopen the settings page to refresh the rows (the D3/M3 callbacks and the
+     * top-row injection all re-read this key per call).
+     */
+    const val KEY_CAMERA_SMART_COMPOSITION = "camera_smart_composition"
+
+    /**
+     * 内容凭证 (Content Credentials, C2PA) setting unlock; default OFF. The 设置→水印 entry
+     * (`pref_cai_type_key` → `CaiSettingFragment`) is gated on a static final boolean in the
+     * camera's debug/capability holder class (jadx `Qa.b.u`) initialised once from the system
+     * property `ro.product.odm.support_cai`; absent on devices whose ODM does not declare it.
+     * The hook force-initialises the holder class and flips the flag to true through
+     * `StaticFieldWriter` at camera-process start, so the entry (and the credential
+     * copyright/username sub-page) appears. Because the value is baked into a static final,
+     * BOTH enabling and disabling need a camera app restart, and whether photos actually
+     * carry verifiable credentials still depends on the HAL/mivi pipeline.
+     */
+    const val KEY_CAMERA_CONTENT_CREDENTIAL = "camera_content_credential"
+
+    /**
+     * 自适应镜头 (adaptive lens / auto fallback) setting unlock; default OFF, experimental.
+     * The 设置→拍照 entry (`pref_camera_auto_fallback` → `AutoFallbackFragment`) shows only
+     * while TWO capabilities-util gates report true: the near-range smooth-transition gate
+     * (HAL characteristics `xiaomi.smoothTransition.nearRangeMode` present and true plus the
+     * `disablefallback`/`fallbackRole` keys available) and the tele-fallback gate
+     * (`com.xiaomi.teleFallback.isSupported`). Devices missing either ship no entry. The hook
+     * forces both static util getters true (raise-only), covering the entry, the sub-page and
+     * the module-level consumers consistently. Read live; reopen the settings page to refresh.
+     * On a HAL that does not implement the vendor keys the zoom path may behave oddly — turn
+     * it off if switching lenses glitches.
+     */
+    const val KEY_CAMERA_ADAPTIVE_LENS = "camera_adaptive_lens"
+
+    /**
      * 街拍 (Street snap, camera mode id 225) unlock mode. One of [CameraStreetMode.MODES]:
      *  - `"off"` — street stays stock (hidden on myron and every other REDMI config);
      *  - `"new"` (新街拍) — force the street-support gate (`a3()`) true on whatever config is
