@@ -383,84 +383,25 @@ object Preferences {
     const val KEY_WM_CAMERA = "wm_camera"
 
     /**
-     * Camera app (com.android.camera) flagship impersonation unlock; see
-     * `CameraImpersonationHooker`. Keys are read live (100 ms memo) inside the hooks; the
-     * Leica-style / MasterLive / street unlocks install at camera attach and apply whether or
-     * not the impersonation master is on (they hook the base C1143/C1199 Methods the REAL
-     * device config dispatches to, which are also the Methods the K100 impersonation uses).
-     * Only the first enable of KEY_CAMERA_IMPERSONATE needs a camera app restart (to install
-     * the factory-swap hooks). While impersonating, the on-picture watermark is ALWAYS
-     * re-forced back to this device's own brand + model (unconditional), so impersonation can
-     * never change the watermark model.
+     * Fake the Leica LCC theme gate (`Je.c#V()`) for the camera app; see
+     * `CameraImpersonationHooker`. Unlocks features gated on the LCC theme (e.g. 徕卡一瞬)
+     * and keeps the 相机配色 settings entry visible, WITHOUT the flagship config swap and
+     * without changing any real device theme property. Read live (100 ms memo).
      */
-    const val KEY_CAMERA_IMPERSONATE = "camera_impersonate"
     const val KEY_CAMERA_IMPERSONATE_THEME_LCC = "camera_impersonate_theme_lcc"
 
     /**
-     * While impersonating a flagship, keep this device's own focal-length line-up (焦段) by
-     * delegating the config's focal getters (B1/q0/e1/A1/C1/v1/x1/y0/h1) to the real device
-     * config instance. Default on (true).
-     */
-    const val KEY_CAMERA_KEEP_FOCAL = "camera_keep_focal"
-
-    /**
-     * While impersonating a flagship, ALSO delegate the *imaging identity* getters
-     * (O1/D/q1/r1/o0/S6/M/K2) back to the real device config instance, so every mode whose
-     * output is colour-sensitive (Leica Classic + tele on LCC/RAW, gallery re-processing)
-     * feeds the REAL sensor/lens identity to MIVI/HAL CCM·WB selection. Capability booleans
-     * (`instanceof`-based gates) stay flagship; only the colour/imaging identity returns to
-     * native. This is the fix for "徕卡经典 + 长焦 → 相册后期处理变紫" (see
-     * `RESEARCH_LEICA_CLASSIC_PURPLE.md`). Default on (true).
-     */
-    const val KEY_CAMERA_KEEP_IMAGING = "camera_keep_imaging"
-
-    /**
-     * Keep the hardware-dependent flagship modes CLOSED while impersonating a flagship on a
-     * device that lacks the physical hardware: 实况运镜 / 街拍 / 装备街拍 / 传奇人像
-     * (`C1178#y4()`/`C1178#a3()`/`Je.c#M()`/`LegendaryEnter.support()`). Without the tele
-     * periscope, SMVR-HSR and the flagship camera ids (8/13/3001) these modes open a camera
-     * that does not exist and freeze/crash (见 `RESEARCH_LIVE_MOTION.md` /
-     * `RESEARCH_STREET_MODE.md`). On a real flagship (real nezha) the delegated values are
-     * the flagship values, so this is a no-op there. Default on (true).
-     */
-    const val KEY_CAMERA_GUARD_MODES = "camera_guard_modes"
-
-    /**
-     * Root fix for the flagship camera-id scheme: delegate `C1178#b6()` back to the real
-     * device config, so `C3550e.e()/f()` stop reporting the flagship main cameras
-     * (8/13/3001) and the mode-opening path falls back to the real camera. This is the switch
-     * that makes 街拍 usable on the real camera *if* `KEY_CAMERA_GUARD_MODES` is off (modes
-     * stay visible) — at the cost of closing the `b6`-gated flagship extras (8K video etc.).
-     * Default off (false); keep on-guard modes unless you specifically want that tradeoff.
-     */
-    const val KEY_CAMERA_GUARD_CAMERA_ID = "camera_guard_camera_id"
-
-    /**
-     * Impersonation target config class. `"k100promax"` (default) = REDMI K100 Pro Max / POCO
-     * F9 Ultra (jadx C1151): sensor axis `q1={17}/O1="3"/D=6579300/r1=6` — byte-identical to
-     * myron's own `com.mi.device.Myron` (C1209), so MIVI/HAL CCM·WB selection is correct
-     * (徕卡经典 no longer turns purple after gallery re-processing); `y4()=true` with a REDMI
-     * MasterLive effect table (ends 15x via `Standalone`, no 17U tele/12.9x crash path); REDMI
-     * watermark strings. `"nezha"` = legacy 17 Ultra unlock (old behaviour; on non-flagships it
-     * opens hardware that does not exist → MasterLive/Street freeze and purple).
-     */
-    const val KEY_CAMERA_IMPERSONATE_TARGET = "camera_impersonate_target"
-
-    /**
-     * Restore the Leica photography-style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher — with
-     * or without the flagship impersonation. The 摄影风格 component and the top-bar style
-     * entries gate on the config's `F3()` (Leica-level device flag; `X2()` for the
-     * specific-capture path): `true` on the CommonFlagship (Nezha) branch, `false` on the REDMI
-     * C1199 branch that both C1151 (K100 Pro Max) and myron's own C1209 inherit — so ANY
-     * REDMI-branch config (native or impersonated K100) drops the Leica style switcher. The
-     * hook forces `F3()`/`X2()` true RAISE-ONLY (native values are never lowered) on the base
-     * Methods the real config itself dispatches to, so it works with the master off and with
-     * the K100 target on; the Nezha branch keeps its native true. Does NOT reopen Legendary
-     * (gated on `W0()=instanceof C1178`) nor the 231 LCC-RAW stream (`M()` stays
-     * keep-imaging-delegated), so no purple/RAW regression. Side effect: the shutter-sound
-     * list gains the four Leica entries (`f2.c.b()` adds them when `F3()` is true; the
-     * resident bounds clamp keeps an old out-of-range selection from crashing the list).
-     * Default on.
+     * Restore the Leica photography-style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher. The
+     * 摄影风格 component and the top-bar style entries gate on the config's `F3()`
+     * (Leica-level device flag; `X2()` for the specific-capture path): `true` on the
+     * CommonFlagship / Nezha branch, `false` on the REDMI C1199 branch that myron's own
+     * C1209 inherits — so the stock REDMI config drops the Leica style switcher. The hook
+     * forces `F3()`/`X2()` true RAISE-ONLY (native values are never lowered) on the base
+     * Methods the real config dispatches to. Does NOT reopen Legendary (gated on
+     * `W0()=instanceof C1178`) nor the 231 LCC-RAW stream, so no purple/RAW regression.
+     * Side effect: the shutter-sound list gains the four Leica entries (`f2.c.b()` adds them
+     * when `F3()` is true; the resident bounds clamp keeps an old out-of-range selection
+     * from crashing the list). Default on.
      */
     const val KEY_CAMERA_LEICA_STYLE = "camera_impersonate_leica_style"
 
@@ -471,31 +412,6 @@ object Preferences {
      * when role 23 exists (falls back only when `get(23)==-1`). Default on.
      */
     const val KEY_CAMERA_MASTERLIVE_TELE_FALLBACK = "camera_masterlive_tele_fallback"
-
-    /**
-     * MasterLive (实况运镜) op-mode safety net. On Qualcomm the MasterLive session would normally
-     * run CONFIRMED_HIGH_SPEED (op-mode 1); if the HAL does not produce frames in that mode the
-     * capture never completes and the mode appears frozen. When this switch is on, the MasterLive
-     * branch of the module device's getOperatingMode is forced to ALGO_UP_SAT (36866), a plain
-     * session that always produces frames — at the cost of the high-speed motion semantics (the
-     * K100 Pro Max effect table has no 120fps type anyway). Default off; enable only if on-device
-     * logs show op-mode 1 does not produce frames. Requires a camera restart after changing.
-     */
-    const val KEY_CAMERA_MASTERLIVE_OPMODE_SAFE = "camera_masterlive_opmode_safe"
-
-    /**
-     * MasterLive (实况运镜) circular-encoder size pin — experimental probe (default OFF) for
-     * the "left green / right repeated lines" motion-photo artifact (see
-     * RESEARCH_MYRON_09_MASTERLIVE_ARTIFACT.md, mechanism [M0]). The LiveShot circular encoder
-     * (`p859ym.d#E(Size)`, "updateCodecSize") is rewritten to the per-shot preview-snapshot
-     * size on every capture, while the GL render canvas stays at the construction size — under
-     * a forced ALGO_UP_SAT session (see [KEY_CAMERA_MASTERLIVE_OPMODE_SAFE]) the two diverge,
-     * leaving the codec input surface partially unwritten (zero-fill = pure green) plus edge
-     * clamp/wrap (repeated lines). When on, `updateCodecSize` receives the encoder's initial
-     * format size instead, so the codec format can never diverge from the render canvas.
-     * Default off; requires a camera restart after changing.
-     */
-    const val KEY_CAMERA_MASTERLIVE_CODEC_PIN = "camera_masterlive_codec_pin"
 
     /**
      * MasterLive (实况运镜) video-size probe — experimental (default OFF). On myron the
@@ -525,10 +441,7 @@ object Preferences {
      * cleared default flag (`CameraMasterLiveRedCarpet`): all decrypted role/range strings
      * stay byte-identical to what already resolves on this device, the panel/guide UI pick
      * the entry up natively (type-switch driven), and the default effect stays 超清实况.
-     * NOTE: selecting 红毯 flips the session op-mode branch (`j.O0(231)`); keep
-     * [KEY_CAMERA_MASTERLIVE_OPMODE_SAFE] on so it runs the proven ALGO_UP_SAT session —
-     * without it a Qualcomm device falls to CONSTRAINED_HIGH_SPEED which may not produce
-     * frames here. Live-read (100 ms memo); visibility needs a camera restart.
+     * Live-read (100 ms memo); visibility needs a camera restart.
      */
     const val KEY_CAMERA_MASTERLIVE_RED_CARPET = "camera_masterlive_red_carpet"
 
@@ -541,24 +454,10 @@ object Preferences {
      * `v1()` result gains `231 → {0.7, 1.0, 2.0, 5.0, 10.0}` (the K100 Pro Max stops —
      * bit-identical sensor axis to myron and exactly myron's real optics: 0.7x OV50M ultra /
      * 1x OV50Q main / 2x digital / 5x·120mm JN5 / 10x digital) whenever the key is absent;
-     * an existing key is never touched, and no other mode's stops change. Also covers the
-     * impersonation paths automatically because keep-focal delegates THROUGH the hooked
-     * method. Read live; takes effect on the next mode entry (camera restart if open).
+     * an existing key is never touched, and no other mode's stops change. Read live; takes
+     * effect on the next mode entry (camera restart if open).
      */
     const val KEY_CAMERA_MASTERLIVE_FULL_FOCAL = "camera_masterlive_full_focal"
-
-    /**
-     * MasterLive (实况运镜) auto-zoom collapse — experimental (default OFF). On myron the
-     * types-2/3 auto-zoom trip (主角非线性 / 自由线性) drives the SAT-composite zoom in an
-     * endless `onZoomingActionUpdate` loop (action 12/13, observed on-device), so the capture
-     * never reaches `mIsCaptureZoomCompleted` — the camera freezes after the shutter and the
-     * motion photo is never saved (type-0 高像素 has no trip and works). When on, the trip's
-     * TARGET zoom is collapsed to its START value: the ValueAnimator still runs to completion
-     * (keeping the completion chain intact) but produces no actual zoom driving, so the
-     * capture finishes like type 0 and saves a clean motion photo at the current zoom — the
-     * automatic dolly movement is lost. Requires a camera restart after changing.
-     */
-    const val KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE = "camera_masterlive_auto_zoom_collapse"
 
     /**
      * Custom watermark master switch. When on, the user-typed brand / model overrides
@@ -580,10 +479,8 @@ object Preferences {
      * see `CameraUltraQualityHooker`. The 设置→图片质量 option list (`SettingImageQuality`,
      * pref key `pref_camera_jpegquality_key`) gains its 超高 entry only while the per-device
      * capability config reports `l7() == true` — a base-class method declared as
-     * `return this instanceof C1148` (flagship-only marker) that neither this device's own
-     * `com.mi.device.Myron` config nor the K100 Pro Max impersonation target
-     * `com.mi.device.Songyuan` overrides, so 超高 is hidden on both the native and the
-     * impersonated path. The hook forces that one gate (declared once on the config base and
+     * `return this instanceof C1148` (flagship-only marker) that this device's own
+     * `com.mi.device.Myron` config does not override, so 超高 is hidden natively. The hook forces that one gate (declared once on the config base and
      * inherited by both) to this preference's live value: on = 超高 offered and the quality
      * clamp `j#t()` caps at `F1.g3.SUPER` (JPEG quality 100); off = forced false, exactly the
      * stock behaviour here, which also re-clamps a stale stored 超高 selection back to 高.
@@ -600,11 +497,10 @@ object Preferences {
      * theme customisation (`ro.theme_customize == "lcc"`), so every non-flagship,
      * non-LCC device ships the mode closed. With this switch on,
      * [com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker] raises
-     * `LegendaryEnter.support()` to true (and suppresses its own non-Nezha legendary
-     * guard), which registers mode 256 into the 更多 overflow grid — no verified config
-     * `M()` order array carries 256. Needs a camera app restart (the registry caches per
-     * process). The RAW/re-processing pipeline behind the mode is NOT validated on
-     * non-flagship HALs; turn it off if colours misbehave.
+     * `LegendaryEnter.support()` to true, which registers mode 256 into the 更多 overflow
+     * grid — no verified config `M()` order array carries 256. Needs a camera app restart
+     * (the registry caches per process). The RAW/re-processing pipeline behind the mode is
+     * NOT validated on non-flagship HALs; turn it off if colours misbehave.
      */
     const val KEY_CAMERA_LEGENDARY_MOMENT = "camera_legendary_moment"
 
@@ -667,17 +563,13 @@ object Preferences {
     /**
      * 街拍 (Street snap, camera mode id 225) unlock mode. One of [CameraStreetMode.MODES]:
      *  - `"off"` — street stays stock (hidden on myron and every other REDMI config);
-     *  - `"new"` (新街拍) — force the street-support gate (`a3()`) true on whatever config is
-     *    live. Works with OR without the camera-impersonation master: the base C1143 `a3()`
-     *    Method serves both the real device config and the K100 Pro Max impersonation (no
-     *    REDMI config ships `a3=true` natively), while the legacy Nezha branch keeps its own
-     *    override hooked. The mode then registers (`StreetModuleEntry.support()`) and the
-     *    quick-launch photo route re-classifies consistently with a working street;
+     *  - `"new"` (新街拍) — force the street-support gate (`a3()`) true on the real device
+     *    config (no REDMI config ships `a3=true` natively). The mode then registers
+     *    (`StreetModuleEntry.support()`) and the quick-launch photo route re-classifies
+     *    consistently with a working street;
      *  - `"compat"` (兼容模式街拍) — force `StreetModuleEntry.support()` itself true on the
-     *    REAL device config, independent of the impersonation: works even when the master
-     *    switch is off or the flagship swap fails to resolve, touches nothing else (`a3()`
-     *    stays native so quick-launch keeps its stock classification), and still opens the
-     *    HAL role-0 main camera.
+     *    REAL device config, touching nothing else (`a3()` stays native so quick-launch keeps
+     *    its stock classification), and still opens the HAL role-0 main camera.
      *
      * In both non-off modes the entry lands in the camera's 更多 overflow grid (no verified
      * config `M()` order array carries 225), which is exactly where natively street-capable
@@ -694,15 +586,13 @@ object Preferences {
     const val LEGACY_KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
 
     /**
-     * 实况运镜 (MasterLive, camera mode id 231) unlock master; default ON. Works with or
-     * WITHOUT the flagship impersonation: while on, the registry gate `y4()`
-     * (`MasterLiveModuleEntry.support()`) is forced true on the REAL device config's base
-     * Method (C1143 — the one stock Redmi configs dispatch to, false on myron) as well as on
-     * the impersonated config, the REDMI K100 effect table (`q0()`) is borrowed when the real
-     * config has none, and the Nezha-target `KEY_CAMERA_GUARD_MODES` delegation for `y4`
-     * suppresses itself. Carousel placement is handled by the `u2.P#y(Q)` order funnel plus
-     * the config `M()` fronting; capture function can be tuned with
-     * [KEY_CAMERA_MASTERLIVE_OPMODE_SAFE] and the role-23→20 fallback is gated on its own
+     * 实况运镜 (MasterLive, camera mode id 231) unlock master; default ON. While on, the
+     * registry gate `y4()` (`MasterLiveModuleEntry.support()`) is forced true on the REAL
+     * device config's base Method (C1143 — the one stock Redmi configs dispatch to, false on
+     * myron), and the REDMI K100 effect table (`q0()`) is borrowed when the real config has
+     * none. Carousel placement is handled by the `u2.P#y(Q)` order funnel plus the config
+     * `M()` fronting; capture sizing can be tuned with
+     * [KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE]; the role-23→20 fallback is gated on its own
      * key. Turn off to restore the stock / guarded behaviour.
      */
     const val KEY_CAMERA_MASTERLIVE_ENABLE = "camera_masterlive_enable"
@@ -950,7 +840,7 @@ object Preferences {
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
         if (!isInitialized) return default
-        memoGet(key)?.let { return ((it as? Set<*>) ?: default).toSet() as Set<String> }
+        memoGet(key)?.let { return ((it as? Set<*>) ?: default).map { element -> element as String }.toSet() }
         val value = try {
             if (remotePrefs.contains(key)) {
                 val v = remotePrefs.getStringSet(key, default) ?: default

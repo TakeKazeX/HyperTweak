@@ -155,11 +155,11 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             return null
         }
 
-        val cloudWmData = CLOUD_WM_DATA.toClass() ?: return null
-        val cloudWmConfig = CLOUD_WM_CONFIG.toClass() ?: return null
-        val wmItem = WM_ITEM.toClass() ?: return null
-        val wmCategory = WM_CATEGORY.toClass() ?: return null
-        val cloudWmItem = CLOUD_WM_ITEM.toClass() ?: return null
+        val cloudWmData = CLOUD_WM_DATA.toClass()
+        val cloudWmConfig = CLOUD_WM_CONFIG.toClass()
+        val wmItem = WM_ITEM.toClass()
+        val wmCategory = WM_CATEGORY.toClass()
+        val cloudWmItem = CLOUD_WM_ITEM.toClass()
 
         // vy.i0.a(CloudWatermarkConfigData, List): the cloud filter. Resolved by signature.
         val vyI0Filter = "vy.i0".toClassOrNull()
@@ -341,7 +341,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     nameLength?.clear()
                     displayApps?.let { if (!it.contains("ALL")) it.add("ALL") }
 
-                    val thisObj = param.thisObject ?: return@after
+                    val thisObj = param.thisObject
                     val validFrom = longFields.getOrNull(0)
                     val validTo = longFields.getOrNull(1)
                     if (validFrom != null) {

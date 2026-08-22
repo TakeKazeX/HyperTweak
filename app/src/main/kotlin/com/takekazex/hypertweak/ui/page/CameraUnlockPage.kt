@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,19 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.util.ScopeManager
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -54,47 +49,22 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
- * Flagship impersonation for the camera app (`com.android.camera`, MiuiCamera).
+ * Camera app (`com.android.camera`) feature unlocks.
  *
- * When the master switch is on, `CameraImpersonationHooker` swaps the per-device capability
- * config for a flagship (`com.mi.device.Nezha`) instance so every capability gate opens on any
- * device. The on-picture watermark is ALWAYS kept on this device's own brand + model
- * (unconditional — "keep model" is not a switch any more); turning the "custom watermark" switch
- * on reveals two text rows to override the brand and the model. The "keep focal lengths" switch
- * (on by default) keeps the zoom/focal line-up (焦段) on this device's own config while every
- * capability boolean still comes from the flagship. The initial enable needs a camera app restart
- * (the hooks are installed on attach); toggling the switches afterwards is live.
+ * The flagship config-swap impersonation was removed at the user's request (2026-08-30):
+ * the camera always runs its own real device config and every switch below unlocks
+ * functionality directly on it — MasterLive / street / Leica style / legendary moment /
+ * smart composition / content credentials / adaptive lens / ultra-HD quality, plus the
+ * independent fake-LCC-theme switch and the custom-watermark editor. The on-picture
+ * watermark and EXIF always carry this device's own brand + model.
+ *
+ * Most switches need a camera app restart (the hooks are installed on attach); toggling
+ * them afterwards is live unless a summary says otherwise.
  */
 @Composable
 fun CameraUnlockPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
-    var master by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE, false))
-    }
-    var themeLcc by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
-    }
-    var keepFocal by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_FOCAL, true))
-    }
-    var keepImaging by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_KEEP_IMAGING, true))
-    }
-    var guardModes by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_GUARD_MODES, true))
-    }
-    var guardCameraId by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_GUARD_CAMERA_ID, false))
-    }
-    var targetK100ProMax by remember {
-        mutableStateOf(
-            Preferences.getString(Preferences.KEY_CAMERA_IMPERSONATE_TARGET, "k100promax") ==
-                "k100promax"
-        )
-    }
     var streetMode by remember {
         mutableStateOf(Preferences.cameraStreetMode())
     }
@@ -129,25 +99,13 @@ fun CameraUnlockPage(onBack: () -> Unit) {
             Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, true)
         )
     }
-    var mlOpModeSafe by remember {
-        mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, false)
-        )
-    }
-    var mlCodecPin by remember {
-        mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_CODEC_PIN, false)
-        )
-    }
     var mlVideoSizeProbe by remember {
         mutableStateOf(
             Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
         )
     }
-    var mlAutoZoomCollapse by remember {
-        mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE, false)
-        )
+    var themeLcc by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
     }
     var customWm by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false))
@@ -160,13 +118,6 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     }
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
-
-    // Hoisted string resources (LocalContextGetResourceValueCall): resolved in composition,
-    // referenced from the coroutine below.
-    val scopeAdded = stringResource(R.string.watermark_scope_added_camera)
-    val scopeDeclined = stringResource(R.string.watermark_scope_declined_camera)
-    val scopeFailedFormat = stringResource(R.string.watermark_scope_failed_camera)
-    val scopeUnavailable = stringResource(R.string.watermark_scope_unavailable_camera)
 
     fun set(key: String, value: Boolean) {
         Preferences.putBoolean(key, value)
@@ -190,61 +141,11 @@ fun CameraUnlockPage(onBack: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle(stringResource(R.string.camera_unlock_master))
+            SmallTitle(stringResource(R.string.camera_unlock_features))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = master,
-                        onCheckedChange = { enabled ->
-                            master = enabled
-                            set(Preferences.KEY_CAMERA_IMPERSONATE, enabled)
-                            if (enabled) {
-                                // com.android.camera is a declared scope (scope.list); make
-                                // sure LSPosed actually granted it before the camera is restarted.
-                                coroutineScope.launch {
-                                    when (val result = ScopeManager.request(setOf("com.android.camera"))) {
-                                        is ScopeManager.Result.Applied -> Toast.makeText(
-                                            context,
-                                            scopeAdded,
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        ScopeManager.Result.NoChange -> Unit
-                                        is ScopeManager.Result.Rejected -> Toast.makeText(
-                                            context,
-                                            scopeDeclined,
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        is ScopeManager.Result.Failed -> Toast.makeText(
-                                            context,
-                                            String.format(scopeFailedFormat, result.message),
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
-                                            context,
-                                            scopeUnavailable,
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                            }
-                        },
-                        title = stringResource(R.string.camera_unlock_master_title),
-                        summary = stringResource(R.string.camera_unlock_master_summary)
-                    )
-                    SwitchPreference(
-                        checked = targetK100ProMax,
-                        onCheckedChange = { enabled ->
-                            targetK100ProMax = enabled
-                            Preferences.putString(
-                                Preferences.KEY_CAMERA_IMPERSONATE_TARGET,
-                                if (enabled) "k100promax" else "nezha"
-                            )
-                        },
-                        title = stringResource(R.string.camera_unlock_target_title),
-                        summary = stringResource(R.string.camera_unlock_target_summary)
-                    )
-                    // 街拍 (mode 225) unlock selector: 新街拍 rides on the impersonated
-                    // flagship config; 兼容模式街拍 opens the entry without impersonation.
+                    // 街拍 (mode 225) unlock selector: 新街拍 forces the street-support gate on
+                    // the real config; 兼容模式街拍 opens the entry via its own module entry.
                     // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
                     OverlayDropdownPreference(
                         title = stringResource(R.string.camera_unlock_street_title),
@@ -343,24 +244,6 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.camera_unlock_full_focal_summary)
                     )
                     SwitchPreference(
-                        checked = mlOpModeSafe,
-                        onCheckedChange = { enabled ->
-                            mlOpModeSafe = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_OPMODE_SAFE, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_opmode_title),
-                        summary = stringResource(R.string.camera_unlock_opmode_summary)
-                    )
-                    SwitchPreference(
-                        checked = mlCodecPin,
-                        onCheckedChange = { enabled ->
-                            mlCodecPin = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_CODEC_PIN, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_codec_pin_title),
-                        summary = stringResource(R.string.camera_unlock_codec_pin_summary)
-                    )
-                    SwitchPreference(
                         checked = mlVideoSizeProbe,
                         onCheckedChange = { enabled ->
                             mlVideoSizeProbe = enabled
@@ -368,51 +251,6 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_video_size_probe_title),
                         summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
-                    )
-                    SwitchPreference(
-                        checked = mlAutoZoomCollapse,
-                        onCheckedChange = { enabled ->
-                            mlAutoZoomCollapse = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_auto_zoom_collapse_title),
-                        summary = stringResource(R.string.camera_unlock_auto_zoom_collapse_summary)
-                    )
-                    SwitchPreference(
-                        checked = keepFocal,
-                        onCheckedChange = { enabled ->
-                            keepFocal = enabled
-                            set(Preferences.KEY_CAMERA_KEEP_FOCAL, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_keep_focal_title),
-                        summary = stringResource(R.string.camera_unlock_keep_focal_summary)
-                    )
-                    SwitchPreference(
-                        checked = keepImaging,
-                        onCheckedChange = { enabled ->
-                            keepImaging = enabled
-                            set(Preferences.KEY_CAMERA_KEEP_IMAGING, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_keep_imaging_title),
-                        summary = stringResource(R.string.camera_unlock_keep_imaging_summary)
-                    )
-                    SwitchPreference(
-                        checked = guardModes,
-                        onCheckedChange = { enabled ->
-                            guardModes = enabled
-                            set(Preferences.KEY_CAMERA_GUARD_MODES, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_guard_modes_title),
-                        summary = stringResource(R.string.camera_unlock_guard_modes_summary)
-                    )
-                    SwitchPreference(
-                        checked = guardCameraId,
-                        onCheckedChange = { enabled ->
-                            guardCameraId = enabled
-                            set(Preferences.KEY_CAMERA_GUARD_CAMERA_ID, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_guard_camera_id_title),
-                        summary = stringResource(R.string.camera_unlock_guard_camera_id_summary)
                     )
                     SwitchPreference(
                         checked = themeLcc,
@@ -464,6 +302,12 @@ fun CameraUnlockPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.camera_unlock_notes))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(
+                        text = stringResource(R.string.camera_unlock_note_scope),
+                        color = MiuixTheme.colorScheme.onSurface,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.camera_unlock_note_restart),
                         color = MiuixTheme.colorScheme.onSurface,

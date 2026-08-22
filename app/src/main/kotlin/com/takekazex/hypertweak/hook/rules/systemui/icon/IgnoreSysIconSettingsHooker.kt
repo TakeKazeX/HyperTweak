@@ -103,7 +103,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
                 } else {
                     speedClass.hookAllConstructors {
                         after { param ->
-                            val controller = param.thisObject ?: return@after
+                            val controller = param.thisObject
                             runCatching { showField.setBoolean(controller, netSpeedShown) }
                                 .onFailure { DebugLog.w(TAG, "mShowNetworkSpeed write failed", it) }
                         }

@@ -32,7 +32,7 @@ object StaticFieldWriter {
         Class.forName("sun.misc.Unsafe")
             .getDeclaredField("theInternalUnsafe")
             .apply { isAccessible = true }
-            .get(null)
+            .get(null)!!
     }
 
     private val staticFieldOffsetMethod: Method by lazy {
@@ -44,6 +44,7 @@ object StaticFieldWriter {
     }
 
     /** Writes [value] into the static [field]. */
+    @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun set(field: Field, value: Any?) {
         if (!field.isAccessible) runCatching { field.isAccessible = true }
         runCatching { field.set(null, value) }.onFailure {
@@ -52,6 +53,7 @@ object StaticFieldWriter {
     }
 
     /** Writes [value] into the static boolean [field]. */
+    @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun setBoolean(field: Field, value: Boolean) {
         if (!field.isAccessible) runCatching { field.isAccessible = true }
         runCatching { field.setBoolean(null, value) }.onFailure {

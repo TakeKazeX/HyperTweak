@@ -85,7 +85,7 @@ object HideCarrierLabelHooker : StaticHooker() {
             } else {
                 layoutClass.hookAllConstructors {
                     after { param ->
-                        val layout = param.thisObject ?: return@after
+                        val layout = param.thisObject
                         hideRow(leftTextField, layout)
                         hideRow(rightTextField, layout)
                     }
@@ -100,7 +100,7 @@ object HideCarrierLabelHooker : StaticHooker() {
                 ccClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
                     method.hook {
                         after { param ->
-                            val text = param.thisObject ?: return@after
+                            val text = param.thisObject
                             runCatching {
                                 (hdTextField?.get(text) as? View)?.visibility = View.GONE
                                 (plusTextField?.get(text) as? View)?.visibility = View.GONE
@@ -125,7 +125,7 @@ object HideCarrierLabelHooker : StaticHooker() {
                 callbackClass.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
                     method.hook {
                         after { param ->
-                            val callback = param.thisObject ?: return@after
+                            val callback = param.thisObject
                             val slotId = param.args.getOrNull(2) as? Int ?: return@after
                             val hide = when (slotId) {
                                 0 -> hideOne

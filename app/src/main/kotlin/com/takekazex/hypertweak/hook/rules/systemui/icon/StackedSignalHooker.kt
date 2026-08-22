@@ -186,7 +186,7 @@ object StackedSignalHooker : StaticHooker() {
         }
         imageViewClass.findMethodOrNull { name("setImageResource"); paramCount(1) }?.hook {
             before { param ->
-                if (applyingIcons.get()) return@before
+                if (applyingIcons.get() == true) return@before
                 if (!enabled) return@before
                 val view = param.thisObject as? ImageView ?: return@before
                 if (!isMobileSignalView(view)) return@before
@@ -241,7 +241,7 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         val container = mobile.parent as? ViewGroup
-        val sub = container?.findViewById(StackedSignalResources.SUB_MOBILE_ID) as? ImageView
+        val sub = container?.findViewById<ImageView>(StackedSignalResources.SUB_MOBILE_ID)
         if (applyDualSimIcons(mobile, sub)) {
             param.result = null
         }
@@ -296,7 +296,7 @@ object StackedSignalHooker : StaticHooker() {
             if (intFieldOrZero(root, "subId", Int.MIN_VALUE) != dataId) continue
             val mobile = root.findViewById(idRes(root, "mobile_signal")) as? ImageView ?: continue
             val container = mobile.parent as? ViewGroup
-            val sub = container?.findViewById(StackedSignalResources.SUB_MOBILE_ID) as? ImageView
+            val sub = container?.findViewById<ImageView>(StackedSignalResources.SUB_MOBILE_ID)
             applyDualSimIcons(mobile, sub)
         }
     }
@@ -530,7 +530,7 @@ object StackedSignalHooker : StaticHooker() {
         val name = runCatching { view.resources.getResourceEntryName(resId) }.getOrNull()
             ?: return null
         val level = signalLevelName.matcher(name).let { m ->
-            if (m.find()) m.group(1).toIntOrNull()?.coerceIn(0, 5) else null
+            if (m.find()) m.group(1)?.toIntOrNull()?.coerceIn(0, 5) else null
         } ?: return null
         signalResToLevel.put(resId, level)
         return level

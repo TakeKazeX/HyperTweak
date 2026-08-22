@@ -53,7 +53,7 @@ object HideCellularIconHooker : StaticHooker() {
         }
         interactorClass.findMethodOrNull { name("getMobileConnectionInteractorForSubId") }?.hook {
             after { param ->
-                val interactor = param.thisObject ?: return@after
+                val interactor = param.thisObject
                 val subId = runCatching { defaultSubIdField.get(interactor) as? Int }.getOrNull()
                 if (subId != null) {
                     defaultDataSubId.set(subId)
@@ -79,7 +79,7 @@ object HideCellularIconHooker : StaticHooker() {
         }
         vmClass.hookAllConstructors {
             after { param ->
-                val vm = param.thisObject ?: return@after
+                val vm = param.thisObject
                 val subId = runCatching { subscriptionField.get(vm) as? Int }.getOrNull()
                 if (subId == null) return@after
                 val default = defaultDataSubId.get()

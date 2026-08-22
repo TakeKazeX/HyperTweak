@@ -1681,6 +1681,31 @@ through one object `Je.c.b.f8427a.f8420e` (the per-device config, `com.mi.device
 created by the single factory `Je/e.q()` on 460 — **renamed `Je/e.G0()` on 510** — resolved
 through the host's R8 name-rewrite wrapper `Uf.c.a`).
 
+**REMOVED 2026-08-30 (user request — the switches were useless on the real flagship):** the
+flagship **config-swap impersonation is GONE**. Deleted: `KEY_CAMERA_IMPERSONATE` (master),
+`KEY_CAMERA_IMPERSONATE_TARGET` (K100/nezha target), `KEY_CAMERA_KEEP_FOCAL` (保留本机焦段),
+`KEY_CAMERA_KEEP_IMAGING` (成像身份保持本机), `KEY_CAMERA_GUARD_MODES` (隐藏无硬件支撑的模式),
+`KEY_CAMERA_GUARD_CAMERA_ID` (使用真实主摄), `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE`
+(实况运镜安全会话), `KEY_CAMERA_MASTERLIVE_CODEC_PIN` (运镜编码尺寸锁定) and
+`KEY_CAMERA_MASTERLIVE_AUTO_ZOOM_COLLAPSE` (运镜自动行程坍缩). The camera always runs its own
+real config (`com.mi.device.<Device>`); the hooker no longer swaps `Je/e.G0()`'s result, and
+`flagshipInstance()`/`buildFlagshipInstance()`/`patchConfigCacheFields`/`hookConfigFactory`
+plus the delegate machinery (`hookKeepFocal`/`hookImagingIdentity`/`hookModeGuards`/
+`hookDelegateBoolean`/`hookFacadeEquipStreetGate`/`soeSafeFallback`/`originalDelegateMethods`)
+are deleted with the keys. `CameraCodecSizePin` + its test were deleted. What stays and is
+**master-independent**: 街拍 (新街拍 `a3()` / 兼容模式 `StreetModuleEntry.support()`),
+保留徕卡风格 (`F3/X2`), 超高图片质量 (`CameraUltraQualityHooker`), 徕卡一瞬
+(`LegendaryEnter.support()` unlock only), 智能构图, 内容凭证, 自适应镜头, 实况运镜
+(MasterLive registry gate `y4()`, effect-table borrow from the K100 config via
+`resolveK100Config`, 红毯运镜 injection, 超清实况完整焦段, 运镜视频尺寸探针), the
+independent **伪装 LCC 主题** (`Je/c#V()` + the 相机配色 tint-color restore, both gated on
+`KEY_CAMERA_IMPERSONATE_THEME_LCC` only), the shutter-sound bounds guard, and the watermark
+keep/custom chain (all unconditional). Every kept unlock hooks the REAL config's base Methods
+(C1143/C1199) or config-independent classes; `configDispatchClasses()` now returns only the
+real config's class. All page summaries were rewritten to plain language (2026-08-30). The
+historical sections below document the pre-removal behaviour; the MasterLive effect-table
+borrow (`resolveK100Config` → `q0()`) still exists for 实况运镜 without any impersonation.
+
 ### Version-generic resolution (相机 hook 抗版本机制, 2026-08-21)
 
 The camera APK is re-obfuscated on every release, but only a **subset** of names change per
@@ -1713,7 +1738,8 @@ any device. The hooks re-read `Preferences` live (100 ms memo), so toggles apply
 camera restart once the master switch is on; the first enable needs a camera restart (hooks
 install on attach).
 
-- `KEY_CAMERA_IMPERSONATE` (master, default off).
+- `KEY_CAMERA_IMPERSONATE` (master, default off — **REMOVED 2026-08-30**, there is no
+  impersonation master any more; see the removal note at the top of this section).
 - Watermark keep-model is **unconditional** (there is no `KEY_CAMERA_WM_KEEP_MODEL` switch any
   more, and it is not even gated on the master): the on-picture watermark is always re-forced
   back to this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]` brand) and
@@ -2063,7 +2089,7 @@ confirmation — with the master off: 摄影风格 switcher visible, mode 231 in
 a usable effect list, 街拍 225 in 更多 capturing via the real main camera (each needs a
 camera restart for entry visibility) — is the user's.
 
-### MasterLive motion-photo artifact probe: circular-encoder codec-size pin (2026-08-27)
+### MasterLive motion-photo artifact probe: circular-encoder codec-size pin (2026-08-27 — feature REMOVED 2026-08-30)
 
 User report: 实况运镜 motion-photo output (实况动态) is corrupted — left side green, right side
 repeated lines — while the still frame and camera UI are fine, with the impersonation master

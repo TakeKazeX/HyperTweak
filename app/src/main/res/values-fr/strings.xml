@@ -5,24 +5,20 @@
     <string name="pref_language_device_default">Par défaut</string>
     <string name="pref_language_zh_cn">简体中文</string>
     <string name="pref_language_en">English</string>
-    <string name="camera_unlock_ultra_hd_title">Qualité d\'image ultra-élevée (déverrouillage fixe)</string>
-    <string name="camera_unlock_ultra_hd_summary">Verrouille l\'interrupteur de configuration appareil (l7) qui masque le niveau Ultra élevé, afin que Paramètres → Qualité d\'image propose et conserve Ultra élevé (qualité JPEG 100). Désactivé = comportement d\'origine (max Élevée) ; une sélection Ultra élevé enregistrée est ramenée. Le basculement est immédiat — rouvrez la page des paramètres pour actualiser la liste ; la première activation nécessite un redémarrage de l\'appareil photo</string>
+    <string name="camera_unlock_ultra_hd_title">Qualité d\'image ultra-élevée</string>
+    <string name="camera_unlock_ultra_hd_summary">Ajoute et conserve le niveau « Ultra » (qualité JPEG 100) dans Paramètres → Qualité d\'image. Désactivé = comportement d\'origine. La première activation nécessite un redémarrage de l\'appareil photo</string>
     <string name="camera_unlock_masterlive_title">实况运镜 (MasterLive)</string>
-    <string name="camera_unlock_masterlive_summary">Force la porte de registre de MasterLive (y4) et la table d\'effets REDMI — avec ou sans usurpation de gammes (les configs Redmi natives cachent entièrement le mode). Le placement dans la bande de modes est corrigé automatiquement ; si les captures se bloquent, activez aussi la session sûre ci-dessous. Les changements de visibilité nécessitent un redémarrage de l\'appareil photo</string>
-    <string name="camera_unlock_red_carpet_title">红毯运镜 (injection de l\'effet 17U)</string>
-    <string name="camera_unlock_red_carpet_summary">Synthétise le 红毯运镜 exclusif au 17 Ultra (fin au ralenti) dans la table d\'effets MasterLive : l\'entrée injectée clone l\'entrée linéaire déjà éprouvée sur cet appareil et ne réécrit que l\'identifiant de type, sans décoder de données inconnues de rôles/zoom ; 超清实况 reste l\'effet par défaut. Gardez la session sûre activée pour tirer en 红毯. Les changements de la liste d\'effets nécessitent un redémarrage de l\'appareil photo</string>
+    <string name="camera_unlock_masterlive_summary">Débloque le mode 实况运镜 de l\'appareil photo (masqué par défaut sur les Redmi). Nécessite un redémarrage de l\'appareil photo</string>
+    <string name="camera_unlock_red_carpet_title">红毯运镜</string>
+    <string name="camera_unlock_red_carpet_summary">Ajoute l\'effet 红毯运镜 (fin au ralenti) à 实况运镜. Nécessite un redémarrage de l\'appareil photo</string>
     <string name="camera_unlock_full_focal_title">Gamme focale complète dans 超清实况</string>
-    <string name="camera_unlock_full_focal_summary">La bande de focales dans 实况运镜 lit les paliers par mode depuis la configuration ; celle de cet appareil n\'a pas de clé 231 et le système retombe sur la paire figée 1x/2x. Une fois activé, la bande MasterLive gagne la gamme complète 0.7x/1x/2x/5x/10x (les paliers du K100 Pro Max, exactement l\'optique de cet appareil) ; les appareils avec des paliers natifs et tous les autres modes restent intacts</string>
-    <string name="camera_unlock_codec_pin_title">Verrouillage de la taille du codec MasterLive (expérimental)</string>
-    <string name="camera_unlock_codec_pin_summary">Correction expérimentale pour les photos animées 实况运镜 qui sortent vertes à gauche et avec des lignes répétées à droite : fige la taille du codec de l\'enregistreur circulaire à la taille pour laquelle le canevas de rendu a été construit, afin que les réécritures de taille par aperçu de prise de vue ne puissent plus écarter le format du codec du canevas. Désactivé par défaut ; nécessite un redémarrage de l\'appareil photo après modification</string>
-    <string name="camera_unlock_video_size_probe_title">Sonda de tamaño de vídeo MasterLive (experimental)</string>
-    <string name="camera_unlock_video_size_probe_summary">Corrige les photos animées de 实况运镜 (vertes/endommagées sur cet appareil et le blocage des types 2/3 après la prise) : lie le flux vidéo PAR TYPE D\'EFFET — 红毯/主角/自由 utilisent le 16:9 2304x1296 vérifié propre, et l\'effet 4:3 超清实况 utilise la géométrie 4:3 native propre de cet appareil (1728x1296). Un type illisible retombe sur 16:9. Désactivé par défaut ; nécessite un redémarrage de l\'appareil photo après modification</string>
-    <string name="camera_unlock_auto_zoom_collapse_title">Effondrement de l\'auto-zoom MasterLive (expérimental)</string>
-    <string name="camera_unlock_auto_zoom_collapse_summary">Corrige le blocage de 实况运镜 en 主角非线性 / 自由线性 (le parcours de zoom automatique boucle sans fin sur cet appareil, la capture ne se termine jamais et la photo animée n\'est pas enregistrée) : effondre le zoom cible à sa valeur initiale, la capture se termine comme 高像素 et enregistre une photo animée propre au zoom actuel — le mouvement de dolly automatique est perdu. Désactivé par défaut ; nécessite un redémarrage de l\'appareil photo après modification</string>
+    <string name="camera_unlock_full_focal_summary">Affiche la gamme complète 0.7x/1x/2x/5x/10x dans la bande de focales de 实况运镜 (par défaut seulement 1x/2x). Nécessite un redémarrage de l\'appareil photo</string>
+    <string name="camera_unlock_video_size_probe_title">Correction de la taille vidéo MasterLive (expérimental)</string>
+    <string name="camera_unlock_video_size_probe_summary">Corrige les photos animées 实况运镜 vertes ou abîmées. Désactivé par défaut ; nécessite un redémarrage de l\'appareil photo</string>
 
     <string name="camera_unlock_street_title">Mode photo de rue</string>
-    <string name="camera_unlock_street_summary">Comment débloquer 街拍 (mode 225). « Nouvelle photo de rue » force la porte de support (a3) de la configuration active — fonctionne avec ou sans usurpation de gammes ; « Photo de rue compatible » ouvre la vraie caméra principale sans usurpation. L\'entrée apparaît dans Plus après un redémarrage de l\'appareil photo ; 装备街拍 nécessite le matériel du 17 Ultra et reste indisponible</string>
+    <string name="camera_unlock_street_summary">Débloque le mode 街拍 dans la liste « Plus ». Nouveau : l\'active directement ; Compatible : l\'active sans modifier rien d\'autre. Nécessite un redémarrage de l\'appareil photo</string>
     <string name="camera_unlock_street_off">Désactivé</string>
-    <string name="camera_unlock_street_new">Nouvelle photo de rue (sans usurpation)</string>
-    <string name="camera_unlock_street_compat">Photo de rue compatible (sans usurpation)</string>
+    <string name="camera_unlock_street_new">Nouvelle photo de rue</string>
+    <string name="camera_unlock_street_compat">Photo de rue compatible</string>
 </resources>

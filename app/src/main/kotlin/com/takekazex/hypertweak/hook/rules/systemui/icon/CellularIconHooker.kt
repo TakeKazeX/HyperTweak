@@ -130,7 +130,7 @@ object CellularIconHooker : StaticHooker() {
             }
             observerClass.hookAllConstructors {
                 after { param ->
-                    val observer = param.thisObject ?: return@after
+                    val observer = param.thisObject
                     runCatching {
                         IconTunerFlows.writeField(observer, roamField, IconTunerFlows.falseFlow)
                     }.onFailure { t ->

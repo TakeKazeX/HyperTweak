@@ -139,6 +139,7 @@ object IconTunerFlows {
      * Writes [field] on [target], falling back to Unsafe when the reflective type check rejects
      * the value (ART refuses to write a `ReadonlyStateFlow`-typed field with a `StateFlowImpl`).
      */
+    @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun writeField(target: Any, field: Field, value: Any) {
         if (!field.isAccessible) runCatching { field.isAccessible = true }
         runCatching { field.set(target, value) }.onFailure {

@@ -596,7 +596,7 @@ object LeftContainerHooker : StaticHooker() {
             var c: Class<*>? = manager.javaClass
             while (c != null) {
                 val f = runCatching {
-                    c!!.getDeclaredField("mDarkIconDispatcher").apply { isAccessible = true }
+                    c.getDeclaredField("mDarkIconDispatcher").apply { isAccessible = true }
                 }.getOrNull()
                 if (f != null) {
                     darkDispatcherField = f
@@ -661,7 +661,7 @@ object LeftContainerHooker : StaticHooker() {
         var c: Class<*>? = clazz
         while (c != null) {
             runCatching {
-                return c!!.getDeclaredField(name).apply { isAccessible = true }
+                return c.getDeclaredField(name).apply { isAccessible = true }
             }
             c = c.superclass
         }
@@ -679,7 +679,7 @@ object LeftContainerHooker : StaticHooker() {
         var c: Class<*>? = cls
         while (c != null) {
             runCatching {
-                c!!.getDeclaredMethod("set", iconCls).apply { isAccessible = true }
+                c.getDeclaredMethod("set", iconCls).apply { isAccessible = true }
             }.getOrNull()?.let { method ->
                 iconViewSetMethod = method
                 return method

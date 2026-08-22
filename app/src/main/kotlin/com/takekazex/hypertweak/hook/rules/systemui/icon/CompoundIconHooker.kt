@@ -209,7 +209,7 @@ object CompoundIconHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    val policy = param.thisObject ?: return@after
+                    val policy = param.thisObject
                     val controller = readField(iconControllerField, policy) ?: return@after
                     val zen = readBool(zenVisibleField, policy)
                     val mute = readBool(muteVisibleField, policy)
@@ -229,7 +229,7 @@ object CompoundIconHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    val policy = param.thisObject ?: return@after
+                    val policy = param.thisObject
                     // CTA-required location is owned by the privacy controller; the ctor hook
                     // mirrors it instead (mirrors upstream's guard).
                     if (invokeStaticBool(isCtaRequiredLocationMethod)) return@after
@@ -254,7 +254,7 @@ object CompoundIconHooker : StaticHooker() {
             lambda3Class.findMethodOrNull { name("accept"); paramCount(1) }?.let { method ->
                 method.hook {
                     after { param ->
-                        val lambda = param.thisObject ?: return@after
+                        val lambda = param.thisObject
                         val classId = readInt(lambdaClassIdField, lambda)
                         if (classId != 0) return@after // classId 0 = the zen branch
                         val policy = readField(lambdaOwnerField, lambda) ?: return@after
@@ -278,7 +278,7 @@ object CompoundIconHooker : StaticHooker() {
             alarmCallbackClass.findMethodOrNull { name("onAlarmChanged"); paramCount(1) }?.let { method ->
                 method.hook {
                     after { param ->
-                        val callback = param.thisObject ?: return@after
+                        val callback = param.thisObject
                         val policy = readField(alarmCallbackOwnerField, callback) ?: return@after
                         val controller = readField(iconControllerField, policy) ?: return@after
                         val hasAlarm = readBool(hasAlarmField, policy)
