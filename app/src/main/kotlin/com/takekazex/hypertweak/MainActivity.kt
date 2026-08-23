@@ -213,6 +213,7 @@ class MainActivity : ComponentActivity() {
             var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
             var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var fullScreenTranslate by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)) }
+            var askAboutScreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
             var lockscreenFingerprintAvoid by remember {
@@ -523,6 +524,60 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            /**
+             * "Ask about this screen" lives in the same Google app process and required scope as
+             * full-screen translate, so the toggle mirrors it: request the scope on the first
+             * enable, then flip the preference and restart the app. The hooker reads the
+             * preference live, so after the restart the searchbox capability opens (on) or the
+             * hooks stop firing (off).
+             */
+            @SuppressLint("LocalContextGetResourceValueCall")
+            fun handleAskAboutScreenChange(checked: Boolean) {
+                askAboutScreen = checked
+                Preferences.putBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, checked)
+                // Block until the daemon has the new value: the Google app is force-stopped right
+                // after, and its onHook reads this preference — without the flush it can restart
+                // on a stale false and install none of the hooks.
+                Preferences.flush()
+                coroutineScope.launch {
+                    val googleApp = setOf(GoogleAppLiveTranslateHooker.PACKAGE)
+                    if (checked) {
+                        when (val result = ScopeManager.request(googleApp)) {
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
+                                RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
+                            }
+                            is ScopeManager.Result.Rejected -> {
+                                askAboutScreen = false
+                                Preferences.putBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        R.string.google_feature_scope_not_granted,
+                                        result.missing.joinToString()
+                                    ),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            is ScopeManager.Result.Failed -> Toast.makeText(
+                                context,
+                                context.getString(R.string.google_feature_scope_failed, result.message),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
+                                context,
+                                context.getString(R.string.google_feature_scope_unavailable),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        // The Google app is a declared required scope, so turning the feature off
+                        // only flips the preference (the hooks read it live and no-op on restart);
+                        // the scope itself is kept.
+                        RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
+                    }
+                }
+            }
+
             LaunchedEffect(serviceConnected) {
                 // The remote copy of the settings lives in the LSPosed daemon and survives a
                 // module uninstall, so a reinstall would silently restore the old config.
@@ -572,6 +627,7 @@ class MainActivity : ComponentActivity() {
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
                     quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     fullScreenTranslate = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
+                    askAboutScreen = Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
                     lockscreenFingerprintAvoid = Preferences.getInt(
@@ -781,6 +837,10 @@ class MainActivity : ComponentActivity() {
                     fullScreenTranslate = fullScreenTranslate,
                     onFullScreenTranslateChange = { checked ->
                         handleFullScreenTranslateChange(checked)
+                    },
+                    askAboutScreen = askAboutScreen,
+                    onAskAboutScreenChange = { checked ->
+                        handleAskAboutScreenChange(checked)
                     },
                     hideFingerprint = hideFingerprint,
                     hideLockscreenStatusBar = hideLockscreenStatusBar,

@@ -36,6 +36,18 @@ object Preferences {
      * and leaves the app untouched.
      */
     const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
+
+    /**
+     * Shows "Ask about this screen" (针对屏幕内容提问) in the Circle to Search (即圈即搜)
+     * Lensient searchbox on the Google app (`com.google.android.googlequicksearchbox`).
+     * `GoogleAppAskAboutScreenHooker` resolves the native Lensient screen-capability gate
+     * (`bydc.c()`, lazily server-fetched and false on stock) through the AIM model DI chain
+     * (`wry.iX()` → `doqf.<init>` → `djyp` coordinator) and force-opens it, mirroring upstream
+     * MiuiBackGestureHook commit `0f603b1d`. The Google app is a declared required Xposed scope
+     * (see `scope.list`); the switch flips the preference and restarts the app, and disabled
+     * (default) installs nothing.
+     */
+    const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
 

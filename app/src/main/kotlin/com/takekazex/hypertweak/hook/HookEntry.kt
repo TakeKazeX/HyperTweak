@@ -57,6 +57,7 @@ import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppAskAboutScreenHooker
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
@@ -572,10 +573,12 @@ class HookEntry : XposedModule() {
                 attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
             }
             "com.google.android.googlequicksearchbox" -> {
-                // Only acts while the full-screen live-translate switch is on (the package is a
-                // declared required scope, see `scope.list` + `ScopeManager`); the hooker itself
-                // returns early when the preference is off. See GoogleAppLiveTranslateHooker.
+                // Only act while a Google-side feature switch is on (the package is a declared
+                // required scope, see `scope.list` + `ScopeManager`); each hooker returns early
+                // when its own preference is off. See GoogleAppLiveTranslateHooker and
+                // GoogleAppAskAboutScreenHooker.
                 attachHooker(GoogleAppLiveTranslateHooker, classLoader, ctx, replacementHandles)
+                attachHooker(GoogleAppAskAboutScreenHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.mediaeditor" -> {
                 attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)

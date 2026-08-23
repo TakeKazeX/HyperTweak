@@ -527,6 +527,11 @@
     <string name="full_screen_translate_scope_not_granted">未能授予 %1$s 作用域；功能保持关闭</string>
     <string name="full_screen_translate_scope_failed">作用域更新失败：%1$s</string>
     <string name="full_screen_translate_scope_unavailable">Xposed 服务不可用</string>
+    <string name="tweaks_ask_about_screen_title">即圈即搜内针对屏幕提问</string>
+    <string name="tweaks_ask_about_screen_summary">在即圈即搜（Circle to Search）浮层内启用 Lensient「针对屏幕内容提问」AI 搜索框。解锁隐藏它的 Google 侧屏幕能力开关。Google 应用为必备作用域；开启仅写入偏好并重启应用生效。</string>
+    <string name="google_feature_scope_not_granted">未能授予 %1$s 作用域；功能保持关闭</string>
+    <string name="google_feature_scope_failed">作用域更新失败：%1$s</string>
+    <string name="google_feature_scope_unavailable">Xposed 服务不可用</string>
     <string name="tweaks_raise_layout_summary">保留导航栏预留空间，让应用内容位于手势区域上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>
     <string name="tweaks_slide_back_animation_summary">在手势后方滑入上一个界面</string>

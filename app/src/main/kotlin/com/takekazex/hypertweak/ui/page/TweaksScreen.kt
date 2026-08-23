@@ -52,6 +52,8 @@ fun TweaksScreenContent(
     onQuickShareEnabledChange: (Boolean) -> Unit,
     fullScreenTranslate: Boolean,
     onFullScreenTranslateChange: (Boolean) -> Unit,
+    askAboutScreen: Boolean,
+    onAskAboutScreenChange: (Boolean) -> Unit,
     hideFingerprint: Boolean,
     onHideFingerprintChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
@@ -363,6 +365,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onFullScreenTranslateChange,
                         title = stringResource(R.string.tweaks_full_screen_translate_title),
                         summary = stringResource(R.string.tweaks_full_screen_translate_summary)
+                    )
+                    SwitchPreference(
+                        checked = askAboutScreen,
+                        onCheckedChange = onAskAboutScreenChange,
+                        title = stringResource(R.string.tweaks_ask_about_screen_title),
+                        summary = stringResource(R.string.tweaks_ask_about_screen_summary)
                     )
                     SwitchPreference(
                         checked = unlockPasskey,

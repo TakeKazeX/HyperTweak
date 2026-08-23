@@ -527,6 +527,11 @@
     <string name="full_screen_translate_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
     <string name="full_screen_translate_scope_failed">Could not update the scope: %1$s</string>
     <string name="full_screen_translate_scope_unavailable">The Xposed service is unavailable</string>
+    <string name="tweaks_ask_about_screen_title">Ask about this screen in Circle to Search</string>
+    <string name="tweaks_ask_about_screen_summary">Enables the Lensient "Ask about this screen" AI searchbox inside the Circle to Search (即圈即搜) overlay. Unlocks the native Google-side screen-capability gate that keeps it hidden. The Google app is a required scope; enabling flips the preference and restarts it.</string>
+    <string name="google_feature_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
+    <string name="google_feature_scope_failed">Could not update the scope: %1$s</string>
+    <string name="google_feature_scope_unavailable">The Xposed service is unavailable</string>
     <string name="tweaks_raise_layout_summary">Keep the reserved navigation bar space so app content sits above the gesture area</string>
     <string name="tweaks_raise_layout_title">Raise Layout</string>
     <string name="tweaks_slide_back_animation_summary">Slide the previous activity in behind the gesture</string>
