@@ -986,6 +986,27 @@ object Preferences {
         write { putString(key, value) }
     }
 
+    /**
+     * Writes a string and waits for the remote preferences commit to finish. This is used for
+     * state that is immediately followed by restarting a hooked process, where an asynchronous
+     * daemon write can otherwise race process startup.
+     */
+    fun putStringSynchronous(key: String, value: String) {
+        memoInvalidate(key)
+        if (!isInitialized) return
+        val local = localSourcePrefs
+        runCatching { local?.edit(commit = true) { putString(key, value) } }
+        if (isLocalOnly || local === remotePrefs) return
+        val task = serializedWriter.submit {
+            runCatching {
+                remotePrefs.edit().putString(key, value).commit()
+            }.onFailure { t ->
+                DebugLog.w("Preferences", "synchronous remote pref write failed", t)
+            }
+        }
+        runCatching { task.get(3, TimeUnit.SECONDS) }
+    }
+
     fun appendDebugLog(processTag: String, line: String) {
         synchronized(logLock) {
             appendDebugLogs(processTag, listOf(line))

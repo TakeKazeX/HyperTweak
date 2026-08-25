@@ -135,6 +135,9 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     /** The adapter's `attachedHolders` field (ArrayList[] of per-spread-row holder buckets). */
     private var attachedHoldersField: Field? = null
 
+    /** The adapter's GridLayoutManager, whose span lookup must be invalidated after reordering. */
+    private var layoutManagerField: Field? = null
+
     /** `ControlCenterViewHolder.endAnimation()` — resets translation/alpha/scale to rest state. */
     private var endAnimationMethod: java.lang.reflect.Method? = null
 
@@ -148,10 +151,71 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         installEditVisibilityHooks()
         installDraggableHook()
         installEditTouchBlockHook()
+        installPriorityHooks()
+        installCardSpanHook()
         installContentOrderHook()
         installMoveHooks()
         installTopCardOrderHook()
         installModeSweepHook()
+    }
+
+    /**
+     * The host rebuilds the content list from child-controller priorities on every SystemUI
+     * startup. Reordering only the adapter map is transient, so override this stable ordering
+     * boundary from the persisted module order as well.
+     */
+    private fun installPriorityHooks() {
+        val names = listOf(
+            "miui.systemui.controlcenter.panel.main.qs.QSCardsController",
+            "miui.systemui.controlcenter.panel.main.media.MediaPlayerController",
+            "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController",
+            "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController",
+            "miui.systemui.controlcenter.panel.main.devicecenter.entry.DeviceCenterEntryController",
+            "miui.systemui.controlcenter.panel.main.qs.QSListController"
+        )
+        var installed = 0
+        names.forEach { name ->
+            val cls = name.toClassOrNull() ?: return@forEach
+            val getter = CompatibleMethodResolver.find(
+                cls, "getPriority", returnType = Int::class.javaPrimitiveType
+            ) ?: return@forEach
+            getter.hook {
+                before { param ->
+                    if (!enabled()) return@before
+                    runCatching {
+                        val order = storedContentOrder()
+                        if (order.isEmpty()) return@runCatching
+                        val key = contentKey(param.thisObject)
+                        val index = order.indexOf(key)
+                        if (index >= 0) param.result = 10 + index * 10
+                    }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: priority", t) }
+                }
+            }
+            installed++
+        }
+        Log.i(TAG, "ControlCenterCardsEdit: priority hooks installed=$installed")
+    }
+
+    /** Keep the WiFi card's compact 1x2 span stable when it sits beside a 2x2 card. */
+    private fun installCardSpanHook() {
+        val record = "miui.systemui.controlcenter.panel.main.qs.QSRecord".toClassOrNull()
+            ?: return
+        val spec = CompatibleMethodResolver.find(record, "getSpec") ?: return
+        val span = CompatibleMethodResolver.find(
+            record, "getSpanSize", returnType = Int::class.javaPrimitiveType
+        ) ?: return
+        span.hook {
+            before { param ->
+                if (!enabled()) return@before
+                runCatching {
+                    val tileSpec = spec.invoke(param.thisObject)?.toString()?.lowercase() ?: return@runCatching
+                    if (tileSpec == "wifi" || tileSpec == "wifi1" || tileSpec == "wifi2") {
+                        param.result = 1
+                    }
+                }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: card span", t) }
+            }
+        }
+        Log.i(TAG, "ControlCenterCardsEdit: card span hook installed")
     }
 
     private fun enabled(): Boolean =
@@ -491,6 +555,23 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val reordered = LinkedHashMap<Any, MutableList<Any>>(current.size)
         keys.forEach { key -> if (key != null) reordered[key] = current.getValue(key) }
         mapField.set(adapter, reordered)
+        invalidateSpanCaches(adapter)
+    }
+
+    /** Reordering content changes the item at every position; stale span caches corrupt card sizes. */
+    private fun invalidateSpanCaches(adapter: Any) {
+        runCatching {
+            val layoutManager = layoutManagerField?.get(adapter) ?: return@runCatching
+            val lookup = layoutManager.javaClass.methods.firstOrNull {
+                it.name == "getSpanSizeLookup" && it.parameterCount == 0
+            }?.invoke(layoutManager) ?: return@runCatching
+            lookup.javaClass.methods.firstOrNull {
+                it.name == "invalidateSpanIndexCache" && it.parameterCount == 0
+            }?.invoke(lookup)
+            lookup.javaClass.methods.firstOrNull {
+                it.name == "invalidateSpanGroupIndexCache" && it.parameterCount == 0
+            }?.invoke(lookup)
+        }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: invalidate span cache", t) }
     }
 
     private fun storedContentOrder(): List<String> =
@@ -518,6 +599,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         suppressAnimator = resolveAnimatorSuppressor(adapter)
         adapterModeField = findField(adapter, "mode")
         attachedHoldersField = findField(adapter, "attachedHolders")
+        layoutManagerField = findField(adapter, "layoutManager")
         endAnimationMethod = "miui.systemui.controlcenter.panel.main.recyclerview.ControlCenterViewHolder"
             .toClassOrNull()?.methods?.firstOrNull {
                 it.name == "endAnimation" && it.parameterCount == 0
@@ -533,7 +615,9 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
         onMove.hook {
             before { param ->
-                if (!enabled()) return@before
+                val active = enabled()
+                Log.i(TAG, "ControlCenterCardsEdit: onMove entered enabled=$active")
+                if (!active) return@before
                 runCatching {
                     handleOnMove(adapterField, param.thisObject, param.args.getOrNull(1), param.args.getOrNull(2))
                         ?.let { param.result = true }
@@ -632,6 +716,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             if (from < 0 || to < 0 || from == to) return null
             order.add(to, order.removeAt(from))
             pendingCardOrder = order
+            persistOrder(Preferences.KEY_CC_TOP_CARD_ORDER, order)
             dragGeneration++
             // A one-position swap animates like a native tile move: do NOT suppress the editor's
             // item animator for this refresh, so the two cards slide to their new slots instead of
@@ -662,9 +747,21 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val insertAt = if (from < to) to - 1 else to
         order.add(insertAt, order.removeAt(from))
         pendingContentOrder = order
+        persistOrder(Preferences.KEY_CC_MAIN_CONTENT_ORDER, order)
         dragGeneration++
         postRefresh(adapter, animate = false)
         return true
+    }
+
+    /** Persist every accepted move so a host that skips its drag-end callback cannot lose it. */
+    private fun persistOrder(key: String, order: List<String>) {
+        val value = order.joinToString(",")
+        if (key == Preferences.KEY_CC_MAIN_CONTENT_ORDER) {
+            committedContentOrder = value
+        } else if (key == Preferences.KEY_CC_TOP_CARD_ORDER) {
+            committedCardOrder = value
+        }
+        Preferences.putStringSynchronous(key, value)
     }
 
     /** Synthesizes the full movable-section sequence from the currently rendered map. */
@@ -784,7 +881,6 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     private fun commitPendingOrders(adapterField: Field?, callback: Any) {
         val content = pendingContentOrder
         val cards = pendingCardOrder
-        if (content == null && cards == null) return
         // adapterField is resolved from a specific anonymous class (the itemTouchHelper$2
         // callback or the itemTouchHelper$1 helper); get() throws for any other
         // ItemTouchHelper.Callback/helper instance in the process, which also means the drag did
@@ -796,15 +892,28 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             val value = content.joinToString(",")
             pendingContentOrder = null
             committedContentOrder = value
-            Preferences.putString(Preferences.KEY_CC_MAIN_CONTENT_ORDER, value)
+            Preferences.putStringSynchronous(Preferences.KEY_CC_MAIN_CONTENT_ORDER, value)
             Log.i(TAG, "ControlCenterCardsEdit: content order saved=$value")
         }
         if (cards != null) {
             val value = cards.joinToString(",")
             pendingCardOrder = null
             committedCardOrder = value
-            Preferences.putString(Preferences.KEY_CC_TOP_CARD_ORDER, value)
+            Preferences.putStringSynchronous(Preferences.KEY_CC_TOP_CARD_ORDER, value)
             Log.i(TAG, "ControlCenterCardsEdit: card order saved=$value")
+        }
+        if (content == null && cards == null) {
+            // Some plugin builds update the adapter map without returning true from the callback.
+            // Capture that already-rendered order at drag end as a last-resort persistence path.
+            val current = currentSectionSequence(adapter)
+            val stock = SECTION_KEYS + "qslist"
+            if (current.toSet() == stock.toSet() && current != stock) {
+                val value = current.joinToString(",")
+                committedContentOrder = value
+                Preferences.putStringSynchronous(Preferences.KEY_CC_MAIN_CONTENT_ORDER, value)
+                Log.i(TAG, "ControlCenterCardsEdit: captured adapter order=$value")
+            }
+            return
         }
         // Make the daemon write land before the final settle refresh (and before the user can
         // leave the editor), so a fresh process never re-reads the previous value.

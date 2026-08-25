@@ -52,6 +52,7 @@ object SystemUIPluginHooker : StaticHooker() {
                         // short names; accept both so one hooker covers both plugin generations.
                         val componentName = readPluginField(pluginInstance, "mComponentName", "componentName") as? ComponentName
 
+                        Log.i("HyperTweak", "SystemUIPluginHooker: loadPlugin component=$componentName")
                         if (componentName != null && isControlCenterPlugin(componentName)) {
                             attachPluginHooker(pluginInstance, componentName)
                         }
@@ -111,13 +112,27 @@ object SystemUIPluginHooker : StaticHooker() {
             ?: pluginData?.let { readPluginField(it, "plugin") }
         val appContext = readPluginField(pluginInstance, "mAppContext") as? Context
             ?: pluginData?.let { readPluginField(it, "context") as? Context }
-        val classLoader = plugin?.javaClass?.classLoader
-            ?: (appContext as? ContextWrapper)?.classLoader
+        // The loaded plugin object can be a host-side proxy on OS4. Prefer the plugin context's
+        // PathClassLoader, which is the loader that actually owns MainPanelAdapter and its nested
+        // ItemTouchHelper callback classes.
+        val classLoader = (appContext as? ContextWrapper)?.classLoader
+            ?: plugin?.javaClass?.classLoader
             ?: readPluginField(pluginInstance, "mClassLoader") as? ClassLoader
+        Log.i(
+            "HyperTweak",
+            "SystemUIPluginHooker: loaded component=$componentName " +
+                "plugin=${plugin?.javaClass?.name} loader=${classLoader?.javaClass?.name}"
+        )
         if (classLoader == null) {
             DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
             Log.e("HyperTweak", "SystemUIPluginHooker: failed to extract loaded plugin ClassLoader")
             return
+        }
+        runCatching {
+            classLoader.loadClass("miui.systemui.controlcenter.panel.main.recyclerview.MainPanelAdapter")
+            Log.i("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter resolved")
+        }.onFailure { t ->
+            Log.w("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter unresolved", t)
         }
 
         val pluginFactory = readPluginField(pluginInstance, "mPluginFactory", "pluginFactory")
