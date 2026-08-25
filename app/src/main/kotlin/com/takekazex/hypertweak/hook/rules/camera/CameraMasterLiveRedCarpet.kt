@@ -30,6 +30,15 @@ internal object CameraMasterLiveRedCarpet {
     /** The 红毯运镜 (slow-motion movement) effect type id. */
     const val RED_CARPET_TYPE = "1"
 
+    /**
+     * Whether the slow-motion tail must be downgraded for this hardware. The 540 camera
+     * exposes the red-carpet UI on myron, but its qcom HAL does not advertise the HSR
+     * capability that the type-1 capture path waits for. Keeping this decision pure makes
+     * the process-boundary hook easy to test and prevents the fallback from affecting 17U.
+     */
+    fun needsSlowMotionFallback(device: String?, hardware: String?): Boolean =
+        device.equals("myron", ignoreCase = true) && hardware.equals("qcom", ignoreCase = true)
+
     /** The ultra-pixel (超清实况) type id — the stock DEFAULT effect; never steal its flag. */
     const val ULTRA_PIXEL_TYPE = "0"
 

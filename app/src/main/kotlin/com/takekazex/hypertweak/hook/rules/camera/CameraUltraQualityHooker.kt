@@ -54,7 +54,7 @@ object CameraUltraQualityHooker : StaticHooker() {
      * (same candidates as CameraImpersonationHooker.CONFIG_FACADE_CANDIDATES; kept local so
      * this hooker stays independent of that class's private constants).
      */
-    private val CONFIG_FACADE_CANDIDATES = listOf("Je.c")
+    private val CONFIG_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -120,11 +120,15 @@ object CameraUltraQualityHooker : StaticHooker() {
                     return it
                 }
         }
-        // Channel B: live singleton's concrete config class -> same declaring Method.
+        // Channel B: live singleton's concrete config class -> same declaring Method. The holder
+        // was `Je.c$b` on 460/510 and `Je.b$C0165b` on 540, so discover it by its static field
+        // type instead of baking another R8-generated nested-class name.
         runCatching {
-            val holder = classLoader.loadClass("Je.c\$b") ?: return@runCatching
-            val singleton = resolveField(holder, "a", "f8427a")?.apply { isAccessible = true }
-                ?.get(null) ?: return@runCatching
+            val singleton = facade.declaredClasses.asSequence()
+                .flatMap { it.declaredFields.asSequence() }
+                .firstOrNull {
+                    Modifier.isStatic(it.modifiers) && it.type == facade
+                }?.apply { isAccessible = true }?.get(null) ?: return@runCatching
             val config = resolveField(singleton.javaClass, "e", "f8420e")
                 ?.apply { isAccessible = true }?.get(singleton) ?: return@runCatching
             config.javaClass.getMethod("l7").takeIf(::isSuperQualityGate)?.let {

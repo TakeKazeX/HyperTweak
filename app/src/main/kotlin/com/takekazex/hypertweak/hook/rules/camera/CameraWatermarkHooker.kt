@@ -45,8 +45,8 @@ object CameraWatermarkHooker : StaticHooker() {
      */
     private val DEBUG_FLAG_CANDIDATES = listOf("Gg.u\$b", "Gg.C1686u\$b")
 
-    /** Device-config facade candidates (`Je.c` survived 460 -> 510 unchanged). */
-    private val DEVICE_FACADE_CANDIDATES = listOf("Je.c")
+    /** Device-config facade candidates (540 renamed `Je.c` -> `Je.b`). */
+    private val DEVICE_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

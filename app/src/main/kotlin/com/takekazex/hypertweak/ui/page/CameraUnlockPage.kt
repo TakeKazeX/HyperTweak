@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -78,13 +79,19 @@ fun CameraUnlockPage(onBack: () -> Unit) {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
     }
     var legendaryMoment by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false))
+        mutableStateOf(
+            Build.DEVICE.equals("myron", ignoreCase = true) ||
+                Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
+        )
     }
     var smartComposition by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false))
     }
     var contentCredential by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false))
+        mutableStateOf(
+            Build.DEVICE.equals("myron", ignoreCase = true) ||
+                Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+        )
     }
     var adaptiveLens by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false))
@@ -104,7 +111,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     }
     var mlVideoSizeProbe by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, true)
         )
     }
     var themeLcc by remember {

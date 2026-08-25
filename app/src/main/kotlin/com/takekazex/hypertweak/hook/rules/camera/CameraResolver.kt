@@ -23,8 +23,8 @@ import java.lang.reflect.Modifier
  *  1. [candidates] - known dex names accumulated across verified versions (newest first);
  *     each candidate is validated so a *repurposed* name (the `Ox.g` trap) is rejected.
  *  2. [probe]     - a DexKit query (plaintext-string or structural matcher) when the APK
- *     carries a stable discriminator; results are cached by [DexKitManager] and re-run
- *     automatically when the camera APK's mtime changes (i.e. after every camera update).
+ *     carries a stable discriminator; results are cached by [DexKitManager] and automatically
+ *     re-run when the camera APK fingerprint changes or a cached class fails validation.
  *  3. fall back to the target-specific behavioural chain in the hooker (e.g. the
  *     `Uf.c.a(sourceName)` resolver for `com.mi.device.*` configs, or semantic getter
  *     comparison for the flagship config role).
@@ -69,7 +69,8 @@ object CameraResolver {
             DebugLog.d(scope, "$key resolved by candidate name $name")
             return clazz
         }
-        // L2: DexKit probes (results cached by DexKitManager; re-scanned after camera updates).
+        // L2: DexKit probes (content-fingerprint cache; re-scanned after updates or validation
+        // failures).
         if (probe != null) {
             val info = ctx.appInfo ?: run {
                 DebugLog.w(scope, "$key: appInfo unavailable, cannot run DexKit probe")
@@ -89,6 +90,10 @@ object CameraResolver {
                 classLoader = ctx.classLoader,
                 queries = mapOf(key to { bridge -> probe(bridge) }),
                 logMissingQueries = false,
+                // A cached obfuscated name may still load after an update while now referring
+                // to an unrelated class. Validate it inside the cache manager so that a semantic
+                // mismatch automatically triggers a fresh DexKit scan for this key.
+                validators = mapOf(key to validate),
             )
             val clazz = resolved[key]
             if (clazz != null && validate(clazz)) {

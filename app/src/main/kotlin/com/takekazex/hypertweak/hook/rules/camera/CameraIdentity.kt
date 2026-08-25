@@ -18,6 +18,9 @@ internal object CameraIdentity {
      */
     const val MASTER_LIVE_MODE_ID = 231
 
+    /** 徕卡一瞬 (Leica Moment) module id. */
+    const val LEGENDARY_MOMENT_MODE_ID = 256
+
     /**
      * The full zoom-toggle stops served for mode 231 when the config has none
      * (`CameraImpersonationHooker.hookMasterLiveFullFocal`): the K100 Pro Max `v1()[231]`
@@ -38,7 +41,8 @@ internal object CameraIdentity {
         if (existingValue is FloatArray) MASTER_LIVE_FOCAL_STOPS else MASTER_LIVE_FOCAL_STOPS.toTypedArray()
 
     /**
-     * The 更多 (more/overflow) marker mode id. `u2.P` (ComponentModuleList) splits the mode
+     * The 更多 (more/overflow) marker mode id. ComponentModuleList (`u2.S` on 540, `u2.P` on
+     * 510, `u2.U` on 460) splits the mode
      * strip at the FIRST item whose id is this marker (`C()`, jadx `p700u2/P.java:469-490`):
      * items before it form the carousel (`s()`), items after it the overflow panel (`v()`).
      */
@@ -48,7 +52,7 @@ internal object CameraIdentity {
      * Front-load [MASTER_LIVE_MODE_ID] into a config's mode-ordering array (`M()[I`), or
      * return null when nothing changes (array already contains it, or null input).
      *
-     * The per-device config's `M()` array is the ONLY consumer input of `u2.P`
+     * The per-device config's `M()` array is the ONLY consumer input of ComponentModuleList
      * (ComponentModuleList) for ordering the mode carousel against the 更多 (254) marker: the
      * Nezha (17 Ultra) config fronts `{231,…}` so MasterLive opens the carousel, while the
      * K100 Pro Max config omits it entirely — the mode then lands after the marker, i.e. only
@@ -61,7 +65,7 @@ internal object CameraIdentity {
     }
 
     /**
-     * Semantic shape of `u2.P`'s static default list field (`k` / jadx `f62382k`,
+     * Semantic shape of ComponentModuleList's static default list field (`k` / jadx `f62382k`,
      * `p700u2/P.java:51`): an int[] that contains BOTH the 更多 marker [MODE_LIST_MORE_MARKER]
      * and [MASTER_LIVE_MODE_ID]. On every verified build (6.6.000460.0 `u2.U`,
      * 6.6.000510.0 `u2/P.smali` clinit `{…0xfe(254)…0xe7(231)…}`) this is the ONLY static

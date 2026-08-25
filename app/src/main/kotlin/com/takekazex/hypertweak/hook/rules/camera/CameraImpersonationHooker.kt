@@ -43,11 +43,11 @@ object CameraImpersonationHooker : StaticHooker() {
      * ViewModel on 510), so every candidate is validated by method shape before use.
      */
 
-    /** Device-config facade `Je.c` (stable across 460/510): x/y/w/v/V/M + singleton `Je.c$b`. */
-    private val CONFIG_FACADE_CANDIDATES = listOf("Je.c")
+    /** Device-config facade (540 renamed `Je.c` -> `Je.b`; x/y/w/v/V/M remain the API). */
+    private val CONFIG_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
 
-    /** Device-config factory `Je.e` (class stable; factory method renamed `q` -> `G0` on 510). */
-    private val CONFIG_FACTORY_CLASS_CANDIDATES = listOf("Je.e")
+    /** Device-config factory (540 renamed `Je.e` -> `Ag.f`; both expose static cache field `b`). */
+    private val CONFIG_FACTORY_CLASS_CANDIDATES = listOf("Ag.f", "Je.e")
 
     /**
      * Dex class names of the REDMI K100 Pro Max / POCO F9 Ultra config, newest first
@@ -133,6 +133,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookStreetQuickLaunch()
         hookLeicaStyle()
         hookLegendarySupport()
+        hookLegendaryRegistry()
         hookSmartComposition()
         hookSmartCompositionTopRow()
         hookSmartCompositionFeatureBar()
@@ -141,6 +142,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookMasterLiveModePlacement()
         hookMasterLiveSupportGate()
         hookMasterLiveRealEffectTable()
+        hookMasterLiveSlowMotionFallback()
         hookMasterLiveFullFocal()
         hookMasterLiveOrderFunnel()
         hookMasterLiveSupportEntry()
@@ -241,7 +243,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * channel every `com.mi.device.*` config resolves through (`Uf.c.a(String) -> Class<*>`,
      * the same call the config factory `Je.e.G0()` makes).
      */
-    private val SOURCE_RESOLVER_CANDIDATES = listOf("Uf.c")
+    private val SOURCE_RESOLVER_CANDIDATES = listOf("Uf.d", "Uf.c")
 
     /**
      * Resolve + validate the source-name resolver: a STATIC single-`String` method returning
@@ -669,32 +671,29 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
-     * `p497o9.a.f53945a.d().s()` (jadx aliases; real names `o9.a.f53945a.d().s()`). The holder
-     * picks the provider from `Je/c.V()`: the LCC branch's provider returns false, hiding the
-     * entry — on 6.6.000460.0 that provider was `Ox.g` with method `i()`, on 6.6.000510.0 it is
-     * `Gt.a` with method `s()` (`Gt.a` implements `p9.f`, whose boolean `s()` is the gate;
-     * verified in smali: `y9.c.d()` returns the `Gt.a` instance). Note the obfuscator REUSED
-     * the name `Ox.g` for an unrelated state-list helper on 510, so the semantic check (a
-     * boolean zero-arg `s`/`i` method) is what rejects the trap; a repurposed name degrades to
-     * a logged skip, never a wrong hook. Forcing the gate true whenever the fake-LCC-theme
-     * switch is on restores the entry; a genuinely-LCC device without the switch keeps stock
-     * behaviour.
+     * `p493o9.a.f48088a.d().j()` in 540 (the obfuscator changed the provider interface and method
+     * name). The holder picks the provider from `Je/b.V()`: 540's providers are `Gw.g#j()`
+     * (LCC branch) and `p637sd.A#j()` (ordinary branch). On 6.6.000460.0 the equivalent was
+     * `Ox.g#i()`, and on 6.6.000510.0 it was `Gt.a#s()`. Keep all names in the candidate chain,
+     * but require a zero-argument boolean method so a reused obfuscated name can only degrade to
+     * a logged skip, never a wrong hook. Forcing the gate true whenever the fake-LCC-theme switch
+     * is on restores the entry; a genuinely-LCC device without the switch keeps stock behaviour.
      */
     private fun hookLccCustomizationProvider() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "lcc_provider", ctx = ctx,
-            // Gt.a = 6.6.000510.0 provider; Ox.g = 6.6.000460.0 (repurposed on 510, rejected by
-            // the validation).
-            candidates = listOf("Gt.a", "Ox.g"),
-            validate = { CameraResolver.hasBooleanMethod(it, listOf("s", "i")) },
+            // 540 providers: Gw.g (LCC) / p637sd.A (ordinary), both #j(). Older builds used
+            // Gt.a#s() or Ox.g#i(); keep them for cross-version compatibility.
+            candidates = listOf("Gw.g", "p637sd.A", "Gt.a", "Ox.g"),
+            validate = { CameraResolver.hasBooleanMethod(it, listOf("j", "s", "i")) },
         ) ?: run {
             DebugLog.w(TAG, "LCC customization provider not resolved; tint-color restore skipped")
             return
         }
         val gateMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "lcc_provider_gate", clazz = clazz,
-            names = listOf("s", "i"),
+            names = listOf("j", "s", "i"),
             shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
         ) ?: run {
             DebugLog.w(TAG, "${clazz.name} tint-color gate method not found; restore skipped")
@@ -1114,6 +1113,99 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
+     * FeatureLoader registry defense for 徕卡一瞬 (mode 256).
+     *
+     * The camera builds its support-filtered SparseArray once and then reuses it from [b].
+     * Depending on startup order that build can happen before the entry's support hook is
+     * dispatched, leaving 256 absent for the rest of the process.  The registry class was
+     * renamed between verified releases (p665t3/p666t3/p662t3), so resolve it by candidates
+     * plus its stable d()/b() -> SparseArray shape.  Both the cold-build and cached-return paths
+     * are repaired; all reflection is isolated so a failed adaptation cannot break camera boot.
+     */
+    private fun hookLegendaryRegistry() {
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG,
+            key = "feature_registry",
+            ctx = ctx,
+            // JADX prefixes collision packages with `p###`; the dex names are `t3.a` on
+            // current builds, while the prefixed aliases are retained for older loaders.
+            candidates = listOf("t3.a", "p662t3.a", "p665t3.a", "p666t3.a"),
+            probe = { bridge ->
+                bridge.findClass {
+                    matcher { usingStrings("FeatureLoader", "Build In Entries is NOT ready.") }
+                }.firstOrNull()?.name
+            },
+            validate = { c ->
+                c.declaredMethods.any {
+                    java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                        it.parameterCount == 0 && SparseArray::class.java.isAssignableFrom(it.returnType) &&
+                        (it.name == "b" || it.name == "d")
+                } && c.declaredFields.any {
+                    java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                        SparseArray::class.java.isAssignableFrom(it.type)
+                }
+            },
+        ) ?: run {
+            DebugLog.w(TAG, "FeatureLoader registry not resolved; legendary registry repair skipped")
+            return
+        }
+
+        val methods = listOf("d", "b").mapNotNull { name ->
+            CameraResolver.resolveMethod(
+                scope = TAG,
+                key = "feature_registry_$name",
+                clazz = clazz,
+                names = listOf(name),
+                shape = {
+                    java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                        it.parameterCount == 0 && SparseArray::class.java.isAssignableFrom(it.returnType)
+                },
+            )
+        }.distinct()
+        if (methods.isEmpty()) {
+            DebugLog.w(TAG, "${clazz.name} registry methods not found; legendary registry repair skipped")
+            return
+        }
+        methods.forEach { method ->
+            deoptimize(method)
+            method.hook("cam_unlock_legendary_registry_${method.name}") {
+                after { param ->
+                    if (!legendaryMomentUnlock()) return@after
+                    val registry = param.result as? SparseArray<Any?> ?: return@after
+                    ensureLegendaryRegistry(registry)
+                }
+            }
+        }
+        DebugLog.d(TAG, "legendary registry repair hooked on ${clazz.name}#${methods.joinToString { it.name }}()")
+    }
+
+    /** Add the real LegendaryEnter instance to a support-filtered registry when missing. */
+    private fun ensureLegendaryRegistry(registry: SparseArray<Any?>) {
+        if (registry.indexOfKey(CameraIdentity.LEGENDARY_MOMENT_MODE_ID) >= 0) return
+        val entry = runCatching {
+            val entryClass = classLoader.loadClass("com.android.camera.features.mode.legendary.LegendaryEnter")
+            val globalClass = classLoader.loadClass("com.xiaomi.camera.basic.Global")
+            val context = globalClass.getMethod("getContext").invoke(null) ?: return@runCatching null
+            entryClass.constructors.asSequence()
+                .filter { it.parameterCount == 1 }
+                .mapNotNull { ctor -> runCatching { ctor.newInstance(context) }.getOrNull() }
+                .firstOrNull { candidate ->
+                    runCatching {
+                        candidate.javaClass.getMethod("getModuleId").invoke(candidate) ==
+                            CameraIdentity.LEGENDARY_MOMENT_MODE_ID
+                    }.getOrDefault(false)
+                }
+        }.getOrNull() ?: return
+        registry.put(CameraIdentity.LEGENDARY_MOMENT_MODE_ID, entry)
+        if (legendaryRegistryLogged.getAndSet(true) == false) {
+            DebugLog.i(TAG, "legendary registry repaired: inserted mode ${CameraIdentity.LEGENDARY_MOMENT_MODE_ID}")
+        }
+    }
+
+    private val legendaryRegistryLogged = AtomicReference(false)
+
+    /**
      * 智能构图 setting unlock ([Preferences.KEY_CAMERA_SMART_COMPOSITION], default OFF).
      * The 设置→拍照 entry `pref_camera_crop_preferred_key` is added only while the device
      * config's `D3()` reports true — declared once on the config base as
@@ -1273,10 +1365,10 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * Field-name candidates of the static boolean flag inside the property-holder class:
-     * the real dex name is the short letter (`u`; jadx renders it `f13393u` because it
-     * collides with a root-package name). Validated as a static boolean before use.
+     * 540 uses the real field `x` (JADX alias `f11706x`); older 510 builds used `u`
+     * (`f13393u`). Validated as a static boolean before use.
      */
-    private val CAI_FLAG_FIELD_CANDIDATES = listOf("u", "f13393u")
+    private val CAI_FLAG_FIELD_CANDIDATES = listOf("x", "f11706x", "u", "f13393u")
 
     private fun caiFlagField(clazz: Class<*>): Field? =
         CAI_FLAG_FIELD_CANDIDATES.firstNotNullOfOrNull { name ->
@@ -1629,6 +1721,55 @@ object CameraImpersonationHooker : StaticHooker() {
         }
     }
 
+    /**
+     * The type-1 red-carpet path is a real slow-motion path in newer camera APKs. On myron's
+     * qcom HAL the required HSR capability is absent, so that path never delivers the first
+     * frame/video callback and leaves the shutter spinner active forever. Keep the type-1
+     * table entry (the UI remains available), but make the capture state machine treat it as a
+     * normal movement effect. This also makes U3/p#i() select the safe 36866 session through
+     * its existing `!O0(231)` branch. The device/HAL guard is deliberately narrow so a 17U
+     * with genuine slow-motion support keeps the native behavior.
+     */
+    private fun hookMasterLiveSlowMotionFallback() {
+        if (!CameraMasterLiveRedCarpet.needsSlowMotionFallback(Build.DEVICE, Build.HARDWARE)) {
+            return
+        }
+        val clazz = runCatching { classLoader.loadClass("com.android.camera.data.data.i") }
+            .getOrNull() ?: run {
+                DebugLog.w(TAG, "camera data component class not resolved; red-carpet fallback skipped")
+                return
+            }
+        val method = runCatching {
+            clazz.getDeclaredMethod("O0", Integer.TYPE).takeIf {
+                java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                    it.returnType == java.lang.Boolean.TYPE
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "data component O0(I)Z not resolved; red-carpet fallback skipped")
+            return
+        }
+        deoptimize(method)
+        method.hook("cam_masterlive_red_carpet_safe_session") {
+            after { param ->
+                if (!masterliveEnabled() || !redCarpetEnabled()) return@after
+                if ((param.args.firstOrNull() as? Int) != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
+                if (currentMasterLiveType() != CameraMasterLiveRedCarpet.RED_CARPET_TYPE) return@after
+                if (param.result != true) return@after
+                param.result = false
+                if (mlRedCarpetFallbackLogged.getAndSet(true) == false) {
+                    DebugLog.w(
+                        TAG,
+                        "red-carpet slow-motion fallback: ${Build.DEVICE}/${Build.HARDWARE} " +
+                            "has no HSR path; using the safe normal movement session"
+                    )
+                }
+            }
+        }
+        DebugLog.i(TAG, "red-carpet slow-motion fallback hooked on ${clazz.name}#O0(I)")
+    }
+
+    private val mlRedCarpetFallbackLogged = AtomicReference(false)
+
     /** Logs the first 红毯运镜 injection ONCE per process, not per dispatch. */
     private val mlRedCarpetLogged = AtomicReference(false)
 
@@ -1843,7 +1984,7 @@ object CameraImpersonationHooker : StaticHooker() {
     private val fullFocalLogged = AtomicReference(false)
 
     /**
-     * Resolve `u2.P` (ComponentModuleList; jadx alias `p700u2.P`, 460 build `u2.U`) once for
+     * Resolve ComponentModuleList (540 `u2.S`, 510 `u2.P`, 460 `u2.U`) once for
      * both MasterLive list hooks. Validation survives renames:
      *  - L1 candidates: the real dex names of the two verified builds (`p699u2`/`p700u2` are
      *    jadx display aliases for collisions with root packages — the aliases themselves do
@@ -1865,7 +2006,7 @@ object CameraImpersonationHooker : StaticHooker() {
             val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
             val resolved = CameraResolver.resolveClass(
                 scope = TAG, key = "component_module_list", ctx = ctx,
-                candidates = listOf("u2.P", "u2.U"),
+                candidates = listOf("u2.S", "u2.P", "u2.U"),
                 probe = { bridge ->
                     // Both strings are CONTAINS-matched; the pair pins exactly one class.
                     bridge.findClass {
@@ -1898,7 +2039,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * MasterLive (实况运镜) carousel placement, part 2: correct the ORDER FUNNEL itself.
      *
      * ROOT CAUSE this covers (why fixing only `M()` could never work): every consumer of the
-     * mode order goes through `u2.P.y(Q)[I` / its zero-arg wrapper `x()[I`
+     * mode order goes through ComponentModuleList's `y(Q)[I` / its zero-arg wrapper `x()[I`
      * (`p700u2/P.java:895-915/891-893`), which returns whichever source wins:
      *  1. the in-memory sort cache `f62389h` — seeded by the constructor (`P.java:110`) and
      *     rewritten by `K(iArr3,false)` after EVERY render (`o()`, `P.java:822-824`) with the
@@ -1919,12 +2060,12 @@ object CameraImpersonationHooker : StaticHooker() {
      *
      * NOT covered here and deliberately skipped: `E(int)` prefers the persisted
      * `all_support_mode_list` over `x()` (`P.java:511-550`) — see
-     * [hookMasterLiveSupportEntry]. Gated on `KEY_CAMERA_MASTERLIVE_ENABLE` only: `u2.P` is
+     * [hookMasterLiveSupportEntry]. Gated on `KEY_CAMERA_MASTERLIVE_ENABLE` only: this class is
      * config-independent, so the funnel correction applies to the real config's mode list too.
      */
     private fun hookMasterLiveOrderFunnel() {
         val clazz = resolveComponentModuleList() ?: run {
-            DebugLog.w(TAG, "u2.P (ComponentModuleList) not resolved; masterlive order funnel skipped")
+            DebugLog.w(TAG, "ComponentModuleList not resolved; masterlive order funnel skipped")
             return
         }
         val yMethod = CameraResolver.resolveMethod(
@@ -1947,7 +2088,7 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
-     * MasterLive carousel placement, part 3 (defense-in-depth): force `u2.P.E(231)` true.
+     * MasterLive carousel placement, part 3 (defense-in-depth): force ComponentModuleList#E(231) true.
      *
      * When the config's `L2()` is true (base impl `!(this instanceof C1198)`, C1174.java:488),
      * `E(int)` ignores `x()` and consults the PERSISTED pref string `all_support_mode_list`
@@ -1962,7 +2103,7 @@ object CameraImpersonationHooker : StaticHooker() {
      */
     private fun hookMasterLiveSupportEntry() {
         val clazz = resolveComponentModuleList() ?: run {
-            DebugLog.w(TAG, "u2.P (ComponentModuleList) not resolved; masterlive support entry skipped")
+            DebugLog.w(TAG, "ComponentModuleList not resolved; masterlive support entry skipped")
             return
         }
         val eMethod = CameraResolver.resolveMethod(
@@ -1979,9 +2120,16 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(eMethod)
         eMethod.hook("cam_masterlive_support_entry") {
             after { param ->
+                val modeId = param.args.getOrNull(0) as? Int ?: return@after
+                // The persisted all_support_mode_list can predate the 256 entry. Keep the
+                // newly injected registry entry usable even when that stale list says false.
+                if (legendaryMomentUnlock() && modeId == CameraIdentity.LEGENDARY_MOMENT_MODE_ID) {
+                    if ((param.result as? Boolean) == false) param.result = true
+                    return@after
+                }
                 if (!masterliveEnabled()) return@after
                 if ((param.result as? Boolean) != false) return@after
-                if ((param.args.getOrNull(0) as? Int) != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
+                if (modeId != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
                 param.result = true
             }
         }
@@ -2061,7 +2209,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * MasterLive (实况运镜) video-size probe — experimental
-     * (`KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`, default off).
+     * (`KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`, enabled automatically on myron).
      *
      * On-device forensics (2026-08-27, OS4.0.0.19.XPMCNXM; RESEARCH_MYRON_09): the MasterLive
      * live-video stream on myron is sized via the HAL masterlive ratio tag `G()` (reads a
@@ -2205,8 +2353,8 @@ object CameraImpersonationHooker : StaticHooker() {
     /**
      * MasterLive (实况运镜) video-surface size — companion of [hookMasterLiveVideoSizeProbe].
      *
-     * The video-compose consumer `Kj.D#c()` (real dex name `Kj.D`, classes6.dex,
-     * `Kj/D.java:43-47`) returns the live-photo video stream size from the camera manager's
+     * The video-compose consumer's `c()` (540 `Kj.C`, older builds `Kj.D`) returns the live-photo
+     * video stream size from the camera manager's
      * config (`f45848w`) and falls back to a HARDCODED 16:9 `Size(2304, 1296)` when that field
      * is null. With the video-size probe active the stream is bound per effect type
      * ([CameraMasterLiveSizeBinding]), so an un-bound fallback mismatches the stream: when a
@@ -2226,7 +2374,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "liveshot_video_surface", ctx = ctx,
-            candidates = listOf("Kj.D"),
+            candidates = listOf("Kj.C", "Kj.D"),
             validate = { c ->
                 c.declaredMethods.any {
                     !it.isSynthetic && it.name == "c" && it.parameterCount == 0 &&
@@ -2234,7 +2382,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 }
             },
         ) ?: run {
-            DebugLog.w(TAG, "Kj.D (liveshot video surface) not resolved; masterlive video surface size skipped")
+            DebugLog.w(TAG, "Kj.C/Kj.D (liveshot video surface) not resolved; masterlive video surface size skipped")
             return
         }
         val method = runCatching { clazz.getMethod("c") }
@@ -2262,7 +2410,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 if (videoSurfaceProbeLogged.getAndSet(true) == false) {
                     DebugLog.i(
                         TAG,
-                        "masterlive video surface size: Kj.D#c() $original " +
+                        "masterlive video surface size: ${clazz.name}#c() $original " +
                             "(type ${currentMasterLiveType() ?: "?"}) -> ${pinned.first}x${pinned.second}"
                     )
                 }
@@ -2486,17 +2634,19 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun leicaStyle(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true)
 
-    /** 徕卡一瞬 (mode 256) unlock. */
+    /** 徕卡一瞬 (mode 256) unlock; automatically on the target myron device. */
     private fun legendaryMomentUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
+        isMyronDevice() || Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
 
     /** 智能构图 setting unlock. */
     private fun smartCompositionUnlock(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false)
 
-    /** 内容凭证 setting unlock; applied once per camera process at attach (restart to change). */
+    /** 内容凭证 setting unlock; automatically on myron and applied once per camera process. */
     private fun contentCredentialUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+        isMyronDevice() || Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+
+    private fun isMyronDevice(): Boolean = Build.DEVICE.equals("myron", ignoreCase = true)
 
     /** 自适应镜头 setting unlock. */
     private fun adaptiveLensUnlock(): Boolean =
@@ -2510,9 +2660,15 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun masterliveTeleFallback(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, true)
 
-    /** 实况运镜 video-size probe (experimental, default OFF). */
+    /** 实况运镜 video-size probe (automatic on myron; preference remains for other devices). */
     private fun videoSizeProbeEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+        if (Build.DEVICE.equals("myron", ignoreCase = true)) {
+            // The native myron sizes are the source of the green-frame artifact. Keep the
+            // per-effect binding on regardless of a stale opt-out saved by an older build.
+            true
+        } else {
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, true)
+        }
 
     /** 实况运镜 红毯运镜 (type-1) injection (default ON); gated with [masterliveEnabled]. */
     private fun redCarpetEnabled(): Boolean =

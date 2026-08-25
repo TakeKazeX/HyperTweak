@@ -36,7 +36,8 @@ internal object CameraMasterLiveSizeBinding {
     /**
      * 16:9 2304x1296 — the movement-effect binding: the device's own normal 实况照片 live-photo
      * stream size (on-device verified: `getVideoSize 1296x2304`, frames 2304x1296, clean) and
-     * exactly the fallback `Kj.D#c()` uses, so stream, ImageReader, encoder canvas and compose
+     * exactly the fallback used by the live-shot surface `c()` method (`Kj.C` on 540, `Kj.D` on
+     * older builds), so stream, ImageReader, encoder canvas and compose
      * surfaces stay coherent everywhere.
      */
     val SIZE_16_9: Pair<Int, Int> = 2304 to 1296

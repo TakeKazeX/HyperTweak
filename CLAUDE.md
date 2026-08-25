@@ -1942,9 +1942,15 @@ handful survive: `camera.cloud.watermark.debug`, `key_shutter_sound`,
 
 - **L1** known dex names, newest first, each validated by method shape (a repurposed name must
   be rejected); candidates accumulate across versions and are never removed (old names tend to
-  come back).
-- **L2** DexKit probes on surviving plaintext strings (results cached by `DexKitManager`,
-  auto-rescanned when the camera APK mtime changes — i.e. after every camera update).
+  come back). The 6.6.000540.0 / OS4.0.0.21 baseline renamed the device-config facade
+  `Je.c`→`Je.b`, factory `Je.e`→`Ag.f`, and class resolver `Uf.c`→`Uf.d`; all three are now
+  candidate chains, and the factory/singleton paths are structural rather than nested-class-name
+  dependent.
+- **L2** DexKit probes on surviving plaintext strings (results cached by `DexKitManager` with
+  the camera APK's complete SHA-256, size, and mtime; an old cache or a replaced APK is rebuilt
+  automatically). Cached classes are run through the same semantic validator as fresh probes, so
+  an obfuscated name reused for an unrelated class triggers an immediate re-scan instead of a
+  permanent silent skip. No manual cache deletion is required after a camera update.
 - **L3** per-target behavioural chains: the config factory method is also found structurally
   (static zero-arg method whose return type equals the static `b` cache field type — name
   independent), and `com.mi.device.*` configs resolve through the app's own resolver
@@ -2046,15 +2052,12 @@ plaintext in the 510 dex). Its `hookDeviceLogo` (`Je/c#x()`) fills an empty clas
 logo with `CameraWatermarkBrand.brand()` when `KEY_WM_CAMERA` is on.
 
 The LCC impersonation normally hides the camera's built-in 相机配色 (tint color) settings
-entry: `CameraCommonPreferenceFragment.addCustomizationPreferences` gates it on
-`o9.a.f53945a.d().s()` (real names; the fragment's `p497o9.a` is jadx's alias for `o9.a`), and
-the holder selects the provider from `Je/c.V()` — the LCC branch provider was `Ox.g#i()`
-(false) on 460 and became **`Gt.a#s()`** (false) on 510 (`Gt.a` implements `p9.f` whose boolean
-`s()` is the gate; the 510 `Ox.g` name is an unrelated StateListDrawable helper).
-`hookLccCustomizationProvider` therefore forces `Gt.a#s()` (candidates `["Gt.a","Ox.g"]`,
-method candidates `["s","i"]`, boolean zero-arg) true whenever the master switch is on, keeping
-the tint-color entry visible. This gate has no other consumers in the APK, so it is
-side-effect free.
+entry: on 540, `CameraCommonPreferenceFragment.addCustomizationPreferences` gates it on
+`p493o9.a.f48088a.d().j()`; the provider selected by `Je/b.V()` is `Gw.g#j()` for the LCC
+branch and `p637sd.A#j()` for the ordinary branch. Older builds used `Ox.g#i()` (460) and
+`Gt.a#s()` (510). `hookLccCustomizationProvider` keeps all four candidates but requires a
+zero-argument boolean method, then forces the resolved gate true while the master switch is on.
+This gate has no other consumers in the APK, so it is side-effect free.
 
 **Shutter-sound bounds guard (`f2.c#a()` clamp) is UNCONDITIONAL**: `f2.c` (jadx `p180f2/c`)
 builds the shutter-sound style list — 4 entries (old/art/default/modern) while `F3()` is false
@@ -2412,9 +2415,13 @@ Build verification: `compileDebugKotlin`, `testDebugUnitTest` (+13 cases across
    component throws IOOBE mid-capture ([CameraMasterLiveRedCarpet.segmentsConsistent]); map order
    is rebuilt `[超清, 红毯, 主角, 自由]`. Selecting 红毯 flips `j.O0(231)` true which BYPASSES the
    native ALGO_UP_SAT early-return in `U3/p#i` → keep 安全会话 (opmode-safe) ON or Qualcomm falls
-   to op-mode 1 (may stall); without HAL {8,120} the slow-motion tail degrades to normal speed
-   (capture still completes).
-2. **Per-effect-type video size (`CameraMasterLiveSizeBinding`).** The global 16:9 pin broke the
+   to op-mode 1 (may stall); on myron/qcom the type-1 path additionally waits for a slow-motion
+   first-frame/video callback that the HAL never emits, leaving the shutter spinner active. The
+   hook now detects `ro.product.device=myron` + `ro.hardware=qcom` and forces `O0(231)=false`
+   only while type "1" is selected. This preserves the red-carpet entry/UI but routes capture
+   through the normal movement path and its safe 36866 session; 17U/native HSR devices are
+   untouched. The resulting clip is normal-speed movement rather than a true 120fps tail.
+2. **Per-effect-type video size (`CameraMasterLiveSizeBinding`, automatic on myron).** The global 16:9 pin broke the
    4:3 超清实况 (type "0") with green frames again. The probe and surface hooks now bind per type:
    movement types ("1"/"2"/"3") → 16:9 2304x1296 (user-verified clean), ultra-pixel ("0") → 4:3
    1728x1296 (same height as the verified-clean 16:9; the geometry of this device's clean normal
@@ -2424,7 +2431,8 @@ Build verification: `compileDebugKotlin`, `testDebugUnitTest` (+13 cases across
    that would restore the damaged native sizes. `Kj.D#c()` additionally gained the missing MODE
    GATE (receiver `a.g == 231`, the same chain `Kj/F.java:125` reads): it previously rewrote the
    normal 实况照片 modes' (171/188/230) 4:3 results unconditionally — a latent regression now
-   fixed. The codec pin needs NO per-type logic (it pins to the encoder's own construction size,
+   fixed. The myron path forces this probe on even when an older saved preference says off, so a
+   stale setting cannot reintroduce the green artifact. The codec pin needs NO per-type logic (it pins to the encoder's own construction size,
    which follows the bound stream automatically).
 3. **超清实况完整焦段 (`KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default ON).** The zoom strip inside
    MasterLive reads config `v1()` keyed by mode id (`j.U/S/R` → `p723ur.i#q`); myron's config has
@@ -2444,7 +2452,8 @@ substitution; `Kj.D#c()` substitution requires the mode gate.
 ### Four hidden-setting unlocks: 徕卡一瞬 / 智能构图 / 内容凭证 / 自适应镜头 (2026-08-29)
 
 Four independent switches on Camera Unlock (`CameraUnlockPage`, after 超高图片质量), all
-master-independent (work with the impersonation ON or OFF) and default OFF, implemented in
+master-independent (work with the impersonation ON or OFF); 徕卡一瞬 and 内容凭证 are enabled
+automatically on myron while the other devices and the remaining switches stay manual, implemented in
 `CameraImpersonationHooker` so they reuse `configDispatchClasses()`/`flagshipInstance()`.
 Gates traced in the 510 dex (`camera-8f41d7b82453cdeb`):
 
@@ -2460,7 +2469,12 @@ Gates traced in the 510 dex (`camera-8f41d7b82453cdeb`):
    can never fight): unlock on → force true; else master-on non-nezha → false (stock guard).
    The hook MOVED from `hookModeGuards()` (flagship-gated) to `installHooks()` because the
    unlock half must exist even when the flagship instance fails to build. Mode lands in the
-   更多 grid (no config `M()` carries 256); needs a camera restart (registry caches per
+   更多 grid (no config `M()` carries 256). A second defense hooks the cross-release
+   FeatureLoader registry (`t3.a` in the dex; JADX displays `p662t3.a`/`p665t3.a`/`p666t3.a`)
+   at both `d()` and cached `b()`;
+   if startup ordering or a stale cache dropped 256, it constructs `LegendaryEnter` and inserts
+   it back into the SparseArray. The ComponentModuleList `E(256)` gate is raised too, covering
+   persisted `all_support_mode_list` values. Needs a camera restart (registry caches per
    process). The RAW/re-processing pipeline behind the mode is unverified on this HAL.
 2. **智能构图 (`KEY_CAMERA_SMART_COMPOSITION`)** — three levers, one switch:
    - 设置→拍照 entry `pref_camera_crop_preferred_key`, gated on device-config `D3()` declared

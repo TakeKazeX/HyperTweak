@@ -463,7 +463,7 @@ object Preferences {
     const val KEY_CAMERA_MASTERLIVE_TELE_FALLBACK = "camera_masterlive_tele_fallback"
 
     /**
-     * MasterLive (实况运镜) video-size probe — experimental (default OFF). On myron the
+     * MasterLive (实况运镜) video-size probe — enabled automatically on myron. On myron the
      * MasterLive live-video stream is sized with the HAL masterlive ratio tag (`G()`,
      * `C3545f#G`, the `masterLivePhotoEISCropFactor` vendor tag) into 16:9 sizes
      * (2560x1440 / per-role HAL pairs from `com.xiaomi.camera.livePhoto.videoSize`) whose
@@ -538,8 +538,8 @@ object Preferences {
     const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
 
     /**
-     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; default
-     * OFF. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
+     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; enabled
+     * automatically on myron and manual on other devices. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
      * `support()` is true, and `LegendaryEnter.support()` is
      * `Je.c.W0() && Je.c.V()`: W0() demands the 17-Ultra Nezha config class
      * (`instanceof com.mi.device.Nezha`, jadx C1209 on 6.6.000510.0) and V() the LCC
@@ -583,10 +583,12 @@ object Preferences {
     const val KEY_CAMERA_SMART_COMPOSITION = "camera_smart_composition"
 
     /**
-     * 内容凭证 (Content Credentials, C2PA) setting unlock; default OFF. The 设置→水印 entry
+     * 内容凭证 (Content Credentials, C2PA) setting unlock; enabled automatically on myron and
+     * manual on other devices. The 设置→水印 entry
      * (`pref_cai_type_key` → `CaiSettingFragment`) is gated on a static final boolean in the
-     * camera's debug/capability holder class (jadx `Qa.b.u`) initialised once from the system
-     * property `ro.product.odm.support_cai`; absent on devices whose ODM does not declare it.
+     * camera's debug/capability holder class (540 `Qa.b.x`, JADX alias `f11706x`; older 510
+     * builds used `u`/`f13393u`) initialised once from the system property
+     * `ro.product.odm.support_cai`; absent on devices whose ODM does not declare it.
      * The hook force-initialises the holder class and flips the flag to true through
      * `StaticFieldWriter` at camera-process start, so the entry (and the credential
      * copyright/username sub-page) appears. Because the value is baked into a static final,

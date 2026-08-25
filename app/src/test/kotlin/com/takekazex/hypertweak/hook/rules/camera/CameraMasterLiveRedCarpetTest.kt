@@ -55,4 +55,17 @@ class CameraMasterLiveRedCarpetTest {
         assertFalse(CameraMasterLiveRedCarpet.segmentsConsistent(roles = 2, zoomPairs = 4, rangeStrings = 3))
         assertFalse(CameraMasterLiveRedCarpet.segmentsConsistent(roles = 3, zoomPairs = null, rangeStrings = 3))
     }
+
+    @Test
+    fun `myron qcom uses the safe normal movement session`() {
+        assertTrue(CameraMasterLiveRedCarpet.needsSlowMotionFallback("myron", "qcom"))
+        assertTrue(CameraMasterLiveRedCarpet.needsSlowMotionFallback("MYRON", "QCOM"))
+    }
+
+    @Test
+    fun `native slow motion hardware is left untouched`() {
+        assertFalse(CameraMasterLiveRedCarpet.needsSlowMotionFallback("nezha", "qcom"))
+        assertFalse(CameraMasterLiveRedCarpet.needsSlowMotionFallback("myron", "mtk"))
+        assertFalse(CameraMasterLiveRedCarpet.needsSlowMotionFallback(null, null))
+    }
 }
