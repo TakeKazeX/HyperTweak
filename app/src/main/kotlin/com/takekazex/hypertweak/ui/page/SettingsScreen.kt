@@ -63,6 +63,8 @@ fun SettingsScreenContent(
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     immediateMonetRefresh: Boolean,
+    ccEditEnabled: Boolean,
+    onCcEditEnabledChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -264,6 +266,18 @@ fun SettingsScreenContent(
                             title = stringResource(R.string.tweaks_cc_corner_enabled_title),
                             summary = stringResource(R.string.tweaks_cc_corner_enabled_summary),
                             onClick = onNavigateToControlCenterCorner
+                        )
+                    }
+                    // Control-center editor cards: the fixed main-panel contents (big cards,
+                    // media player, brightness/volume sliders, device center) show up in
+                    // 编辑与排序 and become drag-reorderable like the quick actions. The editor
+                    // mechanics live in the OS4 plugin classes only.
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = ccEditEnabled,
+                            onCheckedChange = onCcEditEnabledChange,
+                            title = stringResource(R.string.settings_cc_edit_title),
+                            summary = stringResource(R.string.settings_cc_edit_summary)
                         )
                     }
                 }

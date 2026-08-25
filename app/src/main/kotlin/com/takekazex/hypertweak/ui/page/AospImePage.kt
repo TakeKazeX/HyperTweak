@@ -61,6 +61,17 @@ private val NAV_BAR_KEY_VALUES = listOf(
     AospImeConfig.BUTTON_NONE
 )
 
+/** Order matches [RAISE_STYLE_LABELS]. */
+private val RAISE_STYLE_VALUES = listOf(
+    AospImeConfig.RAISE_STYLE_AOSP,
+    AospImeConfig.RAISE_STYLE_MIUI
+)
+
+private val RAISE_STYLE_LABELS = listOf(
+    R.string.ime_raise_style_aosp,
+    R.string.ime_raise_style_miui
+)
+
 private fun navBarKeyIndex(value: String): Int =
     NAV_BAR_KEY_VALUES.indexOf(value).takeIf { it >= 0 } ?: 0
 
@@ -83,8 +94,12 @@ fun AospImePage(onBack: () -> Unit) {
     var miuiImeList by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_IME_MIUI_IME_LIST, false))
     }
+    var forceAospAll by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_IME_FORCE_ALL, false))
+    }
     var startKey by remember { mutableStateOf(AospImeConfig.navBarLayoutStart()) }
     var endKey by remember { mutableStateOf(AospImeConfig.navBarLayoutEnd()) }
+    var raiseStyle by remember { mutableStateOf(AospImeConfig.raiseStyle()) }
 
     var applied by remember { mutableStateOf(Preferences.getStringSet(Preferences.KEY_AOSP_IME_PACKAGES)) }
     var selected by remember { mutableStateOf(applied) }
@@ -190,6 +205,19 @@ fun AospImePage(onBack: () -> Unit) {
                             },
                             enabled = enabled
                         )
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.ime_raise_style_title),
+                            summary = stringResource(R.string.ime_raise_style_summary),
+                            items = RAISE_STYLE_LABELS.map { stringResource(it) },
+                            selectedIndex = RAISE_STYLE_VALUES.indexOf(raiseStyle).coerceAtLeast(0),
+                            onSelectedIndexChange = { index ->
+                                RAISE_STYLE_VALUES.getOrNull(index)?.let {
+                                    raiseStyle = it
+                                    Preferences.putInt(Preferences.KEY_AOSP_IME_RAISE_STYLE, it)
+                                }
+                            },
+                            enabled = enabled
+                        )
                         BasicComponent(
                             title = stringResource(R.string.ime_layout_title),
                             summary = "$startKey[70AC];${AospImeConfig.BUTTON_HOME_HANDLE};$endKey[70AC]"
@@ -201,7 +229,16 @@ fun AospImePage(onBack: () -> Unit) {
                                 Preferences.putBoolean(Preferences.KEY_AOSP_IME_MIUI_IME_LIST, it)
                             },
                             title = stringResource(R.string.ime_list_all_keyboards),
-                            summary = stringResource(R.string.ime_list_all_keyboards_summary),
+                            summary = stringResource(R.string.ime_list_all_keyboards_summary)
+                        )
+                        SwitchPreference(
+                            checked = forceAospAll,
+                            onCheckedChange = {
+                                forceAospAll = it
+                                Preferences.putBoolean(Preferences.KEY_AOSP_IME_FORCE_ALL, it)
+                            },
+                            title = stringResource(R.string.ime_force_aosp_title),
+                            summary = stringResource(R.string.ime_force_aosp_summary),
                             enabled = enabled
                         )
                     }

@@ -315,6 +315,12 @@
     <string name="ime_left_key">Left key</string>
     <string name="ime_list_all_keyboards">List All Keyboards in the Switcher</string>
     <string name="ime_list_all_keyboards_summary">Show every enabled input method in MIUI\'s keyboard switcher. Untested on this device</string>
+    <string name="ime_force_aosp_title">Force AOSP Bar on Optimized Keyboards</string>
+    <string name="ime_force_aosp_summary">Apply the AOSP bar to MIUI-customized keyboards (Sogou Xiaomi, Baidu MIUI, iFlytek MIUI) instead of their fullscreen-optimized bottom bar</string>
+    <string name="ime_raise_style_title">Keyboard Raise Style</string>
+    <string name="ime_raise_style_summary">AOSP: keyboard content is raised to sit exactly on top of the bar. MIUI: every keyboard falls back to its stock bottom behavior (fullscreen-optimized keyboards regain their own bottom bar)</string>
+    <string name="ime_raise_style_aosp">AOSP style</string>
+    <string name="ime_raise_style_miui">MIUI style</string>
     <string name="ime_loading">Loading input methods…</string>
     <string name="ime_nav_bar_summary">Draw the AOSP gesture navigation bar inside the selected keyboards</string>
     <string name="ime_nav_bar_title">AOSP Keyboard Navigation Bar</string>
@@ -554,6 +560,8 @@
     <string name="tweaks_cc_corner_dialog_title">Enter Corner Radius</string>
     <string name="tweaks_cc_corner_dialog_summary">0 means follow the system design</string>
     <string name="tweaks_cc_corner_unit">dp</string>
+    <string name="settings_cc_edit_title">Control Center Editor Cards</string>
+    <string name="settings_cc_edit_summary">Show the big cards, media player, brightness/volume sliders and device center inside the control-center editor (edit &amp; sort), and drag them to reorder like the quick actions. Long-press and drag a card onto another card or the tile grid. Needs a SystemUI restart after enabling</string>
     <string name="tweaks_system_core_title">System Core</string>
     <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage text visible to match the brightness style</string>
     <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>

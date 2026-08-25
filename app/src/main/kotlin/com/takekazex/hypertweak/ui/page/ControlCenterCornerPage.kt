@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,7 +63,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * Each row mirrors the interface-scale interaction from [AppearancePage]: tapping the row expands an
  * inline continuous slider AND opens a numeric value dialog ([CornerRadiusDialog]) for precise
  * entry. The slider runs 0..100 dp continuously with no key-point snapping, so any millimetre
- * precision is reachable; 0 dp means "follow system".
+ * precision is reachable; 0 dp means "follow system". Rows are shown in a fixed order.
  */
 @Composable
 fun ControlCenterCornerPage(onBack: () -> Unit) {
@@ -75,19 +74,29 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     var enabled by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false))
     }
-    // Each Float row keeps its own local state; the "follow system" sentinel is 0f.
-    @Composable
-    fun rowState(key: String, default: Float) = remember(key) {
-        mutableFloatStateOf(Preferences.getFloat(key, default))
-    }
-    var sliderValue by rowState(Preferences.KEY_CC_CORNER_SLIDER, 0f)
-    var tileValue by rowState(Preferences.KEY_CC_CORNER_TILE, 0f)
-    var cardValue by rowState(Preferences.KEY_CC_CORNER_CARD, 0f)
-    var deviceValue by rowState(Preferences.KEY_CC_CORNER_DEVICE, 0f)
-    var mediaValue by rowState(Preferences.KEY_CC_CORNER_MEDIA, 0f)
 
     // Saveable so a pending restart prompt survives navigating away.
     var restartPending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    // All corner radius items with their preference keys, in the fixed display order.
+    val items = remember {
+        listOf(
+            CornerItem(R.string.tweaks_cc_corner_slider_title, R.string.tweaks_cc_corner_slider_summary, Preferences.KEY_CC_CORNER_SLIDER),
+            CornerItem(R.string.tweaks_cc_corner_tile_title, R.string.tweaks_cc_corner_tile_summary, Preferences.KEY_CC_CORNER_TILE),
+            CornerItem(R.string.tweaks_cc_corner_card_title, R.string.tweaks_cc_corner_card_summary, Preferences.KEY_CC_CORNER_CARD),
+            CornerItem(R.string.tweaks_cc_corner_device_title, R.string.tweaks_cc_corner_device_summary, Preferences.KEY_CC_CORNER_DEVICE),
+            CornerItem(R.string.tweaks_cc_corner_media_title, R.string.tweaks_cc_corner_media_summary, Preferences.KEY_CC_CORNER_MEDIA)
+        )
+    }
+
+    // Item values stored in a map keyed by preference key.
+    val itemValues = remember {
+        mutableMapOf<String, Float>().apply {
+            items.forEach { item ->
+                this[item.key] = Preferences.getFloat(item.key, 0f)
+            }
+        }
+    }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -142,55 +151,17 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                 }
             }
 
-            SmallTitle(stringResource(R.string.tweaks_cc_corner_slider_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    CornerRadiusRow(
-                        title = stringResource(R.string.tweaks_cc_corner_slider_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_slider_summary),
-                        value = sliderValue,
-                        onValueChange = {
-                            sliderValue = it
-                            Preferences.putFloat(Preferences.KEY_CC_CORNER_SLIDER, it)
-                        }
-                    )
-                    CornerRadiusRow(
-                        title = stringResource(R.string.tweaks_cc_corner_tile_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_tile_summary),
-                        value = tileValue,
-                        onValueChange = {
-                            tileValue = it
-                            Preferences.putFloat(Preferences.KEY_CC_CORNER_TILE, it)
-                        }
-                    )
-                    CornerRadiusRow(
-                        title = stringResource(R.string.tweaks_cc_corner_card_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_card_summary),
-                        value = cardValue,
-                        onValueChange = {
-                            cardValue = it
-                            Preferences.putFloat(Preferences.KEY_CC_CORNER_CARD, it)
-                        }
-                    )
-                    CornerRadiusRow(
-                        title = stringResource(R.string.tweaks_cc_corner_device_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_device_summary),
-                        value = deviceValue,
-                        onValueChange = {
-                            deviceValue = it
-                            Preferences.putFloat(Preferences.KEY_CC_CORNER_DEVICE, it)
-                        }
-                    )
-                    CornerRadiusRow(
-                        title = stringResource(R.string.tweaks_cc_corner_media_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_media_summary),
-                        value = mediaValue,
-                        onValueChange = {
-                            mediaValue = it
-                            Preferences.putFloat(Preferences.KEY_CC_CORNER_MEDIA, it)
-                        }
-                    )
-                }
+            items.forEach { item ->
+                CornerRadiusRow(
+                    title = stringResource(item.titleRes),
+                    summary = stringResource(item.summaryRes),
+                    value = itemValues[item.key] ?: 0f,
+                    onValueChange = { newValue ->
+                        itemValues[item.key] = newValue
+                        Preferences.putFloat(item.key, newValue)
+                        restartPending = true
+                    }
+                )
             }
 
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
@@ -322,3 +293,9 @@ private fun CornerRadiusDialog(
 }
 
 private const val MAX_CORNER_RADIUS_DP = 100f
+
+private data class CornerItem(
+    val titleRes: Int,
+    val summaryRes: Int,
+    val key: String
+)

@@ -125,6 +125,19 @@ object Preferences {
     const val KEY_CC_CORNER_CARD = "systemui_control_center_corner_card_dp"
     const val KEY_CC_CORNER_DEVICE = "systemui_control_center_corner_device_dp"
     const val KEY_CC_CORNER_MEDIA = "systemui_control_center_corner_media_dp"
+    /** Comma-separated top-card specs, e.g. `cell,wifi`. Empty = follow the system order. */
+    const val KEY_CC_TOP_CARD_ORDER = "systemui_control_center_top_card_order"
+    /**
+     * Comma-separated main-panel section keys (`qscards,media,brightness,volume,devicecenter,qslist`),
+     * written by the editor drag hook and re-applied by [KEY_CC_EDIT_ENABLED]'s ordering hook.
+     */
+    const val KEY_CC_MAIN_CONTENT_ORDER = "systemui_control_center_main_content_order"
+    /**
+     * Master switch for the control-center editor cards feature: shows the fixed main-panel
+     * contents (big cards, media player, brightness/volume sliders, device center) inside
+     * 编辑与排序 and makes them drag-reorderable like the quick actions.
+     */
+    const val KEY_CC_EDIT_ENABLED = "systemui_control_center_edit_enabled"
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"
@@ -192,6 +205,19 @@ object Preferences {
 
     /** Lists every enabled input method in MIUI's keyboard switcher. Unverified off-device. */
     const val KEY_AOSP_IME_MIUI_IME_LIST = "aosp_ime_miui_ime_list"
+
+    /**
+     * Forces the AOSP bar on MIUI-customized keyboards (搜狗小米版 / 百度小米版 / 讯飞小米版 etc.)
+     * whose own 全面屏优化 bottom view would otherwise win, instead of leaving them alone.
+     */
+    const val KEY_AOSP_IME_FORCE_ALL = "aosp_ime_force_all"
+
+    /**
+     * How the keyboard content is positioned relative to the AOSP bar: 0 raises the content so it
+     * ends exactly at the bar top (AOSP style), 1 leaves the keyboard's own bottom handling alone
+     * (MIUI style). See [AospImeConfig.RAISE_STYLE_AOSP].
+     */
+    const val KEY_AOSP_IME_RAISE_STYLE = "aosp_ime_raise_style"
     const val KEY_LANGUAGE = "app_language"
 
     const val KEY_PAGE_SCALE = "page_scale"
@@ -773,8 +799,22 @@ object Preferences {
         runCatching { local?.edit { block() } }
         if (isLocalOnly || local === remotePrefs) return
         serializedWriter.execute {
-            runCatching { remotePrefs.edit { block() } }
-                .onFailure { DebugLog.w("Preferences", "remote pref write failed; retrying on next write", it) }
+            // Synchronous commit: libxposed's RemotePreferences Editor.apply() is asynchronous on
+            // its own executor, so a process killed right after a setting change (e.g. the in-page
+            // "Restart SystemUI" action or the generic restart dialog) could die before the daemon
+            // write lands — and Preferences.flush() only drains this queue, not libxposed's. A
+            // blocking commit makes flush() honest: once this queue is drained, every setting that
+            // was written is already visible to the hooked processes that read the daemon copy.
+            runCatching {
+                val editor = remotePrefs.edit()
+                block(editor)
+                val committed = editor.commit()
+                if (!committed) {
+                    DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
+                }
+            }.onFailure { t ->
+                DebugLog.w("Preferences", "remote pref write failed; retrying on next write", t)
+            }
         }
     }
 

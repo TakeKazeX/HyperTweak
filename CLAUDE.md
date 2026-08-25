@@ -1095,21 +1095,160 @@ ported from Howard20181's Mi_AOSP_IME (GPL-3.0). It spans three places.
 `AospImeHooker` runs in the selected keyboard's own process.
 `InputMethodService.hideImeRenderGesturalNavButtons(String)` returns true for any
 keyboard HyperOS does not recognise as MIUI-customised, collapsing the caption bar
-to zero height, so the hook forces `IS_INTERNATIONAL_BUILD` — a
-`private static final boolean` that is not a compile-time constant, and whose only
-reader is that method, so the process-wide write does not leak elsewhere. It is
-skipped when `InputMethodServiceInjector.isImeSupport(Context)` says MIUI already
-draws its own bottom view for this keyboard; that method is `private static` and
-declared on the injector, not on the `InputMethodServiceStub` interface.
+to zero height. On OS4.0.0.19 (verified by decompiling the OTA framework.jar) the
+method body still reads `IS_INTERNATIONAL_BUILD`:
+`if (IS_INTERNATIONAL_BUILD || TextUtils.isEmpty(id) || id.contains(TEST_IME))
+return !canImeRenderGesturalNavButtons(); return true;` — so the hook follows
+upstream: a `before` hook flips `IS_INTERNATIONAL_BUILD` (via `StaticFieldWriter`,
+the field is static-final and ART rejects the reflective write) and lets the
+original run, taking the international branch. Flipping it back to false when
+`aospBarActive` is off keeps the master switch live without a process restart
+(the field's only reader is this method). The method is deoptimized
+(AOT-inline risk) and the ROM's default behavior is left alone when the bar
+master switch is off. Do NOT short-circuit the return value: that bypasses the
+original's own `canImeRenderGesturalNavButtons()` gate, and the earlier
+".19 no longer consults IS_INTERNATIONAL_BUILD" note was disproved by
+decompilation — the direct-return approach it motivated was the 2026-08-24
+regression.
 
-The rest restores `NavigationBarController$Impl.getImeCaptionBarHeight(boolean)`
-to 48dp (one overload only on this baseline — upstream's no-arg fallback branch is
-dead code here), swaps `NavigationBarInflaterView.inflateLayout(String)` for the
-configured handle, pads `NavigationBarView.mHorizontal` clear of the display's
-rounded corners, and zeroes `DeadZone.mSizeMin`. `mHorizontal` must be read off
-`NavigationBarView`; `NavigationBarInflaterView` declares its own field of the
-same name. `getImeCaptionBarHeight` and `updateOrientationViews` are private and
-small, so both are deoptimized.
+"MIUI-customized" is decided by `InputMethodServiceInjector.isImeSupport(Context)`
+first — the injector and its `isImeSupport` still ship in miui-framework.jar on
+OS4.0.0.19 (decompiled from the OTA; the earlier "gone on .19" claim was wrong),
+and it is usable immediately, before the side-loaded dex exists. The
+`MiuiCustomizedImePackages` snapshot (mirrored from the dex's
+`sImeMinVersionSupport` allowlist at `loadDex` time) is only a secondary fallback:
+`loadDex` runs inside `InputMethodServiceInjector.addMiuiBottomView`, which
+`InputMethodService.initViews` calls *after* `hideImeRenderGesturalNavButtons`
+(InputMethodService.java:1095-1101), so relying on the snapshot for the first
+hide dispatch misjudged customized keyboards as non-customized, forced the AOSP
+branch onto them, and then let the MIUI bottom view stack underneath — the
+"double bar" regression. Both the hide hook and the `addMiuiBottomView` skip go
+through the same `aospBarActive(context)` so they can never disagree.
+
+The nav-bar controller class is version-shaped: OS4.0.0.15 split it into
+`NavigationBarController$Impl`, OS4.0.0.19 inlined it back into
+`NavigationBarController` itself (final class implementing
+`Window$DecorCallback` + `NavigationBarView$ButtonClickListener`, same members).
+`resolveNavBarControllerClass()` tries the inner name first and falls back to the
+outer class; both `hookImeCaptionBarHeight` and `hookSystemInsets` go through it.
+A hook on `getImeCaptionBarHeight(boolean)` alone is not enough on .19 — the
+method is small enough to be AOT-inlined into the controller, so the getter hook
+installs (`HOOK_OK`) but never fires; the caption inset is therefore forced at
+the actual injection point, `InsetsController.setImeCaptionBarInsetsHeight(int)`
+(before-hook, `args[0] = 48dp`), which both carves the keyboard content and is
+what the keyboard pads by. `hookSystemInsets` pins `getSystemInsets().bottom` to
+the same 48dp (single choke point covering the frame's three sizing sites +
+`updateTouchableInsets`); `hookInflateLayout` swaps the configured handle;
+`hookOrientationViews` pads `NavigationBarView.mHorizontal` clear of the rounded
+corners and pins the `NavigationBarFrame` height at inflate time;
+`hookDeadZone` zeroes `DeadZone.mSizeMin`.
+
+**Bar height (2026-08-24 fix, "导航栏太高太矮")**: on OS4.0.0.19.XPMCNXM the
+framework's own `input_method_navigation_bar_height` resolves to **20dp** (60px)
+— MIUI deliberately shrinks the caption bar to its gesture area — so the bar the
+system draws is a 20dp strip ("太矮"). The module pins the caption-bar insets
+height, the frame height and the keyboard raise all to a hard **48dp** (144px,
+`dpToPx(48)`; the dimen must not be used). Verified on device (fresh Sogou
+process): `setImeCaptionBarInsetsHeight 60->144`, `getSystemInsets 60->144`,
+caption-bar insets source `[0,2464][1200,2608]`, keyboard content raised
+1758→1614 with keys ending at 2464 == bar top — no overlap, no gap.
+
+**Keyboard raise (键盘抬高)**: keyboards that ignore the window's caption-bar
+inset (搜狗小米版 keeps its keys laid out to the window bottom) would have their
+bottom rows covered by the taller bar. The `input_method` root (id `0x010204ab`,
+named `parentPanel` in the framework table — NOT resolvable via
+`getIdentifier("input_method", ...)`, hence the hardcoded constant + lint
+suppression) is bottom-aligned in the decor, so an after-hook on
+`NavigationBarController#onWindowShown()` adds `paddingBottom = 48dp` to it; every
+keyboard's keys then end exactly at the bar top. `onWindowShown` fires per show,
+so the padding is re-applied whenever the framework resets it.
+
+**Raise is style-driven and difference-based (2026-08-24, 微信输入法 double raise +
+透明抬高条 + 小米样式无效)**: three stacked root causes were identified by a full
+multi-agent audit against the SHA-verified framework decompile:
+1. *Transparent raised strip* — the raise padding lived on the `input_method` root
+(`parentPanel`), which has **no background** (`Theme.Panel` window background is
+transparent, the ROM layout paints nothing, `NavigationBarController` calls
+`setBackground(null)` on the frame in gesture mode), so the padded strip showed the
+app through. The raise now pads **`InputMethodService.mInputView`** instead
+(fallbacks: first child of the `inputArea` frame, id 16908318 → root); the
+keyboard's own background spans its padding and keeps the strip opaque.
+2. *小米样式 not taking effect* — `setImeCaptionBarInsetsHeight(int)` was forced to
+144px unconditionally, so inset-honoring keyboards (微信输入法, Gboard) carved
+themselves even with none of this module's padding present. Every style-aware hook
+now gates on **`aospRaiseActive` = aospBarActive && raiseStyle == AOSP**:
+the hide-hook flip, the getter forcing, the injection forcing (**AOSP样式 → 144px,
+小米样式 → 0px**, bar-inactive → ROM default untouched), the `getSystemInsets`
+bottom pinning, the raise pipeline itself, and the `addMiuiBottomView` suppression
+(under 小米样式 MIUI's own bottom view comes back — it IS the native bar for
+optimized keyboards). The user picks per 键盘抬高样式 (`KEY_AOSP_IME_RAISE_STYLE`,
+AospImePage). Preferences propagation for this key is live (~100 ms memo TTL);
+no restart needed.
+3. *Sogou keys vanishing / stale injection* — the injection is now actively synced:
+`syncCaptionInjection` pushes 144/0 directly onto the window's InsetsController when
+the active state changes (state recorded BEFORE invoke — the setter notifies insets
+synchronously and can relayout into the watcher). This matters because
+`InsetsController` re-applies its stored non-zero height on every frame change, so a
+stale 144px source survives until someone writes 0.
+
+The amount padded is still difference-based and idempotent:
+`desired = clamp(deepestVisibleBottom(mInputView) + ourOwnCurrentPadding −
+(view.height − 48dp), 0, 48dp)`; evaluation runs at every `onWindowShown`, at four
+250 ms post-show checks, **and continuously via an `OnLayoutChangeListener` on the
+root** (coalesced through `pendingRaiseChecks`) — on-device, 微信输入法 resets its
+own clearance between shows and re-applies it after the first evaluation ran, which
+left a double raise for the rest of the session; a single evaluation can never
+work. Ownership is tracked in `paddedViews` (carried across hot reload via
+`saveHotReloadState`); do NOT use a `paddingBottom == target` signature heuristic —
+it counts foreign padding as ours. Guards skip/withdraw on fullscreen mode, extract
+view, or hidden input view. Deactivation-path requirement found by audit:
+`hookRaiseKeyboard` must gate only on the master switch — gating it on
+`aospBarActive` left stale injected sources unhealed when force-all/master turned
+off.
+The user selects the behavior per the **键盘抬高样式** dropdown
+(`KEY_AOSP_IME_RAISE_STYLE`, AospImePage): AOSP 样式 (default) applies the shortfall
+padding so keys end exactly at the bar top; 小米样式 never touches the layout (only
+withdraws padding this module added earlier). Do not revert to full-height
+unconditional padding.
+
+**Bar back button must never synthesize BACK into the app (2026-08-24, 微信输入法
+"松手返回上一级界面")**: stock `KeyButtonView#onTouchEvent` synthesizes
+`KEYCODE_BACK` down/up through `InputMethodService.onKeyDown/onKeyUp` and falls
+back to `InputConnection.sendKeyEvent(ev)` whenever the IMS declines an event.
+微信输入法's NormalImeProxy (`com.tencent.wetype.plugin.hld.k#g(int)`) handles the
+BACK DOWN itself with `requestHideSelf(0)` and returns true **without** calling
+`KeyEvent.startTracking()`, so `mTracking` stays false; on UP the untracked event
+is declined by `InputMethodService.onKeyUp` (`isTracking()==false`) and forwarded
+through the InputConnection to the host app — pressing the bar's 返回 key closed
+the keyboard on touch-down and navigated the app back on finger-up.
+`hookNavBarBackButtonDismiss` hooks `NavigationBarView#prepareNavButtons` and
+rewires the back button off the key pipeline entirely: `KeyButtonView.setCode(0)`
+(no synthetic key events are possible afterwards) plus a click listener calling
+`InputMethodService.requestHideSelf(0)`. This matches the button's own semantics —
+in gestural mode `orientBackButton` rotates the back icon 90° because flag bit 0
+(`isBackDismissIme`) is always set from `(showImeSwitcher?4:0)|3`. The id
+`input_method_nav_back` resolves via `getIdentifier("input_method_nav_back",
+"id", "android")` with the literal fallback `0x010203B8` (=16909240, read from the
+decompiled `KeyButtonView`; device `/system/framework/framework.jar` sha
+`ab30b2c8…` equals the decompile cache, so those shapes are authoritative).
+Wiring runs from three anchors, deduped by `wiredBackViews`: prepareNavButtons,
+NavigationBarInflaterView#inflateLayout after (covers re-inflations that create
+fresh button views), and NavigationBarView#updateOrientationViews after.
+**Resolver trap (caused the first failed attempt)**: `CompatibleMethodResolver`
+treats an empty parameter list as "must be zero-arg", so a name-only lookup of this
+one-arg method silently returned null (HOOK_SKIPPED "method not found" on device);
+resolve such methods over `declaredMethods` by name instead. Do not move the fix to
+an `InputMethodService.onKeyDown` hook: keyboard services override that method,
+and a virtual-method hook on the base class never fires for the override.
+
+`KEY_AOSP_IME_FORCE_ALL` (全面屏优化键盘也强制 AOSP 导航栏, default off) lifts the
+customized-keyboard skip in `aospBarActive`, so MIUI-customized keyboards (搜狗小
+米版 / 百度小米版 / 讯飞小米版) are also forced onto the AOSP branch instead of
+keeping their own 全面屏优化 bottom view. Without it, a customized keyboard's own
+bottom view wins and the module's AOSP switch visibly does nothing for it.
+`aospBarActive(context)` = master on && (force-all || not MIUI-customized); it
+drives the hide-hook, the `addMiuiBottomView` skip and the keyboard raise together,
+so the AOSP branch and the MIUI bottom view can never stack or double-apply.
 
 Layout tokens are limited to what `NavigationBarInflaterView.createView` actually
 inflates: `back`, `home_handle`, and `ime_switcher`. Everything else returns null.
@@ -1133,10 +1272,28 @@ attaches it as a child hooker onto that ClassLoader — the same pattern
 anything that is not a `BaseDexClassLoader`, so the `after` hook checks
 `param.throwable` first, and loaders are deduped through a `WeakHashMap`-backed set.
 
-This half could not be verified against any local artifact: `com.miui.phrase`,
-which supplies the dex, is not in the reverse-engineering workspace. It sits
-behind its own setting (`KEY_AOSP_IME_MIUI_IME_LIST`, default off) and fails
-silently.
+This half was verified against the OS4.0.0.19 `com.miui.phrase` APK
+(`/product/app/MIUIFrequentPhrase`, pulled and decompiled 2026-08-24): the
+switcher filter is `getSupportIme()` pruning the enabled list by the
+`sImeMinVersionSupport` allowlist (six MIUI-customized packages:
+iflytek.miui / sogou.xiaomi / baidu_mi / iflytek.blackshark / baidu_heisha /
+xiaomi.type), and the popup (`InputMethodSwitchPopupView`) does no further
+filtering — so hooking `getSupportIme` alone fixes the 搜狗小米版 "不能显示所有
+的键盘" report. `getSupportIme` is deoptimized (small enough to AOT-inline),
+and its result-replacement is gated at call time on `KEY_AOSP_IME_MIUI_IME_LIST`.
+The A10-era `MiuiSwitchInputMethodListener#deleteNotSupportIme` re-filter does
+not exist on .19 (HOOK_SKIPPED is expected, not an error) and is neutralized
+when present. `sImeMinVersionSupport` is mirrored into
+`MiuiCustomizedImePackages` at dex load — the authoritative "customized" signal
+on .19. `addMiuiBottomView` is called unconditionally from
+`InputMethodService.onCreate` on .19 (the old `isImeSupport(Context)`-style gate
+moved into the dex itself), so the AOSP bar and MIUI's own bottom view would
+stack; the before-hook skips it exactly when `AospImeHooker.aospBarActive` says
+the AOSP branch is active. The feature is decoupled from the AOSP-bar master
+switch: `AospImeConfig.shouldHookImePackage` hooks a selected package when either
+the bar (`KEY_AOSP_IME_ENABLED`) or the switcher list (`KEY_AOSP_IME_MIUI_IME_LIST`)
+is on, and `AospImeHooker.onHook` gates the bar hooks on the former and
+`hookLoadDex` on `showAllImeList() || isEnabled()`.
 
 `AospImeSystemHooker` is the system-server half.
 `InputMethodDrawsNavBarResourceMonitor` derives `UserData.mImeDrawsNavBar` from

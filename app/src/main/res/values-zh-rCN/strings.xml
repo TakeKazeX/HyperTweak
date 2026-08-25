@@ -315,6 +315,12 @@
     <string name="ime_left_key">左侧按键</string>
     <string name="ime_list_all_keyboards">在切换器中列出所有键盘</string>
     <string name="ime_list_all_keyboards_summary">在 MIUI 的键盘切换器中显示所有已启用的输入法。此设备上未经测试</string>
+    <string name="ime_force_aosp_title">全面屏优化键盘也强制 AOSP 导航栏</string>
+    <string name="ime_force_aosp_summary">对小米定制键盘（搜狗小米版、百度小米版、讯飞小米版等）也强制使用 AOSP 导航栏，而不是其全面屏优化底栏</string>
+    <string name="ime_raise_style_title">键盘抬高样式</string>
+    <string name="ime_raise_style_summary">AOSP：键盘内容抬高到导航栏正上方；小米：还原系统原生底部（全面屏优化键盘恢复自带底栏，其他键盘贴底显示）</string>
+    <string name="ime_raise_style_aosp">AOSP 样式</string>
+    <string name="ime_raise_style_miui">小米样式</string>
     <string name="ime_loading">正在加载输入法…</string>
     <string name="ime_nav_bar_summary">在所选键盘内绘制 AOSP 手势导航栏</string>
     <string name="ime_nav_bar_title">AOSP 键盘导航栏</string>
@@ -554,6 +560,8 @@
     <string name="tweaks_cc_corner_dialog_title">输入圆角大小</string>
     <string name="tweaks_cc_corner_dialog_summary">0 表示跟随系统设计</string>
     <string name="tweaks_cc_corner_unit">dp</string>
+    <string name="settings_cc_edit_title">控制中心编辑卡片</string>
+    <string name="settings_cc_edit_summary">在控制中心「编辑与排序」中显示大卡片、播控中心、亮度/音量滑条和设备中心，并可像快捷操作一样长按拖动排序（拖到其他卡片或快捷操作区域即可调整位置）。开启后需重启系统界面</string>
     <string name="tweaks_system_core_title">系统核心</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>

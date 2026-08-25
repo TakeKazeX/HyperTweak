@@ -52,6 +52,7 @@ import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
+import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
@@ -533,6 +534,7 @@ class HookEntry : XposedModule() {
                 attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }

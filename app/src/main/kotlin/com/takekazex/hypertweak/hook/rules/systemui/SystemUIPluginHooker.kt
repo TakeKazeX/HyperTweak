@@ -19,7 +19,8 @@ object SystemUIPluginHooker : StaticHooker() {
     private data class PluginHookSession(
         val state: HotReloadPluginState,
         val sliderPercentHooker: SliderPercentageHooker,
-        val cornerHooker: ControlCenterCornerHooker
+        val cornerHooker: ControlCenterCornerHooker,
+        val cardsEditHooker: ControlCenterCardsEditHooker?
     )
 
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
@@ -29,12 +30,10 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        val sliderPercentEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-        val cornerEnabled = Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false)
-        if (!sliderPercentEnabled && !cornerEnabled) {
-            DebugLog.hookSkipped("SystemUIPlugin", "control center plugin hooks", "disabled")
-            return
-        }
+        // The control-center editor cards feature (编辑与排序 visibility + drag reorder) is
+        // gated on its master switch; the hooker attaches only when the switch is already on at
+        // plugin load, so enabling it the first time needs a SystemUI restart. Every callback
+        // inside the hooker re-reads the switch live, so turning it off applies without one.
 
         val clzPluginInstance = "com.android.systemui.shared.plugins.PluginInstance".toClassOrNull()
         if (clzPluginInstance == null) {
@@ -74,6 +73,10 @@ object SystemUIPluginHooker : StaticHooker() {
                         if (session != null) {
                             runCatching { session.sliderPercentHooker.prepareForHotReload() }
                             runCatching { session.cornerHooker.prepareForHotReload() }
+                            session.cardsEditHooker?.let { cardsEdit ->
+                                runCatching { cardsEdit.prepareForHotReload() }
+                                detach(cardsEdit)
+                            }
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
                         }
@@ -155,8 +158,13 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             ControlCenterCornerHooker()
         }
+        val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
+            ControlCenterCardsEditHooker()
+        } else {
+            null
+        }
 
-        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker)
+        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker, cardsEditHooker)
         // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
         // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
         // hooker uninstalled while the session entry suppressed later retries.
@@ -170,6 +178,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
                 Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
             }
+        if (cardsEditHooker != null) {
+            runCatching { attach(cardsEditHooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
+                }
+        }
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")
     }
 

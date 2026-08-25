@@ -70,6 +70,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     // read in clearRestartedScopes). Changing a slider takes effect on the next SystemUI restart,
     // which the master-switch restart dialog or the manual scope restart already covers.
     Preferences.KEY_CC_CORNER_ENABLED to RestartScopeSelection(systemUi = true),
+    // The editor-cards hooks install at control-center plugin load; only enabling needs the
+    // restart (callbacks read the switch live, so disabling applies immediately).
+    Preferences.KEY_CC_EDIT_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,
@@ -263,6 +266,7 @@ class MainActivity : ComponentActivity() {
             var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
+            var ccEditEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) }
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
@@ -655,6 +659,7 @@ class MainActivity : ComponentActivity() {
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+                    ccEditEnabled = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
@@ -923,6 +928,12 @@ class MainActivity : ComponentActivity() {
                         sliderSamePercentageStyle = checked
                         Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                     },
+                    ccEditEnabled = ccEditEnabled,
+                    onCcEditEnabledChange = { checked ->
+                        markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)
+                        ccEditEnabled = checked
+                        Preferences.putBoolean(Preferences.KEY_CC_EDIT_ENABLED, checked)
+                    },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
                         markTweaked(Preferences.KEY_SHOW_IN_SETTINGS, checked)
@@ -988,12 +999,16 @@ class MainActivity : ComponentActivity() {
                         this@MainActivity.recreate()
                     },
                     onRestartScope = { selection ->
+                        // Push every queued setting to the daemon before the scoped processes die;
+                        // their hookers read the daemon copy at (re)load time.
+                        Preferences.flush()
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, selection)
                         clearRestartedScopes(selection)
                     },
                     onHotReload = { restartAllScopes ->
                         XposedServiceManager.hotReloadStaleTargets { report ->
                             if (restartAllScopes && report.failedCount == 0) {
+                                Preferences.flush()
                                 RestartUtils.restartScope(this@MainActivity, coroutineScope, ALL_MANUAL_RESTART_SCOPES)
                                 clearRestartedScopes(ALL_MANUAL_RESTART_SCOPES)
                             }
