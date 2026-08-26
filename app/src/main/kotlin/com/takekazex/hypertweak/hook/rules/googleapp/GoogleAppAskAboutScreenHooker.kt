@@ -40,7 +40,7 @@ import java.lang.reflect.Method
  * thumbnail, spoof Build identity, bypass consent, or manufacture a capture/token path — the
  * OMNI overlay itself is the Circle-to-Search capture session, so no screenshot injection is
  * needed on this surface (unlike the Robin floaty attachment sheet, see
- * GOOGLE_APP_ASK_ABOUT_SCREEN_PLAN.md §5).
+ * docs/GOOGLE_APP_ASK_ABOUT_SCREEN_PLAN.md §5).
  *
  * Resolution is fail-closed: ambiguous, missing, or unreadable matches install nothing. The
  * coordinator constructor and every caller of the capability are deoptimized so ART cannot

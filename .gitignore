@@ -25,3 +25,7 @@ modules_config.db
 modules_config.db-shm
 modules_config.db-wal
 /.gradle-home
+
+# Local evidence/research documents (reverse-engineering notes, investigation
+# reports, port plans). Kept on disk only, not published with the repository.
+/docs/

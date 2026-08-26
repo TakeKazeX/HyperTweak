@@ -20,7 +20,7 @@ import java.util.regex.Pattern
 /**
  * True stacked mobile signal, rebuilt on Flux Decor 2.0.3's view-level model — NOT the native
  * Compose stacked slot and NOT a custom `getIcon()` renderer (both former approaches are gone).
- * See FLUX_DECOR_STACKED_SIGNAL_PLAN.md for the full analysis and port notes.
+ * See docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md for the full analysis and port notes.
  *
  * How it works (all targets verified on OS4.0.0.15.XPMCNXM):
  *

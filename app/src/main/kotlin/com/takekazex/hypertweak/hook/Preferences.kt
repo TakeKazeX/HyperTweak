@@ -261,8 +261,8 @@ object Preferences {
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
 
     // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
-    // FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The former SVG-render keys (styles, paddings, alphas,
-    // type text, show-single/stacked/roaming) were deleted with the renderer.
+    // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The former SVG-render keys (styles, paddings,
+    // alphas, type text, show-single/stacked/roaming) were deleted with the renderer.
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
 

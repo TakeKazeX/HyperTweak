@@ -48,6 +48,41 @@ needed.
   class or method is absent; confirm uncertain behavior in smali or runtime
   logs.
 
+## Root-Cause Audit Before Implementation
+
+For every new feature, new implementation, or bug fix in a hooked app, audit
+the root cause in the target's decompiled sources before writing any hook:
+
+1. Trace the complete mechanism end to end — entry/UI gate, persistence,
+   parse/dispatch, and final render/application. Record the exact classes,
+   methods, and fields at every layer, and which process runs them (manifests
+   may declare secondaries such as `:keyguardeditor`; hooks must attach there
+   too).
+2. Verify the capability exists at the final layer. A gate being UI-only does
+   not mean the effect is implementable elsewhere: the 时钟玻璃 attempt showed
+   an editor-only unlock saves fine while the material rendering exists solely
+   inside one template family's custom view (see [`CLAUDE.md`](CLAUDE.md)).
+   If the last layer cannot be reached by hooking, report that and confirm the
+   scope with the user instead of shipping a no-op.
+3. Implement against the shapes verified in that exact build: resolve classes
+   and methods by the names/signatures found during the audit, hook funnels
+   confirmed by call-site analysis (not assumed funnels), and re-verify after
+   every device OTA.
+
+## Stage Delivery And installRelease
+
+Deliver in testable stages. After completing each coherent stage:
+
+1. Run the checks (`compileDebugKotlin`, unit tests, lint as warranted) and
+   then `assembleRelease`.
+2. Install with `adb install -r app/build/outputs/apk/release/<apk>` — the
+   user tests release builds; debug-only testing once masked an R8 breakage.
+   When reflection touches bundled-library class names, verify those constants
+   survived R8 in the built APK before handing over.
+3. Force-stop the affected scoped processes so the new hooks load, then hand
+   over with concrete on-device test steps and the log tags to capture if it
+   fails.
+
 ## Compose and UI
 
 Keep the existing Compose and Miuix visual language. Verify narrow screens,

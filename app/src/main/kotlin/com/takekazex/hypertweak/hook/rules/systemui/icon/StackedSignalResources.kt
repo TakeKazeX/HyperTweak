@@ -7,8 +7,8 @@ import com.takekazex.hypertweak.util.DebugLog
 
 /**
  * Drawable injection for the stacked signal, ported from Flux Decor 2.0.3's `ModuleResourceHooks`
- * + `StatusBarDualSimSignalHook.registerSignalDrawables` (see FLUX_DECOR_STACKED_SIGNAL_PLAN.md
- * §2.4 / §4.1).
+ * + `StatusBarDualSimSignalHook.registerSignalDrawables` (see
+ * docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md §2.4 / §4.1).
  *
  * Module vector drawables (`statusbar_signal_{row}_{level}(_dark|_tint)`) are registered under fake
  * resource ids in the 0x7E package range that SystemUI resources never use. The hooker redirects

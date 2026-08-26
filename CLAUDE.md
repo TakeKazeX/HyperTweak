@@ -124,17 +124,10 @@ exact dex name (`...$lambda$106$$inlined$combine$1$3`), falling back to
 enumerating the class loader's dex entries and finally to probing the lambda
 ordinal, so the ordinal in the middle of the name does not matter.
 
-Agent verification (2026-08-17, OS4.0.0.15.XPMCNXM device): the first build
-silently skipped (`HOOK_SKIPPED ... combine lambda ... not found`) because of
-the R8 class-resolution issue above; with the dex-name resolver the hook
-installs (`HOOK_OK`) and logcat confirms the behavior flips: with mode 1 (不避让)
-`StackStateStrategy calculateTargetYPosition0` shows
-`notificationBottomOnKeyguard` = 2257 (`indicationAreaTop 2281 − 24` padding)
-instead of the avoided 1884 (`GXZW_ICON_Y 1956 − 60` gxzw padding). The
-notification stack bottom moves from just above the fingerprint icon down to
-the indication area. `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
-`assembleDebug` pass. Visual confirmation of the lockscreen layout is the
-user's.
+Verified on-device 2026-08-17 (OS4.0.0.15.XPMCNXM): with mode 1 (不避让) logcat shows
+`notificationBottomOnKeyguard` = 2257 (indication-area padding) instead of the avoided 1884
+(gxzw padding) — the stack bottom moves from just above the fingerprint icon down to the
+indication area. Visual confirmation of the lockscreen layout is the user's.
 
 ## Lockscreen Charging Detail (锁屏充电详情)
 
@@ -178,12 +171,29 @@ current text, so a different system message (e.g. 充电保护中) is never glue
 stale base. The master switch needs a SystemUI restart, offered by the in-page
 "Restart SystemUI" row.
 
-Agent verification (2026-08-17): `compileDebugKotlin`, `testDebugUnitTest`,
-`lintDebug` and `assembleDebug` pass (only the project-wide `PrivateApi`
-reflection-family lint warning, same as every other reflection-based hooker).
+Verified 2026-08-17 (build checks pass; only the project-wide `PrivateApi`
+reflection-family lint warning shared by every reflection-based hooker).
 On-device visual confirmation of the lockscreen text — wattage / voltage /
 current / temperature appearing while charging, and the sign/normalization of
 the current value on this ROM — is the user's.
+
+## Clock Glass On Other Templates — Attempted And Reverted (2026-08-26)
+
+Making the 时钟玻璃 effect (font-filter id 5, `clockEffect == 5`) selectable on non-classic
+lockscreen templates is easy but pointless: the editor gates are UI-only (`getFontFilter()`
+lists, `FontFilterTitleAdapter.glassDisabled`, `glassEffectDisable`), and injecting the
+option + saving `clockEffect=5` works. The RENDER side is the blocker: the glass material
+(`MiuiBlurUtils.setGlassEffectMethod` = `setMiViewMaterialType(1)` + 42-float glass params +
+blur mode 3) is applied exclusively by `AllInOneBase` on its own `TimeView`s, whose custom
+onDraw renders text as a Path with per-frame `setMiGlassClip(textBounds±50px)` +
+`setMiGlass(glassData)` so wallpaper blur shows through the glyphs. Other families
+(magazine/eastern/oversize/rhombus…) use plain TextViews with no glass code path at all;
+calling setGlassEffectMethod on them cannot reproduce the look. Replicating it would mean
+rebuilding every family's clock view as TimeView-style custom drawing — not hookable.
+Verified against MIUIAod DEV-2444.1.0.1 (`cache/aod-dff01aeeb6b741cf`) and OS4 SystemUI.
+The full feature (editor injection + render hooks + settings page) was reverted; also do
+not re-add: hooking `ClockEffectUtils.setViewEffects` after to call setGlassEffectMethod
+does nothing visible for these families.
 
 ## Status-Bar Icon Tuner
 
@@ -278,8 +288,8 @@ Current slice (cellular and WiFi visibility were the first slice):
   `CombineKt.combineInternal` calls) to always emit the requested value — `statusbar_region_sampling`
   mode 1 always samples, mode 2 never does.
 - `StackedSignalHooker` — 堆叠信号, rebuilt on Flux Decor 2.0.3's view-level model (upstream
-  `Flux_Decor_OS4-2.0.3.apk` decoded at `/tmp/deobf/flux/`; full analysis in
-  `FLUX_DECOR_STACKED_SIGNAL_PLAN.md`). The old implementations are gone: the native
+  (`Flux_Decor_OS4-2.0.3.apk` decoded at `/tmp/deobf/flux/`; full analysis in
+  `docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md`). The old implementations are gone: the native
   `isStackable`-slot hack and the Compose/SVG `getIcon()` renderer were both deleted with their
   keys. The hooker intercepts the mobile icon at the view layer, mirroring Flux Decor:
   a before-hook on `ImageView.setImageResource(int)` loads module drawables directly and renders
@@ -312,11 +322,10 @@ Current slice (cellular and WiFi visibility were the first slice):
   `setImageResource` call (`param.result = null`) as defense in depth.
   Keys: `icon_stacked_enabled`, `icon_stacked_scale` (0.5–1.5 ×0.1); requires a SystemUI restart.
 
-Agent verification status (2026-08-19): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`,
-and `assembleDebug` pass. On-device (OS4.0.0.15.XPMCNXM) the user confirmed the fix works:
-the stacked signal icon renders (two rows), the non-data SIM no longer leaves an empty slot or a
-stale drawn icon, and the cellular visibility switches (隐藏数据活动 / roaming / VoLTE / VoWiFi /
-type / 5G / satellite) work again. Regression history — do not reintroduce:
+User-confirmed on-device 2026-08-19 (OS4.0.0.15.XPMCNXM): the stacked signal icon renders
+(two rows), the non-data SIM no longer leaves an empty slot or a stale drawn icon, and the
+cellular visibility switches (隐藏数据活动 / roaming / VoLTE / VoWiFi / type / 5G / satellite)
+work again. Regression history — do not reintroduce:
 - The `mobile_signal` view's `tag` must never hold a fake `0x7e...` id: the binder's theme-change
   collector re-applies the drawable from `View.getTag()` via `setImageResource`, which resolves
   fake ids below the hooks and throws `Resources.NotFoundException`, killing the whole binder
@@ -335,22 +344,17 @@ longer exist).
 
 ### "Icon tweaks stopped applying" diagnosis (2026-08-21)
 
-The user reported 状态栏图标修改失效 again. On-device forensics (LSPosed
-`modules_config.db`, module log): every HyperTweak Icon Tuner hook installs (`HOOK_OK`) and
-`IconManagerHooker` runs, but the final list sizes equal the stock ones (`right=17 cc=12`) —
-**no slot mode was ever set in HyperTweak** (zero `icon_tuner_slot_*` keys in either the daemon
-DB or the app's local prefs; `icon_stacked_enabled` = false). The user's slot hiding
-(bluetooth/vpn/net_speed/wireless_headset) and left placement (zen/volume/location/alarm_clock)
-were configured in **Hyper Helper** (`dev.lackluster.mihelper`, config group `config`), and
-mihelper is no longer in the `com.android.systemui` LSPosed scope (scope table: only
-noactive/hyperceiler/hyperlyricsenhanced/hypertweak hook SystemUI) — so all of its icon tweaks
-silently stopped. Its `LeftContainer` could not have worked on OS4 anyway: it hooks
-`MiuiCollapsedStatusBarFragment`, which OS4 removed. Also noted: HyperCeiler's own StatusBarIcon
-hook fails on this device with `IllegalAccessException: Cannot set public static final field
+No HyperTweak bug. On-device forensics (LSPosed `modules_config.db`, module log): every
+HyperTweak Icon Tuner hook installs (`HOOK_OK`) but **no slot mode was ever set in HyperTweak**
+(zero `icon_tuner_slot_*` keys anywhere; `icon_stacked_enabled` = false) — the user's tweaks
+lived in **Hyper Helper** (`dev.lackluster.mihelper`), which had silently lost its
+`com.android.systemui` LSPosed scope, so all of its icon tweaks stopped. Its `LeftContainer`
+could not have worked on OS4 anyway: it hooks `MiuiCollapsedStatusBarFragment`, which OS4
+removed. Separately noted: HyperCeiler's own StatusBarIcon hook fails on this device with
+`IllegalAccessException: Cannot set public static final field
 MiuiIconManagerUtils.RIGHT_BLOCK_LIST` (static-final reflective write, same ART restriction as
-`UnlockClipboardHooker`'s original bug) — that is HyperCeiler's bug, not ours, and it does not
-affect our content-mutation approach. No HyperTweak code change was needed for the report; the
-fix for the user is re-configuring the tweaks in HyperTweak's Icon Tuner.
+`UnlockClipboardHooker`'s original bug) — that is HyperCeiler's bug and does not affect our
+content-mutation approach. Fix for the user: re-configure the tweaks in HyperTweak's Icon Tuner.
 
 ### Release-build R8 regression: flow-replaced visibility tweaks die (2026-08-21)
 
@@ -437,24 +441,19 @@ height because the views left `MiuiStatusIconContainer`'s manual layout; cloning
 layoutParams avoids that.
 
 **Vertical centering (2026-08-23, "图标还是被抬高")**: the right cluster is *not* vertically
-centered by gravity — `MiuiStatusIconContainer.onLayout` manually places every child at
-`top = (paddingTop + height)/2 − measuredHeight/2` (OS4 `onLayout` L283-292); classic slot views
-are small boxes (`LinearLayout.LayoutParams(WRAP or 20dp FIXED_SPACE, status_bar_icon_height
-20dp)` from `IconManager.onCreateLayoutParams` L223-225, margins `status_bar_icon_horizontal_margin`
-0sp, gravity -1 — never MATCH_PARENT) whose glyph paints centered inside the box
-(`setScaleType(CENTER)` L203, `onDraw` scales about the box center L505-516). So matching the
-right cluster means: keep the copied 20dp box and center the box in the bar. The "raised" look
-came from `ensureContainer` never setting the module LinearLayout's **own** `gravity` — setting
-it on the container's `layoutParams` (how the host aligns the full-height container — a no-op)
-was mistaken for it; LinearLayout's default is TOP, so the 20dp clones were parked at
-`top = 0`, glyph centers 10dp from the top instead of `H/2` (raised by `H/2 − 10dp`). Fix:
+centered by gravity — `MiuiStatusIconContainer.onLayout` places every child at
+`top = (paddingTop + height)/2 − measuredHeight/2`, and classic slot views are small boxes
+(`LinearLayout.LayoutParams(WRAP or 20dp FIXED_SPACE, status_bar_icon_height 20dp)` from
+`IconManager.onCreateLayoutParams`, margins 0, gravity -1 — never MATCH_PARENT) whose glyph
+paints centered inside the box (`setScaleType(CENTER)`). The "raised" look came from
+`ensureContainer` never setting the module LinearLayout's **own** `gravity` — LinearLayout's
+default is TOP, so the 20dp clones parked at `top = 0`. Fix:
 `left.gravity = Gravity.CENTER_VERTICAL` on the container **and** `copy.gravity =
-CENTER_VERTICAL` on every copied clone layoutParams (per-child gravity overrides the container
-gravity, so no source params can ever top-align a clone). Full verification of the fix:
-`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug` pass; on-device visual
-confirmation is the user's. Do not "fix" by switching the clone height to MATCH_PARENT — the
-source box is genuinely 20dp and manually centered; a MATCH_PARENT clone only coincidentally
-centers its glyph and breaks the box match.
+CENTER_VERTICAL` on every cloned layoutParams (per-child gravity overrides the container
+gravity, so no source params can ever top-align a clone); on-device visual confirmation is the
+user's. Do not "fix" by switching the clone height to MATCH_PARENT — the source box is
+genuinely 20dp and manually centered; a MATCH_PARENT clone only coincidentally centers its
+glyph and breaks the box match.
 
 The master switch is `icon_left_container_enabled` and every slot toggle is its own boolean key.
 
@@ -553,30 +552,22 @@ the next gesture.
 
 ### Why predictive return-home strands on Launcher 7.50.06
 
-Traced on device (launcher `RELEASE-7.50.06.2372-06261924`, decompiled to
-`cache/launcher-73ee007d501ecdb8`). The commit path itself works: the module holds the element in
-`CLOSE_TO_DRAG` ("Held Xiaomi CLOSE_TO_DRAG for real commit transition") and composes the commit
-("Composed accepted predictive return-home commit in original start transaction"). Then nothing
-happens for ~1.8s until `completeUnifiedCommitTransitionTimeout` fires.
-
-The element never leaves `CLOSE_TO_DRAG` because on this build `AnimType.CLOSE_TO_HOME` for a
-gesture-driven return home is issued from exactly one place: `NavStubView` on finger-up, via
+Traced on device (launcher decompiled to `cache/launcher-73ee007d501ecdb8`). The commit path
+itself works; the element simply never leaves `CLOSE_TO_DRAG`. On this build
+`AnimType.CLOSE_TO_HOME` for a gesture-driven return home is issued from exactly one place:
+`NavStubView` on finger-up, via
 `StateManager.sendEvent(AppToHomeEvent(GestureAppUpEventInfo(... CLOSE_TO_HOME ...)))`
 (`NavStubView.java:4597`). The module pilfers the pointer stream for SystemUI, so `NavStubView`
-never receives the UP and never sends that event. Nothing else supplies it:
-`WindowAnimParamsProvider.getRemoteAbortParams` also builds `CLOSE_TO_HOME` params, but only for
-`RemoteShellAbortEvent` from `FastLaunchWindowElement`, which is an abort path, not a commit.
-
-`animTo` itself is called constantly during the drag (106 `CLOSE_TO_DRAG` calls in one gesture),
-so the `animTo$lambda$3` hook resolves and fires correctly — the hooks are not the problem. Nor is
-the launcher version: every member upstream resolves exists with the expected signature on this
-build.
+never receives the UP and never sends that event, and no other code path supplies it
+(`WindowAnimParamsProvider.getRemoteAbortParams` builds `CLOSE_TO_HOME` params only for
+`RemoteShellAbortEvent` — an abort path). `animTo` fires constantly during the drag and every
+resolved member exists, so hooks and launcher version are not the problem.
 
 Closing this needs the module to drive the launcher to home itself after commit, mirroring
 `NavStubView:4597`, rather than waiting for an event that its own pointer pilfering prevents.
-Note the launcher logs under instance tags (`WindowElement<hash>`) and `MiuiHomeLog` prefixes
-`Launcher.`, with `debug()` gated behind the `is_miui_home_debug_log_enable` pref — capture all of
-logcat and filter offline rather than using `logcat -s`.
+The launcher logs under instance tags (`WindowElement<hash>`) and `MiuiHomeLog` prefixes
+`Launcher.`, with `debug()` gated behind the `is_miui_home_debug_log_enable` pref — capture all
+of logcat and filter offline rather than using `logcat -s`.
 
 The launcher hooks are split into two independently gated halves.
 `installMiuiHomeInputArbitrationOnly` (gesture stub, `GesturesBackTouchProcessor`
@@ -773,21 +764,12 @@ OS4.0.0.15.XPMCNXM jars (`services-OS4.0.0.15.XPMCNXM.jar`,
   failing with `NoSuchMethodException` until the invoker was fixed the same way.
 - `PhoneWindowManager#powerLongPress(long)` matches the cache (verified `HOOK_OK`).
 
-Agent verification (2026-08-17, OS4.0.0.15.XPMCNXM device): the first on-device run
-failed to install the MIUI-layer hook (`HOOK_FAILED PowerKeyRule#onMiuiLongPress`
-NoSuchMethodException) and the CTS bridge (`failed to attach hooker:
-ContextualSearchSystemHooker`, same cause on the stub), so long-press power fell
-through to the user's configured 小爱 (`Settings.System.long_press_power_key` =
-`launch_voice_assistant`) and no CTS service was reachable. After fixing both
-signatures, the boot log shows `HOOK_OK` for
-`PowerKeyRule#onMiuiLongPress(Object,long)` and
-`...ContextualSearchManagerStub#startContextualSearch(int,ContextualSearchConfig)`
-plus every bridge hook, and each long-press power logs
-`PowerButtonCTS: MIUI long-press power -> Circle to Search` with no
-`contextual search service failed` afterwards. `compileDebugKotlin`,
-`testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. Visual confirmation of
-the Circle to Search overlay and of the default-assistant / haptic behavior is the
-user's.
+Verified on-device 2026-08-17 (OS4.0.0.15.XPMCNXM): after fixing both signatures above, the
+boot log shows `HOOK_OK` for `PowerKeyRule#onMiuiLongPress(Object,long)` and
+`...ContextualSearchManagerStub#startContextualSearch(int,ContextualSearchConfig)` plus every
+bridge hook, and each long-press power logs `PowerButtonCTS: MIUI long-press power -> Circle
+to Search`. Visual confirmation of the Circle to Search overlay and of the default-assistant /
+haptic behavior is the user's.
 
 ## AOSP Restore
 
@@ -889,15 +871,9 @@ falls back to `Unsafe`. On OS4 the `sun.misc.Unsafe` shim dropped
 writer reads the shim's `theInternalUnsafe` field and takes offset/base from the
 platform's own `jdk.internal.misc.Unsafe.staticFieldOffset`/`staticFieldBase`,
 writing through the shim's `putObject`/`putBoolean`; the hot-reload restore uses
-the same path. Agent verification (2026-08-15, OS4 device): the hook installs
-(`HOOK_OK`) but every copy previously failed at the field write — first with the
-IllegalAccessException above, then with `NoSuchMethodError: staticFieldBase` —
-both now fixed; `compileDebugKotlin`, unit tests and lint pass, and the debug
-APK is installed with a SystemUI restart. On-device verification: after a real
-copy with the fixed APK, logcat shows SystemUI creating and showing the
-`ClipboardOverlay` window (pid of the new module process) with no new hook
-failures in the LSPosed log, so the AOSP editor reappears; visual confirmation
-is the user's.
+the same path. Verified on-device 2026-08-15 (OS4): after a real copy, logcat
+shows SystemUI creating and showing the `ClipboardOverlay` window with no new
+hook failures in the LSPosed log; visual confirmation is the user's.
 
 `AospAppInfoEntryHooker` adds an entry to Security Center's app details page
 (`com.miui.appmanager.fragment.ApplicationsDetailsFragment#onCreatePreferences`,
@@ -1006,21 +982,10 @@ panel reuses the same `BrightnessPanelAnimator`/`BrightnessPanelSliderDelegate`
 shapes (delegate `binding` is now `BrightnessPanelBinding` whose `toggleSlider`
 is the `ToggleSliderItemViewBinding`).
 
-Agent verification status (OS4.0.0.15.XPMCNXM, 2026-08-14): `compileDebugKotlin`,
-unit tests, and `lintDebug` pass; the debug APK was installed on the device and,
-after a SystemUI restart, the LSPosed verbose log confirms every slider hook
-installs — `BrightnessSliderController#onBindViewHolder/updateIconProgress/
-setInMirror`, `BrightnessPanelAnimator#calculateViewValues/frameCallback`,
-`BrightnessPanelSliderDelegate#prepareShow/updateIconProgress`,
-`VolumeSliderController#onBindViewHolder/updateIconProgress(boolean,boolean)/
-syncSystemVolume/updateSliderValue`, `VolumeColumn#initColumn`,
-`VolumePanelViewController#initSuperVolumeColor/showVolumePanelH/
-updateVolumeColumnH/updateSuperVolumeView/updateSuperVolumeText/
-updateSuperVolumeViewColor`, `MiuiVolumeDialogView#updateSuperVolumeVisibility`,
-`ToggleSliderViewHolder#updateBlendBlur` — with no hook or DexKit errors in
-logcat. On-device functional testing (percentage visibility and live updates in
-the control center and the volume panel) is performed by the user, not by the
-agent (see AGENTS.md).
+Verified on-device (OS4.0.0.15.XPMCNXM, 2026-08-14): after a SystemUI restart the LSPosed
+verbose log confirms every slider hook listed above installs with no hook or DexKit errors in
+logcat. On-device functional testing (percentage visibility and live updates in the control
+center and the volume panel) is performed by the user (see AGENTS.md).
 
 ## Control Center Corner Radius (控制中心圆角)
 
@@ -1084,10 +1049,11 @@ cached per hooker instance, cleared on `onPrepareHotReload` with the other refle
 Do not replace the class-name string constants with R8-foldable lookups — they reference host
 (plugin) classes, not bundled library names.
 
-Agent verification (2026-08-30): `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
-`assembleDebug` pass. Not yet re-verified on device with the glass theme ON (the exact reason
-the previous drawable-only build showed "no effect" on the top card / device center / bottom
-tiles); on-device visual confirmation is the user's.
+Build checks passed 2026-08-30. Not yet re-verified on device with the glass theme ON (the exact
+reason the previous drawable-only build showed "no effect" on the top card / device center /
+bottom tiles); on-device visual confirmation is the user's.
+
+## AOSP IME Navigation Bar (AOSP 输入法导航栏)
 
 Restores AOSP's full-screen IME navigation bar for input methods the user selects,
 ported from Howard20181's Mi_AOSP_IME (GPL-3.0). It spans three places.
@@ -1148,10 +1114,8 @@ framework's own `input_method_navigation_bar_height` resolves to **20dp** (60px)
 — MIUI deliberately shrinks the caption bar to its gesture area — so the bar the
 system draws is a 20dp strip ("太矮"). The module pins the caption-bar insets
 height, the frame height and the keyboard raise all to a hard **48dp** (144px,
-`dpToPx(48)`; the dimen must not be used). Verified on device (fresh Sogou
-process): `setImeCaptionBarInsetsHeight 60->144`, `getSystemInsets 60->144`,
-caption-bar insets source `[0,2464][1200,2608]`, keyboard content raised
-1758→1614 with keys ending at 2464 == bar top — no overlap, no gap.
+`dpToPx(48)`; the dimen must not be used). Verified on device with a fresh Sogou
+process: insets 60→144 on both paths, keyboard keys ending exactly at the bar top.
 
 **Keyboard raise (键盘抬高)**: keyboards that ignore the window's caption-bar
 inset (搜狗小米版 keeps its keys laid out to the window bottom) would have their
@@ -1204,12 +1168,10 @@ it counts foreign padding as ours. Guards skip/withdraw on fullscreen mode, extr
 view, or hidden input view. Deactivation-path requirement found by audit:
 `hookRaiseKeyboard` must gate only on the master switch — gating it on
 `aospBarActive` left stale injected sources unhealed when force-all/master turned
-off.
-The user selects the behavior per the **键盘抬高样式** dropdown
-(`KEY_AOSP_IME_RAISE_STYLE`, AospImePage): AOSP 样式 (default) applies the shortfall
-padding so keys end exactly at the bar top; 小米样式 never touches the layout (only
-withdraws padding this module added earlier). Do not revert to full-height
-unconditional padding.
+off. Per the **键盘抬高样式** dropdown (`KEY_AOSP_IME_RAISE_STYLE`, AospImePage):
+AOSP 样式 (default) applies the shortfall padding so keys end exactly at the bar
+top; 小米样式 never touches the layout (only withdraws padding this module added
+earlier). Do not revert to full-height unconditional padding.
 
 **Bar back button must never synthesize BACK into the app (2026-08-24, 微信输入法
 "松手返回上一级界面")**: stock `KeyButtonView#onTouchEvent` synthesizes
@@ -1344,6 +1306,22 @@ runtime so resolution from the keyboard process works, but the local
 the recorded baseline — pull a versioned copy from an OS 3.0.308.0 device and cache
 it before trusting anything read from it.
 
+## Control Center Edit & Reorder (控制中心编辑排序)
+
+Settings → Experimental → 控制中心编辑 (`KEY_CC_EDIT_ENABLED`,
+`ControlCenterCardsEditHooker`) makes the OS4 collapsed control-center editor
+drag-sortable across sections: the five fixed cards (大卡片 / 播控中心 / 亮度 /
+音量 / 设备中心) become liftable and cross-droppable with the tile grid, pending
+orders commit on drag end (`KEY_CC_MAIN_CONTENT_ORDER`; 大卡片 internal order
+`KEY_CC_TOP_CARD_ORDER`), an edit-mode touch blocker keeps the interactive card
+views inert, and item-animator suppression + residual-transform sweeps prevent
+interrupted Folme moves from scrambling the grid or leaving taps dead. Six
+on-device root-cause rounds (drag gate `getDraggable`, commit funnel
+`MainPanelAdapter$itemTouchHelper$1.onStopDrag`, cross-section placement
+off-by-one, animator suppression, payload-bind touch-blocker leak) are documented
+in `docs/CONTROL_CENTER_EDIT_ANALYSIS.md`. The hooker attaches at plugin load, so
+enabling needs a SystemUI restart; committed orders and live toggles apply without one.
+
 ## Xposed Scope
 
 The module declares `staticScope=false` in
@@ -1406,43 +1384,29 @@ Settings entry points. Verified on OS4.0.0.15.XPMCNXM (Settings
 
 Two user-visible failures on this baseline were diagnosed and fixed:
 
-1. **Tapping a 其他服务 row did nothing.** `onLeftSideClicked` gates on
-   `IS_INTERNATIONAL_BUILD &&` (hooked, flag forced — works) and then calls
-   `CombinedProviderInfo.launchSettingsActivityIntent`, which silently returns false
-   when the provider declares no `settingsActivity`. GMS's credential XML
-   (`xml/google_id_provider`, `xml/remote_provider` — flat obfuscated `res/*.xml`
-   files in the GMS base APK) declares only `settingsSubtitle`; the autofill fallback
-   (`AutofillServiceInfo.getSettingsActivity` → `AutofillSettingsActivity`) is
-   manifest-disabled/not-exported and is the wrong page anyway. Edge
-   (`PasskeyCredentialProviderService`) and Microsoft Authenticator declare nothing.
-   So the intent was null and the tap was a silent no-op. `hookSettingsActivityLaunchFallback`
-   now hooks `launchSettingsActivityIntent`: GMS goes straight to its exported
-   `com.google.android.gms.credential.manager.PasswordManagerActivity`, and any other
-   failure falls back to the app-details page (`Settings.ACTION_APPLICATION_DETAILS_SETTINGS`).
-   `Context.startActivityAsUser`/`UserHandle.of` are `@hide`, so the fallback resolves
-   them by name.
-2. **The 其他服务 switches toggled visually but never committed, and showed off on page
-   open despite being enabled.** Two stacked causes, both verified on-device:
-   - `CombiPreference` wires its commit listener (`onCheckChanged` → `setEnabledProviders`)
-     only when the row widget is `miuix.slidingwidget.widget.SlidingSwitch`; on OS4 the
-     expressive settings theme makes `PrimarySwitchPreference` use
-     `settingslib_expressive_preference_switch.xml` (a `MaterialSwitch`), whose super-class
-     listener (`PrimarySwitchPreference.lambda$onBindViewHolder$0`) only flips the local
-     `mChecked` — so toggles never reached the CredentialManager. `hookCombiPreferenceSwitchCommit`
-     hooks `CombiPreference.onBindViewHolder` and, for any non-SlidingSwitch widget, attaches
-     an `OnCheckedChangeListener` that reflectively calls the preference's
-     `mOnClickListener.onCheckChanged(preference, checked)` (reverting on `false`, the
-     provider-limit case), mirroring the native SlidingSwitch path.
-   - Even with the commit working, the switches showed **off on page open while the system
-     state was on**: the rows are built (`buildPreferenceList`) before the controller's
-     `update()` refreshes `mEnabledPackageNames`, and the controller's own sync
-     (`setAvailableServices` → `mPrefs.setChecked`) only reaches rows already registered in
-     `mPrefs` — which on this build were empty during the initial display pass. `wireCombiPreferenceSwitch`
-     therefore also forces the switch (and the preference's `mChecked`) to the controller's
-     `mEnabledPackageNames` state at every bind, read through the listener's `this$0`/
-     `val$packageName` fields. Verified: toggles commit (`setEnabledProviders success`,
-     `credential_service` gains the components), the settings persist, and the switches
-     render on after a page re-open.
+1. **Tapping a 其他服务 row did nothing.** `launchSettingsActivityIntent` silently returns
+   false when the provider declares no `settingsActivity`: GMS's credential XML
+   (`xml/google_id_provider`, `xml/remote_provider` — flat obfuscated `res/*.xml` in the GMS
+   base APK) declares only `settingsSubtitle`, the autofill fallback is manifest-disabled /
+   not exported and the wrong page anyway, and Edge / Microsoft Authenticator declare
+   nothing. `hookSettingsActivityLaunchFallback` hooks `launchSettingsActivityIntent`:
+   GMS goes straight to its exported
+   `com.google.android.gms.credential.manager.PasswordManagerActivity`, and any other failure
+   falls back to the app-details page (`Settings.ACTION_APPLICATION_DETAILS_SETTINGS`;
+   `Context.startActivityAsUser`/`UserHandle.of` are `@hide`, resolved by name).
+2. **The switches toggled visually but never committed, and showed off on page open despite
+   being enabled.** Two stacked causes, both verified on-device: `CombiPreference` wires its
+   commit listener (`onCheckChanged` → `setEnabledProviders`) only when the row widget is
+   `miuix.slidingwidget.widget.SlidingSwitch`, but the OS4 expressive theme makes
+   `PrimarySwitchPreference` use a `MaterialSwitch` whose listener only flips local `mChecked`
+   — `hookCombiPreferenceSwitchCommit` hooks `CombiPreference.onBindViewHolder` and, for any
+   non-SlidingSwitch widget, attaches a listener that reflectively calls the preference's
+   `mOnClickListener.onCheckChanged(preference, checked)` (reverting on `false`, the
+   provider-limit case); and even with commit working, rows are built
+   (`buildPreferenceList`) before the controller's `update()` refreshes
+   `mEnabledPackageNames`, so `wireCombiPreferenceSwitch` also forces the switch and the
+   preference's `mChecked` to the controller's state at every bind, read through the
+   listener's `this$0`/`val$packageName` fields.
 
 **SecurityCenter half fixed for the current build**: the default-credential writers moved
 from `com.miui.securitycenter.Application` to `com.miui.securitycenter.service.CacheService`
@@ -1452,6 +1416,24 @@ silently resolved nothing and MIUI's defaults were never blocked. `hookSecurityC
 resolves the helpers and wrappers by shape (resource-read + `putString` invokes, and the
 `autofill_service` / `credential_service`+`credential_service_primary` string wrappers)
 without a class-name dependency, blocking them while `unlock_passkey` is on.
+
+## Circle to Search "Ask About This Screen" (针对屏幕内容提问)
+
+Settings → Tweaks → ask-about switch (`KEY_ASK_ABOUT_SCREEN`,
+`hook/rules/googleapp/GoogleAppAskAboutScreenHooker.kt`) unlocks the Lensient
+"ask about this screen" search box inside the Circle-to-Search OMNI overlay
+(`:googleapp` process), ported from upstream MiuiBackGestureHook commit
+`0f603b1d`: DexKit chain `usingEqStrings(lens.user, 45781832, 45765529)` → 0-arg
+non-void → `doqf.<init>` → param[6] `djyp` → its single 0-arg boolean invoke =
+capability gate `bydc.c()`, after-forced TRUE with fail-closed resolution and
+deoptimized callers. Discipline: only the capability boolean flips — no fake
+thumbnails, no spoofed Build, no consent bypass, no capture-path fabrication; if
+flags 45781832/45765529 are not server-pushed the AIM entry may still stay hidden
+(then force them `hookFlagLeaf`-style). The Robin floaty attachment-sheet half
+(`:search` process) was researched but NOT implemented — unlike the overlay it
+would need real screenshot injection to be usable; see
+`docs/GOOGLE_APP_ASK_ABOUT_SCREEN_PLAN.md`. Toggling force-stops the Google App;
+it is a forced scope, so no scope prompt.
 
 ## FCM Live (Google Push Fix)
 
@@ -1488,15 +1470,10 @@ the `isInWhiteList` hook to cover construction order. GMS is seeded in place
 into the static `USE_DATA_WHITE_LIST` set so the platform's own
 add/removeAll mutations survive.
 
-Agent verification (OS4.0.0.15.XPMCNXM, 2026-08-15): before the fix the
-LSPosed verbose log reported `Failed to hook ListAppsManager`
-(NoSuchFieldException on `mSystemBlackList`) and `dumpsys greezer` showed
-GMS absent from the `local:` whitelist; after the fix every FcmLive hook in
-both processes reports HOOK_OK and `dumpsys greezer` lists
-`com.google.android.gms` in `local:`, with GMS also in the deviceidle
-whitelist. `compileDebugKotlin` and `testDebugUnitTest` pass. On-device
-functional testing (push delivery) is performed by the user. The setting
-requires a reboot for the system half and a PowerKeeper restart (its
+Verified on-device (OS4.0.0.15.XPMCNXM, 2026-08-15): every FcmLive hook in both processes
+reports HOOK_OK and `dumpsys greezer` lists `com.google.android.gms` in `local:` plus the
+deviceidle whitelist. On-device functional testing (push delivery) is performed by the user.
+The setting requires a reboot for the system half and a PowerKeeper restart (its
 restart-scope selection only covers PowerKeeper, per the UI summary).
 
 ### Tombstone-freezer interference (NOACTIVE)
@@ -1740,14 +1717,11 @@ installed. `com.miui.mediaeditor` is a declared scope entry in
 `ScopeManager.request` when the master switch is turned on, so the user does
 not have to toggle LSPosed by hand.
 
-Agent verification (2026-08-16, OS4 device): `compileDebugKotlin`,
-`testDebugUnitTest`, `lintDebug` and `assembleDebug` pass; the debug APK is
-installed, LSPosed auto-merged the new scope entry after reinstall, and the
-media-editor process reports HOOK_OK for every hook (`wn.a#b/i/e/c/g/h`,
-`zn.a#g/h/i`, `CloudWatermarkData#<init>`, `tb0.v$b#invoke`,
-`vy.i#b(List,boolean)`) with no failures. On-device functional testing (the
-watermark menu showing the unlocked categories, festival watermarks outside
-their time window, bulk downloads) is performed by the user.
+Verified on-device 2026-08-16 (OS4): LSPosed auto-merged the new scope entry after reinstall
+and the media-editor process reports HOOK_OK for every hook (`wn.a#b/i/e/c/g/h`,
+`zn.a#g/h/i`, `CloudWatermarkData#<init>`, `tb0.v$b#invoke`, `vy.i#b(List,boolean)`) with no
+failures. On-device functional testing (unlocked categories, festival watermarks outside their
+time window, bulk downloads) is performed by the user.
 
 ## Module Configuration Storage
 
@@ -1925,8 +1899,8 @@ independent **伪装 LCC 主题** (`Je/c#V()` + the 相机配色 tint-color rest
 keep/custom chain (all unconditional). Every kept unlock hooks the REAL config's base Methods
 (C1143/C1199) or config-independent classes; `configDispatchClasses()` now returns only the
 real config's class. All page summaries were rewritten to plain language (2026-08-30). The
-historical sections below document the pre-removal behaviour; the MasterLive effect-table
-borrow (`resolveK100Config` → `q0()`) still exists for 实况运镜 without any impersonation.
+MasterLive effect-table borrow (`resolveK100Config` → `q0()`) still exists for 实况运镜
+without any impersonation.
 
 ### Version-generic resolution (相机 hook 抗版本机制, 2026-08-21)
 
@@ -1960,14 +1934,14 @@ A failed layer skips only the affected sub-feature with a log line (`CameraResol
 `<key>` resolved by candidate/probe or the layer that failed); it never throws and never
 disturbs the other hooks.
 
-`CameraImpersonationHooker` hooks the factory (`Je/e.G0()` — candidates `["G0","q"]` plus the
-structural fallback) and returns a flagship instance, unlocking every capability/mode gate on
-any device. The hooks re-read `Preferences` live (100 ms memo), so toggles apply without a
-camera restart once the master switch is on; the first enable needs a camera restart (hooks
-install on attach).
+The config-swap impersonation (factory `Je/e.G0()` interception returning a flagship instance,
+`KEY_CAMERA_IMPERSONATE` master, `KEY_CAMERA_IMPERSONATE_TARGET` k100promax/nezha targets,
+`KEY_CAMERA_KEEP_FOCAL` focal delegation and the delegate machinery) is GONE — see the removal
+note at the top. What remains in `CameraImpersonationHooker`: the master-independent unlocks
+below, the LCC theme gate, and the watermark chain. Surviving hooks re-read `Preferences` live
+(100 ms memo), so toggles apply without a camera restart; the first enable needs a camera
+restart (hooks install on attach).
 
-- `KEY_CAMERA_IMPERSONATE` (master, default off — **REMOVED 2026-08-30**, there is no
-  impersonation master any more; see the removal note at the top of this section).
 - Watermark keep-model is **unconditional** (there is no `KEY_CAMERA_WM_KEEP_MODEL` switch any
   more, and it is not even gated on the master): the on-picture watermark is always re-forced
   back to this device's own brand + model by after-hooking `Je/c#x()` (=`v()[0]` brand) and
@@ -1984,51 +1958,28 @@ install on attach).
   override the on-picture watermark brand/model in the `x()/v()` keep hooks and the
   device-logo repair; when off the stored values are ignored.
 - `KEY_CAMERA_IMPERSONATE_THEME_LCC` (default off): forces `Je/c#V()` true so LCC-gated
-  flagship branches (e.g. Legendary portrait) open without touching any real theme prop.
-- `KEY_CAMERA_KEEP_FOCAL` (default on): while impersonating, delegate the config's focal
-  getters (`B1/q0/e1/A1/C1/v1/x1/y0/h1`, the zoom line-up / mm labels) to the REAL device
-  config instance so 焦段 stays the device's own while every capability boolean still comes
-  from the flagship. The original instance is rebuilt by replaying the factory's full fallback
-  chain with the real device base name (`Je/a.f8410c` → `com.mi.device.<Cap>` →
-  `com.mi.device.others.<Mfr>` → `new Ne.a()`, the low-spec weak default a non-flagship Redmi
-  actually uses) — the cache field is deliberately not read (it holds the impersonated
-  flagship). Original getter `Method`s are cached once (not per call).
-
-**Impersonation target (`KEY_CAMERA_IMPERSONATE_TARGET`)**: `"k100promax"` (default) and
-`"nezha"`. The K100 Pro Max / POCO F9 Ultra config is resolved by `resolveK100Config`: known
-dex names (`쌴쌸쌺썹…` C1200 on 510, `峡峭峯…` C1151 on 460) first, then the app's own
-`Uf.c.a("com.mi.device.Songyuan")` source-name channel (the K100 source name is stable across
-both verified builds — mapped in the `Uf.a.f16897a` hash table both times), each candidate
-validated: flagship getter surface (`a3/y4/F3/X2`), NOT the device's own config class, and
-imaging identity (`O1/D/q1/r1`) equal to the REAL device config — the exact invariant the
-original pick was verified on (correct CCM/WB, no purple). Fallback chain: Nezha →
-CommonFlagship. `"nezha"` targets `com.mi.device.Nezha` (C1178 on 460 → `콫콧콥켦…` C1209 on
-510) via the resolver, exactly as the app does.
+  branches (e.g. Legendary portrait) open without touching any real theme prop; paired with
+  the 相机配色 tint-color restore below.
 
 **Watermark config cache (`S8.d`)**: the camera caches the classic/Leica watermark brand+model
-ONCE in the `S8.d` singleton (field `a` → `zi.b` → field `a`; the entry holder was `i5.d`
-(brand/model fields a/b, (String,String) ctor) on 460 and became **`Ft.a`** on 510 — verified
-in smali: `zi/b.smali` field `->a:LFt/a;`, same fields+ctor; the 510 name `i5.d` belongs to an
-unrelated font-menu ViewModel). The refresh hooks `S8.d#a()` (the singleton accessor) to
-re-assert the entry with the current brand()/model() on every access (gated on the master).
-The 2-arg ctor is looked up by its OWN parameter types (`getDeclaredConstructor(Object,Object)`
-would not match `(String,String)`). Renderers (`p890zi/b.d()` et al.) read that cache.
+ONCE in the `S8.d` singleton (field `a` → `zi.b` → field `a`; entry holder `i5.d` on 460,
+**`Ft.a`** on 510 with identical fields+ctor — the 510 name `i5.d` belongs to an unrelated
+font-menu ViewModel). The refresh hooks the singleton accessor `S8.d#a()` to re-assert the
+entry with the current `brand()`/`model()` on every access — process-lifetime cache, so a
+later watermark change would otherwise never reach it. The 2-arg ctor is looked up by its OWN
+parameter types (`getDeclaredConstructor(Object,Object)` would not match `(String,String)`).
+Renderers (`p890zi/b.d()` et al.) read that cache.
 
 **Watermark render funnel (`J0`)**: `com.xiaomi.cam.watermark.a#J0(String deviceLogo, String model,
 boolean)` is the final funnel every classic/cloud watermark render passes through (called by
-`p890zi/b.d()` with the `S8.d` cached brand+model). The watermark model view `fs/m.o()` treats
-a model of "17 ultra by leica" / "leitzphone powered by xiaomi" as an lcc_gl device and renders
-the 17-Ultra-style watermark — the origin of the "17U watermark right after capture" leak, since
-some capture-time reads still see the impersonated strings. `hookWatermarkRender` before-hooks
+`p890zi/b.d()` with the `S8.d` cached brand+model). The model view `fs/m.o()` treats a model of
+"17 ultra by leica" / "leitzphone powered by xiaomi" as an lcc_gl device and renders the
+17-Ultra-style watermark — the origin of the historical "17U watermark right after capture"
+leak when capture-time reads still saw impersonated strings. `hookWatermarkRender` before-hooks
 `J0` and forces both args to `CameraWatermarkBrand.brand()/model()` (only when the incoming call
 is non-blank, i.e. an active watermark), making that lcc_gl branch unreachable for every render
-including the immediate capture one. The brand is a LOGO IMAGE in the classic/Leica template
-(`${logo}`, `x()=v()[0]` → `ic_device_watermark_logo_{redmi,xiaomi,poco}.xml`), so a custom brand
-that is not one of the bundled logo names would not show. `hookWatermarkBrandText` therefore
-after-hooks the model view `fs/m#o` (WmModelView) and fills an EMPTY model text line with the
-custom brand as PLAIN TEXT (for a custom model the `@{series}`/`@{versionNumber}` line is empty),
-so 厂商 shows as text alongside the 机型 text for any custom brand — logo or not. The model itself
-is plain text and renders any custom value.
+including the immediate capture one. Custom-brand *text* rendering is handled at the view layer
+by `hookWatermarkBrandText` (see the 厂商 duplication fix below).
 
 Regression history — do not reintroduce:
 - The `v()` keep-model after-hook MUST return a real `String[]`. `arrayOf(brand, model, third)`
@@ -2051,488 +2002,302 @@ with the DexKit usingStrings probe as the durable layer (the property string is 
 plaintext in the 510 dex). Its `hookDeviceLogo` (`Je/c#x()`) fills an empty classic-watermark
 logo with `CameraWatermarkBrand.brand()` when `KEY_WM_CAMERA` is on.
 
-The LCC impersonation normally hides the camera's built-in 相机配色 (tint color) settings
-entry: on 540, `CameraCommonPreferenceFragment.addCustomizationPreferences` gates it on
-`p493o9.a.f48088a.d().j()`; the provider selected by `Je/b.V()` is `Gw.g#j()` for the LCC
-branch and `p637sd.A#j()` for the ordinary branch. Older builds used `Ox.g#i()` (460) and
-`Gt.a#s()` (510). `hookLccCustomizationProvider` keeps all four candidates but requires a
-zero-argument boolean method, then forces the resolved gate true while the master switch is on.
-This gate has no other consumers in the APK, so it is side-effect free.
+The LCC theme gate (`KEY_CAMERA_IMPERSONATE_THEME_LCC`) otherwise hides the camera's built-in
+相机配色 (tint color) settings entry: on 540, `CameraCommonPreferenceFragment.addCustomizationPreferences`
+gates it on `p493o9.a.f48088a.d().j()`; the provider selected by `Je/b.V()` is `Gw.g#j()` for
+the LCC branch and `p637sd.A#j()` for the ordinary branch. Older builds used `Ox.g#i()` (460)
+and `Gt.a#s()` (510). `hookLccCustomizationProvider` keeps all four candidates but requires a
+zero-argument boolean method, then forces the resolved gate true while the switch is on. This
+gate has no other consumers in the APK, so it is side-effect free.
 
 **Shutter-sound bounds guard (`f2.c#a()` clamp) is UNCONDITIONAL**: `f2.c` (jadx `p180f2/c`)
-builds the shutter-sound style list — 4 entries (old/art/default/modern) while `F3()` is false
-(native C1209 AND impersonated C1151 are both C1199) — and its raw getter `a()` reads the
-stored `key_shutter_sound` with NO bounds check. `MiuiCameraSound(D3)#g()` then does
-`b().get(a())` and an out-of-range stored value (typically 4, a leftover from the Leica
-8-entry era) throws `IndexOutOfBoundsException` on CAM-Work → RxJava Completable without an
-error handler → FATAL → the camera crashes on open (RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md).
-Because the persisted value outlives the impersonation (the `Ac/e` version migration only
-keeps it), the crash also fires when `KEY_CAMERA_IMPERSONATE` is OFF ("不打开伪装旗舰机相机配置
-时打开相机闪退") — do NOT gate this clamp on the master; it only ever re-maps an out-of-range
-index to `c()` (the app's own bounds-safe default, 0) and passes valid selections through.
+builds the shutter-sound style list — 4 entries (old/art/default/modern) while `F3()` is false,
+which is myron's case (it sits on the shared C1199 base; Leica-era builds shipped an 8-entry
+list) — and its raw getter `a()` reads the stored `key_shutter_sound` with NO bounds check.
+`MiuiCameraSound(D3)#g()` then does `b().get(a())` and an out-of-range stored value (typically
+4, a leftover from the Leica 8-entry era) throws `IndexOutOfBoundsException` on CAM-Work →
+RxJava Completable without an error handler → FATAL → the camera crashes on open
+(RESEARCH_MYRON_06_IOOBE_ROOTCAUSE.md). The persisted value outlives every configuration
+change, so this crash can fire regardless of any switch state — do NOT gate this clamp on a
+preference read; it only ever re-maps an out-of-range index to `c()` (the app's own
+bounds-safe default, 0) and passes valid selections through. On-device confirmation (camera
+opens with a stale `key_shutter_sound` ≥ 4 stored) is the user's (2026-08-22 build).
 
-Agent verification (2026-08-22, master-off crash fix): the `cam_shutter_sound_bounds` after-hook
-is no longer gated on `enabled()`; `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and
-`assembleDebug` pass. On-device confirmation — camera opens with impersonation off while a
-stale `key_shutter_sound` ≥ 4 is stored — is the user's.
+### Resolution hardening notes (2026-08-21 rounds, compressed)
 
-Agent verification (2026-08-21, OS4.0.0.19.XPMCNXM + camera 6.6.000510.0 device): before the
-fix, on-device LSPosed log showed exactly two hard failures (`Je.e#q() not found; impersonation
-skipped` and `Ox.g#i() not found; tint-color restore skipped`) while every other camera hook
-survived under its old name (`Gg.u$b`, `Je.c#x/v/V/M`, `S8.d#a`, `watermark.a#J0`, `fs.m#o`,
-`u6.e#M`, `U3.p#i`, `f2.c#a`, `LegendaryEnter#support`) and the K100 target silently fell back
-to Nezha. After the fix: `compileDebugKotlin`, `testDebugUnitTest` (12 suites incl. new
-`CameraResolverTest`), `lintDebug` and `assembleDebug` pass; the debug APK is installed. The
-new resolsolution paths (factory `G0`, LCC provider `Gt.a#s`, K100 dex name + Songyuan channel)
-are grounded in byte-exact dex evidence.
-
-### K100 resolution silently rejected: array identity comparison (2026-08-21 晚, do not reintroduce)
-
-The first on-device run of the version-generic resolution still logged `K100 config not resolved
-by candidates or source-name probes; using built-in fallback`: every candidate (dex name AND the
-`Uf.c.a("com.mi.device.Songyuan")` channel, both of which produce a valid C1200 instance) was
-rejected by `sharesImagingIdentity`. Root cause: the identity getters were compared with plain
-`==`, and `q1()` returns a **freshly allocated `int[]` on every call** — C1200 (Songyuan) and the
-real device config C1196 (Myron) both return `new int[]{17}`, so reference equality never held.
-Values are otherwise byte-identical between Songyuan and Myron on 510 (`O1="3"`, `D=6579300`,
-`q1={17}`, `r1=6`) — the exact invariant that prevents Leica-classic purple. Comparison now goes
-through `CameraIdentity.valueEquals` (scalars by value, arrays element-wise recursive, null only
-equals null, getter failure rejects). The same bug existed on 460 — the old byte-exact-name path
-only ever "worked" when the original config was not yet built (shape-only acceptance).
-
-Other hardening from the same audit round: `CameraIdentity.kt` extracts the invariant for unit
-tests (`CameraIdentityTest`, including the fresh-array regression); the source-name resolver
-(`Uf.c#a(String) -> Class`, static, single String param — validated by shape, loud log on miss)
-is now resolved through `SOURCE_RESOLVER_CANDIDATES` instead of two bare `getDeclaredMethod`
-calls whose failure would kill impersonation AND focal delegation together; the `Je.e` factory
-name match requires return type == static field `b`'s type; `CameraResolver.resolveClass`
-requires an explicit `validate` (no silent `{ true }` default); `hookFacadeEquipStreetGate`
-migrated to `CameraResolver`; `K100_SOURCE_NAME_CANDIDATES` trimmed to `com.mi.device.Songyuan`
-(the other six spellings are guaranteed CNFE — all 88 entries of the 510 resolver table decode
-to other devices); per-candidate `shaped=` debug logs make future rejections one-logcat-line
-diagnosable. A full 19-target conflict audit against the 510 smali found every remaining hook
-correct and firing under the K100 target (the double-hook of `Je.c#x()` by both hookers is
-redundant-but-identical; `F3/X2` live on the C1200 chain at C1135/C1174 so Leica-style restore
-works under K100; `Je.c$b.a` static-final is only read, `Je.c.e` final-instance write is legal).
-
-On-device confirmation after the fix (user-verified): `K100 config resolved by dex name 쌴쌸…`,
-focal/imaging hooks attach to the C1200 class, camera works under the k100promax target. NOTE:
-the device had `camera_impersonate_target=nezha` left over from the broken round — under it the
-K100 path never runs (by design); the target must be k100promax for this feature.
-
-### 实况运镜 vanished under the K100 target: mode ORDER array, not a capability gate (2026-08-21 晚)
-
-User report right after the K100 fix landed: camera fine overall but 实况运镜 (MasterLive,
-mode id 231) gone from the mode switcher. Trace on 510 (agent-verified, file:line in the
-session log): visibility is TWO-level —
-- **Registry** (does the mode exist at all): `MasterLiveModuleEntry.support()` → config
-  `y4()`; true on BOTH C1200 and C1209 (`y4` has 7 direct consumers on 510: module entry,
-  first-run guide, capture-method settings rows, special-mode description list). NOT the
-  differentiator.
-- **Placement**: the per-device config's **`M()[I`** array is the sole ordering input of
-  `u2.P` (ComponentModuleList), which splits the strip at the 254 (更多) marker — modes absent
-  from the array land in the overflow list, not the carousel. Nezha C1209 fronts
-  `{231,167,…}`; K100 C1200 omits 231 entirely. Stock myron (C1196) never shows it at all
-  (no `y4` override).
-
-Compounding regression: commit `8b202b7` mis-classified `"M"` as an imaging-identity getter
-(its doc called it "output-format set") and delegated it back to the original myron config —
-which also lacks 231 — so MasterLive was hidden under BOTH targets since then. `"M"` is now
-removed from `IDENTITY_GETTERS` (its only consumer in the whole dex is `u2/P.smali`; it feeds
-no colour pipeline). Fix: `hookMasterLiveModePlacement` before-hooks the impersonated
-instance's `M()` and prepends 231 via `CameraIdentity.frontMasterLiveMode` (no-op when the
-array already contains it, e.g. the nezha target's own `{231,…}`), gated on the impersonation
-master AND `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` (default on — doubles as the kill switch).
-K100's own REDMI effect table (`q0()`), 装备街拍 clamp and Legendary closure are untouched.
-Caveat: a saved custom mode sort (`pref_user_edit_modes`) overrides `M()` in `u2.P.y()` — if
-the mode still does not show, reset the camera's mode sort. Verification:
-`compileDebugKotlin`, `testDebugUnitTest` (new `CameraIdentityTest` placement cases),
-`lintDebug`, `assembleDebug` pass; debug APK installed; on-device log shows
-`HOOK_OK target=쌴쌸…#M() id=cam_masterlive_mode_front` with zero new failures. Visual
-confirmation that 实况运镜 is back in the carousel is the user's.
+- Identity comparison must go through `CameraIdentity.valueEquals` (scalars by value, arrays
+  element-wise recursive, null only equals null, getter failure rejects): `q1()` returns a
+  **freshly allocated `int[]` on every call**, so plain `==` never holds between configs whose
+  values are byte-identical (`O1="3"`, `D=6579300`, `q1={17}`, `r1=6` on Songyuan vs Myron —
+  the exact invariant that prevents Leica-classic purple). This once silently rejected every
+  K100 candidate. `CameraIdentityTest` pins the fresh-array regression.
+- The source-name resolver (`Uf.c#a(String) -> Class`, static, single String param — validated
+  by shape, loud log on miss) resolves through `SOURCE_RESOLVER_CANDIDATES`, not bare
+  `getDeclaredMethod` calls; the factory name match requires return type == static field `b`'s
+  type; `CameraResolver.resolveClass` requires an explicit `validate` (no silent `{ true }`
+  default); per-candidate `shaped=` debug logs make future rejections one-logcat-line
+  diagnosable. `K100_SOURCE_NAME_CANDIDATES` is trimmed to `com.mi.device.Songyuan` (all other
+  spellings of the 510 resolver table decode to other devices).
+- `"M"` is NOT an imaging-identity getter (its only dex consumer is `u2/P.smali`; it feeds no
+  colour pipeline) and must never be delegated or identity-compared — mis-classifying it once
+  hid MasterLive under every target.
+- MasterLive visibility is TWO-level: **registry** (`MasterLiveModuleEntry.support()` → config
+  `y4()`, 7 direct consumers on 510) decides whether mode 231 exists at all; **placement** is
+  the config's `M()[I` array, the sole ordering input of `u2.P` (ComponentModuleList), which
+  splits the strip at the 254 (更多) marker — modes absent from the array land in the overflow,
+  not the carousel. A saved custom mode sort overrides all of this in `u2.P.y()` — if a mode
+  still does not show, reset the camera's mode sort.
 
 ### Four-fix round (2026-08-22): 超高画质 / 实况运镜 / 街拍双模式 / 水印厂商去重
 
-Four parallel agent fixes, merged to dev and verified by
-`compileDebugKotlin` + `testDebugUnitTest` (92 tests, 0 failures) + `lintDebug` +
-`assembleDebug`. On-device confirmation of all four is the user's.
+On-device confirmation of all four is the user's (2026-08-22 builds).
 
-**1. 超高图片质量 fixed unlock (`CameraUltraQualityHooker`, `KEY_CAMERA_ULTRA_HD_QUALITY`,
-default ON).** The 设置→图片质量 list gains 超高 only while the config gate `l7()` is true —
-declared ONCE on the config base (510 `C1174` / 460 `C1143`) as `return this instanceof
-C1148` (flagship marker). Neither the real `Myron` config (C1196) nor the K100 target
-`Songyuan` (C1200) overrides it, so 超高 was hidden on BOTH paths; only the Nezha family
-(C1160/C1204/C1209) overrides it final-true (under the legacy nezha target the toggle is
-therefore a no-op — documented). Consumers: capture option list (`features/mode/capture/Y`
-~L3489), settings page (`fragment/settings/e` ~L1667), and the clamp `data/data/j#t()`
-(~L4417, caps at `F1.g3.SUPER` = JPEG quality 100 only when l7 true). The enum is plain
-JPEG-quality ints (LOW 67 / NORMAL 87 / HIGH 96 / SUPER 100) — no HAL dependency. The hook
-resolves the gate through the `Je.c` facade (declared config-field type → `getMethod("l7")`
-returns the DECLARING base-class Method, so one hook intercepts every non-overriding
-subclass instance — Myron native AND impersonated K100; runtime-singleton channel as
-fallback), before-style `param.result = cameraUltraHdQuality()`, attached after
-`CameraImpersonationHooker`.
+**1. 超高图片质量 (`CameraUltraQualityHooker`, `KEY_CAMERA_ULTRA_HD_QUALITY`, default ON).**
+The 设置→图片质量 list gains 超高 only while the config gate `l7()` is true — declared ONCE on
+the config base (510 `C1174` / 460 `C1143`) as `return this instanceof <flagship marker>`;
+neither the real `Myron` config nor K100 overrides it, only the Nezha family does
+final-true. Consumers: capture option list, settings page, and the clamp `data/data/j#t()`
+(caps at `F1.g3.SUPER` = JPEG quality 100 only when l7 true; enum is plain ints LOW 67 /
+NORMAL 87 / HIGH 96 / SUPER 100 — no HAL dependency). The hook resolves the gate through the
+`Je.c` facade (`getMethod("l7")` returns the DECLARING base-class Method, so one hook
+intercepts every non-overriding subclass instance — Myron native AND impersonated K100;
+runtime-singleton channel as fallback), before-style `param.result = cameraUltraHdQuality()`.
 
-**2. 实况运镜: the M() fronting fix was a provable no-op, and cached mode orders win over
-`M()` anyway.** Two root causes, both fixed on the same round:
-- `hookMasterLiveModePlacement` was a `before` hook reading `param.result`; in ezhooktool
-  1.1.2 a before callback runs before the original and `result` is only populated by
-  `proceed()`, so it read null every time (`frontMasterLiveMode(null)` → null). Now an
-  `after` hook (kept as defense-in-depth).
-- `u2.P` (ComponentModuleList; real dex name `u2/P.smali`, jadx alias `p700u2.P`) order
-  funnel `y(Q)` (P.java:895-915) prefers (1) the in-memory `f62389h` cache — rewritten with
-  the support-filtered render by `K(iArr3,false)` after every render (P.java:822-824), so
-  one session without 231 erases it — and (2) the persisted `pref_camera_sort_modes_key`
-  (written on user mode edit, migrated across camera upgrades by `Ac/e.java`), and only
-  when both are cold (3) `t(Q)`, the sole reader of config `M()`. K100 `C1200.M()` has no
-  231, and even the static default `f62382k` lists 231 AFTER the 254 marker; `C()` splits
-  carousel vs 更多 overflow at the first 254. New `hookMasterLiveOrderFunnel`: after-hook on
-  `u2.P#y(Q)[I` re-places 231 immediately before the first 254 in whichever source wins —
-  rendered orders feed back through `K()`/`H()`, so the stock caches self-heal instead of
-  fighting. New `hookMasterLiveSupportEntry`: `u2.P#E(I)` true for 231 (heals the stale
-  `all_support_mode_list` path). Resolution via CameraResolver L1 `u2.P`/`u2.U`, L2 DexKit
-  `usingStrings("ComponentModuleList","setAllSupportModeList")`, shape validation = static
-  int[] containing both 254 and 231. Pure logic in `CameraIdentity`
-  (`placeMasterLiveModeBeforeMarker`); no new pref keys (the tele-fallback switch remains
-  the MasterLive kill switch). A camera data/mode-sort reset is NOT required.
+**2. 实况运镜 order funnel.** `u2.P` (ComponentModuleList) order funnel `y(Q)` prefers
+(1) the in-memory `f62389h` cache — rewritten with the support-filtered render after every
+render, so one session without 231 erases it — (2) the persisted `pref_camera_sort_modes_key`
+(written on user mode edit, migrated across camera upgrades), and only when both are cold
+(3) `t(Q)`, the sole reader of config `M()`. `hookMasterLiveOrderFunnel`: after-hook on
+`u2.P#y(Q)[I` re-places 231 immediately before the first 254 in whichever source wins —
+rendered orders feed back through `K()`/`H()`, so stale caches self-heal instead of fighting.
+`hookMasterLiveSupportEntry`: `u2.P#E(I)` true for 231 (heals the stale
+`all_support_mode_list` path). Resolution via CameraResolver L1 `u2.P`/`u2.U`, L2 DexKit
+`usingStrings("ComponentModuleList","setAllSupportModeList")`, shape validation = static int[]
+containing both 254 and 231. Pure logic in `CameraIdentity`; no new pref keys (the
+tele-fallback switch remains the MasterLive kill switch); a mode-sort reset is NOT required.
+Regression rule: an ezxhooktool `before` callback sees `param.result == null` (only populated
+by `proceed()`), so result-dependent logic must run in an `after` hook.
 
-**3. 街拍 is now a selector (`KEY_CAMERA_STREET_MODE`: `"off"` / `"new"` / `"compat"`,
-legacy boolean `camera_street_enable` migrated in memory, default `"new"`).** Traced on
-510: `p666t3.a.d()` registers only `support()==true` entries; `StreetModuleEntry.support()`
-= config `a3()`; NO config `M()` carries 225 and the static default list puts it after the
-254 marker, so street's home is the 更多 overflow grid — the same place native
-street-capable devices show it (no carousel injection needed or attempted). `新街拍`
-forces `a3()` true on the impersonated K100 config (needs master + k100promax target) and
-now only RAISES the gate when active — fixing a latent bug where master-off forced street
-hidden even on natively capable devices; quick-launch re-classification (`p700u2.S:566`,
-`a3() && J.f()`) stays consistent because `a3()` drives both consumers. `兼容模式街拍`
-forces `StreetModuleEntry.support()` itself true via CameraResolver (shape: zero-arg
-boolean support + int getModuleId; DexKit probe on the plaintext entry name) — independent
-of impersonation, `a3()` untouched so quick-launch keeps stock classification. 装备街拍
-stays closed in every mode (needs 17U cameras 13/7). Pure parse/migration logic in
-`hook/CameraStreetMode.kt` + `CameraStreetModeTest`.
+**3. 街拍 selector (`KEY_CAMERA_STREET_MODE`: `"off"` / `"new"` / `"compat"`; legacy boolean
+`camera_street_enable` migrated in memory, default `"new"`).** The entry registry
+`p666t3.a.d()` keeps only `support()==true` entries; NO config `M()` carries 225 and the static
+default puts it after the 254 marker, so street's home is the 更多 overflow grid — the same
+place native street-capable devices show it (no carousel injection attempted). 新街拍 RAISES
+`a3()` only when active (quick-launch re-classification stays consistent because `a3()` drives
+both consumers). 兼容模式街拍 forces `StreetModuleEntry.support()` itself true via
+CameraResolver (shape: zero-arg boolean support + int getModuleId; DexKit probe on the
+plaintext entry name) — independent of impersonation, `a3()` untouched. 装备街拍 stays closed
+in every mode (needs 17U cameras 13/7). Parse/migration logic in `hook/CameraStreetMode.kt` +
+test.
 
-**3a. 快捷抢拍走街拍 (`KEY_CAMERA_STREET_QUICK_LAUNCH`, default off, complements the street
-selector).** The lock-screen fast-camera route — 设置→锁屏→其他→急速相机「打开相机并拍照」
-(title `pref_volume_launch_camera_title`=急速相机; three dropdown values 关闭/打开相机/打开相机并拍照
-backed by `Settings.System.volumekey_launch_camera` = 0/1/2; the dropdown itself is gated on
-`miui.hardware.input.InputFeature.supportCameraStreetMode()` = `persist.vendor.camera.
-IsVariableApertureSupported || IsStreetModeSupported`) — is dispatched by system_server
-`VolumeDownKeyRule` (double-tap volume-down while locked/off) → `MiuiShortcutTriggerHelper.
-getDoubleVolumeDownKeyFunction` (1 = "launch_camera", 2 = "launch_camera_and_take_photo") →
-`ShortCutActionsUtils.launchCamera` builds `STILL_IMAGE_CAMERA` + `StartActivityWhenLocked` +
-`com.android.systemui.camera_launch_source`. On the camera side `CameraIntentManager.e()`
-(real dex `vr.l`/`vr.m`, jadx `p757vr.C4755l`/`C4751m`) classifies that intent as
-`(a3() && v()) ? "STREET" : "CAPTURE"`, and `W/S.d()` maps STREET → module 225 — so 新街拍
-(a3 forced) already routes quick-launch to street, while 兼容模式街拍 (a3 native-false on
-myron) keeps CAPTURE. This hook closes the compat gap independent of `a3()`: an after-hook
-on `e()` forces "STREET" (RAISE-only, CAPTURE→STREET) when the switch is on, a street mode
-is active, and the intent's `camera_launch_source` is exactly `launch_camera_and_take_photo`
-(the full take-photo semantics, not the plain `double_click_volume_down` source). The guide
-half forces `Q5.J#f()` true too — `StreetModule.setParameter` only consumes the launch
-source when `J.f()` is true (`mLunchSource = J.f() ? f62426w : null`), and the `W.g()` inline
-module decision + launch-source clearing (`:1871`) gate on `z37 = a3() && J.f()`; on myron
-`J.f()` = (`pref_camera_global_guide_shown_key` == 2), false until the camera's global guide
-is fully seen, so without it even 新街拍 opens street WITHOUT take-photo semantics. Both
-halves are read live (100 ms memo) and RAISE-only; they need a camera app restart for the
-hooks to install. Side effect while on: the camera treats its global guide as shown.
+**3a. 快捷抢拍走街拍 (`KEY_CAMERA_STREET_QUICK_LAUNCH`, default off).** Lock-screen fast-camera
+route: 设置→锁屏→其他 dropdown (`volumekey_launch_camera` = 0/1/2, gated on
+`InputFeature.supportCameraStreetMode()`) → system_server double-tap volume-down dispatch →
+`ShortCutActionsUtils.launchCamera`; camera-side `CameraIntentManager.e()` classifies
+`(a3() && v()) ? "STREET" : "CAPTURE"`, `W/S.d()` maps STREET → module 225. The hook
+after-forces `"STREET"` (RAISE-only) when the switch is on, a street mode is active, and the
+intent source is exactly `launch_camera_and_take_photo`; the guide half forces `Q5.J#f()` true
+(`StreetModule.setParameter` ignores the launch source otherwise; on myron `J.f()` stays false
+until the global guide was fully seen). **Settings side (`FastCameraSettingsHooker`, Settings
+process):** forces `LockscreenOthersHelper.supportCameraStreetMode()` true so the「打开相机并拍照」
+dropdown appears on devices whose vendor props are unset. Both halves live-read and RAISE-only;
+they need a camera restart to install. Side effect while on: the camera treats its global
+guide as shown.
 
-**Settings side (`hook/rules/settings/FastCameraSettingsHooker`, attached in the
-`com.android.settings` process):** the same switch forces
-`LockscreenOthersHelper.supportCameraStreetMode()` (static, zero-arg boolean; itself a
-reflection wrapper over `InputFeature.supportCameraStreetMode()`, called by both
-`LockscreenOthersHelper.initCameraSettings()` and `AodAndLockScreenSettings.
-supportCameraStreetMode()`) true. On myron both vendor props are unset, so `initCameraSettings`
-runs the false branch — `removePreference` on the「打开相机并拍照」dropdown, leaving only the
-plain「锁屏后双击音量下键打开相机」checkbox — which is exactly why the user sees no other
-option in 设置→锁屏→其他. Forcing it true makes the dropdown (关闭/打开相机/打开相机并拍照,
-writes `volumekey_launch_camera` = 0/1/2 through `handleVolumeDownKeyLaunchCameraChange`)
-appear, completing the route end to end. Only RAISES while the switch is on; the Settings
-UI re-reads it when the lock-screen settings page is rebuilt, so reopening the page shows the
-dropdown without a Settings restart (the hook itself installs at Settings attach).
-
-**4. Custom-watermark 厂商 duplication: our own composition, removed.** The render chain is
+**4. Custom-watermark 厂商 duplication: our own composition, removed.** Render chain:
 `S8.d` cache → `zi/b.d` → `com.xiaomi.cam.watermark.a#J0`, which (a) lowercases brand/model
-into the config from which the logo IMAGE view loads `<brand>_<color>.webp` (a missing
-asset renders NOTHING — no raw-string fallback) and (b) substitutes the `@{logo}` TEXT
-token inside every `WmModelView` format (`fs/m.java:74`). The old `hookWatermarkBrandText`
-prepended the brand onto the rendered text of every `fs.m#o` call guarded only by a
-`contains()` — composing onto templates that natively carry `@{logo}`, the parse-time
-`m.c()` market-name seeding, and multi-view layouts → brand twice, stacked as two lines.
-The hook now injects a leading `@{logo}\n` into the view's FORMAT field **before** `o()`
-runs (only when the custom brand is active, non-bundled, and the format lacks the token)
-and restores it after — the stock substitution renders the brand line exactly once per
-view by construction. Bundled brands (XIAOMI/REDMI/POCO, case-insensitive) keep the stock
-logo image with no text line; master off → fully stock immediately. Helpers
-`isBundledLogoBrand`/`formatWithLogoLine` in `CameraWatermarkBrand.kt` +
-`CameraWatermarkBrandTest`. The separate MIVI 机型水印 path falls back to the XIAOMI
-drawable for unknown brands (`S8/g.java`) — out of scope, unchanged.
+into the config from which the logo IMAGE view loads `<brand>_<color>.webp` (a missing asset
+renders NOTHING — no raw-string fallback) and (b) substitutes the `@{logo}` TEXT token inside
+every `WmModelView` format (`fs/m.java:74`). The old prepend-on-render approach composed onto
+templates that natively carry `@{logo}` → brand twice, stacked as two lines. The hook now
+injects a leading `@{logo}\n` into the view's FORMAT field **before** `o()` runs (only when
+the custom brand is active, non-bundled, and the format lacks the token) and restores it
+after — stock substitution renders the brand line exactly once per view by construction.
+Bundled brands (XIAOMI/REDMI/POCO, case-insensitive) keep the stock logo image with no text
+line; switch off → fully stock immediately. Helpers `isBundledLogoBrand`/`formatWithLogoLine`
+in `CameraWatermarkBrand.kt` + test. The MIVI 机型水印 path falls back to the XIAOMI drawable
+for unknown brands (`S8/g.java`) — out of scope, unchanged.
 
-### Follow-up (2026-08-22): unlocks were target-coupled — nezha target hid both modes
+### Master-off unlocks: 徕卡风格 / 实况运镜 / 街拍 are master-independent (2026-08-26)
 
-User report with the impersonation master ON but the **K100 target switch OFF** (= legacy
-Nezha target): 兼容模式街拍 still showed nothing and 实况运镜 was still unusable. Two
-structural causes, both fixed:
-
-- **MasterLive under Nezha + `KEY_CAMERA_GUARD_MODES` (default ON) was hidden BY DESIGN**:
-  the guard delegated `y4()` back to the real device config (false on myron), so
-  `MasterLiveModuleEntry.support()` stayed false and mode 231 never registered — the ordering
-  funnel never got the chance to matter. New `KEY_CAMERA_MASTERLIVE_ENABLE` (default ON):
-  the `y4` delegation suppresses itself while it is on, and `hookMasterLiveSupportGate`
-  after-hooks the flagship's `y4()` to true (one gate, all seven 510 consumers coherent);
-  the placement/funnel/E hooks now gate on it too. Off = stock guard semantics.
-- **兼容模式街拍 was not standalone**: `hookCompatStreetSupport()` was called from inside
-  `hookModeGuards()`, after that method's `flagshipInstance() ?: return` — any flagship
-  resolution failure silently skipped it, the opposite of its purpose. It now installs
-  directly from `installHooks()`. Registry path re-verified (`p666t3.a.d()` keeps only
-  `support()==true` entries keyed by `getModuleId()`; the registry is cached in a static, so
-  visibility changes need a camera restart).
-- 新街拍 no longer requires the K100 target: both config classes resolve `a3` to the same
-  declaring base Method (510: `instanceof C1172` on `C1174`), and the Nezha `a3` delegation
-  guard now suppresses itself while the mode is active so the two hooks on one Method can
-  never fight in registration order.
-- `hookMasterLiveModePlacement` no longer early-returns on the Nezha target (fronting is
-  inert when the array already fronts 231). Install/applied logs for street and the
-  MasterLive gate are INFO-level and one-line-per-flip, so the next on-device test is
-  conclusive from logcat alone.
-
-### Master-off unlocks: 徕卡风格 / 实况运镜 / 街拍 now work with the impersonation master OFF (2026-08-26)
-
-User report ("没打开伪装旗舰相机配置时：没有徕卡风格切换 / 没有能用的实况运镜 / 街拍还是不能用"):
-with `KEY_CAMERA_IMPERSONATE` off, all three unlocks were dead. Root cause: they installed
-only on the flagship instance's class AND gated their callbacks on `enabled()`, so with the
-master off the REAL device config (`com.mi.device.Myron`, C1209) dispatched native getters —
-`F3/X2=false` (no 摄影风格 switcher), `y4=false` (mode 231 never registers), `a3=false`
-(街拍 225 hidden unless 兼容模式街拍 was selected). Fix: the three unlocks are now
-master-independent — installed on the union of dispatch classes
-(`configDispatchClasses()`, `CameraImpersonationHooker.kt`: the original device config class
-+ the flagship instance's class, Method-object dedup by identity) and gated on their own
-switches only. All callbacks are RAISE-ONLY: switch off → native value untouched (never
-lower a native true, so genuinely-capable devices are unaffected).
+The three unlocks originally installed only on the flagship instance's class AND gated their
+callbacks on `enabled()`, so with the master off the REAL device config dispatched native
+getters (`F3/X2=false` — no 摄影风格 switcher, `y4=false` — mode 231 never registers,
+`a3=false` — 街拍 hidden). They are now master-independent: installed on the union of dispatch
+classes (`configDispatchClasses()`: the original device config class + the flagship
+instance's class when built, Method-object dedup by identity) and gated on their own switches
+only. All callbacks are RAISE-ONLY: switch off → native value untouched (never lower a native
+true, so genuinely-capable devices are unaffected).
 
 - **徕卡风格 (`KEY_CAMERA_LEICA_STYLE`)** — `hookLeicaStyle()` hooks `F3()/X2()` on both
-  dispatch classes. F3/X2 are inherited WITHOUT override by both C1151 (K100 target) and
-  C1209 (myron) from C1199/C1143, so the SAME Methods serve master-on (K100 impersonation)
-  and master-off (real config) with one hook each; the CommonFlagship branch declares its own
-  true overrides and never reaches these Methods, keeping the nezha target's native switcher.
-  The old `param.result = enabled() && targetIsK100Promax() && leicaStyle()` expression (which
-  forced FALSE under the nezha target + master on) is gone — raise-only `leicaStyle()`.
-- **实况运镜 (`KEY_CAMERA_MASTERLIVE_ENABLE` / `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK` /
-  `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE`)**:
-  - registry gate `y4()` forced true on BOTH dispatch classes (`hookMasterLiveSupportGate`;
-    the base C1143#y4 Method the real config inherits is false on myron), gate
-    `masterliveEnabled()` only;
-  - NEW `hookMasterLiveRealEffectTable()` borrows the REDMI K100 `q0()` effect table for the
-    real config's null `q0()` — resolved via `resolveK100Config` ONLY (never the
-    Nezha/CommonFlagship fallback, whose 12.9x table crashes myron), cached, borrowed /
-    unavailable logged once each;
-  - config `M()` placement (`hookMasterLiveModePlacement`) fronts 231 on both dispatch
-    classes; the `u2.P#y(Q)` order funnel and `E(231)` entry gates dropped `enabled()`
-    (config-independent hooks);
-  - tele fallback (`u6.e#M` role-23→20) gated on `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK`
-    alone AND its DexKit probe string fixed to `MCAM_Camera2CompatAdapterRole` — the bare
-    `Camera2CompatAdapterRole` probe never matched on-device (the class's log-tag constant is
-    `MCAM_…`, RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1), so the hook previously never installed;
-  - op-mode safe (`U3/p#i`) gated on `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE` alone.
+  dispatch classes; both inherit them WITHOUT override from C1199/C1143, so the same Methods
+  serve master-on and master-off with one hook each. The CommonFlagship branch declares its
+  own true overrides and never reaches these Methods.
+- **实况运镜 (`KEY_CAMERA_MASTERLIVE_ENABLE` / `_TELE_FALLBACK` / `_OPMODE_SAFE`)** — registry
+  gate `y4()` forced true on BOTH dispatch classes (`hookMasterLiveSupportGate`; the base
+  C1143#y4 Method the real config inherits is false on myron), gated on `masterliveEnabled()`
+  only; `hookMasterLiveRealEffectTable()` borrows the REDMI K100 `q0()` effect table for the
+  real config's null `q0()` — resolved via `resolveK100Config` ONLY (never the
+  Nezha/CommonFlagship fallback, whose 12.9x table crashes myron); config `M()` placement
+  fronts 231 on both dispatch classes; the `u2.P#y(Q)` order funnel and `E(231)` entry gates
+  are config-independent hooks; tele fallback (`u6.e#M` role-23→20) is gated on
+  `_TELE_FALLBACK` alone and its DexKit probe string must be `MCAM_Camera2CompatAdapterRole`
+  (the bare probe never matched on-device — the class's log-tag constant is `MCAM_…`);
+  op-mode safe (`U3/p#i`) is gated on `_OPMODE_SAFE` alone.
 - **街拍 (`KEY_CAMERA_STREET_MODE` = `"new"` 新街拍)** — `hookStreetEnable()` hooks `a3()` on
-  both dispatch classes (base C1143#a3 serves the real config AND the K100 impersonation in
-  one Method; C1136#a3 additionally for the nezha target's master-on path), raise-only gate
-  `streetMode() == MODE_NEW` (`enabled()` dropped). `hookCompatStreetSupport()` (兼容模式街拍)
-  was audited and is genuinely master-independent — no change. 新街拍 now works with the
-  master off: entry lands in the 更多 overflow grid, opens the HAL role-0 main camera
-  (camera 2 on myron); quick-launch re-classification stays consistent because `a3()` drives
-  both consumers.
+  both dispatch classes (base C1143#a3 serves the real config AND any impersonated instance
+  in one Method), raise-only gate `streetMode() == MODE_NEW`; entry lands in the 更多
+  overflow grid and opens the HAL role-0 main camera (camera 2 on myron); quick-launch
+  re-classification stays consistent because `a3()` drives both consumers.
+  `hookCompatStreetSupport()` (兼容模式街拍) is audited master-independent and installs
+  directly from `installHooks()` — never inside a flagship-gated method, or a resolution
+  failure silently skips it.
 
-Facts grounding the base-class approach (RESEARCH_MYRON_01_CONFIG_CENSUS.md /
-RESEARCH_MYRON_02_MASTERLIVE.md / RESEARCH_MYRON_03_STREET.md): C1151 overrides only
-y4/q0/M; F3/X2/a3 are inherited from C1199/C1143 by BOTH C1151 and C1209. A hook on the base
-Method fires only for classes that do NOT override it, so a real flagship's own overrides are
-never touched. String summaries in all four locales updated. Agent verification (2026-08-26):
-`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug` and `assembleDebug` pass. On-device
-confirmation — with the master off: 摄影风格 switcher visible, mode 231 in the carousel with
-a usable effect list, 街拍 225 in 更多 capturing via the real main camera (each needs a
-camera restart for entry visibility) — is the user's.
+Grounding (RESEARCH_MYRON_01_CONFIG_CENSUS / _02_MASTERLIVE / _03_STREET in the camera
+cache): C1151 overrides only y4/q0/M; F3/X2/a3 are inherited from C1199/C1143 by both
+configs. A hook on the base Method fires only for classes that do NOT override it, so a
+genuine flagship's own overrides are never touched. On-device confirmation with the master
+off (摄影风格 switcher visible, mode 231 in the carousel with a usable effect list, 街拍 225
+in 更多 capturing via the real main camera; each needs a camera restart for entry
+visibility) is the user's.
 
-### MasterLive motion-photo artifact probe: circular-encoder codec-size pin (2026-08-27 — feature REMOVED 2026-08-30)
+### MasterLive motion-photo codec-size pin — feature REMOVED 2026-08-30
 
-User report: 实况运镜 motion-photo output (实况动态) is corrupted — left side green, right side
-repeated lines — while the still frame and camera UI are fine, with the impersonation master
-OFF and `KEY_CAMERA_MASTERLIVE_OPMODE_SAFE` ON. Four parallel agents + first-hand source
-verification converged on mechanism [M0] (research: `RESEARCH_MYRON_09_MASTERLIVE_ARTIFACT.md`
-in the camera-5cd70925b1646cdf cache): the LiveShot circular encoder (`p859ym.d` =
-CircularVideoEncoder, `p859ym.f` = V2 override) receives the per-shot preview-snapshot size on
-every capture (`CircularMediaRecorderV2` `p824xm.c#j()/k()` → encoder `E(Size)` /
-"updateCodecSize"); when it differs from the current format the codec is reconfigured while
-the GL render canvas stays at the construction size (no `glClear` anywhere in
-`zm/c`+`zm/b`+`p824xm/p859ym`), so the input surface ends up partially unwritten — NV12
-zero-fill decodes to pure green — plus edge clamp/wrap (repeated lines). Under the forced
-ALGO_UP_SAT session (op-mode 36866) the preview-snapshot size and the construction video size
-diverge, making the rewrite a real change; the native op-mode 1 design point kept them close.
-
-Experimental fix (probe switch): `KEY_CAMERA_MASTERLIVE_CODEC_PIN` (`camera_masterlive_codec_pin`,
-default OFF, UI row on the Camera Unlock page, requires a camera restart after changing). While
-on, `hookMasterLiveCodecPin` before-hooks the encoder's `E(Size)` method and substitutes the
-incoming size with the encoder's construction-time format size (final int fields `A`/`B`,
-fallback jadx aliases `f67755A`/`f67756B`, resolved by walking the receiver's class hierarchy,
-cached per process) via the pure helper `CameraCodecSizePin.pinnedSize` (unit-tested). Matching
-sizes pass through untouched; unreadable fields fail safe (no substitution). Gated on the key
-only, not the impersonation master. **Resolution gotcha (2026-08-27 on-device forensics): the
-first build used the jadx DISPLAY aliases as L1 candidates (`p859ym.d`/`p824xm.c`) and the trace
-failed to install on the device — those names never exist in the dex; the 460/510 mapping rule
-strips the `p<digits>` prefix (`p859ym`→`ym`, `p824xm`→`xm`), so the candidates are the REAL
-dex names `ym.d`/`ym.f`/`ym.e`. The DexKit probe (`usingStrings("updateCodecSize")`, plaintext
-in 510 classes8.dex — byte-verified) now iterates ALL matching classes and picks the first whose
-`E(Size)` shape validates, because the first dex-order match can be a sibling class that merely
-references the string. Verified on-device (OS4.0.0.19.XPMCNXM): `masterlive codec pin hooked on
-ym.d#E(Size)`.** Build verification (2026-08-27): `compileDebugKotlin`,
-`testDebugUnitTest` (ram: 92+5), `lintDebug`, `assembleDebug` pass with no new lint findings.
-On-device verification (does the pin make the 实况运镜 motion photo clean, and does it regress
-anything else that relied on the per-shot codec-size rewrite) is the user's.
+`KEY_CAMERA_MASTERLIVE_CODEC_PIN` pinned the LiveShot circular encoder to its construction-
+time format size to stop green/corrupted 实况运镜 motion photos (root mechanism [M0]: the
+encoder receives the per-shot preview-snapshot size on every capture and reconfigures while
+the GL render canvas stays at the construction size — NV12 zero-fill decodes pure green plus
+edge clamp/wrap; research: `RESEARCH_MYRON_09_MASTERLIVE_ARTIFACT.md` in the
+camera-5cd70925b1646cdf cache). The probe switch was removed together with the impersonation
+core at the user's request. Durable resolution lessons kept: jadx DISPLAY aliases
+(`p859ym.d`, `p824xm.c`) never exist in the dex — the 460/510 mapping rule strips the
+`p<digits>` prefix (`p859ym`→`ym`); a DexKit `usingStrings` probe's first match can be a
+sibling class that merely references the string, so iterate ALL matching classes and pick the
+first whose method shape validates.
 
 ### MasterLive three-fix round: 红毯运镜 injection / per-type video size / full focal strip (2026-08-28)
 
-Three parallel research agents + user round ("17u 的红毯运镜没出现 / 16:9 2304x1296 只能拍主角和自由、
-4:3 的超清实况绿屏 / 别人的超清实况焦段是完整的，我只有 1x/2x"), all grounded in the new research
-docs in the camera-5cd70925b1646cdf cache: `RESEARCH_MYRON_10_MASTERLIVE_REDCARPET.md`,
-`RESEARCH_MYRON_11_MASTERLIVE_PER_MODE_SIZE.md`, `RESEARCH_MYRON_12_MASTERLIVE_FOCAL_STRIP.md`.
-Build verification: `compileDebugKotlin`, `testDebugUnitTest` (+13 cases across
-`CameraMasterLiveRedCarpetTest`/`CameraMasterLiveSizeBindingTest`/`CameraIdentityTest`),
-`lintDebug` and `assembleDebug` pass. On-device confirmation of all three is the user's.
+Grounded in `RESEARCH_MYRON_10/11/12_*` docs in the camera-5cd70925b1646cdf cache;
+on-device confirmation of all three is the user's.
 
 1. **红毯运镜 (`KEY_CAMERA_MASTERLIVE_RED_CARPET`, default ON).** The K100 effect table
    (`q0()` → `Map<String, Le.a>`) ships only types "0"(超清实况)/"2"(主角)/"3"(自由) — type
-   "1" (红毯, slow-motion tail) is 17U-exclusive, but every UI resource for it ships on every ROM
-   (the panel hints are hard-coded per type in `C4673d0#initItems`; guide list too), so a
-   synthesized entry appears natively with zero string work. The effect-table hook now installs on
-   `q0()` of EVERY dispatch class (the borrow path for master-off AND the flagship's own override
-   for master-on — previously only the original class was hooked, so the k100-target table never
-   gained anything), and merges a synthesized `"1"` entry: a CLONE of the proven-working linear
-   entry with the type id rewritten and the default flag (`g`) forced false — no decrypted
-   role/range data is ever invented, and 超清实况 stays the default effect. Key facts: the bean
-   `Le.a` has public non-final fields with real dex names `a..h` (the jadx `f9658a..` aliases are
-   display-only); lists MUST be deep-copied per entry because `C4673d0#r()` writes range strings
-   back into them; segment lengths must satisfy roles×2==zooms && ranges∈{roles,null} or the
-   component throws IOOBE mid-capture ([CameraMasterLiveRedCarpet.segmentsConsistent]); map order
-   is rebuilt `[超清, 红毯, 主角, 自由]`. Selecting 红毯 flips `j.O0(231)` true which BYPASSES the
-   native ALGO_UP_SAT early-return in `U3/p#i` → keep 安全会话 (opmode-safe) ON or Qualcomm falls
-   to op-mode 1 (may stall); on myron/qcom the type-1 path additionally waits for a slow-motion
-   first-frame/video callback that the HAL never emits, leaving the shutter spinner active. The
-   hook now detects `ro.product.device=myron` + `ro.hardware=qcom` and forces `O0(231)=false`
-   only while type "1" is selected. This preserves the red-carpet entry/UI but routes capture
-   through the normal movement path and its safe 36866 session; 17U/native HSR devices are
-   untouched. The resulting clip is normal-speed movement rather than a true 120fps tail.
-2. **Per-effect-type video size (`CameraMasterLiveSizeBinding`, automatic on myron).** The global 16:9 pin broke the
-   4:3 超清实况 (type "0") with green frames again. The probe and surface hooks now bind per type:
-   movement types ("1"/"2"/"3") → 16:9 2304x1296 (user-verified clean), ultra-pixel ("0") → 4:3
-   1728x1296 (same height as the verified-clean 16:9; the geometry of this device's clean normal
-   live-photo stream). The current type is read through the camera's own static
-   `com.android.camera.data.data.j#A(231)` (= `pref_master_live_key`, returns "" unless mode 231
-   is active); unreadable falls back to the globally-verified 16:9 — never skip the substitution,
-   that would restore the damaged native sizes. `Kj.D#c()` additionally gained the missing MODE
-   GATE (receiver `a.g == 231`, the same chain `Kj/F.java:125` reads): it previously rewrote the
-   normal 实况照片 modes' (171/188/230) 4:3 results unconditionally — a latent regression now
-   fixed. The myron path forces this probe on even when an older saved preference says off, so a
-   stale setting cannot reintroduce the green artifact. The codec pin needs NO per-type logic (it pins to the encoder's own construction size,
-   which follows the bound stream automatically).
+   "1" (红毯, slow-motion tail) is 17U-exclusive, but every UI resource for it ships on every
+   ROM (`C4673d0#initItems` hard-codes the panel hints), so a synthesized entry appears
+   natively with zero string work. The effect-table hook installs on `q0()` of EVERY dispatch
+   class (borrow path for master-off AND the flagship's own override for master-on) and merges
+   a synthesized `"1"` entry: a CLONE of the proven-working linear entry with the type id
+   rewritten and the default flag (`g`) forced false — no decrypted role/range data is ever
+   invented, and 超清实况 stays the default effect. Key facts: bean `Le.a` has public non-final
+   fields with real dex names `a..h`; lists MUST be deep-copied per entry because
+   `C4673d0#r()` writes range strings back into them; segment lengths must satisfy
+   roles×2==zooms && ranges∈{roles,null} or the component throws IOOBE mid-capture
+   (`CameraMasterLiveRedCarpet.segmentsConsistent`); map order rebuilt [超清, 红毯, 主角, 自由].
+   Selecting 红毯 flips `j.O0(231)` true which BYPASSES the ALGO_UP_SAT early-return in
+   `U3/p#i` → keep 安全会话 (opmode-safe) ON or Qualcomm falls to op-mode 1 (may stall); on
+   myron/qcom the type-1 path additionally waits for a slow-motion first-frame/video callback
+   that the HAL never emits, leaving the shutter spinner active. The hook detects
+   `ro.product.device=myron` + `ro.hardware=qcom` and forces `O0(231)=false` only while type
+   "1" is selected: entry/UI stay, capture routes through the normal movement path and its
+   safe 36866 session (normal-speed clip rather than a true 120fps tail); 17U/native HSR
+   devices untouched.
+2. **Per-effect-type video size (`CameraMasterLiveSizeBinding`, automatic on myron).** A
+   global 16:9 pin broke the 4:3 超清实况 (type "0") with green frames again, so the probe and
+   surface hooks bind per type: movement types ("1"/"2"/"3") → 16:9 2304x1296 (user-verified
+   clean), ultra-pixel ("0") → 4:3 1728x1296 (same height as the verified-clean 16:9). The
+   current type is read through the camera's own static
+   `com.android.camera.data.data.j#A(231)` (= `pref_master_live_key`, "" unless mode 231 is
+   active); unreadable falls back to the globally-verified 16:9 — never skip the substitution,
+   that would restore the damaged native sizes. `Kj.D#c()` carries a MODE GATE (receiver
+   `a.g == 231`, same chain `Kj/F.java:125` reads) — without it it rewrote the normal
+   实况照片 modes' (171/188/230) 4:3 results unconditionally (latent regression, fixed). The
+   myron path forces this probe on even when an older saved preference says off, so a stale
+   setting cannot reintroduce the green artifact.
 3. **超清实况完整焦段 (`KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default ON).** The zoom strip inside
-   MasterLive reads config `v1()` keyed by mode id (`j.U/S/R` → `p723ur.i#q`); myron's config has
-   NO 231 key so the camera falls back to hardcoded {1x, 2x}. New hook on `v1()` of every dispatch
-   class appends `231 → {0.7, 1.0, 2.0, 5.0, 10.0}` (K100 stops = myron's real optics:
-   0.7x OV50M / 1x OV50Q / 2x digital / 5x·120mm JN5 / 10x digital) into a CLONED SparseArray when
-   absent — an existing key is never touched, other modes unaffected. This also covers the
-   impersonation paths for free: keep-focal delegates THROUGH the hooked original Method.
-   Value type mirrors the existing entries (`Float[]` verified; primitive mirrored defensively).
+   MasterLive reads config `v1()` keyed by mode id (`j.U/S/R` → `p723ur.i#q`); myron's config
+   has NO 231 key so the camera falls back to hardcoded {1x, 2x}. The hook on `v1()` of every
+   dispatch class appends `231 → {0.7, 1.0, 2.0, 5.0, 10.0}` (myron's real optics: 0.7x OV50M
+   / 1x OV50Q / 2x digital / 5x·120mm JN5 / 10x digital) into a CLONED SparseArray when
+   absent — an existing key is never touched, other modes unaffected. Value type mirrors the
+   existing entries (`Float[]` verified; primitive mirrored defensively).
 
-Regression history — do not reintroduce: the injected 红毯 entry must keep `g=false` (a true flag
-makes `getDefaultValue` boot the camera INTO 红毯 instead of 超清实况); the effect-table merge must
-deep-copy every List field (shared `Arrays.asList` instances let one effect's range write-back
-corrupt another's); unknown/unreadable effect types fall back to 16:9 rather than skipping the
-substitution; `Kj.D#c()` substitution requires the mode gate.
+Regression history — do not reintroduce: the injected 红毯 entry must keep `g=false` (a true
+flag makes `getDefaultValue` boot the camera INTO 红毯 instead of 超清实况); the effect-table
+merge must deep-copy every List field (shared `Arrays.asList` instances let one effect's range
+write-back corrupt another's); unknown/unreadable effect types fall back to 16:9 rather than
+skipping the substitution; `Kj.D#c()` substitution requires the mode gate.
 
 ### Four hidden-setting unlocks: 徕卡一瞬 / 智能构图 / 内容凭证 / 自适应镜头 (2026-08-29)
 
 Four independent switches on Camera Unlock (`CameraUnlockPage`, after 超高图片质量), all
-master-independent (work with the impersonation ON or OFF); 徕卡一瞬 and 内容凭证 are enabled
-automatically on myron while the other devices and the remaining switches stay manual, implemented in
-`CameraImpersonationHooker` so they reuse `configDispatchClasses()`/`flagshipInstance()`.
-Gates traced in the 510 dex (`camera-8f41d7b82453cdeb`):
+master-independent; 徕卡一瞬 and 内容凭证 are enabled automatically on myron while the other
+devices and the remaining switches stay manual, implemented in `CameraImpersonationHooker`
+reusing `configDispatchClasses()`. Gates traced in the 510 dex (`camera-8f41d7b82453cdeb`):
 
 1. **徕卡一瞬 (`KEY_CAMERA_LEGENDARY_MOMENT`)** — camera mode id 256, jadx
-   `com.android.camera.features.mode.legendary.LegendaryEnter` (the older docs mislabel it
-   传奇人像; its mode-item title resource is R.string.gtu = 徕卡一瞬). The entry registry
+   `com.android.camera.features.mode.legendary.LegendaryEnter` (older docs mislabel it
+   传奇人像; mode-item title resource R.string.gtu = 徕卡一瞬). The entry registry
    `p666t3.a.d()` keeps an entry only while `support()` is true, and
    `LegendaryEnter.support()` = `Je.c.W0() && Je.c.V()`: W0() is `config instanceof Nezha`
-   (C1209 on 510; C1178 on 460 — NOT myron's class despite what some stale hooker comments
-   say: myron = C1196 per OLD_TO_NEW_MAPPING.md §255-256) and V() is the static LCC theme
-   check `Qa.b.ro_theme_customize == "lcc"`. The existing `cam_guard_mode_legendary`
-   after-hook was extended into guard+unlock in ONE callback (exclusive branches, so hooks
-   can never fight): unlock on → force true; else master-on non-nezha → false (stock guard).
-   The hook MOVED from `hookModeGuards()` (flagship-gated) to `installHooks()` because the
-   unlock half must exist even when the flagship instance fails to build. Mode lands in the
-   更多 grid (no config `M()` carries 256). A second defense hooks the cross-release
-   FeatureLoader registry (`t3.a` in the dex; JADX displays `p662t3.a`/`p665t3.a`/`p666t3.a`)
-   at both `d()` and cached `b()`;
-   if startup ordering or a stale cache dropped 256, it constructs `LegendaryEnter` and inserts
-   it back into the SparseArray. The ComponentModuleList `E(256)` gate is raised too, covering
-   persisted `all_support_mode_list` values. Needs a camera restart (registry caches per
-   process). The RAW/re-processing pipeline behind the mode is unverified on this HAL.
+   (C1209 on 510; C1178 on 460 — NOT myron's class: myron = C1196 per OLD_TO_NEW_MAPPING.md)
+   and V() is the static LCC theme check `Qa.b.ro_theme_customize == "lcc"`. The existing
+   `cam_guard_mode_legendary` after-hook was extended into guard+unlock in ONE callback
+   (exclusive branches, so hooks can never fight): unlock on → force true; else stock guard.
+   The hook lives in `installHooks()` (not a flagship-gated method) because the unlock half
+   must exist even when the flagship instance fails to build. Mode lands in the 更多 grid (no
+   config `M()` carries 256). A second defense hooks the cross-release FeatureLoader registry
+   (`t3.a`; JADX displays `p662/p665/p666t3.a`) at both `d()` and cached `b()`: if startup
+   ordering or a stale cache dropped 256, it constructs `LegendaryEnter` and inserts it back
+   into the SparseArray. The ComponentModuleList `E(256)` gate is raised too. Needs a camera
+   restart (registry caches per process). The RAW/re-processing pipeline behind the mode is
+   unverified on this HAL.
 2. **智能构图 (`KEY_CAMERA_SMART_COMPOSITION`)** — three levers, one switch:
    - 设置→拍照 entry `pref_camera_crop_preferred_key`, gated on device-config `D3()` declared
-     once on the base C1174 as `return this instanceof C1199` (510: C1199 is a REDMI **leaf** —
-     `C1199 extends C1203 extends C1135(CommonKseries) extends C1174` — so only C1199 itself is
-     true natively; 460's REDMI-flagship base was RENUMBERED to C1135 on 510). myron (C1196 →
-     C1135) sits on a sibling branch so D3=false natively AND under both impersonation targets.
-     Hooked RAISE-only on the union of dispatch classes PLUS the config BASE class (Je.e.b type),
-     dedup by Method identity — on-device logs confirm it collapses to one hook on the base
-     `Common#D3`, exactly the single dispatch target for every runtime config type including the
-     `Ne.a` weak default (Ne.a extends C1174, verified). Reads at `p148e5/a.java:57` are the ONLY
-     visibility gate; no consumer hides the entry when D3 is true.
-   - **Top-level row injection**: the camera folds the whole recommendation-toggle list into the
-     「AI智能推荐」 sub-page whenever its size>1, which is ALWAYS on myron (扫码 unconditional +
-     横竖屏引导 natively true), so the D3 row alone was easy to miss ("没找到"). A second hook
-     after-hooks `CameraCapturePreferenceFragment.addPhotoPreferences()` and reuses the
-     fragment's own `addCheckBoxPreference(PreferenceGroup,String,boolean,int,int)` helper
-     (title/summary res ids `h24`/`h23` via `getIdentifier`) to inject a top-level 智能构图
-     checkbox into `category_photo_setting`. Persistence flows through the generic
-     registerListener wiring → `b.onPreferenceChange` → `updateSharePreference`, and reopen
-     re-syncs state via `updatePreferences` — identical to every native checkbox. The injected
-     `AccessibleCheckBoxPreference` shares the one pref key with the sub-page row.
-   - **Viewfinder feature-bar (id 2853) gate `M3()`**: `C3545f.M3(C3542e)` =
-     HAL characteristics `com.xiaomi.camera.autoCrop.autoCropVersion == 2`; forced true
-     (RAISE-only) so the icon appears in the capture feature bar. **Empty-switch reality
-     (verified 2026-08-29 on myron): the whole autoCrop feature lives in the HAL/ISP — the v2
-     app side (`p599r6/t0.java` SmartCompositionV2MultipleASD) only renders
-     `autoCropData` float[6] {x,y,w,h,zoom,tips} the HAL returns. myron's /odm camera
-     binaries contain NO autoCrop strings at all and `dumpsys media.camera` lists zero
-     `com.xiaomi.camera.autoCrop.*` keys (control dump proves the method: 144
-     supportedfeatures keys DO enumerate), so the icon is cosmetic — clicking runs
-     `X#I6`'s Q0(autoCropEnable) check and shows the "not supported" hint, capture skips the
-     wiring safely, no guidance can ever render. KSU/porting routes are dead ends.
+     once on the base C1174 as `return this instanceof C1199` (510: C1199 is a REDMI leaf —
+     only C1199 itself is true natively; 460's REDMI-flagship base was renumbered to C1135 on
+     510). myron (C1196 → C1135) sits on a sibling branch so D3=false natively. Hooked
+     RAISE-only on the union of dispatch classes PLUS the config BASE class, dedup by Method
+     identity — collapses to one hook on the base `Common#D3`, the single dispatch target for
+     every runtime config type including the `Ne.a` weak default. Reads at `p148e5/a.java:57`
+     are the ONLY visibility gate.
+   - **Top-level row injection**: the camera folds the whole recommendation-toggle list into
+     the「AI智能推荐」sub-page whenever its size>1 — always on myron — so the D3 row alone was
+     easy to miss. A second hook after-hooks
+     `CameraCapturePreferenceFragment.addPhotoPreferences()` and reuses the fragment's own
+     `addCheckBoxPreference(PreferenceGroup,String,boolean,int,int)` helper to inject a
+     top-level 智能构图 checkbox into `category_photo_setting`; persistence/re-sync flows
+     through the generic listener wiring identical to every native checkbox. Shares the one
+     pref key with the sub-page row.
+   - **Viewfinder feature-bar (id 2853) gate `M3()`**: `C3545f.M3(C3542e)` = HAL
+     characteristics `com.xiaomi.camera.autoCrop.autoCropVersion == 2`; forced true
+     (RAISE-only). **Empty-switch reality (verified 2026-08-29 on myron): autoCrop lives in
+     the HAL/ISP** — the app side only renders `autoCropData float[6]` the HAL returns;
+     myron's /odm camera binaries contain NO autoCrop strings and `dumpsys media.camera`
+     lists zero `com.xiaomi.camera.autoCrop.*` keys, so the icon is cosmetic ("not supported"
+     hint; capture skips the wiring safely). KSU/porting routes are dead ends.
 3. **内容凭证 (`KEY_CAMERA_CONTENT_CREDENTIAL`)** — 设置→水印 entry `pref_cai_type_key`
    (→ `CaiSettingFragment`), gated on a `static final boolean` in the debug-flag holder
-   (jadx `Qa.b.u`; real dex name is the short letter `u`, jadx alias `f13393u`) initialised
-   once from system property `ro.product.odm.support_cai` (sole reference in the whole dex;
-   plaintext anchor verified byte-exact in classes3.dex). Resolution: L1 candidate `Qa.b`,
-   L2 DexKit probe keyed on the property string with the static-boolean-field shape checked
-   inside the probe; write via `StaticFieldWriter.setBoolean` after a `getBoolean(null)`
-   that forces `<clinit>`. Applied ONLY when the switch is already on at attach — enabling
-   AND disabling need a camera restart (static-final write-once); whether photos actually
-   carry verifiable C2PA credentials still depends on the HAL/mivi pipeline.
+   (jadx `Qa.b.u`; real dex name is the short letter `u`) initialised once from system
+   property `ro.product.odm.support_cai` (sole reference in the whole dex; plaintext anchor
+   byte-verified in classes3.dex). Resolution: L1 candidate `Qa.b`, L2 DexKit probe keyed on
+   the property string with the static-boolean-field shape checked inside the probe; write
+   via `StaticFieldWriter.setBoolean` after a `getBoolean(null)` that forces `<clinit>`.
+   Applied ONLY when the switch is already on at attach — enabling AND disabling need a
+   camera restart (static-final write-once); whether photos actually carry verifiable C2PA
+   credentials still depends on the HAL/mivi pipeline.
 4. **自适应镜头 (`KEY_CAMERA_ADAPTIVE_LENS`, experimental)** — 设置→拍照 entry
-   `pref_camera_auto_fallback` (+ `AutoFallbackFragment` sub-page + module-level zoom state),
-   gated on TWO static capability getters of the capabilities-util helper (jadx C3545f,
-   ~211 same-shape methods!): near-range smooth transition (`xiaomi.smoothTransition.
-   nearRangeMode` characteristics key plus the `disablefallback` request / `fallbackRole`
-   result keys available) and tele fallback (`com.xiaomi.teleFallback.isSupported`). The
-   CLASS resolves through the DexKit anchor string `getSupportedHfrSettings: CameraCapabilities
-   is null!!!` (byte-verified in classes.dex, single user); each METHOD must match its short
-   name (`g5`/`i5` on 510) EXACTLY ONCE as a static boolean single-param method and the pair
-   must share one parameter type — otherwise the whole feature skips instead of forcing an
-   unknown gate. RAISE-only after-hooks, live-read.
+   `pref_camera_auto_fallback` (+ `AutoFallbackFragment` sub-page), gated on TWO static
+   capability getters of the capabilities-util helper (jadx C3545f, ~211 same-shape
+   methods!): near-range smooth transition (`xiaomi.smoothTransition.nearRangeMode`
+   characteristics key plus the `disablefallback` request / `fallbackRole` result keys) and
+   tele fallback (`com.xiaomi.teleFallback.isSupported`). The CLASS resolves through the
+   DexKit anchor string `getSupportedHfrSettings: CameraCapabilities is null!!!`
+   (byte-verified, single user); each METHOD must match its short name (`g5`/`i5` on 510)
+   EXACTLY ONCE as a static boolean single-param method and the pair must share one parameter
+   type — otherwise the whole feature skips instead of forcing an unknown gate. RAISE-only
+   after-hooks, live-read.
 
-Build verification: `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`
-pass (lint exit 0; only the pre-existing DexKit-`firstOrNull` warning family all hookers
-carry). On-device confirmation of all four entries/modes is the user's.
+On-device confirmation of all four entries/modes is the user's.
 
 ## Build and Test
 
