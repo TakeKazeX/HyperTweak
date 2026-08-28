@@ -69,6 +69,8 @@ fun SettingsScreenContent(
     onMediaCardHideAppIconChange: (Boolean) -> Unit,
     mediaCardHideDeviceSwitch: Boolean,
     onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
+    lockscreenAllNotifications: Boolean,
+    onLockscreenAllNotificationsChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -237,6 +239,18 @@ fun SettingsScreenContent(
                             title = stringResource(R.string.settings_charging_detail_options),
                             summary = stringResource(R.string.settings_charging_detail_options_summary),
                             onClick = onNavigateToChargingDetail
+                        )
+                    }
+                    // Lockscreen notification gates, OS4 SystemUI. Feature 3 lifts the
+                    // canShowOnKeyguard whitelist so every notification can appear on the
+                    // lockscreen; Feature 4 stops the lockscreen from hiding notifications that
+                    // were already shown after the last unlock.
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = lockscreenAllNotifications,
+                            onCheckedChange = onLockscreenAllNotificationsChange,
+                            title = stringResource(R.string.settings_lockscreen_all_notifications_title),
+                            summary = stringResource(R.string.settings_lockscreen_all_notifications_summary)
                         )
                     }
                     ArrowPreference(

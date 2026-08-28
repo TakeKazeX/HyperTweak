@@ -75,6 +75,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_CC_EDIT_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,
@@ -271,6 +272,7 @@ class MainActivity : ComponentActivity() {
             var ccEditEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) }
             var mediaCardHideAppIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)) }
             var mediaCardHideDeviceSwitch by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) }
+            var lockscreenAllNotifications by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) }
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
@@ -666,6 +668,7 @@ class MainActivity : ComponentActivity() {
                     ccEditEnabled = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
                     mediaCardHideAppIcon = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
                     mediaCardHideDeviceSwitch = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+                    lockscreenAllNotifications = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
@@ -946,6 +949,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, checked)
                         mediaCardHideDeviceSwitch = checked
                         Preferences.putBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, checked)
+                    },
+                    lockscreenAllNotifications = lockscreenAllNotifications,
+                    onLockscreenAllNotificationsChange = { checked ->
+                        markTweaked(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, checked)
+                        lockscreenAllNotifications = checked
+                        Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, checked)
                     },
                     onCcEditEnabledChange = { checked ->
                         markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)

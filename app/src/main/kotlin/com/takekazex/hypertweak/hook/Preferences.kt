@@ -247,6 +247,14 @@ object Preferences {
      */
     const val KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH = "media_card_hide_device_switch"
 
+    /**
+     * Lets every notification show on the lockscreen (锁屏通知限制): forces
+     * `NotificationSettingsManager.canShowOnKeyguard(Context, pkg, channel)` to return true, so
+     * both the package-level and the CN whitelist channel-level gates pass. Read by
+     * `LockscreenAllNotificationsHooker` at hook-install time; requires a SystemUI restart.
+     */
+    const val KEY_LOCKSCREEN_ALL_NOTIFICATIONS = "lockscreen_all_notifications"
+
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"

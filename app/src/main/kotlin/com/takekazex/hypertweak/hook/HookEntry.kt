@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.systemui.KeyguardFingerprintAvoidHooker
 import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -541,6 +542,7 @@ class HookEntry : XposedModule() {
                 attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
+                attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }
