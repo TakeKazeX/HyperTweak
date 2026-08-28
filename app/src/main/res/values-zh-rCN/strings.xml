@@ -568,6 +568,8 @@
     <string name="settings_media_hide_device_switch_summary">移除媒体卡片上的设备切换按钮（投送/设备切换）：通知阴影卡片与小岛右上角的无缝按钮，以及控制中心媒体卡片上的设备图标。开启后需重启系统界面</string>
     <string name="settings_lockscreen_all_notifications_title">锁屏显示所有通知</string>
     <string name="settings_lockscreen_all_notifications_summary">让所有应用的通知都能在锁屏显示。国行版按频道走系统白名单判定，普通应用的频道即使开了应用级开关也会被白名单拦下；本开关强制白名单判定放行。开启后需重启系统界面</string>
+    <string name="settings_lockscreen_keep_notifications_title">解锁后锁屏保留已看通知</string>
+    <string name="settings_lockscreen_keep_notifications_summary">阻止锁屏自动隐藏解锁后已看过的通知。MIUI 在离开锁屏时会给通知打上 mHasShownAfterUnlock 标记，下次锁屏便将其隐藏；本开关跳过该分支，但仍保留应用级「是否允许锁屏显示」判定。开启后需重启系统界面</string>
     <string name="tweaks_system_core_title">系统核心</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>

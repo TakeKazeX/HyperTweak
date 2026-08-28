@@ -71,6 +71,8 @@ fun SettingsScreenContent(
     onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
     lockscreenAllNotifications: Boolean,
     onLockscreenAllNotificationsChange: (Boolean) -> Unit,
+    lockscreenKeepNotifications: Boolean,
+    onLockscreenKeepNotificationsChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -251,6 +253,14 @@ fun SettingsScreenContent(
                             onCheckedChange = onLockscreenAllNotificationsChange,
                             title = stringResource(R.string.settings_lockscreen_all_notifications_title),
                             summary = stringResource(R.string.settings_lockscreen_all_notifications_summary)
+                        )
+                    }
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = lockscreenKeepNotifications,
+                            onCheckedChange = onLockscreenKeepNotificationsChange,
+                            title = stringResource(R.string.settings_lockscreen_keep_notifications_title),
+                            summary = stringResource(R.string.settings_lockscreen_keep_notifications_summary)
                         )
                     }
                     ArrowPreference(

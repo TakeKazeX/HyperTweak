@@ -255,6 +255,14 @@ object Preferences {
      */
     const val KEY_LOCKSCREEN_ALL_NOTIFICATIONS = "lockscreen_all_notifications"
 
+    /**
+     * Keeps notifications on the lockscreen after they were already seen (解锁后保留通知): hooks
+     * `NotificationFilterController.forceHideOnKeyguard` to skip the `mHasShownAfterUnlock`
+     * branch while keeping the `canShowOnKeyguard()` gate. Read by
+     * `LockscreenKeepNotificationsHooker` at hook-install time; requires a SystemUI restart.
+     */
+    const val KEY_LOCKSCREEN_KEEP_NOTIFICATIONS = "lockscreen_keep_notifications"
+
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"
