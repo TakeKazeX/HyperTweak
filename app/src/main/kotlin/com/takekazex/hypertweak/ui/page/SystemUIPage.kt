@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,11 +20,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -35,17 +45,25 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
- * System UI tweaks (Settings → System UI). Second-level page consolidating the SystemUI-scoped
- * options that used to live under Experimental: wallpaper-color refresh, lockscreen fingerprint
- * avoidance, lockscreen charging detail, the lockscreen notification gates and the media-card
- * switches. State stays hoisted in [MainActivity] like it was on the main screen, so toggles
- * still flow through `markTweaked` and the standard "Restart Scoped Apps" dialog.
+ * System UI tweaks (Features tab → System UI). Second-level page consolidating the SystemUI-scoped
+ * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, fingerprint icon,
+ * lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the lockscreen
+ * notification gates, the media-card switches, the control-center sliders and the navigation-bar
+ * gesture/power-button settings. State stays hoisted in [MainActivity], so toggles still flow
+ * through `markTweaked` and the standard "Restart Scoped Apps" dialog.
  */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun SystemUIPage(
     onBack: () -> Unit,
     immediateMonetRefresh: Boolean,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
+    aodFullscreen: Boolean,
+    onAodFullscreenChange: (Boolean) -> Unit,
+    hideFingerprint: Boolean,
+    onHideFingerprintChange: (Boolean) -> Unit,
+    hideLockscreenStatusBar: Boolean,
+    onHideLockscreenStatusBarChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -56,9 +74,55 @@ fun SystemUIPage(
     mediaCardHideAppIcon: Boolean,
     onMediaCardHideAppIconChange: (Boolean) -> Unit,
     mediaCardHideDeviceSwitch: Boolean,
-    onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit
+    onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
+    sliderShowPercentage: Boolean,
+    onSliderShowPercentageChange: (Boolean) -> Unit,
+    sliderSamePercentageStyle: Boolean,
+    onSliderSamePercentageChange: (Boolean) -> Unit,
+    hideGestureBar: Boolean,
+    onHideGestureBarChange: (Boolean) -> Unit,
+    gestureBarRaiseLayout: Boolean,
+    onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    gestureBarActionsEnabled: Boolean,
+    onGestureBarActionsEnabledChange: (Boolean) -> Unit,
+    powerButtonAction: Int,
+    onPowerButtonActionChange: (Int) -> Unit,
+    powerButtonHaptic: Boolean,
+    onPowerButtonHapticChange: (Boolean) -> Unit,
+    gestureBarLongPressAction: Int,
+    onGestureBarLongPressActionChange: (Int) -> Unit,
+    gestureBarDoubleTapAction: Int,
+    onGestureBarDoubleTapActionChange: (Int) -> Unit,
+    miuiBackGestureHook: Boolean,
+    onMiuiBackGestureHookChange: (Boolean) -> Unit,
+    crossTaskWallpaperBackground: Boolean,
+    onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
+    aospBackIndicator: Boolean,
+    onAospBackIndicatorChange: (Boolean) -> Unit,
+    aospBackHaptics: Boolean,
+    onAospBackHapticsChange: (Boolean) -> Unit,
+    aospBackHapticsEnhanced: Boolean,
+    onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
+    aospBackSlideAnimation: Boolean,
+    onAospBackSlideAnimationChange: (Boolean) -> Unit,
+    launcherSupportsBackRoute: Boolean
 ) {
+    val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
+    val gestureActionOptions = remember {
+        listOf(
+            GestureBarAction.DISABLED to context.getString(R.string.tweaks_action_disabled),
+            GestureBarAction.DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant),
+            GestureBarAction.CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search)
+        )
+    }
+    val powerButtonActionOptions = remember {
+        listOf(
+            Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
+            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
+            Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
+        )
+    }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -92,12 +156,30 @@ fun SystemUIPage(
                 }
             }
 
-            // The notification-stack fingerprint avoidance anchors on the OS4 `nsslLockYPosition`
-            // combine; OS3's keyguard uses a different container.
-            if (PlatformLevel.isOs4) {
-                SmallTitle(stringResource(R.string.settings_system_ui_section_lockscreen))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
+            SmallTitle(stringResource(R.string.settings_system_ui_section_lockscreen))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = aodFullscreen,
+                        onCheckedChange = onAodFullscreenChange,
+                        title = stringResource(R.string.tweaks_aod_fullscreen_title),
+                        summary = stringResource(R.string.tweaks_aod_fullscreen_summary)
+                    )
+                    SwitchPreference(
+                        checked = hideFingerprint,
+                        onCheckedChange = onHideFingerprintChange,
+                        title = stringResource(R.string.tweaks_hide_fingerprint_title),
+                        summary = stringResource(R.string.tweaks_hide_fingerprint_summary)
+                    )
+                    SwitchPreference(
+                        checked = hideLockscreenStatusBar,
+                        onCheckedChange = onHideLockscreenStatusBarChange,
+                        title = stringResource(R.string.tweaks_hide_lockscreen_status_bar_title),
+                        summary = stringResource(R.string.tweaks_hide_lockscreen_status_bar_summary)
+                    )
+                    // The notification-stack fingerprint avoidance anchors on the OS4
+                    // `nsslLockYPosition` combine; OS3's keyguard uses a different container.
+                    if (PlatformLevel.isOs4) {
                         OverlayDropdownPreference(
                             title = stringResource(R.string.settings_lockscreen_fingerprint_avoid),
                             summary = stringResource(R.string.settings_lockscreen_fingerprint_avoid_summary),
@@ -118,9 +200,9 @@ fun SystemUIPage(
                             onClick = onNavigateToChargingDetail
                         )
                         // Lockscreen notification gates. The first lifts the canShowOnKeyguard
-                        // whitelist so every notification can appear on the lockscreen; the
-                        // second stops the lockscreen from hiding notifications that were already
-                        // shown after the last unlock.
+                        // whitelist so every notification can appear on the lockscreen; the second
+                        // stops the lockscreen from hiding notifications that were already shown
+                        // after the last unlock.
                         SwitchPreference(
                             checked = lockscreenAllNotifications,
                             onCheckedChange = onLockscreenAllNotificationsChange,
@@ -157,6 +239,164 @@ fun SystemUIPage(
                             title = stringResource(R.string.settings_media_hide_device_switch_title),
                             summary = stringResource(R.string.settings_media_hide_device_switch_summary)
                         )
+                    }
+                }
+            }
+
+            SmallTitle(stringResource(R.string.tweaks_control_center_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = sliderShowPercentage,
+                        onCheckedChange = onSliderShowPercentageChange,
+                        title = stringResource(R.string.tweaks_slider_show_percentage_title),
+                        summary = stringResource(R.string.tweaks_slider_show_percentage_summary)
+                    )
+                    SwitchPreference(
+                        checked = sliderSamePercentageStyle && sliderShowPercentage,
+                        onCheckedChange = onSliderSamePercentageChange,
+                        title = stringResource(R.string.tweaks_unify_percentage_style_title),
+                        summary = stringResource(R.string.tweaks_unify_percentage_style_summary),
+                        enabled = sliderShowPercentage
+                    )
+                }
+            }
+
+            SmallTitle(stringResource(R.string.tweaks_navigation_bar_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = hideGestureBar,
+                        onCheckedChange = onHideGestureBarChange,
+                        title = stringResource(R.string.tweaks_hide_gesture_bar_title),
+                        summary = stringResource(R.string.tweaks_hide_gesture_bar_summary)
+                    )
+                    SwitchPreference(
+                        checked = gestureBarRaiseLayout && hideGestureBar,
+                        onCheckedChange = onGestureBarRaiseLayoutChange,
+                        title = stringResource(R.string.tweaks_raise_layout_title),
+                        summary = stringResource(R.string.tweaks_raise_layout_summary),
+                        enabled = hideGestureBar
+                    )
+                    SwitchPreference(
+                        checked = gestureBarActionsEnabled,
+                        onCheckedChange = onGestureBarActionsEnabledChange,
+                        title = stringResource(R.string.tweaks_gesture_bar_shortcuts_title),
+                        summary = stringResource(R.string.tweaks_gesture_bar_shortcuts_summary),
+                        enabled = GestureBarAction.actionsAvailable
+                    )
+                    AnimatedVisibility(
+                        visible = gestureBarActionsEnabled,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            OverlayDropdownPreference(
+                                title = stringResource(R.string.tweaks_long_press_action_title),
+                                summary = stringResource(R.string.tweaks_long_press_action_summary),
+                                items = gestureActionOptions.map { it.second },
+                                selectedIndex = gestureActionOptions.indexOfFirst {
+                                    it.first.persistedId == gestureBarLongPressAction
+                                }.coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
+                                        onGestureBarLongPressActionChange
+                                    )
+                                }
+                            )
+                            OverlayDropdownPreference(
+                                title = stringResource(R.string.tweaks_double_tap_action_title),
+                                items = gestureActionOptions.map { it.second },
+                                selectedIndex = gestureActionOptions.indexOfFirst {
+                                    it.first.persistedId == gestureBarDoubleTapAction
+                                }.coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
+                                        onGestureBarDoubleTapActionChange
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.tweaks_power_button_action_title),
+                        summary = stringResource(R.string.tweaks_power_button_action_summary),
+                        items = powerButtonActionOptions.map { it.second },
+                        selectedIndex = powerButtonActionOptions.indexOfFirst {
+                            it.first == powerButtonAction
+                        }.coerceAtLeast(0),
+                        onSelectedIndexChange = { index ->
+                            powerButtonActionOptions.getOrNull(index)?.first?.let(
+                                onPowerButtonActionChange
+                            )
+                        }
+                    )
+                    AnimatedVisibility(
+                        visible = powerButtonAction != Preferences.POWER_BUTTON_ACTION_DISABLED,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                checked = powerButtonHaptic,
+                                onCheckedChange = onPowerButtonHapticChange,
+                                title = stringResource(R.string.tweaks_power_button_haptic_title),
+                                summary = stringResource(R.string.tweaks_power_button_haptic_summary)
+                            )
+                        }
+                    }
+                    if (!PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = miuiBackGestureHook,
+                            onCheckedChange = onMiuiBackGestureHookChange,
+                            title = stringResource(R.string.tweaks_aosp_back_gesture_title),
+                            summary = if (launcherSupportsBackRoute) {
+                                stringResource(R.string.tweaks_aosp_back_gesture_summary_launcher_scope)
+                            } else {
+                                stringResource(R.string.tweaks_aosp_back_gesture_summary)
+                            }
+                        )
+                        SwitchPreference(
+                            checked = crossTaskWallpaperBackground,
+                            onCheckedChange = onCrossTaskWallpaperBackgroundChange,
+                            title = stringResource(R.string.tweaks_cross_task_wallpaper_title),
+                            summary = stringResource(R.string.tweaks_cross_task_wallpaper_summary),
+                            enabled = miuiBackGestureHook
+                        )
+                        AnimatedVisibility(
+                            visible = miuiBackGestureHook,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                SwitchPreference(
+                                    checked = aospBackIndicator,
+                                    onCheckedChange = onAospBackIndicatorChange,
+                                    title = stringResource(R.string.tweaks_hyperos_back_arrow_title),
+                                    summary = stringResource(R.string.tweaks_hyperos_back_arrow_summary)
+                                )
+                                SwitchPreference(
+                                    checked = aospBackHaptics,
+                                    onCheckedChange = onAospBackHapticsChange,
+                                    title = stringResource(R.string.tweaks_back_gesture_haptics_title),
+                                    summary = stringResource(R.string.tweaks_back_gesture_haptics_summary),
+                                    enabled = aospBackIndicator
+                                )
+                                SwitchPreference(
+                                    checked = aospBackHapticsEnhanced,
+                                    onCheckedChange = onAospBackHapticsEnhancedChange,
+                                    title = stringResource(R.string.tweaks_enhanced_haptics_title),
+                                    summary = stringResource(R.string.tweaks_enhanced_haptics_summary),
+                                    enabled = aospBackIndicator && aospBackHaptics
+                                )
+                                SwitchPreference(
+                                    checked = aospBackSlideAnimation,
+                                    onCheckedChange = onAospBackSlideAnimationChange,
+                                    title = stringResource(R.string.tweaks_slide_back_animation_title),
+                                    summary = stringResource(R.string.tweaks_slide_back_animation_summary)
+                                )
+                            }
+                        }
                     }
                 }
             }

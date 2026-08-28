@@ -70,7 +70,6 @@ fun SettingsScreenContent(
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
-    onNavigateToSystemUi: () -> Unit,
     launcherMajor: Int,
     launcherSupportsBackRoute: Boolean,
     aospBackMiuiHomeHooks: Boolean,
@@ -193,21 +192,6 @@ fun SettingsScreenContent(
                         onSelectedIndexChange = onAppLanguageChange
                     )
                 }
-            }
-
-            // System UI tweaks, moved out of Experimental into a formal second-level page. The
-            // sub-page hosts the SystemUI-scoped options: wallpaper-color refresh, lockscreen
-            // fingerprint avoidance, charging detail, the lockscreen notification gates and the
-            // media-card switches.
-            SmallTitle(text = stringResource(R.string.settings_system_ui))
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-            ) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_system_ui),
-                    summary = stringResource(R.string.settings_system_ui_summary),
-                    onClick = onNavigateToSystemUi
-                )
             }
 
             SmallTitle(text = stringResource(R.string.settings_experimental))
