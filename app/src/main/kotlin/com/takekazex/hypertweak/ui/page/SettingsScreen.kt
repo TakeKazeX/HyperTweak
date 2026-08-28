@@ -62,33 +62,21 @@ fun SettingsScreenContent(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
-    immediateMonetRefresh: Boolean,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
-    mediaCardHideAppIcon: Boolean,
-    onMediaCardHideAppIconChange: (Boolean) -> Unit,
-    mediaCardHideDeviceSwitch: Boolean,
-    onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
-    lockscreenAllNotifications: Boolean,
-    onLockscreenAllNotificationsChange: (Boolean) -> Unit,
-    lockscreenKeepNotifications: Boolean,
-    onLockscreenKeepNotificationsChange: (Boolean) -> Unit,
-    lockscreenFingerprintAvoid: Int,
-    onLockscreenFingerprintAvoidChange: (Int) -> Unit,
-    onNavigateToChargingDetail: () -> Unit,
-    launcherMajor: Int,
-    launcherSupportsBackRoute: Boolean,
-    aospBackMiuiHomeHooks: Boolean,
-    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
-    onNavigateToPredictiveBackApps: () -> Unit,
-    onNavigateToAospRestore: () -> Unit,
-    onImmediateMonetRefreshChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
     onNavigateToWatermark: () -> Unit,
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
+    onNavigateToSystemUi: () -> Unit,
+    launcherMajor: Int,
+    launcherSupportsBackRoute: Boolean,
+    aospBackMiuiHomeHooks: Boolean,
+    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
+    onNavigateToPredictiveBackApps: () -> Unit,
+    onNavigateToAospRestore: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -207,63 +195,26 @@ fun SettingsScreenContent(
                 }
             }
 
+            // System UI tweaks, moved out of Experimental into a formal second-level page. The
+            // sub-page hosts the SystemUI-scoped options: wallpaper-color refresh, lockscreen
+            // fingerprint avoidance, charging detail, the lockscreen notification gates and the
+            // media-card switches.
+            SmallTitle(text = stringResource(R.string.settings_system_ui))
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_system_ui),
+                    summary = stringResource(R.string.settings_system_ui_summary),
+                    onClick = onNavigateToSystemUi
+                )
+            }
+
             SmallTitle(text = stringResource(R.string.settings_experimental))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = immediateMonetRefresh,
-                        onCheckedChange = onImmediateMonetRefreshChange,
-                        title = stringResource(R.string.settings_immediate_monet_refresh),
-                        summary = stringResource(R.string.settings_immediate_monet_refresh_summary)
-                    )
-                    // The notification-stack fingerprint avoidance anchors on the OS4
-                    // `nsslLockYPosition` combine; OS3's keyguard uses a different container.
-                    if (PlatformLevel.isOs4) {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.settings_lockscreen_fingerprint_avoid),
-                            summary = stringResource(R.string.settings_lockscreen_fingerprint_avoid_summary),
-                            items = listOf(
-                                stringResource(R.string.settings_fingerprint_avoid_default),
-                                stringResource(R.string.settings_fingerprint_avoid_none),
-                                stringResource(R.string.settings_fingerprint_avoid_always)
-                            ),
-                            selectedIndex = lockscreenFingerprintAvoid.coerceIn(0, 2),
-                            onSelectedIndexChange = onLockscreenFingerprintAvoidChange
-                        )
-                    }
-                    // Appends live charging telemetry (wattage / voltage / current / temperature)
-                    // to the bottom lockscreen indication, OS4 SystemUI. The master switch and all
-                    // options live in the second-level page; the master switch needs a SystemUI
-                    // restart, offered in-page.
-                    if (PlatformLevel.isOs4) {
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_charging_detail_options),
-                            summary = stringResource(R.string.settings_charging_detail_options_summary),
-                            onClick = onNavigateToChargingDetail
-                        )
-                    }
-                    // Lockscreen notification gates, OS4 SystemUI. Feature 3 lifts the
-                    // canShowOnKeyguard whitelist so every notification can appear on the
-                    // lockscreen; Feature 4 stops the lockscreen from hiding notifications that
-                    // were already shown after the last unlock.
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = lockscreenAllNotifications,
-                            onCheckedChange = onLockscreenAllNotificationsChange,
-                            title = stringResource(R.string.settings_lockscreen_all_notifications_title),
-                            summary = stringResource(R.string.settings_lockscreen_all_notifications_summary)
-                        )
-                    }
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = lockscreenKeepNotifications,
-                            onCheckedChange = onLockscreenKeepNotificationsChange,
-                            title = stringResource(R.string.settings_lockscreen_keep_notifications_title),
-                            summary = stringResource(R.string.settings_lockscreen_keep_notifications_summary)
-                        )
-                    }
                     ArrowPreference(
                         title = stringResource(R.string.settings_icon_tuner),
                         summary = stringResource(R.string.settings_icon_tuner_summary),
@@ -314,25 +265,6 @@ fun SettingsScreenContent(
                             title = stringResource(R.string.cc_resize_title),
                             summary = stringResource(R.string.cc_resize_enabled_summary),
                             onClick = onNavigateToControlCenterResize
-                        )
-                    }
-                    // Media cards: remove the source app icon overlaid on the cover corner, in both
-                    // the notification shade and the island. The render chains are OS4 SystemUI.
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = mediaCardHideAppIcon,
-                            onCheckedChange = onMediaCardHideAppIconChange,
-                            title = stringResource(R.string.settings_media_hide_app_icon_title),
-                            summary = stringResource(R.string.settings_media_hide_app_icon_summary)
-                        )
-                    }
-                    // Media cards: hide the device-switch button (shade + island + plugin main card).
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = mediaCardHideDeviceSwitch,
-                            onCheckedChange = onMediaCardHideDeviceSwitchChange,
-                            title = stringResource(R.string.settings_media_hide_device_switch_title),
-                            summary = stringResource(R.string.settings_media_hide_device_switch_summary)
                         )
                     }
                 }

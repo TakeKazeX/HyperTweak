@@ -449,6 +449,12 @@
     <string name="settings_lockscreen_fingerprint_avoid_summary">Keep lockscreen notifications clear of the in-display fingerprint icon</string>
     <string name="settings_module_preferences">Module Preferences</string>
     <string name="settings_other">Other</string>
+    <string name="settings_system_ui">System UI</string>
+    <string name="settings_system_ui_summary">SystemUI tweaks: wallpaper-color refresh, lockscreen fingerprint avoidance, charging detail, lockscreen notifications and media cards</string>
+    <string name="settings_system_ui_back">Back</string>
+    <string name="settings_system_ui_section_general">General</string>
+    <string name="settings_system_ui_section_lockscreen">Lockscreen</string>
+    <string name="settings_system_ui_section_media">Media Cards</string>
     <string name="settings_predictive_back_apps">Predictive Back Apps</string>
     <string name="settings_predictive_back_apps_summary">Force predictive back for apps that never opted in</string>
     <string name="settings_predictive_return_to_home">Predictive Return to Home</string>

@@ -12,6 +12,7 @@ sealed interface Route : NavKey {
     data object PredictiveBackApps : Route
     data object AospRestore : Route
     data object AospIme : Route
+    data object SystemUi : Route
     data object IconTuner : Route
     data object GlassTuner : Route
     data object Watermark : Route
@@ -39,6 +40,7 @@ val Route.saveKey: String
         Route.PredictiveBackApps -> "PredictiveBackApps"
         Route.AospRestore -> "AospRestore"
         Route.AospIme -> "AospIme"
+        Route.SystemUi -> "SystemUi"
         Route.IconTuner -> "IconTuner"
         Route.GlassTuner -> "GlassTuner"
         Route.Watermark -> "Watermark"
@@ -61,6 +63,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "PredictiveBackApps" -> Route.PredictiveBackApps
     "AospRestore" -> Route.AospRestore
     "AospIme" -> Route.AospIme
+    "SystemUi" -> Route.SystemUi
     "IconTuner" -> Route.IconTuner
     "GlassTuner" -> Route.GlassTuner
     "Watermark" -> Route.Watermark

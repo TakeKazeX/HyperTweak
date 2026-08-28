@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.AospImePage
+import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.WatermarkPage
@@ -250,31 +251,19 @@ fun HyperTweakNavContainer(
                 onHideFingerprintChange = onHideFingerprintChange,
                 hideLockscreenStatusBar = hideLockscreenStatusBar,
                 onHideLockscreenStatusBarChange = onHideLockscreenStatusBarChange,
-                lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
-                onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
-                onNavigateToChargingDetail = {
-                    backStack.add(Route.ChargingDetail)
-                },
                 sliderShowPercentage = sliderShowPercentage,
                 onSliderShowPercentageChange = onSliderShowPercentageChange,
                 sliderSamePercentageStyle = sliderSamePercentageStyle,
                 onSliderSamePercentageChange = onSliderSamePercentageChange,
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange,
-                mediaCardHideAppIcon = mediaCardHideAppIcon,
-                onMediaCardHideAppIconChange = onMediaCardHideAppIconChange,
-                mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
-                onMediaCardHideDeviceSwitchChange = onMediaCardHideDeviceSwitchChange,
-                lockscreenAllNotifications = lockscreenAllNotifications,
-                onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
-                lockscreenKeepNotifications = lockscreenKeepNotifications,
-                onLockscreenKeepNotificationsChange = onLockscreenKeepNotificationsChange,
+                onNavigateToSystemUi = {
+                    backStack.add(Route.SystemUi)
+                },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
                 hideLauncherIcon = hideLauncherIcon,
                 onHideLauncherIconChange = onHideLauncherIconChange,
-                immediateMonetRefresh = immediateMonetRefresh,
-                onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,
                 hideGestureBar = hideGestureBar,
                 onHideGestureBarChange = onHideGestureBarChange,
                 gestureBarRaiseLayout = gestureBarRaiseLayout,
@@ -452,6 +441,26 @@ fun HyperTweakNavContainer(
         entry<Route.IconTuner> {
             IconTunerPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.SystemUi> {
+            SystemUIPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                immediateMonetRefresh = immediateMonetRefresh,
+                onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,
+                lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
+                onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
+                onNavigateToChargingDetail = {
+                    backStack.add(Route.ChargingDetail)
+                },
+                lockscreenAllNotifications = lockscreenAllNotifications,
+                onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
+                lockscreenKeepNotifications = lockscreenKeepNotifications,
+                onLockscreenKeepNotificationsChange = onLockscreenKeepNotificationsChange,
+                mediaCardHideAppIcon = mediaCardHideAppIcon,
+                onMediaCardHideAppIconChange = onMediaCardHideAppIconChange,
+                mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
+                onMediaCardHideDeviceSwitchChange = onMediaCardHideDeviceSwitchChange
             )
         }
         entry<Route.GlassTuner> {
