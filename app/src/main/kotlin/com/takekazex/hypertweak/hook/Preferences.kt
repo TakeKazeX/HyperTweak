@@ -237,6 +237,16 @@ object Preferences {
      */
     const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"
 
+    /**
+     * Hides the device-switch button on the media cards (隐藏设备切换按钮): the top-right
+     * `media_seamless` on the notification-shade card (`MiuiMediaViewControllerImpl.setSeamless`)
+     * and the island card (`MiuiIslandMediaViewBinderImpl.setSeamless`), plus the plugin main
+     * card's `device_icon` (`MediaPlayerDeviceIconHooker`, plugin scope). The SystemUI half is
+     * read by `MediaCardHideDeviceSwitchHooker` at hook-install time; the plugin half gates
+     * attachment at plugin load and re-reads live per callback. Requires a SystemUI restart.
+     */
+    const val KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH = "media_card_hide_device_switch"
+
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"

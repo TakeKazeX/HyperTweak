@@ -20,7 +20,8 @@ object SystemUIPluginHooker : StaticHooker() {
         val state: HotReloadPluginState,
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
-        val cardsEditHooker: ControlCenterCardsEditHooker?
+        val cardsEditHooker: ControlCenterCardsEditHooker?,
+        val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?
     )
 
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
@@ -77,6 +78,10 @@ object SystemUIPluginHooker : StaticHooker() {
                             session.cardsEditHooker?.let { cardsEdit ->
                                 runCatching { cardsEdit.prepareForHotReload() }
                                 detach(cardsEdit)
+                            }
+                            session.mediaDeviceIconHooker?.let { deviceIcon ->
+                                runCatching { deviceIcon.prepareForHotReload() }
+                                detach(deviceIcon)
                             }
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
@@ -178,8 +183,13 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             null
         }
+        val mediaDeviceIconHooker = if (Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
+            MediaPlayerDeviceIconHooker()
+        } else {
+            null
+        }
 
-        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker, cardsEditHooker)
+        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker, cardsEditHooker, mediaDeviceIconHooker)
         // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
         // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
         // hooker uninstalled while the session entry suppressed later retries.
@@ -198,6 +208,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
                     Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
+                }
+        }
+        if (mediaDeviceIconHooker != null) {
+            runCatching { attach(mediaDeviceIconHooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
                 }
         }
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")

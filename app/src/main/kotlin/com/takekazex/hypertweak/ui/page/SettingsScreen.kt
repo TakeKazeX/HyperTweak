@@ -67,6 +67,8 @@ fun SettingsScreenContent(
     onCcEditEnabledChange: (Boolean) -> Unit,
     mediaCardHideAppIcon: Boolean,
     onMediaCardHideAppIconChange: (Boolean) -> Unit,
+    mediaCardHideDeviceSwitch: Boolean,
+    onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -290,6 +292,15 @@ fun SettingsScreenContent(
                             onCheckedChange = onMediaCardHideAppIconChange,
                             title = stringResource(R.string.settings_media_hide_app_icon_title),
                             summary = stringResource(R.string.settings_media_hide_app_icon_summary)
+                        )
+                    }
+                    // Media cards: hide the device-switch button (shade + island + plugin main card).
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = mediaCardHideDeviceSwitch,
+                            onCheckedChange = onMediaCardHideDeviceSwitchChange,
+                            title = stringResource(R.string.settings_media_hide_device_switch_title),
+                            summary = stringResource(R.string.settings_media_hide_device_switch_summary)
                         )
                     }
                 }
