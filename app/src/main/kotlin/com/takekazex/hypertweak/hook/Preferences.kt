@@ -803,12 +803,41 @@ object Preferences {
     }
 
     /**
+     * Writes the value under [block] into the local cache together with the current remote epoch.
+     * The cache only stores values that were read authoritatively from the daemon, so the epoch is
+     * stamped at the same moment. This is what lets hook processes (e.g. SystemUI) use their local
+     * cache as a fallback for keys the daemon does not carry, while still treating the cache as
+     * stale after a [clearAllSettings] bumps the remote epoch.
+     */
+    private fun cacheWrite(cache: SharedPreferences?, block: SharedPreferences.Editor.() -> Unit) {
+        if (cache == null) return
+        // Async apply, matching the historical getter writes: the cache is only a fallback, so a
+        // hot-path read (per frame / per touch) must not pay synchronous disk I/O. The epoch is
+        // stamped in the same transaction so the cache always carries it alongside the value.
+        runCatching {
+            cache.edit {
+                block()
+                putLong(KEY_PREFS_EPOCH, remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH))
+            }
+        }
+    }
+
+    /**
      * False when the remote prefs were wiped after this process last cached values, so the
      * cache must not be trusted and reads fall back to defaults.
      */
     private fun cacheEpochMatchesRemote(): Boolean {
         val cache = getLocalCache() ?: return true
         val remoteEpoch = runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }.getOrDefault(INITIAL_EPOCH)
+        if (!cache.contains(KEY_PREFS_EPOCH)) {
+            // A cache without the epoch key was populated by authoritative daemon reads from a
+            // build that predates the epoch stamping (one-time transition). The values are fresh,
+            // so adopt the current remote epoch and treat the cache as matching. From here on the
+            // cache carries the epoch, so a later clearAllSettings bump makes it mismatch and the
+            // cache is correctly treated as stale instead of serving pre-reset values forever.
+            cacheWrite(cache) { /* only stamp the epoch */ }
+            return true
+        }
         val cacheEpoch = runCatching { cache.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }.getOrDefault(INITIAL_EPOCH)
         return remoteEpoch == cacheEpoch
     }
@@ -930,7 +959,7 @@ object Preferences {
                 val v = remotePrefs.getBoolean(key, default)
                 val cache = getLocalCache()
                 if (cache != null && (!cache.contains(key) || cache.getBoolean(key, !v) != v)) {
-                    cache.edit { putBoolean(key, v) }
+                    cacheWrite(cache) { putBoolean(key, v) }
                 }
                 v
             } else if (cacheEpochMatchesRemote()) {
@@ -953,7 +982,7 @@ object Preferences {
                 val v = remotePrefs.getInt(key, default)
                 val cache = getLocalCache()
                 if (cache != null && (!cache.contains(key) || cache.getInt(key, v - 1) != v)) {
-                    cache.edit { putInt(key, v) }
+                    cacheWrite(cache) { putInt(key, v) }
                 }
                 v
             } else if (cacheEpochMatchesRemote()) {
@@ -976,7 +1005,7 @@ object Preferences {
                 val v = remotePrefs.getFloat(key, default)
                 val cache = getLocalCache()
                 if (cache != null && (!cache.contains(key) || cache.getFloat(key, v - 1f) != v)) {
-                    cache.edit { putFloat(key, v) }
+                    cacheWrite(cache) { putFloat(key, v) }
                 }
                 v
             } else if (cacheEpochMatchesRemote()) {
@@ -1014,7 +1043,7 @@ object Preferences {
                 val v = remotePrefs.getStringSet(key, default) ?: default
                 val cache = getLocalCache()
                 if (cache != null && (!cache.contains(key) || cache.getStringSet(key, emptySet()) != v)) {
-                    cache.edit { putStringSet(key, v) }
+                    cacheWrite(cache) { putStringSet(key, v) }
                 }
                 v
             } else if (cacheEpochMatchesRemote()) {
@@ -1045,7 +1074,7 @@ object Preferences {
                 val v = remotePrefs.getString(key, default) ?: default
                 val cache = getLocalCache()
                 if (cache != null && (!cache.contains(key) || cache.getString(key, "") != v)) {
-                    cache.edit { putString(key, v) }
+                    cacheWrite(cache) { putString(key, v) }
                 }
                 v
             } else if (cacheEpochMatchesRemote()) {
