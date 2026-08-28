@@ -403,6 +403,7 @@
     <string name="restart_scope_scanner">Scanner</string>
     <string name="restart_scope_security">Security</string>
     <string name="restart_scope_settings">Settings</string>
+    <string name="restart_scope_xmsf">Xiaomi Service Framework</string>
     <string name="restart_scope_system_ui">System UI</string>
     <string name="restart_scoped_apps_title">Restart Scoped Apps</string>
     <string name="scale_cancel">Cancel</string>
@@ -507,6 +508,9 @@
     <string name="tweaks_fcm_live_summary">Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires reboot and PowerKeeper restart to apply.</string>
     <string name="tweaks_fcm_live_title">Fix Google Push (FCM Live)</string>
     <string name="tweaks_features">Features</string>
+    <string name="tweaks_focus_notification_title">Focus Notification</string>
+    <string name="tweaks_focus_unlock_whitelist_summary">Lift the focus-notification whitelist in SystemUI so any app can post 焦点通知, while keeping your per-app 焦点通知 off choices. Requires a SystemUI restart to apply.</string>
+    <string name="tweaks_focus_unlock_whitelist_title">Remove Focus Notification Whitelist</string>
     <string name="tweaks_force_adaptive_anc_summary">AirPods only, including AirPods Max. Replace Off mode with Adaptive noise cancellation. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing.</string>
     <string name="tweaks_force_adaptive_anc_title">Force Adaptive ANC</string>
     <string name="tweaks_gesture_bar_shortcuts_summary">Handle long press and double tap in SystemUI</string>
@@ -539,6 +543,9 @@
     <string name="full_screen_translate_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
     <string name="full_screen_translate_scope_failed">Could not update the scope: %1$s</string>
     <string name="full_screen_translate_scope_unavailable">The Xposed service is unavailable</string>
+    <string name="xmsf_unlock_focus_auth_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
+    <string name="xmsf_unlock_focus_auth_scope_failed">Could not update the scope: %1$s</string>
+    <string name="xmsf_unlock_focus_auth_scope_unavailable">The Xposed service is unavailable</string>
     <string name="tweaks_ask_about_screen_title">Ask about this screen in Circle to Search</string>
     <string name="tweaks_ask_about_screen_summary">Enables the Lensient "Ask about this screen" AI searchbox inside the Circle to Search (即圈即搜) overlay. Unlocks the native Google-side screen-capability gate that keeps it hidden. The Google app is a required scope; enabling flips the preference and restarts it.</string>
     <string name="google_feature_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
@@ -620,6 +627,8 @@
     <string name="tweaks_system_core_title">System Core</string>
     <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage text visible to match the brightness style</string>
     <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>
+    <string name="tweaks_xmsf_unlock_focus_auth_summary">Force the Xiaomi Service Framework signature check for the focus-notification whitelist to pass, so apps rejected by it can post 焦点通知. Requires an xmsf restart to apply.</string>
+    <string name="tweaks_xmsf_unlock_focus_auth_title">Unlock Focus Whitelist Signature Verification</string>
     <string name="watermark_advanced">Advanced</string>
     <string name="watermark_back">Back</string>
     <string name="watermark_brand">Brand</string>

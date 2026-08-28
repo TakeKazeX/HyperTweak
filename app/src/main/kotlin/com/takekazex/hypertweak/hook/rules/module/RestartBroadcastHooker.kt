@@ -46,6 +46,7 @@ object RestartBroadcastHooker : StaticHooker() {
                         val restartBluetooth = intent.getBooleanExtra(RestartProtocol.EXTRA_BLUETOOTH, false)
                         val restartPowerkeeper = intent.getBooleanExtra(RestartProtocol.EXTRA_POWERKEEPER, false)
                         val restartGms = intent.getBooleanExtra(RestartProtocol.EXTRA_GMS, false)
+                        val restartXmsf = intent.getBooleanExtra(RestartProtocol.EXTRA_XMSF, false)
 
                         // Packages with no RestartScopeSelection field name themselves here.
                         val namedPackages = intent.getStringArrayExtra(RestartProtocol.EXTRA_PACKAGES)
@@ -61,6 +62,7 @@ object RestartBroadcastHooker : StaticHooker() {
                             "com.xiaomi.bluetooth" -> restartBluetooth
                             "com.miui.powerkeeper" -> restartPowerkeeper
                             "com.google.android.gms" -> restartGms
+                            "com.xiaomi.xmsf" -> restartXmsf
                             else -> false
                         }
 

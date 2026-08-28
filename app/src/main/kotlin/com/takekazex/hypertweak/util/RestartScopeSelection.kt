@@ -10,7 +10,8 @@ data class RestartScopeSelection(
     val milink: Boolean = false,
     val bluetooth: Boolean = false,
     val powerkeeper: Boolean = false,
-    val gms: Boolean = false
+    val gms: Boolean = false,
+    val xmsf: Boolean = false
 ) {
     fun merge(other: RestartScopeSelection): RestartScopeSelection {
         return RestartScopeSelection(
@@ -23,7 +24,8 @@ data class RestartScopeSelection(
             milink = milink || other.milink,
             bluetooth = bluetooth || other.bluetooth,
             powerkeeper = powerkeeper || other.powerkeeper,
-            gms = gms || other.gms
+            gms = gms || other.gms,
+            xmsf = xmsf || other.xmsf
         )
     }
 
@@ -38,7 +40,8 @@ data class RestartScopeSelection(
             milink = milink && !other.milink,
             bluetooth = bluetooth && !other.bluetooth,
             powerkeeper = powerkeeper && !other.powerkeeper,
-            gms = gms && !other.gms
+            gms = gms && !other.gms,
+            xmsf = xmsf && !other.xmsf
         )
     }
 
@@ -53,7 +56,8 @@ data class RestartScopeSelection(
             milink = milink && other.milink,
             bluetooth = bluetooth && other.bluetooth,
             powerkeeper = powerkeeper && other.powerkeeper,
-            gms = gms && other.gms
+            gms = gms && other.gms,
+            xmsf = xmsf && other.xmsf
         )
     }
 
@@ -71,7 +75,8 @@ data class RestartScopeSelection(
             !milink &&
             !bluetooth &&
             !powerkeeper &&
-            !gms
+            !gms &&
+            !xmsf
     }
 
     fun toKeySet(): Set<String> {
@@ -86,6 +91,7 @@ data class RestartScopeSelection(
         if (bluetooth) keys += KEY_BLUETOOTH
         if (powerkeeper) keys += KEY_POWERKEEPER
         if (gms) keys += KEY_GMS
+        if (xmsf) keys += KEY_XMSF
         return keys
     }
 
@@ -102,6 +108,7 @@ data class RestartScopeSelection(
         private const val KEY_BLUETOOTH = "bluetooth"
         private const val KEY_POWERKEEPER = "powerkeeper"
         private const val KEY_GMS = "gms"
+        private const val KEY_XMSF = "xmsf"
 
         fun fromKeySet(keys: Set<String>): RestartScopeSelection {
             return RestartScopeSelection(
@@ -114,7 +121,8 @@ data class RestartScopeSelection(
                 milink = KEY_MILINK in keys,
                 bluetooth = KEY_BLUETOOTH in keys,
                 powerkeeper = KEY_POWERKEEPER in keys,
-                gms = KEY_GMS in keys
+                gms = KEY_GMS in keys,
+                xmsf = KEY_XMSF in keys
             )
         }
     }

@@ -21,5 +21,6 @@
         <item>com.google.android.googlequicksearchbox</item>
         <item>com.miui.mediaeditor</item>
         <item>com.android.camera</item>
+        <item>com.xiaomi.xmsf</item>
     </string-array>
 </resources>

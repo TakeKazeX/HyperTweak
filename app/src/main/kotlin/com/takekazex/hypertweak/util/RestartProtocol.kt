@@ -13,6 +13,7 @@ object RestartProtocol {
     const val EXTRA_BLUETOOTH = "bluetooth"
     const val EXTRA_POWERKEEPER = "powerkeeper"
     const val EXTRA_GMS = "gms"
+    const val EXTRA_XMSF = "xmsf"
 
     /**
      * Package names to restart, for targets that have no [RestartScopeSelection] field — currently

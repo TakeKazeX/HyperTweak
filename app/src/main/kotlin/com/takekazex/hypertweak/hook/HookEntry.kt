@@ -23,6 +23,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
+import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -68,6 +69,7 @@ import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooke
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
+import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -545,6 +547,7 @@ class HookEntry : XposedModule() {
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
+                attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
@@ -608,6 +611,10 @@ class HookEntry : XposedModule() {
                 // resolved through the same Je.c facade, and its live-singleton fallback only
                 // reads the config after the impersonation factory hook owns it.
                 attachHooker(CameraUltraQualityHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.xiaomi.xmsf" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(UnlockFocusAuthHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

@@ -103,6 +103,10 @@ fun MainPagerScreen(
     onForceAdaptiveAncChange: (Boolean) -> Unit,
     fcmLiveEnabled: Boolean,
     onFcmLiveEnabledChange: (Boolean) -> Unit,
+    focusNotificationUnlockWhitelist: Boolean,
+    onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    xmsfUnlockFocusAuth: Boolean,
+    onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
@@ -302,6 +306,10 @@ fun MainPagerScreen(
                                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
                                 fcmLiveEnabled = fcmLiveEnabled,
                                 onFcmLiveEnabledChange = onFcmLiveEnabledChange,
+                                focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
+                                onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
+                                xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
+                                onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
                                 backdrop = backdrop
                             )
                         }

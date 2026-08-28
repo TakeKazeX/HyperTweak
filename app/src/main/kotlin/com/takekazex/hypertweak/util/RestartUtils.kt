@@ -88,7 +88,8 @@ object RestartUtils {
             milink = selection.milink,
             bluetooth = selection.bluetooth,
             powerkeeper = selection.powerkeeper,
-            gms = selection.gms
+            gms = selection.gms,
+            xmsf = selection.xmsf
         )
     }
 
@@ -104,9 +105,10 @@ object RestartUtils {
         milink: Boolean,
         bluetooth: Boolean,
         powerkeeper: Boolean = false,
-        gms: Boolean = false
+        gms: Boolean = false,
+        xmsf: Boolean = false
     ) {
-        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper && !gms) return
+        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper && !gms && !xmsf) return
 
         coroutineScope.launch {
             // 1. Send broadcast to active hook receivers
@@ -122,6 +124,7 @@ object RestartUtils {
                 putExtra(RestartProtocol.EXTRA_BLUETOOTH, bluetooth)
                 putExtra(RestartProtocol.EXTRA_POWERKEEPER, powerkeeper)
                 putExtra(RestartProtocol.EXTRA_GMS, gms)
+                putExtra(RestartProtocol.EXTRA_XMSF, xmsf)
             }
             // No receiver permission: that argument demands the *receiver* hold it, and the hooked
             // system apps never will. Senders are already restricted by the receivers'
@@ -163,6 +166,9 @@ object RestartUtils {
                         if (gms) {
                             writer.write("am force-stop com.google.android.gms\n")
                         }
+                        if (xmsf) {
+                            writer.write("am force-stop com.xiaomi.xmsf\n")
+                        }
                         writer.write("exit\n")
                         writer.flush()
                     }
@@ -196,6 +202,7 @@ object RestartUtils {
                     if (bluetooth) add("Bluetooth")
                     if (powerkeeper) add("PowerKeeper")
                     if (gms) add("GMS")
+                    if (xmsf) add("Xmsf")
                 }.joinToString(", ")
 
                 if (rootSuccess) {

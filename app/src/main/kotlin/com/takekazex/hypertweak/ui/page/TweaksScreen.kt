@@ -50,6 +50,10 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    focusNotificationUnlockWhitelist: Boolean,
+    onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    xmsfUnlockFocusAuth: Boolean,
+    onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -166,6 +170,27 @@ fun TweaksScreenContent(
                         onCheckedChange = onForceAdaptiveAncChange,
                         title = stringResource(R.string.tweaks_force_adaptive_anc_title),
                         summary = stringResource(R.string.tweaks_force_adaptive_anc_summary)
+                    )
+                }
+            }
+
+            // 焦点通知: the two switches stay together on this page (no second-level page).
+            // The first lifts SystemUI's whitelist; the second lifts xmsf's signature check that
+            // guards the same whitelist for non-system apps.
+            SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = focusNotificationUnlockWhitelist,
+                        onCheckedChange = onFocusNotificationUnlockWhitelistChange,
+                        title = stringResource(R.string.tweaks_focus_unlock_whitelist_title),
+                        summary = stringResource(R.string.tweaks_focus_unlock_whitelist_summary)
+                    )
+                    SwitchPreference(
+                        checked = xmsfUnlockFocusAuth,
+                        onCheckedChange = onXmsfUnlockFocusAuthChange,
+                        title = stringResource(R.string.tweaks_xmsf_unlock_focus_auth_title),
+                        summary = stringResource(R.string.tweaks_xmsf_unlock_focus_auth_summary)
                     )
                 }
             }

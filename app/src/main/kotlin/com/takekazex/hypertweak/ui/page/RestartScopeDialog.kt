@@ -49,6 +49,7 @@ private fun fallbackAppName(context: Context, packageName: String): String = whe
     "com.xiaomi.bluetooth" -> context.getString(R.string.restart_scope_bluetooth)
     "com.miui.powerkeeper" -> context.getString(R.string.restart_scope_powerkeeper)
     "com.google.android.gms" -> context.getString(R.string.restart_scope_gms)
+    "com.xiaomi.xmsf" -> context.getString(R.string.restart_scope_xmsf)
     else -> packageName
 }
 
@@ -69,6 +70,7 @@ fun RestartScopeDialog(
     var bluetoothChecked by remember(show, initialSelection.bluetooth) { mutableStateOf(initialSelection.bluetooth) }
     var powerkeeperChecked by remember(show, initialSelection.powerkeeper) { mutableStateOf(initialSelection.powerkeeper) }
     var gmsChecked by remember(show, initialSelection.gms) { mutableStateOf(initialSelection.gms) }
+    var xmsfChecked by remember(show, initialSelection.xmsf) { mutableStateOf(initialSelection.xmsf) }
 
     val context = LocalContext.current
     val packageManager = context.packageManager
@@ -89,6 +91,7 @@ fun RestartScopeDialog(
                 if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
                 if (isPackageInstalled(packageManager, "com.miui.powerkeeper")) add("com.miui.powerkeeper")
                 if (isPackageInstalled(packageManager, "com.google.android.gms")) add("com.google.android.gms")
+                if (isPackageInstalled(packageManager, "com.xiaomi.xmsf")) add("com.xiaomi.xmsf")
             }
         }
     }
@@ -141,6 +144,7 @@ fun RestartScopeDialog(
                                 "com.xiaomi.bluetooth" -> bluetoothChecked
                                 "com.miui.powerkeeper" -> powerkeeperChecked
                                 "com.google.android.gms" -> gmsChecked
+                                "com.xiaomi.xmsf" -> xmsfChecked
                                 else -> false
                             }
                             val onCheckedChange: (Boolean) -> Unit = { newVal ->
@@ -155,6 +159,7 @@ fun RestartScopeDialog(
                                     "com.xiaomi.bluetooth" -> bluetoothChecked = newVal
                                     "com.miui.powerkeeper" -> powerkeeperChecked = newVal
                                     "com.google.android.gms" -> gmsChecked = newVal
+                                    "com.xiaomi.xmsf" -> xmsfChecked = newVal
                                 }
                             }
                             AppRestartPreference(
@@ -185,7 +190,8 @@ fun RestartScopeDialog(
                                 milink = milinkChecked,
                                 bluetooth = bluetoothChecked,
                                 powerkeeper = powerkeeperChecked,
-                                gms = gmsChecked
+                                gms = gmsChecked,
+                                xmsf = xmsfChecked
                             )
                         )
                         onDismissRequest()

@@ -161,6 +161,10 @@ fun HyperTweakNavContainer(
     onForceAdaptiveAncChange: (Boolean) -> Unit,
     fcmLiveEnabled: Boolean,
     onFcmLiveEnabledChange: (Boolean) -> Unit,
+    focusNotificationUnlockWhitelist: Boolean,
+    onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    xmsfUnlockFocusAuth: Boolean,
+    onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
 
     // Backdrop
     backdrop: LayerBackdrop,
@@ -262,6 +266,10 @@ fun HyperTweakNavContainer(
                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
                 fcmLiveEnabled = fcmLiveEnabled,
                 onFcmLiveEnabledChange = onFcmLiveEnabledChange,
+                focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
+                onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
+                xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
+                onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,

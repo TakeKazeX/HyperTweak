@@ -98,7 +98,14 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true),
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
-    Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true)
+    Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
+    // Removing the focus-notification whitelist installs SystemUI hooks; enabling needs a
+    // SystemUI restart. Callbacks read the per-app `<pkg>_focus` pref live, so disabling applies
+    // immediately once the hooks are installed.
+    Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST to RestartScopeSelection(systemUi = true),
+    // Unlocking the whitelist signature verification hooks com.xiaomi.xmsf; xmsf is a declared
+    // required scope entry, so the toggle flows through the standard Home restart button.
+    Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH to RestartScopeSelection(xmsf = true)
 )
 
 private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(RestartScopeSelection.Empty) { acc, scopes ->
@@ -281,6 +288,8 @@ class MainActivity : ComponentActivity() {
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
+            var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
+            var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
             var immediateMonetRefresh by remember {
                 mutableStateOf(
                     Preferences.getBoolean(
@@ -373,6 +382,8 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
                     Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
+                    Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
+                    Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
                     else -> Preferences.getBoolean(key, false)
                 }
             }
@@ -482,6 +493,77 @@ class MainActivity : ComponentActivity() {
                 quickShareEnabled = checked
                 Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
                 markTweaked(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
+            }
+
+            /**
+             * Removing the focus-notification whitelist installs SystemUI hooks (SystemUI is a
+             * declared required scope), so the toggle flips the preference and marks the tweak
+             * dirty: the standard Home restart button then restarts SystemUI. The hooker reads the
+             * per-app `<pkg>_focus` preference live, so a user's explicit shade-menu off for a
+             * given app is always respected and disabling applies without another restart once
+             * the hooks are installed.
+             */
+            fun handleFocusNotificationUnlockWhitelistChange(checked: Boolean) {
+                focusNotificationUnlockWhitelist = checked
+                Preferences.putBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
+                markTweaked(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
+            }
+
+            /**
+             * Unlocking the focus-notification whitelist signature verification hooks
+             * com.xiaomi.xmsf. xmsf is a declared required scope (see `scope.list` and
+             * `ScopeManager`), so the toggle requests the scope on the first enable, then flips
+             * the preference and restarts the app — the hooker reads the preference live, so after
+             * the restart the hooks install (on) or no-op (off). Turning the feature off only
+             * flips the preference and restarts xmsf; the scope itself is kept.
+             */
+            @SuppressLint("LocalContextGetResourceValueCall")
+            fun handleXmsfUnlockFocusAuthChange(checked: Boolean) {
+                xmsfUnlockFocusAuth = checked
+                Preferences.putBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
+                // Block until the daemon has the new value: xmsf is force-stopped right after, and
+                // its onHook reads this preference — without the flush it can restart on a stale
+                // false and install none of the hooks.
+                Preferences.flush()
+                markTweaked(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
+                coroutineScope.launch {
+                    val xmsf = setOf("com.xiaomi.xmsf")
+                    if (checked) {
+                        when (val result = ScopeManager.request(xmsf)) {
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
+                                RestartUtils.forceStopPackages(context, coroutineScope, xmsf)
+                            }
+                            is ScopeManager.Result.Rejected -> {
+                                xmsfUnlockFocusAuth = false
+                                Preferences.putBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
+                                markTweaked(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        R.string.xmsf_unlock_focus_auth_scope_not_granted,
+                                        result.missing.joinToString()
+                                    ),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            is ScopeManager.Result.Failed -> Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.xmsf_unlock_focus_auth_scope_failed,
+                                    result.message
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
+                                context,
+                                context.getString(R.string.xmsf_unlock_focus_auth_scope_unavailable),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        RestartUtils.forceStopPackages(context, coroutineScope, xmsf)
+                    }
+                }
             }
 
             /**
@@ -678,6 +760,8 @@ class MainActivity : ComponentActivity() {
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
                     fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
+                    focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
+                    xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
                     immediateMonetRefresh = Preferences.getBoolean(
                         Preferences.KEY_IMMEDIATE_MONET_REFRESH,
                         Preferences.DEFAULT_IMMEDIATE_MONET_REFRESH
@@ -1016,6 +1100,14 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         fcmLiveEnabled = checked
                         Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
+                    },
+                    focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
+                    onFocusNotificationUnlockWhitelistChange = { checked ->
+                        handleFocusNotificationUnlockWhitelistChange(checked)
+                    },
+                    xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
+                    onXmsfUnlockFocusAuthChange = { checked ->
+                        handleXmsfUnlockFocusAuthChange(checked)
                     },
                     backdrop = backdrop,
                     pageScale = pageScale,
