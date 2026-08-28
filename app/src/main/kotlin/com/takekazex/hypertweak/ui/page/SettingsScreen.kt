@@ -65,6 +65,8 @@ fun SettingsScreenContent(
     immediateMonetRefresh: Boolean,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
+    mediaCardHideAppIcon: Boolean,
+    onMediaCardHideAppIconChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -278,6 +280,16 @@ fun SettingsScreenContent(
                             onCheckedChange = onCcEditEnabledChange,
                             title = stringResource(R.string.settings_cc_edit_title),
                             summary = stringResource(R.string.settings_cc_edit_summary)
+                        )
+                    }
+                    // Media cards: remove the source app icon overlaid on the cover corner, in both
+                    // the notification shade and the island. The render chains are OS4 SystemUI.
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = mediaCardHideAppIcon,
+                            onCheckedChange = onMediaCardHideAppIconChange,
+                            title = stringResource(R.string.settings_media_hide_app_icon_title),
+                            summary = stringResource(R.string.settings_media_hide_app_icon_summary)
                         )
                     }
                 }

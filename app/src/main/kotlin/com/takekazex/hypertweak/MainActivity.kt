@@ -73,6 +73,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     // The editor-cards hooks install at control-center plugin load; only enabling needs the
     // restart (callbacks read the switch live, so disabling applies immediately).
     Preferences.KEY_CC_EDIT_ENABLED to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,
@@ -267,6 +268,7 @@ class MainActivity : ComponentActivity() {
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
             var ccEditEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) }
+            var mediaCardHideAppIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)) }
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
@@ -660,6 +662,7 @@ class MainActivity : ComponentActivity() {
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     ccEditEnabled = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
+                    mediaCardHideAppIcon = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
                     unlockPasskey = Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
@@ -929,6 +932,12 @@ class MainActivity : ComponentActivity() {
                         Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                     },
                     ccEditEnabled = ccEditEnabled,
+                    mediaCardHideAppIcon = mediaCardHideAppIcon,
+                    onMediaCardHideAppIconChange = { checked ->
+                        markTweaked(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, checked)
+                        mediaCardHideAppIcon = checked
+                        Preferences.putBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, checked)
+                    },
                     onCcEditEnabledChange = { checked ->
                         markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)
                         ccEditEnabled = checked

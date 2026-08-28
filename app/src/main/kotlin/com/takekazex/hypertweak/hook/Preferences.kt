@@ -227,6 +227,16 @@ object Preferences {
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
     const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
     const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
+
+    /**
+     * Hides the source-app icon overlay on the media cards (封面隐藏来源应用图标): the 24dp
+     * `CachingIconView` on the top-left corner of the album cover in both the notification-shade
+     * card (`MiuiMediaViewControllerImpl`) and the island card
+     * (`MiuiIslandMediaViewBinderImpl`). Read by `MediaCardHideAppIconHooker` at hook-install
+     * time; requires a SystemUI restart.
+     */
+    const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"
+
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"

@@ -562,6 +562,8 @@
     <string name="tweaks_cc_corner_unit">dp</string>
     <string name="settings_cc_edit_title">Control Center Editor Cards</string>
     <string name="settings_cc_edit_summary">Show the big cards, media player, brightness/volume sliders and device center inside the control-center editor (edit &amp; sort), and drag them to reorder like the quick actions. Long-press and drag a card onto another card or the tile grid. Needs a SystemUI restart after enabling</string>
+    <string name="settings_media_hide_app_icon_title">Hide Media Card Source App Icon</string>
+    <string name="settings_media_hide_app_icon_summary">Remove the playing app\'s icon overlaid on the top-left corner of the media card cover, in both the notification shade and the island. Needs a SystemUI restart</string>
     <string name="tweaks_system_core_title">System Core</string>
     <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage text visible to match the brightness style</string>
     <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>

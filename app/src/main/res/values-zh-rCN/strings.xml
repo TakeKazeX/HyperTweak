@@ -562,6 +562,8 @@
     <string name="tweaks_cc_corner_unit">dp</string>
     <string name="settings_cc_edit_title">控制中心编辑卡片</string>
     <string name="settings_cc_edit_summary">在控制中心「编辑与排序」中显示大卡片、播控中心、亮度/音量滑条和设备中心，并可像快捷操作一样长按拖动排序（拖到其他卡片或快捷操作区域即可调整位置）。开启后需重启系统界面</string>
+    <string name="settings_media_hide_app_icon_title">隐藏媒体卡片来源应用图标</string>
+    <string name="settings_media_hide_app_icon_summary">隐藏叠在媒体卡片封面左上角的来源应用图标，通知阴影卡片与小岛均生效。开启后需重启系统界面</string>
     <string name="tweaks_system_core_title">系统核心</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>
