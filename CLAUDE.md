@@ -457,6 +457,50 @@ glyph and breaks the box match.
 
 The master switch is `icon_left_container_enabled` and every slot toggle is its own boolean key.
 
+## Control Center Sizes (控制中心尺寸)
+
+Settings → Experimental → 控制中心尺寸 (`ui/page/ControlCenterResizePage.kt`,
+`Route.ControlCenterResize`; master `KEY_CC_RESIZE_ENABLED`, OS4-only entry). Resizes main-panel
+elements and renders chosen quick switches with the big-card view.
+Hooker: `hook/rules/systemui/ControlCenterCardResizeHooker.kt`, attached ONLY from
+`SystemUIPluginHooker.attachPluginHooker` — its targets live in the miui.systemui.plugin APK whose
+PathClassLoader appears at `PluginInstance.loadPlugin()` time (~6 s after SystemUI start); an
+attach with the app classloader resolves nothing ("QSRecord not found"). Gated on the switch at
+plugin load like `cardsEditHooker`, so enabling needs one SystemUI restart; every size is re-read
+live per bind, and an after-hook on `MainPanelAdapter.changeItemVisible` issues ONE
+`notifyChanged` when the size-config signature changes (shade expand applies edits without a
+restart).
+
+Size model: width = item span via `getSpanSize()` hooks (adapter clamps `[1, spanCount]`);
+heights are fixed dimens in each layout, so resizing = stamping `layoutParams.height` in a
+bind after-hook (`onBindViewHolder(holder,pos,payloads)`), derived as
+`rows*1_row_size + (rows-1)*gap`, `gap = 2_rows_size − 2*1_row_size`. Media's XML root is a fixed
+square, so a custom span also forces `width=MATCH_PARENT`. Keys: `KEY_CC_CARD_SIZES`
+(`spec=CxR` map for wifi/cell/bt/vowifi), `KEY_CC_SIZE_MEDIA/BRIGHTNESS/VOLUME/DEVICE`
+(single `CxR` token; C=columns, R=rows), `KEY_CC_TILE_CARD_SPECS`. Unconfiguring a size restores
+the section's stock dimen (stamped views tracked in a WeakHashMap; card overrides restamped after
+`QSCardItemView.updateSize()` because configuration changes bypass rebind).
+
+Quick-switch → big card: `QSRecord.getType()` returns module type 4242 for configured specs
+(non-card records only), and `QSListController.createViewHolder` is before-hooked to answer 4242
+by building exactly what `QSCardsController.createViewHolder` builds:
+`QsCardItemViewBinding.inflate(inflater,parent,false)` + `root.init(QSCardItemIconView(ctx,
+sysUIContext,null,4,null))` (Kotlin synthetic-defaults ctor mask) + stock public
+`new QSCardViewHolder(root)`. The distinct item type gives these holders their own recycle pool;
+owner stays qslist so EDIT-mode tap-to-add/drag semantics are unchanged. 无字模式 sync: qslist
+only notifies `QSItemViewHolder`, so an after-hook on its `onBindViewHolder` invokes
+`QSCardViewHolder.onTextModeChanged(textMode,false)` for converted tiles. The legacy
+`ControlCenterCardsEditHooker.installCardSpanHook` wifi-force yields while
+`KEY_CC_RESIZE_ENABLED` is on.
+
+Agent verification (2026-08-26): compileDebugKotlin/testDebugUnitTest/lintDebug/assembleDebug/
+assembleRelease pass; reflected constants survive R8 in the release dex; release APK installed,
+SystemUI restart clean, plugin-scoped attach path confirmed via the sibling cards-edit hooker
+(installed=5/6 through `attachPluginHooker`). Not yet exercised on device (user): toggling
+控制中心尺寸 on, size presets for cards/sliders/media/device center (media non-square layouts need
+visual iteration), quick-switch card conversion (add/remove/click/long-press detail/editor
+drag/no-word mode).
+
 ## AOSP Back Gesture
 
 The AOSP back gesture is vendored from `wxxsfxyzm/MiuiBackGestureHook`

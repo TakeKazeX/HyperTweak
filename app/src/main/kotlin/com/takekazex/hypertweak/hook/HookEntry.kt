@@ -545,6 +545,10 @@ class HookEntry : XposedModule() {
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
+                // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
+                // the miui.systemui.plugin APK, whose PathClassLoader only exists after
+                // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
+                // loader (see attachPluginHooker).
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }

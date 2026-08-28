@@ -88,6 +88,7 @@ fun SettingsScreenContent(
     onNavigateToWatermark: () -> Unit,
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
+    onNavigateToControlCenterResize: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -306,6 +307,13 @@ fun SettingsScreenContent(
                             onCheckedChange = onCcEditEnabledChange,
                             title = stringResource(R.string.settings_cc_edit_title),
                             summary = stringResource(R.string.settings_cc_edit_summary)
+                        )
+                        // Control-center element sizes (big cards, sliders, media player, device
+                        // center) plus quick switches rendered as big cards. Same plugin-only scope.
+                        ArrowPreference(
+                            title = stringResource(R.string.cc_resize_title),
+                            summary = stringResource(R.string.cc_resize_enabled_summary),
+                            onClick = onNavigateToControlCenterResize
                         )
                     }
                     // Media cards: remove the source app icon overlaid on the cover corner, in both

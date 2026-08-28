@@ -73,6 +73,8 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     // The editor-cards hooks install at control-center plugin load; only enabling needs the
     // restart (callbacks read the switch live, so disabling applies immediately).
     Preferences.KEY_CC_EDIT_ENABLED to RestartScopeSelection(systemUi = true),
+    // Same for the element-size hooks; the individual size keys are read live on every bind.
+    Preferences.KEY_CC_RESIZE_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS to RestartScopeSelection(systemUi = true),

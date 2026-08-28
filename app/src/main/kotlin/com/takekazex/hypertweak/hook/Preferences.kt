@@ -138,6 +138,28 @@ object Preferences {
      * 编辑与排序 and makes them drag-reorderable like the quick actions.
      */
     const val KEY_CC_EDIT_ENABLED = "systemui_control_center_edit_enabled"
+    /**
+     * Master switch for control-center element sizes ([ControlCenterCardResizeHooker]). The
+     * hooks are installed at plugin load, so enabling needs a SystemUI restart; every size
+     * below is re-read live on each bind.
+     */
+    const val KEY_CC_RESIZE_ENABLED = "systemui_control_center_resize_enabled"
+    /**
+     * Per-card sizes as comma-separated `spec=CxR` entries (`wifi=1x1`), C = span columns,
+     * R = row units (1 row = `qs_card_item_height`). An absent spec or a 0 dimension means
+     * follow the system.
+     */
+    const val KEY_CC_CARD_SIZES = "systemui_control_center_card_sizes"
+    /** Fixed-content sizes as a single `CxR` token; empty = follow the system. */
+    const val KEY_CC_SIZE_MEDIA = "systemui_control_center_size_media"
+    const val KEY_CC_SIZE_BRIGHTNESS = "systemui_control_center_size_brightness"
+    const val KEY_CC_SIZE_VOLUME = "systemui_control_center_size_volume"
+    const val KEY_CC_SIZE_DEVICE = "systemui_control_center_size_device"
+    /**
+     * Comma-separated quick-switch tile specs that render with the big-card view (2 columns
+     * × 1 row) instead of the small tile view.
+     */
+    const val KEY_CC_TILE_CARD_SPECS = "systemui_control_center_tile_card_specs"
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"

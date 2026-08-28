@@ -196,7 +196,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         Log.i(TAG, "ControlCenterCardsEdit: priority hooks installed=$installed")
     }
 
-    /** Keep the WiFi card's compact 1x2 span stable when it sits beside a 2x2 card. */
+    /**
+     * Legacy stopgap: keeps the WiFi card at the compact 1-col span. Yielded entirely once
+     * [Preferences.KEY_CC_RESIZE_ENABLED] is on — the size hooker then owns every card span from
+     * its own configuration (an unconfigured spec falls back to the system span).
+     */
     private fun installCardSpanHook() {
         val record = "miui.systemui.controlcenter.panel.main.qs.QSRecord".toClassOrNull()
             ?: return
@@ -207,6 +211,9 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         span.hook {
             before { param ->
                 if (!enabled()) return@before
+                if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
+                    return@before
+                }
                 runCatching {
                     val tileSpec = spec.invoke(param.thisObject)?.toString()?.lowercase() ?: return@runCatching
                     if (tileSpec == "wifi" || tileSpec == "wifi1" || tileSpec == "wifi2") {

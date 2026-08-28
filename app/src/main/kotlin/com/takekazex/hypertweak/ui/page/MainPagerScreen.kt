@@ -163,6 +163,7 @@ fun MainPagerScreen(
     onNavigateToWatermark: () -> Unit,
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
+    onNavigateToControlCenterResize: () -> Unit,
     onClearAllSettings: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
@@ -423,6 +424,7 @@ fun MainPagerScreen(
                                 onNavigateToWatermark = onNavigateToWatermark,
                                 onNavigateToCameraUnlock = onNavigateToCameraUnlock,
                                 onNavigateToControlCenterCorner = onNavigateToControlCenterCorner,
+                                onNavigateToControlCenterResize = onNavigateToControlCenterResize,
                                 themeSummary = listOf(
                                     stringResource(R.string.main_theme_follow_system),
                                     stringResource(R.string.main_theme_light),

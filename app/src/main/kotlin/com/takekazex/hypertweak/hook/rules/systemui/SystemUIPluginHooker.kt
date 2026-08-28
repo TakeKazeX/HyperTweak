@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
 import com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardResizeHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -21,6 +22,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
+        val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?
     )
 
@@ -78,6 +80,10 @@ object SystemUIPluginHooker : StaticHooker() {
                             session.cardsEditHooker?.let { cardsEdit ->
                                 runCatching { cardsEdit.prepareForHotReload() }
                                 detach(cardsEdit)
+                            }
+                            session.cardResizeHooker?.let { resize ->
+                                runCatching { resize.prepareForHotReload() }
+                                detach(resize)
                             }
                             session.mediaDeviceIconHooker?.let { deviceIcon ->
                                 runCatching { deviceIcon.prepareForHotReload() }
@@ -183,13 +189,19 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             null
         }
+        val cardResizeHooker = if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
+            ControlCenterCardResizeHooker()
+        } else {
+            null
+        }
         val mediaDeviceIconHooker = if (Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
             MediaPlayerDeviceIconHooker()
         } else {
             null
         }
 
-        activeSessions[state.pluginInstance] = PluginHookSession(state, hooker, cornerHooker, cardsEditHooker, mediaDeviceIconHooker)
+        activeSessions[state.pluginInstance] =
+            PluginHookSession(state, hooker, cornerHooker, cardsEditHooker, cardResizeHooker, mediaDeviceIconHooker)
         // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
         // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
         // hooker uninstalled while the session entry suppressed later retries.
@@ -208,6 +220,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
                     Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
+                }
+        }
+        if (cardResizeHooker != null) {
+            runCatching { attach(cardResizeHooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach card-resize plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: card-resize attach failed", t)
                 }
         }
         if (mediaDeviceIconHooker != null) {
