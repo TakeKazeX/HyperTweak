@@ -67,6 +67,7 @@ import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppAskAboutScreenHooker
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
+import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
@@ -603,6 +604,11 @@ class HookEntry : XposedModule() {
             }
             "com.miui.mediaeditor" -> {
                 attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.miui.personalassistant" -> {
+                // 机型伪装: rewrites phoneModel/phoneDevice in the assistant's request environment
+                // so Xiaomi's server delivers the 澎湃G1-gated "智能测算" MAML suit (精准电量).
+                attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.camera" -> {
                 attachHooker(CameraWatermarkHooker, classLoader, ctx, replacementHandles)

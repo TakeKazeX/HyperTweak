@@ -304,6 +304,21 @@ object Preferences {
      */
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
 
+    /**
+     * 机型伪装 (device-model spoof) for the Smart Assistant (`com.miui.personalassistant`). When
+     * on, `ModelSpoofHooker` re-writes the `phoneModel` / `phoneDevice` fields that the assistant
+     * sends to Xiaomi's assistant/theme server (built in `network.util.a#a(Context,String)`), so
+     * the server delivers the 澎湃G1-gated "智能测算" MAML suit (which contains the 精准电量
+     * widget). The two values default to the Xiaomi 12S Ultra (`2203121C` / `thor`). Read live in
+     * the hook callback, so toggling or editing takes effect on the next request without an
+     * assistant restart. Requires `com.miui.personalassistant` in the module scope.
+     */
+    const val KEY_PA_MODEL_SPOOF = "pa_model_spoof"
+    const val KEY_PA_MODEL_SPOOF_MODEL = "pa_model_spoof_model"
+    const val KEY_PA_MODEL_SPOOF_DEVICE = "pa_model_spoof_device"
+    const val DEFAULT_PA_MODEL_SPOOF_MODEL = "2203121C"
+    const val DEFAULT_PA_MODEL_SPOOF_DEVICE = "thor"
+
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_LOG_LEVEL = "debug_log_level"
     const val KEY_RECORD_LOGS = "record_logs"

@@ -27,6 +27,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
@@ -64,6 +65,8 @@ fun SettingsScreenContent(
     onHideLauncherIconChange: (Boolean) -> Unit,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
+    paModelSpoofEnabled: Boolean,
+    onPaModelSpoofEnabledChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
     onNavigateToWatermark: () -> Unit,
@@ -214,6 +217,23 @@ fun SettingsScreenContent(
                         summary = stringResource(R.string.settings_camera_unlock_summary),
                         onClick = onNavigateToCameraUnlock
                     )
+                    // Device-model spoof for the Smart Assistant: report a 澎湃G1 model/device so
+                    // Xiaomi's server pushes the "智能测算" MAML suit (which contains the 精准电量
+                    // widget). Needs com.miui.personalassistant in scope; values apply on the next
+                    // request, so no restart is required once the hooks are installed.
+                    SwitchPreference(
+                        checked = paModelSpoofEnabled,
+                        onCheckedChange = onPaModelSpoofEnabledChange,
+                        title = stringResource(R.string.settings_pa_model_spoof_title),
+                        summary = stringResource(R.string.settings_pa_model_spoof_summary)
+                    )
+                    AnimatedVisibility(
+                        visible = paModelSpoofEnabled,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        ModelSpoofValuesRow()
+                    }
                     // The material style (材质风格) with its two modes only exists on OS4;
                     // OS3 SystemUI has neither the bionics resources nor the material_style key.
                     if (PlatformLevel.isOs4) {
@@ -322,6 +342,88 @@ fun SettingsScreenContent(
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
     }
+}
+
+/**
+ * Editable phoneModel / phoneDevice used by the Smart-Assistant model spoof
+ * ([ModelSpoofHooker]). Reads and writes [Preferences] directly, defaulting to the Xiaomi 12S
+ * Ultra (`2203121C` / `thor`). Only shown while the master switch is on.
+ */
+@Composable
+private fun ModelSpoofValuesRow() {
+    var editing by remember { mutableStateOf(false) }
+    // Display state that refreshes right after the dialog commits, so the summary reflects the
+    // edited model/device without leaving the screen.
+    var displayModel by remember {
+        mutableStateOf(
+            Preferences.getString(
+                Preferences.KEY_PA_MODEL_SPOOF_MODEL,
+                Preferences.DEFAULT_PA_MODEL_SPOOF_MODEL
+            )
+        )
+    }
+    var displayDevice by remember {
+        mutableStateOf(
+            Preferences.getString(
+                Preferences.KEY_PA_MODEL_SPOOF_DEVICE,
+                Preferences.DEFAULT_PA_MODEL_SPOOF_DEVICE
+            )
+        )
+    }
+    var modelInput by remember { mutableStateOf(displayModel) }
+    var deviceInput by remember { mutableStateOf(displayDevice) }
+
+    ArrowPreference(
+        title = stringResource(R.string.settings_pa_model_spoof_values_title),
+        summary = stringResource(R.string.settings_pa_model_spoof_values_summary, displayModel, displayDevice),
+        onClick = {
+            modelInput = displayModel
+            deviceInput = displayDevice
+            editing = true
+        }
+    )
+    OverlayDialog(
+        show = editing,
+        title = stringResource(R.string.settings_pa_model_spoof_values_title),
+        summary = stringResource(R.string.settings_pa_model_spoof_dialog_summary),
+        onDismissRequest = { editing = false },
+        content = {
+            TextField(
+                modifier = Modifier.padding(bottom = 8.dp),
+                value = modelInput,
+                maxLines = 1,
+                label = stringResource(R.string.settings_pa_model_spoof_model_label),
+                onValueChange = { modelInput = it.trim() }
+            )
+            TextField(
+                modifier = Modifier.padding(bottom = 16.dp),
+                value = deviceInput,
+                maxLines = 1,
+                label = stringResource(R.string.settings_pa_model_spoof_device_label),
+                onValueChange = { deviceInput = it.trim() }
+            )
+            Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(
+                    text = stringResource(R.string.scale_cancel),
+                    onClick = { editing = false },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = stringResource(R.string.scale_ok),
+                    onClick = {
+                        Preferences.putString(Preferences.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
+                        Preferences.putString(Preferences.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
+                        displayModel = modelInput
+                        displayDevice = deviceInput
+                        editing = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary()
+                )
+            }
+        }
+    )
 }
 
 @Composable

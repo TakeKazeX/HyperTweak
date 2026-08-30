@@ -126,6 +126,8 @@ fun HyperTweakNavContainer(
     onSliderSamePercentageChange: (Boolean) -> Unit,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
+    paModelSpoofEnabled: Boolean,
+    onPaModelSpoofEnabledChange: (Boolean) -> Unit,
     mediaCardHideAppIcon: Boolean,
     onMediaCardHideAppIconChange: (Boolean) -> Unit,
     mediaCardHideDeviceSwitch: Boolean,
@@ -252,6 +254,8 @@ fun HyperTweakNavContainer(
                 onAskAboutScreenChange = onAskAboutScreenChange,
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange,
+                paModelSpoofEnabled = paModelSpoofEnabled,
+                onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemUi = {
                     backStack.add(Route.SystemUi)
                 },

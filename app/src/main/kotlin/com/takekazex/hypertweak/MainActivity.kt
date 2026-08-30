@@ -280,6 +280,7 @@ class MainActivity : ComponentActivity() {
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
             var sliderSamePercentageStyle by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)) }
             var ccEditEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) }
+            var paModelSpoofEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)) }
             var mediaCardHideAppIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)) }
             var mediaCardHideDeviceSwitch by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) }
             var lockscreenAllNotifications by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) }
@@ -752,6 +753,7 @@ class MainActivity : ComponentActivity() {
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
                     ccEditEnabled = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
+                    paModelSpoofEnabled = Preferences.getBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)
                     mediaCardHideAppIcon = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
                     mediaCardHideDeviceSwitch = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
                     lockscreenAllNotifications = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)
@@ -1027,6 +1029,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                     },
                     ccEditEnabled = ccEditEnabled,
+                    paModelSpoofEnabled = paModelSpoofEnabled,
                     mediaCardHideAppIcon = mediaCardHideAppIcon,
                     onMediaCardHideAppIconChange = { checked ->
                         markTweaked(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, checked)
@@ -1055,6 +1058,11 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)
                         ccEditEnabled = checked
                         Preferences.putBoolean(Preferences.KEY_CC_EDIT_ENABLED, checked)
+                    },
+                    onPaModelSpoofEnabledChange = { checked ->
+                        markTweaked(Preferences.KEY_PA_MODEL_SPOOF, checked)
+                        paModelSpoofEnabled = checked
+                        Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, checked)
                     },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->

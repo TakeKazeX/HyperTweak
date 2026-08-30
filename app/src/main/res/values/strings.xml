@@ -583,6 +583,13 @@
     <string name="tweaks_cc_corner_unit">dp</string>
     <string name="settings_cc_edit_title">Control Center Editor Cards</string>
     <string name="settings_cc_edit_summary">Show the big cards, media player, brightness/volume sliders and device center inside the control-center editor (edit &amp; sort), and drag them to reorder like the quick actions. Long-press and drag a card onto another card or the tile grid. Needs a SystemUI restart after enabling</string>
+    <string name="settings_pa_model_spoof_title">Device Model Spoof (Smart Assistant)</string>
+    <string name="settings_pa_model_spoof_summary">Report the configured device model/device to Xiaomi\'s assistant &amp; theme server so it delivers the 澎湃G1-gated "智能测算" MAML suit (which contains the 精准电量 precise-battery widget) to the Smart Assistant. Values apply on the next request; requires com.miui.personalassistant in the module scope</string>
+    <string name="settings_pa_model_spoof_values_title">Spoofed model / device</string>
+    <string name="settings_pa_model_spoof_values_summary">model=%1$s · device=%2$s</string>
+    <string name="settings_pa_model_spoof_dialog_summary">Only phoneModel and phoneDevice in the assistant\'s request are rewritten; everything else is left to the real device</string>
+    <string name="settings_pa_model_spoof_model_label">Model (phoneModel)</string>
+    <string name="settings_pa_model_spoof_device_label">Device (phoneDevice)</string>
     <string name="settings_media_hide_app_icon_title">Hide Media Card Source App Icon</string>
     <string name="settings_media_hide_app_icon_summary">Remove the playing app\'s icon overlaid on the top-left corner of the media card cover, in both the notification shade and the island. Needs a SystemUI restart</string>
     <string name="settings_media_hide_device_switch_title">Hide Media Card Device Switch</string>
