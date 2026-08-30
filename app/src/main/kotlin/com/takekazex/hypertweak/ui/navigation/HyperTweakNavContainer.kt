@@ -334,7 +334,9 @@ fun HyperTweakNavContainer(
                 onNavigateToControlCenterResize = {
                     backStack.add(Route.ControlCenterResize)
                 },
-                onClearAllSettings = onClearAllSettings,
+                onNavigateToBatteryInfo = {
+                    backStack.add(Route.BatteryInfo)
+                },
                 onHotReload = onHotReload,
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
@@ -511,7 +513,7 @@ fun HyperTweakNavContainer(
             DebugPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToLogs = { backStack.add(Route.DebugLogs) },
-                onNavigateToBatteryInfo = { backStack.add(Route.BatteryInfo) }
+                onClearAllSettings = onClearAllSettings
             )
         }
         entry<Route.DebugLogs> {

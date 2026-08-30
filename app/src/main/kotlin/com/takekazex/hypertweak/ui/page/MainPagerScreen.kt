@@ -122,7 +122,7 @@ fun MainPagerScreen(
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
-    onClearAllSettings: () -> Unit,
+    onNavigateToBatteryInfo: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     appLanguage: Int,
@@ -351,7 +351,7 @@ fun MainPagerScreen(
                                 onNavigateToAbout = onNavigateToAbout,
                                 onNavigateToDebugLogs = onNavigateToDebugLogs,
                                 onNavigateToAppShortcuts = onNavigateToAppShortcuts,
-                                onClearAllSettings = onClearAllSettings,
+                                onNavigateToBatteryInfo = onNavigateToBatteryInfo,
                                 backdrop = backdrop,
                                 appLanguage = appLanguage,
                                 onAppLanguageChange = onAppLanguageChange

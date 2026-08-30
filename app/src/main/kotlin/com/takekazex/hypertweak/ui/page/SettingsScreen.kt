@@ -86,7 +86,7 @@ fun SettingsScreenContent(
     onNavigateToAbout: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
-    onClearAllSettings: () -> Unit,
+    onNavigateToBatteryInfo: () -> Unit,
     backdrop: LayerBackdrop,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -99,7 +99,6 @@ fun SettingsScreenContent(
     }
     val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
-    var showClearAllDialog by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -314,6 +313,11 @@ fun SettingsScreenContent(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
+                    title = stringResource(R.string.battery_info_menu_title),
+                    summary = stringResource(R.string.battery_info_menu_summary),
+                    onClick = onNavigateToBatteryInfo
+                )
+                ArrowPreference(
                     title = stringResource(R.string.settings_debug),
                     summary = stringResource(R.string.settings_debug_summary),
                     onClick = onNavigateToDebugLogs
@@ -323,21 +327,7 @@ fun SettingsScreenContent(
                     summary = stringResource(R.string.settings_about_summary, BuildConfig.VERSION_NAME),
                     onClick = onNavigateToAbout
                 )
-                ArrowPreference(
-                    title = stringResource(R.string.settings_clear_all_settings),
-                    summary = stringResource(R.string.settings_clear_all_settings_summary),
-                    onClick = { showClearAllDialog = true }
-                )
             }
-
-            ClearAllSettingsDialog(
-                show = showClearAllDialog,
-                onDismissRequest = { showClearAllDialog = false },
-                onConfirm = {
-                    showClearAllDialog = false
-                    onClearAllSettings()
-                }
-            )
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
@@ -420,36 +410,6 @@ private fun ModelSpoofValuesRow() {
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        }
-    )
-}
-
-@Composable
-private fun ClearAllSettingsDialog(
-    show: Boolean,
-    onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    OverlayDialog(
-        show = show,
-        title = stringResource(R.string.settings_clear_all_settings),
-        summary = stringResource(R.string.settings_clear_all_dialog_summary),
-        onDismissRequest = onDismissRequest,
-        content = {
-            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(
-                    text = stringResource(R.string.settings_cancel),
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = stringResource(R.string.settings_clear),
-                    onClick = onConfirm,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             }
         }
