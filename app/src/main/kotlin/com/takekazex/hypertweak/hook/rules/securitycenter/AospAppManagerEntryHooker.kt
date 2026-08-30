@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import java.util.Locale
 
 /**
  * Adds an overflow-menu entry to Security Center's app manager that opens Settings' AOSP "All apps"
@@ -30,13 +31,18 @@ object AospAppManagerEntryHooker : StaticHooker() {
     private const val APPCOMPAT_ACTIVITY = "miuix.appcompat.app.AppCompatActivity"
     private const val APP_MANAGER_ACTIVITY = "com.miui.appmanager.AppManagerMainActivity"
 
-    private const val MENU_TITLE = "All apps (AOSP)"
-
     /** miuix's own group id for the end menu; falls back to [Menu.NONE] when absent. */
     private const val END_MENU_GROUP_RES = "miuix_action_end_menu_group"
 
     /** Arbitrary, only has to be stable and not collide with Security Center's own ids. */
     private const val MENU_ITEM_ID = 0x48545F41
+
+    /**
+     * Title of the injected "All apps (AOSP)" overflow-menu item. It renders inside Security Center,
+     * so it follows the device (system) locale rather than the module's app-language preference.
+     */
+    private fun allAppsTitle(): String =
+        if (Locale.getDefault().language == "zh") "所有应用 (AOSP)" else "All apps (AOSP)"
 
     override val hotReloadMode = HotReloadMode.RECREATE
 
@@ -113,7 +119,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
         // An empty end menu means miuix has not populated it yet; adding now would be replaced.
         if (menu.size() == 0 || hasEntry(menu)) return
 
-        menu.add(endMenuGroupId(activity), MENU_ITEM_ID, Menu.NONE, MENU_TITLE).apply {
+        menu.add(endMenuGroupId(activity), MENU_ITEM_ID, Menu.NONE, allAppsTitle()).apply {
             setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
             setOnMenuItemClickListener {
                 runCatching { activity.startActivity(createAllAppsIntent()) }
@@ -125,7 +131,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
 
     private fun hasEntry(menu: Menu): Boolean = (0 until menu.size()).any { index ->
         val item = menu.getItem(index)
-        item.itemId == MENU_ITEM_ID || item.title?.toString() == MENU_TITLE
+        item.itemId == MENU_ITEM_ID || item.title?.toString() == allAppsTitle()
     }
 
     private fun endMenuGroupId(context: Context): Int = runCatching {

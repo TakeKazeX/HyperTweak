@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
+import java.util.Locale
 
 /**
  * Adds an "App info" entry to Security Center's app details page, opening Settings' AOSP app info
@@ -31,6 +32,13 @@ object AospAppInfoEntryHooker : StaticHooker() {
     /** Preference key of the entry the new one is inserted after. */
     private const val KEY_OPEN_BY_DEFAULT = "app_default_pref"
     private const val KEY_AOSP_APP_INFO = "hypertweak_aosp_app_info"
+
+    /**
+     * Title of the injected "App info (AOSP)" row. It renders inside Security Center, so it follows
+     * the device (system) locale rather than the module's app-language preference.
+     */
+    private fun appInfoTitle(): String =
+        if (Locale.getDefault().language == "zh") "应用信息 (AOSP)" else "App info (AOSP)"
 
     /** Security Center styles its preferences with miuix; androidx is the portable fallback. */
     private val PREFERENCE_CLASSES = listOf(
@@ -91,7 +99,7 @@ object AospAppInfoEntryHooker : StaticHooker() {
 
         val preference = newPreference(activity) ?: return
         preference.callMethodOrNull("setKey", KEY_AOSP_APP_INFO)
-        preference.callMethodOrNull("setTitle", "App info (AOSP)")
+        preference.callMethodOrNull("setTitle", appInfoTitle())
         preference.callMethodOrNull("setVisible", true)
         preference.callMethodOrNull("setPersistent", false)
         preference.callMethodOrNull("setOrder", order)

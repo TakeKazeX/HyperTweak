@@ -6,11 +6,13 @@ import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.BatteryInfoChannel
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.io.File
 import java.lang.reflect.Method
+import java.util.Locale
 
 /**
  * Reads the battery parameters the module's own process cannot reach (design capacity,
@@ -79,6 +81,34 @@ object BatteryInfoHooker : StaticHooker() {
     }.getOrNull()
 
     private fun sysfsInt(p: String): Int? = sysfsRaw(p)?.toIntOrNull()
+
+    // ─── localized value words ───────────────────────────────────────────────
+    //
+    // The module's own resources are not backed by a module context here (the hooker runs inside
+    // com.miui.securitycenter), so the few value words the snapshot carries (cycle unit, authentic
+    // yes/no, PD-auth state) are picked from the selected app language directly. The explicit
+    // preference (KEY_LANGUAGE: 1 = 中文, 2 = English) wins; "device default" follows Locale.
+
+    private fun isZh(): Boolean = when (Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) {
+        1 -> true
+        2 -> false
+        else -> Locale.getDefault().language == "zh"
+    }
+
+    private fun cycleValue(n: Int): String = if (isZh()) "$n 次" else "$n cycles"
+
+    private fun yesNo(value: Boolean): String = when {
+        !isZh() -> if (value) "Yes" else "No"
+        value -> "是"
+        else -> "否"
+    }
+
+    private fun pdAuth(value: String?): String? = when (value) {
+        "1" -> if (isZh()) "已认证" else "Authenticated"
+        "0" -> if (isZh()) "未认证" else "Not authenticated"
+        "" -> null
+        else -> value
+    }
 
     override fun onPrepareHotReload() {
         publishGeneration++
@@ -157,31 +187,24 @@ object BatteryInfoHooker : StaticHooker() {
         put(b, BatteryInfoChannel.SLOT_FG2_RM, BatteryInfoChannel.mah(pathInt("fg2_rm")))
         put(b, BatteryInfoChannel.SLOT_FG1_SOH, pathInt("fg1_soh")?.let { "$it %" })
         put(b, BatteryInfoChannel.SLOT_FG2_SOH, pathInt("fg2_soh")?.let { "$it %" })
-        put(b, BatteryInfoChannel.SLOT_FG1_CYCLE, pathInt("fg1_cycle")?.let { "$it 次" })
-        put(b, BatteryInfoChannel.SLOT_FG2_CYCLE, pathInt("fg2_cycle")?.let { "$it 次" })
+        put(b, BatteryInfoChannel.SLOT_FG1_CYCLE, pathInt("fg1_cycle")?.let(::cycleValue))
+        put(b, BatteryInfoChannel.SLOT_FG2_CYCLE, pathInt("fg2_cycle")?.let(::cycleValue))
         put(b, BatteryInfoChannel.SLOT_BATTERY_SOH, call("getBatterySoh")?.takeUnless { it == "error" }?.let { "$it %" })
-        put(b, BatteryInfoChannel.SLOT_BATTERY_CYCLE, call("getBatteryCycleCount")?.takeUnless { it == "error" }?.let { "$it 次" })
+        put(b, BatteryInfoChannel.SLOT_BATTERY_CYCLE, call("getBatteryCycleCount")?.takeUnless { it == "error" }?.let { v -> v.toIntOrNull()?.let(::cycleValue) ?: v })
         put(b, BatteryInfoChannel.SLOT_MANUFACTURING_DATE, BatteryInfoChannel.date(path("manufacturing_date")))
         put(b, BatteryInfoChannel.SLOT_FIRST_USAGE_DATE, BatteryInfoChannel.date(path("first_usage_date")))
         put(b, BatteryInfoChannel.SLOT_BATTERY_NUM, path("battery_num"))
         put(b, BatteryInfoChannel.SLOT_SOH_SN, path("soh_sn"))
         put(b, BatteryInfoChannel.SLOT_FG2_SOH_SN, path("fg2_soh_sn"))
-        put(b, BatteryInfoChannel.SLOT_AUTHENTIC, pathInt("authentic")?.let { if (it == 1) "是" else "否" })
-        put(b, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC, pathInt("slave_authentic")?.let { if (it == 1) "是" else "否" })
+        put(b, BatteryInfoChannel.SLOT_AUTHENTIC, pathInt("authentic")?.let { yesNo(it == 1) })
+        put(b, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC, pathInt("slave_authentic")?.let { yesNo(it == 1) })
         put(b, BatteryInfoChannel.SLOT_CHARGE_TYPE, (call("getBatteryChargeType")
             ?: sysfsRaw("/sys/class/power_supply/usb/type")
             ?: sysfsRaw("$QCOM_SYSFS/real_type")))
         put(b, BatteryInfoChannel.SLOT_CHARGE_POWER, call("getChargingPowerMax")?.toIntOrNull()?.takeIf { it > 0 }?.let { "$it W" })
         put(b, BatteryInfoChannel.SLOT_IBAT, BatteryInfoChannel.ma(callInt("getBatteryIbat")))
         put(b, BatteryInfoChannel.SLOT_FCC, BatteryInfoChannel.mah(callInt("getBatteryChargeFull")))
-        put(b, BatteryInfoChannel.SLOT_PD_AUTH, call("getPdAuthentication")?.let {
-            when (it) {
-                "1" -> "已认证"
-                "0" -> "未认证"
-                "" -> null
-                else -> it
-            }
-        })
+        put(b, BatteryInfoChannel.SLOT_PD_AUTH, call("getPdAuthentication")?.let(::pdAuth))
         return b
     }
 
@@ -195,9 +218,9 @@ object BatteryInfoHooker : StaticHooker() {
 
     private fun cycleCount(): String? {
         val sys = sysfsInt("$BATTERY_SYSFS/cycle_count")
-        if (sys != null) return "$sys 次"
+        if (sys != null) return cycleValue(sys)
         val hal = call("getBatteryCycleCount")?.takeUnless { it == "error" }
-        if (hal != null) return "$hal 次"
+        if (hal != null) return hal.toIntOrNull()?.let(::cycleValue) ?: hal
         return null
     }
 

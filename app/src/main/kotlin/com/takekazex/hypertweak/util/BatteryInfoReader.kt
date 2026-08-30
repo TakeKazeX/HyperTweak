@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Bundle
+import com.takekazex.hypertweak.R
 import java.io.File
 import java.lang.reflect.Method
 import java.util.Locale
@@ -17,7 +18,12 @@ import java.util.Locale
  * capacity, `qcom-battery` sysfs, manufacturing date, ...). Those are read by
  * `hook/rules/securitycenter/BatteryInfoHooker` in `com.miui.securitycenter` (system uid) and pushed
  * into [BatteryInfoProvider]; [read] overlays that snapshot on the live basic tier. A value the
- * snapshot does not carry, and that a normal process cannot read, shows "不可用".
+ * snapshot does not carry, and that a normal process cannot read, shows a localized
+ * "unavailable" value.
+ *
+ * The [context] passed to [read] is already localized to the selected app language (it comes from
+ * `LocalContext.current`, which `MainActivity` wraps with `LocaleHelper.getLocalizedContext`), so
+ * every label and status/unit word resolves through the module resources and follows the language.
  *
  * Nothing here may throw out of [read]; every read is guarded.
  */
@@ -62,48 +68,52 @@ object BatteryInfoReader {
 
     // ─── label / formatting helpers ──────────────────────────────────────────
 
-    private fun pluggedLabel(value: Int): String = when (value) {
-        0 -> "未充电"
-        1 -> "AC 充电"
-        2 -> "USB 充电"
-        4 -> "无线充电"
-        8 -> "无线反充"
-        else -> "充电 (类型 $value)"
+    private fun pluggedLabel(context: Context, value: Int): String = when (value) {
+        0 -> context.getString(R.string.battery_plugged_none)
+        1 -> context.getString(R.string.battery_plugged_ac)
+        2 -> context.getString(R.string.battery_plugged_usb)
+        4 -> context.getString(R.string.battery_plugged_wireless)
+        8 -> context.getString(R.string.battery_plugged_reverse)
+        else -> context.getString(R.string.battery_plugged_type_fmt, value)
     }
 
-    private fun healthLabel(value: Int): String = when (value) {
-        1 -> "未知"
-        2 -> "良好"
-        3 -> "过热"
-        4 -> "损坏"
-        5 -> "过压"
-        6 -> "未指定"
-        7 -> "过冷"
-        else -> "未知"
+    private fun healthLabel(context: Context, value: Int): String = when (value) {
+        1 -> context.getString(R.string.battery_health_unknown)
+        2 -> context.getString(R.string.battery_health_good)
+        3 -> context.getString(R.string.battery_health_overheat)
+        4 -> context.getString(R.string.battery_health_dead)
+        5 -> context.getString(R.string.battery_health_overvoltage)
+        6 -> context.getString(R.string.battery_health_unspecified)
+        7 -> context.getString(R.string.battery_health_cold)
+        else -> context.getString(R.string.battery_health_unknown)
     }
 
-    private fun statusLabel(value: Int): String = when (value) {
-        1 -> "未知"
-        2 -> "充电中"
-        3 -> "放电中"
-        4 -> "未充电"
-        5 -> "已充满"
-        else -> "未知"
+    private fun statusLabel(context: Context, value: Int): String = when (value) {
+        1 -> context.getString(R.string.battery_status_unknown)
+        2 -> context.getString(R.string.battery_status_charging)
+        3 -> context.getString(R.string.battery_status_discharging)
+        4 -> context.getString(R.string.battery_status_not_charging)
+        5 -> context.getString(R.string.battery_status_full)
+        else -> context.getString(R.string.battery_status_unknown)
     }
 
-    private fun halfCelsius(tenths: Int?): String =
-        if (tenths == null || tenths == Int.MIN_VALUE || tenths <= -500) "不可用" else "${tenths / 10.0} °C"
+    private fun halfCelsius(context: Context, tenths: Int?): String =
+        if (tenths == null || tenths == Int.MIN_VALUE || tenths <= -500) context.getString(R.string.battery_unavailable)
+        else "${tenths / 10.0} °C"
 
-    private fun milliVolt(mv: Int?): String =
-        if (mv == null || mv <= 0) "不可用" else "${mv / 1000.0} V"
+    private fun milliVolt(context: Context, mv: Int?): String =
+        if (mv == null || mv <= 0) context.getString(R.string.battery_unavailable) else "${mv / 1000.0} V"
 
-    private fun sohRating(sohPercent: Int?): String = when {
-        sohPercent == null || sohPercent < 0 -> "无法读取"
-        sohPercent >= 90 -> "优"
-        sohPercent >= 80 -> "良"
-        sohPercent >= 60 -> "一般"
-        else -> "需更换"
+    private fun sohRating(context: Context, sohPercent: Int?): String = when {
+        sohPercent == null || sohPercent < 0 -> context.getString(R.string.battery_unreadable)
+        sohPercent >= 90 -> context.getString(R.string.battery_soh_excellent)
+        sohPercent >= 80 -> context.getString(R.string.battery_soh_good)
+        sohPercent >= 60 -> context.getString(R.string.battery_soh_fair)
+        else -> context.getString(R.string.battery_soh_replace)
     }
+
+    /** Digits only — tolerates a localized unit suffix (e.g. "120 次"/"120 cycles"/"97 %"). */
+    private fun digits(v: String?): Int? = v?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.toIntOrNull()
 
     /** Computes live charge wattage = voltage (mV) × |current (µA)| / 1e9, while plugged. */
     private fun liveChargePower(context: Context, intent: Intent?, out: MutableList<Row>) {
@@ -115,7 +125,7 @@ object BatteryInfoReader {
         if (voltMv <= 0 || currentUa == 0) return
         val watt = voltMv * kotlin.math.abs(currentUa).toDouble() / 1e9
         if (watt < 0.05) return
-        out += Row("实时充电功率 · V×I", String.format(Locale.US, "%.1f W", watt))
+        out += Row("${context.getString(R.string.battery_lbl_live_power)} · V×I", String.format(Locale.US, "%.1f W", watt))
     }
 
     // ─── public API ──────────────────────────────────────────────────────────
@@ -135,83 +145,82 @@ object BatteryInfoReader {
         val level = intent?.getIntExtra("level", -1) ?: -1
         val scale = intent?.getIntExtra("scale", -1) ?: -1
         val percent = if (level in 0..100 && scale > 0) level * 100 / scale else intProperty(context, 4)
-        basic += Row("电量百分比 · level/scale", if (percent in 0..100) "$percent %" else "不可用")
-        basic += Row("电池状态 · status", statusLabel(intent?.getIntExtra("status", -1) ?: -1))
-        basic += Row("充电状态 · plugged", pluggedLabel(intent?.getIntExtra("plugged", 0) ?: 0))
-        basic += Row("电池健康 · health", healthLabel(intent?.getIntExtra("health", -1) ?: -1))
+        basic += Row("${context.getString(R.string.battery_lbl_level)} · level/scale", if (percent in 0..100) "$percent %" else context.getString(R.string.battery_unavailable))
+        basic += Row("${context.getString(R.string.battery_lbl_status)} · status", statusLabel(context, intent?.getIntExtra("status", -1) ?: -1))
+        basic += Row("${context.getString(R.string.battery_lbl_plugged)} · plugged", pluggedLabel(context, intent?.getIntExtra("plugged", 0) ?: 0))
+        basic += Row("${context.getString(R.string.battery_lbl_health)} · health", healthLabel(context, intent?.getIntExtra("health", -1) ?: -1))
         val temp = intent?.getIntExtra("temperature", Int.MIN_VALUE) ?: sysfsInt("$BATTERY_SYSFS/temperature")?.let { it * 10 }
-        basic += Row("电池温度 · temperature", halfCelsius(temp))
+        basic += Row("${context.getString(R.string.battery_lbl_temp)} · temperature", halfCelsius(context, temp))
         val voltage = intent?.getIntExtra("voltage", Int.MIN_VALUE) ?: sysfsInt("$BATTERY_SYSFS/voltage_now")?.let { it / 1000 }
-        basic += Row("电池电压 · voltage", milliVolt(voltage))
-        basic += Row("电池技术 · technology", intent?.getStringExtra("technology") ?: sysfsRaw("$BATTERY_SYSFS/technology") ?: "不可用")
-        sections += Section("基础信息", basic)
+        basic += Row("${context.getString(R.string.battery_lbl_voltage)} · voltage", milliVolt(context, voltage))
+        basic += Row("${context.getString(R.string.battery_lbl_tech)} · technology", intent?.getStringExtra("technology") ?: sysfsRaw("$BATTERY_SYSFS/technology") ?: context.getString(R.string.battery_unavailable))
+        sections += Section(context.getString(R.string.battery_sec_basic), basic)
 
         // 容量 (mix of snapshot + framework)
         val capacity = mutableListOf<Row>()
-        capacity += Row("设备标称容量 · PowerProfile", nominalCapacity(context)?.let { "$it mAh" } ?: "不可用")
-        capacity += Row("设计容量 · charge_full_design", snap(snap, BatteryInfoChannel.SLOT_DESIGN_CAPACITY)
-            ?: sysfsInt("$BATTERY_SYSFS/charge_full_design")?.let { BatteryInfoChannel.mah(it) } ?: "不可用")
-        capacity += Row("主电池设计容量 · fg1_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG1_DESIGN) ?: "不可用")
+        capacity += Row("${context.getString(R.string.battery_lbl_nominal)} · PowerProfile", nominalCapacity(context)?.let { "$it mAh" } ?: context.getString(R.string.battery_unavailable))
+        capacity += Row("${context.getString(R.string.battery_lbl_design)} · charge_full_design", snap(snap, BatteryInfoChannel.SLOT_DESIGN_CAPACITY)
+            ?: sysfsInt("$BATTERY_SYSFS/charge_full_design")?.let { BatteryInfoChannel.mah(it) } ?: context.getString(R.string.battery_unavailable))
+        capacity += Row("${context.getString(R.string.battery_lbl_fg1_design)} · fg1_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG1_DESIGN) ?: context.getString(R.string.battery_unavailable))
         if (dual) {
-            capacity += Row("副电池设计容量 · fg2_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG2_DESIGN) ?: "不可用")
-            capacity += Row("副电池剩余容量 · fg2_rm", snap(snap, BatteryInfoChannel.SLOT_FG2_RM) ?: "不可用")
+            capacity += Row("${context.getString(R.string.battery_lbl_fg2_design)} · fg2_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG2_DESIGN) ?: context.getString(R.string.battery_unavailable))
+            capacity += Row("${context.getString(R.string.battery_lbl_fg2_rm)} · fg2_rm", snap(snap, BatteryInfoChannel.SLOT_FG2_RM) ?: context.getString(R.string.battery_unavailable))
         }
-        capacity += Row("主电池剩余容量 · fg1_rm", snap(snap, BatteryInfoChannel.SLOT_FG1_RM) ?: "不可用")
-        capacity += Row("满充容量 · charge_full", snap(snap, BatteryInfoChannel.SLOT_FCC)
-            ?: sysfsInt("$BATTERY_SYSFS/charge_full")?.let { BatteryInfoChannel.mah(it) } ?: "不可用")
-        capacity += Row("电量计数 · charge_counter", BatteryInfoChannel.mah(intProperty(context, 1)) ?: "不可用")
-        capacity += Row("电池电流 · current_now", BatteryInfoChannel.ma(intProperty(context, 2)) ?: "不可用")
-        sections += Section("容量", capacity)
+        capacity += Row("${context.getString(R.string.battery_lbl_fg1_rm)} · fg1_rm", snap(snap, BatteryInfoChannel.SLOT_FG1_RM) ?: context.getString(R.string.battery_unavailable))
+        capacity += Row("${context.getString(R.string.battery_lbl_full)} · charge_full", snap(snap, BatteryInfoChannel.SLOT_FCC)
+            ?: sysfsInt("$BATTERY_SYSFS/charge_full")?.let { BatteryInfoChannel.mah(it) } ?: context.getString(R.string.battery_unavailable))
+        capacity += Row("${context.getString(R.string.battery_lbl_charge_counter)} · charge_counter", BatteryInfoChannel.mah(intProperty(context, 1)) ?: context.getString(R.string.battery_unavailable))
+        capacity += Row("${context.getString(R.string.battery_lbl_current)} · current_now", BatteryInfoChannel.ma(intProperty(context, 2)) ?: context.getString(R.string.battery_unavailable))
+        sections += Section(context.getString(R.string.battery_sec_capacity), capacity)
 
         // 健康与寿命
         val health = mutableListOf<Row>()
         val soh = snap(snap, BatteryInfoChannel.SLOT_BATTERY_SOH)
-        health += Row("电池健康度 · getBatterySoh", soh ?: "不可用")
-        health += Row("主电池健康度 · fg1_soh", snap(snap, BatteryInfoChannel.SLOT_FG1_SOH) ?: "不可用")
-        if (dual) health += Row("副电池健康度 · fg2_soh", snap(snap, BatteryInfoChannel.SLOT_FG2_SOH) ?: "不可用")
-        health += Row("循环次数 · cycle_count", snap(snap, BatteryInfoChannel.SLOT_CYCLE_COUNT) ?: "不可用")
-        health += Row("主电池循环 · fg1_cycle", snap(snap, BatteryInfoChannel.SLOT_FG1_CYCLE) ?: "不可用")
-        if (dual) health += Row("副电池循环 · fg2_cycle", snap(snap, BatteryInfoChannel.SLOT_FG2_CYCLE) ?: "不可用")
-        val fg1Soh = snap(snap, BatteryInfoChannel.SLOT_FG1_SOH)?.removeSuffix(" %")?.toIntOrNull()
-        if (fg1Soh != null) health += Row("主电池健康等级 · 评级", sohRating(fg1Soh))
-        val cycleStr = snap(snap, BatteryInfoChannel.SLOT_CYCLE_COUNT)
-        if (soh == null && cycleStr != null) {
-            val n = cycleStr.removeSuffix(" 次").toIntOrNull()
-            if (n != null) health += Row("估算健康度 (按循环) · cycle", "${(100 - n / 20).coerceIn(0, 100)} %")
+        health += Row("${context.getString(R.string.battery_lbl_soh)} · getBatterySoh", soh ?: context.getString(R.string.battery_unavailable))
+        health += Row("${context.getString(R.string.battery_lbl_fg1_soh)} · fg1_soh", snap(snap, BatteryInfoChannel.SLOT_FG1_SOH) ?: context.getString(R.string.battery_unavailable))
+        if (dual) health += Row("${context.getString(R.string.battery_lbl_fg2_soh)} · fg2_soh", snap(snap, BatteryInfoChannel.SLOT_FG2_SOH) ?: context.getString(R.string.battery_unavailable))
+        health += Row("${context.getString(R.string.battery_lbl_cycle)} · cycle_count", snap(snap, BatteryInfoChannel.SLOT_CYCLE_COUNT) ?: context.getString(R.string.battery_unavailable))
+        health += Row("${context.getString(R.string.battery_lbl_fg1_cycle)} · fg1_cycle", snap(snap, BatteryInfoChannel.SLOT_FG1_CYCLE) ?: context.getString(R.string.battery_unavailable))
+        if (dual) health += Row("${context.getString(R.string.battery_lbl_fg2_cycle)} · fg2_cycle", snap(snap, BatteryInfoChannel.SLOT_FG2_CYCLE) ?: context.getString(R.string.battery_unavailable))
+        val fg1Soh = digits(snap(snap, BatteryInfoChannel.SLOT_FG1_SOH))
+        if (fg1Soh != null) health += Row("${context.getString(R.string.battery_lbl_fg1_rating)} · 评级", sohRating(context, fg1Soh))
+        val cycleCount = digits(snap(snap, BatteryInfoChannel.SLOT_CYCLE_COUNT))
+        if (soh == null && cycleCount != null) {
+            health += Row("${context.getString(R.string.battery_lbl_est_health)} · cycle", "${(100 - cycleCount / 20).coerceIn(0, 100)} %")
         }
-        sections += Section("健康与寿命", health)
+        sections += Section(context.getString(R.string.battery_sec_health), health)
 
         // 标识
         val identity = mutableListOf<Row>()
-        identity += Row("电池型号 · model_name", snap(snap, BatteryInfoChannel.SLOT_MODEL_NAME) ?: "不可用")
-        identity += Row("电池序列号 · serial_number",
-            snap(snap, BatteryInfoChannel.SLOT_SERIAL_NUMBER) ?: snap(snap, BatteryInfoChannel.SLOT_SOH_SN) ?: "不可用")
+        identity += Row("${context.getString(R.string.battery_lbl_model)} · model_name", snap(snap, BatteryInfoChannel.SLOT_MODEL_NAME) ?: context.getString(R.string.battery_unavailable))
+        identity += Row("${context.getString(R.string.battery_lbl_serial)} · serial_number",
+            snap(snap, BatteryInfoChannel.SLOT_SERIAL_NUMBER) ?: snap(snap, BatteryInfoChannel.SLOT_SOH_SN) ?: context.getString(R.string.battery_unavailable))
         val batteryNum = snap(snap, BatteryInfoChannel.SLOT_BATTERY_NUM)
-        identity += Row("电池编号 · battery_num", when (batteryNum) {
-            null -> "不可用"
-            "1" -> "1 (双电池)"
-            else -> "$batteryNum (单电池)"
+        identity += Row("${context.getString(R.string.battery_lbl_num)} · battery_num", when (batteryNum) {
+            null -> context.getString(R.string.battery_unavailable)
+            "1" -> context.getString(R.string.battery_num_dual)
+            else -> context.getString(R.string.battery_num_single_fmt, batteryNum)
         })
-        identity += Row("主电池序列号 · soh_sn", snap(snap, BatteryInfoChannel.SLOT_SOH_SN) ?: "不可用")
-        if (dual) identity += Row("副电池序列号 · fg2_soh_sn", snap(snap, BatteryInfoChannel.SLOT_FG2_SOH_SN) ?: "不可用")
-        identity += Row("主电池是否原装 · authentic", snap(snap, BatteryInfoChannel.SLOT_AUTHENTIC) ?: "不可用")
-        if (dual) identity += Row("副电池是否原装 · slave_authentic", snap(snap, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC) ?: "不可用")
-        identity += Row("生产日期 · manufacturing_date", snap(snap, BatteryInfoChannel.SLOT_MANUFACTURING_DATE) ?: "不可用")
-        identity += Row("首次使用日期 · first_usage_date", snap(snap, BatteryInfoChannel.SLOT_FIRST_USAGE_DATE) ?: "不可用")
-        identity += Row("PD 认证 · pd_authentication", snap(snap, BatteryInfoChannel.SLOT_PD_AUTH) ?: "不可用")
-        sections += Section("标识", identity)
+        identity += Row("${context.getString(R.string.battery_lbl_soh_sn)} · soh_sn", snap(snap, BatteryInfoChannel.SLOT_SOH_SN) ?: context.getString(R.string.battery_unavailable))
+        if (dual) identity += Row("${context.getString(R.string.battery_lbl_fg2_soh_sn)} · fg2_soh_sn", snap(snap, BatteryInfoChannel.SLOT_FG2_SOH_SN) ?: context.getString(R.string.battery_unavailable))
+        identity += Row("${context.getString(R.string.battery_lbl_authentic)} · authentic", snap(snap, BatteryInfoChannel.SLOT_AUTHENTIC) ?: context.getString(R.string.battery_unavailable))
+        if (dual) identity += Row("${context.getString(R.string.battery_lbl_slave_authentic)} · slave_authentic", snap(snap, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC) ?: context.getString(R.string.battery_unavailable))
+        identity += Row("${context.getString(R.string.battery_lbl_manufacturing)} · manufacturing_date", snap(snap, BatteryInfoChannel.SLOT_MANUFACTURING_DATE) ?: context.getString(R.string.battery_unavailable))
+        identity += Row("${context.getString(R.string.battery_lbl_first_usage)} · first_usage_date", snap(snap, BatteryInfoChannel.SLOT_FIRST_USAGE_DATE) ?: context.getString(R.string.battery_unavailable))
+        identity += Row("${context.getString(R.string.battery_lbl_pd_auth)} · pd_authentication", snap(snap, BatteryInfoChannel.SLOT_PD_AUTH) ?: context.getString(R.string.battery_unavailable))
+        sections += Section(context.getString(R.string.battery_sec_identity), identity)
 
         // 充电
         val charging = mutableListOf<Row>()
         // MAX charging power is only shown when the HAL reports it (some devices report 0).
         snap(snap, BatteryInfoChannel.SLOT_CHARGE_POWER)?.let {
-            charging += Row("最大充电功率 · charging_power", it)
+            charging += Row("${context.getString(R.string.battery_lbl_chg_power)} · charging_power", it)
         }
         liveChargePower(context, intent, charging)
-        charging += Row("充电类型 · charge_type", snap(snap, BatteryInfoChannel.SLOT_CHARGE_TYPE) ?: "不可用")
-        charging += Row("电池电流 (HAL) · ibat", snap(snap, BatteryInfoChannel.SLOT_IBAT) ?: "不可用")
-        charging += Row("主板温度 · board_temp", sysfsInt("$THERMAL_SYSFS/board_sensor_temp")?.let { "${it / 1000.0} °C" } ?: "不可用")
-        sections += Section("充电", charging)
+        charging += Row("${context.getString(R.string.battery_lbl_chg_type)} · charge_type", snap(snap, BatteryInfoChannel.SLOT_CHARGE_TYPE) ?: context.getString(R.string.battery_unavailable))
+        charging += Row("${context.getString(R.string.battery_lbl_ibat)} · ibat", snap(snap, BatteryInfoChannel.SLOT_IBAT) ?: context.getString(R.string.battery_unavailable))
+        charging += Row("${context.getString(R.string.battery_lbl_board_temp)} · board_temp", sysfsInt("$THERMAL_SYSFS/board_sensor_temp")?.let { "${it / 1000.0} °C" } ?: context.getString(R.string.battery_unavailable))
+        sections += Section(context.getString(R.string.battery_sec_charging), charging)
 
         return sections.filter { it.rows.isNotEmpty() }
     }

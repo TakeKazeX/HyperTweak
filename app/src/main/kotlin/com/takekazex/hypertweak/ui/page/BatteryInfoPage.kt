@@ -154,9 +154,12 @@ fun BatteryInfoPage(onBack: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BatteryInfoRow(row: BatteryInfoReader.Row, onLongPress: () -> Unit) {
+    val context = LocalContext.current
     val name = row.label.substringBefore(" · ")
     val key = row.label.substringAfter(" · ", "")
-    val isNa = row.value == "不可用" || row.value.startsWith("不可用") || row.value == "无法读取"
+    val unavailable = context.getString(R.string.battery_unavailable)
+    val unreadable = context.getString(R.string.battery_unreadable)
+    val isNa = row.value == unavailable || row.value.startsWith(unavailable) || row.value == unreadable
     // Long values (e.g. a 33-char serial) get a smaller font so they fit on one line in full.
     val valueSp = when {
         row.value.length >= 32 -> 9.sp
@@ -217,8 +220,8 @@ private fun copyRow(context: Context, row: BatteryInfoReader.Row) {
 
 private fun copyAll(context: Context, sections: List<BatteryInfoReader.Section>) {
     val text = buildString {
-        appendLine("HyperTweak 电池信息")
-        appendLine("导出时间: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+        appendLine(context.getString(R.string.battery_export_header))
+        appendLine(context.getString(R.string.battery_export_time, SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())))
         sections.forEach { section ->
             appendLine()
             appendLine("== ${section.title} ==")
