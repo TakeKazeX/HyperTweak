@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.util.DebugLog
+import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeUnit
 
 object Preferences {
     const val NAME = "hypertweak_settings"
+    private const val CACHE_NAME = "hypertweak_cache"
     const val DEFAULT_SEED_COLOR = 0
     const val DEFAULT_IMMEDIATE_MONET_REFRESH = true
 
@@ -775,6 +777,18 @@ object Preferences {
     private var localSourcePrefs: SharedPreferences? = null
     @Volatile
     private var localCachePrefs: SharedPreferences? = null
+    @Volatile
+    private var cachedAppContext: Context? = null
+
+    /**
+     * True once the LSPosed daemon's remote-preferences channel is known to be unavailable
+     * (e.g. `getRemotePreferences` throws "Framework returns null"). When this is set the getters
+     * fall back to the per-process cache instead of silently returning defaults, so a daemon
+     * hiccup cannot make every preference-gated hook read its "off" default.
+     */
+    @Volatile
+    private var remoteBackendUnavailable = false
+
     private var isLocalOnly = false
     private val serializedWriter = Executors.newSingleThreadExecutor { r -> Thread(r, "HyperTweak-Prefs").apply { isDaemon = true } }
 
@@ -897,6 +911,7 @@ object Preferences {
 
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         memoClear()
+        remoteBackendUnavailable = false
         if (useLocalOnly) {
             localSourcePrefs = prefs
             // Only apply local prefs as fallback if remote prefs haven't been set yet
@@ -956,18 +971,47 @@ object Preferences {
     }
 
     fun initLocalCache(context: Context) {
-        localCachePrefs = context.getSharedPreferences("hypertweak_cache", Context.MODE_PRIVATE)
+        cachedAppContext = context
+        localCachePrefs = context.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Lazily resolves an app context so the cache can be loaded before [initLocalCache] runs
+     * (e.g. during hook attach, on the same event a gated hooker reads its preference). Best
+     * effort: returns null when no application context is available yet (e.g. system_server).
+     */
+    private fun resolveAppContext(): Context? {
+        cachedAppContext?.let { return it }
+        val ctx = runCatching { EzXposed.appContextOrNull }.getOrNull()
+        if (ctx != null) cachedAppContext = ctx
+        return ctx
     }
 
     private fun getLocalCache(): SharedPreferences? {
+        localCachePrefs?.let { return it }
+        val ctx = runCatching { resolveAppContext() }.getOrNull()
+        if (ctx != null) {
+            localCachePrefs = ctx.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE)
+        }
         return localCachePrefs
+    }
+
+    /** True when the remote prefs channel is unavailable and [getLocalCache] is the only source. */
+    fun isRemoteBackendUnavailable(): Boolean = remoteBackendUnavailable
+
+    /** Marks the remote daemon channel unavailable (called when [init] fails with remote prefs). */
+    fun noteRemoteBackendUnavailable() {
+        if (remoteBackendUnavailable) return
+        remoteBackendUnavailable = true
+        memoClear()
+        DebugLog.w("Preferences", "remote preferences backend unavailable; falling back to local cache")
     }
 
     val isInitialized: Boolean
         get() = this::remotePrefs.isInitialized
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
-        if (!isInitialized) return default
+        if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
         memoGet(key)?.let { return it as Boolean }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -990,7 +1034,7 @@ object Preferences {
     }
 
     fun getInt(key: String, default: Int = 0): Int {
-        if (!isInitialized) return default
+        if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
         memoGet(key)?.let { return it as Int }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -1013,7 +1057,7 @@ object Preferences {
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
-        if (!isInitialized) return default
+        if (!isInitialized) return getLocalCache()?.getFloat(key, default) ?: default
         memoGet(key)?.let { return it as Float }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -1051,7 +1095,7 @@ object Preferences {
     }
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
-        if (!isInitialized) return default
+        if (!isInitialized) return getLocalCache()?.getStringSet(key, default) ?: default
         memoGet(key)?.let { return ((it as? Set<*>) ?: default).map { element -> element as String }.toSet() }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -1082,7 +1126,7 @@ object Preferences {
     }
 
     fun getString(key: String, default: String = ""): String {
-        if (!isInitialized) return default
+        if (!isInitialized) return getLocalCache()?.getString(key, default) ?: default
         memoGet(key)?.let { return it as String }
         val value = try {
             if (remotePrefs.contains(key)) {

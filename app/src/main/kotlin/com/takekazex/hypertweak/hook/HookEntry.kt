@@ -82,6 +82,10 @@ import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 
 class HookEntry : XposedModule() {
+    /** Bounded retry window for the transient daemon remote-preferences outage. */
+    private val MAX_PREFS_INIT_RETRIES = 4
+    private val PREFS_RETRY_DELAY_MS = 500L
+
     private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
     private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
@@ -451,12 +455,38 @@ class HookEntry : XposedModule() {
     }
 
     private fun initPreferences() {
-        try {
+        if (tryInitPreferences()) return
+        // The LSPosed daemon's remote-preferences channel is unavailable (e.g. it returns
+        // null / throws "Framework returns null"). Preferences is left uninitialized; getters
+        // fall back to the per-process cache rather than silently reading defaults, and the
+        // flag lets the UI surface the degraded state.
+        //
+        // The outage may be transient (the daemon not ready when this process loads, or the
+        // daemon restarting), so retry with bounded backoff before giving up for this process
+        // lifetime. Hookers attached after a successful retry read the real gates; the ones that
+        // already attached keep their default and still need the process restarted.
+        Thread({
+            var attempt = 0
+            while (attempt < MAX_PREFS_INIT_RETRIES) {
+                runCatching { Thread.sleep(PREFS_RETRY_DELAY_MS * (1L shl attempt)) }
+                if (Preferences.isInitialized) break
+                if (tryInitPreferences()) break
+                attempt++
+            }
+        }, "HyperTweak-PrefsRetry").apply { isDaemon = true }.start()
+    }
+
+    /** Runs one attempt at binding the daemon's remote preferences; true on success. */
+    private fun tryInitPreferences(): Boolean {
+        return try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
+            true
         } catch (t: Throwable) {
-            DebugLog.e("HookEntry", "failed to init Preferences", t)
+            Preferences.noteRemoteBackendUnavailable()
+            DebugLog.e("HookEntry", "failed to init Preferences (remote channel unavailable; using cache fallback)", t)
+            false
         }
     }
 

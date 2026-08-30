@@ -45,6 +45,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             Preferences.init(remotePrefs)
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
+            Preferences.noteRemoteBackendUnavailable()
             DebugLog.e("XposedService", "failed to init Preferences from service", t)
         }
         // Emit after Preferences is ready so UI observers reload from the correct source
