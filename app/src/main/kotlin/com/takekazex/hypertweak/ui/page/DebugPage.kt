@@ -39,7 +39,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
-fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
+fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit, onNavigateToBatteryInfo: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
     var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
@@ -85,6 +85,11 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                         title = stringResource(R.string.debug_logs_title),
                         summary = stringResource(R.string.debug_logs_summary),
                         onClick = onNavigateToLogs
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.battery_info_menu_title),
+                        summary = stringResource(R.string.battery_info_menu_summary),
+                        onClick = onNavigateToBatteryInfo
                     )
                 }
             }

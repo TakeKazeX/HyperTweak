@@ -117,6 +117,14 @@
     <string name="debug_page_title">调试</string>
     <string name="debug_record_logs_summary">持久化模块和 Hook 运行时日志</string>
     <string name="debug_record_logs_title">记录日志</string>
+    <string name="battery_info_title">电池信息</string>
+    <string name="battery_info_menu_title">电池信息</string>
+    <string name="battery_info_menu_summary">读取并展示全部电池参数</string>
+    <string name="battery_info_back">返回</string>
+    <string name="battery_info_refresh">刷新</string>
+    <string name="battery_info_copy">复制</string>
+    <string name="battery_info_updated_at">更新于 %s</string>
+    <string name="battery_info_proxy_hint">部分深度电池参数（设计容量、生产日期、健康度、循环次数等）由安全中心代理读取。请先打开一次安全中心，再点刷新。</string>
     <string name="glass_apply">应用</string>
     <string name="glass_back">返回</string>
     <string name="glass_blend_lightness">混合明度</string>

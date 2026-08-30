@@ -86,6 +86,15 @@
         <uses-library
             android:name="androidx.window.sidecar"
             android:required="false"/>
+
+        <!-- Receives the privileged battery-info snapshot from com.miui.securitycenter (system uid)
+             and serves it back to the module's own page. Exported so the system-uid hooker can call
+             it; the SET path is additionally gated to Process.SYSTEM_UID in call(). -->
+        <provider
+            android:name="com.takekazex.hypertweak.BatteryInfoProvider"
+            android:authorities="com.takekazex.hypertweak.batteryprovider"
+            android:exported="true"
+            android:grantUriPermissions="false" />
     </application>
 
 </manifest>
