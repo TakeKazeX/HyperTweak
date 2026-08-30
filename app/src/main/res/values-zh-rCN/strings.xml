@@ -632,6 +632,9 @@
     <string name="google_feature_scope_not_granted">未能授予 %1$s 作用域；功能保持关闭</string>
     <string name="google_feature_scope_failed">作用域更新失败：%1$s</string>
     <string name="google_feature_scope_unavailable">Xposed 服务不可用</string>
+    <string name="pa_model_spoof_scope_not_granted">未能授予 %1$s 作用域；功能保持关闭</string>
+    <string name="pa_model_spoof_scope_failed">作用域更新失败：%1$s</string>
+    <string name="pa_model_spoof_scope_unavailable">Xposed 服务不可用</string>
     <string name="tweaks_raise_layout_summary">保留导航栏预留空间，让应用内容位于手势区域上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>
     <string name="tweaks_slide_back_animation_summary">在手势后方滑入上一个界面</string>

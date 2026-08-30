@@ -632,6 +632,9 @@
     <string name="google_feature_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
     <string name="google_feature_scope_failed">Could not update the scope: %1$s</string>
     <string name="google_feature_scope_unavailable">The Xposed service is unavailable</string>
+    <string name="pa_model_spoof_scope_not_granted">Scope not granted for %1$s; feature stays off</string>
+    <string name="pa_model_spoof_scope_failed">Could not update the scope: %1$s</string>
+    <string name="pa_model_spoof_scope_unavailable">The Xposed service is unavailable</string>
     <string name="tweaks_raise_layout_summary">Keep the reserved navigation bar space so app content sits above the gesture area</string>
     <string name="tweaks_raise_layout_title">Raise Layout</string>
     <string name="tweaks_slide_back_animation_summary">Slide the previous activity in behind the gesture</string>

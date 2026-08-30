@@ -675,6 +675,58 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            /**
+             * Smart-Assistant model spoof lives in the `com.miui.personalassistant` process, which is
+             * a declared required scope but is not a restart-scope target (the hooker rewrites the
+             * request fields on every call, so the spoofed values apply live). On enable the toggle
+             * requests the scope (in case the user removed the entry) and restarts the assistant so any
+             * newly-added hook installs; disabling only flips the preference and the scope is kept.
+             */
+            @SuppressLint("LocalContextGetResourceValueCall")
+            fun handlePaModelSpoofChange(checked: Boolean) {
+                paModelSpoofEnabled = checked
+                Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, checked)
+                // Block until the daemon has the new value: the assistant is force-stopped right
+                // after and reads the preference on the next request.
+                Preferences.flush()
+                coroutineScope.launch {
+                    val assistant = setOf("com.miui.personalassistant")
+                    if (checked) {
+                        when (val result = ScopeManager.request(assistant)) {
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
+                                RestartUtils.forceStopPackages(context, coroutineScope, assistant)
+                            }
+                            is ScopeManager.Result.Rejected -> {
+                                paModelSpoofEnabled = false
+                                Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        R.string.pa_model_spoof_scope_not_granted,
+                                        result.missing.joinToString()
+                                    ),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            is ScopeManager.Result.Failed -> Toast.makeText(
+                                context,
+                                context.getString(R.string.pa_model_spoof_scope_failed, result.message),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
+                                context,
+                                context.getString(R.string.pa_model_spoof_scope_unavailable),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        // The assistant is a declared required scope, so turning the feature off
+                        // only flips the preference (the hooker reads it live); the scope is kept.
+                        RestartUtils.forceStopPackages(context, coroutineScope, assistant)
+                    }
+                }
+            }
+
             LaunchedEffect(serviceConnected) {
                 // The remote copy of the settings lives in the LSPosed daemon and survives a
                 // module uninstall, so a reinstall would silently restore the old config.
@@ -1060,9 +1112,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.putBoolean(Preferences.KEY_CC_EDIT_ENABLED, checked)
                     },
                     onPaModelSpoofEnabledChange = { checked ->
-                        markTweaked(Preferences.KEY_PA_MODEL_SPOOF, checked)
-                        paModelSpoofEnabled = checked
-                        Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, checked)
+                        handlePaModelSpoofChange(checked)
                     },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
