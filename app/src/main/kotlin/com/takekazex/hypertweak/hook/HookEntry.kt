@@ -53,6 +53,7 @@ import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
@@ -618,6 +619,9 @@ class HookEntry : XposedModule() {
                 attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(FastCameraSettingsHooker, classLoader, ctx, replacementHandles)
+                // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
+                // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
+                attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

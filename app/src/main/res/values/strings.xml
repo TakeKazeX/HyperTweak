@@ -675,7 +675,7 @@
     <string name="settings_media_hide_device_switch_title">Hide Media Card Device Switch</string>
     <string name="settings_media_hide_device_switch_summary">Remove the device-switch button (投送/设备切换) from the media cards: the top-right seamless button on the notification-shade card and the island, and the device icon on the control-center media card. Needs a SystemUI restart</string>
     <string name="settings_lockscreen_all_notifications_title">Show All Notifications On Lockscreen</string>
-    <string name="settings_lockscreen_all_notifications_summary">Let every app show its notifications on the lockscreen. MIUI\'s CN builds decide per-channel by a system whitelist, so most third-party channels stay hidden even with the app switch on; this forces the whitelist check to pass. Needs a SystemUI restart</string>
+    <string name="settings_lockscreen_all_notifications_summary">Let every notification show on the lockscreen by default, and honor each channel\'s own "Lock screen notifications" switch (hide only the channels you turn off). Channels left on show on the lockscreen. Needs a SystemUI restart</string>
     <string name="settings_lockscreen_keep_notifications_title">Keep Notifications On Lockscreen After Unlock</string>
     <string name="settings_lockscreen_keep_notifications_summary">Stop the lockscreen from hiding notifications that were already shown after the last unlock. MIUI clears them via the mHasShownAfterUnlock flag once you leave the keyguard; this skips that branch while keeping the app-level can-show-on-keyguard check. Needs a SystemUI restart</string>
     <string name="cc_resize_title">Control Center Sizes</string>
