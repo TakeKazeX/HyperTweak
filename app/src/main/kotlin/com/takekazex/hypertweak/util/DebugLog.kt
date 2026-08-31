@@ -22,6 +22,9 @@ object DebugLog {
     private const val FLUSH_DELAY_MS = 750L
     private const val MAX_PENDING_LINES = 64
 
+    /** Hard cap on the in-memory queue so a hot path (DEBUG flood) can't grow it without bound. */
+    private const val MAX_PENDING_QUEUE = 512
+
     /** Default threshold: drop VERBOSE/DEBUG, keep INFO and above. */
     const val DEFAULT_LEVEL = Log.INFO
 
@@ -29,6 +32,9 @@ object DebugLog {
         SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     }
     private val pendingLines = ConcurrentLinkedQueue<String>()
+
+    @Volatile
+    private var sessionHeaderEmitted = false
 
     @Volatile
     private var xposed: XposedInterface? = null
@@ -52,6 +58,34 @@ object DebugLog {
      */
     fun ensureSession() {
         runCatching { Preferences.rotateLogSessionIfNeeded(sessionToken()) }
+        emitSessionHeader()
+    }
+
+    /**
+     * Writes a one-time per-process session header (device / build / module version) so the log has
+     * the exact ROM and module build that produced it — the key fact for triaging OTA-dependent
+     * breakage. Emitted at INFO once per process session; an explicit higher log level drops it,
+     * but the log-dump interface prepends a fresh header regardless.
+     */
+    private fun emitSessionHeader() {
+        if (sessionHeaderEmitted) return
+        sessionHeaderEmitted = true
+        i("Session", sessionHeader())
+    }
+
+    fun sessionHeader(): String {
+        val hyperOs = runCatching {
+            val sp = Class.forName("android.os.SystemProperties")
+            sp.getMethod("get", String::class.java, String::class.java)
+                .invoke(null, "ro.miui.ui.version.name", "") as String
+        }.getOrNull().orEmpty()
+        return buildString {
+            append("device=${android.os.Build.DEVICE} model=${android.os.Build.MODEL} android=${android.os.Build.VERSION.RELEASE}(SDK${android.os.Build.VERSION.SDK_INT})")
+            append(" build=${android.os.Build.ID}/${android.os.Build.DISPLAY}")
+            if (hyperOs.isNotBlank()) append(" hyperos=$hyperOs")
+            append(" fingerprint=${android.os.Build.FINGERPRINT}")
+            append(" module=v${BuildConfig.VERSION_CODE} process=$processTag")
+        }
     }
 
     private fun sessionToken(): String {
@@ -104,6 +138,10 @@ object DebugLog {
     }
 
     private fun currentThreshold(): Int {
+        // Per-process override wins, so one process can be debugged at DEBUG without flooding the
+        // rest. Falls back to the global level.
+        val perProcess = runCatching { Preferences.logLevelFor(processTag) }.getOrNull()
+        if (perProcess != null) return perProcess
         if (!Preferences.isInitialized) return DEFAULT_LEVEL
         return runCatching { Preferences.getInt(Preferences.KEY_LOG_LEVEL, DEFAULT_LEVEL) }
             .getOrDefault(DEFAULT_LEVEL)
@@ -120,7 +158,13 @@ object DebugLog {
             else -> Log.d(TAG, fullMessage)
         }
 
-        if (Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) {
+        // Never let a preference hiccup crash the logger: a failure inside a hook callback (e.g.
+        // while attaching a hooker) is itself logged via this path, and a throw here would swallow
+        // the very diagnostic we are trying to record (and propagate up into the host). If the
+        // record toggle can't be read, default to recording so the failure is preserved.
+        val recordLogs = runCatching { Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true) }
+            .getOrDefault(true)
+        if (recordLogs) {
             enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
         }
         forwardToXposed(priority, fullMessage, throwable)
@@ -145,6 +189,10 @@ object DebugLog {
 
     private fun enqueueLine(line: String, urgent: Boolean) {
         pendingLines.offer(line)
+        // Bound memory under a DEBUG flood: drop the oldest once the queue exceeds the cap.
+        if (pendingLines.size > MAX_PENDING_QUEUE) {
+            pendingLines.poll()
+        }
         scheduleFlush(urgent || pendingLines.size >= MAX_PENDING_LINES)
     }
 

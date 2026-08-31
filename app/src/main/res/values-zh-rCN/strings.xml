@@ -431,6 +431,10 @@
     <string name="logs_event_pid">%1$s · PID %2$s</string>
     <string name="logs_event_skipped">已跳过</string>
     <string name="logs_export">导出</string>
+    <string name="logs_export_prompt">点击导出并分享当前日志</string>
+    <string name="logs_export_status">已导出 · %1$s</string>
+    <string name="logs_process_level_title">按进程日志级别</string>
+    <string name="logs_process_level_summary">为特定进程单独覆盖日志级别</string>
     <string name="logs_filter_all">全部</string>
     <string name="logs_filter_content_description">筛选</string>
     <string name="logs_filter_errors">错误</string>

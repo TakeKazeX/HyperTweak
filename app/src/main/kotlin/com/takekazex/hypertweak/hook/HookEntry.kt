@@ -110,7 +110,18 @@ class HookEntry : XposedModule() {
         EzXposed.initOnSystemServerStarting(param)
         systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
-        dispatchSystemServerHookers(param.classLoader)
+        // Safety net: a structural failure while dispatching the framework hooks (any hooker failing
+        // to attach, or the dispatch itself blowing up) must land in the in-app debug log so it can
+        // be diagnosed from the app's Logs page without digging through LSPosed's daemon files.
+        // Each attachHooker already isolates per-hooker failures; this catches anything that escapes
+        // it (e.g. an unguarded preference read) and records it, then rethrows so the host still
+        // sees the failure.
+        try {
+            dispatchSystemServerHookers(param.classLoader)
+        } catch (t: Throwable) {
+            DebugLog.e("HookEntry", "system_server hook dispatch failed", t)
+            throw t
+        }
     }
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {

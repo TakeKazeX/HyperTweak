@@ -431,6 +431,10 @@
     <string name="logs_event_pid">%1$s · PID %2$s</string>
     <string name="logs_event_skipped">Skipped</string>
     <string name="logs_export">Export</string>
+    <string name="logs_export_prompt">Tap to export and share the current log</string>
+    <string name="logs_export_status">Exported · %1$s</string>
+    <string name="logs_process_level_title">Per-Process Log Level</string>
+    <string name="logs_process_level_summary">Override the log level for a specific process</string>
     <string name="logs_filter_all">All</string>
     <string name="logs_filter_content_description">Filter</string>
     <string name="logs_filter_errors">Errors</string>

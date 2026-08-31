@@ -87,6 +87,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -157,13 +158,18 @@ fun LogsPage(
     var logLevel by remember {
         mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
-    val exportStatus: String? = null
+    var exportStatus by remember { mutableStateOf<String?>(null) }
+    var processLevels by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     LaunchedEffect(Unit) {
-        val parsed = withContext(Dispatchers.Default) {
+        val (parsed, levels) = withContext(Dispatchers.Default) {
             val raw = runCatching { Preferences.getDebugLog() }.getOrDefault("")
-            parseLogEntries(raw).sortedBy { it.time }.asReversed()
+            val parsedEntries = parseLogEntries(raw).sortedBy { it.time }.asReversed()
+            val tags = runCatching { Preferences.debugLogProcessTags() }.getOrDefault(emptySet())
+            val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
+            parsedEntries to tags.map { tag -> tag to (Preferences.logLevelFor(tag) ?: global) }
         }
         entries = parsed
+        processLevels = levels
         loading = false
     }
     val filteredEntries = remember(entries, selectedFilter) {
@@ -176,6 +182,27 @@ fun LogsPage(
                 LogFilter.FailedHooks -> entry.isHookFailed
             }
         }
+    }
+
+    val onExport: () -> Unit = {
+        val exportText = buildString {
+            append("# HyperTweak debug log\n")
+            append(DebugLog.sessionHeader().trim())
+            append("\nFilter=${selectedFilter.name} shown=${filteredEntries.size}/${entries.size}\n\n")
+            append(filteredEntries.joinToString("\n\n", transform = ::formatSingleEntry))
+        }
+        val dir = File(context.filesDir, "logs").apply { mkdirs() }
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val file = File(dir, "hypertweak-logs-$stamp.txt")
+        runCatching { file.writeText(exportText) }
+        shareText(context, "HyperTweak Logs", exportText)
+        exportStatus = context.getString(R.string.logs_export_status, File(dir, "latest.txt").also { runCatching { it.writeText(exportText) } }.absolutePath)
+    }
+
+    val onProcessLevelSelected: (String, Int) -> Unit = { tag, level ->
+        Preferences.setLogLevelFor(tag, level)
+        val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
+        processLevels = processLevels.map { (t, _) -> t to (Preferences.logLevelFor(t) ?: global) }
     }
 
     Scaffold(
@@ -232,8 +259,12 @@ fun LogsPage(
                     onLogLevelSelected = {
                         logLevel = it
                         Preferences.putInt(Preferences.KEY_LOG_LEVEL, it.priority)
-                    }
+                    },
+                    onExport = onExport
                 )
+            }
+            item(key = "process-levels") {
+                ProcessLevelsCard(processLevels = processLevels, onSelected = onProcessLevelSelected)
             }
             item(key = "runtime-title") {
                 SmallTitle(text = stringResource(R.string.logs_runtime_title, filteredEntries.size))
@@ -319,7 +350,8 @@ private fun FilterCard(
     exportStatus: String?,
     logLevel: LogLevelOption,
     onSelected: (LogFilter) -> Unit,
-    onLogLevelSelected: (LogLevelOption) -> Unit
+    onLogLevelSelected: (LogLevelOption) -> Unit,
+    onExport: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -352,11 +384,40 @@ private fun FilterCard(
                 logFilters.getOrNull(index)?.let(onSelected)
             }
         )
-        if (exportStatus != null) {
-            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+        HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+        Card(
+            onClick = onExport,
+            modifier = Modifier.fillMaxWidth(),
+            pressFeedbackType = PressFeedbackType.Sink
+        ) {
             BasicComponent(
                 title = stringResource(R.string.logs_export),
-                summary = exportStatus
+                summary = exportStatus ?: stringResource(R.string.logs_export_prompt)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProcessLevelsCard(
+    processLevels: List<Pair<String, Int>>,
+    onSelected: (String, Int) -> Unit
+) {
+    if (processLevels.isEmpty()) return
+    SmallTitle(text = stringResource(R.string.logs_process_level_title))
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+    ) {
+        processLevels.forEachIndexed { index, (tag, priority) ->
+            if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            OverlayDropdownPreference(
+                title = tag,
+                summary = stringResource(R.string.logs_process_level_summary),
+                items = logLevelOptions.map { stringResource(it.labelRes) },
+                selectedIndex = logLevelOptions.indexOf(logLevelFromPriority(priority)).coerceAtLeast(0),
+                onSelectedIndexChange = { idx -> logLevelOptions.getOrNull(idx)?.let { onSelected(tag, it.priority) } }
             )
         }
     }

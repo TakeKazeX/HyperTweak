@@ -95,6 +95,15 @@
             android:authorities="com.takekazex.hypertweak.batteryprovider"
             android:exported="true"
             android:grantUriPermissions="false" />
+
+        <!-- Exposes the aggregated cross-process debug log over content:// so an agent (adb /
+             scripting) can dump/read it without opening the app. Exported read-only: the write path
+             stores only into the module's own files dir, never caller-supplied locations. -->
+        <provider
+            android:name="com.takekazex.hypertweak.LogDumpProvider"
+            android:authorities="com.takekazex.hypertweak.logdump"
+            android:exported="true"
+            android:grantUriPermissions="false" />
     </application>
 
 </manifest>
