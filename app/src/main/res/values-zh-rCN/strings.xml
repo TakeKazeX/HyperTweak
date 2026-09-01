@@ -119,6 +119,12 @@
     <string name="debug_page_title">调试</string>
     <string name="debug_record_logs_summary">持久化模块和 Hook 运行时日志</string>
     <string name="debug_record_logs_title">记录日志</string>
+    <string name="debug_notification_test_title">测试通知</string>
+    <string name="debug_notification_test_one">弹出 1 条测试通知</string>
+    <string name="debug_notification_test_three">弹出 3 条测试通知</string>
+    <string name="notification_test_title">HyperTweak 测试通知 %1$d / %2$d</string>
+    <string name="notification_test_text">这条横幅用于查看通知弹出玻璃效果</string>
+    <string name="notification_test_shell_failed">无法弹出测试通知（需要 root/shell 权限）</string>
     <string name="battery_info_title">电池信息</string>
     <string name="battery_info_menu_title">电池信息</string>
     <string name="battery_info_menu_summary">读取并展示全部电池参数</string>

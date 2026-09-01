@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,11 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.TestNotifier
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -35,6 +39,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -45,14 +50,20 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
+@SuppressLint("LocalContextGetResourceValueCall")
 fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit, onClearAllSettings: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
+    val context = LocalContext.current
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
     var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
     // Two-step "clear all settings" escalation: the first dialog is a normal confirmation; the
     // second is an extra strong confirm before the destructive clear actually runs.
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showClearAllSecondDialog by remember { mutableStateOf(false) }
+
+    // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
+    // notification is posted by the shell uid, not the module app process.
+    val postTestNotifications: (Int) -> Unit = { count -> TestNotifier.post(context, count) }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.debug_page_title),
@@ -96,6 +107,25 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit, onClearAllSettin
                         summary = stringResource(R.string.debug_logs_summary),
                         onClick = onNavigateToLogs
                     )
+                }
+            }
+            SmallTitle(stringResource(R.string.debug_notification_test_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { postTestNotifications(1) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text(stringResource(R.string.debug_notification_test_one))
+                    }
+                    Button(
+                        onClick = { postTestNotifications(3) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text(stringResource(R.string.debug_notification_test_three))
+                    }
                 }
             }
             SmallTitle(stringResource(R.string.settings_clear_all_settings))

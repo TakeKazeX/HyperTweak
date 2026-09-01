@@ -119,6 +119,12 @@
     <string name="debug_page_title">Debug</string>
     <string name="debug_record_logs_summary">Persist module and hook runtime logs</string>
     <string name="debug_record_logs_title">Record Logs</string>
+    <string name="debug_notification_test_title">Test Notifications</string>
+    <string name="debug_notification_test_one">Post 1 test notification</string>
+    <string name="debug_notification_test_three">Post 3 test notifications</string>
+    <string name="notification_test_title">HyperTweak test notification %1$d of %2$d</string>
+    <string name="notification_test_text">This banner lets you inspect the notification pop-up glass</string>
+    <string name="notification_test_shell_failed">Could not post test notification (no root/shell access)</string>
     <string name="battery_info_title">Battery Info</string>
     <string name="battery_info_menu_title">Battery Info</string>
     <string name="battery_info_menu_summary">Read and display all battery parameters</string>
