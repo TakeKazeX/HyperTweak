@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeHapticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeExtrasHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
@@ -571,6 +572,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospVolumeHapticHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AospVolumeExtrasHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ExtendUnlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
