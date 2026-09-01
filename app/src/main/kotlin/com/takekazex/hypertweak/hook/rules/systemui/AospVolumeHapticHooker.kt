@@ -31,19 +31,23 @@ import java.lang.reflect.Method
  *    change; skip at max/min so the boundary hook below supplies the "reached the top" cue). Because
  *    this maps 1:1 to a real volume step, one press = one tick, while holding/auto-repeat fires it
  *    per step = a following series.
- *  - `SliderHapticFeedbackProvider#onProgress(float)`: swallowed (short-circuited) so the
- *    animation-driven MSDL ramp no longer buzzes; the bookend flags are reset here to keep
- *    `executeOnBookend` (max/min) working.
- *  - `MSDLPlayerImpl#playToken(MSDLToken, InteractionProperties)`: when the ramp reaches its bookend
- *    and `executeOnBookend` plays `DRAG_THRESHOLD_INDICATOR_LIMIT`, we swallow it and play the MIUI
- *    boundary waveform (`FLAG_MIUI_HAPTIC_MESH_HEAVY` — the same effect the stock MIUI panel used at
- *    max) instead, so the "到顶" cue is also MIUI's.
+ *  - `SliderHapticFeedbackProvider#onProgress(float)`: swallowed (short-circuited) only for the
+ *    key-driven handle animation (the ~29× "嗡嗡嗡"), driven by a companion hook on
+ *    `SliderStateTracker#executeOnState(SliderState)` that tracks `DRAG_HANDLE_DRAGGING`; a real
+ *    drag is left running so the MSDL drag feedback is restored. Bookend flags are reset when the
+ *    call is swallowed so `executeOnBookend` (max/min) keeps working.
+ *  - `MSDLPlayerImpl#playToken(MSDLToken, InteractionProperties)`: routes the MSDL tokens to MIUI
+ *    waveforms — the bookend `DRAG_THRESHOLD_INDICATOR_LIMIT` to `FLAG_MIUI_HAPTIC_MESH_HEAVY` (the
+ *    stock MIUI panel's "top" cue) and the ramp `DRAG_INDICATOR_CONTINUOUS`/`_DISCRETE` to
+ *    `FLAG_MIUI_HAPTIC_MESH_NORMAL`, so both a key press and a drag give pleasant MESH ticks instead
+ *    of the MSDL "嗡嗡嗡".
  *
- * `SliderHapticFeedbackProvider`, `VolumeDialogControllerImpl$C`,
- * `com.google.android.msdl.domain.MSDLPlayerImpl` and `miui.util.HapticFeedbackUtil` are real,
- * unobfuscated names in the SystemUI/framework dex, so no DexKit is needed. Live behavior is gated
- * on `KEY_AOSP_VOLUME_PANEL && KEY_AOSP_VOLUME_HAPTIC_MIUI`, both snapshotted at `onHook` (the panel
- * switch already needs a SystemUI restart). Requires a SystemUI restart.
+ * `SliderHapticFeedbackProvider`, `SliderStateTracker`, `SliderState`,
+ * `VolumeDialogControllerImpl$C`, `com.google.android.msdl.domain.MSDLPlayerImpl` and
+ * `miui.util.HapticFeedbackUtil` are real, unobfuscated names in the SystemUI/framework dex, so no
+ * DexKit is needed. Live behavior is gated on `KEY_AOSP_VOLUME_PANEL && KEY_AOSP_VOLUME_HAPTIC_MIUI`,
+ * both snapshotted at `onHook` (the panel switch already needs a SystemUI restart). Requires a
+ * SystemUI restart.
  */
 object AospVolumeHapticHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -51,6 +55,8 @@ object AospVolumeHapticHooker : StaticHooker() {
     private const val TAG = "AospVolumeHaptic"
 
     private const val SLIDER_PROVIDER = "com.android.systemui.haptics.slider.SliderHapticFeedbackProvider"
+    private const val SLIDER_STATE_TRACKER = "com.android.systemui.haptics.slider.SliderStateTracker"
+    private const val SLIDER_STATE = "com.android.systemui.haptics.slider.SliderState"
     private const val CONTROLLER_CALLBACKS = "com.android.systemui.volume.VolumeDialogControllerImpl\$C"
     private const val MIUI_HAPTIC_UTIL = "miui.util.HapticFeedbackUtil"
     private const val MSDL_PLAYER_IMPL = "com.google.android.msdl.domain.MSDLPlayerImpl"
@@ -61,6 +67,9 @@ object AospVolumeHapticHooker : StaticHooker() {
     private const val FLAG_MIUI_HAPTIC_MESH_HEAVY = 268435460  // 0x10000004
 
     private const val TOKEN_DRAG_THRESHOLD_LIMIT = "DRAG_THRESHOLD_INDICATOR_LIMIT"
+    private const val TOKEN_DRAG_CONTINUOUS = "DRAG_INDICATOR_CONTINUOUS"
+    private const val TOKEN_DRAG_DISCRETE = "DRAG_INDICATOR_DISCRETE"
+    private const val STATE_DRAG_HANDLE_DRAGGING = "DRAG_HANDLE_DRAGGING"
 
     @Volatile
     private var enabled = false
@@ -75,6 +84,15 @@ object AospVolumeHapticHooker : StaticHooker() {
     private var fieldHasVibratedLower: Field? = null
     private var msdlPlayerClass: Class<Any>? = null
     private var thresholdToken: Any? = null
+    private var dragContinuousToken: Any? = null
+    private var dragDiscreteToken: Any? = null
+    private var trackerClass: Class<Any>? = null
+    private var stateDragDragging: Any? = null
+
+    // True while the volume slider is being dragged, so onProgress is left running (restoring the
+    // MSDL drag feedback); it is only swallowed for the key-driven handle animation (the "嗡嗡嗡").
+    @Volatile
+    private var dragActive = false
 
     override fun onPrepareHotReload() {
         enabled = false
@@ -87,6 +105,11 @@ object AospVolumeHapticHooker : StaticHooker() {
         fieldHasVibratedLower = null
         msdlPlayerClass = null
         thresholdToken = null
+        dragContinuousToken = null
+        dragDiscreteToken = null
+        trackerClass = null
+        stateDragDragging = null
+        dragActive = false
     }
 
     override fun onHook() {
@@ -126,8 +149,10 @@ object AospVolumeHapticHooker : StaticHooker() {
         }
         DebugLog.i(TAG, "HOOK_OK $CONTROLLER_CALLBACKS#onPerformHapticFeedback(Int)")
 
-        // 2) Swallow the MSDL ramp so the animation-driven buzz is gone; reset bookend flags so the
-        //    max/min limit haptic (executeOnBookend) keeps working.
+        // 2) Swallow the MSDL ramp ONLY for the key-driven handle animation (the ~29× "嗡嗡嗡");
+        //    leave it running for a real drag so the MSDL drag feedback is restored. Track the drag
+        //    state via SliderStateTracker#executeOnState. onProgress resets the bookend flags when it
+        //    is swallowed so the max/min limit haptic (executeOnBookend) still fires.
         val clazz = providerInstance
             ?: SLIDER_PROVIDER.toClassOrNull()?.also { providerInstance = it }
             ?: run {
@@ -147,14 +172,44 @@ object AospVolumeHapticHooker : StaticHooker() {
         onProgress.hook {
             before { param ->
                 if (!enabled) return@before
-                // Swallow the MSDL ramp and reset the bookend flags so executeOnBookend (max/min
-                // limit haptic) still fires as the original onProgress would have.
-                val provider = param.thisObject
-                resetBookendFlags(provider)
-                param.result = null
+                // A real drag keeps the MSDL ramp (drag feedback restored); a key-driven animation is
+                // swallowed so the HapticFeedbackUtil tick below is the only key feedback.
+                if (!dragActive) {
+                    resetBookendFlags(param.thisObject)
+                    param.result = null
+                }
             }
         }
         DebugLog.i(TAG, "HOOK_OK $SLIDER_PROVIDER#onProgress(Float)")
+
+        // 2b) Track the drag state: DRAG_HANDLE_DRAGGING (pointer drag) leaves onProgress running;
+        //     the ARROW/continuous states (key-driven handle animation) make onProgress get swallowed.
+        val tracker = trackerClass
+            ?: SLIDER_STATE_TRACKER.toClassOrNull()?.also { trackerClass = it }
+            ?: run {
+                DebugLog.hookSkipped(TAG, SLIDER_STATE_TRACKER, "class not found")
+                return
+            }
+        val executeOnState = tracker.declaredMethods.firstOrNull {
+            it.name == "executeOnState" && it.parameterTypes.size == 1 &&
+                it.parameterTypes[0].name == SLIDER_STATE
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$SLIDER_STATE_TRACKER#executeOnState($SLIDER_STATE)", "method not found")
+            return
+        }
+        if (stateDragDragging == null) {
+            val stateClass = SLIDER_STATE.toClassOrNull()
+            stateDragDragging = stateClass?.getField(STATE_DRAG_HANDLE_DRAGGING)?.get(null)
+        }
+        val dragState = stateDragDragging
+        deoptimize(executeOnState)
+        executeOnState.hook {
+            before { param ->
+                if (!enabled) return@before
+                dragActive = dragState != null && param.args.getOrNull(0) === dragState
+            }
+        }
+        DebugLog.i(TAG, "HOOK_OK $SLIDER_STATE_TRACKER#executeOnState(SliderState)")
 
         // 3) Route the max/min "limit" MSDL token (played by executeOnBookend for the bookend of the
         //    ramp) to the MIUI boundary waveform instead of the generic DRAG_THRESHOLD_INDICATOR_LIMIT.
@@ -174,15 +229,28 @@ object AospVolumeHapticHooker : StaticHooker() {
         if (thresholdToken == null) {
             val tokenClass = MSDL_TOKEN.toClassOrNull()
             thresholdToken = tokenClass?.getField(TOKEN_DRAG_THRESHOLD_LIMIT)?.get(null)
+            dragContinuousToken = tokenClass?.getField(TOKEN_DRAG_CONTINUOUS)?.get(null)
+            dragDiscreteToken = tokenClass?.getField(TOKEN_DRAG_DISCRETE)?.get(null)
         }
         val threshold = thresholdToken
+        val dragContinuous = dragContinuousToken
+        val dragDiscrete = dragDiscreteToken
         deoptimize(playToken)
         playToken.hook {
             before { param ->
-                if (!enabled || threshold == null) return@before
-                if (param.args.getOrNull(0) === threshold) {
-                    param.result = null
-                    playMiui(FLAG_MIUI_HAPTIC_MESH_HEAVY)
+                if (!enabled) return@before
+                val token = param.args.getOrNull(0) ?: return@before
+                // Bookend (max/min) -> MIUI boundary; the ramp drag token -> MIUI tick, so a drag gives
+                // pleasant MESH ticks instead of the harsh DRAG_INDICATOR_CONTINUOUS "嗡嗡嗡".
+                when (token) {
+                    threshold -> {
+                        param.result = null
+                        playMiui(FLAG_MIUI_HAPTIC_MESH_HEAVY)
+                    }
+                    dragContinuous, dragDiscrete -> {
+                        param.result = null
+                        playMiui(FLAG_MIUI_HAPTIC_MESH_NORMAL)
+                    }
                 }
             }
         }
