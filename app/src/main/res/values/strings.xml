@@ -36,6 +36,8 @@
     <string name="aosp_section_system_ui">System UI</string>
     <string name="aosp_volume_panel">AOSP Volume Panel</string>
     <string name="aosp_volume_panel_summary">Hide MIUI\'s volume-dialog plugin so the AOSP volume panel is used. Other volume slider tweaks do not apply to it. Requires a SystemUI restart</string>
+    <string name="aosp_volume_haptic_miui">MIUI Volume Haptic</string>
+    <string name="aosp_volume_haptic_miui_summary">Use MIUI\'s adapted vibration on the AOSP volume panel instead of SystemUI\'s strong continuous buzz. Requires a SystemUI restart</string>
     <string name="appearance_accent_color">Accent Color</string>
     <string name="appearance_back">Back</string>
     <string name="appearance_back_style">Predictive Back Style</string>

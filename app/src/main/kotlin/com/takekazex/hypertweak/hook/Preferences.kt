@@ -209,6 +209,14 @@ object Preferences {
     /** Blocks MIUI's volume-dialog plugin so SystemUI falls back to the AOSP volume panel. */
     const val KEY_AOSP_VOLUME_PANEL = "aosp_volume_panel"
 
+    /**
+     * When the AOSP volume panel is active, replaces its generic MSDL "continuous" slider haptic
+     * (the strong sustained buzz on every volume change) with MIUI's own per-scene adapted waveform
+     * (`miui.util.HapticFeedbackUtil`), matching the feel of the stock MIUI volume panel.
+     * Only meaningful while [KEY_AOSP_VOLUME_PANEL] is on. Defaults on.
+     */
+    const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
+
     /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
     const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
 

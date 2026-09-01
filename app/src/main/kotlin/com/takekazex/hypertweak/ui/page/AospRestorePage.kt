@@ -64,6 +64,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var volumePanel by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false))
     }
+    var volumePanelHapticMiui by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, true))
+    }
     var extendUnlockFix by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false))
     }
@@ -135,6 +138,17 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         },
                         title = stringResource(R.string.aosp_volume_panel),
                         summary = stringResource(R.string.aosp_volume_panel_summary)
+                    )
+                    SwitchPreference(
+                        checked = volumePanelHapticMiui,
+                        onCheckedChange = { enabled ->
+                            volumePanelHapticMiui = enabled
+                            systemUiRestartPending = true
+                            Preferences.putBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, enabled)
+                        },
+                        enabled = volumePanel,
+                        title = stringResource(R.string.aosp_volume_haptic_miui),
+                        summary = stringResource(R.string.aosp_volume_haptic_miui_summary)
                     )
                     SwitchPreference(
                         checked = extendUnlockFix,

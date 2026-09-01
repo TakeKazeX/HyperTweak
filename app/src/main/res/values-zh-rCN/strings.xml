@@ -36,6 +36,8 @@
     <string name="aosp_section_system_ui">系统界面</string>
     <string name="aosp_volume_panel">AOSP 音量面板</string>
     <string name="aosp_volume_panel_summary">隐藏 MIUI 的音量对话框插件，以使用 AOSP 音量面板。其他音量滑块微调不适用于它。需要重启 SystemUI</string>
+    <string name="aosp_volume_haptic_miui">小米音量震动</string>
+    <string name="aosp_volume_haptic_miui_summary">在 AOSP 音量面板上使用小米适配的震动，替代 SystemUI 的持续嗡嗡声。需要重启 SystemUI</string>
     <string name="appearance_accent_color">强调色</string>
     <string name="appearance_back">返回</string>
     <string name="appearance_back_style">预测性返回样式</string>
