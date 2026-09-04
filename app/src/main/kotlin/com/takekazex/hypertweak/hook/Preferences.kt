@@ -56,6 +56,9 @@ object Preferences {
     /** Adds seconds to the large clock shown when the notification shade is expanded. */
     const val KEY_NOTIFICATION_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
 
+    /** Disables Monet-derived colors for framework-generated notification text. */
+    const val KEY_NOTIFICATION_MONET_TEXT_COLOR = "notification_monet_text_color"
+
     /**
      * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by
      * `KeyguardFingerprintAvoidHooker` at hook-install time; requires a SystemUI restart.

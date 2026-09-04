@@ -66,6 +66,8 @@ fun SystemUIPage(
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
     notificationHeaderClockSeconds: Boolean,
     onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
+    notificationMonetTextColor: Boolean,
+    onNotificationMonetTextColorChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -167,6 +169,12 @@ fun SystemUIPage(
                             onCheckedChange = onNotificationHeaderClockSecondsChange,
                             title = stringResource(R.string.settings_notification_header_clock_seconds_title),
                             summary = stringResource(R.string.settings_notification_header_clock_seconds_summary)
+                        )
+                        SwitchPreference(
+                            checked = notificationMonetTextColor,
+                            onCheckedChange = onNotificationMonetTextColorChange,
+                            title = stringResource(R.string.settings_notification_monet_text_color_title),
+                            summary = stringResource(R.string.settings_notification_monet_text_color_summary)
                         )
                     }
                 }
