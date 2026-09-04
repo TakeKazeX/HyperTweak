@@ -154,11 +154,10 @@ fun BatteryInfoPage(onBack: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BatteryInfoRow(row: BatteryInfoReader.Row, onLongPress: () -> Unit) {
-    val context = LocalContext.current
     val name = row.label.substringBefore(" · ")
     val key = row.label.substringAfter(" · ", "")
-    val unavailable = context.getString(R.string.battery_unavailable)
-    val unreadable = context.getString(R.string.battery_unreadable)
+    val unavailable = stringResource(R.string.battery_unavailable)
+    val unreadable = stringResource(R.string.battery_unreadable)
     val isNa = row.value == unavailable || row.value.startsWith(unavailable) || row.value == unreadable
     // Long values (e.g. a 33-char serial) get a smaller font so they fit on one line in full.
     val valueSp = when {

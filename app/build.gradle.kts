@@ -140,9 +140,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     
     // Compose Runtime & UI
-    implementation("androidx.compose.ui:ui:1.11.4")
-    implementation("androidx.compose.ui:ui-graphics:1.11.4")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.11.4")
+    implementation("androidx.compose.ui:ui:1.12.0")
+    implementation("androidx.compose.ui:ui-graphics:1.12.0")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.12.0")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
@@ -154,7 +154,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.3")
-    implementation("androidx.navigation3:navigation3-runtime:1.1.5")
+    implementation("androidx.navigation3:navigation3-runtime:1.1.7")
     implementation("androidx.navigationevent:navigationevent:1.1.2")
 
     // libxposed
@@ -163,8 +163,8 @@ dependencies {
     implementation("io.github.libxposed:service:102.0.0")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.1.2")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.1.2")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.2.1")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.2.1")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
