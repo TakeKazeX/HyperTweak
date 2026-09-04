@@ -547,6 +547,9 @@
     <string name="settings_system_ui_summary">SystemUI tweaks: wallpaper-color refresh, lockscreen fingerprint avoidance, charging detail, lockscreen notifications and media cards</string>
     <string name="settings_system_ui_back">Back</string>
     <string name="settings_system_ui_section_general">General</string>
+    <string name="settings_system_ui_section_notification_shade">Notification Shade</string>
+    <string name="settings_notification_header_clock_seconds_title">Show Seconds On Large Clock</string>
+    <string name="settings_notification_header_clock_seconds_summary">Show seconds on the large clock when the notification shade is expanded; long-press either clock to temporarily toggle seconds for five minutes</string>
     <string name="settings_system_ui_section_lockscreen">Lockscreen</string>
     <string name="settings_system_ui_section_media">Media Cards</string>
     <string name="settings_predictive_back_apps">Predictive Back Apps</string>

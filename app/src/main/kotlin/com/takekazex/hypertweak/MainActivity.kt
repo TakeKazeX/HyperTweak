@@ -52,6 +52,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
@@ -232,6 +233,11 @@ class MainActivity : ComponentActivity() {
             var askAboutScreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)) }
             var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
+            var notificationHeaderClockSeconds by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+                )
+            }
             var lockscreenFingerprintAvoid by remember {
                 mutableIntStateOf(
                     Preferences.getInt(
@@ -370,6 +376,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
+                    Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
                     Preferences.KEY_MIUI_BACK_GESTURE_HOOK -> miuiBackGestureHook
                     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
@@ -779,6 +786,10 @@ class MainActivity : ComponentActivity() {
                     askAboutScreen = Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
                     hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+                    notificationHeaderClockSeconds = Preferences.getBoolean(
+                        Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
+                        false
+                    )
                     lockscreenFingerprintAvoid = Preferences.getInt(
                         Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
                         Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
@@ -1005,6 +1016,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
                         hideLockscreenStatusBar = checked
                         Preferences.putBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
+                    },
+                    notificationHeaderClockSeconds = notificationHeaderClockSeconds,
+                    onNotificationHeaderClockSecondsChange = { checked ->
+                        markTweaked(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, checked)
+                        notificationHeaderClockSeconds = checked
+                        Preferences.putBoolean(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, checked)
                     },
                     lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                     onLockscreenFingerprintAvoidChange = { mode ->

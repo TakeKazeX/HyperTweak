@@ -547,6 +547,9 @@
     <string name="settings_system_ui_summary">系统界面相关调整：壁纸配色刷新、锁屏指纹避让、充电详情、锁屏通知与媒体卡片</string>
     <string name="settings_system_ui_back">返回</string>
     <string name="settings_system_ui_section_general">通用</string>
+    <string name="settings_system_ui_section_notification_shade">通知中心</string>
+    <string name="settings_notification_header_clock_seconds_title">通知中心大时钟显示秒钟</string>
+    <string name="settings_notification_header_clock_seconds_summary">展开通知中心时，让顶部大时钟显示秒钟；长按状态栏或大时钟可临时切换，五分钟后自动恢复</string>
     <string name="settings_system_ui_section_lockscreen">锁屏</string>
     <string name="settings_system_ui_section_media">媒体卡片</string>
     <string name="settings_predictive_back_apps">预测性返回应用</string>

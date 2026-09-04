@@ -23,4 +23,7 @@
     <string name="camera_unlock_street_compat">Foto callejera compatible</string>
     <string name="camera_unlock_street_quick_launch_title">Foto callejera para la cámara rápida</string>
     <string name="camera_unlock_street_quick_launch_summary">La cámara rápida de la pantalla de bloqueo (设置→锁屏→其他→急速相机「打开相机并拍照», doble pulsación de Volumen abajo con pantalla bloqueada) abre 街拍 en vez de una captura normal — también con 兼容模式街拍, disparando automáticamente. También muestra la opción「打开相机并拍照」 en los ajustes del sistema. Necesita un modo callejero activado y reiniciar la cámara</string>
+    <string name="settings_system_ui_section_notification_shade">Panel de notificaciones</string>
+    <string name="settings_notification_header_clock_seconds_title">Mostrar segundos en el reloj grande</string>
+    <string name="settings_notification_header_clock_seconds_summary">Mostrar segundos en el reloj grande al expandir el panel de notificaciones; mantén pulsado cualquiera de los dos relojes para alternarlos temporalmente durante cinco minutos</string>
 </resources>

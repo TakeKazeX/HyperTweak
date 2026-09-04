@@ -118,6 +118,8 @@ fun HyperTweakNavContainer(
     onHideFingerprintChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
+    notificationHeaderClockSeconds: Boolean,
+    onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     sliderShowPercentage: Boolean,
@@ -433,6 +435,8 @@ fun HyperTweakNavContainer(
                 onHideFingerprintChange = onHideFingerprintChange,
                 hideLockscreenStatusBar = hideLockscreenStatusBar,
                 onHideLockscreenStatusBarChange = onHideLockscreenStatusBarChange,
+                notificationHeaderClockSeconds = notificationHeaderClockSeconds,
+                onNotificationHeaderClockSecondsChange = onNotificationHeaderClockSecondsChange,
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {

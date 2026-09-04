@@ -53,6 +53,9 @@ object Preferences {
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
 
+    /** Adds seconds to the large clock shown when the notification shade is expanded. */
+    const val KEY_NOTIFICATION_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
+
     /**
      * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by
      * `KeyguardFingerprintAvoidHooker` at hook-install time; requires a SystemUI restart.

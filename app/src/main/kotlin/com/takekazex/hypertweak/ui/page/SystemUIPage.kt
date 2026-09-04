@@ -64,6 +64,8 @@ fun SystemUIPage(
     onHideFingerprintChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
+    notificationHeaderClockSeconds: Boolean,
+    onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -153,6 +155,20 @@ fun SystemUIPage(
                         title = stringResource(R.string.settings_immediate_monet_refresh),
                         summary = stringResource(R.string.settings_immediate_monet_refresh_summary)
                     )
+                }
+            }
+
+            if (PlatformLevel.isOs4) {
+                SmallTitle(stringResource(R.string.settings_system_ui_section_notification_shade))
+                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    Column(Modifier.fillMaxWidth()) {
+                        SwitchPreference(
+                            checked = notificationHeaderClockSeconds,
+                            onCheckedChange = onNotificationHeaderClockSecondsChange,
+                            title = stringResource(R.string.settings_notification_header_clock_seconds_title),
+                            summary = stringResource(R.string.settings_notification_header_clock_seconds_summary)
+                        )
+                    }
                 }
             }
 
