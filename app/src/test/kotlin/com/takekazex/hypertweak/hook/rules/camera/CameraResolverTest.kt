@@ -96,6 +96,46 @@ class CameraResolverTest {
     }
 
     @Test
+    fun `adaptive lens resolver prefers the new h5 and j5 pair`() {
+        val pair = CameraResolver.findUniqueStaticBooleanPair(
+            CameraFixtures.AdaptiveLensNew::class.java,
+            listOf("h5" to "j5", "g5" to "i5"),
+        )
+        assertNotNull(pair)
+        assertEquals("h5", pair!!.first.name)
+        assertEquals("j5", pair.second.name)
+    }
+
+    @Test
+    fun `adaptive lens resolver falls back to the old g5 and i5 pair`() {
+        val pair = CameraResolver.findUniqueStaticBooleanPair(
+            CameraFixtures.AdaptiveLensOld::class.java,
+            listOf("h5" to "j5", "g5" to "i5"),
+        )
+        assertNotNull(pair)
+        assertEquals("g5", pair!!.first.name)
+        assertEquals("i5", pair.second.name)
+    }
+
+    @Test
+    fun `adaptive lens resolver rejects mismatched argument types`() {
+        val pair = CameraResolver.findUniqueStaticBooleanPair(
+            CameraFixtures.AdaptiveLensMismatched::class.java,
+            listOf("h5" to "j5", "g5" to "i5"),
+        )
+        assertNull(pair)
+    }
+
+    @Test
+    fun `adaptive lens resolver rejects overloaded gate names`() {
+        val pair = CameraResolver.findUniqueStaticBooleanPair(
+            CameraFixtures.AdaptiveLensOverloaded::class.java,
+            listOf("h5" to "j5", "g5" to "i5"),
+        )
+        assertNull(pair)
+    }
+
+    @Test
     fun `CompatibleMethodResolver still matches typed overloads uniquely`() {
         val method = CompatibleMethodResolver.find(
             CameraFixtures.Factory460::class.java, "q",

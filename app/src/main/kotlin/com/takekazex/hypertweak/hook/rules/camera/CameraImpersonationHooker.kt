@@ -1442,14 +1442,17 @@ object CameraImpersonationHooker : StaticHooker() {
         return matches.singleOrNull()
     }
 
-    /** Shape contract of the adaptive-lens gate pair ([uniqueCapabilityMethod] plus sameness). */
-    private fun isAdaptiveLensUtil(clazz: Class<*>): Boolean {
-        val near = uniqueCapabilityMethod(clazz, "g5") ?: return false
-        val tele = uniqueCapabilityMethod(clazz, "i5") ?: return false
-        // Both gates take the SAME capabilities object type; a repurposed name pair would
-        // almost certainly diverge here.
-        return near.parameterTypes.contentEquals(tele.parameterTypes)
-    }
+    /** Newer camera builds renamed the adaptive-lens pair from g5/i5 to h5/j5. */
+    private val ADAPTIVE_LENS_GATE_PAIRS = listOf(
+        "h5" to "j5",
+        "g5" to "i5",
+    )
+
+    /** Shape contract of the adaptive-lens gate pair; newest names are preferred. */
+    private fun adaptiveLensGatePair(clazz: Class<*>): Pair<Method, Method>? =
+        CameraResolver.findUniqueStaticBooleanPair(clazz, ADAPTIVE_LENS_GATE_PAIRS)
+
+    private fun isAdaptiveLensUtil(clazz: Class<*>): Boolean = adaptiveLensGatePair(clazz) != null
 
     /**
      * Resolve the camera's capabilities-util helper class (jadx C3545f, real dex name e.g.
@@ -1491,23 +1494,30 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "capabilities util not resolved; adaptive-lens unlock skipped")
             return
         }
+        val pair = adaptiveLensGatePair(clazz) ?: run {
+            DebugLog.w(TAG, "adaptive-lens gate pair not resolvable on ${clazz.name}; skipped")
+            return
+        }
         var hooked = 0
-        for (name in listOf("g5", "i5")) {
-            val method = uniqueCapabilityMethod(clazz, name) ?: continue
+        for (method in listOf(pair.first, pair.second)) {
+            val name = method.name
             deoptimize(method)
             method.hook("cam_adaptive_lens_$name") {
                 after { param ->
-                    if (!adaptiveLensUnlock()) return@after
-                    param.result = true
+                    runCatching {
+                        if (adaptiveLensUnlock()) param.result = true
+                    }.onFailure { t ->
+                        DebugLog.w(TAG, "adaptive-lens callback failed on $name", t)
+                    }
                 }
             }
             hooked++
         }
-        if (hooked == 0) {
-            DebugLog.w(TAG, "adaptive-lens gates not resolvable on ${clazz.name}; skipped")
-        } else {
-            DebugLog.i(TAG, "adaptive-lens hooked on $hooked gate(s) of ${clazz.name}")
-        }
+        DebugLog.i(
+            TAG,
+            "adaptive-lens hooked on $hooked gate(s) of ${clazz.name}: " +
+                "${pair.first.name}/${pair.second.name}",
+        )
     }
 
     /**

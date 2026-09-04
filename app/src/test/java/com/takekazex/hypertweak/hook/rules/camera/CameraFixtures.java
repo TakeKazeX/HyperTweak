@@ -29,4 +29,32 @@ public final class CameraFixtures {
     public static final class Repurposed {
         public static String helper() { return ""; }
     }
+
+    /** New camera build shape: adaptive-lens gates were renamed to h5/j5. */
+    public static final class AdaptiveLensNew {
+        public static boolean h5(Capabilities capabilities) { return false; }
+        public static boolean j5(Capabilities capabilities) { return false; }
+    }
+
+    /** Old camera build shape: adaptive-lens gates were named g5/i5. */
+    public static final class AdaptiveLensOld {
+        public static boolean g5(Capabilities capabilities) { return false; }
+        public static boolean i5(Capabilities capabilities) { return false; }
+    }
+
+    /** Pair is rejected when its two gates accept different capability argument types. */
+    public static final class AdaptiveLensMismatched {
+        public static boolean h5(Capabilities capabilities) { return false; }
+        public static boolean j5(OtherCapabilities capabilities) { return false; }
+    }
+
+    /** Pair is rejected when a gate name is overloaded with another one-argument boolean method. */
+    public static final class AdaptiveLensOverloaded {
+        public static boolean h5(Capabilities capabilities) { return false; }
+        public static boolean h5(OtherCapabilities capabilities) { return false; }
+        public static boolean j5(Capabilities capabilities) { return false; }
+    }
+
+    public static final class Capabilities {}
+    public static final class OtherCapabilities {}
 }

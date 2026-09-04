@@ -146,6 +146,37 @@ object CameraResolver {
     }
 
     /**
+     * Find the first uniquely resolvable pair of static boolean capability gates.
+     *
+     * Capability helpers contain many one-argument boolean methods, so a name-only lookup is
+     * unsafe after an APK update: a renamed/overloaded method can silently target another gate.
+     * Each pair must resolve exactly once, both methods must take the same argument type, and
+     * synthetic bridge methods are ignored. Pairs are tried in the caller's priority order.
+     */
+    fun findUniqueStaticBooleanPair(
+        clazz: Class<*>,
+        pairs: List<Pair<String, String>>,
+    ): Pair<Method, Method>? {
+        for ((firstName, secondName) in pairs) {
+            val first = clazz.declaredMethods.filter {
+                it.name == firstName && Modifier.isStatic(it.modifiers) &&
+                    it.parameterCount == 1 && it.returnType == java.lang.Boolean.TYPE &&
+                    !it.isSynthetic
+            }.singleOrNull() ?: continue
+            val second = clazz.declaredMethods.filter {
+                it.name == secondName && Modifier.isStatic(it.modifiers) &&
+                    it.parameterCount == 1 && it.returnType == java.lang.Boolean.TYPE &&
+                    !it.isSynthetic
+            }.singleOrNull() ?: continue
+            if (!first.parameterTypes.contentEquals(second.parameterTypes)) continue
+            first.isAccessible = true
+            second.isAccessible = true
+            return first to second
+        }
+        return null
+    }
+
+    /**
      * Generic structural fallback for the device-config factory method: on every verified build
      * the factory holds `public static <T> b` (the cached config instance) and a single static
      * zero-arg method whose return type is exactly that field's type (the factory itself).
