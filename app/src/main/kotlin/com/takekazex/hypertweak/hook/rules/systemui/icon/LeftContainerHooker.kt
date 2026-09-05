@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.Context
+import android.app.KeyguardManager
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -112,6 +113,8 @@ object LeftContainerHooker : StaticHooker() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
 
+    fun onPackageReady(context: Context) { appContext = context }
+
     private var iconViewConstructor: java.lang.reflect.Constructor<*>? = null
     private var iconViewMIconField: Field? = null
     private var isIconVisibleMethod: Method? = null
@@ -121,6 +124,7 @@ object LeftContainerHooker : StaticHooker() {
     private var setBlockListMethod: Method? = null
     private var islandShowingField: Field? = null
     private var slotGetter: Method? = null
+    @Volatile private var appContext: Context? = null
 
     /** Home DarkIconManager -> bookkeeping. Weak so stale managers vanish. */
     private val states = WeakHashMap<Any, LeftState>()
@@ -155,6 +159,10 @@ object LeftContainerHooker : StaticHooker() {
         active = master && slots.isNotEmpty()
         activeSlots = slots
     }
+
+    private fun keyguardShowing(): Boolean = runCatching {
+        appContext?.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+    }.getOrDefault(false)
 
     override fun onPrepareHotReload() {
         // Binder thread: never touch views here. Flag a full teardown; the main-thread ticker
@@ -348,11 +356,15 @@ object LeftContainerHooker : StaticHooker() {
         reloadSnapshot()
         synchronized(states) {
             states.values.forEach { state ->
-                if (active) {
+                if (active && !keyguardShowing()) {
                     applyBlocked(state)
                     syncClones(state)
                 } else {
-                    teardownState(state)
+                    if (keyguardShowing()) {
+                        state.leftContainer?.visibility = View.GONE
+                    } else {
+                        teardownState(state)
+                    }
                     applyBlocked(state) // restore pristine system list
                 }
             }
@@ -452,6 +464,10 @@ object LeftContainerHooker : StaticHooker() {
 
     /** Re-apply system ∪ selected to the manager if it differs from what we last applied. */
     private fun applyBlocked(state: LeftState) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { applyBlocked(state) }
+            return
+        }
         val effective = buildEffectiveList(state)
         val last = state.lastApplied
         if (last != null && last == effective) return
@@ -483,11 +499,12 @@ object LeftContainerHooker : StaticHooker() {
 
     private fun syncClonesFor(state: LeftState?) {
         if (state == null || !active) return
-        runCatching {
-            synchronized(states) { syncClones(state) }
-        }.onFailure { t ->
-            DebugLog.w(TAG, "LeftContainer sync failed", t)
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { syncClonesFor(state) }
+            return
         }
+        runCatching { synchronized(states) { syncClones(state) } }
+            .onFailure { t -> DebugLog.w(TAG, "LeftContainer sync failed", t) }
     }
 
     /** Idempotent: sees the current right-cluster children and mirrors them into the left. */
@@ -612,16 +629,23 @@ object LeftContainerHooker : StaticHooker() {
     private fun registerDarkReceiver(state: LeftState, clone: View) {
         val dispatcher = managerDarkDispatcher(state.manager) ?: return
         runCatching {
-            dispatcher.javaClass.getMethod("addDarkReceiver", View::class.java)
-                .invoke(dispatcher, clone)
+            val method = dispatcher.javaClass.methods.firstOrNull {
+                it.name == "addDarkReceiver" && it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0].isAssignableFrom(clone.javaClass)
+            } ?: dispatcher.javaClass.methods.firstOrNull {
+                it.name == "addDarkReceiver" && it.parameterTypes.size == 1
+            } ?: return
+            method.invoke(dispatcher, clone)
         }
     }
 
     private fun unregisterDarkReceiver(state: LeftState, clone: View) {
         val dispatcher = managerDarkDispatcher(state.manager) ?: return
         runCatching {
-            dispatcher.javaClass.getMethod("removeDarkReceiver", View::class.java)
-                .invoke(dispatcher, clone)
+            val method = dispatcher.javaClass.methods.firstOrNull {
+                it.name == "removeDarkReceiver" && it.parameterTypes.size == 1
+            } ?: return
+            method.invoke(dispatcher, clone)
         }
     }
 

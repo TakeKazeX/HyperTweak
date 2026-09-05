@@ -96,8 +96,6 @@ object NotificationMonetTextColorHooker : StaticHooker() {
             after { param ->
                 HookFailurePolicy.open(TAG, "$COLORS_CLASS#$RESOLVE_PALETTE after", Unit) {
                     if (!isEnabled()) return@open
-                    // Keep colorized palettes (and the app-supplied contrast they compute) intact.
-                    if (param.args.getOrNull(2) as? Boolean == true) return@open
                     val context = param.args.getOrNull(0) as? Context ?: return@open
                     val neutral = neutralFor(context)
                     textColorField?.setInt(param.thisObject, neutral)

@@ -66,7 +66,7 @@ object StackedSignalResources {
     /** Loads a module drawable directly, avoiding fake-id resolution in SystemUI Resources. */
     fun drawable(name: String): Drawable? {
         val ctx = moduleContext ?: return null
-        val id = ctx.resources.getIdentifier(name, "drawable", MODULE_PACKAGE)
+        val id = ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
         if (id == 0) return null
         return runCatching { ctx.resources.getDrawable(id, null) }.getOrNull()
     }
@@ -85,7 +85,7 @@ object StackedSignalResources {
         for (row in 1..2) {
             for (level in 0..5) {
                 val base = "statusbar_signal_${row}_$level$styleSuffix"
-                val moduleId = res.getIdentifier(base, "drawable", MODULE_PACKAGE)
+                val moduleId = res.getIdentifier(base, "drawable", ctx.packageName)
                 if (moduleId == 0) continue
                 val fake = fakeId(base)
                 fakes.put(fake, moduleId)

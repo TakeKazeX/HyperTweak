@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.SparseIntArray
 import android.view.View
 import android.view.ViewGroup
+import android.os.Handler
+import android.os.Looper
 import android.widget.ImageView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -98,6 +100,7 @@ object StackedSignalHooker : StaticHooker() {
     private val subIdCache = WeakHashMap<View, Int>()
     private val boundRoots = CopyOnWriteArrayList<WeakReference<ViewGroup>>()
     private val applyingIcons = ThreadLocal.withInitial { false }
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
     private var lastUseTint = false
@@ -383,9 +386,12 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun updateVisibilityForDataChange(dataId: Int) {
-        for (ref in boundRoots) {
-            val root = ref.get() ?: continue
-            applyNonDataSimVisibility(root)
+        mainHandler.post {
+            for (ref in boundRoots) {
+                val root = ref.get() ?: continue
+                applyNonDataSimVisibility(root)
+            }
+            refreshDataSimIcons()
         }
     }
 
@@ -502,7 +508,7 @@ object StackedSignalHooker : StaticHooker() {
             (value as? Number)?.toInt()?.let { newDataId ->
                 dataSubId.set(newDataId)
                 updateVisibilityForDataChange(newDataId)
-                refreshDataSimIcons()
+                mainHandler.post { refreshDataSimIcons() }
             }
         }
     }

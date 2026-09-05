@@ -404,6 +404,7 @@ class HookEntry : XposedModule() {
             ProxyLaunchHooker.register(appContext)
             ExtendUnlockHooker.syncTrustAgent(appContext)
             StackedSignalHooker.onPackageReady(appContext)
+            LeftContainerHooker.onPackageReady(appContext)
         }
         if (packageName == "com.google.android.gms") {
             QuickSharePhenotypeHooker.onPackageReady(appContext)
