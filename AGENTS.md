@@ -1,114 +1,30 @@
-# Coding Agent Guide
+# HyperTweak Agent Rules
 
-HyperTweak keeps agent operating rules in this file and project facts in
-[`CLAUDE.md`](CLAUDE.md). Read both before changing code. When they differ from
-the repository, trust the repository and update the reference documentation if
-needed.
+`AGENTS.md` contains operating rules. `CLAUDE.md` contains project facts;
+`docs/FEATURE_DETAIL.md` contains detailed feature research. If documentation
+conflicts with source, trust the repository and update the docs.
 
-## Workflow and Boundaries
+## Before Editing
+- Inspect `git status`, relevant implementation, tests, and build files.
+- Preserve user changes; never use destructive commands such as `git reset --hard` or `git checkout --`.
+- Keep changes scoped and reuse existing architecture and helpers.
+- Before hook changes, read the relevant feature detail and verify the target build's class, method, process, and final effect.
 
-1. Inspect the working tree and the relevant implementation, tests, and build
-   files before editing.
-2. Make the smallest change that satisfies the request. Reuse existing
-   architecture, components, and helpers; avoid unrelated refactors.
-3. Preserve user changes already present in the worktree. Do not use
-   destructive Git commands such as `reset --hard` or `checkout --`.
-4. Confirm before deleting material, publishing externally, changing access or
-   permissions, or expanding the task beyond the repository.
-5. Validate in proportion to risk, then report changed files, checks run, and
-   any remaining limitations.
-
-## Android and Hook Safety
-
-- Isolate exceptions in cross-process hooks, reflection, and system-host
-  callbacks so a failure cannot crash the hooked process.
-- Prefer safe casts and null-aware handling at platform boundaries.
-- Cache reflection fields, methods, and class resolutions on hot paths; do not
-  repeat lookups during animations or frequent callbacks.
-- Access runtime settings through `Preferences`, including cross-process state,
-  rather than bypassing the project preference abstraction.
+## Hook Safety
+- Isolate exceptions at process, reflection, and system-callback boundaries.
+- Use null-safe casts at platform boundaries and cache reflection on hot paths.
+- Read runtime state through `Preferences`, including cross-process state.
+- Attach hooks to every manifest-declared process that executes the code.
+- Resolve obfuscated targets by verified signatures/behaviour, not names alone; re-check after an OTA.
 
 ## Reverse Engineering
+Keep extracted APK/JARs and decompiler output outside the repository at `/Users/ink/developer/reverse`. Store derived output in `reverse/cache/<component>-<first-16-SHA-256>/` with applicable `input/`, `jadx/`, `apktool/`, and `SHA256SUMS`; verify the complete source hash before reuse. Use JADX for navigation and APKTool/smali for manifests, resources, and uncertain behaviour.
 
-- Keep extracted platform APK/JAR files and decompiler output outside the
-  repository in `/Users/ink/developer/reverse`. Extract only the components
-  needed for the current investigation.
-- Store source artifacts at the reverse-workspace root with version or build
-  information in the filename. Do not assume an unversioned artifact such as
-  `SystemUI.apk` is the current device build; use the current baseline recorded
-  in [`CLAUDE.md`](CLAUDE.md).
-- Store all derived output under `/Users/ink/developer/reverse/cache`, never in
-  the repository or beside the source artifact. New caches should use
-  `<component>-<first-16-SHA-256>` and contain the applicable `input/`, `jadx/`,
-  `apktool/`, and `SHA256SUMS` entries.
-- Verify the complete source SHA-256 before reusing a cache. Preserve older
-  artifacts and caches unless the user explicitly approves their removal.
-- Use JADX output for source navigation and APKTool output for manifests,
-  resources, and smali. A JADX decompilation failure is not evidence that a
-  class or method is absent; confirm uncertain behavior in smali or runtime
-  logs.
+## Validation and Delivery
+- Start with narrow checks, then for hook changes run `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest` and `./gradlew :app:assembleRelease`; add lint for UI/lint-sensitive changes.
+- Test the release APK when reflection or R8 can affect class names and verify required constants survive shrinking.
+- Install only for requested/device delivery: `adb install -r app/build/outputs/apk/release/<apk>`, then force-stop affected processes.
+- The user performs UI testing. Do not capture screenshots or automate device UI; agent checks are builds, tests, logs, and state queries.
 
-## Root-Cause Audit Before Implementation
-
-For every new feature, new implementation, or bug fix in a hooked app, audit
-the root cause in the target's decompiled sources before writing any hook:
-
-1. Trace the complete mechanism end to end — entry/UI gate, persistence,
-   parse/dispatch, and final render/application. Record the exact classes,
-   methods, and fields at every layer, and which process runs them (manifests
-   may declare secondaries such as `:keyguardeditor`; hooks must attach there
-   too).
-2. Verify the capability exists at the final layer. A gate being UI-only does
-   not mean the effect is implementable elsewhere: the 时钟玻璃 attempt showed
-   an editor-only unlock saves fine while the material rendering exists solely
-   inside one template family's custom view (see [`CLAUDE.md`](CLAUDE.md)).
-   If the last layer cannot be reached by hooking, report that and confirm the
-   scope with the user instead of shipping a no-op.
-3. Implement against the shapes verified in that exact build: resolve classes
-   and methods by the names/signatures found during the audit, hook funnels
-   confirmed by call-site analysis (not assumed funnels), and re-verify after
-   every device OTA.
-
-## Stage Delivery And installRelease
-
-Deliver in testable stages. After completing each coherent stage:
-
-1. Run the checks (`compileDebugKotlin`, unit tests, lint as warranted) and
-   then `assembleRelease`.
-2. Install with `adb install -r app/build/outputs/apk/release/<apk>` — the
-   user tests release builds; debug-only testing once masked an R8 breakage.
-   When reflection touches bundled-library class names, verify those constants
-   survived R8 in the built APK before handing over.
-3. Force-stop the affected scoped processes so the new hooks load, then hand
-   over with concrete on-device test steps and the log tags to capture if it
-   fails.
-
-## Compose and UI
-
-Keep the existing Compose and Miuix visual language. Verify narrow screens,
-large font scales, scrolling, loading and empty states, and state retention
-when changing UI or navigation.
-
-## Comments and Verification
-
-Add short comments only for complex or non-obvious logic. Use the narrowest
-useful checks first (compile or focused tests), then add unit tests, lint, and
-Debug/Release builds when the change warrants them. Use the commands and
-constraints in [`CLAUDE.md`](CLAUDE.md) as the project reference.
-
-- Do not run `screencap` or otherwise capture, pull, store, or inspect
-  screenshots during development or verification unless the user explicitly
-  requests it. Leave visual inspection to the user and rely on logs, state
-  queries, and functional checks instead.
-- Do not drive the device yourself for functional testing: no `uiautomator`
-  dumps, `input` swipes/keyevents, or other automated UI actions. The user
-  performs on-device functional testing. Verification done by the agent is
-  limited to build output, unit tests, lint, and log inspection (logcat,
-  LSPosed logs, module log files); record what was verified and what is left
-  to the user in [`CLAUDE.md`](CLAUDE.md).
-
-## Git
-
-Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `perf:`, `docs:`,
-`build:`, `ci:`, or `chore:`. Before committing, inspect the staged file list
-and confirm it contains only the intended changes.
+## UI, Comments, Git
+Keep the existing Compose/Miuix language and account for narrow screens, large font scales, scrolling, loading/empty states, and state retention. Add comments only for non-obvious logic. Before committing, inspect staged files and use a Conventional Commit prefix (`feat:`, `fix:`, `docs:`, etc.).

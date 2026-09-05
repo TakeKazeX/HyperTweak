@@ -39,6 +39,7 @@ class BatteryInfoProvider : ContentProvider() {
                 return Bundle().apply { putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt) }
             }
             BatteryInfoChannel.METHOD_GET -> {
+                if (!isTrustedCaller()) return null
                 val out = Bundle(snapshot)
                 out.putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt)
                 return out
@@ -50,6 +51,11 @@ class BatteryInfoProvider : ContentProvider() {
             }
         }
         return null
+    }
+
+    private fun isTrustedCaller(): Boolean {
+        val uid = android.os.Binder.getCallingUid()
+        return uid == Process.myUid() || uid == Process.ROOT_UID || uid == Process.SHELL_UID || uid == Process.SYSTEM_UID
     }
 
     // The rest of the provider surface is unused; the snapshot travels completely over [call].

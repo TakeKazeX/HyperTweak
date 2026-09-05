@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.Binder
+import android.os.Process
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.LogDumpChannel
@@ -33,11 +35,17 @@ class LogDumpProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? = when (method) {
-        LogDumpChannel.METHOD_DUMP -> dump(arg)
+        LogDumpChannel.METHOD_DUMP -> if (isTrustedCaller()) dump(arg) else null
         LogDumpChannel.METHOD_GET -> Bundle().apply {
-            putString(LogDumpChannel.KEY_DATA, exportText())
-        }
+            if (isTrustedCaller()) putString(LogDumpChannel.KEY_DATA, exportText())
+        }.takeIf { isTrustedCaller() }
         else -> null
+    }
+
+    /** Keep the adb shell diagnostic path while denying ordinary third-party apps. */
+    private fun isTrustedCaller(): Boolean {
+        val uid = Binder.getCallingUid()
+        return uid == Process.myUid() || uid == Process.ROOT_UID || uid == Process.SHELL_UID
     }
 
     /** Aggregated log with a fresh session header, independent of any per-process log level. */
