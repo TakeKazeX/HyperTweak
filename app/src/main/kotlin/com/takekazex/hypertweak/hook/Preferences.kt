@@ -645,6 +645,9 @@ object Preferences {
      */
     const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
 
+    /** Put 自拍镜像 inside the camera's 自拍设置 page instead of 通用设置. */
+    const val KEY_CAMERA_SELFIE_SETTINGS = "camera_selfie_settings"
+
     /**
      * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; enabled
      * automatically on myron and manual on other devices. The entry registry (`p666t3.a.d()`) keeps a module entry only while its

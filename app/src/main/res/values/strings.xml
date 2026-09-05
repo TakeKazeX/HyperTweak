@@ -788,6 +788,8 @@
     <string name="camera_unlock_leica_style_title">Leica classic/vivid style</string>
     <string name="camera_unlock_leica_style_summary">Show 徕卡经典 and 徕卡生动 in 摄影风格. Needs a camera restart after changing</string>
     <string name="camera_unlock_ultra_hd_title">Ultra-high image quality</string>
+    <string name="camera_unlock_selfie_settings_title">完整自拍设置</string>
+    <string name="camera_unlock_selfie_settings_summary">将自拍镜像、合影智能光圈等项目放入自拍设置；需要重启相机</string>
     <string name="camera_unlock_ultra_hd_summary">Offer and keep the 超高 quality level (JPEG quality 100) in 设置 → 图片质量. Off restores the stock behaviour. First enable needs a camera restart</string>
     <string name="camera_unlock_legendary_moment_title">徕卡一瞬</string>
     <string name="camera_unlock_legendary_moment_summary">Unlock 徕卡一瞬 in the 更多 list. Experimental — turn off if colours look wrong. Needs a camera restart after changing</string>

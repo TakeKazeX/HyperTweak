@@ -78,6 +78,9 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var ultraHdQuality by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
     }
+    var selfieSettings by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true))
+    }
     var legendaryMoment by remember {
         mutableStateOf(
             Build.DEVICE.equals("myron", ignoreCase = true) ||
@@ -198,6 +201,15 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.camera_unlock_ultra_hd_title),
                         summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
+                    )
+                    SwitchPreference(
+                        checked = selfieSettings,
+                        onCheckedChange = { enabled ->
+                            selfieSettings = enabled
+                            set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled)
+                        },
+                        title = stringResource(R.string.camera_unlock_selfie_settings_title),
+                        summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
                     )
                     SwitchPreference(
                         checked = legendaryMoment,

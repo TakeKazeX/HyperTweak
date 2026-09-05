@@ -80,6 +80,9 @@ object CameraUltraQualityHooker : StaticHooker() {
             TAG,
             "ultra image-quality gate hooked on ${gate.declaringClass.name}#${gate.name}()"
         )
+        hookSelfieCapabilityGates()
+        hookSelfieMirrorPreference()
+        hookCommonMirrorPreference()
     }
 
     /**
@@ -163,4 +166,86 @@ object CameraUltraQualityHooker : StaticHooker() {
      */
     private fun cameraUltraHdQuality(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true)
+
+    private fun hookSelfieMirrorPreference() {
+        val clazz = runCatching {
+            classLoader.loadClass("com.android.camera.fragment.settings.capture.SelfieSettingFragment")
+        }.getOrNull() ?: return
+        val method = clazz.declaredMethods.firstOrNull {
+            it.name == "addCurrentPreferences" && it.parameterCount == 0
+        } ?: return
+        deoptimize(method)
+        method.hook("cam_selfie_mirror_preference") {
+            before { param ->
+                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true)) return@before
+                runCatching {
+                    val base = clazz.superclass
+                    val groupField = generateSequence(base) { it.superclass }
+                        .flatMap { it.declaredFields.asSequence() }
+                        .first { it.name == "mPreferenceGroup" }
+                        .apply { isAccessible = true }
+                    val group = groupField.get(param.thisObject) ?: return@runCatching
+                    val add = generateSequence(base) { it.superclass }
+                        .flatMap { it.declaredMethods.asSequence() }
+                        .first {
+                            it.name == "addCheckBoxPreference" && it.parameterTypes.size == 5 &&
+                                it.parameterTypes[0].isAssignableFrom(group.javaClass)
+                        }
+                        .apply { isAccessible = true }
+                    // Resource IDs are from the exact 6.6.000550.0 camera APK under test.
+                    add.invoke(param.thisObject, group, "pref_front_mirror_boolean_key", true, 0x7f141056, 0x7f14104f)
+                }.onFailure {
+                    DebugLog.w(TAG, "native selfie mirror preference creation skipped", it)
+                }
+            }
+        }
+    }
+
+    private fun hookCommonMirrorPreference() {
+        val clazz = runCatching {
+            classLoader.loadClass("com.android.camera.fragment.settings.CameraCommonPreferenceFragment")
+        }.getOrNull() ?: return
+        val method = clazz.declaredMethods.firstOrNull {
+            it.name == "addCommonPreferences1" && it.parameterCount == 0
+        } ?: return
+        deoptimize(method)
+        method.hook("cam_remove_common_selfie_mirror") {
+            after { param ->
+                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true)) return@after
+                runCatching {
+                    val field = generateSequence(clazz) { it.superclass }
+                        .flatMap { it.declaredFields.asSequence() }
+                        .first { it.name == "mPreferenceGroup" }
+                        .apply { isAccessible = true }
+                    val group = field.get(param.thisObject)
+                    val remove = group.javaClass.methods.firstOrNull {
+                        it.name == "n0" && it.parameterTypes.size == 1
+                    } ?: return@runCatching
+                    val pref = group.javaClass.methods.firstOrNull {
+                        it.name == "k0" && it.parameterTypes.size == 1
+                    }?.invoke(group, "pref_front_mirror_boolean_key")
+                    if (pref != null) remove.invoke(group, pref)
+                }.onFailure {
+                    DebugLog.w(TAG, "common selfie mirror removal skipped", it)
+                }
+            }
+        }
+    }
+
+    /** Expose the complete stock selfie-settings page on devices that hide capability rows. */
+    private fun hookSelfieCapabilityGates() {
+        val clazz = runCatching { classLoader.loadClass("com.android.camera.data.data.v") }.getOrNull()
+            ?: return
+        listOf("F", "Y", "c0", "O0").forEach { name ->
+            val method = clazz.declaredMethods.firstOrNull {
+                it.name == name && Modifier.isStatic(it.modifiers) &&
+                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+            } ?: return@forEach
+            deoptimize(method)
+            method.hook("cam_selfie_unlock_$name") {
+                before { param -> param.result = true }
+            }
+        }
+        DebugLog.i(TAG, "all selfie capability gates forced on")
+    }
 }
