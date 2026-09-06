@@ -819,4 +819,8 @@
     <string name="camera_unlock_note_exif">照片的 EXIF 信息和水印机型始终使用本机真实的品牌与型号</string>
     <string name="camera_unlock_notes">说明</string>
     <string name="camera_unlock_title">相机解锁</string>
+    <string name="settings_unlock_visual_perception_title">解锁更多主动视觉感知</string>
+    <string name="settings_unlock_visual_perception_summary">显示设备因 config_aon_* 能力开关隐藏的 AON 感知项（感知锁屏、靠近亮屏、非注视感知等）。下次打开系统「主动视觉感知」页面时生效；是否真正执行仍取决于设备的 AON/传感器支持</string>
+    <string name="settings_unlock_aon_gestures_title">解锁更多隔空手势</string>
+    <string name="settings_unlock_aon_gestures_summary">实验性：在系统「隔空手势」页追加「左右挥手」「隔空暂停或播放」并放开系统侧对应支持位；页面下次打开即生效，系统侧需重启后生效，实际可用性取决于设备 AON 引擎</string>
 </resources>

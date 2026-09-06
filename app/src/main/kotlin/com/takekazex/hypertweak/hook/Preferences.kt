@@ -769,6 +769,13 @@ object Preferences {
      */
     const val KEY_CAMERA_STREET_QUICK_LAUNCH = "camera_street_quick_launch"
 
+    const val KEY_UNLOCK_MORE_VISUAL_PERCEPTION = "unlock_more_visual_perception"
+    const val KEY_UNLOCK_MORE_AON_GESTURES = "unlock_more_aon_gestures"
+
+
+    fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
+    fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
+
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =
         getBoolean(KEY_CAMERA_STREET_QUICK_LAUNCH, false)

@@ -270,6 +270,31 @@ fun SettingsScreenContent(
                             onClick = onNavigateToControlCenterResize
                         )
                     }
+                    // AON visual-perception / air-gesture unlocks: reveal Settings entries that the
+                    // device hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
+                    // These act on the next Settings UI refresh in the same process; the toggles force the
+                    // Settings-side capability checks only — runtime sensor gates in system_server are
+                    // separate (see docs/FEATURE_DETAIL.md).
+                    var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
+                    var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
+                    SwitchPreference(
+                        checked = unlockVisual,
+                        onCheckedChange = {
+                            unlockVisual = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_visual_perception_title),
+                        summary = stringResource(R.string.settings_unlock_visual_perception_summary)
+                    )
+                    SwitchPreference(
+                        checked = unlockGestures,
+                        onCheckedChange = {
+                            unlockGestures = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_AON_GESTURES, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_aon_gestures_title),
+                        summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
+                    )
                 }
             }
 

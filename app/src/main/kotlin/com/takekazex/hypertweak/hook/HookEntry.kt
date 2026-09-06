@@ -54,9 +54,13 @@ import com.takekazex.hypertweak.hook.rules.system.PowerButtonCtsHooker
 import com.takekazex.hypertweak.hook.rules.system.VoiceInteractionServiceRepairHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
+import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
+import com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
@@ -530,6 +534,12 @@ class HookEntry : XposedModule() {
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
+        // AON visual-perception runtime gates (感知锁屏/靠近亮屏/非注视感知) are resource bools read by
+        // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
+        attachHooker(AonRuntimeGateHooker, classLoader, ctx, replacementHandles)
+        // Experimental: let the AON air-gesture controller honour left/right + double-press, which
+        // the stock ROM always zeroes for AON (it only enables up/down).
+        attachHooker(AonGestureFeatureHooker, classLoader, ctx, replacementHandles)
         if (AospImeConfig.isEnabled()) {
             attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
         }
@@ -628,9 +638,20 @@ class HookEntry : XposedModule() {
                 attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(FastCameraSettingsHooker, classLoader, ctx, replacementHandles)
+                attachHooker(VisualPerceptionSettingsHooker, classLoader, ctx, replacementHandles)
+                // Experimental: link the orphaned 左右挥手 / 隔空暂停或播放 pages into the AON
+                // 隔空手势 landing list (stock ROM never references those fragments).
+                attachHooker(AonGestureSettingsHooker, classLoader, ctx, replacementHandles)
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.xiaomi.aon" -> {
+                // AON service/attention process. Kept in the LSPosed scope (see scope.list /
+                // R.array.xposed_scope) so AON-side hooks can attach here; the visual-perception /
+                // air-gesture capability gates this module unlocks live in com.android.settings
+                // (MiuiUtils, VisualPerceptionSettingsHooker) and in system_server, so no hook is
+                // attached in this process yet — the module load here is otherwise inert.
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

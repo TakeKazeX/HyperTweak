@@ -26,4 +26,8 @@
     <string name="settings_system_ui_section_notification_shade">Panel de notificaciones</string>
     <string name="settings_notification_header_clock_seconds_title">Mostrar segundos en el reloj grande</string>
     <string name="settings_notification_header_clock_seconds_summary">Mostrar segundos en el reloj grande al expandir el panel de notificaciones; mantén pulsado cualquiera de los dos relojes para alternarlos temporalmente durante cinco minutos</string>
+    <string name="settings_unlock_visual_perception_title">Más percepción visual</string>
+    <string name="settings_unlock_visual_perception_summary">Muestra los interruptores de percepción visual AON que el dispositivo oculta tras las puertas config_aon_* (bloqueo por mirada, encendido al acercarse, protección anti-quemado sin mirada). Se aplica al abrir la página 主动视觉感知 del sistema; el efecto real depende del soporte AON del dispositivo</string>
+    <string name="settings_unlock_aon_gestures_title">Más gestos en el aire</string>
+    <string name="settings_unlock_aon_gestures_summary">Experimental: también añade «左右挥手» (agitar en horizontal) y «隔空暂停或播放» (doble toque reproducir/pausar) a la página 隔空手势 del sistema y deja que el sistema los procese. Las filas se aplican al abrir la página; la parte del sistema requiere reiniciar y depende del motor AON del dispositivo</string>
 </resources>

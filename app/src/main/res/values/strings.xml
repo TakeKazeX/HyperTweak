@@ -821,4 +821,8 @@
     <string name="camera_unlock_note_exif">Photo EXIF and the watermark model always use this device\'s real brand and model</string>
     <string name="camera_unlock_notes">Notes</string>
     <string name="camera_unlock_title">Camera Unlock</string>
+    <string name="settings_unlock_visual_perception_title">Unlock More Visual Perception</string>
+    <string name="settings_unlock_visual_perception_summary">Show the AON visual-perception switches the device hides behind config_aon_* gates (gaze screen-off, wake-on-approach, non-gaze burn-in guard). Applies on the next open of the system 主动视觉感知 page; whether the system acts on them still depends on device AON support</string>
+    <string name="settings_unlock_aon_gestures_title">Unlock More Air Gestures</string>
+    <string name="settings_unlock_aon_gestures_summary">Experimental: also offer 左右挥手 (wave horizontally) and 隔空暂停或播放 (double-press play/pause) in the system 隔空手势 page and let the system honour them. The page rows apply on the next open; the system-side part needs a reboot and depends on the device AON engine</string>
 </resources>
