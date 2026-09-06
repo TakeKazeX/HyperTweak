@@ -73,6 +73,8 @@ fun SettingsScreenContent(
     onNavigateToCameraUnlock: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
+    unlockThirdPartyDarkMode: Boolean,
+    onUnlockThirdPartyDarkModeChange: (Boolean) -> Unit,
     launcherMajor: Int,
     launcherSupportsBackRoute: Boolean,
     aospBackMiuiHomeHooks: Boolean,
@@ -294,6 +296,12 @@ fun SettingsScreenContent(
                         },
                         title = stringResource(R.string.settings_unlock_aon_gestures_title),
                         summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
+                    )
+                    SwitchPreference(
+                        checked = unlockThirdPartyDarkMode,
+                        onCheckedChange = onUnlockThirdPartyDarkModeChange,
+                        title = stringResource(R.string.settings_unlock_third_party_dark_mode_title),
+                        summary = stringResource(R.string.settings_unlock_third_party_dark_mode_summary)
                     )
                     // 自适应刷新率Pro (Mimotion PWM): reveal the 显示与亮度 row that HyperOS removes
                     // when `ro.display.enable_pwm_switch` is unset, and let system_server re-apply the

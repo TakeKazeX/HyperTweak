@@ -201,6 +201,8 @@ object Preferences {
     const val KEY_LAUNCHER_VERSION_NAME = "launcher_version_name"
     const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
     const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
+    /** Shows third-party apps in HyperOS's per-app force-dark list without enabling them automatically. */
+    const val KEY_UNLOCK_THIRD_PARTY_DARK_MODE = "unlock_third_party_dark_mode"
 
     // AOSP restore.
     /**

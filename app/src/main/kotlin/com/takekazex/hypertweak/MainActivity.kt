@@ -298,6 +298,7 @@ class MainActivity : ComponentActivity() {
             var lockscreenAllNotifications by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) }
             var lockscreenKeepNotifications by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)) }
             var unlockPasskey by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) }
+             var unlockThirdPartyDarkMode by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) }
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
@@ -1175,7 +1176,12 @@ class MainActivity : ComponentActivity() {
                         unlockPasskey = checked
                         Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
                     },
-                    disableSpatialAudio = disableSpatialAudio,
+                    unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
+                     onUnlockThirdPartyDarkModeChange = { checked ->
+                         unlockThirdPartyDarkMode = checked
+                         Preferences.putBoolean(Preferences.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, checked)
+                     },
+                     disableSpatialAudio = disableSpatialAudio,
                     onDisableSpatialAudioChange = { checked ->
                         markTweaked(Preferences.KEY_DISABLE_SPATIAL_AUDIO, checked)
                         disableSpatialAudio = checked
