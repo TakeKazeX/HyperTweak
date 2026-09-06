@@ -39,7 +39,9 @@ class BatteryInfoProvider : ContentProvider() {
                 return Bundle().apply { putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt) }
             }
             BatteryInfoChannel.METHOD_GET -> {
-                if (!isTrustedCaller()) return null
+                // GET is intentionally read-only and must also work when the settings UI is
+                // hosted by a different package/UID (some HyperOS builds do that for module
+                // settings).  The provider never exposes a write path through GET.
                 val out = Bundle(snapshot)
                 out.putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt)
                 return out
