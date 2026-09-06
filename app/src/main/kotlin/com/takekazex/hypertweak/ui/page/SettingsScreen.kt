@@ -295,6 +295,20 @@ fun SettingsScreenContent(
                         title = stringResource(R.string.settings_unlock_aon_gestures_title),
                         summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
                     )
+                    // 自适应刷新率Pro (Mimotion PWM): reveal the 显示与亮度 row that HyperOS removes
+                    // when `ro.display.enable_pwm_switch` is unset, and let system_server re-apply the
+                    // saved mode at boot. Settings-side reveal needs a fresh Settings process; the
+                    // runtime re-apply needs a reboot; extra gears still depend on panel/DF support.
+                    var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
+                    SwitchPreference(
+                        checked = unlockAdaptiveRefresh,
+                        onCheckedChange = {
+                            unlockAdaptiveRefresh = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
+                        summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
+                    )
                 }
             }
 

@@ -30,4 +30,6 @@
     <string name="settings_unlock_visual_perception_summary">Affiche les interrupteurs de perception visuelle AON masqués par les portes config_aon_* (verrouillage par regard, réveil à l\'approche, protection anti-marques sans regard). Appliqué à l\'ouverture de la page 主动视觉感知 du système ; l\'effet réel dépend du support AON de l\'appareil</string>
     <string name="settings_unlock_aon_gestures_title">Débloquer plus de gestes aériens</string>
     <string name="settings_unlock_aon_gestures_summary">Expérimental : ajoute aussi «左右挥手» (agiter horizontalement) et «隔空暂停或播放» (double pression lecture/pause) à la page 隔空手势 du système et laisse le système les honorer. Les lignes s\'appliquent à la prochaine ouverture de la page ; la partie système nécessite un redémarrage et dépend du moteur AON de l\'appareil</string>
+    <string name="settings_unlock_adaptive_refresh_title">Débloquer le taux de rafraîchissement adaptatif Pro</string>
+    <string name="settings_unlock_adaptive_refresh_summary">Affiche l\'interrupteur masqué «自适应刷新率Pro» de 显示与亮度 et laisse le système le réappliquer après redémarrage. Bascule le gradation DC vers PWM pour plus de paliers de rafraîchissement dynamique ; leur disponibilité réelle dépend du panneau/pilote (effet 20). Nécessite de rouvrir Réglages puis un redémarrage</string>
 </resources>

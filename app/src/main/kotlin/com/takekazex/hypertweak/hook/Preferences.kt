@@ -772,9 +772,22 @@ object Preferences {
     const val KEY_UNLOCK_MORE_VISUAL_PERCEPTION = "unlock_more_visual_perception"
     const val KEY_UNLOCK_MORE_AON_GESTURES = "unlock_more_aon_gestures"
 
+    /**
+     * 自适应刷新率Pro (Mimotion PWM dimming) unlock. On HyperOS the 显示与亮度 row
+     * `mimotion_pwm_enable` is only shown when the vendor build sets `ro.display.enable_pwm_switch`
+     * (read once at `MiuiDisplaySettings` class load into the `static final MIMOTION_PWM_SUPPORTED`),
+     * and the system_server `DisplayFeatureManagerService` skips its boot-time dimming-mode apply for
+     * the same reason. This switch forces both prop reads to true so the Settings row stays visible
+     * and the runtime re-applies the saved mode after reboot; see
+     * [rules.settings.AdaptiveRefreshSettingsHooker] / [rules.system.AdaptiveRefreshRuntimeHooker] and
+     * docs/FEATURE_DETAIL.md. Whether extra dynamic refresh gears actually appear still depends on the
+     * panel/vendor displayfeature HAL (effect 20) support.
+     */
+    const val KEY_UNLOCK_ADAPTIVE_REFRESH_PRO = "unlock_adaptive_refresh_pro"
 
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
+    fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =

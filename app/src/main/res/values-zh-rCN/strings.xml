@@ -823,4 +823,6 @@
     <string name="settings_unlock_visual_perception_summary">显示设备因 config_aon_* 能力开关隐藏的 AON 感知项（感知锁屏、靠近亮屏、非注视感知等）。下次打开系统「主动视觉感知」页面时生效；是否真正执行仍取决于设备的 AON/传感器支持</string>
     <string name="settings_unlock_aon_gestures_title">解锁更多隔空手势</string>
     <string name="settings_unlock_aon_gestures_summary">实验性：在系统「隔空手势」页追加「左右挥手」「隔空暂停或播放」并放开系统侧对应支持位；页面下次打开即生效，系统侧需重启后生效，实际可用性取决于设备 AON 引擎</string>
+    <string name="settings_unlock_adaptive_refresh_title">解锁自适应刷新率Pro</string>
+    <string name="settings_unlock_adaptive_refresh_summary">显示系统因 ro.display.enable_pwm_switch 未置位而隐藏的「自适应刷新率 Pro」开关，并让系统在重启后重新应用已保存的模式。开启后调光由 DC 切为 PWM 以支持更多动态高刷档位；实际能否生效取决于面板/显示驱动（displayfeature effect 20）是否支持。设置页需重新打开，系统侧需重启</string>
 </resources>

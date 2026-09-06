@@ -56,11 +56,13 @@ import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
 import com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker
+import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
@@ -540,6 +542,10 @@ class HookEntry : XposedModule() {
         // Experimental: let the AON air-gesture controller honour left/right + double-press, which
         // the stock ROM always zeroes for AON (it only enables up/down).
         attachHooker(AonGestureFeatureHooker, classLoader, ctx, replacementHandles)
+        // 自适应刷新率Pro (Mimotion PWM): force ro.display.enable_pwm_switch so
+        // DisplayFeatureManagerService's boot-time setDimmingMode() re-applies the Secure mode after
+        // a reboot on builds where the vendor prop is unset (see AdaptiveRefreshSettingsHooker).
+        attachHooker(AdaptiveRefreshRuntimeHooker, classLoader, ctx, replacementHandles)
         if (AospImeConfig.isEnabled()) {
             attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
         }
@@ -642,6 +648,10 @@ class HookEntry : XposedModule() {
                 // Experimental: link the orphaned 左右挥手 / 隔空暂停或播放 pages into the AON
                 // 隔空手势 landing list (stock ROM never references those fragments).
                 attachHooker(AonGestureSettingsHooker, classLoader, ctx, replacementHandles)
+                // 自适应刷新率Pro (Mimotion PWM): force ro.display.enable_pwm_switch so the
+                // 显示与亮度 mimotion_pwm_enable row is not removed by MiuiDisplaySettings on
+                // builds where the vendor prop is unset (see AdaptiveRefreshRuntimeHooker).
+                attachHooker(AdaptiveRefreshSettingsHooker, classLoader, ctx, replacementHandles)
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)

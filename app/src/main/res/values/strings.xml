@@ -825,4 +825,6 @@
     <string name="settings_unlock_visual_perception_summary">Show the AON visual-perception switches the device hides behind config_aon_* gates (gaze screen-off, wake-on-approach, non-gaze burn-in guard). Applies on the next open of the system 主动视觉感知 page; whether the system acts on them still depends on device AON support</string>
     <string name="settings_unlock_aon_gestures_title">Unlock More Air Gestures</string>
     <string name="settings_unlock_aon_gestures_summary">Experimental: also offer 左右挥手 (wave horizontally) and 隔空暂停或播放 (double-press play/pause) in the system 隔空手势 page and let the system honour them. The page rows apply on the next open; the system-side part needs a reboot and depends on the device AON engine</string>
+    <string name="settings_unlock_adaptive_refresh_title">Unlock Adaptive Refresh Rate Pro</string>
+    <string name="settings_unlock_adaptive_refresh_summary">Show the hidden 显示与亮度 "自适应刷新率 Pro" switch and let the system re-apply it after reboot. It switches DC dimming to PWM for more dynamic refresh gears; whether extra gears actually appear depends on the panel / display driver support (effect 20). Needs a fresh Settings open, then a reboot</string>
 </resources>
