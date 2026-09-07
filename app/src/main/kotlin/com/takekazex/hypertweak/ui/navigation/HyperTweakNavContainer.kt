@@ -47,6 +47,7 @@ import com.takekazex.hypertweak.ui.page.ChargingDetailPage
 import com.takekazex.hypertweak.ui.page.ControlCenterCornerPage
 import com.takekazex.hypertweak.ui.page.ControlCenterResizePage
 import com.takekazex.hypertweak.ui.page.DebugPage
+import com.takekazex.hypertweak.ui.page.DeveloperSettingsPage
 import com.takekazex.hypertweak.ui.page.BatteryInfoPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -525,7 +526,13 @@ fun HyperTweakNavContainer(
             DebugPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToLogs = { backStack.add(Route.DebugLogs) },
+                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) },
                 onClearAllSettings = onClearAllSettings
+            )
+        }
+        entry<Route.DeveloperSettings> {
+            DeveloperSettingsPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.DebugLogs> {

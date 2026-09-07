@@ -51,7 +51,12 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
 @SuppressLint("LocalContextGetResourceValueCall")
-fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit, onClearAllSettings: () -> Unit) {
+fun DebugPage(
+    onBack: () -> Unit,
+    onNavigateToLogs: () -> Unit,
+    onNavigateToDeveloperSettings: () -> Unit,
+    onClearAllSettings: () -> Unit
+) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
@@ -106,6 +111,11 @@ fun DebugPage(onBack: () -> Unit, onNavigateToLogs: () -> Unit, onClearAllSettin
                         title = stringResource(R.string.debug_logs_title),
                         summary = stringResource(R.string.debug_logs_summary),
                         onClick = onNavigateToLogs
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.debug_developer_settings_title),
+                        summary = stringResource(R.string.debug_developer_settings_summary),
+                        onClick = onNavigateToDeveloperSettings
                     )
                 }
             }
