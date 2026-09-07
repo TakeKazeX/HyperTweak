@@ -64,7 +64,6 @@ import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.ForceDarkAppSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
@@ -548,6 +547,8 @@ class HookEntry : XposedModule() {
         // DisplayFeatureManagerService's boot-time setDimmingMode() re-applies the Secure mode after
         // a reboot on builds where the vendor prop is unset (see AdaptiveRefreshSettingsHooker).
         attachHooker(AdaptiveRefreshRuntimeHooker, classLoader, ctx, replacementHandles)
+        // Dark-mode app data is returned through the uimode Binder. Keep system_server as the
+        // single source of truth so Settings and app processes observe the same persistent state.
         attachHooker(ForceDarkAppListHooker, classLoader, ctx, replacementHandles)
         if (AospImeConfig.isEnabled()) {
             attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
@@ -655,7 +656,6 @@ class HookEntry : XposedModule() {
                 // 显示与亮度 mimotion_pwm_enable row is not removed by MiuiDisplaySettings on
                 // builds where the vendor prop is unset (see AdaptiveRefreshRuntimeHooker).
                 attachHooker(AdaptiveRefreshSettingsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ForceDarkAppSettingsHooker, classLoader, ctx, replacementHandles)
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
