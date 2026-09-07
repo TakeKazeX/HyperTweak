@@ -54,6 +54,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
@@ -244,6 +245,11 @@ class MainActivity : ComponentActivity() {
                     Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
                 )
             }
+            var notificationFontWeight by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, false)
+                )
+            }
             var lockscreenFingerprintAvoid by remember {
                 mutableIntStateOf(
                     Preferences.getInt(
@@ -385,6 +391,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
                     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
                     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
+                    Preferences.KEY_NOTIFICATION_FONT_WEIGHT -> notificationFontWeight
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
                     Preferences.KEY_MIUI_BACK_GESTURE_HOOK -> miuiBackGestureHook
                     Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
@@ -802,6 +809,10 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR,
                         false
                     )
+                    notificationFontWeight = Preferences.getBoolean(
+                        Preferences.KEY_NOTIFICATION_FONT_WEIGHT,
+                        false
+                    )
                     lockscreenFingerprintAvoid = Preferences.getInt(
                         Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
                         Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
@@ -1040,6 +1051,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
                         notificationMonetTextColor = checked
                         Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
+                    },
+                    notificationFontWeight = notificationFontWeight,
+                    onNotificationFontWeightChange = { checked ->
+                        markTweaked(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, checked)
+                        notificationFontWeight = checked
+                        Preferences.putBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, checked)
                     },
                     lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                     onLockscreenFingerprintAvoidChange = { mode ->

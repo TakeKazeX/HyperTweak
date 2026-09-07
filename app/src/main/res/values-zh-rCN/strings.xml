@@ -575,6 +575,8 @@
     <string name="settings_notification_header_clock_seconds_summary">展开通知中心时，让顶部大时钟显示秒钟；长按状态栏或大时钟可临时切换，五分钟后自动恢复</string>
     <string name="settings_notification_monet_text_color_title">关闭通知文字 Monet 取色</string>
     <string name="settings_notification_monet_text_color_summary">让系统生成的通知文字跟随系统亮暗模式使用黑白颜色，而不是随 Monet 强调色变化；不影响彩色通知或自定义通知。开启后需重启系统界面</string>
+    <string name="settings_notification_font_weight_title">恢复通知原生字重</string>
+    <string name="settings_notification_font_weight_summary">在小米通知样式写入字体后恢复原生字重：标题粗体、正文常规、操作按钮中等；开启后需重启系统界面</string>
     <string name="settings_system_ui_section_lockscreen">锁屏</string>
     <string name="settings_system_ui_section_media">媒体卡片</string>
     <string name="settings_predictive_back_apps">预测性返回应用</string>

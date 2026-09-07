@@ -59,6 +59,9 @@ object Preferences {
     /** Disables Monet-derived colors for framework-generated notification text. */
     const val KEY_NOTIFICATION_MONET_TEXT_COLOR = "notification_monet_text_color"
 
+    /** Restores framework notification typefaces after MIUI's notification styling runs. */
+    const val KEY_NOTIFICATION_FONT_WEIGHT = "notification_font_weight"
+
     /**
      * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by
      * `KeyguardFingerprintAvoidHooker` at hook-install time; requires a SystemUI restart.

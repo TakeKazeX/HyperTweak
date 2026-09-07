@@ -68,6 +68,8 @@ fun SystemUIPage(
     onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
     notificationMonetTextColor: Boolean,
     onNotificationMonetTextColorChange: (Boolean) -> Unit,
+    notificationFontWeight: Boolean,
+    onNotificationFontWeightChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -175,6 +177,12 @@ fun SystemUIPage(
                             onCheckedChange = onNotificationMonetTextColorChange,
                             title = stringResource(R.string.settings_notification_monet_text_color_title),
                             summary = stringResource(R.string.settings_notification_monet_text_color_summary)
+                        )
+                        SwitchPreference(
+                            checked = notificationFontWeight,
+                            onCheckedChange = onNotificationFontWeightChange,
+                            title = stringResource(R.string.settings_notification_font_weight_title),
+                            summary = stringResource(R.string.settings_notification_font_weight_summary)
                         )
                     }
                 }

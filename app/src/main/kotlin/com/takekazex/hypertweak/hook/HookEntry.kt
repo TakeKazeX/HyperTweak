@@ -20,6 +20,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderClockSecondsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationMonetTextColorHooker
+import com.takekazex.hypertweak.hook.rules.systemui.NotificationFontWeightHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiScreenshotSoundHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.systemui.KeyguardFingerprintAvoidHooker
@@ -590,6 +591,7 @@ class HookEntry : XposedModule() {
                 attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationHeaderClockSecondsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationMonetTextColorHooker, classLoader, ctx, replacementHandles)
+                attachHooker(NotificationFontWeightHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
                 attachHooker(KeyguardFingerprintAvoidHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenChargingDetailHooker, classLoader, ctx, replacementHandles)
