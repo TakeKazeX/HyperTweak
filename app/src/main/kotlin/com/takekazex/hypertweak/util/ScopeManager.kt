@@ -39,6 +39,8 @@ object ScopeManager {
     /** The system launcher; listed in the scope for Launcher 7 and older only. */
     private const val LAUNCHER_PACKAGE = "com.miui.home"
 
+    private val NON_APPLICATION_SCOPE = setOf(SYSTEM_SERVER, LEGACY_SYSTEM_SERVER, "system_server")
+
     private val service: XposedService?
         get() = XposedServiceManager.currentService
 
@@ -60,19 +62,37 @@ object ScopeManager {
      * The module's own package is skipped: `getScope()` does not report self-scope, and the Home
      * page's module-status card already tells the user to check HyperTweak itself when the module
      * is not active. Older LSPosed builds name the system server `android` rather than `system`,
-     * so either satisfies the `system` entry. On OS4 the launcher is never hooked (its gesture
-     * stack is native and the module exits early), so an unchecked launcher scope is not a
-     * missing-required-scope condition there.
+     * so either satisfies the `system` entry. The launcher is intentionally not part of the
+     * static recommended scope: OS3 may still need it for the Java predictive-back route, while
+     * OS4 no longer has a hookable launcher-side gesture stack.
      */
     suspend fun missingRequiredScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
-        val systemPresent = live.any { it == SYSTEM_SERVER || it == LEGACY_SYSTEM_SERVER }
+        val systemPresent = live.any {
+            it == SYSTEM_SERVER || it == LEGACY_SYSTEM_SERVER || it == "system_server"
+        }
         return requiredScope(context).filterNot { required ->
             required in live ||
                 required == context.packageName ||
-                (required == SYSTEM_SERVER && systemPresent) ||
-                (PlatformLevel.isOs4 && required == LAUNCHER_PACKAGE)
+                (required == SYSTEM_SERVER && systemPresent)
         }.toSet()
+    }
+
+    /**
+     * Returns the launcher recommendation for the current platform. It is intentionally separate
+     * from [requiredScope]: `com.miui.home` is not recommended to every installation, but OS3
+     * users still need a restore prompt when the launcher-side back route is unavailable. On OS4,
+     * an old installation may still retain the entry, so offer the inverse migration prompt.
+     */
+    suspend fun launcherScopeRecommendation(): ScopePrompt? {
+        val live = currentScope() ?: return null
+        return when {
+            PlatformLevel.isOs4 && LAUNCHER_PACKAGE in live ->
+                ScopePrompt(ScopePromptAction.REMOVE, LAUNCHER_PACKAGE)
+            !PlatformLevel.isOs4 && LAUNCHER_PACKAGE !in live ->
+                ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
+            else -> null
+        }
     }
 
     suspend fun request(packages: Set<String>): Result {
@@ -97,16 +117,18 @@ object ScopeManager {
     }
 
     /**
-     * Scope entries the module no longer needs on this platform. On OS4 the launcher is never
-     * hooked (its gesture stack is native), so keeping `com.miui.home` in the scope only widens
-     * the module's LSPosed footprint; the Home page suggests removing it. Null when the scope
-     * cannot be read.
+     * Returns the currently scoped application packages, excluding system-server aliases and the
+     * module itself. A null result means the service could not be queried; callers can then fall
+     * back to [declaredRestartableScope] for a useful static list.
      */
-    suspend fun unneededScope(context: Context): Set<String>? {
+    suspend fun restartableScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
-        if (!PlatformLevel.isOs4) return emptySet()
-        return live.filter { it == LAUNCHER_PACKAGE }.toSet()
+        return live.filterNot { it in NON_APPLICATION_SCOPE || it == context.packageName }.toSet()
     }
+
+    /** The declared application scope, used while the Xposed service is still connecting. */
+    fun declaredRestartableScope(context: Context): Set<String> =
+        requiredScope(context).filterNot { it in NON_APPLICATION_SCOPE || it == context.packageName }.toSet()
 
     /**
      * Moves [managed] packages from [current] to [target] without touching anything else.

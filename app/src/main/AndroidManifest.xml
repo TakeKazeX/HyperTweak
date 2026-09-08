@@ -24,6 +24,13 @@
         <package android:name="com.xiaomi.bluetooth" />
         <!-- Hosts the hidden Extend Unlock configuration screen. -->
         <package android:name="com.google.android.gms" />
+        <!-- Scope-managed feature targets shown by the dynamic restart picker. -->
+        <package android:name="com.xiaomi.aon" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <package android:name="com.miui.mediaeditor" />
+        <package android:name="com.miui.personalassistant" />
+        <package android:name="com.android.camera" />
+        <package android:name="com.xiaomi.xmsf" />
         <!-- Lets the AOSP IME picker enumerate installed input methods. -->
         <intent>
             <action android:name="android.view.InputMethod" />

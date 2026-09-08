@@ -16,7 +16,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.ScopeManager
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -29,27 +31,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private fun isPackageInstalled(pm: android.content.pm.PackageManager, packageName: String): Boolean {
-    return try {
-        pm.getPackageInfo(packageName, 0)
-        true
-    } catch (e: Exception) {
-        false
-    }
-}
-
 private fun fallbackAppName(context: Context, packageName: String): String = when (packageName) {
-    "com.android.systemui" -> context.getString(R.string.restart_scope_system_ui)
-    "com.miui.home" -> context.getString(R.string.restart_scope_miui_home)
-    "com.android.settings" -> context.getString(R.string.restart_scope_settings)
-    "com.miui.aod" -> context.getString(R.string.restart_scope_aod)
-    "com.miui.securitycenter" -> context.getString(R.string.restart_scope_security)
-    "com.xiaomi.scanner" -> context.getString(R.string.restart_scope_scanner)
-    "com.milink.service" -> context.getString(R.string.restart_scope_milink)
-    "com.xiaomi.bluetooth" -> context.getString(R.string.restart_scope_bluetooth)
-    "com.miui.powerkeeper" -> context.getString(R.string.restart_scope_powerkeeper)
-    "com.google.android.gms" -> context.getString(R.string.restart_scope_gms)
-    "com.xiaomi.xmsf" -> context.getString(R.string.restart_scope_xmsf)
+    RestartScopeSelection.PACKAGE_SYSTEM_UI -> context.getString(R.string.restart_scope_system_ui)
+    RestartScopeSelection.PACKAGE_MIUI_HOME -> context.getString(R.string.restart_scope_miui_home)
+    RestartScopeSelection.PACKAGE_SETTINGS -> context.getString(R.string.restart_scope_settings)
+    RestartScopeSelection.PACKAGE_AOD -> context.getString(R.string.restart_scope_aod)
+    RestartScopeSelection.PACKAGE_SECURITY_CENTER -> context.getString(R.string.restart_scope_security)
+    RestartScopeSelection.PACKAGE_SCANNER -> context.getString(R.string.restart_scope_scanner)
+    RestartScopeSelection.PACKAGE_MILINK -> context.getString(R.string.restart_scope_milink)
+    RestartScopeSelection.PACKAGE_BLUETOOTH -> context.getString(R.string.restart_scope_bluetooth)
+    RestartScopeSelection.PACKAGE_POWERKEEPER -> context.getString(R.string.restart_scope_powerkeeper)
+    RestartScopeSelection.PACKAGE_GMS -> context.getString(R.string.restart_scope_gms)
+    RestartScopeSelection.PACKAGE_XMSF -> context.getString(R.string.restart_scope_xmsf)
     else -> packageName
 }
 
@@ -60,40 +53,31 @@ fun RestartScopeDialog(
     onDismissRequest: () -> Unit,
     onConfirm: (RestartScopeSelection) -> Unit
 ) {
-    var systemUiChecked by remember(show, initialSelection.systemUi) { mutableStateOf(initialSelection.systemUi) }
-    var miuiHomeChecked by remember(show, initialSelection.miuiHome) { mutableStateOf(initialSelection.miuiHome) }
-    var settingsChecked by remember(show, initialSelection.settings) { mutableStateOf(initialSelection.settings) }
-    var aodChecked by remember(show, initialSelection.aod) { mutableStateOf(initialSelection.aod) }
-    var securityCenterChecked by remember(show, initialSelection.securityCenter) { mutableStateOf(initialSelection.securityCenter) }
-    var scannerChecked by remember(show, initialSelection.scanner) { mutableStateOf(initialSelection.scanner) }
-    var milinkChecked by remember(show, initialSelection.milink) { mutableStateOf(initialSelection.milink) }
-    var bluetoothChecked by remember(show, initialSelection.bluetooth) { mutableStateOf(initialSelection.bluetooth) }
-    var powerkeeperChecked by remember(show, initialSelection.powerkeeper) { mutableStateOf(initialSelection.powerkeeper) }
-    var gmsChecked by remember(show, initialSelection.gms) { mutableStateOf(initialSelection.gms) }
-    var xmsfChecked by remember(show, initialSelection.xmsf) { mutableStateOf(initialSelection.xmsf) }
-
     val context = LocalContext.current
-    val packageManager = context.packageManager
+    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val fallbackScope = remember(context) { ScopeManager.declaredRestartableScope(context) }
 
-    // The installed set does not change while the dialog is open, so probe PackageManager once,
-    // off the main thread. Keyed on Unit, this no longer re-runs on every open/close edge and
-    // never runs the binder I/O in composition (it previously ran even before the dialog showed).
-    val installedApps by produceState(initialValue = emptyList<String>()) {
-        value = withContext(Dispatchers.IO) {
-            buildList {
-                if (isPackageInstalled(packageManager, "com.android.systemui")) add("com.android.systemui")
-                add("com.miui.home")
-                if (isPackageInstalled(packageManager, "com.android.settings")) add("com.android.settings")
-                if (isPackageInstalled(packageManager, "com.miui.aod")) add("com.miui.aod")
-                if (isPackageInstalled(packageManager, "com.miui.securitycenter")) add("com.miui.securitycenter")
-                if (isPackageInstalled(packageManager, "com.xiaomi.scanner")) add("com.xiaomi.scanner")
-                if (isPackageInstalled(packageManager, "com.milink.service")) add("com.milink.service")
-                if (isPackageInstalled(packageManager, "com.xiaomi.bluetooth")) add("com.xiaomi.bluetooth")
-                if (isPackageInstalled(packageManager, "com.miui.powerkeeper")) add("com.miui.powerkeeper")
-                if (isPackageInstalled(packageManager, "com.google.android.gms")) add("com.google.android.gms")
-                if (isPackageInstalled(packageManager, "com.xiaomi.xmsf")) add("com.xiaomi.xmsf")
-            }
+    // The service scope is the source of truth. The declared list is only a first-frame fallback
+    // while the service binds, so newly added targets (AON, camera, editor, assistant, Google, ...)
+    // appear without another app release or a hardcoded dialog update.
+    val scopedPackages by produceState(initialValue = fallbackScope, show, service) {
+        if (show) {
+            value = ScopeManager.restartableScope(context) ?: fallbackScope
         }
+    }
+    val candidatePackages = remember(scopedPackages, initialSelection) {
+        scopedPackages + initialSelection.toPackageSet()
+    }
+    val scopeApps by produceState(initialValue = emptyList<String>(), candidatePackages, show) {
+        if (!show) return@produceState
+        value = withContext(Dispatchers.IO) {
+            candidatePackages
+                .sorted()
+        }
+    }
+
+    var selectedPackages by remember(show, initialSelection) {
+        mutableStateOf(initialSelection.toPackageSet())
     }
 
     OverlayDialog(
@@ -121,7 +105,7 @@ fun RestartScopeDialog(
                 }
             }
 
-            if (installedApps.isNotEmpty()) {
+            if (scopeApps.isNotEmpty()) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -132,43 +116,34 @@ fun RestartScopeDialog(
                             .fillMaxWidth()
                             .heightIn(max = 360.dp),
                     ) {
-                        items(installedApps, key = { it }) { pkg ->
-                            val checked = when (pkg) {
-                                "com.android.systemui" -> systemUiChecked
-                                "com.miui.home" -> miuiHomeChecked
-                                "com.android.settings" -> settingsChecked
-                                "com.miui.aod" -> aodChecked
-                                "com.miui.securitycenter" -> securityCenterChecked
-                                "com.xiaomi.scanner" -> scannerChecked
-                                "com.milink.service" -> milinkChecked
-                                "com.xiaomi.bluetooth" -> bluetoothChecked
-                                "com.miui.powerkeeper" -> powerkeeperChecked
-                                "com.google.android.gms" -> gmsChecked
-                                "com.xiaomi.xmsf" -> xmsfChecked
-                                else -> false
-                            }
-                            val onCheckedChange: (Boolean) -> Unit = { newVal ->
-                                when (pkg) {
-                                    "com.android.systemui" -> systemUiChecked = newVal
-                                    "com.miui.home" -> miuiHomeChecked = newVal
-                                    "com.android.settings" -> settingsChecked = newVal
-                                    "com.miui.aod" -> aodChecked = newVal
-                                    "com.miui.securitycenter" -> securityCenterChecked = newVal
-                                    "com.xiaomi.scanner" -> scannerChecked = newVal
-                                    "com.milink.service" -> milinkChecked = newVal
-                                    "com.xiaomi.bluetooth" -> bluetoothChecked = newVal
-                                    "com.miui.powerkeeper" -> powerkeeperChecked = newVal
-                                    "com.google.android.gms" -> gmsChecked = newVal
-                                    "com.xiaomi.xmsf" -> xmsfChecked = newVal
-                                }
-                            }
+                        items(scopeApps, key = { it }) { pkg ->
                             AppRestartPreference(
                                 packageName = pkg,
-                                checked = checked,
-                                onCheckedChange = onCheckedChange
+                                checked = pkg in selectedPackages,
+                                onCheckedChange = { checked ->
+                                    selectedPackages = if (checked) {
+                                        selectedPackages + pkg
+                                    } else {
+                                        selectedPackages - pkg
+                                    }
+                                }
                             )
                         }
                     }
+                }
+            } else {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.restart_scope_no_apps),
+                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
                 }
             }
 
@@ -179,21 +154,7 @@ fun RestartScopeDialog(
                 TextButton(
                     text = stringResource(R.string.restart_button),
                     onClick = {
-                        onConfirm(
-                            RestartScopeSelection(
-                                systemUi = systemUiChecked,
-                                miuiHome = miuiHomeChecked,
-                                settings = settingsChecked,
-                                aod = aodChecked,
-                                securityCenter = securityCenterChecked,
-                                scanner = scannerChecked,
-                                milink = milinkChecked,
-                                bluetooth = bluetoothChecked,
-                                powerkeeper = powerkeeperChecked,
-                                gms = gmsChecked,
-                                xmsf = xmsfChecked
-                            )
-                        )
+                        onConfirm(RestartScopeSelection.fromPackageSet(selectedPackages))
                         onDismissRequest()
                     },
                     modifier = Modifier

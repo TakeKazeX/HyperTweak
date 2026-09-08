@@ -11,7 +11,9 @@ data class RestartScopeSelection(
     val bluetooth: Boolean = false,
     val powerkeeper: Boolean = false,
     val gms: Boolean = false,
-    val xmsf: Boolean = false
+    val xmsf: Boolean = false,
+    /** Scope packages that are not part of the historical fixed-field set. */
+    val additionalPackages: Set<String> = emptySet()
 ) {
     fun merge(other: RestartScopeSelection): RestartScopeSelection {
         return RestartScopeSelection(
@@ -25,7 +27,8 @@ data class RestartScopeSelection(
             bluetooth = bluetooth || other.bluetooth,
             powerkeeper = powerkeeper || other.powerkeeper,
             gms = gms || other.gms,
-            xmsf = xmsf || other.xmsf
+            xmsf = xmsf || other.xmsf,
+            additionalPackages = additionalPackages + other.additionalPackages
         )
     }
 
@@ -41,7 +44,8 @@ data class RestartScopeSelection(
             bluetooth = bluetooth && !other.bluetooth,
             powerkeeper = powerkeeper && !other.powerkeeper,
             gms = gms && !other.gms,
-            xmsf = xmsf && !other.xmsf
+            xmsf = xmsf && !other.xmsf,
+            additionalPackages = additionalPackages - other.additionalPackages
         )
     }
 
@@ -57,7 +61,8 @@ data class RestartScopeSelection(
             bluetooth = bluetooth && other.bluetooth,
             powerkeeper = powerkeeper && other.powerkeeper,
             gms = gms && other.gms,
-            xmsf = xmsf && other.xmsf
+            xmsf = xmsf && other.xmsf,
+            additionalPackages = additionalPackages.intersect(other.additionalPackages)
         )
     }
 
@@ -76,7 +81,8 @@ data class RestartScopeSelection(
             !bluetooth &&
             !powerkeeper &&
             !gms &&
-            !xmsf
+            !xmsf &&
+            additionalPackages.isEmpty()
     }
 
     fun toKeySet(): Set<String> {
@@ -95,6 +101,22 @@ data class RestartScopeSelection(
         return keys
     }
 
+    /** Converts the selection to actual package names for the dynamic restart protocol. */
+    fun toPackageSet(): Set<String> = buildSet {
+        if (systemUi) add(PACKAGE_SYSTEM_UI)
+        if (miuiHome) add(PACKAGE_MIUI_HOME)
+        if (settings) add(PACKAGE_SETTINGS)
+        if (aod) add(PACKAGE_AOD)
+        if (securityCenter) add(PACKAGE_SECURITY_CENTER)
+        if (scanner) add(PACKAGE_SCANNER)
+        if (milink) add(PACKAGE_MILINK)
+        if (bluetooth) add(PACKAGE_BLUETOOTH)
+        if (powerkeeper) add(PACKAGE_POWERKEEPER)
+        if (gms) add(PACKAGE_GMS)
+        if (xmsf) add(PACKAGE_XMSF)
+        addAll(additionalPackages)
+    }
+
     companion object {
         val Empty = RestartScopeSelection()
 
@@ -109,6 +131,51 @@ data class RestartScopeSelection(
         private const val KEY_POWERKEEPER = "powerkeeper"
         private const val KEY_GMS = "gms"
         private const val KEY_XMSF = "xmsf"
+
+        const val PACKAGE_SYSTEM_UI = "com.android.systemui"
+        const val PACKAGE_MIUI_HOME = "com.miui.home"
+        const val PACKAGE_SETTINGS = "com.android.settings"
+        const val PACKAGE_AOD = "com.miui.aod"
+        const val PACKAGE_SECURITY_CENTER = "com.miui.securitycenter"
+        const val PACKAGE_SCANNER = "com.xiaomi.scanner"
+        const val PACKAGE_MILINK = "com.milink.service"
+        const val PACKAGE_BLUETOOTH = "com.xiaomi.bluetooth"
+        const val PACKAGE_POWERKEEPER = "com.miui.powerkeeper"
+        const val PACKAGE_GMS = "com.google.android.gms"
+        const val PACKAGE_XMSF = "com.xiaomi.xmsf"
+
+        private val KNOWN_PACKAGES = setOf(
+            PACKAGE_SYSTEM_UI,
+            PACKAGE_MIUI_HOME,
+            PACKAGE_SETTINGS,
+            PACKAGE_AOD,
+            PACKAGE_SECURITY_CENTER,
+            PACKAGE_SCANNER,
+            PACKAGE_MILINK,
+            PACKAGE_BLUETOOTH,
+            PACKAGE_POWERKEEPER,
+            PACKAGE_GMS,
+            PACKAGE_XMSF
+        )
+
+        /** Builds the legacy fields plus arbitrary package entries from a live LSPosed scope. */
+        fun fromPackageSet(packages: Set<String>): RestartScopeSelection {
+            val normalized = packages.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.toSet()
+            return RestartScopeSelection(
+                systemUi = PACKAGE_SYSTEM_UI in normalized,
+                miuiHome = PACKAGE_MIUI_HOME in normalized,
+                settings = PACKAGE_SETTINGS in normalized,
+                aod = PACKAGE_AOD in normalized,
+                securityCenter = PACKAGE_SECURITY_CENTER in normalized,
+                scanner = PACKAGE_SCANNER in normalized,
+                milink = PACKAGE_MILINK in normalized,
+                bluetooth = PACKAGE_BLUETOOTH in normalized,
+                powerkeeper = PACKAGE_POWERKEEPER in normalized,
+                gms = PACKAGE_GMS in normalized,
+                xmsf = PACKAGE_XMSF in normalized,
+                additionalPackages = normalized - KNOWN_PACKAGES
+            )
+        }
 
         fun fromKeySet(keys: Set<String>): RestartScopeSelection {
             return RestartScopeSelection(

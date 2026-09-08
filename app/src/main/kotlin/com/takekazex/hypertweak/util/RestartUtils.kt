@@ -9,90 +9,92 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.ensureActive
 import java.util.concurrent.TimeUnit
 
 object RestartUtils {
     /**
-     * Restarts packages that have no [RestartScopeSelection] field, such as the user-selected input
-     * methods. The in-process receiver is already registered in every hooked package, so a newly
-     * scoped app is reachable without any extra wiring.
+     * Restarts packages that have no fixed [RestartScopeSelection] field, such as user-selected
+     * input methods or targets discovered from the live LSPosed scope. The in-process receiver is
+     * registered from [com.takekazex.hypertweak.hook.HookEntry] for every hooked package.
      *
-     * Returns the launched [Job]; callers that must sequence work after the restart (for example
-     * revoking a scope whose hooker has to run one last time) can `join()` it.
+     * Returns the launched [Job]; callers that must sequence work after the restart can `join()` it.
      */
     fun forceStopPackages(
         context: Context,
         coroutineScope: CoroutineScope,
         packages: Set<String>
     ): Job {
-        if (packages.isEmpty()) return SupervisorJob().apply { complete() }
+        val normalized = restartablePackages(packages)
+        if (normalized.isEmpty()) return SupervisorJob().apply { complete() }
         return coroutineScope.launch {
             val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra(RestartProtocol.EXTRA_PACKAGES, packages.toTypedArray())
+                putExtra(RestartProtocol.EXTRA_PACKAGES, normalized.toTypedArray())
             }
             // No receiver permission: that argument demands the *receiver* hold it, and the hooked
-            // system apps never will. Senders are already restricted by the receivers'
-            // broadcastPermission, which this app now holds.
+            // system apps never will. Senders are already restricted by the receivers' permission.
             runCatching { context.sendBroadcast(intent) }
 
-            val rootSuccess = withContext(Dispatchers.IO) {
-                try {
-                    val process = Runtime.getRuntime().exec("su")
-                    process.outputStream.bufferedWriter().use { writer ->
-                        packages.forEach { writer.write("am force-stop $it\n") }
-                        writer.write("exit\n")
-                        writer.flush()
-                    }
-                    if (!process.waitFor(8, TimeUnit.SECONDS)) {
-                        process.destroyForcibly()
-                        DebugLog.e("RestartUtils", "root package restart timed out")
-                        false
-                    } else {
-                        DebugLog.d("RestartUtils", "root package restart exit=${process.exitValue()}")
-                        process.exitValue() == 0
-                    }
-                } catch (e: Exception) {
-                    DebugLog.e("RestartUtils", "root package restart failed", e)
-                    false
-                }
-            }
-
+            val rootSuccess = forceStopViaRoot(normalized)
             withContext(Dispatchers.Main) {
                 val message = if (rootSuccess) {
-                    "Restarted ${packages.size} app(s) via Root"
+                    "Restarted ${normalized.size} app(s) via Root"
                 } else {
-                    "Broadcast sent to restart ${packages.size} app(s)"
+                    "Broadcast sent to restart ${normalized.size} app(s)"
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    /** Restarts the selected fixed and dynamically discovered scope packages. */
     fun restartScope(
         context: Context,
         coroutineScope: CoroutineScope,
         selection: RestartScopeSelection
     ) {
-        restartScope(
-            context = context,
-            coroutineScope = coroutineScope,
-            systemUi = selection.systemUi,
-            miuiHome = selection.miuiHome,
-            settings = selection.settings,
-            aod = selection.aod,
-            securityCenter = selection.securityCenter,
-            scanner = selection.scanner,
-            milink = selection.milink,
-            bluetooth = selection.bluetooth,
-            powerkeeper = selection.powerkeeper,
-            gms = selection.gms,
-            xmsf = selection.xmsf
-        )
+        val packages = restartablePackages(selection.toPackageSet())
+        if (packages.isEmpty()) return
+
+        coroutineScope.launch {
+            val intent = Intent(RestartProtocol.ACTION).apply {
+                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                putExtra(RestartProtocol.EXTRA_SYSTEM_UI, RestartScopeSelection.PACKAGE_SYSTEM_UI in packages)
+                putExtra(RestartProtocol.EXTRA_MIUI_HOME, RestartScopeSelection.PACKAGE_MIUI_HOME in packages)
+                putExtra(RestartProtocol.EXTRA_SETTINGS, RestartScopeSelection.PACKAGE_SETTINGS in packages)
+                putExtra(RestartProtocol.EXTRA_AOD, RestartScopeSelection.PACKAGE_AOD in packages)
+                putExtra(RestartProtocol.EXTRA_SECURITY_CENTER, RestartScopeSelection.PACKAGE_SECURITY_CENTER in packages)
+                putExtra(RestartProtocol.EXTRA_SCANNER, RestartScopeSelection.PACKAGE_SCANNER in packages)
+                putExtra(RestartProtocol.EXTRA_MILINK, RestartScopeSelection.PACKAGE_MILINK in packages)
+                putExtra(RestartProtocol.EXTRA_BLUETOOTH, RestartScopeSelection.PACKAGE_BLUETOOTH in packages)
+                putExtra(RestartProtocol.EXTRA_POWERKEEPER, RestartScopeSelection.PACKAGE_POWERKEEPER in packages)
+                putExtra(RestartProtocol.EXTRA_GMS, RestartScopeSelection.PACKAGE_GMS in packages)
+                putExtra(RestartProtocol.EXTRA_XMSF, RestartScopeSelection.PACKAGE_XMSF in packages)
+                putExtra(
+                    RestartProtocol.EXTRA_PACKAGES,
+                    selection.additionalPackages.filter { it in packages }.toTypedArray()
+                )
+            }
+            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
+            // system apps never will. Senders are already restricted by the receivers' permission.
+            runCatching { context.sendBroadcast(intent) }
+
+            val rootSuccess = forceStopViaRoot(packages)
+            withContext(Dispatchers.Main) {
+                val targets = packages.joinToString(", ")
+                if (rootSuccess) {
+                    Toast.makeText(context, "Restarted $targets via Root", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Broadcast sent to restart $targets", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
+    /**
+     * Legacy overload retained for callers outside the app; it now shares the same package-based
+     * path as the dynamic dialog.
+     */
     fun restartScope(
         context: Context,
         coroutineScope: CoroutineScope,
@@ -108,109 +110,64 @@ object RestartUtils {
         gms: Boolean = false,
         xmsf: Boolean = false
     ) {
-        if (!systemUi && !miuiHome && !settings && !aod && !securityCenter && !scanner && !milink && !bluetooth && !powerkeeper && !gms && !xmsf) return
+        restartScope(
+            context,
+            coroutineScope,
+            RestartScopeSelection(
+                systemUi = systemUi,
+                miuiHome = miuiHome,
+                settings = settings,
+                aod = aod,
+                securityCenter = securityCenter,
+                scanner = scanner,
+                milink = milink,
+                bluetooth = bluetooth,
+                powerkeeper = powerkeeper,
+                gms = gms,
+                xmsf = xmsf
+            )
+        )
+    }
 
-        coroutineScope.launch {
-            // 1. Send broadcast to active hook receivers
-            val intent = Intent(RestartProtocol.ACTION).apply {
-                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra(RestartProtocol.EXTRA_SYSTEM_UI, systemUi)
-                putExtra(RestartProtocol.EXTRA_MIUI_HOME, miuiHome)
-                putExtra(RestartProtocol.EXTRA_SETTINGS, settings)
-                putExtra(RestartProtocol.EXTRA_AOD, aod)
-                putExtra(RestartProtocol.EXTRA_SECURITY_CENTER, securityCenter)
-                putExtra(RestartProtocol.EXTRA_SCANNER, scanner)
-                putExtra(RestartProtocol.EXTRA_MILINK, milink)
-                putExtra(RestartProtocol.EXTRA_BLUETOOTH, bluetooth)
-                putExtra(RestartProtocol.EXTRA_POWERKEEPER, powerkeeper)
-                putExtra(RestartProtocol.EXTRA_GMS, gms)
-                putExtra(RestartProtocol.EXTRA_XMSF, xmsf)
-            }
-            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
-            // system apps never will. Senders are already restricted by the receivers'
-            // broadcastPermission, which this app now holds.
-            runCatching { context.sendBroadcast(intent) }
-
-            // 2. Try executing root shell commands to terminate target processes
-            val rootSuccess = withContext(Dispatchers.IO) {
-                try {
-                    val process = Runtime.getRuntime().exec("su")
-                    process.outputStream.bufferedWriter().use { writer ->
-                        if (systemUi) {
-                            writer.write("pkill -f com.android.systemui\n")
-                        }
-                        if (miuiHome) {
-                            writer.write("am force-stop com.miui.home\n")
-                        }
-                        if (settings) {
-                            writer.write("am force-stop com.android.settings\n")
-                        }
-                        if (aod) {
-                            writer.write("am force-stop com.miui.aod\n")
-                        }
-                        if (securityCenter) {
-                            writer.write("am force-stop com.miui.securitycenter\n")
-                        }
-                        if (scanner) {
-                            writer.write("am force-stop com.xiaomi.scanner\n")
-                        }
-                        if (milink) {
-                            writer.write("am force-stop com.milink.service\n")
-                        }
-                        if (bluetooth) {
-                            writer.write("am force-stop com.xiaomi.bluetooth\n")
-                        }
-                        if (powerkeeper) {
-                            writer.write("am force-stop com.miui.powerkeeper\n")
-                        }
-                        if (gms) {
-                            writer.write("am force-stop com.google.android.gms\n")
-                        }
-                        if (xmsf) {
-                            writer.write("am force-stop com.xiaomi.xmsf\n")
-                        }
-                        writer.write("exit\n")
-                        writer.flush()
-                    }
-                    val completed = process.waitFor(8, TimeUnit.SECONDS)
-                    if (!completed) {
-                        process.destroyForcibly()
-                        DebugLog.e("RestartUtils", "root restart timed out")
-                        false
-                    } else {
-                        val stderr = process.errorStream.bufferedReader().use { it.readText() }
-                        if (stderr.isNotBlank()) DebugLog.e("RestartUtils", "root stderr: $stderr")
-                        DebugLog.d("RestartUtils", "root restart exit=${process.exitValue()}")
-                        process.exitValue() == 0
-                    }
-                } catch (e: Exception) {
-                    DebugLog.e("RestartUtils", "root restart failed", e)
-                    false
+    private suspend fun forceStopViaRoot(packages: Set<String>): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val process = Runtime.getRuntime().exec("su")
+            process.outputStream.bufferedWriter().use { writer ->
+                if (RestartScopeSelection.PACKAGE_SYSTEM_UI in packages) {
+                    // SystemUI may have more than one process, so match the process name as before.
+                    writer.write("pkill -f ${RestartScopeSelection.PACKAGE_SYSTEM_UI}\n")
                 }
+                packages
+                    .filterNot { it == RestartScopeSelection.PACKAGE_SYSTEM_UI }
+                    .forEach { writer.write("am force-stop $it\n") }
+                writer.write("exit\n")
+                writer.flush()
             }
-
-            // 3. Provide feedback toast to user
-            withContext(Dispatchers.Main) {
-                val targets = buildList {
-                    if (systemUi) add("SystemUI")
-                    if (miuiHome) add("MiuiHome")
-                    if (settings) add("Settings")
-                    if (aod) add("AOD")
-                    if (securityCenter) add("Security")
-                    if (scanner) add("Scanner")
-                    if (milink) add("MiLink")
-                    if (bluetooth) add("Bluetooth")
-                    if (powerkeeper) add("PowerKeeper")
-                    if (gms) add("GMS")
-                    if (xmsf) add("Xmsf")
-                }.joinToString(", ")
-
-                if (rootSuccess) {
-                    Toast.makeText(context, "Restarted $targets via Root", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Broadcast sent to restart $targets", Toast.LENGTH_SHORT).show()
-                }
+            val completed = process.waitFor(8, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                DebugLog.e("RestartUtils", "root restart timed out")
+                false
+            } else {
+                val stderr = process.errorStream.bufferedReader().use { it.readText() }
+                if (stderr.isNotBlank()) DebugLog.e("RestartUtils", "root stderr: $stderr")
+                DebugLog.d("RestartUtils", "root restart exit=${process.exitValue()}")
+                process.exitValue() == 0
             }
+        } catch (e: Exception) {
+            DebugLog.e("RestartUtils", "root restart failed", e)
+            false
         }
     }
+
+    private fun restartablePackages(packages: Set<String>): Set<String> = packages
+        .map { it.trim() }
+        .filter(::isSafePackageName)
+        .filterNot { it in NON_RESTARTABLE_PACKAGES }
+        .toSet()
+
+    private val NON_RESTARTABLE_PACKAGES = setOf("system", "system_server", "android", "com.takekazex.hypertweak")
+    private val SAFE_PACKAGE_NAME = Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")
+
+    private fun isSafePackageName(packageName: String): Boolean = SAFE_PACKAGE_NAME.matches(packageName)
 }

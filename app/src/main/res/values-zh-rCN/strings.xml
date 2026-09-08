@@ -308,6 +308,7 @@
     <string name="home_scope_powerkeeper">省电精灵</string>
     <string name="home_scope_remove">移除作用域</string>
     <string name="home_scope_remove_summary">OS4 上桌面未被挂钩，移除其作用域是安全的</string>
+    <string name="home_scope_ignore">永久忽略</string>
     <string name="home_scope_restore">恢复作用域</string>
     <string name="home_scope_restore_summary">请求缺失的作用域，让这些功能可以重新挂钩</string>
     <string name="home_scope_scanner">扫描</string>
@@ -613,6 +614,7 @@
     <string name="restart_scope_system_ui">系统界面</string>
     <string name="restart_scope_xmsf">小米服务框架</string>
     <string name="restart_scoped_apps_title">重启作用域应用</string>
+    <string name="restart_scope_no_apps">未找到已安装的应用作用域。</string>
     <string name="scale_cancel">取消</string>
     <string name="scale_ok">确定</string>
     <string name="scale_percent" formatted="false">%</string>
@@ -656,9 +658,18 @@
     <string name="settings_lockscreen_fingerprint_avoid">锁屏指纹避让</string>
     <string name="settings_lockscreen_fingerprint_avoid_summary">让锁屏通知避开屏下指纹图标</string>
     <string name="settings_module_preferences">模块偏好</string>
+    <string name="settings_scope_prompts">作用域提示</string>
+    <string name="settings_scope_prompts_summary">管理已永久忽略的作用域恢复和移除提示</string>
+    <string name="settings_launcher_scope_not_granted">未获得桌面作用域：%1$s</string>
     <string name="settings_other">其他</string>
     <string name="settings_system_ui">系统界面</string>
     <string name="settings_system_ui_summary">系统界面相关调整：壁纸配色刷新、锁屏指纹避让、充电详情、锁屏通知与媒体卡片</string>
+    <string name="scope_prompts_title">已忽略的作用域提示</string>
+    <string name="scope_prompts_empty">暂无已忽略的作用域提示</string>
+    <string name="scope_prompts_empty_summary">忽略的提示会显示在这里，并可恢复显示。</string>
+    <string name="scope_prompt_restore">恢复作用域</string>
+    <string name="scope_prompt_remove">移除作用域</string>
+    <string name="scope_prompt_show_again">再次提示</string>
     <string name="settings_system_ui_back">返回</string>
     <string name="settings_system_ui_section_general">通用</string>
     <string name="settings_system_ui_section_notification_shade">通知中心</string>

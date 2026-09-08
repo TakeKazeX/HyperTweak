@@ -333,6 +333,9 @@ object Preferences {
      */
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
 
+    /** Scope restore/remove prompts the user chose to ignore permanently. */
+    const val KEY_IGNORED_SCOPE_PROMPTS = "ignored_scope_prompts"
+
     /**
      * 机型伪装 (device-model spoof) for the Smart Assistant (`com.miui.personalassistant`). When
      * on, `ModelSpoofHooker` re-writes the `phoneModel` / `phoneDevice` fields that the assistant

@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 sealed interface Route : NavKey {
     data object Main : Route
     data object Appearance : Route
+    data object ScopePrompts : Route
     data object About : Route
     data object Credits : Route
     data object HiddenFeatures : Route
@@ -35,6 +36,7 @@ val Route.saveKey: String
     get() = when (this) {
         Route.Main -> "Main"
         Route.Appearance -> "Appearance"
+        Route.ScopePrompts -> "ScopePrompts"
         Route.About -> "About"
         Route.Credits -> "Credits"
         Route.HiddenFeatures -> "HiddenFeatures"
@@ -60,6 +62,7 @@ val Route.saveKey: String
 fun routeFromSaveKey(key: String): Route? = when (key) {
     "Main" -> Route.Main
     "Appearance" -> Route.Appearance
+    "ScopePrompts" -> Route.ScopePrompts
     "About" -> Route.About
     "Credits" -> Route.Credits
     "HiddenFeatures" -> Route.HiddenFeatures

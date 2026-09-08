@@ -51,6 +51,7 @@ import com.takekazex.hypertweak.ui.page.DeveloperSettingsPage
 import com.takekazex.hypertweak.ui.page.BatteryInfoPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
+import com.takekazex.hypertweak.ui.page.ScopePromptsPage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import com.takekazex.hypertweak.hook.HotReloadReport
@@ -316,6 +317,9 @@ fun HyperTweakNavContainer(
                 onNavigateToAppearance = {
                     backStack.add(Route.Appearance)
                 },
+                onNavigateToScopePrompts = {
+                    backStack.add(Route.ScopePrompts)
+                },
                 onNavigateToDebugLogs = {
                     backStack.add(Route.Debug)
                 },
@@ -381,6 +385,11 @@ fun HyperTweakNavContainer(
                 onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
                 pageScale = pageScale,
                 onPageScaleChange = onPageScaleChange
+            )
+        }
+        entry<Route.ScopePrompts> {
+            ScopePromptsPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.About> {

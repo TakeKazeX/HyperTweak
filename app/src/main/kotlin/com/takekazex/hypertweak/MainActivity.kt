@@ -114,10 +114,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH to RestartScopeSelection(xmsf = true)
 )
 
-private val ALL_MANUAL_RESTART_SCOPES = TWEAK_RESTART_SCOPES.values.fold(RestartScopeSelection.Empty) { acc, scopes ->
-    acc.merge(scopes)
-}
-
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
@@ -507,6 +503,45 @@ class MainActivity : ComponentActivity() {
                     }
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                }
+            }
+
+            /** Requests the optional OS3 launcher target before a launcher-backed feature is used. */
+            fun requestLauncherScope(restore: () -> Unit) {
+                Preferences.flush()
+                coroutineScope.launch {
+                    when (val result = ScopeManager.request(
+                        setOf(RestartScopeSelection.PACKAGE_MIUI_HOME)
+                    )) {
+                        is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> Unit
+                        is ScopeManager.Result.Rejected -> {
+                            restore()
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(
+                                    R.string.settings_launcher_scope_not_granted,
+                                    result.missing.joinToString()
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        is ScopeManager.Result.Failed -> {
+                            restore()
+                            Toast.makeText(
+                                this@MainActivity,
+                                result.message,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        ScopeManager.Result.ServiceUnavailable -> {
+                            restore()
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(R.string.home_scope_service_unavailable),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
                 }
             }
 
@@ -969,9 +1004,20 @@ class MainActivity : ComponentActivity() {
                     },
                     miuiBackGestureHook = miuiBackGestureHook,
                     onMiuiBackGestureHookChange = { enabled ->
+                        val previous = miuiBackGestureHook
                         markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
                         miuiBackGestureHook = enabled
                         Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
+                        if (enabled && !PlatformLevel.isOs4) {
+                            requestLauncherScope {
+                                miuiBackGestureHook = previous
+                                Preferences.putBoolean(
+                                    Preferences.KEY_MIUI_BACK_GESTURE_HOOK,
+                                    previous
+                                )
+                                markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, previous)
+                            }
+                        }
                     },
                     crossTaskWallpaperBackground = crossTaskWallpaperBackground,
                     onCrossTaskWallpaperBackgroundChange = { enabled ->
@@ -1004,7 +1050,7 @@ class MainActivity : ComponentActivity() {
                     launcherSupportsBackRoute = launcherSupportsBackRoute,
                     aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
                     onAospBackMiuiHomeHooksChange = { enabled ->
-                        markTweaked(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
+                        val previous = aospBackMiuiHomeHooks
                         aospBackMiuiHomeHooks = enabled
                         Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
                         // Records that the choice is the user's, so the runtime stops
@@ -1012,6 +1058,20 @@ class MainActivity : ComponentActivity() {
                         Preferences.putBoolean(
                             Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, true
                         )
+                        markTweaked(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
+                        if (enabled && !PlatformLevel.isOs4) {
+                            requestLauncherScope {
+                                aospBackMiuiHomeHooks = previous
+                                Preferences.putBoolean(
+                                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
+                                    previous
+                                )
+                                markTweaked(
+                                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
+                                    previous
+                                )
+                            }
+                        }
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,
                     onPredictiveBackFollowGestureChange = { follow ->
@@ -1274,9 +1334,19 @@ class MainActivity : ComponentActivity() {
                     onHotReload = { restartAllScopes ->
                         XposedServiceManager.hotReloadStaleTargets { report ->
                             if (restartAllScopes && report.failedCount == 0) {
-                                Preferences.flush()
-                                RestartUtils.restartScope(this@MainActivity, coroutineScope, ALL_MANUAL_RESTART_SCOPES)
-                                clearRestartedScopes(ALL_MANUAL_RESTART_SCOPES)
+                                coroutineScope.launch {
+                                    Preferences.flush()
+                                    // Include every package currently enabled in LSPosed, including
+                                    // dynamically requested IMEs and newer feature targets that are
+                                    // not represented by the legacy fixed selection fields.
+                                    val allScopes = ScopeManager.restartableScope(this@MainActivity)
+                                        ?.let(RestartScopeSelection::fromPackageSet)
+                                        ?: RestartScopeSelection.fromPackageSet(
+                                            ScopeManager.declaredRestartableScope(this@MainActivity)
+                                        )
+                                    RestartUtils.restartScope(this@MainActivity, coroutineScope, allScopes)
+                                    clearRestartedScopes(allScopes)
+                                }
                             }
                         }
                     },

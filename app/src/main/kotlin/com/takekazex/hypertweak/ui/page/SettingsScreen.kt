@@ -63,6 +63,7 @@ fun SettingsScreenContent(
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
+    onNavigateToScopePrompts: () -> Unit,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
     paModelSpoofEnabled: Boolean,
@@ -194,6 +195,11 @@ fun SettingsScreenContent(
                         ),
                         selectedIndex = appLanguage,
                         onSelectedIndexChange = onAppLanguageChange
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_scope_prompts),
+                        summary = stringResource(R.string.settings_scope_prompts_summary),
+                        onClick = onNavigateToScopePrompts
                     )
                 }
             }

@@ -308,6 +308,7 @@
     <string name="home_scope_powerkeeper">PowerKeeper</string>
     <string name="home_scope_remove">Remove Scope</string>
     <string name="home_scope_remove_summary">The launcher is not hooked on OS4; removing its scope is safe</string>
+    <string name="home_scope_ignore">Ignore permanently</string>
     <string name="home_scope_restore">Restore Scope</string>
     <string name="home_scope_restore_summary">Request the missing scope so these features can hook again</string>
     <string name="home_scope_scanner">Scanner</string>
@@ -613,6 +614,7 @@
     <string name="restart_scope_xmsf">Xiaomi Service Framework</string>
     <string name="restart_scope_system_ui">System UI</string>
     <string name="restart_scoped_apps_title">Restart Scoped Apps</string>
+    <string name="restart_scope_no_apps">No installed application scope was found.</string>
     <string name="scale_cancel">Cancel</string>
     <string name="scale_ok">OK</string>
     <string name="scale_percent" formatted="false">%</string>
@@ -656,9 +658,18 @@
     <string name="settings_lockscreen_fingerprint_avoid">Lockscreen Fingerprint Avoid</string>
     <string name="settings_lockscreen_fingerprint_avoid_summary">Keep lockscreen notifications clear of the in-display fingerprint icon</string>
     <string name="settings_module_preferences">Module Preferences</string>
+    <string name="settings_scope_prompts">Scope Prompts</string>
+    <string name="settings_scope_prompts_summary">Manage permanently ignored scope restore and removal prompts</string>
+    <string name="settings_launcher_scope_not_granted">Launcher scope was not granted: %1$s</string>
     <string name="settings_other">Other</string>
     <string name="settings_system_ui">System UI</string>
     <string name="settings_system_ui_summary">SystemUI tweaks: wallpaper-color refresh, lockscreen fingerprint avoidance, charging detail, lockscreen notifications and media cards</string>
+    <string name="scope_prompts_title">Ignored Scope Prompts</string>
+    <string name="scope_prompts_empty">No ignored scope prompts</string>
+    <string name="scope_prompts_empty_summary">Prompts you ignore will appear here and can be shown again.</string>
+    <string name="scope_prompt_restore">Restore scope</string>
+    <string name="scope_prompt_remove">Remove scope</string>
+    <string name="scope_prompt_show_again">Show again</string>
     <string name="settings_system_ui_back">Back</string>
     <string name="settings_system_ui_section_general">General</string>
     <string name="settings_system_ui_section_notification_shade">Notification Shade</string>

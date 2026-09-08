@@ -48,7 +48,8 @@ object RestartBroadcastHooker : StaticHooker() {
                         val restartGms = intent.getBooleanExtra(RestartProtocol.EXTRA_GMS, false)
                         val restartXmsf = intent.getBooleanExtra(RestartProtocol.EXTRA_XMSF, false)
 
-                        // Packages with no RestartScopeSelection field name themselves here.
+                        // Dynamically discovered scope packages name themselves here; fixed targets
+                        // still use their compact boolean flags for compatibility.
                         val namedPackages = intent.getStringArrayExtra(RestartProtocol.EXTRA_PACKAGES)
 
                         val shouldRestart = namedPackages?.contains(pkgName) == true || when (pkgName) {

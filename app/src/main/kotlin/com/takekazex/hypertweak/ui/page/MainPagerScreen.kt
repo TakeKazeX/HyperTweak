@@ -115,6 +115,7 @@ fun MainPagerScreen(
     onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToAppearance: () -> Unit,
+    onNavigateToScopePrompts: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
@@ -354,6 +355,7 @@ fun MainPagerScreen(
                                     stringResource(R.string.main_theme_dark)
                                 ).getOrElse(themeMode) { stringResource(R.string.main_theme_follow_system) },
                                 onNavigateToAppearance = onNavigateToAppearance,
+                                onNavigateToScopePrompts = onNavigateToScopePrompts,
                                 allowLandscape = allowLandscape,
                                 onAllowLandscapeChange = onAllowLandscapeChange,
                                 onNavigateToAbout = onNavigateToAbout,

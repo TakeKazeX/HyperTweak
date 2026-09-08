@@ -48,10 +48,14 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.ScopePrompt
+import com.takekazex.hypertweak.util.ScopePromptAction
+import com.takekazex.hypertweak.util.ScopePromptStore
 import com.takekazex.hypertweak.util.ScopeManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -224,7 +228,7 @@ fun HomeScreenContent(
             }
 
             ScopeWarningCard()
-            Os4LauncherScopeSuggestionCard()
+            LauncherScopeSuggestionCard()
 
             // SmallTitle - proper 28dp left indent like miuix
             SmallTitle(text = stringResource(R.string.home_diagnostics_title))
@@ -406,11 +410,18 @@ private fun HotReloadDialog(
 private fun ScopeWarningCard() {
     val context = LocalContext.current
     val service by XposedServiceManager.serviceFlow.collectAsState()
-    val missing by produceState<Set<String>?>(initialValue = null, service) {
+    var refreshKey by remember { mutableIntStateOf(0) }
+    val missing by produceState<Set<String>?>(initialValue = null, service, refreshKey) {
         value = if (service == null) null else ScopeManager.missingRequiredScope(context)
     }
-    val absent = missing ?: return
-    if (absent.isEmpty()) return
+    val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
+        value = withContext(Dispatchers.IO) { ScopePromptStore.ignoredIds() }
+    }
+    val prompts = (missing ?: return)
+        .sorted()
+        .map { ScopePrompt(ScopePromptAction.RESTORE, it) }
+        .filterNot { it.id in ignoredIds }
+    if (prompts.isEmpty()) return
 
     val scope = rememberCoroutineScope()
 
@@ -419,11 +430,11 @@ private fun ScopeWarningCard() {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            absent.sorted().forEach { packageName ->
-                key(packageName) {
+            prompts.forEach { prompt ->
+                key(prompt.id) {
                     BasicComponent(
-                        title = friendlyProcessName(context, packageName),
-                        summary = packageName,
+                        title = friendlyProcessName(context, prompt.packageName),
+                        summary = prompt.packageName,
                         startAction = {
                             Icon(
                                 imageVector = Icons.Rounded.WarningAmber,
@@ -440,7 +451,7 @@ private fun ScopeWarningCard() {
                 summary = stringResource(R.string.home_scope_restore_summary),
                 onClick = {
                     scope.launch {
-                        when (val result = ScopeManager.request(absent)) {
+                        when (val result = ScopeManager.request(prompts.map { it.packageName }.toSet())) {
                             is ScopeManager.Result.Failed ->
                                 Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             ScopeManager.Result.ServiceUnavailable ->
@@ -449,66 +460,80 @@ private fun ScopeWarningCard() {
                                     context.getString(R.string.home_scope_service_unavailable),
                                     Toast.LENGTH_SHORT
                                 ).show()
-                            else -> Unit
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> refreshKey++
+                            is ScopeManager.Result.Rejected -> Unit
                         }
                     }
                 }
+            )
+            TextButton(
+                text = stringResource(R.string.home_scope_ignore),
+                onClick = {
+                    ScopePromptStore.ignoreAll(prompts)
+                    refreshKey++
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
             )
         }
     }
 }
 
 /**
- * OS4: the launcher is never hooked (its gesture stack is native), so keeping `com.miui.home`
- * in the LSPosed scope only widens the module's footprint. Suggest removing it.
+ * The launcher is not part of the static recommended scope. OS3 can still need it for the
+ * Java predictive-back route, while OS4 can migrate an old installation away from the stale
+ * launcher entry.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-private fun Os4LauncherScopeSuggestionCard() {
-    if (!PlatformLevel.isOs4) return
+private fun LauncherScopeSuggestionCard() {
     val context = LocalContext.current
     val service by XposedServiceManager.serviceFlow.collectAsState()
-    // Re-run the scope check after a successful removal so the card disappears in place.
-    val refreshKey = remember { mutableStateOf(0) }
-    val unneeded by produceState<Set<String>?>(
-        initialValue = null,
-        service,
-        refreshKey.value
-    ) {
-        value = if (service == null) null else ScopeManager.unneededScope(context)
+    var refreshKey by remember { mutableIntStateOf(0) }
+    val recommendation by produceState<ScopePrompt?>(initialValue = null, service, refreshKey) {
+        value = if (service == null) null else ScopeManager.launcherScopeRecommendation()
     }
-    val present = unneeded ?: return
-    if (present.isEmpty()) return
+    val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
+        value = withContext(Dispatchers.IO) { ScopePromptStore.ignoredIds() }
+    }
+    val prompt = recommendation ?: return
+    if (prompt.id in ignoredIds) return
 
     val scope = rememberCoroutineScope()
+    val restoring = prompt.action == ScopePromptAction.RESTORE
 
     SmallTitle(text = stringResource(R.string.home_scope_title))
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            present.sorted().forEach { packageName ->
-                key(packageName) {
-                    BasicComponent(
-                        title = friendlyProcessName(context, packageName),
-                        summary = packageName,
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.Info,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.home_scope_unneeded),
-                                tint = Color(0xFF42A5F5)
-                            )
-                        }
+            BasicComponent(
+                title = friendlyProcessName(context, prompt.packageName),
+                summary = prompt.packageName,
+                startAction = {
+                    Icon(
+                        imageVector = if (restoring) Icons.Rounded.WarningAmber else Icons.Rounded.Info,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(
+                            if (restoring) R.string.home_scope_missing else R.string.home_scope_unneeded
+                        ),
+                        tint = if (restoring) Color(0xFFFFB300) else Color(0xFF42A5F5)
                     )
                 }
-            }
+            )
             ArrowPreference(
-                title = stringResource(R.string.home_scope_remove),
-                summary = stringResource(R.string.home_scope_remove_summary),
+                title = stringResource(if (restoring) R.string.home_scope_restore else R.string.home_scope_remove),
+                summary = stringResource(
+                    if (restoring) R.string.home_scope_restore_summary else R.string.home_scope_remove_summary
+                ),
                 onClick = {
                     scope.launch {
-                        when (val result = ScopeManager.remove(present)) {
+                        when (val result = if (restoring) {
+                            ScopeManager.request(setOf(prompt.packageName))
+                        } else {
+                            ScopeManager.remove(setOf(prompt.packageName))
+                        }) {
                             is ScopeManager.Result.Failed ->
                                 Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             ScopeManager.Result.ServiceUnavailable ->
@@ -517,10 +542,21 @@ private fun Os4LauncherScopeSuggestionCard() {
                                     context.getString(R.string.home_scope_service_unavailable),
                                     Toast.LENGTH_SHORT
                                 ).show()
-                            else -> refreshKey.value++
+                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> refreshKey++
+                            is ScopeManager.Result.Rejected -> Unit
                         }
                     }
                 }
+            )
+            TextButton(
+                text = stringResource(R.string.home_scope_ignore),
+                onClick = {
+                    ScopePromptStore.ignore(prompt)
+                    refreshKey++
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
             )
         }
     }
@@ -602,7 +638,7 @@ private fun HotReloadResultCard(report: HotReloadReport) {
     }
 }
 
-private fun friendlyProcessName(context: android.content.Context, processName: String): String {
+internal fun friendlyProcessName(context: android.content.Context, processName: String): String {
     return when (processName) {
         "system", "system_server", "android" -> context.getString(R.string.home_scope_system_server)
         "com.android.systemui" -> context.getString(R.string.home_scope_system_ui)
