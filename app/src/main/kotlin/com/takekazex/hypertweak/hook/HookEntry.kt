@@ -640,6 +640,12 @@ class HookEntry : XposedModule() {
                     attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 }
             }
+            "com.miui.screenshot" -> {
+                // HyperOS delegates normal screenshots to this process. Its provider hard-codes
+                // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect
+                // that URI to the ROM's longer shutter sound when the lockscreen-bar tweak is on.
+                attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
+            }
             "com.miui.home" -> {
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackMiuiHomeHooker, classLoader, ctx, replacementHandles)
