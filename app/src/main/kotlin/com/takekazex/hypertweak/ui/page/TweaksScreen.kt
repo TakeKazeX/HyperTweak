@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -34,6 +35,7 @@ import com.takekazex.hypertweak.ui.effect.rememberContentReady
 fun TweaksScreenContent(
     padding: PaddingValues,
     onNavigateToSystemUi: () -> Unit,
+    onNavigateToDownloadManager: () -> Unit,
     removeGms: Boolean,
     onRemoveGmsChange: (Boolean) -> Unit,
     quickShareEnabled: Boolean,
@@ -107,6 +109,15 @@ fun TweaksScreenContent(
                     title = stringResource(R.string.settings_system_ui),
                     summary = stringResource(R.string.settings_system_ui_summary),
                     onClick = onNavigateToSystemUi
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.download_manager_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.download_manager_title),
+                    summary = stringResource(R.string.download_manager_summary),
+                    onClick = onNavigateToDownloadManager
                 )
             }
 

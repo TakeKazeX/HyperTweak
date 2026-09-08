@@ -49,6 +49,18 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         settings = true,
         aod = true
     ),
+    Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS)
+    ),
+    Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
+    ),
+    Preferences.KEY_DOWNLOAD_HIDE_XL to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
+    ),
+    Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
+    ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
@@ -237,6 +249,18 @@ class MainActivity : ComponentActivity() {
             // State variables for toggles
             var aodFullscreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) }
             var removeGms by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)) }
+            var blockDownloadXlLogDir by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false))
+            }
+            var downloadAlwaysShowFullLink by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, false))
+            }
+            var downloadHideXl by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_DOWNLOAD_HIDE_XL, false))
+            }
+            var downloadAddNewButton by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON, false))
+            }
             var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var fullScreenTranslate by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)) }
             var askAboutScreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)) }
@@ -407,6 +431,10 @@ class MainActivity : ComponentActivity() {
             fun currentTweakValue(key: String): Boolean {
                 return when (key) {
                     Preferences.KEY_AOD_FULLSCREEN -> aodFullscreen
+                    Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR -> blockDownloadXlLogDir
+                    Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK -> downloadAlwaysShowFullLink
+                    Preferences.KEY_DOWNLOAD_HIDE_XL -> downloadHideXl
+                    Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON -> downloadAddNewButton
                     Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
                     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
@@ -678,6 +706,16 @@ class MainActivity : ComponentActivity() {
                     appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
                     aodFullscreen = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
                     removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
+                    blockDownloadXlLogDir = Preferences.getBoolean(Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false)
+                    downloadAlwaysShowFullLink = Preferences.getBoolean(
+                        Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
+                        false
+                    )
+                    downloadHideXl = Preferences.getBoolean(Preferences.KEY_DOWNLOAD_HIDE_XL, false)
+                    downloadAddNewButton = Preferences.getBoolean(
+                        Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON,
+                        false
+                    )
                     quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     fullScreenTranslate = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
                     askAboutScreen = Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
@@ -906,6 +944,30 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_AOD_FULLSCREEN, checked)
                         aodFullscreen = checked
                         Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
+                    },
+                    blockDownloadXlLogDir = blockDownloadXlLogDir,
+                    onBlockDownloadXlLogDirChange = { checked ->
+                        markTweaked(Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, checked)
+                        blockDownloadXlLogDir = checked
+                        Preferences.putBoolean(Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, checked)
+                    },
+                    downloadAlwaysShowFullLink = downloadAlwaysShowFullLink,
+                    onDownloadAlwaysShowFullLinkChange = { checked ->
+                        markTweaked(Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, checked)
+                        downloadAlwaysShowFullLink = checked
+                        Preferences.putBoolean(Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, checked)
+                    },
+                    downloadHideXl = downloadHideXl,
+                    onDownloadHideXlChange = { checked ->
+                        markTweaked(Preferences.KEY_DOWNLOAD_HIDE_XL, checked)
+                        downloadHideXl = checked
+                        Preferences.putBoolean(Preferences.KEY_DOWNLOAD_HIDE_XL, checked)
+                    },
+                    downloadAddNewButton = downloadAddNewButton,
+                    onDownloadAddNewButtonChange = { checked ->
+                        markTweaked(Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
+                        downloadAddNewButton = checked
+                        Preferences.putBoolean(Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
                     },
                     removeGms = removeGms,
                     onRemoveGmsChange = { checked ->

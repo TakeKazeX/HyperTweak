@@ -31,6 +31,8 @@
         <package android:name="com.miui.personalassistant" />
         <package android:name="com.android.camera" />
         <package android:name="com.xiaomi.xmsf" />
+        <package android:name="com.android.providers.downloads" />
+        <package android:name="com.android.providers.downloads.ui" />
         <!-- Lets the AOSP IME picker enumerate installed input methods. -->
         <intent>
             <action android:name="android.view.InputMethod" />

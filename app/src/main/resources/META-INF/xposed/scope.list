@@ -15,3 +15,5 @@ com.miui.mediaeditor
 com.miui.personalassistant
 com.android.camera
 com.xiaomi.xmsf
+com.android.providers.downloads
+com.android.providers.downloads.ui

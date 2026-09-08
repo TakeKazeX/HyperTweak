@@ -153,6 +153,8 @@ data class RestartScopeSelection(
         const val PACKAGE_MEDIA_EDITOR = "com.miui.mediaeditor"
         const val PACKAGE_PERSONAL_ASSISTANT = "com.miui.personalassistant"
         const val PACKAGE_CAMERA = "com.android.camera"
+        const val PACKAGE_DOWNLOADS = "com.android.providers.downloads"
+        const val PACKAGE_DOWNLOADS_UI = "com.android.providers.downloads.ui"
 
         private val KNOWN_PACKAGES = setOf(
             PACKAGE_SYSTEM_UI,

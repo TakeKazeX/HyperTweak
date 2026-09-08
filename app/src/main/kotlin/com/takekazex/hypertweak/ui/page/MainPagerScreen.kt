@@ -73,6 +73,7 @@ fun MainPagerScreen(
     paModelSpoofEnabled: Boolean,
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
     onNavigateToSystemUi: () -> Unit,
+    onNavigateToDownloadManager: () -> Unit,
     showInSettings: Boolean,
     onShowInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
@@ -297,6 +298,7 @@ fun MainPagerScreen(
                             TweaksScreenContent(
                                 padding = padding,
                                 onNavigateToSystemUi = onNavigateToSystemUi,
+                                onNavigateToDownloadManager = onNavigateToDownloadManager,
                                 removeGms = removeGms,
                                 onRemoveGmsChange = onRemoveGmsChange,
                                 quickShareEnabled = quickShareEnabled,

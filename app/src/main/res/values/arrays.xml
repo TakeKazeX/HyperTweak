@@ -26,5 +26,7 @@
         <item>com.miui.personalassistant</item>
         <item>com.android.camera</item>
         <item>com.xiaomi.xmsf</item>
+        <item>com.android.providers.downloads</item>
+        <item>com.android.providers.downloads.ui</item>
     </string-array>
 </resources>

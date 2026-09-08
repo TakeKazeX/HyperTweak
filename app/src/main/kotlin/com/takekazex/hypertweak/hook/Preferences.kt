@@ -21,6 +21,22 @@ object Preferences {
     const val KEY_REMOVE_GMS_RESTRICTION = "remove_gms_restriction"
 
     /**
+     * Stops the CN Download Manager's optional Xunlei log files from creating the shared-storage
+     * `.xlDownload` directory. The hook is scoped to `com.android.providers.downloads`, is off by
+     * default, and is read when that process is restarted.
+     */
+    const val KEY_BLOCK_DOWNLOAD_XL_LOG_DIR = "block_download_xl_log_dir"
+
+    /** Shows the original URL instead of a task description in Download Manager details. */
+    const val KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK = "download_always_show_full_link"
+
+    /** Hides the Download Manager's Xunlei action-bar entry. */
+    const val KEY_DOWNLOAD_HIDE_XL = "download_hide_xl"
+
+    /** Adds an independent new-download action-bar button to the Download Manager. */
+    const val KEY_DOWNLOAD_ADD_NEW_BUTTON = "download_add_new_button"
+
+    /**
      * Unlocks Nearby Share (Quick Share) on CN Google Play services by overriding the
      * `sharing_supports_latchsky` phenotype flag to true in GMS's CE `phenotype.db`.
      * GMS must be in the Xposed scope (requested when the switch is turned on).

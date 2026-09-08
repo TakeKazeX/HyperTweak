@@ -88,6 +88,8 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
+import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
+import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -717,6 +719,17 @@ class HookEntry : XposedModule() {
                 // resolved through the same Je.c facade, and its live-singleton fallback only
                 // reads the config after the impersonation factory hook owns it.
                 attachHooker(CameraUltraQualityHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.providers.downloads" -> {
+                // The provider's optional Xunlei log setup creates /storage/emulated/0/.xlDownload
+                // even with debug logging off. The feature only blocks that log path; downloads
+                // continue through the provider's normal engine.
+                attachHooker(DownloadXlLogDirectoryHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.providers.downloads.ui" -> {
+                // The Download Manager UI has its own package/process and must be explicitly
+                // scoped; provider-side .xlDownload filtering does not reach this process.
+                attachHooker(DownloadUiHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.xmsf" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

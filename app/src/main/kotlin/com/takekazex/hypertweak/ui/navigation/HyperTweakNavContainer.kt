@@ -49,6 +49,7 @@ import com.takekazex.hypertweak.ui.page.ControlCenterResizePage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.DeveloperSettingsPage
 import com.takekazex.hypertweak.ui.page.BatteryInfoPage
+import com.takekazex.hypertweak.ui.page.DownloadManagerPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.page.ScopePromptsPage
@@ -108,6 +109,14 @@ fun HyperTweakNavContainer(
     pendingRestartScopes: RestartScopeSelection,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
+    blockDownloadXlLogDir: Boolean,
+    onBlockDownloadXlLogDirChange: (Boolean) -> Unit,
+    downloadAlwaysShowFullLink: Boolean,
+    onDownloadAlwaysShowFullLinkChange: (Boolean) -> Unit,
+    downloadHideXl: Boolean,
+    onDownloadHideXlChange: (Boolean) -> Unit,
+    downloadAddNewButton: Boolean,
+    onDownloadAddNewButtonChange: (Boolean) -> Unit,
     removeGms: Boolean,
     onRemoveGmsChange: (Boolean) -> Unit,
     quickShareEnabled: Boolean,
@@ -270,6 +279,9 @@ fun HyperTweakNavContainer(
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemUi = {
                     backStack.add(Route.SystemUi)
+                },
+                onNavigateToDownloadManager = {
+                    backStack.add(Route.DownloadManager)
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
@@ -507,6 +519,19 @@ fun HyperTweakNavContainer(
                 aospBackSlideAnimation = aospBackSlideAnimation,
                 onAospBackSlideAnimationChange = onAospBackSlideAnimationChange,
                 launcherSupportsBackRoute = launcherSupportsBackRoute
+            )
+        }
+        entry<Route.DownloadManager> {
+            DownloadManagerPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                blockDownloadXlLogDir = blockDownloadXlLogDir,
+                onBlockDownloadXlLogDirChange = onBlockDownloadXlLogDirChange,
+                alwaysShowFullLink = downloadAlwaysShowFullLink,
+                onAlwaysShowFullLinkChange = onDownloadAlwaysShowFullLinkChange,
+                hideXl = downloadHideXl,
+                onHideXlChange = onDownloadHideXlChange,
+                addNewButton = downloadAddNewButton,
+                onAddNewButtonChange = onDownloadAddNewButtonChange
             )
         }
         entry<Route.GlassTuner> {
