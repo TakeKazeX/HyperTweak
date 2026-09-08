@@ -44,7 +44,8 @@ object IconTunerFlows {
      * names keeps R8 from rewriting them; the host keeps the original kotlinx names (verified
      * in the OS4 0.19 SystemUI dex), so the host-loader lookup succeeds.
      */
-    private fun hostClassName(pkg: String, simple: String): String =
+    /** Builds a host class name without keeping the complete name as an R8-rewritable literal. */
+    fun hostClassName(pkg: String, simple: String): String =
         StringBuilder(pkg.length + 1 + simple.length)
             .append(pkg)
             .append('.')
@@ -147,4 +148,12 @@ object IconTunerFlows {
             unsafe.putObject(target, unsafe.objectFieldOffset(field), value)
         }
     }
+
+    /**
+     * Allocates a host object whose dex class has no declared constructor. Some OS4 framework
+     * classes are instantiated in smali by invoking Object.<init> directly, so reflection cannot
+     * discover the constructor even though the host itself creates the class normally.
+     */
+    @Suppress("DEPRECATION") // required for constructor-less host value holders on ART.
+    fun allocateInstance(type: Class<*>): Any = unsafe.allocateInstance(type)
 }

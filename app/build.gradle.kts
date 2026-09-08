@@ -143,7 +143,6 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.12.0")
     implementation("androidx.compose.ui:ui-graphics:1.12.0")
     implementation("androidx.compose.ui:ui-tooling-preview:1.12.0")
-    implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
@@ -168,6 +167,9 @@ dependencies {
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
+
+    // Full SVG 1.1/Tiny parser and renderer for imported signal artwork.
+    implementation("com.caverock:androidsvg-aar:1.4")
 }
 
 configurations.all {

@@ -1,634 +1,912 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.Context
-import android.util.SparseIntArray
-import android.view.View
-import android.view.ViewGroup
 import android.os.Handler
 import android.os.Looper
-import android.widget.ImageView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import java.lang.ref.WeakReference
-import java.util.WeakHashMap
+import java.lang.reflect.Field
+import java.lang.reflect.Method
+import java.util.IdentityHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-import java.util.regex.Pattern
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.roundToInt
 
 /**
- * True stacked mobile signal, rebuilt on Flux Decor 2.0.3's view-level model — NOT the native
- * Compose stacked slot and NOT a custom `getIcon()` renderer (both former approaches are gone).
- * See docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md for the full analysis and port notes.
+ * Publishes the custom cellular signal as a normal SystemUI icon-controller slot.
  *
- * How it works (all targets verified on OS4.0.0.15.XPMCNXM):
- *
- * 1. **Rendering** — every level change funnels through `ImageView.setImageResource(int)` on the
- *    `mobile_signal` view (OS4 inlines `MiuiStatusBarIconViewHelper.transformResId` into the binder;
- *    the `access$setImageResWithTintLight` helpers Flux Decor hooks do not exist on this baseline).
- *    The before-hook parses the level out of the `stat_sys_signal_N` resource name, remembers it per
- *    sub id, and for the **data SIM** replaces the image with a module drawable
- *    (`statusbar_signal_1_{level}`) plus a synthetic second ImageView
- *    (`statusbar_signal_2_{otherLevel}`, id [StackedSignalResources.SUB_MOBILE_ID]) added next to
- *    the real one — the two vectors draw the data SIM's bars on the upper half and the other SIM's
- *    bars on the lower half, composing the stacked icon. The non-data SIM's own image is skipped and
- *    its group force-hidden.
- * 2. **Drawable loading** — module vectors are loaded **directly** from the module package's own
- *    `Resources` (by drawable name) and installed with `ImageView.setImageDrawable`. Fake ids
- *    (`0x7E000000`-based) are only used as stable tags for the composite bookkeeping and are NEVER
- *    passed to `setImageResource` — on this build the framework resolves them below the hooked
- *    `Resources` API and throws `Resources.NotFoundException`, which would kill the binder's
- *    collector coroutines (that is also why the views' `tag` fields are left alone: the binder's
- *    theme-change collector re-applies the drawable id it reads back from `View.getTag()`, so a
- *    fake id stored there gets re-fed into `setImageResource` and crashes the flow collection —
- *    which breaks every other cellular feature, e.g. hiding the data-activity arrows).
- * 3. **State** — the data sub id is read from `MobileIconsViewModel.activeMobileDataSubscriptionId`
- *    (`MobileUiAdapter.start` after-hook) and refreshed through the adapter's
- *    `javaAdapter.alwaysCollectFlow`. Per-SIM levels come from the res-id parse of the binder's own
- *    `setImageResource` calls (flow-driven, so they fire even while the group is gone); no VM-level
- *    flow collection is needed. The dark/light/tint state is tracked from the args of
- *    `MiuiStatusBarIconViewHelper.transformResId(int,boolean,boolean)` before-hooks.
- * 4. **Hiding the other SIM** — `ModernStatusBarView.isIconVisible()` is hooked only when the
- *    receiver is exactly `ModernStatusBarMobileView` and returns false for the non-data subId, so
- *    `StatusIconContainer` stops measuring that view entirely (it keys slots on `isIconVisible()`,
- *    not on `View.getVisibility()` — a plain GONE leaves an empty slot). The
- *    `ModernStatusBarMobileView` group is also force-hidden (tag [StackedSignalResources.TAG_FORCE_GONE]
- *    + GONE), and a `View.setVisibility`/`MobileSignalAnimatorContainer.setChildVisible` guard keeps
- *    the binder's own visibility collector from flipping it back visible.
- *
- * Requires a SystemUI restart (the page offers one). The master switch and every option are read at
- * `onHook()`.
+ * The old implementation intercepted every ImageView in SystemUI, created a second ImageView,
+ * and fed fake resource ids back through the framework. OS4 already exposes the complete source
+ * state through `MobileIconsViewModel.createViewModel(int)`, so this hook now stays at the model
+ * boundary: it collects the host flows, renders one module-owned bitmap, publishes it through
+ * [HostIconBridge], and only then masks the native per-subscription visibility pair.
  */
 object StackedSignalHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
-
     private const val ADAPTER_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
-    private const val BINDER_CLASS =
-        "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder"
     private const val ICONS_VM_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel"
-    private const val ICON_VIEW_HELPER = "com.android.systemui.statusbar.MiuiStatusBarIconViewHelper"
-    private const val ALPHA_IMAGE_VIEW = "com.android.systemui.statusbar.AlphaOptimizedImageView"
-    private const val MOBILE_ANIM_CONTAINER =
-        "com.android.systemui.statusbar.views.MobileSignalAnimatorContainer"
-    private const val MODERN_STATUS_BAR_MOBILE_VIEW =
-        "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView"
+    private const val SLOT_STACKED = "stacked_mobile_icon"
+    private const val SLOT_STACKED_TYPE = "stacked_mobile_type"
+    private const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
+    private const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
 
-    /** Drawable-name prefix shared with the module vectors and [StackedSignalResources]. */
-    private val signalLevelName = Pattern.compile("stat_sys_signal_(\\d)")
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val generation = AtomicLong(0L)
+    private val installed = AtomicBoolean(false)
+    private val adapterFlowInstalled = AtomicBoolean(false)
+    private val flowHandles = CopyOnWriteArrayList<HostFlowCollector.Handle>()
+    private val bindings = LinkedHashMap<Int, SubBinding>()
+    private val pendingBindings = IdentityHashMap<Any, Boolean>()
+    private val pendingEvents = LinkedHashMap<Int, PendingSubEvents>()
 
-    // ─── Settings (read at onHook) ────────────────────────────────────────────
     @Volatile
     private var enabled = false
+
     @Volatile
     private var scale = 1f
 
-    // ─── Runtime state ────────────────────────────────────────────────────────
-    private val installed = AtomicBoolean(false)
-    private val dataSubId = AtomicInteger(Int.MIN_VALUE)
-    private val otherLevel = AtomicInteger(0)
-    private val subIdLevels = SparseIntArray()
-    private val javaAdapterRef = AtomicReference<Any?>(null)
-    private val adapterFlowHooked = AtomicBoolean(false)
-    private val signalResToLevel = SparseIntArray()
-    private val subIdCache = WeakHashMap<View, Int>()
-    private val boundRoots = CopyOnWriteArrayList<WeakReference<ViewGroup>>()
-    private val applyingIcons = ThreadLocal.withInitial { false }
-    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var singleSvgStyle = 0
 
     @Volatile
-    private var lastUseTint = false
-    @Volatile
-    private var lastIsLight = true
-    @Volatile
-    private var cachedMobileSignalId = 0
+    private var stackedSvgStyle = 0
 
-    /** Called from HookEntry once the SystemUI application context exists. */
-    fun onPackageReady(context: Context) {
-        StackedSignalResources.setModuleContext(context)
-        if (enabled) {
-            ensureDrawables()
-            DebugLog.i(TAG, "StackedSignal resources ready: ${StackedSignalResources.isRegistered()}")
+    @Volatile
+    private var signalAlphaFg = 1f
+
+    @Volatile
+    private var signalAlphaBg = 0.4f
+
+    @Volatile
+    private var signalAlphaError = 0.2f
+
+    @Volatile
+    private var signalPaddingStart = 0f
+
+    @Volatile
+    private var signalPaddingEnd = 0f
+
+    @Volatile
+    private var adapterFlowsReady = false
+
+    private var factoryViewModelIds: Set<Int> = emptySet()
+
+    @Volatile
+    private var hostContext: Context? = null
+
+    @Volatile
+    private var svgRepository: IconSvgRepository? = null
+
+    @Volatile
+    private var signalAssets: SignalAssets? = null
+
+    @Volatile
+    private var iconBridge: HostIconBridge? = null
+
+    @Volatile
+    private var options = IconTunerOptions.snapshot()
+
+    @Volatile
+    private var typeConfig = MobileTypeConfig()
+
+    /** All mutable reducer state is consumed on the main looper. */
+    private var signalState = MobileSignalState()
+
+    private data class SignalAssets(
+        val single: IconSvgSnapshot,
+        val stacked: IconSvgSnapshot
+    )
+
+    private data class SubBinding(
+        val subId: Int,
+        val miuiViewModel: Any,
+        val visibility: MobileSignalVisibility.Registration,
+        val handles: List<HostFlowCollector.Handle>,
+        val bindingGeneration: Long
+    )
+
+    /** Flow values can arrive before the subscription-id StateFlow's first emission. */
+    private data class PendingSubEvents(
+        var signal: MobileSignalEvent.SignalModel? = null,
+        var dataConnected: MobileSignalEvent.DataConnected? = null,
+        var inService: MobileSignalEvent.InService? = null,
+        var roaming: MobileSignalEvent.Roaming? = null,
+        var nonTerrestrial: MobileSignalEvent.NonTerrestrial? = null,
+        var networkType: MobileSignalEvent.NetworkType? = null,
+        var wifiAvailable: MobileSignalEvent.WifiAvailable? = null,
+        var visibility: MobileSignalEvent.OriginalVisibility? = null
+    ) {
+        fun put(event: MobileSignalEvent) {
+            when (event) {
+                is MobileSignalEvent.SignalModel -> signal = event
+                is MobileSignalEvent.DataConnected -> dataConnected = event
+                is MobileSignalEvent.InService -> inService = event
+                is MobileSignalEvent.Roaming -> roaming = event
+                is MobileSignalEvent.NonTerrestrial -> nonTerrestrial = event
+                is MobileSignalEvent.NetworkType -> networkType = event
+                is MobileSignalEvent.WifiAvailable -> wifiAvailable = event
+                is MobileSignalEvent.OriginalVisibility -> visibility = event
+                else -> Unit
+            }
         }
+
+        fun ordered(): List<MobileSignalEvent> = listOfNotNull(
+            signal,
+            dataConnected,
+            inService,
+            roaming,
+            nonTerrestrial,
+            networkType,
+            wifiAvailable,
+            visibility
+        )
     }
 
-    private fun styleSuffix(): String = ""
-
-    private fun ensureDrawables() {
-        if (StackedSignalResources.isRegistered()) return
-        if (!StackedSignalResources.isReady()) return
-        runCatching { StackedSignalResources.register(styleSuffix(), classLoader) }
-            .onFailure { DebugLog.w(TAG, "drawable registration failed", it) }
+    /** Called by HookEntry once SystemUI's application context is available. */
+    fun onPackageReady(context: Context) {
+        hostContext = context
+        val moduleContext = runCatching {
+            context.createPackageContext(
+                HostIconBridge.MODULE_PACKAGE,
+                Context.CONTEXT_IGNORE_SECURITY
+            )
+        }.getOrNull()
+        svgRepository = moduleContext?.let(::IconSvgRepository)
+        if (enabled) ensureSignalAssets()
     }
 
     override fun onPrepareHotReload() {
+        val retiredGeneration = generation.incrementAndGet()
+        val retiringBridge = iconBridge
         enabled = false
-        StackedSignalResources.resetForReload()
-        removeAllSubMobileViews()
+        adapterFlowsReady = false
+
+        // A replacement generation may be prepared from a binder thread. StateFlow updates are
+        // thread-safe; pass every exposed Pair through its original value before unregistering the
+        // getter entries. Queued old-generation callbacks are rejected by the generation check.
+        MobileSignalVisibility.clearForHotReload()
+        mainHandler.post {
+            if (generation.get() != retiredGeneration) return@post
+            retiringBridge?.removeAllOwned()
+        }
+        flowHandles.forEach { it.cancel() }
+        flowHandles.clear()
+        bindings.values.toList().forEach { binding ->
+            binding.handles.forEach { it.cancel() }
+            MobileSignalVisibility.unregister(binding.miuiViewModel)
+        }
+        bindings.clear()
+        pendingBindings.clear()
+        pendingEvents.clear()
+        factoryViewModelIds = emptySet()
+        HostFlowCollector.resetForReload()
+        signalState = MobileSignalState()
+        signalAssets = null
+        MobileTypeRenderer.clearCache()
+        iconBridge = null
+        adapterFlowInstalled.set(false)
         installed.set(false)
-        dataSubId.set(Int.MIN_VALUE)
-        otherLevel.set(0)
-        subIdLevels.clear()
-        subIdCache.clear()
-        cachedMobileSignalId = 0
-        adapterFlowHooked.set(false)
-        javaAdapterRef.set(null)
     }
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
+        options = IconTunerOptions.snapshot()
         enabled = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
-        scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f).coerceIn(0.5f, 1.5f)
+        scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f)
+            .takeIf { it.isFinite() }
+            ?.coerceIn(0.5f, 1.5f)
+            ?: 1f
+        readSignalSvgConfig()
+        typeConfig = readTypeConfig()
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
             return
         }
         if (!installed.compareAndSet(false, true)) return
-
-        installTransformResId()
-        installImageViewSetImageResource()
-        installBinderBind()
-        installAdapterStart()
-        installMobileVisibility()
-        installVisibilityGuard()
-        DebugLog.hookRegistered(TAG, "StackedSignal view-level stacked signal (scale=$scale)")
-    }
-
-    // ─── 1. Dark/light/tint tracking ──────────────────────────────────────────
-
-    private fun installTransformResId() {
-        val helper = ICON_VIEW_HELPER.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, ICON_VIEW_HELPER, "class not found")
+        if (!MobileSignalVisibility.installGetter(this)) {
+            DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
         }
-        helper.findMethodOrNull { name("transformResId"); paramCount(3) }?.hook {
-            before { param ->
-                val args = param.args
-                if (args.size >= 3) {
-                    (args[1] as? Boolean)?.let { lastUseTint = it }
-                    (args[2] as? Boolean)?.let { lastIsLight = it }
-                }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$ICON_VIEW_HELPER#transformResId", "method not found")
+        hookCreateViewModel()
+        hookAdapterStart()
+        DebugLog.hookRegistered(TAG, "model-driven stacked signal slot (scale=$scale)")
     }
 
-    // ─── 2. Main interception: ImageView.setImageResource ─────────────────────
-
-    private fun installImageViewSetImageResource() {
-        val imageViewClass = runCatching {
-            Class.forName("android.widget.ImageView", false, classLoader)
-        }.getOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, "ImageView", "class not found")
+    private fun hookCreateViewModel() {
+        val vmClass = ICONS_VM_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ICONS_VM_CLASS, "class not found")
             return
         }
-        imageViewClass.findMethodOrNull { name("setImageResource"); paramCount(1) }?.hook {
-            before { param ->
-                if (applyingIcons.get() == true) return@before
-                if (!enabled) return@before
-                val view = param.thisObject as? ImageView ?: return@before
-                if (!isMobileSignalView(view)) return@before
-                val resId = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@before
-                runCatching { interceptMobileImage(view, resId, param) }
-                    .onFailure { DebugLog.w(TAG, "interceptMobileImage failed", it) }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "ImageView#setImageResource", "method not found")
-    }
-
-    private fun isMobileSignalView(view: View): Boolean {
-        if (cachedMobileSignalId == 0) {
-            cachedMobileSignalId = view.resources.getIdentifier(
-                "mobile_signal", "id", "com.android.systemui"
-            )
-            if (cachedMobileSignalId == 0) return false
-        }
-        return view.id == cachedMobileSignalId
-    }
-
-    private fun interceptMobileImage(
-        mobile: ImageView,
-        resId: Int,
-        param: io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
-    ) {
-        ensureDrawables()
-        if (StackedSignalResources.isFakeId(resId)) {
-            // Defense in depth: a fake id must never reach the framework's resource resolution
-            // (it resolves below our hooks and throws Resources.NotFoundException, killing the
-            // binder's collector scope — which breaks every other cellular feature). The
-            // composite is already on the view; skip the original and keep it.
-            param.result = null
+        val method = vmClass.findMethodOrNull {
+            name("createViewModel")
+            paramCount(1)
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$ICONS_VM_CLASS#createViewModel", "method not found")
             return
         }
-        val subId = resolveMobileSubId(mobile) ?: return
-        val level = levelFromResId(mobile, resId) ?: return
-        val changed = noteLevel(subId, level)
-        val outer = findMobileOuter(mobile)
-        if (outer != null) {
-            rememberMobileRoot(outer)
-            applyNonDataSimVisibility(outer)
-        }
-        val dataId = dataSubId.get()
-        if (dataId != Int.MIN_VALUE && subId != dataId) {
-            // Non-data SIM: its own icon never shows (the composite carries its bars).
-            param.result = null
-            if (changed) refreshDataSimIcons()
-            return
-        }
-        if (dataId == Int.MIN_VALUE || subId != dataId) {
-            // Data SIM unknown yet: leave the stock icon until the adapter reports it.
-            return
-        }
-        val container = mobile.parent as? ViewGroup
-        val sub = container?.findViewById<ImageView>(StackedSignalResources.SUB_MOBILE_ID)
-        if (applyDualSimIcons(mobile, sub)) {
-            param.result = null
-        }
-    }
-
-    /** Renders the composite on the data-SIM view (+ sub view) with module drawables. */
-    private fun applyDualSimIcons(mobile: ImageView, sub: ImageView?): Boolean {
-        val suffix = styleSuffix()
-        val dataId = dataSubId.get()
-        val dLevel = displayLevel(subIdLevels.get(dataId, 0))
-        val oLevel = displayLevel(otherLevel.get())
-        val baseName = "statusbar_signal_1_$dLevel$suffix"
-        if (!StackedSignalResources.has(baseName)) return false
-        applyingIcons.set(true)
-        try {
-            val baseDrawable = themedDrawable(baseName) ?: return false
-            // Never write fake ids into the view tag: the binder's theme-change collector reads
-            // the tag back and re-feeds it into setImageResource, which would resolve the fake id
-            // below our hooks and throw Resources.NotFoundException (killing the collector scope).
-            mobile.setImageDrawable(baseDrawable)
-            if (sub != null) {
-                val subName = "statusbar_signal_2_$oLevel$suffix"
-                if (StackedSignalResources.has(subName)) {
-                    themedDrawable(subName)?.let(sub::setImageDrawable)
-                    runCatching {
-                        sub.alpha = mobile.alpha
-                        sub.visibility = mobile.visibility
-                        sub.imageTintList = mobile.imageTintList
-                    }
-                }
-            }
-            return true
-        } finally {
-            applyingIcons.set(false)
-        }
-    }
-
-    private fun themedDrawable(baseName: String): android.graphics.drawable.Drawable? {
-        val variant = when {
-            lastUseTint -> "${baseName}_tint"
-            !lastIsLight -> "${baseName}_dark"
-            else -> baseName
-        }
-        return StackedSignalResources.drawable(variant)
-            ?: StackedSignalResources.drawable(baseName)
-    }
-
-    private fun refreshDataSimIcons() {
-        val dataId = dataSubId.get()
-        for (ref in boundRoots) {
-            val root = ref.get() ?: continue
-            if (intFieldOrZero(root, "subId", Int.MIN_VALUE) != dataId) continue
-            val mobile = root.findViewById(idRes(root, "mobile_signal")) as? ImageView ?: continue
-            val container = mobile.parent as? ViewGroup
-            val sub = container?.findViewById<ImageView>(StackedSignalResources.SUB_MOBILE_ID)
-            applyDualSimIcons(mobile, sub)
-        }
-    }
-
-    // ─── 3. Binder bind: group bookkeeping, spacing, sub-view creation ────────
-
-    private fun installBinderBind() {
-        val binder = BINDER_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, BINDER_CLASS, "class not found")
-            return
-        }
-        binder.findMethodOrNull { name("bind") }?.hook {
+        method.hook {
             after { param ->
-                val root = param.args.firstOrNull() as? ViewGroup ?: return@after
-                runCatching {
-                    rememberMobileRoot(root)
-                    applyNonDataSimVisibility(root)
-                    initMobileBind(root)
-                }.onFailure { DebugLog.w(TAG, "bind patch failed", it) }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "method not found")
-    }
-
-    private fun initMobileBind(root: ViewGroup) {
-        val mobileGroup = root.findViewById(idRes(root, "mobile_group")) as? ViewGroup ?: return
-        val mobile = mobileGroup.findViewById(idRes(root, "mobile_signal")) as? ImageView ?: return
-        val container = mobile.parent as? ViewGroup ?: return
-        if (container.findViewById<View>(StackedSignalResources.SUB_MOBILE_ID) != null) return
-
-        // The pref is already a direct 0.5..1.5 factor (1.0 = full size). Do NOT scale it by 0.1:
-        // that was the Flux Decor convention where the pref was an int (10 = 100%), and applying it
-        // here would render the composite at 5..15% — invisible while its layout slot stays put.
-        val f = scale
-        if (f != 1f) {
-            container.clipChildren = false
-            container.clipToPadding = false
-            mobile.scaleX = f
-            mobile.scaleY = f
-        }
-        val sub = runCatching {
-            val cls = ALPHA_IMAGE_VIEW.toClass()
-            cls.getConstructor(Context::class.java).newInstance(root.context) as ImageView
-        }.getOrElse { ImageView(root.context) }
-        sub.id = StackedSignalResources.SUB_MOBILE_ID
-        sub.adjustViewBounds = true
-        sub.scaleType = ImageView.ScaleType.FIT_CENTER
-        // Copy (not share) the mobile view's layout params: both views must sit at the same slot
-        // in the container, but two children must never own the same LayoutParams instance.
-        // ViewGroup.generateLayoutParams is protected, so copy through the params' own copy
-        // constructor (ConstraintLayout.LayoutParams declares one) and fall back to sharing.
-        sub.layoutParams = runCatching {
-            val lp = mobile.layoutParams
-            lp.javaClass.getConstructor(lp.javaClass).newInstance(lp) as ViewGroup.LayoutParams
-        }.getOrElse { mobile.layoutParams }
-        if (f != 1f) {
-            sub.scaleX = f
-            sub.scaleY = f
-        }
-        container.addView(sub)
-        applyDualSimIcons(mobile, sub)
-    }
-
-    private fun rememberMobileRoot(root: ViewGroup) {
-        if (boundRoots.any { it.get() === root }) return
-        boundRoots.add(WeakReference(root))
-        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) {}
-            override fun onViewDetachedFromWindow(v: View) {
-                boundRoots.removeAll { it.get() === root }
-            }
-        })
-    }
-
-    // ─── 4. Hiding the non-data SIM ───────────────────────────────────────────
-
-    private fun applyNonDataSimVisibility(root: ViewGroup) {
-        val subId = intFieldOrZero(root, "subId", Int.MIN_VALUE)
-        val dataId = dataSubId.get()
-        if (dataId == Int.MIN_VALUE || subId == Int.MIN_VALUE || subId == dataId) {
-            clearForceGone(root)
-        } else {
-            forceGone(root)
-        }
-    }
-
-    private fun updateVisibilityForDataChange(dataId: Int) {
-        mainHandler.post {
-            for (ref in boundRoots) {
-                val root = ref.get() ?: continue
-                applyNonDataSimVisibility(root)
-            }
-            refreshDataSimIcons()
-        }
-    }
-
-    private fun forceGone(view: View) {
-        view.setTag(StackedSignalResources.TAG_FORCE_GONE, true)
-        if (view.visibility != View.GONE) view.visibility = View.GONE
-        requestLayoutUp(view)
-    }
-
-    private fun clearForceGone(view: View) {
-        if (view.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
-            view.setTag(StackedSignalResources.TAG_FORCE_GONE, null)
-            if (view.visibility != View.VISIBLE) view.visibility = View.VISIBLE
-            requestLayoutUp(view)
-        }
-    }
-
-    private fun requestLayoutUp(view: View) {
-        var v: View? = view.parent as? View
-        for (i in 0 until 8) {
-            if (v == null) {
-                view.requestLayout()
-                return
-            }
-            if (v.javaClass.name.contains("StatusIconContainer")) {
-                v.requestLayout()
-                return
-            }
-            v = v.parent as? View
-        }
-        view.requestLayout()
-    }
-
-    /**
-     * Keeps the force-gone root gone: the binder's own visibility collector re-applies
-     * `View.setVisibility(0/8)` from the VM's original `isVisible` flow, which would undo the
-     * GONE and leave a stale drawn icon at the non-data SIM's last layout bounds. The guard
-     * rewrites those calls back to GONE for tagged views only.
-     */
-    private fun installVisibilityGuard() {
-        runCatching {
-            val viewClass = Class.forName("android.view.View", false, classLoader)
-            viewClass.findMethodOrNull { name("setVisibility"); paramCount(1) }?.hook {
-                before { param ->
-                    val view = param.thisObject as? View ?: return@before
-                    if (view.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
-                        val wanted = (param.args.getOrNull(0) as? Number)?.toInt()
-                        if (wanted != View.GONE) param.args[0] = View.GONE
-                    }
-                }
-            }
-        }.onFailure { DebugLog.w(TAG, "View.setVisibility guard failed", it) }
-        runCatching {
-            MOBILE_ANIM_CONTAINER.toClassOrNull()
-                ?.findMethodOrNull { name("setChildVisible"); paramCount(2) }
-                ?.hook {
-                    before { param ->
-                        val child = param.args.getOrNull(0) as? View ?: return@before
-                        if (child.getTag(StackedSignalResources.TAG_FORCE_GONE) == true) {
-                            param.args[1] = false
-                        }
-                    }
-                }
-        }.onFailure { DebugLog.w(TAG, "setChildVisible guard failed", it) }
-    }
-
-    private fun installMobileVisibility() {
-        val modernView = "com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView"
-            .toClassOrNull() ?: return
-        modernView.findMethodOrNull { name("isIconVisible"); noParams() }?.hook {
-            before { param ->
-                val view = param.thisObject as? View ?: return@before
-                if (view.javaClass.name != MODERN_STATUS_BAR_MOBILE_VIEW) return@before
-                val dataId = dataSubId.get()
-                val subId = intFieldOrZero(view, "subId", Int.MIN_VALUE)
-                if (dataId != Int.MIN_VALUE && subId != Int.MIN_VALUE && subId != dataId) {
-                    param.result = false
+                val subId = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@after
+                val result = param.result ?: return@after
+                val bindingGeneration = generation.get()
+                // Factory work is launched from the host pipeline scope. Registration and all
+                // reducer updates are serialized with icon-controller operations on main.
+                mainHandler.post {
+                    if (!enabled || generation.get() != bindingGeneration) return@post
+                    registerSubscription(subId, result, bindingGeneration)
                 }
             }
         }
     }
 
-    // ─── 5. Adapter flows: data sub id + javaAdapter ──────────────────────────
-
-    private fun installAdapterStart() {
+    private fun hookAdapterStart() {
         val adapterClass = ADAPTER_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, ADAPTER_CLASS, "class not found")
             return
         }
-        adapterClass.findMethodOrNull { name("start"); noParams() }?.hook {
+        val method = adapterClass.findMethodOrNull { name("start"); noParams() } ?: run {
+            DebugLog.hookSkipped(TAG, "$ADAPTER_CLASS#start", "method not found")
+            return
+        }
+        method.hook {
             after { param ->
-                runCatching { setupAdapterFlows(param.thisObject) }
-                    .onFailure { DebugLog.w(TAG, "setupAdapterFlows failed", it) }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$ADAPTER_CLASS#start", "method not found")
-    }
-
-    private fun setupAdapterFlows(adapter: Any) {
-        if (adapterFlowHooked.get()) return
-        val iconsVmRaw = readField(adapter, "mobileIconsViewModel") ?: return
-        val iconsVm = unwrapLazy(iconsVmRaw) ?: iconsVmRaw
-        val dataSubIdFlow = readField(iconsVm, "activeMobileDataSubscriptionId") ?: return
-        val javaAdapter = resolveJavaAdapter(adapter) ?: return
-        if (!adapterFlowHooked.compareAndSet(false, true)) return
-        javaAdapterRef.set(javaAdapter)
-
-        IconTunerFlows.readFlowValue(dataSubIdFlow)
-            ?.let { (it as? Number)?.toInt() }
-            ?.let { newDataId ->
-                dataSubId.set(newDataId)
-                updateVisibilityForDataChange(newDataId)
-            }
-        alwaysCollectFlow(javaAdapter, dataSubIdFlow) { value ->
-            (value as? Number)?.toInt()?.let { newDataId ->
-                dataSubId.set(newDataId)
-                updateVisibilityForDataChange(newDataId)
-                mainHandler.post { refreshDataSimIcons() }
+                runCatching { setupAdapter(param.thisObject) }
+                    .onFailure { DebugLog.w(TAG, "stacked adapter setup failed", it) }
             }
         }
     }
 
-    // ─── 6. Shared helpers ────────────────────────────────────────────────────
+    private fun setupAdapter(adapter: Any) {
+        if (!adapterFlowInstalled.compareAndSet(false, true)) return
+        val bindingGeneration = generation.get()
+        val scope = readField(adapter, "scope")
+        val controller = readField(adapter, "iconController")
+        val iconsLazy = readField(adapter, "mobileIconsViewModel")
+        val iconsVm = iconsLazy?.let(::unwrapLazy) ?: iconsLazy
+        if (scope == null || controller == null || iconsVm == null) {
+            adapterFlowInstalled.set(false)
+            DebugLog.hookSkipped(TAG, "MobileUiAdapter fields", "scope/controller/mobileIconsViewModel missing")
+            return
+        }
+        val activeDataFlow = readField(iconsVm, "activeMobileDataSubscriptionId")
+        val subscriptionIdsFlow = readField(iconsVm, "subscriptionIdsFlow")
+        val mobileSubViewModelsFlow = readField(iconsVm, "mobileSubViewModels")
+        val airplaneInteractor = readField(iconsVm, "airplaneModeInteractor")
+        val airplaneFlow = airplaneInteractor?.let { readField(it, "isAirplaneMode") }
+        if (activeDataFlow == null || subscriptionIdsFlow == null ||
+            mobileSubViewModelsFlow == null || airplaneFlow == null
+        ) {
+            adapterFlowInstalled.set(false)
+            DebugLog.hookSkipped(TAG, "MobileIconsViewModel flows", "required source flow missing")
+            return
+        }
 
-    private fun noteLevel(subId: Int, level: Int): Boolean {
-        val previous = subIdLevels.get(subId, Int.MIN_VALUE)
-        subIdLevels.put(subId, level)
-        val dataId = dataSubId.get()
-        if (dataId == Int.MIN_VALUE) return previous != level
-        return if (subId == dataId) {
-            previous != level
-        } else {
-            otherLevel.set(level)
-            previous != level
+        hostContext = hostContext ?: (readField(controller, "mContext") as? Context)
+        if (svgRepository == null) {
+            val context = hostContext
+            val moduleContext = context?.let {
+                runCatching {
+                    it.createPackageContext(
+                        HostIconBridge.MODULE_PACKAGE,
+                        Context.CONTEXT_IGNORE_SECURITY
+                    )
+                }.getOrNull()
+            }
+            svgRepository = moduleContext?.let(::IconSvgRepository)
+        }
+        iconBridge = HostIconBridge(controller, classLoader)
+        ensureSignalAssets()
+
+        val handles = ArrayList<HostFlowCollector.Handle>(4)
+        fun required(flow: Any, consumer: (Any?) -> Unit): Boolean {
+            val handle = HostFlowCollector.collect(
+                scope = scope,
+                flow = flow,
+                isCurrent = { enabled && generation.get() == bindingGeneration },
+                consumer = consumer
+            ) ?: return false
+            handles += handle
+            flowHandles += handle
+            IconTunerFlows.readFlowValue(flow)?.let { initial ->
+                mainHandler.post {
+                    if (enabled && generation.get() == bindingGeneration) consumer(initial)
+                }
+            }
+            return true
+        }
+
+        if (!required(activeDataFlow) { value ->
+                val subId = (value as? Number)?.toInt() ?: MobileSignalState.INVALID_SUB_ID
+                reduceOnMain(MobileSignalEvent.ActiveDataSubId(subId), bindingGeneration)
+            } || !required(subscriptionIdsFlow) { value ->
+                reduceSubscriptionsOnMain(extractSubscriptionIds(value), bindingGeneration)
+            } || !required(mobileSubViewModelsFlow) { value ->
+                // This flow is the host's completed factory output. It is collected as a
+                // readiness witness; subscriptionIdsFlow remains the authoritative ordering
+                // source so a transient empty VM list cannot reorder rows or resurrect a cache.
+                noteFactoryViewModelsOnMain(value, bindingGeneration)
+            } || !required(airplaneFlow) { value ->
+                reduceOnMain(MobileSignalEvent.AirplaneMode(value as? Boolean == true), bindingGeneration)
+            }
+        ) {
+            handles.forEach { it.cancel() }
+            flowHandles.removeAll(handles.toSet())
+            adapterFlowInstalled.set(false)
+            DebugLog.w(TAG, "stacked signal not ready: one adapter flow did not bind")
+            return
+        }
+        adapterFlowsReady = true
+        DebugLog.i(TAG, "stacked signal adapter flows bound")
+        scheduleRender(bindingGeneration)
+    }
+
+    private fun registerSubscription(subId: Int, triple: Any, bindingGeneration: Long) {
+        val aospViewModel = triplePart(triple, "getFirst")
+        val scope = triplePart(triple, "getSecond")
+        val miuiViewModel = triplePart(triple, "getThird")
+        if (aospViewModel == null || scope == null || miuiViewModel == null) {
+            DebugLog.w(TAG, "createViewModel returned incomplete Triple subId=$subId")
+            return
+        }
+        val originInteractor = invokeNoArg(miuiViewModel, "getOriginIconInteractor")
+        val originalVisibleFlow = invokeNoArg(miuiViewModel, "isVisible")
+        val signalFlow = originInteractor?.let { invokeNoArg(it, "getSignalLevelIcon") }
+        val dataConnectedFlow = originInteractor?.let { invokeNoArg(it, "isDataConnected") }
+        val inServiceFlow = originInteractor?.let { invokeNoArg(it, "isInService") }
+        val roamingFlow = originInteractor?.let { invokeNoArg(it, "isRoaming") }
+        val nonTerrestrialFlow = originInteractor?.let { invokeNoArg(it, "isNonTerrestrial") }
+        val networkTypeFlow = invokeNoArg(miuiViewModel, "getShowName")
+        val miuiInteractor = readField(miuiViewModel, "iconInteractor")
+        val wifiAvailableFlow = miuiInteractor?.let { readField(it, "wifiAvailable") }
+        if (originInteractor == null || originalVisibleFlow == null || signalFlow == null ||
+            dataConnectedFlow == null || inServiceFlow == null || roamingFlow == null ||
+            nonTerrestrialFlow == null
+        ) {
+            DebugLog.w(TAG, "createViewModel flow set incomplete subId=$subId")
+            return
+        }
+
+        bindings.remove(subId)?.let { old ->
+            old.handles.forEach { it.cancel() }
+            MobileSignalVisibility.unregister(old.miuiViewModel)
+        }
+        val visibility = MobileSignalVisibility.register(miuiViewModel, subId, originalVisibleFlow)
+            ?: return
+        pendingBindings[miuiViewModel] = true
+        val handles = ArrayList<HostFlowCollector.Handle>(6)
+        val isCurrent = {
+            enabled && generation.get() == bindingGeneration &&
+                (bindings[subId]?.miuiViewModel === miuiViewModel || pendingBindings.containsKey(miuiViewModel))
+        }
+
+        fun required(flow: Any, consumer: (Any?) -> Unit): Boolean {
+            val handle = HostFlowCollector.collect(
+                scope = scope,
+                flow = flow,
+                isCurrent = isCurrent,
+                consumer = consumer
+            ) ?: return false
+            handles += handle
+            flowHandles += handle
+            IconTunerFlows.readFlowValue(flow)?.let { initial ->
+                mainHandler.post {
+                    if (isCurrent()) consumer(initial)
+                }
+            }
+            return true
+        }
+
+        fun optional(flow: Any?, consumer: (Any?) -> Unit) {
+            if (flow == null) return
+            val handle = HostFlowCollector.collect(
+                scope = scope,
+                flow = flow,
+                isCurrent = isCurrent,
+                consumer = consumer
+            )
+            if (handle == null) {
+                DebugLog.w(TAG, "optional type flow not collectable subId=$subId")
+                return
+            }
+            handles += handle
+            flowHandles += handle
+            IconTunerFlows.readFlowValue(flow)?.let { initial ->
+                mainHandler.post {
+                    if (isCurrent()) consumer(initial)
+                }
+            }
+        }
+
+        // Register the host visibility flow with the same cancellation/generation gate as the
+        // signal flows. It remains a Pair so the binder's detail chain keeps its second value.
+        val allBound = required(originalVisibleFlow) { value ->
+            val pair = MobileSignalVisibility.pairValueOf(value) ?: return@required
+            reduceOnMain(
+                MobileSignalEvent.OriginalVisibility(subId, pair.first, pair.second),
+                bindingGeneration
+            )
+        } && required(signalFlow) { value ->
+            reduceOnMain(
+                MobileSignalEvent.SignalModel(subId, parseSignalModel(value)),
+                bindingGeneration
+            )
+        } && required(dataConnectedFlow) { value ->
+            reduceOnMain(MobileSignalEvent.DataConnected(subId, value as? Boolean == true), bindingGeneration)
+        } && required(inServiceFlow) { value ->
+            reduceOnMain(MobileSignalEvent.InService(subId, value as? Boolean == true), bindingGeneration)
+        } && required(roamingFlow) { value ->
+            reduceOnMain(MobileSignalEvent.Roaming(subId, value as? Boolean == true), bindingGeneration)
+        } && required(nonTerrestrialFlow) { value ->
+            reduceOnMain(MobileSignalEvent.NonTerrestrial(subId, value as? Boolean == true), bindingGeneration)
+        }
+        if (!allBound) {
+            handles.forEach { it.cancel() }
+            flowHandles.removeAll(handles.toSet())
+            MobileSignalVisibility.unregister(miuiViewModel)
+            pendingBindings.remove(miuiViewModel)
+            DebugLog.w(TAG, "subscription flow set not ready subId=$subId")
+            return
+        }
+        optional(networkTypeFlow) { value ->
+            reduceOnMain(MobileSignalEvent.NetworkType(subId, value?.toString()), bindingGeneration)
+        }
+        optional(wifiAvailableFlow) { value ->
+            reduceOnMain(MobileSignalEvent.WifiAvailable(subId, value as? Boolean == true), bindingGeneration)
+        }
+        bindings[subId] = SubBinding(
+            subId = subId,
+            miuiViewModel = miuiViewModel,
+            visibility = visibility,
+            handles = handles.toList(),
+            bindingGeneration = bindingGeneration
+        )
+        pendingBindings.remove(miuiViewModel)
+        scheduleRender(bindingGeneration)
+    }
+
+    private fun reduceSubscriptionsOnMain(ids: List<Int>, bindingGeneration: Long) {
+        if (generation.get() != bindingGeneration || !enabled) return
+        val current = ids.toSet()
+        bindings.values.filter { it.subId !in current }.toList().forEach { binding ->
+            bindings.remove(binding.subId)
+            binding.handles.forEach { it.cancel() }
+            flowHandles.removeAll(binding.handles.toSet())
+            MobileSignalVisibility.unregister(binding.miuiViewModel)
+        }
+        signalState = signalState.reduce(MobileSignalEvent.Subscriptions(ids))
+        pendingEvents.keys.toList().filter { it !in current }.forEach(pendingEvents::remove)
+        ids.forEach { id ->
+            val pending = pendingEvents.remove(id) ?: return@forEach
+            pending.ordered().forEach { signalState = signalState.reduce(it) }
+        }
+        renderCurrent()
+    }
+
+    private fun noteFactoryViewModelsOnMain(value: Any?, bindingGeneration: Long) {
+        if (generation.get() != bindingGeneration || !enabled) return
+        // Do not make this list authoritative. It is deliberately only a witness that the host
+        // factory has produced its view-model list; subscriptionIdsFlow owns row ordering/removal.
+        factoryViewModelIds = extractSubscriptionIds(value).toSet()
+        renderCurrent()
+    }
+
+    private fun reduceOnMain(event: MobileSignalEvent, bindingGeneration: Long) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { reduceOnMain(event, bindingGeneration) }
+            return
+        }
+        if (!enabled || generation.get() != bindingGeneration) return
+        val subId = when (event) {
+            is MobileSignalEvent.SignalModel -> event.subId
+            is MobileSignalEvent.DataConnected -> event.subId
+            is MobileSignalEvent.InService -> event.subId
+            is MobileSignalEvent.Roaming -> event.subId
+            is MobileSignalEvent.NonTerrestrial -> event.subId
+            is MobileSignalEvent.NetworkType -> event.subId
+            is MobileSignalEvent.WifiAvailable -> event.subId
+            is MobileSignalEvent.OriginalVisibility -> event.subId
+            else -> null
+        }
+        if (subId != null && subId !in signalState.subscriptions) {
+            pendingEvents.getOrPut(subId) { PendingSubEvents() }.put(event)
+            return
+        }
+        signalState = signalState.reduce(event)
+        renderCurrent()
+    }
+
+    private fun scheduleRender(bindingGeneration: Long) {
+        mainHandler.post {
+            if (enabled && generation.get() == bindingGeneration) renderCurrent()
         }
     }
 
-    private fun displayLevel(raw: Int): Int = raw.coerceIn(0, 5)
+    /** Renders only after the adapter and every current subscription have complete flow sets. */
+    private fun renderCurrent() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post(::renderCurrent)
+            return
+        }
+        val state = signalState
+        val complete = adapterFlowsReady && state.subscriptionOrder.isNotEmpty() &&
+            state.subscriptionOrder.size <= MobileSignalState.MAX_RENDER_ROWS &&
+            state.subscriptionOrder.all { it in factoryViewModelIds } &&
+            state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
+        if (!complete) {
+            restoreNative()
+            return
+        }
 
-    private fun levelFromResId(view: View, resId: Int): Int? {
-        if (resId == 0 || StackedSignalResources.isFakeId(resId)) return null
-        signalResToLevel.get(resId, -1).let { if (it >= 0) return it }
-        val name = runCatching { view.resources.getResourceEntryName(resId) }.getOrNull()
+        // An explicit hide for the custom stack is a user policy, so it is allowed to keep the
+        // native rows masked. No automatic path takes this branch without a published bitmap.
+        if (!customStackVisible()) {
+            iconBridge?.removeOwned(SLOT_STACKED)
+            iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+            MobileSignalVisibility.setHiddenForSubIds(state.subscriptionOrder.toSet())
+            return
+        }
+        if (!state.canRenderReplacement()) {
+            restoreNative()
+            return
+        }
+
+        val assets = ensureSignalAssets() ?: run {
+            restoreNative()
+            return
+        }
+        val bitmap = runCatching {
+            val config = renderConfig()
+            val typeOutput = MobileTypePolicy.resolve(state, typeConfig)
+            val badge = renderInternalTypeBadge(typeOutput, state, config)
+            if (state.rows.size == 1) {
+                if (badge == null) {
+                    IconSvgRenderer.renderSingle(assets.single.document, state.rows[0].renderLevel, config)
+                } else {
+                    IconSvgRenderer.renderSingleWithBadge(
+                        assets.single.document,
+                        state.rows[0].renderLevel,
+                        config,
+                        badge
+                    )
+                }
+            } else {
+                if (badge == null) {
+                    IconSvgRenderer.renderStacked(
+                        assets.stacked.document,
+                        state.rows[0].renderLevel,
+                        state.rows[1].renderLevel,
+                        config
+                    )
+                } else {
+                    IconSvgRenderer.renderStackedWithBadge(
+                        assets.stacked.document,
+                        state.rows[0].renderLevel,
+                        state.rows[1].renderLevel,
+                        config,
+                        badge
+                    )
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "cellular signal SVG render failed", it) }.getOrNull()
+            ?: run {
+                restoreNative()
+                return
+            }
+
+        val bridge = iconBridge ?: run {
+            restoreNative()
+            return
+        }
+        val published = bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")
+        if (!published) {
+            // HostIconBridge restores an already-owned holder on update failure. Keeping the
+            // native mask here would be unsafe on a first publish, so always restore it.
+            MobileSignalVisibility.setHiddenForSubIds(emptySet())
+            bridge.removeOwned(SLOT_STACKED)
+            return
+        }
+        if (!bridge.setVisible(SLOT_STACKED, state.rows.any { it.originalVisible })) {
+            DebugLog.w(TAG, "published cellular signal holder could not be made visible")
+            MobileSignalVisibility.setHiddenForSubIds(emptySet())
+            bridge.removeOwned(SLOT_STACKED)
+            return
+        }
+        bridge.removeOwned(SLOT_STACKED_TYPE)
+        bridge.removeOwned(SLOT_SINGLE_SIM1)
+        bridge.removeOwned(SLOT_SINGLE_SIM2)
+        // This is the first point at which a complete replacement exists.
+        MobileSignalVisibility.setHiddenForSubIds(state.replacementMask(published))
+        DebugLog.i(
+            TAG,
+            "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}"
+        )
+        renderTypeSlot(state, bridge)
+    }
+
+    private fun renderInternalTypeBadge(
+        output: MobileTypeOutput,
+        state: MobileSignalState,
+        signalConfig: IconSvgRenderConfig
+    ): android.graphics.Bitmap? {
+        if (output.text.isBlank() || !MobileTypePolicy.showInternalBadge(state, typeConfig)) return null
+        val badgeConfig = typeConfig.safe().copy(
+            textSizeSp = typeConfig.safe().badgeTextSizeSp,
+            weight = typeConfig.safe().badgeWeight,
+            singleWeight = typeConfig.safe().badgeWeight,
+            paddingStartSp = 0f,
+            paddingEndSp = 0f,
+            verticalOffsetSp = 0f
+        )
+        return MobileTypeRenderer.render(
+            output = output,
+            config = badgeConfig,
+            iconHeightPx = (signalConfig.iconHeightPx * 0.6f).toInt().coerceAtLeast(1),
+            densityDpi = signalConfig.densityDpi,
+            fontScale = signalConfig.fontScale,
+            rtl = signalConfig.rtl
+        )
+    }
+
+    private fun restoreNative() {
+        MobileSignalVisibility.setHiddenForSubIds(emptySet())
+        iconBridge?.removeOwned(SLOT_STACKED)
+        iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+        iconBridge?.removeOwned(SLOT_SINGLE_SIM1)
+        iconBridge?.removeOwned(SLOT_SINGLE_SIM2)
+    }
+
+    private fun customStackVisible(): Boolean {
+        val mode = IconSlotPolicy.modeFor(
+            SLOT_STACKED,
+            options.policy.slotModes,
+            options.policy.extraHiddenSlots
+        )
+        return when (mode) {
+            IconSlotMode.FOLLOW_SYSTEM,
+            IconSlotMode.SHOW_EVERYWHERE,
+            IconSlotMode.STATUS_BAR_ONLY -> true
+            IconSlotMode.CONTROL_CENTER_ONLY,
+            IconSlotMode.HIDE_EVERYWHERE -> false
+        }
+    }
+
+    private fun ensureSignalAssets(): SignalAssets? {
+        signalAssets?.let { return it }
+        val repository = svgRepository ?: return null
+        val single = repository.loadSignalSingle(singleSvgStyle) { module.openRemoteFile(it) }
+            .onFailure { DebugLog.w(TAG, "single signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        val level = signalLevelName.matcher(name).let { m ->
-            if (m.find()) m.group(1)?.toIntOrNull()?.coerceIn(0, 5) else null
-        } ?: return null
-        signalResToLevel.put(resId, level)
-        return level
+        val stacked = repository.loadSignalStacked(stackedSvgStyle) { module.openRemoteFile(it) }
+            .onFailure { DebugLog.w(TAG, "stacked signal SVG unavailable", it) }.getOrNull()
+            ?: return null
+        return SignalAssets(single, stacked).also {
+            signalAssets = it
+            DebugLog.i(
+                TAG,
+                "signal SVG assets ready singleStyle=$singleSvgStyle stackedStyle=$stackedSvgStyle"
+            )
+        }
     }
 
-    private fun resolveMobileSubId(mobile: View): Int? {
-        subIdCache[mobile]?.let { return it }
-        var v: View? = mobile
-        for (i in 0 until 6) {
-            if (v == null) break
-            val subId = intFieldOrZero(v, "subId", Int.MIN_VALUE)
-            if (subId != Int.MIN_VALUE) {
-                subIdCache[mobile] = subId
-                return subId
+    /** Reads Hyper Helper's independent t32 single/stacked SVG configuration. */
+    private fun readSignalSvgConfig() {
+        singleSvgStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0)
+            .coerceIn(0, 3)
+        stackedSvgStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0)
+            .coerceIn(0, 3)
+        signalAlphaFg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_FG, 1f)
+            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 1f
+        signalAlphaBg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_BG, 0.4f)
+            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 0.4f
+        signalAlphaError = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, 0.2f)
+            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 0.2f
+        signalPaddingStart = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_START, 0f)
+            .takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 0f
+        signalPaddingEnd = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_END, 0f)
+            .takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 0f
+    }
+
+    private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {
+        val output = MobileTypePolicy.resolve(state, typeConfig)
+        if (output.text.isBlank() || !typeSlotVisible()) {
+            bridge.removeOwned(SLOT_STACKED_TYPE)
+            return
+        }
+        val context = hostContext
+        val config = typeConfig.safe()
+        val iconHeight = renderIconHeight(context)
+        val bitmap = runCatching {
+            MobileTypeRenderer.render(
+                output = output,
+                config = config,
+                iconHeightPx = iconHeight,
+                densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
+                fontScale = context?.resources?.configuration?.fontScale ?: 1f,
+                rtl = context?.resources?.configuration?.layoutDirection == android.util.LayoutDirection.RTL
+            )
+        }.onFailure { DebugLog.w(TAG, "mobile type render failed", it) }.getOrNull()
+        if (bitmap == null || !bridge.publish(SLOT_STACKED_TYPE, bitmap, output.text)) {
+            bridge.removeOwned(SLOT_STACKED_TYPE)
+            return
+        }
+        bridge.setVisible(SLOT_STACKED_TYPE, true)
+        DebugLog.i(TAG, "cellular type published text=${output.text} bitmap=${bitmap.width}x${bitmap.height}")
+    }
+
+    private fun typeSlotVisible(): Boolean {
+        return when (IconSlotPolicy.modeFor(
+            SLOT_STACKED_TYPE,
+            options.policy.slotModes,
+            options.policy.extraHiddenSlots
+        )) {
+            IconSlotMode.FOLLOW_SYSTEM,
+            IconSlotMode.SHOW_EVERYWHERE,
+            IconSlotMode.STATUS_BAR_ONLY -> true
+            IconSlotMode.CONTROL_CENTER_ONLY,
+            IconSlotMode.HIDE_EVERYWHERE -> false
+        }
+    }
+
+    private fun readTypeConfig(): MobileTypeConfig = MobileTypeConfig(
+        hideWhenDisconnected = Preferences.getBoolean(
+            Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
+            false
+        ),
+        hideWhenWifiAvailable = Preferences.getBoolean(
+            Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI,
+            false
+        ),
+        showSingleBadge = Preferences.getBoolean(
+            Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE,
+            false
+        ),
+        showStackedBadge = Preferences.getBoolean(
+            Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED,
+            false
+        ),
+        showRoamingPrefix = Preferences.getBoolean(
+            Preferences.KEY_ICON_STACKED_TYPE_ROAMING,
+            false
+        ),
+        textSizeSp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 14f),
+        weight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 630),
+        singleWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT, 400),
+        badgeTextSizeSp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_BADGE_SIZE, 7.16f),
+        badgeWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 630),
+        condensedWidthPercent = Preferences.getInt(
+            Preferences.KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED,
+            80
+        ),
+        paddingStartSp = Preferences.getFloat(
+            Preferences.KEY_ICON_STACKED_TYPE_PADDING_START,
+            2f
+        ),
+        paddingEndSp = Preferences.getFloat(
+            Preferences.KEY_ICON_STACKED_TYPE_PADDING_END,
+            2f
+        ),
+        verticalOffsetSp = Preferences.getFloat(
+            Preferences.KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET,
+            0f
+        ),
+        fontMode = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_FONT, 0)
+    ).safe()
+
+    private fun renderConfig(): IconSvgRenderConfig {
+        val context = hostContext
+        val height = renderIconHeight(context)
+        val density = context?.resources?.displayMetrics?.density
+            ?.takeIf { it.isFinite() && it > 0f } ?: 1f
+        return IconSvgRenderConfig(
+            iconHeightPx = height.coerceIn(1, 512),
+            scale = scale,
+            alphaFg = signalAlphaFg,
+            alphaBg = signalAlphaBg,
+            alphaError = signalAlphaError,
+            paddingStartPx = (signalPaddingStart * density).roundToInt().coerceIn(0, 512),
+            paddingEndPx = (signalPaddingEnd * density).roundToInt().coerceIn(0, 512),
+            densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
+            fontScale = context?.resources?.configuration?.fontScale ?: 1f,
+            configVersion = 3
+        )
+    }
+
+    private fun renderIconHeight(context: Context?): Int {
+        return context?.let {
+            val id = it.resources.getIdentifier(
+                "status_bar_icon_height",
+                "dimen",
+                "com.android.systemui"
+            )
+            if (id != 0) runCatching { it.resources.getDimensionPixelSize(id) }.getOrNull() else null
+        } ?: context?.let { (20f * it.resources.displayMetrics.density).toInt() } ?: 20
+    }
+
+    private fun parseSignalModel(value: Any?): MobileSignalModel {
+        if (value == null) return MobileSignalModel.unknown()
+        val name = value.javaClass.name
+        if (name.contains("SignalIconModel\$CellularTypeIconModel\$Cellular")) {
+            return MobileSignalModel.cellular(
+                level = readInt(value, "level", 0),
+                numberOfLevels = readInt(value, "numberOfLevels", 5),
+                showExclamationMark = readBoolean(value, "showExclamationMark"),
+                carrierNetworkChange = readBoolean(value, "carrierNetworkChange")
+            )
+        }
+        if (name.contains("Satellite")) {
+            return MobileSignalModel.satellite(
+                level = readInt(value, "level", 0),
+                numberOfLevels = readInt(value, "numberOfLevels", 5)
+            )
+        }
+        return MobileSignalModel.unknown()
+    }
+
+    private fun extractSubscriptionIds(value: Any?): List<Int> {
+        val list = value as? Iterable<*> ?: return emptyList()
+        return list.mapNotNull { item ->
+            when (item) {
+                is Number -> item.toInt()
+                null -> null
+                else -> readIntOrNull(item, "subscriptionId")
+                    ?: invokeNoArg(item, "getSubscriptionId")?.let { it as? Number }?.toInt()
             }
-            v = v.parent as? View
-        }
-        return null
+        }.filter { it != MobileSignalState.INVALID_SUB_ID }.distinct()
     }
 
-    private fun findMobileOuter(mobile: View): ViewGroup? {
-        var v: View? = mobile
-        for (i in 0 until 8) {
-            val parent = v?.parent as? View ?: break
-            if (parent.javaClass.name == MODERN_STATUS_BAR_MOBILE_VIEW) {
-                return parent as? ViewGroup
-            }
-            v = parent
-        }
-        return null
-    }
+    private fun triplePart(triple: Any, getter: String): Any? = invokeNoArg(triple, getter)
 
-    private fun resolveJavaAdapter(adapter: Any): Any? {
-        readField(adapter, "mJavaAdapter")?.let { return it }
-        readField(adapter, "javaAdapter")?.let { return it }
-        val hd = readField(adapter, "hdController")
-        if (hd != null) {
-            readField(hd, "javaAdapter")?.let { return it }
-            readField(hd, "mJavaAdapter")?.let { return it }
-        }
-        return null
-    }
+    private fun unwrapLazy(value: Any): Any? = invokeNoArg(value, "get")
 
-    private fun alwaysCollectFlow(javaAdapter: Any, flow: Any, consumer: (Any?) -> Unit) {
-        runCatching {
-            val flowClass = Class.forName("kotlinx.coroutines.flow.Flow", false, classLoader)
-            val consumerClass = java.util.function.Consumer::class.java
-            javaAdapter.javaClass.getMethod("alwaysCollectFlow", flowClass, consumerClass)
-                .invoke(javaAdapter, flow, java.util.function.Consumer<Any?> { consumer(it) })
-        }.onFailure { DebugLog.w(TAG, "alwaysCollectFlow failed", it) }
-    }
+    private fun invokeNoArg(target: Any, name: String): Any? = runCatching {
+        findMethod(target.javaClass, name, 0)?.invoke(target)
+    }.getOrNull()
 
     private fun readField(target: Any, name: String): Any? = runCatching {
-        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+        findField(target.javaClass, name)?.get(target)
     }.getOrNull()
 
-    private fun unwrapLazy(raw: Any): Any? = runCatching {
-        raw.javaClass.getMethod("get").invoke(raw)
+    private fun readInt(target: Any, name: String, default: Int): Int =
+        readIntOrNull(target, name) ?: default
+
+    private fun readIntOrNull(target: Any, name: String): Int? = runCatching {
+        val field = findField(target.javaClass, name) ?: return@runCatching null
+        val value = if (field.type == Int::class.javaPrimitiveType) field.getInt(target) else field.get(target)
+        (value as? Number)?.toInt()
     }.getOrNull()
 
-    private fun intFieldOrZero(target: Any, name: String, missing: Int = 0): Int = runCatching {
-        val f = target.javaClass.getDeclaredField(name).apply { isAccessible = true }
-        if (f.type == Int::class.javaPrimitiveType) f.getInt(target) else f.get(target) as? Int ?: missing
-    }.getOrDefault(missing)
+    private fun readBoolean(target: Any, name: String): Boolean = runCatching {
+        val field = findField(target.javaClass, name) ?: return@runCatching false
+        if (field.type == Boolean::class.javaPrimitiveType) field.getBoolean(target)
+        else field.get(target) as? Boolean ?: false
+    }.getOrDefault(false)
 
-    private fun idRes(view: View, name: String): Int =
-        // Must resolve from the host view's resources (SystemUI). The module package context's
-        // AssetManager cannot see SystemUI resource tables, so a module-context lookup returns 0.
-        view.resources.getIdentifier(name, "id", "com.android.systemui")
-
-    private fun removeAllSubMobileViews() {
-        runCatching {
-            val global = Class.forName("android.view.WindowManagerGlobal")
-            val instance = global.getMethod("getInstance").invoke(null)
-            val rootViews = global.getMethod("getWindowViews").invoke(instance) as? Array<*> ?: return
-            for (root in rootViews) scanRemoveSubMobile(root as? View)
-        }.onFailure { DebugLog.w(TAG, "removeAllSubMobileViews failed", it) }
+    private fun findField(type: Class<*>, name: String): Field? {
+        var current: Class<*>? = type
+        while (current != null) {
+            runCatching { return current.getDeclaredField(name).apply { isAccessible = true } }
+            current = current.superclass
+        }
+        return null
     }
 
-    private fun scanRemoveSubMobile(view: View?) {
-        if (view !is ViewGroup) return
-        val victims = ArrayList<View>()
-        for (i in 0 until view.childCount) {
-            val child = view.getChildAt(i)
-            if (child.id == StackedSignalResources.SUB_MOBILE_ID) {
-                victims.add(child)
-            } else {
-                scanRemoveSubMobile(child)
-            }
+    private fun findMethod(type: Class<*>, name: String, parameterCount: Int): Method? {
+        var current: Class<*>? = type
+        while (current != null) {
+            current.declaredMethods.firstOrNull {
+                it.name == name && it.parameterTypes.size == parameterCount
+            }?.let { return it.apply { isAccessible = true } }
+            current = current.superclass
         }
-        for (victim in victims) {
-            (victim.parent as? ViewGroup)?.removeView(victim)
-        }
+        return type.methods.firstOrNull {
+            it.name == name && it.parameterTypes.size == parameterCount
+        }?.apply { isAccessible = true }
     }
 }

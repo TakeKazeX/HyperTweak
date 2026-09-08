@@ -33,12 +33,15 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotTintHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IgnoreSysIconSettingsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CompoundIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationMaxNumberHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
@@ -442,6 +445,7 @@ class HookEntry : XposedModule() {
                 ProxyLaunchHooker.register(appContext)
                 ExtendUnlockHooker.syncTrustAgent(appContext)
                 StackedSignalHooker.onPackageReady(appContext)
+                LeftContainerHooker.onPackageReady(appContext)
             }
             if (state.packageName == "com.google.android.gms") {
                 QuickSharePhenotypeHooker.onPackageReady(appContext)
@@ -609,6 +613,8 @@ class HookEntry : XposedModule() {
                 attachHooker(WifiIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideCellularIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IconManagerHooker, classLoader, ctx, replacementHandles)
+                attachHooker(IconPositionHooker, classLoader, ctx, replacementHandles)
+                attachHooker(IconSlotTintHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LeftContainerHooker, classLoader, ctx, replacementHandles)
                 attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
@@ -616,6 +622,7 @@ class HookEntry : XposedModule() {
                 attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)
                 attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
+                attachHooker(NotificationMaxNumberHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)

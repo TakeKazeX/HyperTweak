@@ -35,6 +35,12 @@
 # assembly in IconTunerFlows) keeps the host lookup on the original FQN.
 -keep class kotlinx.coroutines.flow.** { *; }
 -keep class kotlin.Pair
+# Host SystemUI is queried for JavaAdapter's static collector and the returned Job is cancelled
+# through reflection. Keep these names in the module so R8 cannot rewrite the lookup/return path.
+-keep class kotlinx.coroutines.Job { *; }
+-keep class kotlinx.coroutines.StandaloneCoroutine { *; }
+-keep class kotlin.Triple { *; }
+-keep class com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge { *; }
 
 # Suppress missing class warnings for KavaRef / Java reflect
 -dontwarn java.lang.reflect.AnnotatedType

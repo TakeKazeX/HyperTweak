@@ -366,18 +366,56 @@ object Preferences {
     // Hide the cellular icon of the non-default SIM when multiple SIMs are active.
     const val KEY_ICON_HIDE_NON_DEFAULT_SIM = "icon_hide_non_default_sim"
     const val KEY_ICON_HIDE_SIM_AUTO = "icon_hide_sim_auto"
+    const val KEY_ICON_HIDE_SIM_ONE = "icon_hide_sim_one"
+    const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
 
     // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
     // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
+    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
+    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE = "icon_tuner_cellular_type_single_size"
+    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL = "icon_tuner_cellular_type_single_size_val"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
+    const val KEY_ICON_FONT_MOBILE_TYPE = "sb_font_mobile_type"
+    const val KEY_ICON_FONT_MOBILE_TYPE_WEIGHT = "sb_font_mobile_type_weight"
+    const val KEY_ICON_FONT_MOBILE_TYPE_SINGLE = "sb_font_mobile_type_single"
+    const val KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT = "sb_font_mobile_type_single_weight"
 
     // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
-    // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The former SVG-render keys (styles, paddings,
-    // alphas, type text, show-single/stacked/roaming) were deleted with the renderer.
+    // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The SVG keys match Hyper Helper's t32.f-o:
+    // single/stacked styles are independent because their source documents have different id
+    // matrices; style 2 means the validated imported SVG for that side.
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
+    const val KEY_ICON_STACKED_SVG_SINGLE = "icon_tuner_stacked_icon_svg_single"
+    const val KEY_ICON_STACKED_SVG_SINGLE_NAME = "icon_tuner_stacked_icon_svg_single_name"
+    const val KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
+    const val KEY_ICON_STACKED_SVG_STACKED_NAME = "icon_tuner_stacked_icon_svg_stacked_name"
+    const val KEY_ICON_STACKED_ALPHA_FG = "icon_tuner_stacked_icon_alpha_fg"
+    const val KEY_ICON_STACKED_ALPHA_BG = "icon_tuner_stacked_icon_alpha_bg"
+    const val KEY_ICON_STACKED_ALPHA_ERROR = "icon_tuner_stacked_icon_alpha_error"
+    const val KEY_ICON_STACKED_PADDING_START = "icon_tuner_stacked_icon_padding_start"
+    const val KEY_ICON_STACKED_PADDING_END = "icon_tuner_stacked_icon_padding_end"
+    const val KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT = "icon_tuner_stacked_type_hide_disconnect"
+    const val KEY_ICON_STACKED_TYPE_HIDE_WIFI = "icon_tuner_stacked_type_hide_wifi"
+    const val KEY_ICON_STACKED_TYPE_SHOW_SINGLE = "stacked_s_type_show_single"
+    const val KEY_ICON_STACKED_TYPE_SHOW_STACKED = "stacked_s_type_show_stacked"
+    const val KEY_ICON_STACKED_TYPE_ROAMING = "stacked_s_type_roaming"
+    const val KEY_ICON_STACKED_TYPE_SIZE = "icon_tuner_stacked_type_size_val"
+    const val KEY_ICON_STACKED_TYPE_WEIGHT = "stacked_s_type_weight_val"
+    const val KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT = "sb_font_stacked_type_single_weight"
+    const val KEY_ICON_STACKED_TYPE_BADGE_SIZE = "stacked_s_type_size"
+    const val KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED = "sb_font_stacked_type_width_condensed"
+    const val KEY_ICON_STACKED_TYPE_PADDING_START = "icon_tuner_stacked_type_padding_left_val"
+    const val KEY_ICON_STACKED_TYPE_PADDING_END = "icon_tuner_stacked_type_padding_right_val"
+    const val KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET = "icon_tuner_stacked_type_v_offset"
+    const val KEY_ICON_STACKED_TYPE_FONT = "sb_font_stacked_type_font"
+    const val KEY_ICON_WIFI_STANDARD_MODE = "icon_tuner_wifi_standard_mode"
+    const val KEY_ICON_WIFI_STANDARD_MAP = "icon_tuner_wifi_standard_map"
+    const val KEY_ICON_WIFI_PADDING = "icon_tuner_wifi_padding"
+    const val KEY_ICON_WIFI_PADDING_START_VAL = "icon_tuner_wifi_padding_start_val"
+    const val KEY_ICON_WIFI_PADDING_END_VAL = "icon_tuner_wifi_padding_end_val"
 
     /**
      * 图标左置 (left-container icon placement), ported from Hyper Helper's `LeftContainer`
@@ -397,6 +435,7 @@ object Preferences {
     const val KEY_ICON_LEFT_VPN = "icon_left_vpn"
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
+    const val KEY_ICON_LEFT_COMPOUND = "icon_tuner_left_compound_icon"
 
     // Compound icon feature (merges alarm / DND / location / volume into one status-bar icon),
     // ported from Hyper Helper's `CompoundIcon`. The individual source toggles match upstream
@@ -423,9 +462,11 @@ object Preferences {
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.
     const val KEY_STATUSBAR_REGION_SAMPLING = "statusbar_region_sampling"
+    const val KEY_STATUSBAR_NOTIFICATION_MAX = "statusbar_notif_max"
+    const val KEY_STATUSBAR_NOTIFICATION_ICON_MAX = "statusbar_notif_icon_max"
 
-    // Slot show/hide modes (0 = follow system, 1 = hide, 2 = status bar only, 3 = control center
-    // only, 4 = show everywhere). Keys are generated by [slotKey].
+    // Slot show/hide modes (0 = follow system, 1 = show everywhere, 2 = status bar only,
+    // 3 = control center only, 4 = hide everywhere). Keys are generated by [slotKey].
     const val KEY_ICON_EXT_BLOCKED = "icon_ext_blocked"
 
     // Ignore the system's own icon hiding.
@@ -1067,6 +1108,26 @@ object Preferences {
 
     val isInitialized: Boolean
         get() = this::remotePrefs.isInitialized
+
+    /**
+     * Returns whether a key is explicitly present in the authoritative store (or its valid local
+     * fallback). This is needed for aliased settings where an explicit `false`/`0` must beat an
+     * older key, rather than being indistinguishable from the default value.
+     */
+    fun contains(key: String): Boolean {
+        if (!isInitialized) return getLocalCache()?.contains(key) == true
+        return runCatching {
+            if (remotePrefs.contains(key)) {
+                true
+            } else if (cacheEpochMatchesRemote()) {
+                getLocalCache()?.contains(key) == true
+            } else {
+                false
+            }
+        }.getOrElse {
+            localSourcePrefs?.contains(key) == true || getLocalCache()?.contains(key) == true
+        }
+    }
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
         if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
