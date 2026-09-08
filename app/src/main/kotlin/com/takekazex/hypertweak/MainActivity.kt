@@ -102,10 +102,13 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
-    // Removing the focus-notification whitelist installs SystemUI hooks; enabling needs a
+    // Removing the Super Island notification whitelist installs SystemUI hooks; enabling needs a
     // SystemUI restart. Callbacks read the per-app `<pkg>_focus` pref live, so disabling applies
     // immediately once the hooks are installed.
     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST to RestartScopeSelection(systemUi = true),
+    // The media Super Island dropdown whitelist is a separate SystemUI gate and is independently
+    // controllable from the normal Super Island notification whitelist.
+    Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST to RestartScopeSelection(systemUi = true),
     // Unlocking the whitelist signature verification hooks com.xiaomi.xmsf; xmsf is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH to RestartScopeSelection(xmsf = true)
@@ -309,6 +312,7 @@ class MainActivity : ComponentActivity() {
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
+            var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
             var immediateMonetRefresh by remember {
                 mutableStateOf(
@@ -406,6 +410,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
                     Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
+                    Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
                     else -> Preferences.getBoolean(key, false)
                 }
@@ -519,7 +524,7 @@ class MainActivity : ComponentActivity() {
             }
 
             /**
-             * Removing the focus-notification whitelist installs SystemUI hooks (SystemUI is a
+             * Removing the Super Island notification whitelist installs SystemUI hooks (SystemUI is a
              * declared required scope), so the toggle flips the preference and marks the tweak
              * dirty: the standard Home restart button then restarts SystemUI. The hooker reads the
              * per-app `<pkg>_focus` preference live, so a user's explicit shade-menu off for a
@@ -533,7 +538,18 @@ class MainActivity : ComponentActivity() {
             }
 
             /**
-             * Unlocking the focus-notification whitelist signature verification hooks
+             * Removing the media Super Island dropdown whitelist uses its own SystemUI hook and
+             * `<pkg>_focusmedia` per-app state, so it can be enabled without changing the normal
+             * Super Island notification gate.
+             */
+            fun handleMediaSuperIslandUnlockWhitelistChange(checked: Boolean) {
+                mediaSuperIslandUnlockWhitelist = checked
+                Preferences.putBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
+                markTweaked(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
+            }
+
+            /**
+             * Unlocking the Super Island whitelist signature verification hooks
              * com.xiaomi.xmsf. xmsf is a declared required scope (see `scope.list` and
              * `ScopeManager`), so the toggle requests the scope on the first enable, then flips
              * the preference and restarts the app — the hooker reads the preference live, so after
@@ -849,6 +865,7 @@ class MainActivity : ComponentActivity() {
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
                     fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
+                    mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
                     xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
                     immediateMonetRefresh = Preferences.getBoolean(
                         Preferences.KEY_IMMEDIATE_MONET_REFRESH,
@@ -1219,6 +1236,10 @@ class MainActivity : ComponentActivity() {
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->
                         handleFocusNotificationUnlockWhitelistChange(checked)
+                    },
+                    mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
+                    onMediaSuperIslandUnlockWhitelistChange = { checked ->
+                        handleMediaSuperIslandUnlockWhitelistChange(checked)
                     },
                     xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
                     onXmsfUnlockFocusAuthChange = { checked ->

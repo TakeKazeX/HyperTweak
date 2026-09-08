@@ -722,9 +722,11 @@
     <string name="tweaks_fcm_live_summary">移除 HyperOS 对 Google Cloud Messaging 的限制。可能增加电池消耗。需重启设备并重启 PowerKeeper 后生效。</string>
     <string name="tweaks_fcm_live_title">修复 Google 推送（FCM Live）</string>
     <string name="tweaks_features">功能</string>
-    <string name="tweaks_focus_notification_title">焦点通知</string>
-    <string name="tweaks_focus_unlock_whitelist_summary">解除 SystemUI 的焦点通知白名单，让任意应用都能发送焦点通知，同时保留你在各应用里手动关闭的焦点通知。需要重启 SystemUI 生效。</string>
-    <string name="tweaks_focus_unlock_whitelist_title">移除焦点通知白名单</string>
+    <string name="tweaks_focus_notification_title">超级岛</string>
+    <string name="tweaks_focus_unlock_whitelist_summary">解除 SystemUI 的超级岛通知白名单，让任意应用都能发送超级岛通知，同时保留你在各应用里手动关闭的超级岛设置。需要重启 SystemUI 生效。</string>
+    <string name="tweaks_focus_unlock_whitelist_title">移除超级岛通知白名单</string>
+    <string name="tweaks_media_super_island_unlock_whitelist_summary">解除 SystemUI 的媒体超级岛下拉白名单，让任意应用的媒体通知都能出现在超级岛下拉中，同时保留你按应用手动关闭的媒体超级岛设置。需要重启 SystemUI 生效。</string>
+    <string name="tweaks_media_super_island_unlock_whitelist_title">移除媒体超级岛下拉白名单</string>
     <string name="tweaks_force_adaptive_anc_summary">仅限 AirPods（含 AirPods Max）。将关闭模式替换为自适应降噪。更改后请重启设置、MiLink 服务和小米蓝牙。</string>
     <string name="tweaks_force_adaptive_anc_title">强制自适应降噪</string>
     <string name="tweaks_gesture_bar_shortcuts_summary">在 SystemUI 中处理长按和双击</string>
@@ -851,8 +853,8 @@
     <string name="tweaks_system_core_title">系统核心</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>
-    <string name="tweaks_xmsf_unlock_focus_auth_summary">强制小米服务框架对焦点通知白名单的签名校验通过，让被其拒签的应用也能发送焦点通知。需要重启 xmsf 生效。</string>
-    <string name="tweaks_xmsf_unlock_focus_auth_title">解锁焦点通知白名单签名验证</string>
+    <string name="tweaks_xmsf_unlock_focus_auth_summary">强制小米服务框架对超级岛白名单的签名校验通过，让被其拒签的应用也能发送超级岛通知。需要重启 xmsf 生效。</string>
+    <string name="tweaks_xmsf_unlock_focus_auth_title">解锁超级岛白名单签名验证</string>
     <string name="watermark_advanced">高级</string>
     <string name="watermark_back">返回</string>
     <string name="watermark_brand">品牌</string>

@@ -66,6 +66,10 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
             DebugLog.hookSkipped(TAG, "$HOLDER_CLASS#setDetailAvailable", "method not found")
             return
         }
+        // This one-line setter is a frequent AOT-inline candidate. Deoptimize it before
+        // registering the hook, otherwise updateIcon() can keep executing the inlined original
+        // and the device icon remains visible even though the hook is registered successfully.
+        deoptimize(setDetail)
         setDetail.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "plugin setDetailAvailable", Unit) {

@@ -72,7 +72,7 @@ object GlassMaterialHooker : StaticHooker() {
 
     /**
      * Card-level blend shade colors applied with `setMiBackgroundBlendColors` on top of the
-     * notification / media card glass (focus notifications, media, ordinary rows). The grey
+     * notification / media card glass (Super Island notifications, media, ordinary rows). The grey
      * first layer is fully opaque (`#ff999999` / `#ff818181`), which is a big part of why the
      * glass cards look dark; their alpha scales with the glass-opacity slider.
      */

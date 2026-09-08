@@ -307,21 +307,29 @@ object Preferences {
     const val KEY_LOCKSCREEN_KEEP_NOTIFICATIONS = "lockscreen_keep_notifications"
 
     /**
-     * Removes the focus-notification whitelist (移除焦点通知白名单, SystemUI): hooks
+     * Removes the Super Island notification whitelist (SystemUI): hooks
      * `NotificationSettingsManager.canShowFocusState` / `canShowFocusStateApp` to treat every
-     * package as focus-capable. The per-app `<pkg>_focus` preference (the shade-menu 焦点通知
-     * toggle) is respected — a user who explicitly turned an app off keeps it off, while
-     * everything without an explicit off is unlocked. Read by
-     * `FocusNotificationWhitelistHooker` at hook-install time; requires a SystemUI restart.
+     * package as Super Island-capable. The per-app `<pkg>_focus` preference is respected — a
+     * user who explicitly turned an app off keeps it off, while everything without an explicit
+     * off is unlocked. Read by `FocusNotificationWhitelistHooker` at hook-install time; requires
+     * a SystemUI restart.
      */
     const val KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST = "focus_notification_unlock_whitelist"
 
     /**
-     * Unlocks the focus-notification whitelist signature verification (解锁焦点通知白名单签名验证,
-     * com.xiaomi.xmsf): hooks `com.xiaomi.xms.auth.AuthSession`'s error dispatch (R8-obfuscated,
-     * resolved with DexKit) to force every auth request to succeed, so arbitrary apps pass xmsf's
-     * whitelist signature check. Read by `UnlockFocusAuthHooker` at hook-install time and live in
-     * the callback; requires an xmsf restart to install.
+     * Removes the media Super Island dropdown whitelist (MIUI SystemUI plugin): hooks
+     * `miui.systemui.notification.NotificationSettingsManager.mediaIslandSupportMiniWindow` to
+     * allow media mini-windows/dropdowns from every package. The hook is attached when the plugin
+     * loads and reads this preference live at callback time. Requires a SystemUI restart to attach.
+     */
+    const val KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST = "media_super_island_unlock_whitelist"
+
+    /**
+     * Unlocks the Super Island whitelist signature verification (com.xiaomi.xmsf): hooks
+     * `com.xiaomi.xms.auth.AuthSession`'s error dispatch (R8-obfuscated, resolved by signature)
+     * to force every auth request to succeed, so arbitrary apps pass xmsf's whitelist signature
+     * check. Read by `UnlockFocusAuthHooker` at hook-install time and live in the callback;
+     * requires an xmsf restart to install.
      */
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
 

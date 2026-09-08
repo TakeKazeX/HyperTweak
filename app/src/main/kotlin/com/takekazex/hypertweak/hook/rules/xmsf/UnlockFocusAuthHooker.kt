@@ -11,7 +11,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 /**
- * Unlocks the focus-notification whitelist signature verification (解锁焦点通知白名单签名验证) in
+ * Unlocks the Super Island whitelist signature verification in
  * com.xiaomi.xmsf, mirroring HyperCeiler's `UnlockFoucsAuth` (reference copied to
  * reverse/cache/hyperceiler-ref/UnlockFoucsAuth.kt).
  *
@@ -52,7 +52,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
-            DebugLog.hookSkipped(TAG, "focus notification whitelist signature auth", "disabled")
+            DebugLog.hookSkipped(TAG, "Super Island whitelist signature auth", "disabled")
             return
         }
         val targets = resolveTargets() ?: run {

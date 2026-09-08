@@ -23,7 +23,8 @@ object SystemUIPluginHooker : StaticHooker() {
         val cornerHooker: ControlCenterCornerHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
-        val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?
+        val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
+        val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker?
     )
 
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
@@ -88,6 +89,10 @@ object SystemUIPluginHooker : StaticHooker() {
                             session.mediaDeviceIconHooker?.let { deviceIcon ->
                                 runCatching { deviceIcon.prepareForHotReload() }
                                 detach(deviceIcon)
+                            }
+                            session.mediaSuperIslandWhitelistHooker?.let { mediaWhitelist ->
+                                runCatching { mediaWhitelist.prepareForHotReload() }
+                                detach(mediaWhitelist)
                             }
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
@@ -199,9 +204,26 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             null
         }
+        val mediaSuperIslandWhitelistHooker = if (Preferences.getBoolean(
+                Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
+                false
+            )
+        ) {
+            MediaSuperIslandWhitelistHooker()
+        } else {
+            null
+        }
 
         activeSessions[state.pluginInstance] =
-            PluginHookSession(state, hooker, cornerHooker, cardsEditHooker, cardResizeHooker, mediaDeviceIconHooker)
+            PluginHookSession(
+                state,
+                hooker,
+                cornerHooker,
+                cardsEditHooker,
+                cardResizeHooker,
+                mediaDeviceIconHooker,
+                mediaSuperIslandWhitelistHooker
+            )
         // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
         // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
         // hooker uninstalled while the session entry suppressed later retries.
@@ -234,6 +256,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
                     Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
+                }
+        }
+        if (mediaSuperIslandWhitelistHooker != null) {
+            runCatching { attach(mediaSuperIslandWhitelistHooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach media Super Island plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: media Super Island attach failed", t)
                 }
         }
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")

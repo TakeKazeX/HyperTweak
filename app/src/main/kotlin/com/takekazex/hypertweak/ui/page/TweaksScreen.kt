@@ -52,6 +52,8 @@ fun TweaksScreenContent(
     onForceAdaptiveAncChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    mediaSuperIslandUnlockWhitelist: Boolean,
+    onMediaSuperIslandUnlockWhitelistChange: (Boolean) -> Unit,
     xmsfUnlockFocusAuth: Boolean,
     onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
     backdrop: LayerBackdrop
@@ -174,9 +176,8 @@ fun TweaksScreenContent(
                 }
             }
 
-            // 焦点通知: the two switches stay together on this page (no second-level page).
-            // The first lifts SystemUI's whitelist; the second lifts xmsf's signature check that
-            // guards the same whitelist for non-system apps.
+            // Super Island: keep the normal, media, and xmsf gates together on this page (no
+            // second-level page), while leaving each switch independently controllable.
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -185,6 +186,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onFocusNotificationUnlockWhitelistChange,
                         title = stringResource(R.string.tweaks_focus_unlock_whitelist_title),
                         summary = stringResource(R.string.tweaks_focus_unlock_whitelist_summary)
+                    )
+                    SwitchPreference(
+                        checked = mediaSuperIslandUnlockWhitelist,
+                        onCheckedChange = onMediaSuperIslandUnlockWhitelistChange,
+                        title = stringResource(R.string.tweaks_media_super_island_unlock_whitelist_title),
+                        summary = stringResource(R.string.tweaks_media_super_island_unlock_whitelist_summary)
                     )
                     SwitchPreference(
                         checked = xmsfUnlockFocusAuth,

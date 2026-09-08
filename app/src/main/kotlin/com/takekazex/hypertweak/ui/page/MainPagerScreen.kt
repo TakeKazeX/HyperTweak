@@ -109,6 +109,8 @@ fun MainPagerScreen(
     onFcmLiveEnabledChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    mediaSuperIslandUnlockWhitelist: Boolean,
+    onMediaSuperIslandUnlockWhitelistChange: (Boolean) -> Unit,
     xmsfUnlockFocusAuth: Boolean,
     onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
@@ -312,6 +314,8 @@ fun MainPagerScreen(
                                 onFcmLiveEnabledChange = onFcmLiveEnabledChange,
                                 focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                                 onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
+                                mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
+                                onMediaSuperIslandUnlockWhitelistChange = onMediaSuperIslandUnlockWhitelistChange,
                                 xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
                                 onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
                                 backdrop = backdrop

@@ -175,6 +175,8 @@ fun HyperTweakNavContainer(
     onFcmLiveEnabledChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
+    mediaSuperIslandUnlockWhitelist: Boolean,
+    onMediaSuperIslandUnlockWhitelistChange: (Boolean) -> Unit,
     xmsfUnlockFocusAuth: Boolean,
     onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
 
@@ -284,6 +286,8 @@ fun HyperTweakNavContainer(
                 onFcmLiveEnabledChange = onFcmLiveEnabledChange,
                 focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                 onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
+                mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
+                onMediaSuperIslandUnlockWhitelistChange = onMediaSuperIslandUnlockWhitelistChange,
                 xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
                 onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
                 themeMode = themeMode,
