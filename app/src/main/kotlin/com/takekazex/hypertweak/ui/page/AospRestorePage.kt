@@ -46,14 +46,16 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /**
  * Toggles that hand a HyperOS component back to its AOSP implementation.
  *
- * State is kept locally rather than hoisted into `MainActivity`, so these switches do not feed the
- * pending-restart-scope tracking; the page surfaces the restart requirement in each summary.
+ * State is kept locally rather than hoisted into `MainActivity`, but changes report their affected
+ * process to the shared Home restart dialog; the page also keeps its local restart affordances.
  */
 @Composable
 fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var packageInstaller by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_PACKAGE_INSTALLER, false))
@@ -79,9 +81,8 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var appManagerEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
     }
-    // These switches are not hoisted into MainActivity, so they do not feed the pending-restart
-    // tracking; offer the restart here instead once something on this page needs one. Saveable so
-    // the pending prompt survives navigating away (Nav3 disposes the entry) and process death.
+    // Keep the local prompt for immediate access on this page. Each affected switch also reports
+    // its process to the shared Home restart dialog through LocalRestartScopeRequest.
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
 
@@ -124,6 +125,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             powerMenu = enabled
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_POWER_MENU, enabled)
                         },
                         title = stringResource(R.string.aosp_power_menu),
@@ -134,6 +136,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             volumePanel = enabled
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, enabled)
                         },
                         title = stringResource(R.string.aosp_volume_panel),
@@ -144,6 +147,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             volumePanelHapticMiui = enabled
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, enabled)
                         },
                         enabled = volumePanel,
@@ -155,6 +159,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             extendUnlockFix = enabled
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, enabled)
                         },
                         title = stringResource(R.string.aosp_extend_unlock),
@@ -171,6 +176,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             clipboardEditor = enabled
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
                         },
                         title = stringResource(R.string.aosp_clipboard_editor),
@@ -181,11 +187,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             title = stringResource(R.string.aosp_restart_system_ui),
                             summary = stringResource(R.string.aosp_restart_system_ui_summary),
                             onClick = {
+                                Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true)
                                 )
+                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
                                 systemUiRestartPending = false
                             }
                         )
@@ -201,6 +209,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             appInfoEntry = enabled
                             securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, enabled)
                         },
                         title = stringResource(R.string.aosp_app_info_entry),
@@ -211,6 +220,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         onCheckedChange = { enabled ->
                             appManagerEntry = enabled
                             securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
                             Preferences.putBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, enabled)
                         },
                         title = stringResource(R.string.aosp_app_manager_entry),
@@ -221,11 +231,13 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                             title = stringResource(R.string.aosp_restart_security_center),
                             summary = stringResource(R.string.aosp_restart_security_center_summary),
                             onClick = {
+                                Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(securityCenter = true)
                                 )
+                                handleRestartedScopes(RestartScopeSelection(securityCenter = true))
                                 securityCenterRestartPending = false
                             }
                         )

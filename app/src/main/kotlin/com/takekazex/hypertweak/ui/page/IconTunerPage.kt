@@ -94,9 +94,9 @@ private val iconPrefsSaver = Saver<SnapshotStateMap<String, Any>, ArrayList<Any>
 /**
  * Status-bar icon customization, ported from Hyper Helper's icon tuner
  * (see the reverse-engineering workspace, cache/xiaomihelper-2bfd4873a4138764, and
- * OS4_ADAPTATION_PLAN.md). State is kept locally rather than hoisted into `MainActivity`, so these
- * switches do not feed the pending-restart-scope tracking; every change requires a SystemUI
- * restart and the page offers one. The page is a second-level settings menu: related controls are
+ * OS4_ADAPTATION_PLAN.md). State is kept locally rather than hoisted into `MainActivity`, so every
+ * change reports SystemUI to the shared Home restart dialog; the page also keeps its local restart
+ * affordance. The page is a second-level settings menu: related controls are
  * grouped behind a compact TabRow so the long list does not become one undifferentiated scroll.
  */
 
@@ -133,6 +133,8 @@ fun IconTunerPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var stackedSingleImportStatus by rememberSaveable { mutableStateOf<String?>(null) }
@@ -179,6 +181,7 @@ fun IconTunerPage(onBack: () -> Unit) {
     }
 
     fun changed(key: String, value: Any) {
+        requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[key] = if (value is Set<*>) {
             ArrayList(value.filterIsInstance<String>())
         } else {
@@ -511,6 +514,7 @@ fun IconTunerPage(onBack: () -> Unit) {
                                 coroutineScope = coroutineScope,
                                 selection = RestartScopeSelection(systemUi = true)
                             )
+                            handleRestartedScopes(RestartScopeSelection(systemUi = true))
                             systemUiRestartPending = false
                         }
                     )

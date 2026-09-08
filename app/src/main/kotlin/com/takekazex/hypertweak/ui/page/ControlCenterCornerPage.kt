@@ -70,6 +70,8 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false))
@@ -126,6 +128,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             enabled = checked
                             restartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_CC_CORNER_ENABLED, checked)
                         },
                         title = stringResource(R.string.tweaks_cc_corner_enabled_title),
@@ -144,6 +147,9 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                                     coroutineScope = coroutineScope,
                                     selection = com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true)
                                 )
+                                handleRestartedScopes(
+                                    com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true)
+                                )
                                 restartPending = false
                             }
                         )
@@ -160,6 +166,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                         itemValues[item.key] = newValue
                         Preferences.putFloat(item.key, newValue)
                         restartPending = true
+                        requestRestartScopes(RestartScopeSelection(systemUi = true))
                     }
                 )
             }

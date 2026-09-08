@@ -98,6 +98,7 @@ data class RestartScopeSelection(
         if (powerkeeper) keys += KEY_POWERKEEPER
         if (gms) keys += KEY_GMS
         if (xmsf) keys += KEY_XMSF
+        keys += additionalPackages.map { "$KEY_ADDITIONAL_PREFIX$it" }
         return keys
     }
 
@@ -131,6 +132,7 @@ data class RestartScopeSelection(
         private const val KEY_POWERKEEPER = "powerkeeper"
         private const val KEY_GMS = "gms"
         private const val KEY_XMSF = "xmsf"
+        private const val KEY_ADDITIONAL_PREFIX = "package:"
 
         const val PACKAGE_SYSTEM_UI = "com.android.systemui"
         const val PACKAGE_MIUI_HOME = "com.miui.home"
@@ -143,6 +145,14 @@ data class RestartScopeSelection(
         const val PACKAGE_POWERKEEPER = "com.miui.powerkeeper"
         const val PACKAGE_GMS = "com.google.android.gms"
         const val PACKAGE_XMSF = "com.xiaomi.xmsf"
+
+        // These targets are kept as additional packages because the legacy selection fields are
+        // also used by old persisted restart-scope sets. Keeping named constants here prevents
+        // feature pages from drifting to the wrong Google/Xiaomi process.
+        const val PACKAGE_GOOGLE_APP = "com.google.android.googlequicksearchbox"
+        const val PACKAGE_MEDIA_EDITOR = "com.miui.mediaeditor"
+        const val PACKAGE_PERSONAL_ASSISTANT = "com.miui.personalassistant"
+        const val PACKAGE_CAMERA = "com.android.camera"
 
         private val KNOWN_PACKAGES = setOf(
             PACKAGE_SYSTEM_UI,
@@ -189,7 +199,13 @@ data class RestartScopeSelection(
                 bluetooth = KEY_BLUETOOTH in keys,
                 powerkeeper = KEY_POWERKEEPER in keys,
                 gms = KEY_GMS in keys,
-                xmsf = KEY_XMSF in keys
+                xmsf = KEY_XMSF in keys,
+                additionalPackages = keys
+                    .asSequence()
+                    .filter { it.startsWith(KEY_ADDITIONAL_PREFIX) }
+                    .map { it.removePrefix(KEY_ADDITIONAL_PREFIX) }
+                    .mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+                    .toSet()
             )
         }
     }

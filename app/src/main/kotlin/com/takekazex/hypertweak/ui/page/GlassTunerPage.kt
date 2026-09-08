@@ -55,8 +55,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * OS4 material-style glass tuner. Overrides the blur/blend resources behind 清透磨砂 and
  * 柔光玻璃 (Settings → Display → Visual style) with user-tuned values, read by
  * `GlassMaterialHooker` in SystemUI. State is kept locally rather than hoisted into
- * `MainActivity`, so these keys do not feed the pending-restart-scope tracking; every change
- * requires a SystemUI restart and the page offers one.
+ * `MainActivity`, so every change reports SystemUI to the shared Home restart dialog; the page
+ * also keeps its local restart affordance.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -64,6 +64,8 @@ fun GlassTunerPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
@@ -84,6 +86,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
     }
 
     fun changed(key: String, value: Any) {
+        requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[key] = value
         when (value) {
             is Boolean -> Preferences.putBoolean(key, value)
@@ -218,6 +221,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 coroutineScope = coroutineScope,
                                 selection = RestartScopeSelection(systemUi = true)
                             )
+                            handleRestartedScopes(RestartScopeSelection(systemUi = true))
                             systemUiRestartPending = false
                         }
                     )

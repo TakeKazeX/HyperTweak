@@ -45,8 +45,8 @@ import java.lang.reflect.Method
  * Resolution is fail-closed: ambiguous, missing, or unreadable matches install nothing. The
  * coordinator constructor and every caller of the capability are deoptimized so ART cannot
  * AOT-inline the read past the hooked method. The Google app is a declared required Xposed
- * scope (see `scope.list` and `ScopeManager`), so the switch flips the preference and restarts
- * the app; disabled (default) installs nothing.
+ * scope (see `scope.list` and `ScopeManager`), so the switch flips the preference and queues
+ * the app in the Home restart dialog; disabled (default) installs nothing.
  */
 object GoogleAppAskAboutScreenHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED

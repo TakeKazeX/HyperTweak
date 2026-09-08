@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -65,6 +66,15 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun CameraUnlockPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+
+    fun requestCameraRestart() {
+        requestRestartScopes(
+            RestartScopeSelection(
+                additionalPackages = setOf(RestartScopeSelection.PACKAGE_CAMERA)
+            )
+        )
+    }
 
     var streetMode by remember {
         mutableStateOf(Preferences.cameraStreetMode())
@@ -132,7 +142,8 @@ fun CameraUnlockPage(onBack: () -> Unit) {
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
 
-    fun set(key: String, value: Boolean) {
+    fun set(key: String, value: Boolean, needsRestart: Boolean = false) {
+        if (needsRestart) requestCameraRestart()
         Preferences.putBoolean(key, value)
     }
 
@@ -172,6 +183,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { index ->
                             val mode = CameraStreetMode.fromIndex(index)
                             streetMode = mode
+                            requestCameraRestart()
                             Preferences.setCameraStreetMode(mode)
                         }
                     )
@@ -179,7 +191,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = streetQuickLaunch,
                         onCheckedChange = { enabled ->
                             streetQuickLaunch = enabled
-                            set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled)
+                            set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_street_quick_launch_title),
                         summary = stringResource(R.string.camera_unlock_street_quick_launch_summary)
@@ -188,7 +200,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = leicaStyle,
                         onCheckedChange = { enabled ->
                             leicaStyle = enabled
-                            set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled)
+                            set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_leica_style_title),
                         summary = stringResource(R.string.camera_unlock_leica_style_summary)
@@ -197,7 +209,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = ultraHdQuality,
                         onCheckedChange = { enabled ->
                             ultraHdQuality = enabled
-                            set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled)
+                            set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_ultra_hd_title),
                         summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
@@ -206,7 +218,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = selfieSettings,
                         onCheckedChange = { enabled ->
                             selfieSettings = enabled
-                            set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled)
+                            set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_selfie_settings_title),
                         summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
@@ -215,7 +227,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = legendaryMoment,
                         onCheckedChange = { enabled ->
                             legendaryMoment = enabled
-                            set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled)
+                            set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_legendary_moment_title),
                         summary = stringResource(R.string.camera_unlock_legendary_moment_summary)
@@ -233,7 +245,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = contentCredential,
                         onCheckedChange = { enabled ->
                             contentCredential = enabled
-                            set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled)
+                            set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_content_credential_title),
                         summary = stringResource(R.string.camera_unlock_content_credential_summary)
@@ -251,7 +263,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = masterLiveEnable,
                         onCheckedChange = { enabled ->
                             masterLiveEnable = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled)
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_masterlive_title),
                         summary = stringResource(R.string.camera_unlock_masterlive_summary)
@@ -260,7 +272,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = mlRedCarpet,
                         onCheckedChange = { enabled ->
                             mlRedCarpet = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled)
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_red_carpet_title),
                         summary = stringResource(R.string.camera_unlock_red_carpet_summary)
@@ -269,7 +281,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = mlFullFocal,
                         onCheckedChange = { enabled ->
                             mlFullFocal = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled)
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_full_focal_title),
                         summary = stringResource(R.string.camera_unlock_full_focal_summary)
@@ -278,7 +290,7 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         checked = mlVideoSizeProbe,
                         onCheckedChange = { enabled ->
                             mlVideoSizeProbe = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled)
+                            set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_video_size_probe_title),
                         summary = stringResource(R.string.camera_unlock_video_size_probe_summary)

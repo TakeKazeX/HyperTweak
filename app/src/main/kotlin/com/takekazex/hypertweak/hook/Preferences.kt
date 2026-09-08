@@ -34,8 +34,8 @@ object Preferences {
      * `com.google.android.apps.search.lens.user/45785436` master flag, the
      * `CONTEXTUAL_SEARCH_LIVE_TRANSLATE` system feature, and the EXTRA_MEDIA_PROJECTION display
      * predicate). The Google app is a declared required Xposed scope (see `scope.list`); the
-     * switch flips the preference and restarts the app, and disabled (default) installs nothing
-     * and leaves the app untouched.
+     * switch flips the preference and queues the Google app in the Home restart dialog. Disabled
+     * (default) installs nothing and leaves the app untouched.
      */
     const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
 
@@ -46,8 +46,8 @@ object Preferences {
      * (`bydc.c()`, lazily server-fetched and false on stock) through the AIM model DI chain
      * (`wry.iX()` → `doqf.<init>` → `djyp` coordinator) and force-opens it, mirroring upstream
      * MiuiBackGestureHook commit `0f603b1d`. The Google app is a declared required Xposed scope
-     * (see `scope.list`); the switch flips the preference and restarts the app, and disabled
-     * (default) installs nothing.
+     * (see `scope.list`); the switch flips the preference and queues the Google app in the Home
+     * restart dialog. Disabled (default) installs nothing.
      */
     const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
@@ -358,8 +358,8 @@ object Preferences {
 
     // Status-bar icon tuner, ported from Hyper Helper's icon tuner (see the reverse-engineering
     // workspace, cache/xiaomihelper-2bfd4873a4138764). Each switch is read by a SystemUI hook at
-    // hook-install time and requires a SystemUI restart; the page keeps its own state like
-    // AospRestorePage, so these keys are deliberately absent from TWEAK_RESTART_SCOPES.
+    // hook-install time and requires a SystemUI restart; IconTunerPage keeps its own state and
+    // reports that restart through LocalRestartScopeRequest.
     const val KEY_ICON_HIDE_CELLULAR_ACTIVITY = "icon_hide_cellular_activity"
     const val KEY_ICON_HIDE_CELLULAR_TYPE = "icon_hide_cellular_type"
     const val KEY_ICON_HIDE_CELLULAR_ROAM = "icon_hide_cellular_roam"
@@ -486,8 +486,7 @@ object Preferences {
 
     // OS4 material style glass tuning (Settings → Display → Visual style, 材质风格). The
     // SystemUI hook intercepts the blur/blend resources behind 清透磨砂 and 柔光玻璃, so the
-    // page keeps its own state like IconTunerPage and these keys are deliberately absent from
-    // TWEAK_RESTART_SCOPES; the page offers its own SystemUI restart.
+    // page keeps its own state and reports a SystemUI restart through LocalRestartScopeRequest.
     const val KEY_GLASS_TUNER_ENABLED = "glass_tuner_enabled"
 
     /** Blend opacity multiplier (0.1..1.0, 1.0 = original); scales every blend color alpha. */

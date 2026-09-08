@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak
 
-import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
@@ -18,9 +17,9 @@ import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
-import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
-import android.widget.Toast
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
+import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
+import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
@@ -111,12 +110,21 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST to RestartScopeSelection(systemUi = true),
     // Unlocking the whitelist signature verification hooks com.xiaomi.xmsf; xmsf is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
-    Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH to RestartScopeSelection(xmsf = true)
+    Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH to RestartScopeSelection(xmsf = true),
+    // Google-side feature toggles restart the Google app only after the user confirms the
+    // standard Home restart dialog.
+    Preferences.KEY_FULL_SCREEN_TRANSLATE to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GOOGLE_APP)
+    ),
+    Preferences.KEY_ASK_ABOUT_SCREEN to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GOOGLE_APP)
+    ),
 )
 
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
+private const val KEY_MANUAL_PENDING_RESTART_SCOPES = "manual_pending_restart_scopes"
 private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
 
 private fun currentBootToken(): String {
@@ -349,6 +357,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     localPrefs.edit {
                         remove(Preferences.KEY_PENDING_RESTART_SCOPES)
+                        remove(KEY_MANUAL_PENDING_RESTART_SCOPES)
                         remove(KEY_DIRTY_TWEAK_KEYS)
                         TWEAK_RESTART_SCOPES.keys.forEach { remove("$KEY_TWEAK_BASELINE_PREFIX$it") }
                         putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
@@ -356,31 +365,42 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(emptySet())
                 }
             }
-            var pendingRestartScopes by remember {
+            var manualPendingRestartScopes by remember {
                 val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
                 if (storedBootToken == bootToken) {
                     mutableStateOf(
                         RestartScopeSelection.fromKeySet(
-                            localPrefs.getStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, emptySet()).orEmpty()
-                        ).intersect(restartScopesForDirtyTweaks(dirtyTweakKeys))
+                            localPrefs.getStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, emptySet()).orEmpty()
+                        )
+                    )
+                } else {
+                    mutableStateOf(RestartScopeSelection.Empty)
+                }
+            }
+            var pendingRestartScopes by remember {
+                val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
+                if (storedBootToken == bootToken) {
+                    mutableStateOf(
+                        restartScopesForDirtyTweaks(dirtyTweakKeys).merge(manualPendingRestartScopes)
                     )
                 } else {
                     mutableStateOf(RestartScopeSelection.Empty)
                 }
             }
 
-            fun effectivePendingRestartScopes(dirtyKeys: Set<String>, pendingScopes: RestartScopeSelection): RestartScopeSelection {
-                return restartScopesForDirtyTweaks(dirtyKeys).intersect(pendingScopes)
+            fun effectivePendingRestartScopes(dirtyKeys: Set<String>): RestartScopeSelection {
+                return restartScopesForDirtyTweaks(dirtyKeys).merge(manualPendingRestartScopes)
             }
 
             fun updateDirtyTweakKeys(next: Set<String>) {
-                val nextPendingScopes = effectivePendingRestartScopes(next, pendingRestartScopes)
+                val nextPendingScopes = effectivePendingRestartScopes(next)
                 dirtyTweakKeys = next
                 pendingRestartScopes = nextPendingScopes
                 localPrefs.edit {
                     putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, next)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                    putStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, manualPendingRestartScopes.toKeySet())
                 }
             }
 
@@ -408,6 +428,8 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
+                    Preferences.KEY_FULL_SCREEN_TRANSLATE -> fullScreenTranslate
+                    Preferences.KEY_ASK_ABOUT_SCREEN -> askAboutScreen
                     else -> Preferences.getBoolean(key, false)
                 }
             }
@@ -420,12 +442,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            fun markTweaked(key: String, value: Boolean) {
+            fun markTweaked(key: String, value: Boolean, defaultValue: Boolean = false) {
                 val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
                 val baseline = if (localPrefs.contains(baselineKey)) {
                     localPrefs.getBoolean(baselineKey, value)
                 } else {
-                    Preferences.getBoolean(key, value)
+                    Preferences.getBoolean(key, defaultValue)
                 }
                 val nextDirtyKeys = if (value == baseline) {
                     dirtyTweakKeys - key
@@ -433,7 +455,7 @@ class MainActivity : ComponentActivity() {
                     dirtyTweakKeys + key
                 }
                 val nextPendingScopes = if (value == baseline) {
-                    effectivePendingRestartScopes(nextDirtyKeys, pendingRestartScopes)
+                    effectivePendingRestartScopes(nextDirtyKeys)
                 } else {
                     pendingRestartScopes.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
                 }
@@ -445,6 +467,7 @@ class MainActivity : ComponentActivity() {
                     putBoolean(baselineKey, baseline)
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                    putStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, manualPendingRestartScopes.toKeySet())
                 }
             }
 
@@ -466,7 +489,7 @@ class MainActivity : ComponentActivity() {
                     dirtyTweakKeys + key
                 }
                 val nextPendingScopes = if (value == baseline) {
-                    effectivePendingRestartScopes(nextDirtyKeys, pendingRestartScopes)
+                    effectivePendingRestartScopes(nextDirtyKeys)
                 } else {
                     pendingRestartScopes.merge(TWEAK_RESTART_SCOPES[key] ?: RestartScopeSelection.Empty)
                 }
@@ -478,11 +501,13 @@ class MainActivity : ComponentActivity() {
                     putInt(baselineKey, baseline)
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                    putStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, manualPendingRestartScopes.toKeySet())
                 }
             }
 
             fun clearRestartedScopes(scopes: RestartScopeSelection) {
                 val nextPendingScopes = pendingRestartScopes.without(scopes)
+                val nextManualPendingScopes = manualPendingRestartScopes.without(scopes)
                 val clearedKeys = dirtyTweakKeys.filter { key ->
                     TWEAK_RESTART_SCOPES[key]?.let(nextPendingScopes::intersect)?.isEmpty() == true
                 }.toSet()
@@ -503,45 +528,41 @@ class MainActivity : ComponentActivity() {
                     }
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
+                    putStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, nextManualPendingScopes.toKeySet())
+                }
+                manualPendingRestartScopes = nextManualPendingScopes
+            }
+
+            fun clearPendingRestartTracking() {
+                dirtyTweakKeys = emptySet()
+                pendingRestartScopes = RestartScopeSelection.Empty
+                manualPendingRestartScopes = RestartScopeSelection.Empty
+                localPrefs.edit {
+                    remove(KEY_PENDING_RESTART_BOOT_TOKEN)
+                    remove(Preferences.KEY_PENDING_RESTART_SCOPES)
+                    remove(KEY_MANUAL_PENDING_RESTART_SCOPES)
+                    remove(KEY_DIRTY_TWEAK_KEYS)
+                    TWEAK_RESTART_SCOPES.keys.forEach { remove("$KEY_TWEAK_BASELINE_PREFIX$it") }
                 }
             }
 
-            /** Requests the optional OS3 launcher target before a launcher-backed feature is used. */
-            fun requestLauncherScope(restore: () -> Unit) {
-                Preferences.flush()
-                coroutineScope.launch {
-                    when (val result = ScopeManager.request(
-                        setOf(RestartScopeSelection.PACKAGE_MIUI_HOME)
-                    )) {
-                        is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> Unit
-                        is ScopeManager.Result.Rejected -> {
-                            restore()
-                            Toast.makeText(
-                                this@MainActivity,
-                                getString(
-                                    R.string.settings_launcher_scope_not_granted,
-                                    result.missing.joinToString()
-                                ),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        is ScopeManager.Result.Failed -> {
-                            restore()
-                            Toast.makeText(
-                                this@MainActivity,
-                                result.message,
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        ScopeManager.Result.ServiceUnavailable -> {
-                            restore()
-                            Toast.makeText(
-                                this@MainActivity,
-                                getString(R.string.home_scope_service_unavailable),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
+            /** Records a secondary-page change for the shared Home restart dialog. */
+            fun requestRestartScopes(scopes: RestartScopeSelection) {
+                if (scopes.isEmpty()) return
+                val nextManualPendingScopes = manualPendingRestartScopes.merge(scopes)
+                val nextPendingScopes = pendingRestartScopes.merge(scopes)
+                manualPendingRestartScopes = nextManualPendingScopes
+                pendingRestartScopes = nextPendingScopes
+                localPrefs.edit {
+                    putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
+                    putStringSet(
+                        Preferences.KEY_PENDING_RESTART_SCOPES,
+                        nextPendingScopes.toKeySet()
+                    )
+                    putStringSet(
+                        KEY_MANUAL_PENDING_RESTART_SCOPES,
+                        nextManualPendingScopes.toKeySet()
+                    )
                 }
             }
 
@@ -554,8 +575,8 @@ class MainActivity : ComponentActivity() {
              */
             fun handleQuickShareChange(checked: Boolean) {
                 quickShareEnabled = checked
-                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
                 markTweaked(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
+                Preferences.putBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, checked)
             }
 
             /**
@@ -568,8 +589,8 @@ class MainActivity : ComponentActivity() {
              */
             fun handleFocusNotificationUnlockWhitelistChange(checked: Boolean) {
                 focusNotificationUnlockWhitelist = checked
-                Preferences.putBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
                 markTweaked(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
+                Preferences.putBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
             }
 
             /**
@@ -579,225 +600,35 @@ class MainActivity : ComponentActivity() {
              */
             fun handleMediaSuperIslandUnlockWhitelistChange(checked: Boolean) {
                 mediaSuperIslandUnlockWhitelist = checked
-                Preferences.putBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
                 markTweaked(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
+                Preferences.putBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
             }
 
-            /**
-             * Unlocking the Super Island whitelist signature verification hooks
-             * com.xiaomi.xmsf. xmsf is a declared required scope (see `scope.list` and
-             * `ScopeManager`), so the toggle requests the scope on the first enable, then flips
-             * the preference and restarts the app — the hooker reads the preference live, so after
-             * the restart the hooks install (on) or no-op (off). Turning the feature off only
-             * flips the preference and restarts xmsf; the scope itself is kept.
-             */
-            @SuppressLint("LocalContextGetResourceValueCall")
+            /** The toggle only changes the preference; scope membership is managed separately. */
             fun handleXmsfUnlockFocusAuthChange(checked: Boolean) {
                 xmsfUnlockFocusAuth = checked
-                Preferences.putBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
-                // Block until the daemon has the new value: xmsf is force-stopped right after, and
-                // its onHook reads this preference — without the flush it can restart on a stale
-                // false and install none of the hooks.
-                Preferences.flush()
                 markTweaked(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
-                coroutineScope.launch {
-                    val xmsf = setOf("com.xiaomi.xmsf")
-                    if (checked) {
-                        when (val result = ScopeManager.request(xmsf)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                                RestartUtils.forceStopPackages(context, coroutineScope, xmsf)
-                            }
-                            is ScopeManager.Result.Rejected -> {
-                                xmsfUnlockFocusAuth = false
-                                Preferences.putBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
-                                markTweaked(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(
-                                        R.string.xmsf_unlock_focus_auth_scope_not_granted,
-                                        result.missing.joinToString()
-                                    ),
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            is ScopeManager.Result.Failed -> Toast.makeText(
-                                context,
-                                context.getString(
-                                    R.string.xmsf_unlock_focus_auth_scope_failed,
-                                    result.message
-                                ),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
-                                context,
-                                context.getString(R.string.xmsf_unlock_focus_auth_scope_unavailable),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } else {
-                        RestartUtils.forceStopPackages(context, coroutineScope, xmsf)
-                    }
-                }
+                Preferences.putBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
             }
 
-            /**
-             * Full-screen translate lives in the Google app process, which is a declared required
-             * scope (see `scope.list` and `ScopeManager`), so the toggle requests the scope on the
-             * first enable, then flips the preference and restarts the app. The hooker reads the
-             * preference live, so after the restart the button appears (on) or the hooks stop
-             * firing (off).
-             */
-            @SuppressLint("LocalContextGetResourceValueCall")
+            /** The toggle only changes the preference; scope membership is managed separately. */
             fun handleFullScreenTranslateChange(checked: Boolean) {
                 fullScreenTranslate = checked
+                markTweaked(Preferences.KEY_FULL_SCREEN_TRANSLATE, checked)
                 Preferences.putBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, checked)
-                // Block until the daemon has the new value: the Google app is force-stopped right
-                // after, and its onHook reads this preference — without the flush it can restart
-                // on a stale false and install none of the hooks.
-                Preferences.flush()
-                coroutineScope.launch {
-                    val googleApp = setOf(GoogleAppLiveTranslateHooker.PACKAGE)
-                    if (checked) {
-                        when (val result = ScopeManager.request(googleApp)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                                RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
-                            }
-                            is ScopeManager.Result.Rejected -> {
-                                fullScreenTranslate = false
-                                Preferences.putBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(
-                                        R.string.full_screen_translate_scope_not_granted,
-                                        result.missing.joinToString()
-                                    ),
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            is ScopeManager.Result.Failed -> Toast.makeText(
-                                context,
-                                context.getString(R.string.full_screen_translate_scope_failed, result.message),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
-                                context,
-                                context.getString(R.string.full_screen_translate_scope_unavailable),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } else {
-                        // The Google app is a declared required scope, so turning the feature off
-                        // only flips the preference (the hooks read it live and no-op on restart);
-                        // the scope itself is kept.
-                        RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
-                    }
-                }
             }
 
-            /**
-             * "Ask about this screen" lives in the same Google app process and required scope as
-             * full-screen translate, so the toggle mirrors it: request the scope on the first
-             * enable, then flip the preference and restart the app. The hooker reads the
-             * preference live, so after the restart the searchbox capability opens (on) or the
-             * hooks stop firing (off).
-             */
-            @SuppressLint("LocalContextGetResourceValueCall")
+            /** The toggle only changes the preference; scope membership is managed separately. */
             fun handleAskAboutScreenChange(checked: Boolean) {
                 askAboutScreen = checked
+                markTweaked(Preferences.KEY_ASK_ABOUT_SCREEN, checked)
                 Preferences.putBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, checked)
-                // Block until the daemon has the new value: the Google app is force-stopped right
-                // after, and its onHook reads this preference — without the flush it can restart
-                // on a stale false and install none of the hooks.
-                Preferences.flush()
-                coroutineScope.launch {
-                    val googleApp = setOf(GoogleAppLiveTranslateHooker.PACKAGE)
-                    if (checked) {
-                        when (val result = ScopeManager.request(googleApp)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                                RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
-                            }
-                            is ScopeManager.Result.Rejected -> {
-                                askAboutScreen = false
-                                Preferences.putBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(
-                                        R.string.google_feature_scope_not_granted,
-                                        result.missing.joinToString()
-                                    ),
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            is ScopeManager.Result.Failed -> Toast.makeText(
-                                context,
-                                context.getString(R.string.google_feature_scope_failed, result.message),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
-                                context,
-                                context.getString(R.string.google_feature_scope_unavailable),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } else {
-                        // The Google app is a declared required scope, so turning the feature off
-                        // only flips the preference (the hooks read it live and no-op on restart);
-                        // the scope itself is kept.
-                        RestartUtils.forceStopPackages(context, coroutineScope, googleApp)
-                    }
-                }
             }
 
-            /**
-             * Smart-Assistant model spoof lives in the `com.miui.personalassistant` process, which is
-             * a declared required scope but is not a restart-scope target (the hooker rewrites the
-             * request fields on every call, so the spoofed values apply live). On enable the toggle
-             * requests the scope (in case the user removed the entry) and restarts the assistant so any
-             * newly-added hook installs; disabling only flips the preference and the scope is kept.
-             */
-            @SuppressLint("LocalContextGetResourceValueCall")
+            /** Model spoof is read on every assistant request, so no process restart is needed. */
             fun handlePaModelSpoofChange(checked: Boolean) {
                 paModelSpoofEnabled = checked
                 Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, checked)
-                // Block until the daemon has the new value: the assistant is force-stopped right
-                // after and reads the preference on the next request.
-                Preferences.flush()
-                coroutineScope.launch {
-                    val assistant = setOf("com.miui.personalassistant")
-                    if (checked) {
-                        when (val result = ScopeManager.request(assistant)) {
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                                RestartUtils.forceStopPackages(context, coroutineScope, assistant)
-                            }
-                            is ScopeManager.Result.Rejected -> {
-                                paModelSpoofEnabled = false
-                                Preferences.putBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(
-                                        R.string.pa_model_spoof_scope_not_granted,
-                                        result.missing.joinToString()
-                                    ),
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            is ScopeManager.Result.Failed -> Toast.makeText(
-                                context,
-                                context.getString(R.string.pa_model_spoof_scope_failed, result.message),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
-                                context,
-                                context.getString(R.string.pa_model_spoof_scope_unavailable),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } else {
-                        // The assistant is a declared required scope, so turning the feature off
-                        // only flips the preference (the hooker reads it live); the scope is kept.
-                        RestartUtils.forceStopPackages(context, coroutineScope, assistant)
-                    }
-                }
             }
 
             LaunchedEffect(serviceConnected) {
@@ -950,10 +781,12 @@ class MainActivity : ComponentActivity() {
                 LocaleHelper.getLocalizedContext(context, appLanguage)
             }
 
-            CompositionLocalProvider(
-                LocalContext provides localizedContext,
-                LocalDensity provides density
-            ) {
+                    CompositionLocalProvider(
+                        LocalContext provides localizedContext,
+                        LocalDensity provides density,
+                        LocalRestartScopeRequest provides ::requestRestartScopes,
+                        LocalRestartScopeHandled provides ::clearRestartedScopes
+                    ) {
                 MiuixTheme(controller = controller) {
                     val surfaceColor = MiuixTheme.colorScheme.surface
                     val backdrop = rememberLayerBackdrop {
@@ -1004,20 +837,9 @@ class MainActivity : ComponentActivity() {
                     },
                     miuiBackGestureHook = miuiBackGestureHook,
                     onMiuiBackGestureHookChange = { enabled ->
-                        val previous = miuiBackGestureHook
                         markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
                         miuiBackGestureHook = enabled
                         Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
-                        if (enabled && !PlatformLevel.isOs4) {
-                            requestLauncherScope {
-                                miuiBackGestureHook = previous
-                                Preferences.putBoolean(
-                                    Preferences.KEY_MIUI_BACK_GESTURE_HOOK,
-                                    previous
-                                )
-                                markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, previous)
-                            }
-                        }
                     },
                     crossTaskWallpaperBackground = crossTaskWallpaperBackground,
                     onCrossTaskWallpaperBackgroundChange = { enabled ->
@@ -1050,28 +872,18 @@ class MainActivity : ComponentActivity() {
                     launcherSupportsBackRoute = launcherSupportsBackRoute,
                     aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
                     onAospBackMiuiHomeHooksChange = { enabled ->
-                        val previous = aospBackMiuiHomeHooks
                         aospBackMiuiHomeHooks = enabled
+                        markTweaked(
+                            Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
+                            enabled,
+                            defaultValue = launcherSupportsBackRoute
+                        )
                         Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
                         // Records that the choice is the user's, so the runtime stops
                         // following the launcher-version default.
                         Preferences.putBoolean(
                             Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, true
                         )
-                        markTweaked(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
-                        if (enabled && !PlatformLevel.isOs4) {
-                            requestLauncherScope {
-                                aospBackMiuiHomeHooks = previous
-                                Preferences.putBoolean(
-                                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                                    previous
-                                )
-                                markTweaked(
-                                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                                    previous
-                                )
-                            }
-                        }
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,
                     onPredictiveBackFollowGestureChange = { follow ->
@@ -1320,6 +1132,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onClearAllSettings = {
+                        clearPendingRestartTracking()
                         Preferences.clearAllSettings()
                         // Recreate so every Compose state reloads from the now-default prefs.
                         this@MainActivity.recreate()

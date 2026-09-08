@@ -52,8 +52,9 @@ import java.lang.reflect.Method
  * legitimate system authorization is intentionally left untouched.
  *
  * The Google app is a declared required Xposed scope (see `scope.list` and `ScopeManager`), so
- * the switch only flips the preference and restarts the app; the hooks then read the preference
- * live, so turning the feature off is a no-op restart away from stock behaviour.
+ * the switch flips the preference and queues the app in the Home restart dialog; the hooks then
+ * read the preference live, so turning the feature off is a no-op restart away from stock
+ * behaviour.
  */
 object GoogleAppLiveTranslateHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED

@@ -56,6 +56,8 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
@@ -106,6 +108,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             enabled = checked
                             systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
                         },
                         title = stringResource(R.string.charging_enabled_title),
@@ -116,11 +119,13 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                             title = stringResource(R.string.charging_restart_title),
                             summary = stringResource(R.string.charging_restart_summary),
                             onClick = {
+                                Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true)
                                 )
+                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
                                 systemUiRestartPending = false
                             }
                         )

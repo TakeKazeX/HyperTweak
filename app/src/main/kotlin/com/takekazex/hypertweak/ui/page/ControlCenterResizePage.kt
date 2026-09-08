@@ -69,6 +69,8 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false))
@@ -77,6 +79,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
 
     fun markPending() {
         restartPending = true
+        requestRestartScopes(RestartScopeSelection(systemUi = true))
     }
 
     Scaffold(topBar = {
@@ -123,6 +126,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true)
                                 )
+                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
                                 restartPending = false
                             }
                         )

@@ -49,4 +49,21 @@ class RestartScopeSelectionTest {
             left.without(right).additionalPackages
         )
     }
+
+    @Test
+    fun `key serialization keeps additional packages`() {
+        val selection = RestartScopeSelection(
+            gms = true,
+            additionalPackages = setOf(
+                RestartScopeSelection.PACKAGE_PERSONAL_ASSISTANT,
+                RestartScopeSelection.PACKAGE_CAMERA
+            )
+        )
+
+        assertEquals(selection, RestartScopeSelection.fromKeySet(selection.toKeySet()))
+        assertEquals(
+            selection.toPackageSet(),
+            RestartScopeSelection.fromPackageSet(selection.toPackageSet()).toPackageSet()
+        )
+    }
 }
