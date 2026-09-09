@@ -15,6 +15,8 @@
     <string name="aosp_back">Back</string>
     <string name="aosp_clipboard_editor">AOSP Clipboard Editor</string>
     <string name="aosp_clipboard_editor_summary">Show the AOSP clipboard overlay when copying. HyperOS keeps showing its own editor as well. Requires a SystemUI restart</string>
+    <string name="aosp_lbe_clipboard_toast">Clipboard Read Toast</string>
+    <string name="aosp_lbe_clipboard_toast_summary">Replace the LBE clipboard-reading overlay with a standard Toast showing the app that read the clipboard. Independent of the Toast material switch. Requires an LBE restart</string>
     <string name="aosp_configure_extend_unlock">Configure Extend Unlock</string>
     <string name="aosp_configure_extend_unlock_summary">Open the Google configuration screen HyperOS hides. Turn the switch on and restart SystemUI first</string>
     <string name="aosp_extend_unlock">Extend Unlock</string>
@@ -30,6 +32,9 @@
     <string name="aosp_restart_security_center_summary">Apply the changes made in this section</string>
     <string name="aosp_restart_system_ui">Restart SystemUI</string>
     <string name="aosp_restart_system_ui_summary">Apply the changes made on this page</string>
+    <string name="aosp_restart_lbe">Restart Clipboard Security</string>
+    <string name="aosp_restart_lbe_summary">Apply the clipboard Toast change</string>
+    <string name="aosp_section_clipboard">Clipboard</string>
     <string name="aosp_section_input_method">Input Method</string>
     <string name="aosp_section_security_center">Security Center</string>
     <string name="aosp_section_system">System</string>
@@ -124,6 +129,7 @@
     <string name="debug_notification_test_title">Test Notifications</string>
     <string name="debug_notification_test_one">Post 1 test notification</string>
     <string name="debug_notification_test_three">Post 3 test notifications</string>
+    <string name="debug_toast_test">Show test Toast</string>
     <string name="developer_settings_page_title">Developer settings</string>
     <string name="developer_settings_back">Back</string>
     <string name="developer_settings_display_title">Display</string>
@@ -674,6 +680,8 @@
     <string name="scope_prompt_show_again">Show again</string>
     <string name="settings_system_ui_back">Back</string>
     <string name="settings_system_ui_section_general">General</string>
+    <string name="settings_system_ui_toast_advanced_material_title">Advanced Toast Material</string>
+    <string name="settings_system_ui_toast_advanced_material_summary">Use the vendor ToastStub advanced material effect on standard SystemUI text Toasts, independently of the clipboard Toast switch. Requires a SystemUI restart</string>
     <string name="settings_system_ui_section_notification_shade">Notification Shade</string>
     <string name="settings_notification_header_clock_seconds_title">Show Seconds On Large Clock</string>
     <string name="settings_notification_header_clock_seconds_summary">Show seconds on the large clock when the notification shade is expanded; long-press either clock to temporarily toggle seconds for five minutes</string>

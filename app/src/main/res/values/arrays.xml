@@ -8,6 +8,7 @@
     <string-array name="xposed_scope">
         <item>system</item>
         <item>com.android.systemui</item>
+        <item>com.lbe.security.miui</item>
         <item>com.miui.screenshot</item>
         <item>com.takekazex.hypertweak</item>
         <item>com.android.settings</item>

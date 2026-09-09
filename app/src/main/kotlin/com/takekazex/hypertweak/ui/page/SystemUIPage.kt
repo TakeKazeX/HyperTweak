@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +33,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -49,8 +53,9 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, fingerprint icon,
  * lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the lockscreen
  * notification gates, the media-card switches, the control-center sliders and the navigation-bar
- * gesture/power-button settings. State stays hoisted in [MainActivity], so toggles still flow
- * through `markTweaked` and the standard "Restart Scoped Apps" dialog.
+ * gesture/power-button settings. Most state stays hoisted in [MainActivity], so those toggles still
+ * flow through `markTweaked`; the experimental Toast advanced-material switch reports SystemUI
+ * through the shared "Restart Scoped Apps" dialog directly.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -115,6 +120,10 @@ fun SystemUIPage(
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    var toastMaterial by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SYSTEMUI_TOAST_ADVANCED_MATERIAL, false))
+    }
     val gestureActionOptions = remember {
         listOf(
             GestureBarAction.DISABLED to context.getString(R.string.tweaks_action_disabled),
@@ -159,6 +168,18 @@ fun SystemUIPage(
                         title = stringResource(R.string.settings_immediate_monet_refresh),
                         summary = stringResource(R.string.settings_immediate_monet_refresh_summary)
                     )
+                    if (PlatformLevel.isOs3OrOs4) {
+                        SwitchPreference(
+                            checked = toastMaterial,
+                            onCheckedChange = { enabled ->
+                                toastMaterial = enabled
+                                Preferences.putBoolean(Preferences.KEY_SYSTEMUI_TOAST_ADVANCED_MATERIAL, enabled)
+                                requestRestartScopes(RestartScopeSelection(systemUi = true))
+                            },
+                            title = stringResource(R.string.settings_system_ui_toast_advanced_material_title),
+                            summary = stringResource(R.string.settings_system_ui_toast_advanced_material_summary)
+                        )
+                    }
                 }
             }
 

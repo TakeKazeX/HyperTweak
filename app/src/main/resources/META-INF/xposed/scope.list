@@ -1,5 +1,6 @@
 system
 com.android.systemui
+com.lbe.security.miui
 com.miui.screenshot
 com.takekazex.hypertweak
 com.android.settings

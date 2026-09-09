@@ -136,6 +136,19 @@ fun DebugPage(
                     ) {
                         Text(stringResource(R.string.debug_notification_test_three))
                     }
+                    Button(
+                        onClick = {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.debug_toast_test),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text(stringResource(R.string.debug_toast_test))
+                    }
                 }
             }
             SmallTitle(stringResource(R.string.settings_clear_all_settings))

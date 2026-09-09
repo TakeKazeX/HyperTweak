@@ -15,6 +15,8 @@
     <string name="aosp_back">返回</string>
     <string name="aosp_clipboard_editor">AOSP 剪贴板编辑器</string>
     <string name="aosp_clipboard_editor_summary">复制时显示 AOSP 剪贴板浮层。HyperOS 也会继续显示自己的编辑器。需要重启 SystemUI</string>
+    <string name="aosp_lbe_clipboard_toast">剪贴板读取 Toast</string>
+    <string name="aosp_lbe_clipboard_toast_summary">将 LBE 剪贴板读取浮层替换为标准 Toast，并显示读取剪贴板的应用。与 Toast 高级材质开关相互独立。需要重启剪贴板安全服务</string>
     <string name="aosp_configure_extend_unlock">配置扩展解锁</string>
     <string name="aosp_configure_extend_unlock_summary">打开 HyperOS 隐藏的 Google 配置界面。请先打开开关并重启 SystemUI</string>
     <string name="aosp_extend_unlock">扩展解锁</string>
@@ -30,6 +32,9 @@
     <string name="aosp_restart_security_center_summary">应用此部分的更改</string>
     <string name="aosp_restart_system_ui">重启 SystemUI</string>
     <string name="aosp_restart_system_ui_summary">应用此页面所做的更改</string>
+    <string name="aosp_restart_lbe">重启剪贴板安全服务</string>
+    <string name="aosp_restart_lbe_summary">应用剪贴板 Toast 更改</string>
+    <string name="aosp_section_clipboard">剪贴板</string>
     <string name="aosp_section_input_method">输入法</string>
     <string name="aosp_section_security_center">安全中心</string>
     <string name="aosp_section_system">系统</string>
@@ -124,6 +129,7 @@
     <string name="debug_notification_test_title">测试通知</string>
     <string name="debug_notification_test_one">弹出 1 条测试通知</string>
     <string name="debug_notification_test_three">弹出 3 条测试通知</string>
+    <string name="debug_toast_test">弹出测试 Toast</string>
     <string name="developer_settings_page_title">开发者设置</string>
     <string name="developer_settings_back">返回</string>
     <string name="developer_settings_display_title">显示</string>
@@ -674,6 +680,8 @@
     <string name="scope_prompt_show_again">再次提示</string>
     <string name="settings_system_ui_back">返回</string>
     <string name="settings_system_ui_section_general">通用</string>
+    <string name="settings_system_ui_toast_advanced_material_title">Toast 高级材质</string>
+    <string name="settings_system_ui_toast_advanced_material_summary">在标准 SystemUI 文本 Toast 上使用系统 ToastStub 的高级材质效果，与剪贴板 Toast 开关相互独立。需要重启 SystemUI</string>
     <string name="settings_system_ui_section_notification_shade">通知中心</string>
     <string name="settings_notification_header_clock_seconds_title">通知中心大时钟显示秒钟</string>
     <string name="settings_notification_header_clock_seconds_summary">展开通知中心时，让顶部大时钟显示秒钟；长按状态栏或大时钟可临时切换，五分钟后自动恢复</string>

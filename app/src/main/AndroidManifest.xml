@@ -13,6 +13,7 @@
 
     <queries>
         <package android:name="com.android.systemui" />
+        <package android:name="com.lbe.security.miui" />
         <package android:name="com.miui.screenshot" />
         <package android:name="com.android.settings" />
         <!-- Queried by LauncherVersion to read the installed launcher version. -->

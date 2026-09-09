@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeExtrasHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
+import com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
@@ -79,6 +80,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
+import com.takekazex.hypertweak.hook.rules.systemui.SystemUiToastAdvancedMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
@@ -628,6 +630,7 @@ class HookEntry : XposedModule() {
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationMaxNumberHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SystemUiToastAdvancedMaterialHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
@@ -647,6 +650,9 @@ class HookEntry : XposedModule() {
                 // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect
                 // that URI to the ROM's longer shutter sound when the lockscreen-bar tweak is on.
                 attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.lbe.security.miui" -> {
+                attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.home" -> {
                 if (isMiuiBackGestureHookEnabled()) {
