@@ -66,7 +66,13 @@ object Preferences {
      * restart dialog. Disabled (default) installs nothing.
      */
     const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
+    /** Legacy aggregate switch kept as a fallback for upgrades from the original single toggle. */
     const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
+    /** Deprecated pre-merge AOD key; kept mirrored with [KEY_HIDE_FINGERPRINT_LOCKSCREEN]. */
+    const val KEY_HIDE_FINGERPRINT_AOD = "hide_fingerprint_aod"
+    /** Combined lockscreen + AOD fingerprint-hiding switch. */
+    const val KEY_HIDE_FINGERPRINT_LOCKSCREEN = "hide_fingerprint_lockscreen"
+    const val KEY_HIDE_FINGERPRINT_APP_AUTH = "hide_fingerprint_app_auth"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
 
     /** Adds seconds to the large clock shown when the notification shade is expanded. */
@@ -1188,6 +1194,34 @@ object Preferences {
         return value
     }
 
+    /**
+     * Reads one of the old scoped fingerprint-hiding switches while preserving the original
+     * aggregate switch for upgrades. An explicit scoped false must beat a legacy true, hence the
+     * contains() check rather than a simple OR.
+     */
+    private fun getFingerprintHideScope(key: String): Boolean {
+        return if (contains(key)) {
+            getBoolean(key, false)
+        } else {
+            getBoolean(KEY_HIDE_FINGERPRINT, false)
+        }
+    }
+
+    /**
+     * The AOD and interactive lockscreen surfaces now share one setting. OR-ing the two old
+     * scoped keys makes an upgrade from the previous split UI safe: if either old switch was on,
+     * the merged switch starts on. Once the new UI writes a value, both keys are kept in sync.
+     */
+    fun hideFingerprintLockscreenEnabled(): Boolean =
+        getFingerprintHideScope(KEY_HIDE_FINGERPRINT_AOD) ||
+            getFingerprintHideScope(KEY_HIDE_FINGERPRINT_LOCKSCREEN)
+
+    /** Kept for source compatibility with the pre-merge implementation; AOD follows the merged setting. */
+    fun hideFingerprintAodEnabled(): Boolean = hideFingerprintLockscreenEnabled()
+
+    fun hideFingerprintAppAuthEnabled(): Boolean =
+        getFingerprintHideScope(KEY_HIDE_FINGERPRINT_APP_AUTH)
+
     fun getInt(key: String, default: Int = 0): Int {
         if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
         memoGet(key)?.let { return it as Int }
@@ -1237,6 +1271,16 @@ object Preferences {
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
         write { putBoolean(key, value) }
+    }
+
+    /** Writes the merged lockscreen/AOD switch to both split-era keys in one preference update. */
+    fun putFingerprintLockscreenEnabled(value: Boolean) {
+        memoInvalidate(KEY_HIDE_FINGERPRINT_AOD)
+        memoInvalidate(KEY_HIDE_FINGERPRINT_LOCKSCREEN)
+        write {
+            putBoolean(KEY_HIDE_FINGERPRINT_AOD, value)
+            putBoolean(KEY_HIDE_FINGERPRINT_LOCKSCREEN, value)
+        }
     }
 
     fun putInt(key: String, value: Int) {

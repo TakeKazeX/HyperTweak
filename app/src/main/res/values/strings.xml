@@ -775,8 +775,12 @@
     <string name="tweaks_gesture_bar_shortcuts_title">Gesture Bar Shortcuts</string>
     <string name="tweaks_gms_bypass_summary">Remove Google Play Services installation restrictions on Chinese firmware</string>
     <string name="tweaks_gms_bypass_title">Bypass GMS China ROM Restrictions</string>
-    <string name="tweaks_hide_fingerprint_summary">Completely remove the fingerprint sensor circle icon on lockscreen</string>
+    <string name="tweaks_hide_fingerprint_summary">Completely remove the fingerprint sensor circle icon on the lockscreen and AOD</string>
     <string name="tweaks_hide_fingerprint_title">Hide Lockscreen Fingerprint</string>
+    <string name="tweaks_hide_fingerprint_lockscreen_summary">Hide the fingerprint icon and halo on the lockscreen and AOD; does not affect app authentication</string>
+    <string name="tweaks_hide_fingerprint_lockscreen_title">Hide Lockscreen Fingerprint</string>
+    <string name="tweaks_hide_fingerprint_app_auth_summary">Hide the fingerprint icon and halo in in-app biometric prompts such as payments, password managers, and passkeys</string>
+    <string name="tweaks_hide_fingerprint_app_auth_title">Hide App Authentication Fingerprint</string>
     <string name="tweaks_hide_gesture_bar_summary">Hide the bottom gesture line and multitasking split-screen bar</string>
     <string name="tweaks_hide_gesture_bar_title">Hide Bottom Gesture Bar</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">Hide the clock and status icons while the device is locked</string>

@@ -50,12 +50,12 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * System UI tweaks (Features tab → System UI). Second-level page consolidating the SystemUI-scoped
- * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, fingerprint icon,
- * lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the lockscreen
- * notification gates, the media-card switches, the control-center sliders and the navigation-bar
- * gesture/power-button settings. Most state stays hoisted in [MainActivity], so those toggles still
- * flow through `markTweaked`; the experimental Toast advanced-material switch reports SystemUI
- * through the shared "Restart Scoped Apps" dialog directly.
+ * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, scoped fingerprint
+ * visibility, lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the
+ * lockscreen notification gates, the media-card switches, the control-center sliders and the
+ * navigation-bar gesture/power-button settings. Most state stays hoisted in [MainActivity], so
+ * those toggles still flow through `markTweaked`; the experimental Toast advanced-material switch
+ * reports SystemUI through the shared "Restart Scoped Apps" dialog directly.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -65,8 +65,10 @@ fun SystemUIPage(
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
-    hideFingerprint: Boolean,
-    onHideFingerprintChange: (Boolean) -> Unit,
+    hideFingerprintLockscreen: Boolean,
+    onHideFingerprintLockscreenChange: (Boolean) -> Unit,
+    hideFingerprintAppAuth: Boolean,
+    onHideFingerprintAppAuthChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
     notificationHeaderClockSeconds: Boolean,
@@ -219,10 +221,16 @@ fun SystemUIPage(
                         summary = stringResource(R.string.tweaks_aod_fullscreen_summary)
                     )
                     SwitchPreference(
-                        checked = hideFingerprint,
-                        onCheckedChange = onHideFingerprintChange,
-                        title = stringResource(R.string.tweaks_hide_fingerprint_title),
-                        summary = stringResource(R.string.tweaks_hide_fingerprint_summary)
+                        checked = hideFingerprintLockscreen,
+                        onCheckedChange = onHideFingerprintLockscreenChange,
+                        title = stringResource(R.string.tweaks_hide_fingerprint_lockscreen_title),
+                        summary = stringResource(R.string.tweaks_hide_fingerprint_lockscreen_summary)
+                    )
+                    SwitchPreference(
+                        checked = hideFingerprintAppAuth,
+                        onCheckedChange = onHideFingerprintAppAuthChange,
+                        title = stringResource(R.string.tweaks_hide_fingerprint_app_auth_title),
+                        summary = stringResource(R.string.tweaks_hide_fingerprint_app_auth_summary)
                     )
                     SwitchPreference(
                         checked = hideLockscreenStatusBar,

@@ -62,6 +62,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
     ),
     Preferences.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_FINGERPRINT_AOD to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR to RestartScopeSelection(systemUi = true),
@@ -145,6 +148,7 @@ private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
 private const val KEY_MANUAL_PENDING_RESTART_SCOPES = "manual_pending_restart_scopes"
 private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
+private const val KEY_FINGERPRINT_MERGE_BASELINE_MIGRATED = "fingerprint_merge_baseline_migrated"
 
 private fun currentBootToken(): String {
     return runCatching {
@@ -271,7 +275,12 @@ class MainActivity : ComponentActivity() {
             var quickShareEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)) }
             var fullScreenTranslate by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)) }
             var askAboutScreen by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)) }
-            var hideFingerprint by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)) }
+            var hideFingerprintLockscreen by remember {
+                mutableStateOf(Preferences.hideFingerprintLockscreenEnabled())
+            }
+            var hideFingerprintAppAuth by remember {
+                mutableStateOf(Preferences.hideFingerprintAppAuthEnabled())
+            }
             var hideLockscreenStatusBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)) }
             var notificationHeaderClockSeconds by remember {
                 mutableStateOf(
@@ -455,7 +464,12 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK -> downloadAlwaysShowFullLink
                     Preferences.KEY_DOWNLOAD_HIDE_XL -> downloadHideXl
                     Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON -> downloadAddNewButton
-                    Preferences.KEY_HIDE_FINGERPRINT -> hideFingerprint
+                    // The old AOD key may still be present in pending restart tracking from the
+                    // previous split UI; keep it readable until that tracking is cleared.
+                    Preferences.KEY_HIDE_FINGERPRINT_AOD ->
+                        Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT_AOD, false)
+                    Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> hideFingerprintLockscreen
+                    Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH -> hideFingerprintAppAuth
                     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
                     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
                     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
@@ -494,10 +508,25 @@ class MainActivity : ComponentActivity() {
 
             fun markTweaked(key: String, value: Boolean, defaultValue: Boolean = false) {
                 val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
-                val baseline = if (localPrefs.contains(baselineKey)) {
+                val mergedFingerprintBaselineNeedsMigration =
+                    key == Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN &&
+                        (!localPrefs.getBoolean(KEY_FINGERPRINT_MERGE_BASELINE_MIGRATED, false) ||
+                            !localPrefs.contains(baselineKey))
+                val baseline = if (mergedFingerprintBaselineNeedsMigration) {
+                    // A previous split-version baseline may describe only the old lockscreen key
+                    // while the old AOD key was different. Rebase once on the effective merged
+                    // value before recording this first post-merge user change.
+                    Preferences.hideFingerprintLockscreenEnabled()
+                } else if (localPrefs.contains(baselineKey)) {
                     localPrefs.getBoolean(baselineKey, value)
                 } else {
-                    Preferences.getBoolean(key, defaultValue)
+                    when (key) {
+                        // This setting merges two split-era keys, so its baseline must use the
+                        // effective merged value rather than whichever old key happens to match.
+                        Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN ->
+                            Preferences.hideFingerprintLockscreenEnabled()
+                        else -> Preferences.getBoolean(key, defaultValue)
+                    }
                 }
                 val nextDirtyKeys = if (value == baseline) {
                     dirtyTweakKeys - key
@@ -515,6 +544,9 @@ class MainActivity : ComponentActivity() {
                 localPrefs.edit {
                     putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
                     putBoolean(baselineKey, baseline)
+                    if (key == Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN) {
+                        putBoolean(KEY_FINGERPRINT_MERGE_BASELINE_MIGRATED, true)
+                    }
                     putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
                     putStringSet(Preferences.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())
                     putStringSet(KEY_MANUAL_PENDING_RESTART_SCOPES, manualPendingRestartScopes.toKeySet())
@@ -741,7 +773,8 @@ class MainActivity : ComponentActivity() {
                     quickShareEnabled = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
                     fullScreenTranslate = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
                     askAboutScreen = Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
-                    hideFingerprint = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
+                    hideFingerprintLockscreen = Preferences.hideFingerprintLockscreenEnabled()
+                    hideFingerprintAppAuth = Preferences.hideFingerprintAppAuthEnabled()
                     hideLockscreenStatusBar = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
                     notificationHeaderClockSeconds = Preferences.getBoolean(
                         Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
@@ -1014,7 +1047,25 @@ class MainActivity : ComponentActivity() {
                     onAskAboutScreenChange = { checked ->
                         handleAskAboutScreenChange(checked)
                     },
-                    hideFingerprint = hideFingerprint,
+                    hideFingerprintLockscreen = hideFingerprintLockscreen,
+                    onHideFingerprintLockscreenChange = { checked ->
+                        markTweaked(
+                            Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN,
+                            checked
+                        )
+                        hideFingerprintLockscreen = checked
+                        Preferences.putFingerprintLockscreenEnabled(checked)
+                    },
+                    hideFingerprintAppAuth = hideFingerprintAppAuth,
+                    onHideFingerprintAppAuthChange = { checked ->
+                        markTweaked(
+                            Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH,
+                            checked,
+                            defaultValue = Preferences.getBoolean(Preferences.KEY_HIDE_FINGERPRINT, false)
+                        )
+                        hideFingerprintAppAuth = checked
+                        Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH, checked)
+                    },
                     hideLockscreenStatusBar = hideLockscreenStatusBar,
                     onHideLockscreenStatusBarChange = { checked ->
                         markTweaked(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
@@ -1044,11 +1095,6 @@ class MainActivity : ComponentActivity() {
                         markTweakedInt(Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
                         lockscreenFingerprintAvoid = mode
                         Preferences.putInt(Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
-                    },
-                    onHideFingerprintChange = { checked ->
-                        markTweaked(Preferences.KEY_HIDE_FINGERPRINT, checked)
-                        hideFingerprint = checked
-                        Preferences.putBoolean(Preferences.KEY_HIDE_FINGERPRINT, checked)
                     },
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->
