@@ -687,6 +687,8 @@
     <string name="settings_settings">Settings</string>
     <string name="settings_show_entry_in_system_settings">Show Entry in System Settings</string>
     <string name="settings_show_entry_in_system_settings_summary">Inject an entry point for HyperTweak in the system Settings app</string>
+    <string name="settings_show_google_services_in_settings">Show Google Services on the Settings Home</string>
+    <string name="settings_show_google_services_in_settings_summary">Restore the native Google services home-page entry. Requires restarting Settings</string>
     <string name="settings_watermark_unlock">Watermark Unlock</string>
     <string name="settings_watermark_unlock_summary">Unlock Leica / Disney / POCO / festival watermarks in the media editor</string>
     <string name="settings_camera_unlock">Camera Unlock</string>

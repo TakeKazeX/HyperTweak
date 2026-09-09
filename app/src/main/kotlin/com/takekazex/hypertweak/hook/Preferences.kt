@@ -138,6 +138,8 @@ object Preferences {
     /** Legacy single-switch Circle to Search enable; superseded by [KEY_POWER_BUTTON_ACTION]. */
     const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
+    /** Restores Settings' native Google services home-page entry on domestic builds. */
+    const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"

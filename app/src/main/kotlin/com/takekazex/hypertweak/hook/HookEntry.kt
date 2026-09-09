@@ -69,6 +69,7 @@ import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHook
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
+import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
@@ -676,6 +677,8 @@ class HookEntry : XposedModule() {
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
+                // Restore Settings' own Google services home-page header on domestic builds.
+                attachHooker(GoogleServicesSettingsHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.aon" -> {
                 // AON service/attention process. Kept in the LSPosed scope (see scope.list /

@@ -687,6 +687,8 @@
     <string name="settings_settings">设置</string>
     <string name="settings_show_entry_in_system_settings">在系统设置中显示入口</string>
     <string name="settings_show_entry_in_system_settings_summary">在系统设置应用中为 HyperTweak 注入入口</string>
+    <string name="settings_show_google_services_in_settings">在设置主页显示 Google 服务</string>
+    <string name="settings_show_google_services_in_settings_summary">恢复系统设置主页原生的 Google 服务入口。需要重启设置</string>
     <string name="settings_watermark_unlock">水印解锁</string>
     <string name="settings_watermark_unlock_summary">在相册编辑中解锁徕卡 / Disney / POCO / 节日水印</string>
     <string name="settings_camera_unlock">相机解锁</string>

@@ -94,6 +94,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
+    Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,
         securityCenter = true,
@@ -342,6 +343,14 @@ class MainActivity : ComponentActivity() {
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
+            var showGoogleServicesInSettings by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(
+                        Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                        false
+                    )
+                )
+            }
             var immediateMonetRefresh by remember {
                 mutableStateOf(
                     Preferences.getBoolean(
@@ -449,6 +458,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
                     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
                     Preferences.KEY_SHOW_IN_SETTINGS -> showInSettings
+                    Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS -> showGoogleServicesInSettings
                     Preferences.KEY_UNLOCK_PASSKEY -> unlockPasskey
                     Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
@@ -738,6 +748,10 @@ class MainActivity : ComponentActivity() {
                         Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
                     )
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
+                    showGoogleServicesInSettings = Preferences.getBoolean(
+                        Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                        false
+                    )
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     gestureBarActionsEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
@@ -1122,6 +1136,15 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         showInSettings = checked
                         Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
+                    },
+                    showGoogleServicesInSettings = showGoogleServicesInSettings,
+                    onShowGoogleServicesInSettingsChange = { checked ->
+                        markTweaked(Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, checked)
+                        showGoogleServicesInSettings = checked
+                        Preferences.putBoolean(
+                            Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                            checked
+                        )
                     },
                     hideLauncherIcon = hideLauncherIcon,
                     onHideLauncherIconChange = { checked ->

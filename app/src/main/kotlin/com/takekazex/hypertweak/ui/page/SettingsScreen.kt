@@ -61,6 +61,8 @@ fun SettingsScreenContent(
     padding: PaddingValues,
     showInSettings: Boolean,
     onShowInSettingsChange: (Boolean) -> Unit,
+    showGoogleServicesInSettings: Boolean,
+    onShowGoogleServicesInSettingsChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     onNavigateToScopePrompts: () -> Unit,
@@ -158,6 +160,13 @@ fun SettingsScreenContent(
                         onCheckedChange = onShowInSettingsChange,
                         title = stringResource(R.string.settings_show_entry_in_system_settings),
                         summary = stringResource(R.string.settings_show_entry_in_system_settings_summary)
+                    )
+
+                    SwitchPreference(
+                        checked = showGoogleServicesInSettings,
+                        onCheckedChange = onShowGoogleServicesInSettingsChange,
+                        title = stringResource(R.string.settings_show_google_services_in_settings),
+                        summary = stringResource(R.string.settings_show_google_services_in_settings_summary)
                     )
 
                     SwitchPreference(
