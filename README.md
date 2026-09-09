@@ -28,7 +28,7 @@
 ## ✨ Core Features
 
 - **🖼️ Fullscreen Always-On Display (AOD)**: Bypasses system limits to enable full-screen wallpaper support for standard AOD styles.
-- **🔘 Scoped Under-display Fingerprint Hiding**: Independently hides the fingerprint icon/halo on the lockscreen and AOD, or in-app authentication prompts such as payments, password managers, and passkeys while preserving fingerprint authentication.
+- **🔘 Scoped Under-display Fingerprint Hiding**: Independently hides the fingerprint icon/halo on the interactive lockscreen, AOD, or in-app authentication prompts such as payments, password managers, and passkeys while preserving fingerprint authentication.
 - **🌍 GMS Restriction Bypass**: Overrides limitations on domestic (China) ROMs to enable trouble-free Google Mobile Services and Play Store installation.
 - **🔑 Google Passkey Unlock**: Bypasses system-level restrictions to enable Google Passkey and third-party Credential Managers on domestic HyperOS/MIUI ROMs.
 - **⚙️ Settings Entry Injection**: Seamlessly injects the module configuration entry directly below the Wi-Fi listing in the system Settings app.

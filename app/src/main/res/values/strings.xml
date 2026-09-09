@@ -790,8 +790,10 @@
     <string name="tweaks_gms_bypass_title">Bypass GMS China ROM Restrictions</string>
     <string name="tweaks_hide_fingerprint_summary">Completely remove the fingerprint sensor circle icon on the lockscreen and AOD</string>
     <string name="tweaks_hide_fingerprint_title">Hide Lockscreen Fingerprint</string>
-    <string name="tweaks_hide_fingerprint_lockscreen_summary">Hide the fingerprint icon and halo on the lockscreen and AOD; does not affect app authentication</string>
+    <string name="tweaks_hide_fingerprint_lockscreen_summary">Hide the fingerprint icon and halo on the interactive lockscreen; does not affect AOD or app authentication</string>
     <string name="tweaks_hide_fingerprint_lockscreen_title">Hide Lockscreen Fingerprint</string>
+    <string name="tweaks_hide_fingerprint_aod_summary">Hide the fingerprint icon and halo on the always-on display; does not affect the interactive lockscreen or app authentication</string>
+    <string name="tweaks_hide_fingerprint_aod_title">Hide AOD Fingerprint</string>
     <string name="tweaks_hide_fingerprint_app_auth_summary">Hide the fingerprint icon and halo in in-app biometric prompts such as payments, password managers, and passkeys</string>
     <string name="tweaks_hide_fingerprint_app_auth_title">Hide App Authentication Fingerprint</string>
     <string name="tweaks_hide_gesture_bar_summary">Hide the bottom gesture line and multitasking split-screen bar</string>

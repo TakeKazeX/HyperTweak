@@ -790,8 +790,10 @@
     <string name="tweaks_gms_bypass_title">绕过 GMS 国行 ROM 限制</string>
     <string name="tweaks_hide_fingerprint_summary">完全移除锁屏和息屏 AOD 上的指纹传感器圆形图标</string>
     <string name="tweaks_hide_fingerprint_title">隐藏锁屏指纹</string>
-    <string name="tweaks_hide_fingerprint_lockscreen_summary">隐藏锁屏和息屏 AOD 上的指纹图标和光圈；不影响应用认证</string>
+    <string name="tweaks_hide_fingerprint_lockscreen_summary">隐藏亮屏锁屏界面的指纹图标和光圈；不影响息屏 AOD 和应用认证</string>
     <string name="tweaks_hide_fingerprint_lockscreen_title">隐藏锁屏指纹</string>
+    <string name="tweaks_hide_fingerprint_aod_summary">隐藏息屏 AOD 上的指纹图标和光圈；不影响亮屏锁屏和应用认证</string>
+    <string name="tweaks_hide_fingerprint_aod_title">隐藏息屏指纹</string>
     <string name="tweaks_hide_fingerprint_app_auth_summary">隐藏支付、密码管理器、通行密钥等应用内生物识别弹窗的指纹图标和光圈</string>
     <string name="tweaks_hide_fingerprint_app_auth_title">隐藏应用认证指纹</string>
     <string name="tweaks_hide_gesture_bar_summary">隐藏底部手势线和多任务分屏栏</string>

@@ -49,8 +49,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * System UI tweaks (Features tab → System UI). Second-level page consolidating the SystemUI-scoped
- * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, scoped fingerprint
- * visibility, lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the
+ * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, independent fingerprint
+ * visibility for AOD, lockscreen, and app authentication, lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the
  * lockscreen notification gates, the media-card switches, the control-center sliders and the
  * navigation-bar gesture/power-button settings. Most state stays hoisted in [MainActivity], so
  * those toggles still flow through `markTweaked`.
@@ -63,6 +63,8 @@ fun SystemUIPage(
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
     aodFullscreen: Boolean,
     onAodFullscreenChange: (Boolean) -> Unit,
+    hideFingerprintAod: Boolean,
+    onHideFingerprintAodChange: (Boolean) -> Unit,
     hideFingerprintLockscreen: Boolean,
     onHideFingerprintLockscreenChange: (Boolean) -> Unit,
     hideFingerprintAppAuth: Boolean,
@@ -207,6 +209,12 @@ fun SystemUIPage(
                         onCheckedChange = onHideFingerprintLockscreenChange,
                         title = stringResource(R.string.tweaks_hide_fingerprint_lockscreen_title),
                         summary = stringResource(R.string.tweaks_hide_fingerprint_lockscreen_summary)
+                    )
+                    SwitchPreference(
+                        checked = hideFingerprintAod,
+                        onCheckedChange = onHideFingerprintAodChange,
+                        title = stringResource(R.string.tweaks_hide_fingerprint_aod_title),
+                        summary = stringResource(R.string.tweaks_hide_fingerprint_aod_summary)
                     )
                     SwitchPreference(
                         checked = hideFingerprintAppAuth,
