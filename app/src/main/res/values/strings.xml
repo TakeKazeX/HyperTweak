@@ -15,8 +15,6 @@
     <string name="aosp_back">Back</string>
     <string name="aosp_clipboard_editor">AOSP Clipboard Editor</string>
     <string name="aosp_clipboard_editor_summary">Show the AOSP clipboard overlay when copying. HyperOS keeps showing its own editor as well. Requires a SystemUI restart</string>
-    <string name="aosp_lbe_clipboard_toast">Clipboard Read Toast</string>
-    <string name="aosp_lbe_clipboard_toast_summary">Replace the LBE clipboard-reading overlay with a standard Toast showing the app that read the clipboard. Independent of the Toast material switch. Requires an LBE restart</string>
     <string name="aosp_configure_extend_unlock">Configure Extend Unlock</string>
     <string name="aosp_configure_extend_unlock_summary">Open the Google configuration screen HyperOS hides. Turn the switch on and restart SystemUI first</string>
     <string name="aosp_extend_unlock">Extend Unlock</string>
@@ -32,9 +30,6 @@
     <string name="aosp_restart_security_center_summary">Apply the changes made in this section</string>
     <string name="aosp_restart_system_ui">Restart SystemUI</string>
     <string name="aosp_restart_system_ui_summary">Apply the changes made on this page</string>
-    <string name="aosp_restart_lbe">Restart Clipboard Security</string>
-    <string name="aosp_restart_lbe_summary">Apply the clipboard Toast change</string>
-    <string name="aosp_section_clipboard">Clipboard</string>
     <string name="aosp_section_input_method">Input Method</string>
     <string name="aosp_section_security_center">Security Center</string>
     <string name="aosp_section_system">System</string>
@@ -117,7 +112,20 @@
     <string name="credits_xiaomihelper_desc">References for Settings preference injection</string>
     <string name="debug_aosp_back_gesture_logs_summary">Record detailed logs from the AOSP back gesture hook</string>
     <string name="debug_aosp_back_gesture_logs_title">AOSP Back Gesture Logs</string>
+    <string name="debug_actions_title">Debug actions</string>
     <string name="debug_back">Back</string>
+    <string name="debug_biometric_button">Biometric verification</string>
+    <string name="debug_biometric_cancel">Cancel</string>
+    <string name="debug_biometric_error">Biometric verification error: %1$s</string>
+    <string name="debug_biometric_failed">Biometric verification failed</string>
+    <string name="debug_biometric_no_hardware">No biometric hardware is available</string>
+    <string name="debug_biometric_not_enrolled">No biometrics are enrolled</string>
+    <string name="debug_biometric_subtitle">Verify the device\'s enrolled biometrics</string>
+    <string name="debug_biometric_success">Biometric verification succeeded</string>
+    <string name="debug_biometric_title">Biometric verification</string>
+    <string name="debug_biometric_unavailable">Biometric verification is unavailable</string>
+    <string name="debug_clipboard_read_failed">Unable to read clipboard</string>
+    <string name="debug_clipboard_read_success">Clipboard read successfully</string>
     <string name="debug_diagnostics_title">Diagnostics</string>
     <string name="debug_developer_settings_title">Developer settings</string>
     <string name="debug_developer_settings_summary">Display and connection debugging options</string>
@@ -129,6 +137,7 @@
     <string name="debug_notification_test_title">Test Notifications</string>
     <string name="debug_notification_test_one">Post 1 test notification</string>
     <string name="debug_notification_test_three">Post 3 test notifications</string>
+    <string name="debug_read_clipboard_button">Read clipboard</string>
     <string name="debug_toast_test">Show test Toast</string>
     <string name="developer_settings_page_title">Developer settings</string>
     <string name="developer_settings_back">Back</string>
@@ -680,8 +689,6 @@
     <string name="scope_prompt_show_again">Show again</string>
     <string name="settings_system_ui_back">Back</string>
     <string name="settings_system_ui_section_general">General</string>
-    <string name="settings_system_ui_toast_advanced_material_title">Advanced Toast Material</string>
-    <string name="settings_system_ui_toast_advanced_material_summary">Use the vendor ToastStub advanced material effect on standard SystemUI text Toasts, independently of the clipboard Toast switch. Requires a SystemUI restart</string>
     <string name="settings_system_ui_section_notification_shade">Notification Shade</string>
     <string name="settings_notification_header_clock_seconds_title">Show Seconds On Large Clock</string>
     <string name="settings_notification_header_clock_seconds_summary">Show seconds on the large clock when the notification shade is expanded; long-press either clock to temporarily toggle seconds for five minutes</string>
@@ -736,6 +743,7 @@
     <string name="tweaks_block_spatial_audio_summary">AirPods only, including AirPods Max. Prevent spatial audio from being enabled. Restart Settings, MiLink Service, and Xiaomi Bluetooth after changing.</string>
     <string name="tweaks_block_spatial_audio_title">Block Spatial Audio</string>
     <string name="tweaks_bluetooth_title">Bluetooth</string>
+    <string name="tweaks_clipboard_title">Clipboard</string>
     <string name="tweaks_control_center_title">Control Center</string>
     <string name="tweaks_cross_task_wallpaper_summary">Use a blurred wallpaper behind cross-task back animations</string>
     <string name="tweaks_cross_task_wallpaper_title">Cross Task Wallpaper Background</string>
@@ -744,6 +752,8 @@
     <string name="tweaks_enhanced_haptics_title">Enhanced Haptics</string>
     <string name="tweaks_fcm_live_summary">Remove HyperOS restrictions on Google Cloud Messaging. May increase battery usage. Requires reboot and PowerKeeper restart to apply.</string>
     <string name="tweaks_fcm_live_title">Fix Google Push (FCM Live)</string>
+    <string name="tweaks_lbe_clipboard_toast_summary">Replace the Clipboard Security overlay with a standard system Toast. Requires restarting Clipboard Security.</string>
+    <string name="tweaks_lbe_clipboard_toast_title">Clipboard Read Toast</string>
     <string name="download_manager_title">Download Manager</string>
     <string name="download_manager_summary">Tune the Download Manager UI and optional Xunlei integration</string>
     <string name="download_manager_back">Back</string>

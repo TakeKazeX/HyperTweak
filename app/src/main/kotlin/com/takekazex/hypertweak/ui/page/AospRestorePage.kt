@@ -85,10 +85,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     // its process to the shared Home restart dialog through LocalRestartScopeRequest.
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
-    var lbeClipboardToast by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false))
-    }
-    var lbeRestartPending by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -243,46 +239,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                                 )
                                 handleRestartedScopes(RestartScopeSelection(securityCenter = true))
                                 securityCenterRestartPending = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            SmallTitle(stringResource(R.string.aosp_section_clipboard))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = lbeClipboardToast,
-                        onCheckedChange = { enabled ->
-                            lbeClipboardToast = enabled
-                            lbeRestartPending = true
-                            requestRestartScopes(
-                                RestartScopeSelection(
-                                    additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
-                                )
-                            )
-                            Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, enabled)
-                        },
-                        title = stringResource(R.string.aosp_lbe_clipboard_toast),
-                        summary = stringResource(R.string.aosp_lbe_clipboard_toast_summary)
-                    )
-                    if (lbeRestartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_lbe),
-                            summary = stringResource(R.string.aosp_restart_lbe_summary),
-                            onClick = {
-                                Preferences.flush()
-                                val selection = RestartScopeSelection(
-                                    additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
-                                )
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = selection
-                                )
-                                handleRestartedScopes(selection)
-                                lbeRestartPending = false
                             }
                         )
                     }

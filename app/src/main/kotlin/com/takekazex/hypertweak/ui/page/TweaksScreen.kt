@@ -48,6 +48,8 @@ fun TweaksScreenContent(
     onUnlockPasskeyChange: (Boolean) -> Unit,
     fcmLiveEnabled: Boolean,
     onFcmLiveEnabledChange: (Boolean) -> Unit,
+    lbeClipboardToast: Boolean,
+    onLbeClipboardToastChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -118,6 +120,16 @@ fun TweaksScreenContent(
                     title = stringResource(R.string.download_manager_title),
                     summary = stringResource(R.string.download_manager_summary),
                     onClick = onNavigateToDownloadManager
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.tweaks_clipboard_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = lbeClipboardToast,
+                    onCheckedChange = onLbeClipboardToastChange,
+                    title = stringResource(R.string.tweaks_lbe_clipboard_toast_title),
+                    summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
                 )
             }
 

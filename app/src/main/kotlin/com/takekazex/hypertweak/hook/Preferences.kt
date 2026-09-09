@@ -148,6 +148,8 @@ object Preferences {
     const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
     /** Forces the Phone service to keep video ringback disabled and exposes its native switch. */
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
+    /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
+    const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
@@ -259,12 +261,6 @@ object Preferences {
 
     /** Lets AOSP's clipboard overlay editor appear for real copies, not just CTS. */
     const val KEY_AOSP_CLIPBOARD_EDITOR = "aosp_clipboard_editor"
-
-    /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
-    const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
-
-    /** Applies the OS3/OS4 vendor ToastStub advanced material effect to standard SystemUI Toasts. */
-    const val KEY_SYSTEMUI_TOAST_ADVANCED_MATERIAL = "systemui_toast_advanced_material"
 
     /** Security Center entry points into Settings' AOSP app screens. */
     const val KEY_AOSP_APP_INFO_ENTRY = "aosp_app_info_entry"

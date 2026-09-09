@@ -15,8 +15,6 @@
     <string name="aosp_back">返回</string>
     <string name="aosp_clipboard_editor">AOSP 剪贴板编辑器</string>
     <string name="aosp_clipboard_editor_summary">复制时显示 AOSP 剪贴板浮层。HyperOS 也会继续显示自己的编辑器。需要重启 SystemUI</string>
-    <string name="aosp_lbe_clipboard_toast">剪贴板读取 Toast</string>
-    <string name="aosp_lbe_clipboard_toast_summary">将 LBE 剪贴板读取浮层替换为标准 Toast，并显示读取剪贴板的应用。与 Toast 高级材质开关相互独立。需要重启剪贴板安全服务</string>
     <string name="aosp_configure_extend_unlock">配置扩展解锁</string>
     <string name="aosp_configure_extend_unlock_summary">打开 HyperOS 隐藏的 Google 配置界面。请先打开开关并重启 SystemUI</string>
     <string name="aosp_extend_unlock">扩展解锁</string>
@@ -32,9 +30,6 @@
     <string name="aosp_restart_security_center_summary">应用此部分的更改</string>
     <string name="aosp_restart_system_ui">重启 SystemUI</string>
     <string name="aosp_restart_system_ui_summary">应用此页面所做的更改</string>
-    <string name="aosp_restart_lbe">重启剪贴板安全服务</string>
-    <string name="aosp_restart_lbe_summary">应用剪贴板 Toast 更改</string>
-    <string name="aosp_section_clipboard">剪贴板</string>
     <string name="aosp_section_input_method">输入法</string>
     <string name="aosp_section_security_center">安全中心</string>
     <string name="aosp_section_system">系统</string>
@@ -117,7 +112,20 @@
     <string name="credits_xiaomihelper_desc">Settings 偏好注入参考</string>
     <string name="debug_aosp_back_gesture_logs_summary">记录来自 AOSP 返回手势 Hook 的详细日志</string>
     <string name="debug_aosp_back_gesture_logs_title">AOSP 返回手势日志</string>
+    <string name="debug_actions_title">调试操作</string>
     <string name="debug_back">返回</string>
+    <string name="debug_biometric_button">生物验证</string>
+    <string name="debug_biometric_cancel">取消</string>
+    <string name="debug_biometric_error">生物验证错误：%1$s</string>
+    <string name="debug_biometric_failed">生物验证失败</string>
+    <string name="debug_biometric_no_hardware">没有可用的生物识别硬件</string>
+    <string name="debug_biometric_not_enrolled">尚未录入生物识别信息</string>
+    <string name="debug_biometric_subtitle">验证设备上已录入的生物识别信息</string>
+    <string name="debug_biometric_success">生物验证成功</string>
+    <string name="debug_biometric_title">生物验证</string>
+    <string name="debug_biometric_unavailable">生物验证不可用</string>
+    <string name="debug_clipboard_read_failed">无法读取剪贴板</string>
+    <string name="debug_clipboard_read_success">已读取剪贴板</string>
     <string name="debug_diagnostics_title">诊断</string>
     <string name="debug_developer_settings_title">开发者设置</string>
     <string name="debug_developer_settings_summary">显示与连接调试选项</string>
@@ -129,6 +137,7 @@
     <string name="debug_notification_test_title">测试通知</string>
     <string name="debug_notification_test_one">弹出 1 条测试通知</string>
     <string name="debug_notification_test_three">弹出 3 条测试通知</string>
+    <string name="debug_read_clipboard_button">读取剪贴板</string>
     <string name="debug_toast_test">弹出测试 Toast</string>
     <string name="developer_settings_page_title">开发者设置</string>
     <string name="developer_settings_back">返回</string>
@@ -680,8 +689,6 @@
     <string name="scope_prompt_show_again">再次提示</string>
     <string name="settings_system_ui_back">返回</string>
     <string name="settings_system_ui_section_general">通用</string>
-    <string name="settings_system_ui_toast_advanced_material_title">Toast 高级材质</string>
-    <string name="settings_system_ui_toast_advanced_material_summary">在标准 SystemUI 文本 Toast 上使用系统 ToastStub 的高级材质效果，与剪贴板 Toast 开关相互独立。需要重启 SystemUI</string>
     <string name="settings_system_ui_section_notification_shade">通知中心</string>
     <string name="settings_notification_header_clock_seconds_title">通知中心大时钟显示秒钟</string>
     <string name="settings_notification_header_clock_seconds_summary">展开通知中心时，让顶部大时钟显示秒钟；长按状态栏或大时钟可临时切换，五分钟后自动恢复</string>
@@ -736,6 +743,7 @@
     <string name="tweaks_block_spatial_audio_summary">仅限 AirPods（含 AirPods Max）。阻止启用空间音频。更改后请重启设置、MiLink 服务和小米蓝牙。</string>
     <string name="tweaks_block_spatial_audio_title">屏蔽空间音频</string>
     <string name="tweaks_bluetooth_title">蓝牙</string>
+    <string name="tweaks_clipboard_title">剪贴板</string>
     <string name="tweaks_control_center_title">控制中心</string>
     <string name="tweaks_cross_task_wallpaper_summary">在跨任务返回动画后方使用模糊壁纸</string>
     <string name="tweaks_cross_task_wallpaper_title">跨任务壁纸背景</string>
@@ -744,6 +752,8 @@
     <string name="tweaks_enhanced_haptics_title">增强触感</string>
     <string name="tweaks_fcm_live_summary">移除 HyperOS 对 Google Cloud Messaging 的限制。可能增加电池消耗。需重启设备并重启 PowerKeeper 后生效。</string>
     <string name="tweaks_fcm_live_title">修复 Google 推送（FCM Live）</string>
+    <string name="tweaks_lbe_clipboard_toast_summary">将剪贴板安全服务的读取浮层替换为系统标准 Toast。需要重启剪贴板安全服务。</string>
+    <string name="tweaks_lbe_clipboard_toast_title">剪贴板读取 Toast</string>
     <string name="download_manager_title">下载管理</string>
     <string name="download_manager_summary">调整下载管理界面和可选的迅雷集成</string>
     <string name="download_manager_back">返回</string>

@@ -120,6 +120,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         bluetooth = true
     ),
     Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true),
+    Preferences.KEY_LBE_CLIPBOARD_TOAST to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
+    ),
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
@@ -355,6 +358,7 @@ class MainActivity : ComponentActivity() {
             var disableSpatialAudio by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)) }
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
+            var lbeClipboardToast by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)) }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -489,6 +493,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
                     Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
+                    Preferences.KEY_LBE_CLIPBOARD_TOAST -> lbeClipboardToast
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -831,6 +836,7 @@ class MainActivity : ComponentActivity() {
                     disableSpatialAudio = Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
                     fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
+                    lbeClipboardToast = Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
                     mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
                     xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
@@ -1257,6 +1263,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
                         fcmLiveEnabled = checked
                         Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
+                    },
+                    lbeClipboardToast = lbeClipboardToast,
+                    onLbeClipboardToastChange = { checked ->
+                        markTweaked(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
+                        lbeClipboardToast = checked
+                        Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
                     },
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->

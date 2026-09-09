@@ -4,6 +4,7 @@
     <permission
         android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE"
         android:protectionLevel="signature" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!--
       The receivers hooked into other processes register with this as their
       broadcastPermission, which the *sender* must hold. Without this the module could

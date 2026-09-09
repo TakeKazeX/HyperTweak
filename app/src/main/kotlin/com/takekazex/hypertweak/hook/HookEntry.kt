@@ -80,7 +80,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
-import com.takekazex.hypertweak.hook.rules.systemui.SystemUiToastAdvancedMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
@@ -630,7 +629,6 @@ class HookEntry : XposedModule() {
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationMaxNumberHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SystemUiToastAdvancedMaterialHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
