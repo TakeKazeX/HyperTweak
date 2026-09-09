@@ -81,10 +81,19 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var appManagerEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
     }
+    var bubbleNotificationUnlock by remember {
+        mutableStateOf(
+            Preferences.getBoolean(
+                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+                false
+            )
+        )
+    }
     // Keep the local prompt for immediate access on this page. Each affected switch also reports
     // its process to the shared Home restart dialog through LocalRestartScopeRequest.
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
+    var bubbleSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -205,6 +214,23 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
+                        checked = bubbleNotificationUnlock,
+                        onCheckedChange = { enabled ->
+                            bubbleNotificationUnlock = enabled
+                            securityCenterRestartPending = true
+                            bubbleSystemUiRestartPending = true
+                            requestRestartScopes(
+                                RestartScopeSelection(systemUi = true, securityCenter = true)
+                            )
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_bubble_notification_unlock),
+                        summary = stringResource(R.string.security_bubble_notification_unlock_summary)
+                    )
+                    SwitchPreference(
                         checked = appInfoEntry,
                         onCheckedChange = { enabled ->
                             appInfoEntry = enabled
@@ -227,18 +253,29 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         summary = stringResource(R.string.aosp_app_manager_entry_summary)
                     )
                     if (securityCenterRestartPending) {
+                        val restartSelection = RestartScopeSelection(
+                            systemUi = bubbleSystemUiRestartPending,
+                            securityCenter = true
+                        )
                         ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_security_center),
+                            title = stringResource(
+                                if (bubbleSystemUiRestartPending) {
+                                    R.string.aosp_restart_security_center_and_system_ui
+                                } else {
+                                    R.string.aosp_restart_security_center
+                                }
+                            ),
                             summary = stringResource(R.string.aosp_restart_security_center_summary),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(securityCenter = true)
+                                    selection = restartSelection
                                 )
-                                handleRestartedScopes(RestartScopeSelection(securityCenter = true))
+                                handleRestartedScopes(restartSelection)
                                 securityCenterRestartPending = false
+                                bubbleSystemUiRestartPending = false
                             }
                         )
                     }

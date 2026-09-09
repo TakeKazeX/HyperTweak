@@ -37,6 +37,7 @@ private fun fallbackAppName(context: Context, packageName: String): String = whe
     RestartScopeSelection.PACKAGE_SETTINGS -> context.getString(R.string.restart_scope_settings)
     RestartScopeSelection.PACKAGE_AOD -> context.getString(R.string.restart_scope_aod)
     RestartScopeSelection.PACKAGE_SECURITY_CENTER -> context.getString(R.string.restart_scope_security)
+    RestartScopeSelection.PACKAGE_SECURITY_CORE -> context.getString(R.string.restart_scope_security)
     RestartScopeSelection.PACKAGE_SCANNER -> context.getString(R.string.restart_scope_scanner)
     RestartScopeSelection.PACKAGE_MILINK -> context.getString(R.string.restart_scope_milink)
     RestartScopeSelection.PACKAGE_BLUETOOTH -> context.getString(R.string.restart_scope_bluetooth)

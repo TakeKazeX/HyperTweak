@@ -57,7 +57,7 @@ object RestartBroadcastHooker : StaticHooker() {
                             "com.miui.home" -> restartMiuiHome
                             "com.android.settings" -> restartSettings
                             "com.miui.aod" -> restartAod
-                            "com.miui.securitycenter" -> restartSecurityCenter
+                            "com.miui.securitycenter", "com.miui.securitycore" -> restartSecurityCenter
                             "com.xiaomi.scanner" -> restartScanner
                             "com.milink.service" -> restartMilink
                             "com.xiaomi.bluetooth" -> restartBluetooth

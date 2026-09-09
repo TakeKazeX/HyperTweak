@@ -34,6 +34,9 @@
     <string name="aosp_section_security_center">安全中心</string>
     <string name="aosp_section_system">系统</string>
     <string name="aosp_section_system_ui">系统界面</string>
+    <string name="security_bubble_notification_unlock">移除气泡通知应用限制</string>
+    <string name="security_bubble_notification_unlock_summary">在安全中心的气泡管理页列出已安装的非系统应用，并允许已固定到屏幕边缘的应用显示气泡通知，同时保留全局、单应用、悬浮通知权限和自由窗口限制。需要重启安全中心和 SystemUI</string>
+    <string name="aosp_restart_security_center_and_system_ui">重启安全中心和 SystemUI</string>
     <string name="aosp_volume_panel">AOSP 音量面板</string>
     <string name="aosp_volume_panel_summary">隐藏 MIUI 的音量对话框插件，以使用 AOSP 音量面板。其他音量滑块微调不适用于它。需要重启 SystemUI</string>
     <string name="aosp_volume_haptic_miui">小米音量震动</string>

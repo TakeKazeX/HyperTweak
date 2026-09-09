@@ -18,6 +18,7 @@
              live in com.android.settings (VisualPerceptionSettingsHooker). -->
         <item>com.xiaomi.aon</item>
         <item>com.miui.securitycenter</item>
+        <item>com.miui.securitycore</item>
         <item>com.miui.powerkeeper</item>
         <item>com.xiaomi.scanner</item>
         <item>com.milink.service</item>

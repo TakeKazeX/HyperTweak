@@ -108,7 +108,10 @@ data class RestartScopeSelection(
         if (miuiHome) add(PACKAGE_MIUI_HOME)
         if (settings) add(PACKAGE_SETTINGS)
         if (aod) add(PACKAGE_AOD)
-        if (securityCenter) add(PACKAGE_SECURITY_CENTER)
+        if (securityCenter) {
+            add(PACKAGE_SECURITY_CENTER)
+            add(PACKAGE_SECURITY_CORE)
+        }
         if (scanner) add(PACKAGE_SCANNER)
         if (milink) add(PACKAGE_MILINK)
         if (bluetooth) add(PACKAGE_BLUETOOTH)
@@ -139,6 +142,7 @@ data class RestartScopeSelection(
         const val PACKAGE_SETTINGS = "com.android.settings"
         const val PACKAGE_AOD = "com.miui.aod"
         const val PACKAGE_SECURITY_CENTER = "com.miui.securitycenter"
+        const val PACKAGE_SECURITY_CORE = "com.miui.securitycore"
         const val PACKAGE_SCANNER = "com.xiaomi.scanner"
         const val PACKAGE_MILINK = "com.milink.service"
         const val PACKAGE_BLUETOOTH = "com.xiaomi.bluetooth"
@@ -165,6 +169,7 @@ data class RestartScopeSelection(
             PACKAGE_SETTINGS,
             PACKAGE_AOD,
             PACKAGE_SECURITY_CENTER,
+            PACKAGE_SECURITY_CORE,
             PACKAGE_SCANNER,
             PACKAGE_MILINK,
             PACKAGE_BLUETOOTH,
@@ -181,7 +186,7 @@ data class RestartScopeSelection(
                 miuiHome = PACKAGE_MIUI_HOME in normalized,
                 settings = PACKAGE_SETTINGS in normalized,
                 aod = PACKAGE_AOD in normalized,
-                securityCenter = PACKAGE_SECURITY_CENTER in normalized,
+                securityCenter = PACKAGE_SECURITY_CENTER in normalized || PACKAGE_SECURITY_CORE in normalized,
                 scanner = PACKAGE_SCANNER in normalized,
                 milink = PACKAGE_MILINK in normalized,
                 bluetooth = PACKAGE_BLUETOOTH in normalized,

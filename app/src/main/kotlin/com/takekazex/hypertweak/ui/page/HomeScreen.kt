@@ -646,6 +646,7 @@ internal fun friendlyProcessName(context: android.content.Context, processName: 
         "com.miui.aod" -> context.getString(R.string.home_scope_aod)
         "com.miui.home" -> context.getString(R.string.home_scope_launcher)
         "com.miui.securitycenter" -> context.getString(R.string.home_scope_security)
+        "com.miui.securitycore" -> context.getString(R.string.home_scope_security)
         "com.miui.powerkeeper" -> context.getString(R.string.home_scope_powerkeeper)
         "com.xiaomi.scanner" -> context.getString(R.string.home_scope_scanner)
         "com.milink.service" -> context.getString(R.string.home_scope_milink)

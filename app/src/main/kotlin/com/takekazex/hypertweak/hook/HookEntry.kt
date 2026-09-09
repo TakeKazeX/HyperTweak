@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHoo
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -52,6 +53,8 @@ import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
@@ -635,6 +638,7 @@ class HookEntry : XposedModule() {
                 attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
@@ -703,6 +707,11 @@ class HookEntry : XposedModule() {
                 attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.miui.securitycore" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(SecurityCoreBubbleAppListHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.powerkeeper" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
