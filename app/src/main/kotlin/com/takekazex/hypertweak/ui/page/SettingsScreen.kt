@@ -63,6 +63,8 @@ fun SettingsScreenContent(
     onShowInSettingsChange: (Boolean) -> Unit,
     showGoogleServicesInSettings: Boolean,
     onShowGoogleServicesInSettingsChange: (Boolean) -> Unit,
+    disableVideoRingback: Boolean,
+    onDisableVideoRingbackChange: (Boolean) -> Unit,
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     onNavigateToScopePrompts: () -> Unit,
@@ -331,6 +333,12 @@ fun SettingsScreenContent(
                         },
                         title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
                         summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
+                    )
+                    SwitchPreference(
+                        checked = disableVideoRingback,
+                        onCheckedChange = onDisableVideoRingbackChange,
+                        title = stringResource(R.string.settings_disable_video_ringback_title),
+                        summary = stringResource(R.string.settings_disable_video_ringback_summary)
                     )
                 }
             }

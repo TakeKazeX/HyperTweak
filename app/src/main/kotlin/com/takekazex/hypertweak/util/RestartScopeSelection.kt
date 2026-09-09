@@ -155,6 +155,8 @@ data class RestartScopeSelection(
         const val PACKAGE_CAMERA = "com.android.camera"
         const val PACKAGE_DOWNLOADS = "com.android.providers.downloads"
         const val PACKAGE_DOWNLOADS_UI = "com.android.providers.downloads.ui"
+        const val PACKAGE_PHONE = "com.android.phone"
+        const val PACKAGE_XIAOMI_PHONE = "com.xiaomi.phone"
 
         private val KNOWN_PACKAGES = setOf(
             PACKAGE_SYSTEM_UI,

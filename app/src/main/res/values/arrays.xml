@@ -29,5 +29,7 @@
         <item>com.xiaomi.xmsf</item>
         <item>com.android.providers.downloads</item>
         <item>com.android.providers.downloads.ui</item>
+        <item>com.android.phone</item>
+        <item>com.xiaomi.phone</item>
     </string-array>
 </resources>

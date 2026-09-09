@@ -70,6 +70,7 @@ import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
 import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
+import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
@@ -679,6 +680,11 @@ class HookEntry : XposedModule() {
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
                 // Restore Settings' own Google services home-page header on domestic builds.
                 attachHooker(GoogleServicesSettingsHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.phone" -> {
+                // The native HyperPhone page delegates the CRBT capability and setter to this
+                // telephony service; keep both the display gate and modem-setting boundary here.
+                attachHooker(VideoRingbackHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.aon" -> {
                 // AON service/attention process. Kept in the LSPosed scope (see scope.list /

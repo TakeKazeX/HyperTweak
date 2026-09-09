@@ -614,6 +614,8 @@
     <string name="restart_scope_system_ui">系统界面</string>
     <string name="restart_scope_xmsf">小米服务框架</string>
     <string name="restart_scope_downloads">下载管理器</string>
+    <string name="restart_scope_phone">电话</string>
+    <string name="restart_scope_hyperphone">HyperPhone 设置</string>
     <string name="restart_scoped_apps_title">重启作用域应用</string>
     <string name="restart_scope_no_apps">未找到已安装的应用作用域。</string>
     <string name="scale_cancel">取消</string>
@@ -957,4 +959,6 @@
     <string name="settings_unlock_third_party_dark_mode_summary">允许第三方应用显示在系统深色模式设置列表中，但不会自动开启。需要重启设备</string>
     <string name="settings_unlock_adaptive_refresh_title">解锁自适应刷新率Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">显示系统因 ro.display.enable_pwm_switch 未置位而隐藏的「自适应刷新率 Pro」开关，并让系统在重启后重新应用已保存的模式。开启后调光由 DC 切为 PWM 以支持更多动态高刷档位；实际能否生效取决于面板/显示驱动（displayfeature effect 20）是否支持。设置页需重新打开，系统侧需重启</string>
+    <string name="settings_disable_video_ringback_title">关闭视频彩铃</string>
+    <string name="settings_disable_video_ringback_summary">强制电话服务关闭视频彩铃，并在蜂窝网络调试设置中显示系统原生开关。需要重启电话和 HyperPhone 设置</string>
 </resources>

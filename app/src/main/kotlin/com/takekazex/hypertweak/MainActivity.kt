@@ -95,6 +95,12 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS to RestartScopeSelection(settings = true),
+    Preferences.KEY_DISABLE_VIDEO_RINGBACK to RestartScopeSelection(
+        additionalPackages = setOf(
+            RestartScopeSelection.PACKAGE_PHONE,
+            RestartScopeSelection.PACKAGE_XIAOMI_PHONE
+        )
+    ),
     Preferences.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
         settings = true,
         securityCenter = true,
@@ -351,6 +357,11 @@ class MainActivity : ComponentActivity() {
                     )
                 )
             }
+            var disableVideoRingback by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, false)
+                )
+            }
             var immediateMonetRefresh by remember {
                 mutableStateOf(
                     Preferences.getBoolean(
@@ -459,6 +470,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
                     Preferences.KEY_SHOW_IN_SETTINGS -> showInSettings
                     Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS -> showGoogleServicesInSettings
+                    Preferences.KEY_DISABLE_VIDEO_RINGBACK -> disableVideoRingback
                     Preferences.KEY_UNLOCK_PASSKEY -> unlockPasskey
                     Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
@@ -750,6 +762,10 @@ class MainActivity : ComponentActivity() {
                     showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
                     showGoogleServicesInSettings = Preferences.getBoolean(
                         Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                        false
+                    )
+                    disableVideoRingback = Preferences.getBoolean(
+                        Preferences.KEY_DISABLE_VIDEO_RINGBACK,
                         false
                     )
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
@@ -1145,6 +1161,12 @@ class MainActivity : ComponentActivity() {
                             Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
                             checked
                         )
+                    },
+                    disableVideoRingback = disableVideoRingback,
+                    onDisableVideoRingbackChange = { checked ->
+                        markTweaked(Preferences.KEY_DISABLE_VIDEO_RINGBACK, checked)
+                        disableVideoRingback = checked
+                        Preferences.putBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, checked)
                     },
                     hideLauncherIcon = hideLauncherIcon,
                     onHideLauncherIconChange = { checked ->

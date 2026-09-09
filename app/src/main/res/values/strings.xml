@@ -614,6 +614,8 @@
     <string name="restart_scope_xmsf">Xiaomi Service Framework</string>
     <string name="restart_scope_downloads">Download Manager</string>
     <string name="restart_scope_system_ui">System UI</string>
+    <string name="restart_scope_phone">Phone</string>
+    <string name="restart_scope_hyperphone">HyperPhone settings</string>
     <string name="restart_scoped_apps_title">Restart Scoped Apps</string>
     <string name="restart_scope_no_apps">No installed application scope was found.</string>
     <string name="scale_cancel">Cancel</string>
@@ -959,4 +961,6 @@
     <string name="settings_unlock_third_party_dark_mode_summary">Show third-party apps in HyperOS dark mode settings without enabling them automatically. Requires a reboot</string>
     <string name="settings_unlock_adaptive_refresh_title">Unlock Adaptive Refresh Rate Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">Show the hidden 显示与亮度 "自适应刷新率 Pro" switch and let the system re-apply it after reboot. It switches DC dimming to PWM for more dynamic refresh gears; whether extra gears actually appear depends on the panel / display driver support (effect 20). Needs a fresh Settings open, then a reboot</string>
+    <string name="settings_disable_video_ringback_title">Disable Video Ringback</string>
+    <string name="settings_disable_video_ringback_summary">Force the Phone service to disable video ringback and reveal its native switch in Cellular network debugging. Requires restarting Phone and HyperPhone</string>
 </resources>

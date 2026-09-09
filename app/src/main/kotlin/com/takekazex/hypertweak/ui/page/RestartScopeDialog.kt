@@ -44,6 +44,8 @@ private fun fallbackAppName(context: Context, packageName: String): String = whe
     RestartScopeSelection.PACKAGE_GMS -> context.getString(R.string.restart_scope_gms)
     RestartScopeSelection.PACKAGE_XMSF -> context.getString(R.string.restart_scope_xmsf)
     RestartScopeSelection.PACKAGE_DOWNLOADS -> context.getString(R.string.restart_scope_downloads)
+    RestartScopeSelection.PACKAGE_PHONE -> context.getString(R.string.restart_scope_phone)
+    RestartScopeSelection.PACKAGE_XIAOMI_PHONE -> context.getString(R.string.restart_scope_hyperphone)
     else -> packageName
 }
 
