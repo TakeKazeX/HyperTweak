@@ -351,6 +351,28 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = stringResource(R.string.security_center_restore_power_ranking),
                         summary = stringResource(R.string.security_center_restore_power_ranking_summary)
                     )
+                    var showBerserkMode by remember {
+                        mutableStateOf(
+                            Preferences.getBoolean(
+                                Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
+                                false
+                            )
+                        )
+                    }
+                    SwitchPreference(
+                        checked = showBerserkMode,
+                        onCheckedChange = { enabled ->
+                            showBerserkMode = enabled
+                            securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_center_show_berserk_mode),
+                        summary = stringResource(R.string.security_center_show_berserk_mode_summary)
+                    )
                 }
             }
 

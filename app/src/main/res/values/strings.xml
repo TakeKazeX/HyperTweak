@@ -41,6 +41,8 @@
     <string name="security_center_show_detailed_power_data_summary">Show screen use and detailed entries in power ranking. Requires restarting Security Center</string>
     <string name="security_center_restore_power_ranking">Restore power ranking</string>
     <string name="security_center_restore_power_ranking_summary">Restore the hidden native Security Center power-ranking path. Requires restarting Security Center</string>
+    <string name="security_center_show_berserk_mode">Show Berserk mode</string>
+    <string name="security_center_show_berserk_mode_summary">Expose the native Security Center Berserk mode label and entry. Requires restarting Security Center</string>
     <string name="security_bubble_notification_unlock">Remove Bubble Notification App Limit</string>
     <string name="security_bubble_notification_unlock_summary">List non-system installed apps in Security Center\'s bubble manager and let edge-pinned apps show bubble notifications. Global, per-app, floating-notification, and freeform checks remain. Requires restarting Security Center and SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">Restart Security Center and SystemUI</string>

@@ -291,6 +291,9 @@ object Preferences {
     /** Restores the native power-ranking path hidden by the MIUI-version gate. */
     const val KEY_SECURITY_CENTER_RESTORE_POWER_RANKING = "securitycenter_restore_power_ranking"
 
+    /** Makes Security Center expose its device-specific Wild/Berserk performance label. */
+    const val KEY_SECURITY_CENTER_SHOW_BERSERK_MODE = "securitycenter_show_berserk_mode"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 

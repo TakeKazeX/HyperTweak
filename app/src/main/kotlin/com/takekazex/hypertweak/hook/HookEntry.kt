@@ -53,6 +53,7 @@ import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.BerserkModeHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.DetailedPowerDataHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.LowBatteryWarningHooker
@@ -714,6 +715,7 @@ class HookEntry : XposedModule() {
                 attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                attachHooker(BerserkModeHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
                 attachHooker(DetailedPowerDataHooker, classLoader, ctx, replacementHandles)
