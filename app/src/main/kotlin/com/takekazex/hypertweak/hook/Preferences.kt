@@ -282,13 +282,22 @@ object Preferences {
     /** Expands Security Center's bubble-app list while keeping per-app and edge-bubble gates. */
     const val KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK = "securitycenter_bubble_notification_unlock"
 
-    /** Hides Security Center's low-battery dialog and low-battery sound. */
+    /** Legacy aggregate low-battery warning switch kept for preference migration. */
     const val KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING = "securitycenter_hide_low_battery_warning"
+
+    /**
+     * Security Center low-battery warning mode: 0 follows stock, 1 hides only the dialog, and 2
+     * suppresses both the dialog and the sound.
+     */
+    const val KEY_SECURITY_CENTER_LOW_BATTERY_MODE = "securitycenter_low_battery_mode"
+    const val SECURITY_CENTER_LOW_BATTERY_FOLLOW = 0
+    const val SECURITY_CENTER_LOW_BATTERY_HIDE_DIALOG = 1
+    const val SECURITY_CENTER_LOW_BATTERY_SILENT = 2
 
     /** Exposes Security Center's screen-use and detailed power-ranking data path. */
     const val KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA = "securitycenter_show_detailed_power_data"
 
-    /** Restores the native power-ranking path hidden by the MIUI-version gate. */
+    /** Keeps Security Center's app-ranking card when the stock percentage threshold hides it. */
     const val KEY_SECURITY_CENTER_RESTORE_POWER_RANKING = "securitycenter_restore_power_ranking"
 
     /** Makes Security Center expose its device-specific Wild/Berserk performance label. */

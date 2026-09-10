@@ -69,6 +69,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var volumePanelHapticMiui by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, true))
     }
+    var clipboardEditor by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
+    }
     var extendUnlockFix by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false))
     }
@@ -167,6 +170,17 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         summary = stringResource(R.string.aosp_configure_extend_unlock_summary),
                         enabled = extendUnlockFix,
                         onClick = { ExtendUnlockLauncher.launch(context) }
+                    )
+                    SwitchPreference(
+                        checked = clipboardEditor,
+                        onCheckedChange = { enabled ->
+                            clipboardEditor = enabled
+                            systemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                            Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
+                        },
+                        title = stringResource(R.string.aosp_clipboard_editor),
+                        summary = stringResource(R.string.aosp_clipboard_editor_summary)
                     )
                     if (systemUiRestartPending) {
                         ArrowPreference(

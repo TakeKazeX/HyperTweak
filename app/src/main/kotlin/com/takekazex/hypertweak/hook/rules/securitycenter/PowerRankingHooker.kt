@@ -1,30 +1,32 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.ArrayList
 
 /**
- * Restores the Security Center power-ranking branch hidden by its MIUI-version helper.
- *
- * The reference implementation resolves boolean methods that read
- * `ro.miui.ui.version.code` and compare against 9, then returns false. We retain the same
- * behaviour but validate the materialized target as a static, no-argument boolean predicate so a
- * broad version-string match cannot cross into an unrelated API.
+ * Restores Security Center's app-consumption card when the native list is empty only because its
+ * 1% display threshold filtered every app. The current 13.2.7 path is `ih.b.b(...)`, which reads
+ * `legacypowerrank.f.f()` and converts the result to `ih.a` rows. The old version-code hook was
+ * unrelated to this path on the current build and also changed non-ranking behaviour.
  */
 object PowerRankingHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "PowerRanking"
     private const val PACKAGE = "com.miui.securitycenter"
-    private const val VERSION_PROPERTY = "ro.miui.ui.version.code"
-    private const val VERSION_THRESHOLD = 9
+    private const val CARD_HELPER = "ih.b"
+    private const val POWER_RANK_HELPER = "com.miui.powercenter.legacypowerrank.f"
+    private const val BATTERY_DATA = "com.miui.powercenter.legacypowerrank.BatteryData"
+    private const val CARD_ROW = "ih.a"
+    private const val LABEL_HELPER = "com.miui.powercenter.legacypowerrank.a"
+    private const val SYSTEM_PACKAGE_HELPER = "nh.a"
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -33,64 +35,127 @@ object PowerRankingHooker : StaticHooker() {
             return
         }
 
-        val apkPath = hookParam.appInfo?.sourceDir ?: run {
-            DebugLog.hookSkipped(TAG, "power ranking", "source APK unavailable")
+        val method = resolveCardMethod() ?: run {
+            DebugLog.hookSkipped(TAG, "power ranking", "current card helper not found")
             return
         }
-        val methods = resolveMethods(apkPath)
-        if (methods.isEmpty()) {
-            DebugLog.hookSkipped(TAG, "power ranking", "version-gate method not found")
-            return
-        }
-
-        var installed = 0
-        methods.distinctBy(Method::toGenericString).forEach { method ->
-            runCatching {
-                method.isAccessible = true
-                deoptimize(method)
-                method.hook("power_ranking_${method.toGenericString()}") {
-                    returnConstant(false)
+        runCatching {
+            method.isAccessible = true
+            deoptimize(method)
+            method.hook("power_ranking_card_fallback") {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "card fallback", Unit) {
+                        val current = param.result as? List<*>
+                        if (!current.isNullOrEmpty()) return@open
+                        val context = param.args.getOrNull(0) as? Context ?: return@open
+                        val limit = (param.args.getOrNull(1) as? Int ?: 3).coerceIn(1, 20)
+                        val fallback = buildFallbackRows(context, limit)
+                        if (fallback.isNotEmpty()) {
+                            param.result = fallback
+                            DebugLog.i(TAG, "power-ranking card fallback rows=${fallback.size}")
+                        }
+                    }
                 }
-                installed++
-            }.onFailure {
-                DebugLog.hookFailed(TAG, method.toGenericString(), it)
             }
-        }
-
-        if (installed == 0) {
-            DebugLog.hookSkipped(TAG, "power ranking", "hook registration failed")
-        } else {
-            DebugLog.i(TAG, "power-ranking version gates forced open boundaries=$installed")
+        }.onFailure {
+            DebugLog.hookFailed(TAG, method.toGenericString(), it)
         }
     }
 
-    private fun resolveMethods(apkPath: String): List<Method> {
-        val resolved = DexKitManager.withBridge(apkPath) { bridge ->
-            bridge.findMethod {
-                matcher {
-                    returnType("boolean")
-                    addUsingString(VERSION_PROPERTY, StringMatchType.Equals)
-                    usingNumbers(VERSION_THRESHOLD)
+    private fun resolveCardMethod(): Method? {
+        val helper = CARD_HELPER.toClassOrNull() ?: return null
+        return helper.declaredMethods.singleOrNull { method ->
+            method.name == "b" &&
+                Modifier.isStatic(method.modifiers) &&
+                method.returnType == List::class.java &&
+                method.parameterTypes.contentEquals(
+                    arrayOf(
+                        Context::class.java,
+                        Int::class.javaPrimitiveType,
+                        Boolean::class.javaPrimitiveType,
+                        Boolean::class.javaPrimitiveType
+                    )
+                )
+        }
+    }
+
+    private fun buildFallbackRows(context: Context, limit: Int): List<Any> {
+        val rankClass = POWER_RANK_HELPER.toClassOrNull() ?: return emptyList()
+        val rowClass = CARD_ROW.toClassOrNull() ?: return emptyList()
+        val dataClass = BATTERY_DATA.toClassOrNull() ?: return emptyList()
+        val labelClass = LABEL_HELPER.toClassOrNull() ?: return emptyList()
+
+        val dataMethod = rankClass.declaredMethods.singleOrNull {
+            it.name == "f" && Modifier.isStatic(it.modifiers) && it.parameterCount == 0
+        } ?: return emptyList()
+        val totalMethod = rankClass.declaredMethods.singleOrNull {
+            it.name == "k" && Modifier.isStatic(it.modifiers) && it.parameterCount == 0
+        } ?: return emptyList()
+        val labelMethod = labelClass.declaredMethods.singleOrNull {
+            it.name == "c" && Modifier.isStatic(it.modifiers) &&
+                it.parameterTypes.contentEquals(arrayOf(Context::class.java, dataClass))
+        } ?: return emptyList()
+        val iconMethod = labelClass.declaredMethods.singleOrNull {
+            it.name == "d" && Modifier.isStatic(it.modifiers) &&
+                it.parameterTypes.contentEquals(arrayOf(dataClass))
+        } ?: return emptyList()
+        val isSystemPackage = SYSTEM_PACKAGE_HELPER.toClassOrNull()?.declaredMethods?.singleOrNull {
+            it.name == "e" && Modifier.isStatic(it.modifiers) &&
+                it.parameterTypes.contentEquals(arrayOf(Context::class.java, String::class.java))
+        }
+        val constructor = rowClass.declaredConstructors.singleOrNull { it.parameterCount == 0 } ?: return emptyList()
+        val packageField = dataClass.getField("defaultPackageName")
+        val uidField = dataClass.getField("uid")
+        val valueField = dataClass.getField("value")
+
+        val data = runCatching {
+            dataMethod.isAccessible = true
+            (dataMethod.invoke(null) as? List<*>)
+                .orEmpty()
+                .mapNotNull { item ->
+                    item?.takeIf { candidate ->
+                        dataClass.isInstance(candidate) &&
+                            valueField.getDouble(candidate) > 0.0 &&
+                            uidField.getInt(candidate) >= 10_000 &&
+                            (packageField.get(candidate) as? String).isNullOrBlank().not() &&
+                            (isSystemPackage == null ||
+                                !((isSystemPackage.invoke(
+                                    null,
+                                    context,
+                                    packageField.get(candidate)
+                                ) as? Boolean) == true))
+                    }
                 }
-            }.toList().mapNotNull(::materialize).filter(::isVersionGate)
+                .sortedByDescending { valueField.getDouble(it) }
+        }.getOrElse {
+            DebugLog.w(TAG, "failed to read app power data", it)
+            return emptyList()
         }
-        if (!resolved.isNullOrEmpty()) return resolved
+        if (data.isEmpty()) return emptyList()
 
-        // Current 13.2.7 fallback: ae.c.b() returns ro.miui.ui.version.code > 9.
-        val versionClass = "ae.c".toClassOrNull() ?: return emptyList()
-        return versionClass.declaredMethods.filter {
-            it.name == "b" && isVersionGate(it)
+        val total = runCatching {
+            totalMethod.isAccessible = true
+            (totalMethod.invoke(null) as? Number)?.toDouble()
+        }.getOrNull()?.takeIf { it > 0.0 } ?: data.sumOf { valueField.getDouble(it) }
+        if (total <= 0.0) return emptyList()
+
+        val rows = ArrayList<Any>(minOf(limit, data.size))
+        data.take(limit).forEach { batteryData ->
+            val label = runCatching { labelMethod.invoke(null, context, batteryData) as? String }
+                .getOrNull()
+                ?.takeUnless { it.isBlank() }
+                ?: return@forEach
+            val row = runCatching {
+                constructor.isAccessible = true
+                constructor.newInstance()
+            }.getOrNull() ?: return@forEach
+            rowClass.getField("f32138a").set(row, packageField.get(batteryData))
+            rowClass.getField("f32139b").set(row, label)
+            rowClass.getField("f32140c").set(row, valueField.getDouble(batteryData) / total * 100.0)
+            rowClass.getField("f32141d").setInt(row, iconMethod.invoke(null, batteryData) as Int)
+            rowClass.getField("f32142e").setInt(row, uidField.getInt(batteryData))
+            rows += row
         }
+        return rows
     }
-
-    private fun materialize(data: MethodData): Method? = runCatching {
-        data.getMethodInstance(classLoader)
-    }.onFailure {
-        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
-    }.getOrNull()
-
-    private fun isVersionGate(method: Method): Boolean =
-        Modifier.isStatic(method.modifiers) &&
-            method.parameterCount == 0 &&
-            method.returnType == Boolean::class.javaPrimitiveType
 }

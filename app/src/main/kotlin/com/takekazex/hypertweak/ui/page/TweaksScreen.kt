@@ -141,16 +141,6 @@ fun TweaksScreenContent(
                 )
             }
 
-            SmallTitle(text = stringResource(R.string.tweaks_clipboard_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = lbeClipboardToast,
-                    onCheckedChange = onLbeClipboardToastChange,
-                    title = stringResource(R.string.tweaks_lbe_clipboard_toast_title),
-                    summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
-                )
-            }
-
             SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

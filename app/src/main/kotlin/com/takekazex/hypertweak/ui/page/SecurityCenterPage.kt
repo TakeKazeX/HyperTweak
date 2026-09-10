@@ -38,6 +38,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
@@ -50,8 +51,8 @@ fun SecurityCenterPage(onBack: () -> Unit) {
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
-    var clipboardEditor by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
+    var lbeClipboardToast by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false))
     }
     var bubbleNotificationUnlock by remember {
         mutableStateOf(
@@ -61,9 +62,21 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             )
         )
     }
-    var hideLowBatteryWarning by remember {
+    var lowBatteryWarningMode by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
+            when {
+                Preferences.contains(Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE) ->
+                    Preferences.getInt(
+                        Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
+                        Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+                    ).coerceIn(
+                        Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
+                        Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+                    )
+                Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false) ->
+                    Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+                else -> Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+            }
         )
     }
     var showDetailedPowerData by remember {
@@ -123,14 +136,18 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.security_center_clipboard_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(
-                    checked = clipboardEditor,
+                    checked = lbeClipboardToast,
                     onCheckedChange = { enabled ->
-                        clipboardEditor = enabled
-                        requestRestart(RestartScopeSelection(systemUi = true))
-                        Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
+                        lbeClipboardToast = enabled
+                        requestRestart(
+                            RestartScopeSelection(
+                                additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
+                            )
+                        )
+                        Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, enabled)
                     },
-                    title = stringResource(R.string.aosp_clipboard_editor),
-                    summary = stringResource(R.string.aosp_clipboard_editor_summary)
+                    title = stringResource(R.string.tweaks_lbe_clipboard_toast_title),
+                    summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
                 )
             }
 
@@ -156,14 +173,19 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.security_center_battery_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = hideLowBatteryWarning,
-                        onCheckedChange = { enabled ->
-                            hideLowBatteryWarning = enabled
+                    OverlayDropdownPreference(
+                        items = listOf(
+                            stringResource(R.string.security_center_low_battery_follow),
+                            stringResource(R.string.security_center_low_battery_hide_dialog),
+                            stringResource(R.string.security_center_low_battery_silent)
+                        ),
+                        selectedIndex = lowBatteryWarningMode,
+                        onSelectedIndexChange = { mode ->
+                            lowBatteryWarningMode = mode
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
-                                enabled
+                            Preferences.putInt(
+                                Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
+                                mode
                             )
                         },
                         title = stringResource(R.string.security_center_hide_low_battery_warning),

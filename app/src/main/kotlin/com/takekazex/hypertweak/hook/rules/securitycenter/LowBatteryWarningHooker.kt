@@ -11,7 +11,8 @@ import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
 import java.lang.reflect.Method
 
 /**
- * Suppresses Security Center's low-battery warning without changing the system setting itself.
+ * Applies the selected Security Center low-battery warning mode without changing the system
+ * setting itself.
  *
  * The dialog gate reads `Settings.System.low_battery_dialog_disabled`; the sound path reads
  * `low_battery_sound` from the System table on the current build and from the Global table while
@@ -28,20 +29,45 @@ object LowBatteryWarningHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)) {
-            DebugLog.hookSkipped(TAG, "low-battery warning", "disabled")
+        val mode = selectedMode()
+        if (mode == Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
+            DebugLog.hookSkipped(TAG, "low-battery warning", "follow system")
             return
         }
 
         var installed = 0
         installed += hookIntReads(Settings.System::class.java)
-        installed += hookStringReads(Settings.System::class.java)
-        installed += hookStringReads(Settings.Global::class.java)
+        if (mode == Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT) {
+            installed += hookStringReads(Settings.System::class.java)
+            installed += hookStringReads(Settings.Global::class.java)
+        }
 
         if (installed == 0) {
             DebugLog.hookSkipped(TAG, "low-battery warning", "Settings read methods not found")
         } else {
-            DebugLog.i(TAG, "low-battery dialog and sound reads suppressed boundaries=$installed")
+            DebugLog.i(TAG, "low-battery mode=$mode boundaries=$installed")
+        }
+    }
+
+    private fun selectedMode(): Int {
+        if (Preferences.contains(Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE)) {
+            return Preferences.getInt(
+                Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
+                Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+            ).coerceIn(
+                Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
+                Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+            )
+        }
+
+        // Version 1 stored one boolean. Its enabled state meant both dialog and sound were hidden.
+        return if (
+            Preferences.contains(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING) &&
+            Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
+        ) {
+            Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+        } else {
+            Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
         }
     }
 
@@ -55,7 +81,10 @@ object LowBatteryWarningHooker : StaticHooker() {
         }
         methods.forEach { method ->
             install(method, "${owner.name}.getInt") { param ->
-                if (param.args.getOrNull(1) as? String == DIALOG_DISABLED) {
+                if (
+                    param.args.getOrNull(1) as? String == DIALOG_DISABLED &&
+                    selectedMode() != Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+                ) {
                     param.result = 1
                 }
             }
@@ -73,7 +102,10 @@ object LowBatteryWarningHooker : StaticHooker() {
         }
         methods.forEach { method ->
             install(method, "${owner.name}.getString") { param ->
-                if (param.args.getOrNull(1) as? String == SOUND) {
+                if (
+                    param.args.getOrNull(1) as? String == SOUND &&
+                    selectedMode() == Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+                ) {
                     param.result = null
                 }
             }

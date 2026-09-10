@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
@@ -24,7 +26,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Keeps the native battery-protection rows and adds design/full-charge capacity rows.
+ * Keeps the native battery-protection rows, explicitly fills temperature/cycle values, and adds
+ * design/full-charge capacity rows.
  *
  * The current Security Center 13.2.7 handler is
  * `ChargeProtectFragment$c`; older references used `$d`, so the handler is resolved explicitly
@@ -84,8 +87,18 @@ object MoreBatteryInfoHooker : StaticHooker() {
         "/sys/class/power_supply/battery/first_usage_date",
         "/sys/class/power_supply/bms/first_usage_date"
     )
+    private val TEMPERATURE_PATHS = listOf(
+        "/sys/class/power_supply/battery/temp",
+        "/sys/class/power_supply/bms/temp"
+    )
+    private val CYCLE_COUNT_PATHS = listOf(
+        "/sys/class/power_supply/battery/cycle_count",
+        "/sys/class/power_supply/bms/cycle_count"
+    )
 
     private var batteryInfoCategory: Any? = null
+    private var currentTemperaturePreference: Any? = null
+    private var cycleCountPreference: Any? = null
     private var productionDatePreference: Any? = null
     private var firstUseDatePreference: Any? = null
     private var designCapacityPreference: Any? = null
@@ -208,6 +221,8 @@ object MoreBatteryInfoHooker : StaticHooker() {
         }
         batteryContext = fragment.callMethodOrNull("getContext") as? Context
         batteryInfoCategory = findPreference(fragment, BATTERY_INFO_CATEGORY)
+        currentTemperaturePreference = findPreference(fragment, CURRENT_TEMP_KEY)
+        cycleCountPreference = findPreference(fragment, CYCLE_COUNT_KEY)
         productionDatePreference = findPreference(fragment, PRODUCTION_DATE_KEY)
         firstUseDatePreference = findPreference(fragment, FIRST_USE_DATE_KEY)
         designCapacityPreference = findPreference(fragment, DESIGN_CAPACITY_KEY)
@@ -228,6 +243,14 @@ object MoreBatteryInfoHooker : StaticHooker() {
         updateDatePreference(
             firstUseDatePreference,
             resolveBatteryDateText(context, readMethods.firstUsageDate, BATTERY_PROPERTY_FIRST_USAGE_DATE, FIRST_USE_DATE_PATHS)
+        )
+        updateValuePreference(
+            currentTemperaturePreference,
+            resolveBatteryTemperatureText(context) ?: EMPTY_VALUE
+        )
+        updateValuePreference(
+            cycleCountPreference,
+            resolveCycleCountText() ?: EMPTY_VALUE
         )
         setPreferenceText(
             designCapacityPreference,
@@ -371,6 +394,59 @@ object MoreBatteryInfoHooker : StaticHooker() {
         text?.let { setPreferenceText(preference, it) }
     }
 
+    private fun updateValuePreference(preference: Any?, text: String) {
+        if (preference == null) return
+        preference.callMethodOrNull("setVisible", true)
+        setPreferenceText(preference, text)
+    }
+
+    private fun resolveBatteryTemperatureText(context: Context): String? {
+        val tenthsCelsius = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                ?.getIntExtra("temperature", Int.MIN_VALUE)
+                ?.takeUnless { it == Int.MIN_VALUE }
+        }.getOrNull()
+        if (tenthsCelsius != null && tenthsCelsius != 0) {
+            return formatTemperature(tenthsCelsius / 10.0)
+        }
+
+        return TEMPERATURE_PATHS.asSequence()
+            .mapNotNull(::readFirstLine)
+            .mapNotNull(String::toDoubleOrNull)
+            .map { raw -> if (kotlin.math.abs(raw) >= 10_000) raw / 1000.0 else raw / 10.0 }
+            .firstOrNull()
+            ?.let(::formatTemperature)
+    }
+
+    private fun formatTemperature(celsius: Double): String =
+        String.format(Locale.getDefault(), "%.1f °C", celsius)
+
+    private fun resolveCycleCountText(): String? {
+        val cycle = CYCLE_COUNT_PATHS.asSequence()
+            .mapNotNull(::readFirstLine)
+            .mapNotNull(String::toIntOrNull)
+            .firstOrNull { it >= 0 }
+            ?: readMethods.fg1Cycle?.let(::invokeStaticInt)?.takeIf { it >= 0 }
+            ?: readMethods.fg2Cycle?.let(::invokeStaticInt)?.takeIf { it >= 0 }
+            ?: resolveMiChargeCycleCount()
+            ?: return null
+        return if (Locale.getDefault().language == "zh") "$cycle 次" else "$cycle cycles"
+    }
+
+    private fun resolveMiChargeCycleCount(): Int? = runCatching {
+        val miChargeClass = "miui.util.IMiCharge".toClassOrNull() ?: return@runCatching null
+        val instance = miChargeClass.getMethod("getInstance").invoke(null) ?: return@runCatching null
+        miChargeClass.getMethod("getBatteryCycleCount").invoke(instance)?.toString()?.toIntOrNull()
+    }.getOrNull()?.takeIf { it >= 0 }
+
+    private fun invokeStaticInt(method: Method): Int? = runCatching {
+        when (val value = invokeStatic(method)) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull()
+            else -> null
+        }
+    }.getOrNull()
+
     private fun localizedTitle(chinese: String, english: String): String =
         if (Locale.getDefault().language == "zh") chinese else english
 
@@ -394,13 +470,17 @@ object MoreBatteryInfoHooker : StaticHooker() {
             manufacturingDate = directMethod("nh.o", "e", String::class.java),
             firstUsageDate = directMethod("nh.o", "m", String::class.java),
             fullCapacity = directMethod("nh.i", "i", Int::class.javaPrimitiveType!!),
-            designCapacity = directMethod("nh.i", "j", Int::class.javaPrimitiveType!!)
+            designCapacity = directMethod("nh.i", "j", Int::class.javaPrimitiveType!!),
+            fg1Cycle = directMethod("nh.o", "z", Int::class.javaPrimitiveType!!),
+            fg2Cycle = directMethod("nh.o", "A", Int::class.javaPrimitiveType!!)
         )
         return BatteryReadMethods(
             manufacturingDate = dexResolved?.manufacturingDate ?: direct.manufacturingDate,
             firstUsageDate = dexResolved?.firstUsageDate ?: direct.firstUsageDate,
             fullCapacity = dexResolved?.fullCapacity ?: direct.fullCapacity,
-            designCapacity = dexResolved?.designCapacity ?: direct.designCapacity
+            designCapacity = dexResolved?.designCapacity ?: direct.designCapacity,
+            fg1Cycle = direct.fg1Cycle,
+            fg2Cycle = direct.fg2Cycle
         )
     }
 
@@ -440,6 +520,8 @@ object MoreBatteryInfoHooker : StaticHooker() {
 
     private fun clearCapturedPreferences() {
         batteryInfoCategory = null
+        currentTemperaturePreference = null
+        cycleCountPreference = null
         productionDatePreference = null
         firstUseDatePreference = null
         designCapacityPreference = null
@@ -451,6 +533,8 @@ object MoreBatteryInfoHooker : StaticHooker() {
         val manufacturingDate: Method? = null,
         val firstUsageDate: Method? = null,
         val fullCapacity: Method? = null,
-        val designCapacity: Method? = null
+        val designCapacity: Method? = null,
+        val fg1Cycle: Method? = null,
+        val fg2Cycle: Method? = null
     )
 }
