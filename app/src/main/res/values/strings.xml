@@ -34,6 +34,9 @@
     <string name="aosp_section_security_center">Security Center</string>
     <string name="aosp_section_system">System</string>
     <string name="aosp_section_system_ui">System UI</string>
+    <string name="security_center_battery_section">Security Center battery</string>
+    <string name="security_center_hide_low_battery_warning">Hide low-battery warning</string>
+    <string name="security_center_hide_low_battery_warning_summary">Suppress the Security Center low-battery dialog and sound. Requires restarting Security Center</string>
     <string name="security_bubble_notification_unlock">Remove Bubble Notification App Limit</string>
     <string name="security_bubble_notification_unlock_summary">List non-system installed apps in Security Center\'s bubble manager and let edge-pinned apps show bubble notifications. Global, per-app, floating-notification, and freeform checks remain. Requires restarting Security Center and SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">Restart Security Center and SystemUI</string>

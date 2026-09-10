@@ -282,6 +282,9 @@ object Preferences {
     /** Expands Security Center's bubble-app list while keeping per-app and edge-bubble gates. */
     const val KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK = "securitycenter_bubble_notification_unlock"
 
+    /** Hides Security Center's low-battery dialog and low-battery sound. */
+    const val KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING = "securitycenter_hide_low_battery_warning"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 

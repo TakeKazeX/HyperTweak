@@ -54,6 +54,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.LowBatteryWarningHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
@@ -712,6 +713,7 @@ class HookEntry : XposedModule() {
                 attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+                attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycore" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

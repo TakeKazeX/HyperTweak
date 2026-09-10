@@ -282,6 +282,34 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                 }
             }
 
+            SmallTitle(stringResource(R.string.security_center_battery_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    var hideLowBatteryWarning by remember {
+                        mutableStateOf(
+                            Preferences.getBoolean(
+                                Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
+                                false
+                            )
+                        )
+                    }
+                    SwitchPreference(
+                        checked = hideLowBatteryWarning,
+                        onCheckedChange = { enabled ->
+                            hideLowBatteryWarning = enabled
+                            securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_center_hide_low_battery_warning),
+                        summary = stringResource(R.string.security_center_hide_low_battery_warning_summary)
+                    )
+                }
+            }
+
             SmallTitle(stringResource(R.string.aosp_section_input_method))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 ArrowPreference(
