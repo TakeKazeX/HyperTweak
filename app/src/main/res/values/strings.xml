@@ -729,7 +729,7 @@
     <string name="settings_settings">Settings</string>
     <string name="settings_show_entry_in_system_settings">Show Entry in System Settings</string>
     <string name="settings_show_entry_in_system_settings_summary">Inject an entry point for HyperTweak in the system Settings app</string>
-    <string name="settings_show_google_services_in_settings">Show Google Services on the Settings Home</string>
+    <string name="settings_show_google_services_in_settings">Show Google services</string>
     <string name="settings_show_google_services_in_settings_summary">Restore the native Google services home-page entry. Requires restarting Settings</string>
     <string name="settings_watermark_unlock">Watermark Unlock</string>
     <string name="settings_watermark_unlock_summary">Unlock Leica / Disney / POCO / festival watermarks in the media editor</string>
@@ -810,6 +810,10 @@
     <string name="download_manager_xl_delete_success">.xlDownload folder deleted</string>
     <string name="download_manager_xl_delete_failed">Could not delete .xlDownload</string>
     <string name="tweaks_features">Features</string>
+    <string name="tweaks_system_components_title">System components</string>
+    <string name="tweaks_personal_assistant_title">Smart Assistant</string>
+    <string name="tweaks_display_title">Display</string>
+    <string name="tweaks_phone_title">Phone</string>
     <string name="tweaks_focus_notification_title">Super Island</string>
     <string name="tweaks_security_center_title">Security Center</string>
     <string name="tweaks_security_center_summary">Security Center battery, bubble notification and clipboard features</string>
@@ -934,7 +938,7 @@
     <string name="cc_tile_custom_title">Custom specs</string>
     <string name="cc_tile_custom_summary">Hand-typed tile specs, comma separated</string>
     <string name="cc_tile_custom_dialog_summary">Comma-separated tile spec names, e.g. focus,miui:xxx</string>
-    <string name="tweaks_system_core_title">System Core</string>
+    <string name="tweaks_system_core_title">Google-related services</string>
     <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage text visible to match the brightness style</string>
     <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>
     <string name="tweaks_xmsf_unlock_focus_auth_summary">Force the Xiaomi Service Framework signature check for the Super Island whitelist to pass, so apps rejected by it can post Super Island notifications. Requires an xmsf restart to apply.</string>

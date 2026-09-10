@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Extension
@@ -78,6 +79,7 @@ fun HomeScreenContent(
     backdrop: LayerBackdrop,
     pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
+    onNavigateToBatteryInfo: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit
 ) {
@@ -263,6 +265,19 @@ fun HomeScreenContent(
                     .padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.battery_info_menu_title),
+                        summary = stringResource(R.string.battery_info_menu_summary),
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.BatteryChargingFull,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.battery_info_menu_title),
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = onNavigateToBatteryInfo
+                    )
                     ArrowPreference(
                         title = stringResource(R.string.home_hidden_features),
                         summary = stringResource(R.string.home_hidden_features_summary),

@@ -729,7 +729,7 @@
     <string name="settings_settings">设置</string>
     <string name="settings_show_entry_in_system_settings">在系统设置中显示入口</string>
     <string name="settings_show_entry_in_system_settings_summary">在系统设置应用中为 HyperTweak 注入入口</string>
-    <string name="settings_show_google_services_in_settings">在设置主页显示 Google 服务</string>
+    <string name="settings_show_google_services_in_settings">显示 Google 服务</string>
     <string name="settings_show_google_services_in_settings_summary">恢复系统设置主页原生的 Google 服务入口。需要重启设置</string>
     <string name="settings_watermark_unlock">水印解锁</string>
     <string name="settings_watermark_unlock_summary">在相册编辑中解锁徕卡 / Disney / POCO / 节日水印</string>
@@ -810,6 +810,10 @@
     <string name="download_manager_xl_delete_success">已删除 .xlDownload 文件夹</string>
     <string name="download_manager_xl_delete_failed">无法删除 .xlDownload 文件夹</string>
     <string name="tweaks_features">功能</string>
+    <string name="tweaks_system_components_title">系统组件</string>
+    <string name="tweaks_personal_assistant_title">智能助理</string>
+    <string name="tweaks_display_title">显示</string>
+    <string name="tweaks_phone_title">电话</string>
     <string name="tweaks_focus_notification_title">超级岛</string>
     <string name="tweaks_security_center_title">安全中心</string>
     <string name="tweaks_security_center_summary">安全中心电池、气泡通知和剪贴板相关功能</string>
@@ -934,7 +938,7 @@
     <string name="cc_tile_custom_title">自定义 spec</string>
     <string name="cc_tile_custom_summary">手动输入的磁贴 spec，逗号分隔</string>
     <string name="cc_tile_custom_dialog_summary">输入磁贴 spec 名称，逗号分隔，如 focus,miui:xxx</string>
-    <string name="tweaks_system_core_title">系统核心</string>
+    <string name="tweaks_system_core_title">Google 服务相关</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>
     <string name="tweaks_xmsf_unlock_focus_auth_summary">强制小米服务框架对超级岛白名单的签名校验通过，让被其拒签的应用也能发送超级岛通知。需要重启 xmsf 生效。</string>
