@@ -307,6 +307,28 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = stringResource(R.string.security_center_hide_low_battery_warning),
                         summary = stringResource(R.string.security_center_hide_low_battery_warning_summary)
                     )
+                    var showDetailedPowerData by remember {
+                        mutableStateOf(
+                            Preferences.getBoolean(
+                                Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
+                                false
+                            )
+                        )
+                    }
+                    SwitchPreference(
+                        checked = showDetailedPowerData,
+                        onCheckedChange = { enabled ->
+                            showDetailedPowerData = enabled
+                            securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_center_show_detailed_power_data),
+                        summary = stringResource(R.string.security_center_show_detailed_power_data_summary)
+                    )
                 }
             }
 

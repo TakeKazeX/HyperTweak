@@ -285,6 +285,9 @@ object Preferences {
     /** Hides Security Center's low-battery dialog and low-battery sound. */
     const val KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING = "securitycenter_hide_low_battery_warning"
 
+    /** Exposes Security Center's screen-use and detailed power-ranking data path. */
+    const val KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA = "securitycenter_show_detailed_power_data"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 

@@ -37,6 +37,8 @@
     <string name="security_center_battery_section">安全中心电池</string>
     <string name="security_center_hide_low_battery_warning">隐藏低电量警告</string>
     <string name="security_center_hide_low_battery_warning_summary">隐藏安全中心的低电量对话框并停止低电量提示音。需要重启安全中心</string>
+    <string name="security_center_show_detailed_power_data">显示详细耗电数据</string>
+    <string name="security_center_show_detailed_power_data_summary">在耗电排行中显示屏幕使用情况和详细耗电项目。需要重启安全中心</string>
     <string name="security_bubble_notification_unlock">移除气泡通知应用限制</string>
     <string name="security_bubble_notification_unlock_summary">在安全中心的气泡管理页列出已安装的非系统应用，并允许已固定到屏幕边缘的应用显示气泡通知，同时保留全局、单应用、悬浮通知权限和自由窗口限制。需要重启安全中心和 SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">重启安全中心和 SystemUI</string>
