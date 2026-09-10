@@ -373,6 +373,28 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = stringResource(R.string.security_center_show_berserk_mode),
                         summary = stringResource(R.string.security_center_show_berserk_mode_summary)
                     )
+                    var moreBatteryInfo by remember {
+                        mutableStateOf(
+                            Preferences.getBoolean(
+                                Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
+                                false
+                            )
+                        )
+                    }
+                    SwitchPreference(
+                        checked = moreBatteryInfo,
+                        onCheckedChange = { enabled ->
+                            moreBatteryInfo = enabled
+                            securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_center_more_battery_info),
+                        summary = stringResource(R.string.security_center_more_battery_info_summary)
+                    )
                 }
             }
 

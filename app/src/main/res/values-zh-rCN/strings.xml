@@ -43,6 +43,8 @@
     <string name="security_center_restore_power_ranking_summary">恢复安全中心被隐藏的原生耗电排行路径。需要重启安全中心</string>
     <string name="security_center_show_berserk_mode">显示狂暴模式</string>
     <string name="security_center_show_berserk_mode_summary">显示安全中心原生的狂暴模式名称和入口。需要重启安全中心</string>
+    <string name="security_center_more_battery_info">电池保护显示更多电池信息</string>
+    <string name="security_center_more_battery_info_summary">保留电池保护原生信息项目，并增加设计容量和满充容量。需要重启安全中心</string>
     <string name="security_bubble_notification_unlock">移除气泡通知应用限制</string>
     <string name="security_bubble_notification_unlock_summary">在安全中心的气泡管理页列出已安装的非系统应用，并允许已固定到屏幕边缘的应用显示气泡通知，同时保留全局、单应用、悬浮通知权限和自由窗口限制。需要重启安全中心和 SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">重启安全中心和 SystemUI</string>
