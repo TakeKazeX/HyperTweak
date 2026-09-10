@@ -329,6 +329,28 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         title = stringResource(R.string.security_center_show_detailed_power_data),
                         summary = stringResource(R.string.security_center_show_detailed_power_data_summary)
                     )
+                    var restorePowerRanking by remember {
+                        mutableStateOf(
+                            Preferences.getBoolean(
+                                Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
+                                false
+                            )
+                        )
+                    }
+                    SwitchPreference(
+                        checked = restorePowerRanking,
+                        onCheckedChange = { enabled ->
+                            restorePowerRanking = enabled
+                            securityCenterRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
+                            Preferences.putBoolean(
+                                Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
+                                enabled
+                            )
+                        },
+                        title = stringResource(R.string.security_center_restore_power_ranking),
+                        summary = stringResource(R.string.security_center_restore_power_ranking_summary)
+                    )
                 }
             }
 

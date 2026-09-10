@@ -288,6 +288,9 @@ object Preferences {
     /** Exposes Security Center's screen-use and detailed power-ranking data path. */
     const val KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA = "securitycenter_show_detailed_power_data"
 
+    /** Restores the native power-ranking path hidden by the MIUI-version gate. */
+    const val KEY_SECURITY_CENTER_RESTORE_POWER_RANKING = "securitycenter_restore_power_ranking"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 
