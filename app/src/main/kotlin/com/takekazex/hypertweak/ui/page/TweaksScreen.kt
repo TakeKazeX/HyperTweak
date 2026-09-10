@@ -52,6 +52,10 @@ fun TweaksScreenContent(
     onLbeClipboardToastChange: (Boolean) -> Unit,
     disableMiTrustRiskMonitoring: Boolean,
     onDisableMiTrustRiskMonitoringChange: (Boolean) -> Unit,
+    disableGuardEnvironmentCheck: Boolean,
+    onDisableGuardEnvironmentCheckChange: (Boolean) -> Unit,
+    blockGuardUploadAppList: Boolean,
+    onBlockGuardUploadAppListChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -145,6 +149,23 @@ fun TweaksScreenContent(
                 )
             }
 
+            SmallTitle(text = stringResource(R.string.tweaks_guard_provider_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = disableGuardEnvironmentCheck,
+                        onCheckedChange = onDisableGuardEnvironmentCheckChange,
+                        title = stringResource(R.string.tweaks_disable_environment_check_title),
+                        summary = stringResource(R.string.tweaks_disable_environment_check_summary)
+                    )
+                    SwitchPreference(
+                        checked = blockGuardUploadAppList,
+                        onCheckedChange = onBlockGuardUploadAppListChange,
+                        title = stringResource(R.string.tweaks_block_upload_app_list_title),
+                        summary = stringResource(R.string.tweaks_block_upload_app_list_summary)
+                    )
+                }
+            }
 
 
             // Scope 4: System Core

@@ -96,6 +96,8 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
+import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
+import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
@@ -771,6 +773,11 @@ class HookEntry : XposedModule() {
             "com.xiaomi.trustservice" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MiTrustRiskMonitoringHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.miui.guardprovider" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(GuardProviderEnvironmentCheckHooker, classLoader, ctx, replacementHandles)
+                attachHooker(GuardProviderUploadAppListHooker, classLoader, ctx, replacementHandles)
             }
             "com.milink.service" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

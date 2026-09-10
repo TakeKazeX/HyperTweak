@@ -126,6 +126,12 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_TRUST_SERVICE)
     ),
+    Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
+    ),
+    Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
+    ),
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
@@ -364,6 +370,22 @@ class MainActivity : ComponentActivity() {
             var disableMiTrustRiskMonitoring by remember {
                 mutableStateOf(Preferences.getBoolean(Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING, false))
             }
+            var disableGuardEnvironmentCheck by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(
+                        Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
+                        false
+                    )
+                )
+            }
+            var blockGuardUploadAppList by remember {
+                mutableStateOf(
+                    Preferences.getBoolean(
+                        Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
+                        false
+                    )
+                )
+            }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -497,6 +519,8 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
                     Preferences.KEY_LBE_CLIPBOARD_TOAST -> lbeClipboardToast
                     Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING -> disableMiTrustRiskMonitoring
+                    Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK -> disableGuardEnvironmentCheck
+                    Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -847,6 +871,14 @@ class MainActivity : ComponentActivity() {
                     lbeClipboardToast = Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)
                     disableMiTrustRiskMonitoring = Preferences.getBoolean(
                         Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING,
+                        false
+                    )
+                    disableGuardEnvironmentCheck = Preferences.getBoolean(
+                        Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
+                        false
+                    )
+                    blockGuardUploadAppList = Preferences.getBoolean(
+                        Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
                         false
                     )
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
@@ -1291,6 +1323,24 @@ class MainActivity : ComponentActivity() {
                         disableMiTrustRiskMonitoring = checked
                         Preferences.putBoolean(
                             Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING,
+                            checked
+                        )
+                    },
+                    disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
+                    onDisableGuardEnvironmentCheckChange = { checked ->
+                        markTweaked(Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK, checked)
+                        disableGuardEnvironmentCheck = checked
+                        Preferences.putBoolean(
+                            Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
+                            checked
+                        )
+                    },
+                    blockGuardUploadAppList = blockGuardUploadAppList,
+                    onBlockGuardUploadAppListChange = { checked ->
+                        markTweaked(Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, checked)
+                        blockGuardUploadAppList = checked
+                        Preferences.putBoolean(
+                            Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
                             checked
                         )
                     },

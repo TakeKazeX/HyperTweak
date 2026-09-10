@@ -320,6 +320,7 @@
     <string name="home_restart_scoped_apps_summary">重启 SystemUI、设置、AOD、省电精灵等作用域进程</string>
     <string name="home_scope_aod">息屏显示</string>
     <string name="home_scope_bluetooth">小米蓝牙</string>
+    <string name="home_scope_guard_provider">MIUI 安全组件</string>
     <string name="home_scope_launcher">系统桌面</string>
     <string name="home_scope_milink">MiLink 服务</string>
     <string name="home_scope_mitrust">MiTrustService</string>
@@ -624,6 +625,7 @@
     <string name="restart_scope_aod">息屏显示</string>
     <string name="restart_scope_bluetooth">小米蓝牙</string>
     <string name="restart_scope_gms">Google Play 服务</string>
+    <string name="restart_scope_guard_provider">MIUI 安全组件</string>
     <string name="restart_scope_milink">MiLink 服务</string>
     <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">小米桌面</string>
@@ -762,6 +764,11 @@
     <string name="tweaks_mitrust_title">MiTrustService</string>
     <string name="tweaks_disable_risk_monitoring_title">禁用风险监测</string>
     <string name="tweaks_disable_risk_monitoring_summary">阻止 MiTrustService 初始化原生 MRM 风险监测路径。需要重启 MiTrustService 生效。</string>
+    <string name="tweaks_guard_provider_title">系统安全组件</string>
+    <string name="tweaks_disable_environment_check_title">禁用环境检查</string>
+    <string name="tweaks_disable_environment_check_summary">让 GuardProvider 的已验证 root/su 环境检查报告设备环境正常。需要重启 MIUI 安全组件生效。</string>
+    <string name="tweaks_block_upload_app_list_title">阻止上传已安装应用列表</string>
+    <string name="tweaks_block_upload_app_list_summary">阻止 GuardProvider 反欺诈服务序列化或上传非系统已安装应用列表。需要重启 MIUI 安全组件生效。</string>
     <string name="download_manager_title">下载管理</string>
     <string name="download_manager_summary">调整下载管理界面和可选的迅雷集成</string>
     <string name="download_manager_back">返回</string>

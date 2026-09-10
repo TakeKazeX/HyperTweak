@@ -154,6 +154,12 @@ object Preferences {
     /** Disables MiTrustService's MRM risk-monitoring initialization gate. */
     const val KEY_MITRUST_DISABLE_RISK_MONITORING = "mitrust_disable_risk_monitoring"
 
+    /** Makes GuardProvider's verified su/root environment predicates report a clean device. */
+    const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
+
+    /** Stops GuardProvider from serializing/uploading its non-system installed-app list. */
+    const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"
+
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"

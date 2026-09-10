@@ -320,6 +320,7 @@
     <string name="home_restart_scoped_apps_summary">Restart scoped app processes such as SystemUI, Settings, AOD, and PowerKeeper</string>
     <string name="home_scope_aod">Always-On Display</string>
     <string name="home_scope_bluetooth">Xiaomi Bluetooth</string>
+    <string name="home_scope_guard_provider">MIUI GuardProvider</string>
     <string name="home_scope_launcher">System Launcher</string>
     <string name="home_scope_milink">MiLink Service</string>
     <string name="home_scope_mitrust">MiTrustService</string>
@@ -624,6 +625,7 @@
     <string name="restart_scope_aod">Always-On Display</string>
     <string name="restart_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="restart_scope_gms">Google Play Services</string>
+    <string name="restart_scope_guard_provider">MIUI GuardProvider</string>
     <string name="restart_scope_milink">MiLink Service</string>
     <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">Miui Home</string>
@@ -762,6 +764,11 @@
     <string name="tweaks_mitrust_title">MiTrustService</string>
     <string name="tweaks_disable_risk_monitoring_title">Disable Risk Monitoring</string>
     <string name="tweaks_disable_risk_monitoring_summary">Stop MiTrustService from initializing the native MRM risk-monitoring path. Restart MiTrustService to apply.</string>
+    <string name="tweaks_guard_provider_title">System Security Components</string>
+    <string name="tweaks_disable_environment_check_title">Disable Environment Check</string>
+    <string name="tweaks_disable_environment_check_summary">Make GuardProvider\'s verified root/su environment checks report a clean device. Restart MIUI GuardProvider to apply.</string>
+    <string name="tweaks_block_upload_app_list_title">Block Upload of Installed App List</string>
+    <string name="tweaks_block_upload_app_list_summary">Stop GuardProvider\'s anti-fraud service from serializing or uploading the non-system installed-app list. Restart MIUI GuardProvider to apply.</string>
     <string name="download_manager_title">Download Manager</string>
     <string name="download_manager_summary">Tune the Download Manager UI and optional Xunlei integration</string>
     <string name="download_manager_back">Back</string>
