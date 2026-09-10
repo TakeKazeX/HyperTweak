@@ -37,6 +37,7 @@ import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
+import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
@@ -301,6 +302,9 @@ fun HyperTweakNavContainer(
                 onNavigateToDownloadManager = {
                     backStack.add(Route.DownloadManager)
                 },
+                onNavigateToSecurityCenter = {
+                    backStack.add(Route.SecurityCenter)
+                },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
                 showGoogleServicesInSettings = showGoogleServicesInSettings,
@@ -478,6 +482,11 @@ fun HyperTweakNavContainer(
             AospRestorePage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToAospIme = { backStack.add(Route.AospIme) }
+            )
+        }
+        entry<Route.SecurityCenter> {
+            SecurityCenterPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.AospIme> {

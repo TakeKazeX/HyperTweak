@@ -48,6 +48,10 @@
     <string name="security_bubble_notification_unlock">移除气泡通知应用限制</string>
     <string name="security_bubble_notification_unlock_summary">在安全中心的气泡管理页列出已安装的非系统应用，并允许已固定到屏幕边缘的应用显示气泡通知，同时保留全局、单应用、悬浮通知权限和自由窗口限制。需要重启安全中心和 SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">重启安全中心和 SystemUI</string>
+    <string name="security_center_page_title">安全中心</string>
+    <string name="security_center_clipboard_section">剪贴板</string>
+    <string name="security_center_notifications_section">气泡通知</string>
+    <string name="security_center_apply_section">应用更改</string>
     <string name="aosp_volume_panel">AOSP 音量面板</string>
     <string name="aosp_volume_panel_summary">隐藏 MIUI 的音量对话框插件，以使用 AOSP 音量面板。其他音量滑块微调不适用于它。需要重启 SystemUI</string>
     <string name="aosp_volume_haptic_miui">小米音量震动</string>
@@ -804,6 +808,8 @@
     <string name="download_manager_xl_delete_failed">无法删除 .xlDownload 文件夹</string>
     <string name="tweaks_features">功能</string>
     <string name="tweaks_focus_notification_title">超级岛</string>
+    <string name="tweaks_security_center_title">安全中心</string>
+    <string name="tweaks_security_center_summary">安全中心电池、气泡通知和剪贴板相关功能</string>
     <string name="tweaks_focus_unlock_whitelist_summary">解除 SystemUI 的超级岛通知白名单，让任意应用都能发送超级岛通知，同时保留你在各应用里手动关闭的超级岛设置。需要重启 SystemUI 生效。</string>
     <string name="tweaks_focus_unlock_whitelist_title">移除超级岛通知白名单</string>
     <string name="tweaks_media_super_island_unlock_whitelist_summary">解除 SystemUI 的媒体超级岛下拉白名单，让任意应用的媒体通知都能出现在超级岛下拉中，同时保留你按应用手动关闭的媒体超级岛设置。需要重启 SystemUI 生效。</string>

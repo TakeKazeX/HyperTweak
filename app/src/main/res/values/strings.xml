@@ -48,6 +48,10 @@
     <string name="security_bubble_notification_unlock">Remove Bubble Notification App Limit</string>
     <string name="security_bubble_notification_unlock_summary">List non-system installed apps in Security Center\'s bubble manager and let edge-pinned apps show bubble notifications. Global, per-app, floating-notification, and freeform checks remain. Requires restarting Security Center and SystemUI</string>
     <string name="aosp_restart_security_center_and_system_ui">Restart Security Center and SystemUI</string>
+    <string name="security_center_page_title">Security Center</string>
+    <string name="security_center_clipboard_section">Clipboard</string>
+    <string name="security_center_notifications_section">Bubble notifications</string>
+    <string name="security_center_apply_section">Apply changes</string>
     <string name="aosp_volume_panel">AOSP Volume Panel</string>
     <string name="aosp_volume_panel_summary">Hide MIUI\'s volume-dialog plugin so the AOSP volume panel is used. Other volume slider tweaks do not apply to it. Requires a SystemUI restart</string>
     <string name="aosp_volume_haptic_miui">MIUI Volume Haptic</string>
@@ -804,6 +808,8 @@
     <string name="download_manager_xl_delete_failed">Could not delete .xlDownload</string>
     <string name="tweaks_features">Features</string>
     <string name="tweaks_focus_notification_title">Super Island</string>
+    <string name="tweaks_security_center_title">Security Center</string>
+    <string name="tweaks_security_center_summary">Security Center battery, bubble notification and clipboard features</string>
     <string name="tweaks_focus_unlock_whitelist_summary">Lift the Super Island notification whitelist in SystemUI so any app can post Super Island notifications, while keeping your per-app Super Island off choices. Requires a SystemUI restart to apply.</string>
     <string name="tweaks_focus_unlock_whitelist_title">Remove Super Island Notification Whitelist</string>
     <string name="tweaks_media_super_island_unlock_whitelist_summary">Lift the media Super Island dropdown whitelist in SystemUI so media notifications from any app can appear in the Super Island dropdown, while keeping your per-app media Super Island off choices. Requires a SystemUI restart to apply.</string>

@@ -72,28 +72,16 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var extendUnlockFix by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false))
     }
-    var clipboardEditor by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
-    }
     var appInfoEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, false))
     }
     var appManagerEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
     }
-    var bubbleNotificationUnlock by remember {
-        mutableStateOf(
-            Preferences.getBoolean(
-                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                false
-            )
-        )
-    }
     // Keep the local prompt for immediate access on this page. Each affected switch also reports
     // its process to the shared Home restart dialog through LocalRestartScopeRequest.
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
-    var bubbleSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -180,17 +168,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         enabled = extendUnlockFix,
                         onClick = { ExtendUnlockLauncher.launch(context) }
                     )
-                    SwitchPreference(
-                        checked = clipboardEditor,
-                        onCheckedChange = { enabled ->
-                            clipboardEditor = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
-                            Preferences.putBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
-                        },
-                        title = stringResource(R.string.aosp_clipboard_editor),
-                        summary = stringResource(R.string.aosp_clipboard_editor_summary)
-                    )
                     if (systemUiRestartPending) {
                         ArrowPreference(
                             title = stringResource(R.string.aosp_restart_system_ui),
@@ -214,23 +191,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
-                        checked = bubbleNotificationUnlock,
-                        onCheckedChange = { enabled ->
-                            bubbleNotificationUnlock = enabled
-                            securityCenterRestartPending = true
-                            bubbleSystemUiRestartPending = true
-                            requestRestartScopes(
-                                RestartScopeSelection(systemUi = true, securityCenter = true)
-                            )
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_bubble_notification_unlock),
-                        summary = stringResource(R.string.security_bubble_notification_unlock_summary)
-                    )
-                    SwitchPreference(
                         checked = appInfoEntry,
                         onCheckedChange = { enabled ->
                             appInfoEntry = enabled
@@ -253,18 +213,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         summary = stringResource(R.string.aosp_app_manager_entry_summary)
                     )
                     if (securityCenterRestartPending) {
-                        val restartSelection = RestartScopeSelection(
-                            systemUi = bubbleSystemUiRestartPending,
-                            securityCenter = true
-                        )
+                        val restartSelection = RestartScopeSelection(securityCenter = true)
                         ArrowPreference(
-                            title = stringResource(
-                                if (bubbleSystemUiRestartPending) {
-                                    R.string.aosp_restart_security_center_and_system_ui
-                                } else {
-                                    R.string.aosp_restart_security_center
-                                }
-                            ),
+                            title = stringResource(R.string.aosp_restart_security_center),
                             summary = stringResource(R.string.aosp_restart_security_center_summary),
                             onClick = {
                                 Preferences.flush()
@@ -275,126 +226,9 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                                 )
                                 handleRestartedScopes(restartSelection)
                                 securityCenterRestartPending = false
-                                bubbleSystemUiRestartPending = false
                             }
                         )
                     }
-                }
-            }
-
-            SmallTitle(stringResource(R.string.security_center_battery_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    var hideLowBatteryWarning by remember {
-                        mutableStateOf(
-                            Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
-                                false
-                            )
-                        )
-                    }
-                    SwitchPreference(
-                        checked = hideLowBatteryWarning,
-                        onCheckedChange = { enabled ->
-                            hideLowBatteryWarning = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_center_hide_low_battery_warning),
-                        summary = stringResource(R.string.security_center_hide_low_battery_warning_summary)
-                    )
-                    var showDetailedPowerData by remember {
-                        mutableStateOf(
-                            Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
-                                false
-                            )
-                        )
-                    }
-                    SwitchPreference(
-                        checked = showDetailedPowerData,
-                        onCheckedChange = { enabled ->
-                            showDetailedPowerData = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_center_show_detailed_power_data),
-                        summary = stringResource(R.string.security_center_show_detailed_power_data_summary)
-                    )
-                    var restorePowerRanking by remember {
-                        mutableStateOf(
-                            Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
-                                false
-                            )
-                        )
-                    }
-                    SwitchPreference(
-                        checked = restorePowerRanking,
-                        onCheckedChange = { enabled ->
-                            restorePowerRanking = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_center_restore_power_ranking),
-                        summary = stringResource(R.string.security_center_restore_power_ranking_summary)
-                    )
-                    var showBerserkMode by remember {
-                        mutableStateOf(
-                            Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
-                                false
-                            )
-                        )
-                    }
-                    SwitchPreference(
-                        checked = showBerserkMode,
-                        onCheckedChange = { enabled ->
-                            showBerserkMode = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_center_show_berserk_mode),
-                        summary = stringResource(R.string.security_center_show_berserk_mode_summary)
-                    )
-                    var moreBatteryInfo by remember {
-                        mutableStateOf(
-                            Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
-                                false
-                            )
-                        )
-                    }
-                    SwitchPreference(
-                        checked = moreBatteryInfo,
-                        onCheckedChange = { enabled ->
-                            moreBatteryInfo = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
-                                Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
-                                enabled
-                            )
-                        },
-                        title = stringResource(R.string.security_center_more_battery_info),
-                        summary = stringResource(R.string.security_center_more_battery_info_summary)
-                    )
                 }
             }
 

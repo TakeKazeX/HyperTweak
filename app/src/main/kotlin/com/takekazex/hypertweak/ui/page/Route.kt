@@ -12,6 +12,7 @@ sealed interface Route : NavKey {
     data object AppShortcuts : Route
     data object PredictiveBackApps : Route
     data object AospRestore : Route
+    data object SecurityCenter : Route
     data object AospIme : Route
     data object SystemUi : Route
     data object DownloadManager : Route
@@ -44,6 +45,7 @@ val Route.saveKey: String
         Route.AppShortcuts -> "AppShortcuts"
         Route.PredictiveBackApps -> "PredictiveBackApps"
         Route.AospRestore -> "AospRestore"
+        Route.SecurityCenter -> "SecurityCenter"
         Route.AospIme -> "AospIme"
         Route.SystemUi -> "SystemUi"
         Route.DownloadManager -> "DownloadManager"
@@ -71,6 +73,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "AppShortcuts" -> Route.AppShortcuts
     "PredictiveBackApps" -> Route.PredictiveBackApps
     "AospRestore" -> Route.AospRestore
+    "SecurityCenter" -> Route.SecurityCenter
     "AospIme" -> Route.AospIme
     "SystemUi" -> Route.SystemUi
     "DownloadManager" -> Route.DownloadManager

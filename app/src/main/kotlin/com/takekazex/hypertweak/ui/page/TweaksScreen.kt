@@ -36,6 +36,7 @@ fun TweaksScreenContent(
     padding: PaddingValues,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
+    onNavigateToSecurityCenter: () -> Unit,
     removeGms: Boolean,
     onRemoveGmsChange: (Boolean) -> Unit,
     quickShareEnabled: Boolean,
@@ -128,6 +129,15 @@ fun TweaksScreenContent(
                     title = stringResource(R.string.download_manager_title),
                     summary = stringResource(R.string.download_manager_summary),
                     onClick = onNavigateToDownloadManager
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.tweaks_security_center_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.tweaks_security_center_title),
+                    summary = stringResource(R.string.tweaks_security_center_summary),
+                    onClick = onNavigateToSecurityCenter
                 )
             }
 
