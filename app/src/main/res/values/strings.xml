@@ -322,6 +322,7 @@
     <string name="home_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="home_scope_launcher">System Launcher</string>
     <string name="home_scope_milink">MiLink Service</string>
+    <string name="home_scope_mitrust">MiTrustService</string>
     <string name="home_scope_missing">Missing scope</string>
     <string name="home_scope_powerkeeper">PowerKeeper</string>
     <string name="home_scope_remove">Remove Scope</string>
@@ -624,6 +625,7 @@
     <string name="restart_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="restart_scope_gms">Google Play Services</string>
     <string name="restart_scope_milink">MiLink Service</string>
+    <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">Miui Home</string>
     <string name="restart_scope_powerkeeper">Power Keeper</string>
     <string name="restart_scope_scanner">Scanner</string>
@@ -757,6 +759,9 @@
     <string name="tweaks_fcm_live_title">Fix Google Push (FCM Live)</string>
     <string name="tweaks_lbe_clipboard_toast_summary">Replace the Clipboard Security overlay with a standard system Toast. Requires restarting Clipboard Security.</string>
     <string name="tweaks_lbe_clipboard_toast_title">Clipboard Read Toast</string>
+    <string name="tweaks_mitrust_title">MiTrustService</string>
+    <string name="tweaks_disable_risk_monitoring_title">Disable Risk Monitoring</string>
+    <string name="tweaks_disable_risk_monitoring_summary">Stop MiTrustService from initializing the native MRM risk-monitoring path. Restart MiTrustService to apply.</string>
     <string name="download_manager_title">Download Manager</string>
     <string name="download_manager_summary">Tune the Download Manager UI and optional Xunlei integration</string>
     <string name="download_manager_back">Back</string>

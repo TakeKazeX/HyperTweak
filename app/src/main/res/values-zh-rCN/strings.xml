@@ -322,6 +322,7 @@
     <string name="home_scope_bluetooth">小米蓝牙</string>
     <string name="home_scope_launcher">系统桌面</string>
     <string name="home_scope_milink">MiLink 服务</string>
+    <string name="home_scope_mitrust">MiTrustService</string>
     <string name="home_scope_missing">缺少作用域</string>
     <string name="home_scope_powerkeeper">省电精灵</string>
     <string name="home_scope_remove">移除作用域</string>
@@ -624,6 +625,7 @@
     <string name="restart_scope_bluetooth">小米蓝牙</string>
     <string name="restart_scope_gms">Google Play 服务</string>
     <string name="restart_scope_milink">MiLink 服务</string>
+    <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">小米桌面</string>
     <string name="restart_scope_powerkeeper">省电精灵</string>
     <string name="restart_scope_scanner">扫描</string>
@@ -757,6 +759,9 @@
     <string name="tweaks_fcm_live_title">修复 Google 推送（FCM Live）</string>
     <string name="tweaks_lbe_clipboard_toast_summary">将剪贴板安全服务的读取浮层替换为系统标准 Toast。需要重启剪贴板安全服务。</string>
     <string name="tweaks_lbe_clipboard_toast_title">剪贴板读取 Toast</string>
+    <string name="tweaks_mitrust_title">MiTrustService</string>
+    <string name="tweaks_disable_risk_monitoring_title">禁用风险监测</string>
+    <string name="tweaks_disable_risk_monitoring_summary">阻止 MiTrustService 初始化原生 MRM 风险监测路径。需要重启 MiTrustService 生效。</string>
     <string name="download_manager_title">下载管理</string>
     <string name="download_manager_summary">调整下载管理界面和可选的迅雷集成</string>
     <string name="download_manager_back">返回</string>

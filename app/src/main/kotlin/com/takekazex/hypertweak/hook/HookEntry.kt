@@ -96,6 +96,7 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
+import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
@@ -766,6 +767,10 @@ class HookEntry : XposedModule() {
             "com.xiaomi.scanner" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.xiaomi.trustservice" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(MiTrustRiskMonitoringHooker, classLoader, ctx, replacementHandles)
             }
             "com.milink.service" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

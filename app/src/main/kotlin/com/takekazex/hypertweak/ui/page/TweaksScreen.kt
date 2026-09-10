@@ -50,6 +50,8 @@ fun TweaksScreenContent(
     onFcmLiveEnabledChange: (Boolean) -> Unit,
     lbeClipboardToast: Boolean,
     onLbeClipboardToastChange: (Boolean) -> Unit,
+    disableMiTrustRiskMonitoring: Boolean,
+    onDisableMiTrustRiskMonitoringChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -132,6 +134,18 @@ fun TweaksScreenContent(
                     summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
                 )
             }
+
+            SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = disableMiTrustRiskMonitoring,
+                    onCheckedChange = onDisableMiTrustRiskMonitoringChange,
+                    title = stringResource(R.string.tweaks_disable_risk_monitoring_title),
+                    summary = stringResource(R.string.tweaks_disable_risk_monitoring_summary)
+                )
+            }
+
+
 
             // Scope 4: System Core
             SmallTitle(text = stringResource(R.string.tweaks_system_core_title))

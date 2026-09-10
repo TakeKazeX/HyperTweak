@@ -123,6 +123,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LBE_CLIPBOARD_TOAST to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
     ),
+    Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_TRUST_SERVICE)
+    ),
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
@@ -358,6 +361,9 @@ class MainActivity : ComponentActivity() {
             var forceAdaptiveAnc by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)) }
             var fcmLiveEnabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) }
             var lbeClipboardToast by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)) }
+            var disableMiTrustRiskMonitoring by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING, false))
+            }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -490,6 +496,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
                     Preferences.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
                     Preferences.KEY_LBE_CLIPBOARD_TOAST -> lbeClipboardToast
+                    Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING -> disableMiTrustRiskMonitoring
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -838,6 +845,10 @@ class MainActivity : ComponentActivity() {
                     forceAdaptiveAnc = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
                     fcmLiveEnabled = Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)
                     lbeClipboardToast = Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)
+                    disableMiTrustRiskMonitoring = Preferences.getBoolean(
+                        Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING,
+                        false
+                    )
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
                     mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
                     xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
@@ -1273,6 +1284,15 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
                         lbeClipboardToast = checked
                         Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
+                    },
+                    disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
+                    onDisableMiTrustRiskMonitoringChange = { checked ->
+                        markTweaked(Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING, checked)
+                        disableMiTrustRiskMonitoring = checked
+                        Preferences.putBoolean(
+                            Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING,
+                            checked
+                        )
                     },
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->

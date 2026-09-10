@@ -162,6 +162,7 @@ data class RestartScopeSelection(
         const val PACKAGE_PHONE = "com.android.phone"
         const val PACKAGE_XIAOMI_PHONE = "com.xiaomi.phone"
         const val PACKAGE_LBE_SECURITY = "com.lbe.security.miui"
+        const val PACKAGE_TRUST_SERVICE = "com.xiaomi.trustservice"
 
         private val KNOWN_PACKAGES = setOf(
             PACKAGE_SYSTEM_UI,

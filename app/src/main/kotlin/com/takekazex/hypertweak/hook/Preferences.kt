@@ -150,6 +150,10 @@ object Preferences {
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
     /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
     const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
+
+    /** Disables MiTrustService's MRM risk-monitoring initialization gate. */
+    const val KEY_MITRUST_DISABLE_RISK_MONITORING = "mitrust_disable_risk_monitoring"
+
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"

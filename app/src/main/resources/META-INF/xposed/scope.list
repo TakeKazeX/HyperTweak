@@ -8,6 +8,7 @@ com.miui.aod
 com.xiaomi.aon
 com.miui.securitycenter
 com.miui.securitycore
+com.xiaomi.trustservice
 com.miui.powerkeeper
 com.xiaomi.scanner
 com.milink.service
