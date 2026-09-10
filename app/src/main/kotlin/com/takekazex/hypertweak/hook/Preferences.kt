@@ -160,6 +160,9 @@ object Preferences {
     /** Stops GuardProvider from serializing/uploading its non-system installed-app list. */
     const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"
 
+    /** Prevents MiLink's HPPlay/LeBo integration from creating optional external files. */
+    const val KEY_MILINK_BLOCK_HPPLAY_FILES = "milink_block_hpplay_files"
+
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"

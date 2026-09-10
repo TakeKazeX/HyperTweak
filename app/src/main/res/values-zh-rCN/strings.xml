@@ -769,6 +769,9 @@
     <string name="tweaks_disable_environment_check_summary">让 GuardProvider 的已验证 root/su 环境检查报告设备环境正常。需要重启 MIUI 安全组件生效。</string>
     <string name="tweaks_block_upload_app_list_title">阻止上传已安装应用列表</string>
     <string name="tweaks_block_upload_app_list_summary">阻止 GuardProvider 反欺诈服务序列化或上传非系统已安装应用列表。需要重启 MIUI 安全组件生效。</string>
+    <string name="tweaks_milink_title">互联互通服务</string>
+    <string name="tweaks_block_milink_hpplay_files_title">阻止生成乐播投屏相关文件</string>
+    <string name="tweaks_block_milink_hpplay_files_summary">关闭 HPPlay/乐播投屏的外部存储目录创建，同时保留 MiLink 原生投屏服务。需要重启互联互通服务生效。</string>
     <string name="download_manager_title">下载管理</string>
     <string name="download_manager_summary">调整下载管理界面和可选的迅雷集成</string>
     <string name="download_manager_back">返回</string>

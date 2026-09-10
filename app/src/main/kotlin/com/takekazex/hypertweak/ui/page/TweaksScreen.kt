@@ -56,6 +56,8 @@ fun TweaksScreenContent(
     onDisableGuardEnvironmentCheckChange: (Boolean) -> Unit,
     blockGuardUploadAppList: Boolean,
     onBlockGuardUploadAppListChange: (Boolean) -> Unit,
+    blockMiLinkHpplayFiles: Boolean,
+    onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -167,6 +169,15 @@ fun TweaksScreenContent(
                 }
             }
 
+            SmallTitle(text = stringResource(R.string.tweaks_milink_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = blockMiLinkHpplayFiles,
+                    onCheckedChange = onBlockMiLinkHpplayFilesChange,
+                    title = stringResource(R.string.tweaks_block_milink_hpplay_files_title),
+                    summary = stringResource(R.string.tweaks_block_milink_hpplay_files_summary)
+                )
+            }
 
             // Scope 4: System Core
             SmallTitle(text = stringResource(R.string.tweaks_system_core_title))

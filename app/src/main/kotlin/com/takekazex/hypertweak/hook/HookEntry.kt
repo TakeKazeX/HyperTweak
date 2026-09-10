@@ -98,6 +98,7 @@ import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooke
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
+import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
@@ -781,6 +782,7 @@ class HookEntry : XposedModule() {
             }
             "com.milink.service" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(MiLinkHpplayHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.bluetooth" -> {

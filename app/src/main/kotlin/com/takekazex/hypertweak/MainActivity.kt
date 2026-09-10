@@ -132,6 +132,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
     ),
+    Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES to RestartScopeSelection(milink = true),
     // The Quick Share phenotype override lives in Google Play services; GMS is a declared
     // required scope entry, so the toggle flows through the standard Home restart button.
     Preferences.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
@@ -386,6 +387,9 @@ class MainActivity : ComponentActivity() {
                     )
                 )
             }
+            var blockMiLinkHpplayFiles by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, false))
+            }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -521,6 +525,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING -> disableMiTrustRiskMonitoring
                     Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK -> disableGuardEnvironmentCheck
                     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
+                    Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -879,6 +884,10 @@ class MainActivity : ComponentActivity() {
                     )
                     blockGuardUploadAppList = Preferences.getBoolean(
                         Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
+                        false
+                    )
+                    blockMiLinkHpplayFiles = Preferences.getBoolean(
+                        Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES,
                         false
                     )
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
@@ -1343,6 +1352,12 @@ class MainActivity : ComponentActivity() {
                             Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
                             checked
                         )
+                    },
+                    blockMiLinkHpplayFiles = blockMiLinkHpplayFiles,
+                    onBlockMiLinkHpplayFilesChange = { checked ->
+                        markTweaked(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
+                        blockMiLinkHpplayFiles = checked
+                        Preferences.putBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
                     },
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->

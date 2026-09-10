@@ -769,6 +769,9 @@
     <string name="tweaks_disable_environment_check_summary">Make GuardProvider\'s verified root/su environment checks report a clean device. Restart MIUI GuardProvider to apply.</string>
     <string name="tweaks_block_upload_app_list_title">Block Upload of Installed App List</string>
     <string name="tweaks_block_upload_app_list_summary">Stop GuardProvider\'s anti-fraud service from serializing or uploading the non-system installed-app list. Restart MIUI GuardProvider to apply.</string>
+    <string name="tweaks_milink_title">MiLink Service</string>
+    <string name="tweaks_block_milink_hpplay_files_title">Block LeBo Cast Files</string>
+    <string name="tweaks_block_milink_hpplay_files_summary">Disable HPPlay/LeBo external SD-card directories while keeping MiLink\'s native cast service. Restart MiLink Service to apply.</string>
     <string name="download_manager_title">Download Manager</string>
     <string name="download_manager_summary">Tune the Download Manager UI and optional Xunlei integration</string>
     <string name="download_manager_back">Back</string>
