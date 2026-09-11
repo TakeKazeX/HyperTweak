@@ -19,11 +19,13 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.ResourceLookup
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -62,6 +64,11 @@ object AospVolumeExtrasHooker : StaticHooker() {
     private const val STREAM_MUSIC = 3
 
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+    private const val MODULE_PACKAGE = "com.takekazex.hypertweak"
+
+    /** Resolved once: a package context lookup is far too heavy for a per-view-bind call. */
+    @Volatile
+    private var cachedDndDescription: String? = null
 
     @Volatile
     private var enabled = false
@@ -296,7 +303,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
             isSoundEffectsEnabled = false
             isClickable = true
             isEnabled = true
-            contentDescription = "Do Not Disturb"
+            contentDescription = dndContentDescription(context)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             isFocusable = true
             setTag(VIEW_TAG)
@@ -379,6 +386,22 @@ object AospVolumeExtrasHooker : StaticHooker() {
             }
         }
         if (stale.isNotEmpty()) overlays.removeAll(stale.toSet())
+    }
+
+    /**
+     * Accessibility label for the injected Do Not Disturb button.
+     *
+     * This code runs inside SystemUI, so the host context cannot resolve the module's resources;
+     * the label is read from the module package through [ResourceLookup] and cached, because a
+     * `createPackageContext` per volume-panel bind would be wasteful.
+     */
+    private fun dndContentDescription(context: Context): String {
+        cachedDndDescription?.let { return it }
+        val resolved = runCatching {
+            ResourceLookup.packageContext(context, MODULE_PACKAGE)?.getString(R.string.aosp_volume_dnd)
+        }.getOrNull() ?: "Do Not Disturb"
+        cachedDndDescription = resolved
+        return resolved
     }
 
     private fun setDnd(context: Context, enabled: Boolean): Boolean {

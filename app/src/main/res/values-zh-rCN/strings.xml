@@ -57,12 +57,14 @@
     <string name="security_center_apply_section">应用更改</string>
     <string name="aosp_volume_panel">AOSP 音量面板</string>
     <string name="aosp_volume_panel_summary">使用 AOSP 音量面板</string>
-    <string name="aosp_volume_haptic_miui">小米音量震动</string>
-    <string name="aosp_volume_haptic_miui_summary">AOSP 音量面板使用小米的震动反馈</string>
+    <string name="aosp_volume_haptic_miui">HyperOS 音量震动</string>
+    <string name="aosp_volume_haptic_miui_summary">AOSP 音量面板使用 HyperOS 的震动反馈</string>
+    <string name="aosp_volume_dnd">勿扰模式</string>
     <string name="appearance_accent_color">强调色</string>
     <string name="appearance_back">返回</string>
     <string name="appearance_back_style">预测性返回样式</string>
     <string name="appearance_back_style_disabled">已禁用</string>
+    <string name="appearance_back_style_miuix">Miuix</string>
     <string name="appearance_back_style_scale">缩放</string>
     <string name="appearance_bar_style_ios">类 iOS</string>
     <string name="appearance_color_style">颜色风格</string>
@@ -133,7 +135,6 @@
     <string name="bottom_text_enabled_title">过滤锁屏底部文字</string>
     <string name="bottom_text_enter_to_unlock_summary">回车解锁提示</string>
     <string name="bottom_text_enter_to_unlock_title">回车解锁提示</string>
-    <string name="bottom_text_item_summary">黑名单隐藏已选项目；白名单仅显示已选项目</string>
     <string name="bottom_text_items_section">底部文字项目</string>
     <string name="bottom_text_key_to_unlock_summary">按键解锁提示</string>
     <string name="bottom_text_key_to_unlock_title">按键解锁提示</string>
@@ -169,9 +170,9 @@
     <string name="bottom_text_watch_disconnected_title">手表断开</string>
     <string name="credits_aospinstaller_desc">tehcneko 的 AOSP 安装器恢复方案 · GPL-3.0</string>
     <string name="credits_back">返回</string>
-    <string name="credits_backgesture_desc">wxxsfxyzm 的 MIUI 返回手势兼容 · v0.8.5 · git a5f1ae5 · Apache-2.0</string>
+    <string name="credits_backgesture_desc">wxxsfxyzm 的返回手势兼容 · v0.8.5 · git a5f1ae5 · Apache-2.0</string>
     <string name="credits_dexkit_desc">强大的 Dex 分析工具，用于动态查找 Hook 点 · v2.2.0</string>
-    <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v1.1.0-rc04</string>
+    <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v1.2.1</string>
     <string name="credits_fcm_desc">howard20181 的 Google 推送 / FCM Live 实现</string>
     <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制</string>
     <string name="credits_highlighticons_desc">@GotohHitoriBocchi0221 的应用快捷方式图标</string>
@@ -182,8 +183,8 @@
     <string name="credits_installerx_desc">主题配置与 UI/UX 布局设计的灵感来源</string>
     <string name="credits_libxposed_desc">原生 Xposed API 102 框架 · v102.0.0</string>
     <string name="credits_lsposed_desc">主流 Xposed 框架实现</string>
-    <string name="credits_miuix_desc">现代 MIUI/HyperOS 风格 Compose 组件 · v0.9.2</string>
-    <string name="credits_miuix_title">Miuix UI（compose-miuix-ui）</string>
+    <string name="credits_miuix_desc">现代 HyperOS 风格 Compose 组件 · v0.9.3</string>
+    <string name="credits_miuix_title">Miuix UI（top.yukonga.miuix.kmp）</string>
     <string name="credits_title">致谢</string>
     <string name="credits_xiaomihelper_desc">Settings 偏好注入参考</string>
     <string name="debug_aosp_back_gesture_logs_summary">记录 AOSP 返回手势的详细日志</string>
@@ -246,8 +247,7 @@
     <string name="battery_info_back">返回</string>
     <string name="battery_info_refresh">刷新</string>
     <string name="battery_info_copy">复制</string>
-    <string name="battery_info_updated_at">更新于 %s</string>
-    <string name="battery_info_proxy_hint">部分深度电池参数（设计容量、生产日期、健康度、循环次数等）由安全中心代理读取。请先打开一次安全中心，再点刷新。</string>
+    <string name="battery_info_proxy_hint">深度电池参数需经由安全中心读取，请先打开一次安全中心再刷新</string>
     <!-- 电池信息页数据标签与取值，由 BatteryInfoReader 按语言本地化 -->
     <string name="battery_unavailable">不可用</string>
     <string name="battery_unreadable">无法读取</string>
@@ -279,6 +279,7 @@
     <string name="battery_lbl_fg1_cycle">主电池循环</string>
     <string name="battery_lbl_fg2_cycle">副电池循环</string>
     <string name="battery_lbl_fg1_rating">主电池健康等级</string>
+    <string name="battery_suffix_rating">评级</string>
     <string name="battery_lbl_est_health">估算健康度 (按循环)</string>
     <string name="battery_lbl_model">电池型号</string>
     <string name="battery_lbl_serial">电池序列号</string>
@@ -379,7 +380,8 @@
     <string name="home_hidden_features">隐藏功能</string>
     <string name="home_hidden_features_summary">快速访问隐藏的系统设置</string>
     <string name="home_hot_reload_question">选择应用更新后模块代码的方式。</string>
-    <string name="home_hot_reload_no_targets">当前没有检测到过期目标，仍可通过此弹窗测试两种操作。</string>
+    <string name="home_hot_reload_checking">正在等待模块服务…</string>
+    <string name="home_hot_reload_no_targets">当前没有检测到过期目标，仍可执行任一操作进行测试</string>
     <string name="home_hot_reload_result_all">上次热重载：全部目标成功</string>
     <string name="home_hot_reload_result_counts">上次热重载：成功 %1$d，失败 %2$d</string>
     <string name="home_hot_reload_result_none">上次热重载：没有过期目标</string>
@@ -392,7 +394,7 @@
     <string name="home_restart_scoped_apps_summary">重启 SystemUI、设置等作用域进程</string>
     <string name="home_scope_aod">息屏显示</string>
     <string name="home_scope_bluetooth">小米蓝牙</string>
-    <string name="home_scope_guard_provider">MIUI 安全组件</string>
+    <string name="home_scope_guard_provider">安全组件</string>
     <string name="home_scope_launcher">系统桌面</string>
     <string name="home_scope_milink">MiLink 服务</string>
     <string name="home_scope_mitrust">MiTrustService</string>
@@ -416,9 +418,9 @@
     <string name="home_status_active">模块已启用</string>
     <string name="home_status_hot_reload_required">需要热重载</string>
     <string name="home_status_inactive">模块未启用</string>
-    <string name="home_summary_active">原生 libxposed 模块加载成功。</string>
-    <string name="home_summary_hot_reload_required">模块已启用，但正在运行且已挂钩的进程仍在使用旧代码。点击以通过 libxposed API 102 热重载。</string>
-    <string name="home_summary_inactive">请在 LSPosed 管理器中启用模块，确保作用域中已勾选“HyperTweak”本身，然后重启系统或重启 SystemUI。</string>
+    <string name="home_summary_active">模块加载成功</string>
+    <string name="home_summary_hot_reload_required">模块已启用，但正在运行的进程仍在使用旧代码，点击热重载</string>
+    <string name="home_summary_inactive">请在 LSPosed 管理器中启用模块，并在作用域中勾选 HyperTweak 本身，然后重启设备或 SystemUI</string>
     <string name="icon_apply_title">应用</string>
     <string name="icon_back">返回</string>
     <string name="icon_cellular_title">蜂窝网络</string>
@@ -546,7 +548,6 @@
     <string name="icon_wifi_standard_native">显示原生值</string>
     <string name="icon_wifi_standard_custom">使用自定义映射</string>
     <string name="icon_wifi_standard_map">WiFi 标准映射</string>
-    <string name="icon_wifi_standard_map_summary">按 WiFi 4/5/6/7/8 填写五项，用逗号分隔；0 表示隐藏</string>
     <string name="icon_wifi_padding">WiFi 间距</string>
     <string name="icon_wifi_padding_summary">在 WiFi 图标两侧增加间距</string>
     <string name="icon_wifi_padding_start">WiFi 起始间距</string>
@@ -599,24 +600,23 @@
     <string name="icon_left_vpn">VPN</string>
     <string name="icon_left_airplane">飞行模式</string>
     <string name="icon_left_headset">耳机</string>
-    <string name="icon_left_compound">合成图标</string>
     <string name="icon_wifi_title">WiFi</string>
     <string name="ime_applied">键盘选择已应用</string>
     <string name="ime_apply_selection">应用选择</string>
     <string name="ime_applying_button">正在应用…</string>
     <string name="ime_applying_changes">正在应用更改</string>
-    <string name="ime_applying_changes_summary">键盘侧的更改将在键盘进程重启后生效。系统服务端需要重启设备。</string>
+    <string name="ime_applying_changes_summary">键盘侧的更改在键盘重启后生效，系统侧需重启设备</string>
     <string name="ime_back">返回</string>
     <string name="ime_layout_title">布局</string>
     <string name="ime_left_key">左侧按键</string>
     <string name="ime_list_all_keyboards">在切换器中列出所有键盘</string>
     <string name="ime_list_all_keyboards_summary">在键盘切换器中显示所有输入法（未测试）</string>
     <string name="ime_force_aosp_title">全面屏优化键盘也强制 AOSP 导航栏</string>
-    <string name="ime_force_aosp_summary">对小米定制键盘也使用 AOSP 导航栏</string>
+    <string name="ime_force_aosp_summary">对 HyperOS 定制键盘也使用 AOSP 导航栏</string>
     <string name="ime_raise_style_title">键盘抬高样式</string>
     <string name="ime_raise_style_summary">选择键盘内容抬高还是保留系统底栏</string>
     <string name="ime_raise_style_aosp">AOSP 样式</string>
-    <string name="ime_raise_style_miui">小米样式</string>
+    <string name="ime_raise_style_miui">HyperOS 样式</string>
     <string name="ime_loading">正在加载输入法…</string>
     <string name="ime_nav_bar_summary">在所选键盘内显示 AOSP 手势导航栏</string>
     <string name="ime_nav_bar_title">AOSP 键盘导航栏</string>
@@ -648,6 +648,7 @@
     <string name="logs_export">导出</string>
     <string name="logs_export_prompt">点击导出并分享当前日志</string>
     <string name="logs_export_status">已导出 · %1$s</string>
+    <string name="logs_share_title">HyperTweak 日志</string>
     <string name="logs_process_level_title">按进程日志级别</string>
     <string name="logs_process_level_summary">为单个进程单独设置日志级别</string>
     <string name="logs_filter_all">全部</string>
@@ -681,7 +682,7 @@
     <string name="main_theme_dark">深色</string>
     <string name="main_theme_follow_system">跟随系统</string>
     <string name="main_theme_light">浅色</string>
-    <string name="module_description">解锁 HyperOS/MIUI 的 AOD 和 GMS 限制。</string>
+    <string name="module_description">HyperOS 系统增强：锁屏、状态栏、控制中心、相机与 GMS 解锁</string>
     <string name="predictive_back">返回</string>
     <string name="predictive_back_apps_title">预测性返回应用</string>
     <string name="predictive_loading_apps">正在加载已安装的应用…</string>
@@ -697,7 +698,7 @@
     <string name="restart_scope_aod">息屏显示</string>
     <string name="restart_scope_bluetooth">小米蓝牙</string>
     <string name="restart_scope_gms">Google Play 服务</string>
-    <string name="restart_scope_guard_provider">MIUI 安全组件</string>
+    <string name="restart_scope_guard_provider">安全组件</string>
     <string name="restart_scope_milink">MiLink 服务</string>
     <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">小米桌面</string>
@@ -726,17 +727,17 @@
     <string name="settings_app_shortcuts">应用快捷方式</string>
     <string name="settings_app_shortcuts_summary">选择长按应用图标显示的快捷方式</string>
     <string name="settings_appearance">外观</string>
-    <string name="settings_back_route_supported">将返回桌面手势交给启动器动画处理。已安装启动器 %1$s；上游目标版本为 7.50.xx</string>
+    <string name="settings_back_route_supported">返回桌面手势交由启动器动画处理（已安装启动器 %1$s）</string>
     <string name="settings_back_route_unsupported_unknown">不可用：无法检测到已安装的启动器</string>
-    <string name="settings_back_route_unsupported_version">不可用：启动器 %1$s 没有可 Hook 的手势代码（需要 Launcher 7）</string>
+    <string name="settings_back_route_unsupported_version">不可用：启动器 %1$s 不受支持（需要 Launcher 7）</string>
     <string name="settings_cancel">取消</string>
     <string name="settings_charging_detail_options">充电详情选项</string>
     <string name="settings_charging_detail_options_summary">配置锁屏充电详情的布局与字段</string>
     <string name="settings_lockscreen_bottom_text_options">锁屏底部文字</string>
     <string name="settings_lockscreen_bottom_text_options_summary">选择锁屏底部显示的状态文字</string>
     <string name="settings_clear">清除</string>
-    <string name="settings_clear_all_dialog_summary">这会将每个模块设置重置为默认值，并清除 LSPosed 服务保存的副本（该副本通常会在模块卸载后保留）。被 Hook 的进程无需重启即可采用默认值。</string>
-    <string name="settings_clear_all_dialog_second_summary">这是最后一次确认。所有 HyperTweak 配置都会被清除，除非已有备份，否则无法恢复。</string>
+    <string name="settings_clear_all_dialog_summary">重置全部设置，并清除 LSPosed 服务保存的副本</string>
+    <string name="settings_clear_all_dialog_second_summary">最后确认：所有配置将被清除，没有备份将无法恢复</string>
     <string name="settings_clear_all_failed">无法清除设置，当前配置已保留。</string>
     <string name="settings_clear_restart_all_scopes">重启所有作用域应用</string>
     <string name="settings_clear_restart_all_scopes_summary">清除设置后重启所有作用域应用</string>
@@ -764,7 +765,7 @@
     <string name="experimental_features_title">实验性功能</string>
     <string name="experimental_features_section">实验性选项</string>
     <string name="experimental_features_back">返回</string>
-    <string name="experimental_features_notes">这些开关仍在开发中，可能无法完全生效。实际效果取决于设备、系统版本以及目标应用是否在模块作用域内。</string>
+    <string name="experimental_features_notes">这些开关仍在开发中，可能无法在所有设备上生效</string>
     <string name="google_services_title">Google 服务</string>
     <string name="google_services_back">返回</string>
     <string name="settings_fingerprint_avoid_always">始终避让</string>
@@ -847,7 +848,6 @@
     <string name="tweaks_block_spatial_audio_summary">阻止 AirPods 启用空间音频</string>
     <string name="tweaks_block_spatial_audio_title">屏蔽空间音频</string>
     <string name="tweaks_bluetooth_title">蓝牙</string>
-    <string name="tweaks_clipboard_title">剪贴板</string>
     <string name="tweaks_control_center_title">控制中心</string>
     <string name="tweaks_cross_task_wallpaper_summary">跨任务返回动画使用模糊壁纸</string>
     <string name="tweaks_cross_task_wallpaper_title">跨任务壁纸背景</string>
@@ -882,7 +882,7 @@
     <string name="download_manager_block_xl_title">阻止创建 .xlDownload 日志目录</string>
     <string name="download_manager_block_xl_summary">阻止迅雷日志创建外部存储目录</string>
     <string name="download_manager_xl_dialog_title">检测到 .xlDownload 文件夹</string>
-    <string name="download_manager_xl_dialog_summary">检测到已有 /storage/emulated/0/.xlDownload 文件夹，是否删除此文件夹及其内容？</string>
+    <string name="download_manager_xl_dialog_summary">检测到 /storage/emulated/0/.xlDownload 文件夹，是否删除该文件夹及其内容？</string>
     <string name="download_manager_xl_keep">保留文件夹</string>
     <string name="download_manager_xl_delete">删除文件夹</string>
     <string name="download_manager_xl_check_failed">无法检查 .xlDownload（可能没有 root 权限）</string>
@@ -906,8 +906,6 @@
     <string name="tweaks_gesture_bar_shortcuts_title">手势条快捷操作</string>
     <string name="tweaks_gms_bypass_summary">解除国行固件的 Google Play 服务安装限制</string>
     <string name="tweaks_gms_bypass_title">绕过 GMS 国行 ROM 限制</string>
-    <string name="tweaks_hide_fingerprint_summary">完全移除锁屏和息屏 AOD 上的指纹传感器圆形图标</string>
-    <string name="tweaks_hide_fingerprint_title">隐藏锁屏指纹</string>
     <string name="tweaks_hide_fingerprint_lockscreen_summary">隐藏锁屏上的指纹图标和光圈</string>
     <string name="tweaks_hide_fingerprint_lockscreen_title">隐藏锁屏指纹</string>
     <string name="tweaks_hide_fingerprint_aod_summary">隐藏息屏显示上的指纹图标和光圈</string>
@@ -920,7 +918,6 @@
     <string name="tweaks_hide_lockscreen_status_bar_title">隐藏锁屏状态栏</string>
     <string name="tweaks_hyperos_back_arrow_summary">用 HyperOS 箭头替换 AOSP 返回指示器</string>
     <string name="tweaks_hyperos_back_arrow_title">HyperOS 返回箭头</string>
-    <string name="tweaks_lockscreen_display_title">锁屏与显示</string>
     <string name="tweaks_long_press_action_summary">即圈即搜不依赖默认助理</string>
     <string name="tweaks_long_press_action_title">长按操作</string>
     <string name="tweaks_navigation_bar_title">导航栏</string>
@@ -965,7 +962,7 @@
     <string name="settings_pa_model_spoof_summary">上报自定义机型以获取智能助理专属小组件</string>
     <string name="settings_pa_model_spoof_values_title">伪装型号 / 代号</string>
     <string name="settings_pa_model_spoof_values_summary">model=%1$s · device=%2$s</string>
-    <string name="settings_pa_model_spoof_dialog_summary">仅改写请求中的 phoneModel 与 phoneDevice，其余字段保持本机真实值</string>
+    <string name="settings_pa_model_spoof_dialog_summary">仅替换智能助理请求中的机型与设备代号</string>
     <string name="settings_pa_model_spoof_model_label">型号（phoneModel）</string>
     <string name="settings_pa_model_spoof_device_label">代号（phoneDevice）</string>
     <string name="settings_media_hide_app_icon_title">隐藏媒体卡片来源应用图标</string>
@@ -1000,7 +997,7 @@
     <string name="cc_size_device">设备中心入口</string>
     <string name="cc_size_device_summary">设备中心的尺寸</string>
     <string name="cc_tile_specs_section">快捷开关大卡化</string>
-    <string name="cc_tile_specs_section_summary">将选中的快捷开关以大卡片视图（2 列×1 行）渲染，替代小磁贴。第三方磁贴也可用——在「自定义 spec」中添加。面板刷新后生效</string>
+    <string name="cc_tile_specs_section_summary">将选中的快捷开关以大卡片样式显示，替代小磁贴</string>
     <string name="cc_tile_bt">蓝牙</string>
     <string name="cc_tile_flashlight">手电筒</string>
     <string name="cc_tile_mute">静音</string>
@@ -1025,7 +1022,6 @@
     <string name="tweaks_xmsf_unlock_focus_auth_summary">让应用通过超级岛白名单的签名校验</string>
     <string name="tweaks_xmsf_unlock_focus_auth_title">解锁超级岛白名单签名验证</string>
     <string name="watermark_advanced">高级</string>
-    <string name="watermark_back">返回</string>
     <string name="watermark_brand">品牌</string>
     <string name="watermark_camera_summary">显示相机同步的全部水印</string>
     <string name="watermark_camera_title">解锁相机水印</string>
@@ -1095,9 +1091,9 @@
     <string name="camera_unlock_custom_unset">未设置——使用本机信息</string>
     <string name="camera_unlock_custom_dialog_summary">留空则使用本机信息</string>
     <string name="camera_unlock_custom_ok">确定</string>
-    <string name="camera_unlock_note_scope">需要先在 LSPosed 中把相机应用加入模块作用域</string>
+    <string name="camera_unlock_note_scope">需先在模块作用域中启用相机应用</string>
     <string name="camera_unlock_note_restart">部分选项修改后需要重启相机才能生效</string>
-    <string name="camera_unlock_note_exif">照片的 EXIF 信息和水印机型始终使用本机真实的品牌与型号</string>
+    <string name="camera_unlock_note_exif">照片 EXIF 与水印始终使用本机真实的品牌与型号</string>
     <string name="camera_unlock_notes">说明</string>
     <string name="camera_unlock_title">相机解锁</string>
     <string name="settings_unlock_visual_perception_title">解锁更多主动视觉感知</string>

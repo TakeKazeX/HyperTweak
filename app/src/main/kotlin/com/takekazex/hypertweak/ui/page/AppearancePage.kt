@@ -211,7 +211,7 @@ fun AppearancePage(
                         title = stringResource(R.string.appearance_back_style),
                         items = listOf(
                             stringResource(R.string.appearance_back_style_disabled),
-                            "Miuix",
+                            stringResource(R.string.appearance_back_style_miuix),
                             stringResource(R.string.appearance_back_style_scale)
                         ),
                         selectedIndex = predictiveBackStyle.coerceIn(0, 2),

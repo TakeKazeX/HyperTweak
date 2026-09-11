@@ -183,7 +183,7 @@ object BatteryInfoReader {
         health += Row("${context.getString(R.string.battery_lbl_fg1_cycle)} · fg1_cycle", snap(snap, BatteryInfoChannel.SLOT_FG1_CYCLE) ?: context.getString(R.string.battery_unavailable))
         if (dual) health += Row("${context.getString(R.string.battery_lbl_fg2_cycle)} · fg2_cycle", snap(snap, BatteryInfoChannel.SLOT_FG2_CYCLE) ?: context.getString(R.string.battery_unavailable))
         val fg1Soh = digits(snap(snap, BatteryInfoChannel.SLOT_FG1_SOH))
-        if (fg1Soh != null) health += Row("${context.getString(R.string.battery_lbl_fg1_rating)} · 评级", sohRating(context, fg1Soh))
+        if (fg1Soh != null) health += Row("${context.getString(R.string.battery_lbl_fg1_rating)} · ${context.getString(R.string.battery_suffix_rating)}", sohRating(context, fg1Soh))
         val cycleCount = digits(snap(snap, BatteryInfoChannel.SLOT_CYCLE_COUNT))
         if (soh == null && cycleCount != null) {
             health += Row("${context.getString(R.string.battery_lbl_est_health)} · cycle", "${(100 - cycleCount / 20).coerceIn(0, 100)} %")

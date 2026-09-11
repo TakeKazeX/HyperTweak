@@ -195,7 +195,7 @@ fun LogsPage(
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val file = File(dir, "hypertweak-logs-$stamp.txt")
         runCatching { file.writeText(exportText) }
-        shareText(context, "HyperTweak Logs", exportText)
+        shareText(context, context.getString(R.string.logs_share_title), exportText)
         exportStatus = context.getString(R.string.logs_export_status, File(dir, "latest.txt").also { runCatching { it.writeText(exportText) } }.absolutePath)
     }
 

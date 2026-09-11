@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +49,10 @@ internal fun HotReloadDialog(
         if (show) XposedServiceManager.refreshHotReloadTargets()
     }
 
+    // An unbound service and "genuinely nothing stale" both produce an empty target list, so the
+    // empty state has to name which one it is instead of claiming there is nothing to reload.
+    val service by XposedServiceManager.serviceFlow.collectAsState()
+
     OverlayDialog(
         show = show,
         title = stringResource(R.string.home_hot_reload_title),
@@ -66,7 +72,10 @@ internal fun HotReloadDialog(
                     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.home_hot_reload_no_targets),
+                        text = stringResource(
+                            if (service == null) R.string.home_hot_reload_checking
+                            else R.string.home_hot_reload_no_targets
+                        ),
                         color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
                         fontSize = 13.sp,
                         lineHeight = 18.sp
