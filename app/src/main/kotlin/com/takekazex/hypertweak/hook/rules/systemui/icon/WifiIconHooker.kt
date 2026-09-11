@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 /**
@@ -27,6 +28,10 @@ object WifiIconHooker : StaticHooker() {
     private const val BINDER_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.binder.MiuiWifiViewBinder"
     private const val STANDARD_TRANSFORM_CLASS =
         "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModelInject\$special\$\$inlined\$combine\$2\$3"
+
+    /** Reflective field lookups, cached per (declaring class, field name); see [resolveField]. */
+    private val fieldCache = ConcurrentHashMap<Pair<Class<*>, String>, Field>()
+    private val fieldMisses = ConcurrentHashMap.newKeySet<Pair<Class<*>, String>>()
 
     @Volatile private var hideActivity = false
     @Volatile private var hideType = false
@@ -215,13 +220,25 @@ object WifiIconHooker : StaticHooker() {
     private fun readField(target: Any?, name: String): Any? {
         var type = target?.javaClass
         while (type != null) {
-            val field = runCatching {
-                type!!.getDeclaredField(name).apply { isAccessible = true }
-            }.getOrNull()
+            val field = resolveField(type, name)
             if (field != null) return runCatching { field.get(target) }.getOrNull()
             type = type.superclass
         }
         return null
+    }
+
+    /**
+     * Cached `getDeclaredField` lookup. The wifi-standard callback runs on every icon update, so
+     * walking the superclass chain reflectively each time was measurable overhead in SystemUI.
+     * Misses are remembered too, so a name absent from the whole chain is not re-resolved.
+     */
+    private fun resolveField(type: Class<*>, name: String): Field? {
+        val key = type to name
+        fieldCache[key]?.let { return it }
+        if (key in fieldMisses) return null
+        val field = runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        if (field == null) fieldMisses.add(key) else fieldCache[key] = field
+        return field
     }
 
     private fun readInt(target: Any?, name: String): Int? =

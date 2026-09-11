@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -43,6 +44,9 @@ object StackedSignalHooker : StaticHooker() {
     private const val SLOT_STACKED_TYPE = "stacked_mobile_type"
     private const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
     private const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
+
+    /** Bounded backoff before re-reading signal artwork that failed to load. */
+    private const val ASSET_LOAD_RETRY_BACKOFF_MS = 5_000L
 
     private val mainHandler = Handler(Looper.getMainLooper())
     /** SVG parsing and remote-file reads must not delay SystemUI application startup. */
@@ -99,9 +103,23 @@ object StackedSignalHooker : StaticHooker() {
     @Volatile
     private var signalAssets: SignalAssets? = null
 
-    /** Generation for which an asynchronous asset load has already been scheduled. */
+    /** Generation whose assets are already resolved (and therefore never re-read). */
     @Volatile
     private var assetLoadGeneration = Long.MIN_VALUE
+
+    /** Generation with an asset read currently in flight; prevents duplicate concurrent reads. */
+    @Volatile
+    private var assetLoadInFlightGeneration = Long.MIN_VALUE
+
+    /**
+     * Uptime before which a failed asset read must not be retried.
+     *
+     * Without it, a failed read would either retry on every state-flow event (repeated I/O) or —
+     * as the previous implementation did — never retry at all for the rest of the binding
+     * generation, leaving the custom signal icons missing until a hot reload or process restart.
+     */
+    @Volatile
+    private var assetLoadRetryAfterMs = 0L
 
     @Volatile
     private var iconBridge: HostIconBridge? = null
@@ -217,7 +235,11 @@ object StackedSignalHooker : StaticHooker() {
         HostFlowCollector.resetForReload()
         signalState = MobileSignalState()
         signalAssets = null
-        synchronized(assetLoadLock) { assetLoadGeneration = Long.MIN_VALUE }
+        synchronized(assetLoadLock) {
+            assetLoadGeneration = Long.MIN_VALUE
+            assetLoadInFlightGeneration = Long.MIN_VALUE
+            assetLoadRetryAfterMs = 0L
+        }
         MobileTypeRenderer.clearCache()
         iconBridge = null
         adapterReference = null
@@ -896,14 +918,30 @@ object StackedSignalHooker : StaticHooker() {
         if (!enabled || signalAssets != null || svgRepository == null) return
         synchronized(assetLoadLock) {
             if (assetLoadGeneration == bindingGeneration) return
-            assetLoadGeneration = bindingGeneration
+            if (assetLoadInFlightGeneration == bindingGeneration) return
+            if (assetLoadRetryAfterMs > SystemClock.elapsedRealtime()) return
+            assetLoadInFlightGeneration = bindingGeneration
         }
         assetExecutor.execute {
             val assets = runCatching { loadSignalAssets() }
                 .onFailure { DebugLog.w(TAG, "asynchronous signal SVG load failed", it) }
                 .getOrNull()
             mainHandler.post {
-                if (generation.get() != bindingGeneration) return@post
+                val stillCurrent = generation.get() == bindingGeneration
+                synchronized(assetLoadLock) {
+                    if (assetLoadInFlightGeneration == bindingGeneration) {
+                        assetLoadInFlightGeneration = Long.MIN_VALUE
+                    }
+                    if (assets == null) {
+                        // A transient failure (module service not ready yet, one failed read) must
+                        // not pin this generation to "nothing to load": back off briefly, then let
+                        // the next state event retry instead of waiting for a hot reload.
+                        assetLoadRetryAfterMs = SystemClock.elapsedRealtime() + ASSET_LOAD_RETRY_BACKOFF_MS
+                    } else if (stillCurrent) {
+                        assetLoadGeneration = bindingGeneration
+                    }
+                }
+                if (!stillCurrent) return@post
                 if (assets != null) {
                     signalAssets = assets
                     DebugLog.i(
