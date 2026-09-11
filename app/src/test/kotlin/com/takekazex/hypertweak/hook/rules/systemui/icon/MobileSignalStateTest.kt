@@ -120,6 +120,21 @@ class MobileSignalStateTest {
     }
 
     @Test
+    fun ignoreSystemHideBypassesOnlyOriginalVisibility() {
+        val state = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(1, 2)))
+            .reduce(MobileSignalEvent.SignalModel(1, MobileSignalModel.cellular(3, 5)))
+            .reduce(MobileSignalEvent.SignalModel(2, MobileSignalModel.cellular(2, 5)))
+            .reduce(MobileSignalEvent.OriginalVisibility(1, false, false))
+            .reduce(MobileSignalEvent.OriginalVisibility(2, false, false))
+
+        assertFalse(state.canRenderReplacement())
+        assertTrue(state.canRenderReplacement(ignoreSystemHide = true))
+        assertEquals(emptySet<Int>(), state.replacementMask(true))
+        assertEquals(setOf(1, 2), state.replacementMask(true, ignoreSystemHide = true))
+    }
+
+    @Test
     fun levelsUseTheMaximumIndexAsDenominator() {
         assertEquals(4, MobileSubscriptionState.normalizeLevel(4, 5))
         assertEquals(4, MobileSubscriptionState.normalizeLevel(5, 6))

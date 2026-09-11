@@ -148,15 +148,24 @@ data class MobileSignalState(
     val rows: List<MobileSubscriptionState>
         get() = subscriptionOrder.mapNotNull(subscriptions::get)
 
-    /** A replacement may be rendered only when every visible row is a known cellular model. */
-    fun canRenderReplacement(): Boolean = !airplaneMode &&
+    /**
+     * A replacement may be rendered only when every row is a known cellular model.
+     *
+     * The icon-tuner "ignore system hide" option intentionally bypasses only the host
+     * visibility pair. It does not bypass airplane mode, incomplete rows, satellite, or
+     * unknown-model safeguards.
+     */
+    fun canRenderReplacement(ignoreSystemHide: Boolean = false): Boolean = !airplaneMode &&
         rows.size == subscriptionOrder.size && rows.isNotEmpty() &&
         rows.size <= MAX_RENDER_ROWS && rows.all {
-            it.supportsReplacement && it.originalVisible
+            it.supportsReplacement && (ignoreSystemHide || it.originalVisible)
         }
 
     /** Native subscriptions hidden by a successfully published stacked/single replacement. */
-    fun replacementMask(published: Boolean): Set<Int> = if (published && canRenderReplacement()) {
+    fun replacementMask(
+        published: Boolean,
+        ignoreSystemHide: Boolean = false
+    ): Set<Int> = if (published && canRenderReplacement(ignoreSystemHide)) {
         rows.mapTo(LinkedHashSet()) { it.subId }
     } else {
         emptySet()

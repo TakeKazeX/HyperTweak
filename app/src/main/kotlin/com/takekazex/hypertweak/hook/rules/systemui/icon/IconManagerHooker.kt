@@ -87,7 +87,9 @@ object IconManagerHooker : StaticHooker() {
         setBlockListMethod = method
         method.hook {
             before { param ->
-                if (restoring) return@before
+                if (restoring || LeftContainerHooker.isApplyingBlockList(param.thisObject)) {
+                    return@before
+                }
                 applyPolicy(param.thisObject, param.args.getOrNull(0)) { merged ->
                     param.args[0] = ArrayList(merged)
                 }

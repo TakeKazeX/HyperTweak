@@ -13,6 +13,7 @@ import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
@@ -44,6 +45,11 @@ object StackedSignalHooker : StaticHooker() {
     private const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    /** SVG parsing and remote-file reads must not delay SystemUI application startup. */
+    private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "HyperTweak-StackedSignalAssets").apply { isDaemon = true }
+    }
+    private val assetLoadLock = Any()
     private val generation = AtomicLong(0L)
     private val installed = AtomicBoolean(false)
     private val adapterFlowInstalled = AtomicBoolean(false)
@@ -92,6 +98,10 @@ object StackedSignalHooker : StaticHooker() {
 
     @Volatile
     private var signalAssets: SignalAssets? = null
+
+    /** Generation for which an asynchronous asset load has already been scheduled. */
+    @Volatile
+    private var assetLoadGeneration = Long.MIN_VALUE
 
     @Volatile
     private var iconBridge: HostIconBridge? = null
@@ -178,7 +188,7 @@ object StackedSignalHooker : StaticHooker() {
         }.getOrNull()
         svgRepository = moduleContext?.let(::IconSvgRepository)
         if (enabled) {
-            ensureSignalAssets()
+            scheduleSignalAssetsLoad(generation.get())
             scheduleExistingAdapterDiscovery()
         }
     }
@@ -207,6 +217,7 @@ object StackedSignalHooker : StaticHooker() {
         HostFlowCollector.resetForReload()
         signalState = MobileSignalState()
         signalAssets = null
+        synchronized(assetLoadLock) { assetLoadGeneration = Long.MIN_VALUE }
         MobileTypeRenderer.clearCache()
         iconBridge = null
         adapterReference = null
@@ -251,6 +262,7 @@ object StackedSignalHooker : StaticHooker() {
         hookAdapterStart()
         adapterReference?.get()?.let { scheduleAdapterRestore(it, generation.get()) }
         scheduleExistingAdapterDiscovery()
+        hostContext?.let { scheduleSignalAssetsLoad(generation.get()) }
         DebugLog.hookRegistered(TAG, "model-driven stacked signal slot (scale=$scale)")
     }
 
@@ -339,7 +351,7 @@ object StackedSignalHooker : StaticHooker() {
             svgRepository = moduleContext?.let(::IconSvgRepository)
         }
         iconBridge = HostIconBridge(controller, classLoader)
-        ensureSignalAssets()
+        scheduleSignalAssetsLoad(bindingGeneration)
 
         val handles = ArrayList<HostFlowCollector.Handle>(4)
         fun required(flow: Any, consumer: (Any?) -> Unit): Boolean {
@@ -716,7 +728,14 @@ object StackedSignalHooker : StaticHooker() {
             state.subscriptionOrder.all { it in factoryViewModelIds } &&
             state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
         if (!complete) {
-            restoreNative()
+            // The mobile VM briefly emits an incomplete factory/cache state while its two
+            // subscription rows are being rebound. Once a module holder is already published,
+            // removing it here leaves the native `stacked_mobile` bindable (which is false on
+            // this ROM when isStackable=false) as the only path, so the signal disappears
+            // permanently until the next full SystemUI restart. Keep the last verified bitmap
+            // and its native mask through that transient gap; the next complete emission updates
+            // it in place.
+            if (!hasPublishedReplacement()) restoreNative()
             return
         }
 
@@ -728,13 +747,27 @@ object StackedSignalHooker : StaticHooker() {
             MobileSignalVisibility.setHiddenForSubIds(state.subscriptionOrder.toSet())
             return
         }
-        if (!state.canRenderReplacement()) {
+        if (!state.canRenderReplacement(options.ignoreSystemHide)) {
+            // Visibility briefly goes false while the status-bar host changes between lockscreen
+            // and home. Keep an already verified module holder as an invisible, unmasked fallback
+            // instead of deleting it; the next original-visibility=true emission can then publish
+            // it again without waiting for a new subscription or adapter lifecycle.
+            if (!state.airplaneMode && state.rows.size == state.subscriptionOrder.size &&
+                state.rows.isNotEmpty() && state.rows.all { it.supportsReplacement } &&
+                hasPublishedReplacement()
+            ) {
+                iconBridge?.setVisible(SLOT_STACKED, false)
+                iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+                MobileSignalVisibility.setHiddenForSubIds(emptySet())
+                return
+            }
             restoreNative()
             return
         }
 
-        val assets = ensureSignalAssets() ?: run {
-            restoreNative()
+        val assets = signalAssets ?: run {
+            scheduleSignalAssetsLoad(generation.get())
+            if (!hasPublishedReplacement()) restoreNative()
             return
         }
         val bitmap = runCatching {
@@ -772,7 +805,7 @@ object StackedSignalHooker : StaticHooker() {
             }
         }.onFailure { DebugLog.w(TAG, "cellular signal SVG render failed", it) }.getOrNull()
             ?: run {
-                restoreNative()
+                if (!hasPublishedReplacement()) restoreNative()
                 return
             }
 
@@ -780,15 +813,17 @@ object StackedSignalHooker : StaticHooker() {
             restoreNative()
             return
         }
+        val hadPublishedReplacement = bridge.owns(SLOT_STACKED)
         val published = bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")
         if (!published) {
             // HostIconBridge restores an already-owned holder on update failure. Keeping the
-            // native mask here would be unsafe on a first publish, so always restore it.
-            MobileSignalVisibility.setHiddenForSubIds(emptySet())
-            bridge.removeOwned(SLOT_STACKED)
+            // native mask would be unsafe on a first publish, but is correct when the previous
+            // module holder is still intact.
+            if (!hadPublishedReplacement) restoreNative()
             return
         }
-        if (!bridge.setVisible(SLOT_STACKED, state.rows.any { it.originalVisible })) {
+        val replacementVisible = options.ignoreSystemHide || state.rows.any { it.originalVisible }
+        if (!bridge.setVisible(SLOT_STACKED, replacementVisible)) {
             DebugLog.w(TAG, "published cellular signal holder could not be made visible")
             MobileSignalVisibility.setHiddenForSubIds(emptySet())
             bridge.removeOwned(SLOT_STACKED)
@@ -798,13 +833,17 @@ object StackedSignalHooker : StaticHooker() {
         bridge.removeOwned(SLOT_SINGLE_SIM1)
         bridge.removeOwned(SLOT_SINGLE_SIM2)
         // This is the first point at which a complete replacement exists.
-        MobileSignalVisibility.setHiddenForSubIds(state.replacementMask(published))
+        MobileSignalVisibility.setHiddenForSubIds(
+            state.replacementMask(published, options.ignoreSystemHide)
+        )
         DebugLog.i(
             TAG,
             "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}"
         )
         renderTypeSlot(state, bridge)
     }
+
+    private fun hasPublishedReplacement(): Boolean = iconBridge?.owns(SLOT_STACKED) == true
 
     private fun renderInternalTypeBadge(
         output: MobileTypeOutput,
@@ -853,8 +892,31 @@ object StackedSignalHooker : StaticHooker() {
         }
     }
 
-    private fun ensureSignalAssets(): SignalAssets? {
-        signalAssets?.let { return it }
+    private fun scheduleSignalAssetsLoad(bindingGeneration: Long) {
+        if (!enabled || signalAssets != null || svgRepository == null) return
+        synchronized(assetLoadLock) {
+            if (assetLoadGeneration == bindingGeneration) return
+            assetLoadGeneration = bindingGeneration
+        }
+        assetExecutor.execute {
+            val assets = runCatching { loadSignalAssets() }
+                .onFailure { DebugLog.w(TAG, "asynchronous signal SVG load failed", it) }
+                .getOrNull()
+            mainHandler.post {
+                if (generation.get() != bindingGeneration) return@post
+                if (assets != null) {
+                    signalAssets = assets
+                    DebugLog.i(
+                        TAG,
+                        "signal SVG assets ready singleStyle=$singleSvgStyle stackedStyle=$stackedSvgStyle"
+                    )
+                }
+                if (enabled) renderCurrent()
+            }
+        }
+    }
+
+    private fun loadSignalAssets(): SignalAssets? {
         val repository = svgRepository ?: return null
         val single = repository.loadSignalSingle(singleSvgStyle) { module.openRemoteFile(it) }
             .onFailure { DebugLog.w(TAG, "single signal SVG unavailable", it) }.getOrNull()
@@ -862,13 +924,7 @@ object StackedSignalHooker : StaticHooker() {
         val stacked = repository.loadSignalStacked(stackedSvgStyle) { module.openRemoteFile(it) }
             .onFailure { DebugLog.w(TAG, "stacked signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        return SignalAssets(single, stacked).also {
-            signalAssets = it
-            DebugLog.i(
-                TAG,
-                "signal SVG assets ready singleStyle=$singleSvgStyle stackedStyle=$stackedSvgStyle"
-            )
-        }
+        return SignalAssets(single, stacked)
     }
 
     /** Reads Hyper Helper's independent t32 single/stacked SVG configuration. */

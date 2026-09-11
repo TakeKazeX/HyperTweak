@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.Preferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -135,6 +136,14 @@ class IconSlotPolicyTest {
         assertEquals(
             setOf("zen"),
             IconSlotPolicy.hiddenSlots(config).intersect(setOf("zen"))
+        )
+    }
+
+    @Test
+    fun leftAlarmToggleUsesAlarmClockSlotNotClockSlot() {
+        assertEquals(
+            listOf("alarm_clock"),
+            IconTunerOptions.slotsForLeftPreference(Preferences.KEY_ICON_LEFT_ALARM_CLOCK)
         )
     }
 }

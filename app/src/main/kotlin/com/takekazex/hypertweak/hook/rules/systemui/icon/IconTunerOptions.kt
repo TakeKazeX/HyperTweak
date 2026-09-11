@@ -70,19 +70,7 @@ object IconTunerOptions {
         if (leftEnabled) {
             leftPreferenceSlots.forEach { (currentKey, legacyKey) ->
                 if (readBoolean(currentKey, legacyKey, false)) {
-                    leftSlots += when (currentKey) {
-                        Preferences.KEY_ICON_LEFT_VOLUME -> listOf("volume", "mute")
-                        Preferences.KEY_ICON_LEFT_LOCATION -> listOf("location", "gps")
-                        Preferences.KEY_ICON_LEFT_HEADSET -> listOf("headset", "wireless_headset")
-                        Preferences.KEY_ICON_LEFT_COMPOUND -> listOf(
-                            "compound_location",
-                            "compound_alarm_clock",
-                            "compound_zen",
-                            "compound_volume_vibrate",
-                            "compound_volume_mute"
-                        )
-                        else -> listOf(currentKey.substringAfterLast('_'))
-                    }
+                    leftSlots += slotsForLeftPreference(currentKey)
                 }
             }
         }
@@ -118,6 +106,22 @@ object IconTunerOptions {
             ),
             leftMode = leftMode
         )
+    }
+
+    /** Expands one UI toggle to the exact host slot names consumed by the left-container hook. */
+    internal fun slotsForLeftPreference(key: String): List<String> = when (key) {
+        Preferences.KEY_ICON_LEFT_VOLUME -> listOf("volume", "mute")
+        Preferences.KEY_ICON_LEFT_ALARM_CLOCK -> listOf("alarm_clock")
+        Preferences.KEY_ICON_LEFT_LOCATION -> listOf("location", "gps")
+        Preferences.KEY_ICON_LEFT_HEADSET -> listOf("headset", "wireless_headset")
+        Preferences.KEY_ICON_LEFT_COMPOUND -> listOf(
+            "compound_location",
+            "compound_alarm_clock",
+            "compound_zen",
+            "compound_volume_vibrate",
+            "compound_volume_mute"
+        )
+        else -> listOf(key.substringAfterLast('_'))
     }
 
     /** New left-placement modes preserve the old Boolean without reading it as an Int. */

@@ -123,10 +123,17 @@ object LeftContainerHooker : StaticHooker() {
     @Volatile
     private var inApplyBlocked = false
 
+    /** Identifies our nested setBlockList call to the cooperating policy hook. */
+    private val applyingBlockListManager = ThreadLocal<Any?>()
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
 
     fun onPackageReady(context: Context) { appContext = context }
+
+    /** IconManagerHooker must not re-process the list while we publish our owner overlay. */
+    fun isApplyingBlockList(manager: Any?): Boolean =
+        manager != null && applyingBlockListManager.get() === manager
 
     private var iconViewConstructor: java.lang.reflect.Constructor<*>? = null
     private var iconViewMIconField: Field? = null
@@ -795,9 +802,13 @@ object LeftContainerHooker : StaticHooker() {
         val method = setBlockListMethod ?: return
         runCatching {
             inApplyBlocked = true
+            val previousManager = applyingBlockListManager.get()
+            applyingBlockListManager.set(state.manager)
             try {
                 method.invoke(state.manager, effective)
             } finally {
+                if (previousManager == null) applyingBlockListManager.remove()
+                else applyingBlockListManager.set(previousManager)
                 inApplyBlocked = false
             }
         }.onFailure { t ->
