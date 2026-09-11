@@ -36,11 +36,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.BatteryInfoReader
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -69,7 +74,6 @@ fun BatteryInfoPage(onBack: () -> Unit) {
 
     var sections by remember { mutableStateOf<List<BatteryInfoReader.Section>>(emptyList()) }
     var proxyReady by remember { mutableStateOf(true) }
-    var refreshTick by remember { mutableStateOf(0) }
 
     suspend fun load() {
         val (result, ready) = withContext(Dispatchers.Default) {
@@ -81,15 +85,20 @@ fun BatteryInfoPage(onBack: () -> Unit) {
         proxyReady = ready
     }
 
-    LaunchedEffect(refreshTick) {
-        load()
-    }
-
-    // Auto-refresh while the page is visible so live charging values stay current.
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(REFRESH_MS)
-            refreshTick++
+    // Auto-refresh so live charging values stay current, but only while the page is actually in
+    // front of the user: the loop is both composition-scoped and gated on RESUMED, so a backgrounded
+    // app stops hitting the privileged snapshot instead of polling it once a second forever.
+    // A conflated channel also lets the manual refresh button cut the wait short without ever
+    // cancelling an in-flight read (a plain `LaunchedEffect(tick)` restarts the previous load and
+    // silently starves the page whenever a read takes longer than the interval).
+    val refreshRequests = remember { Channel<Unit>(Channel.CONFLATED) }
+    val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value ==
+        Lifecycle.State.RESUMED
+    LaunchedEffect(resumed) {
+        if (!resumed) return@LaunchedEffect
+        while (isActive) {
+            load()
+            withTimeoutOrNull(REFRESH_MS) { refreshRequests.receive() }
         }
     }
 
@@ -103,7 +112,7 @@ fun BatteryInfoPage(onBack: () -> Unit) {
                 }
             },
             actions = {
-                IconButton(onClick = { refreshTick++ }) {
+                IconButton(onClick = { refreshRequests.trySend(Unit) }) {
                     Icon(MiuixIcons.Refresh, stringResource(R.string.battery_info_refresh))
                 }
                 IconButton(onClick = { copyAll(context, sections) }) {

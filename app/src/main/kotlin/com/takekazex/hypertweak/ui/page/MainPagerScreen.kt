@@ -269,7 +269,10 @@ fun MainPagerScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = true,
-                beyondViewportPageCount = 2
+                // 1 keeps the adjacent tab pre-composed for a smooth swipe without keeping ALL three
+                // tabs alive: with 2, Home's scope-prompt scans kept running while the user sat on
+                // the Tweaks/Settings tabs.
+                beyondViewportPageCount = 1
             ) { page ->
                 val isCurrent = page == pagerState.currentPage
                 when (page) {

@@ -28,6 +28,7 @@ import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -1396,10 +1397,22 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onClearAllSettings = { restartAllScopes, restartHyperTweak ->
-                        if (Preferences.clearAllSettings()) {
+                        // clearAllSettings() waits on the daemon-backed commit (up to 5 s via
+                        // commitRemoteMutation), so it must not run on the main thread: invoking it
+                        // inline from the dialog's onClick froze the UI long enough to ANR.
+                        coroutineScope.launch {
+                            val cleared = withContext(Dispatchers.IO) { Preferences.clearAllSettings() }
+                            if (!cleared) {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    R.string.settings_clear_all_failed,
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@launch
+                            }
                             clearPendingRestartTracking()
                             val restartScopesJob = if (restartAllScopes) {
-                                coroutineScope.launch {
+                                launch {
                                     Preferences.flush()
                                     val allScopes = currentRestartableScopes(this@MainActivity)
                                     RestartUtils
@@ -1410,18 +1423,12 @@ class MainActivity : ComponentActivity() {
                                 null
                             }
                             if (restartHyperTweak) {
-                                coroutineScope.launch {
+                                launch {
                                     restartScopesJob?.join()
                                     // Recreate so every Compose state reloads from the now-default prefs.
                                     this@MainActivity.recreate()
                                 }
                             }
-                        } else {
-                            Toast.makeText(
-                                this@MainActivity,
-                                R.string.settings_clear_all_failed,
-                                Toast.LENGTH_LONG
-                            ).show()
                         }
                     },
                     onSettingsRestored = {

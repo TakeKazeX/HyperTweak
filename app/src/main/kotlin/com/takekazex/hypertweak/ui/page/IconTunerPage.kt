@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.page
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -335,7 +334,7 @@ fun IconTunerPage(onBack: () -> Unit) {
                     .weight(1f)
                     .overScrollVertical()
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    .verticalScroll(remember(selectedCategory) { ScrollState(0) })
+                    .verticalScroll(rememberScrollState())
             ) {
                 Spacer(Modifier.height(8.dp))
 
