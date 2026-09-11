@@ -22,6 +22,7 @@ sealed interface Route : NavKey {
     data object Watermark : Route
     data object CameraUnlock : Route
     data object ChargingDetail : Route
+    data object LockscreenBottomText : Route
     data object ControlCenterCorner : Route
     data object ControlCenterResize : Route
     data object Debug : Route
@@ -56,6 +57,7 @@ val Route.saveKey: String
         Route.Watermark -> "Watermark"
         Route.CameraUnlock -> "CameraUnlock"
         Route.ChargingDetail -> "ChargingDetail"
+        Route.LockscreenBottomText -> "LockscreenBottomText"
         Route.ControlCenterCorner -> "ControlCenterCorner"
         Route.ControlCenterResize -> "ControlCenterResize"
         Route.Debug -> "Debug"
@@ -85,6 +87,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "Watermark" -> Route.Watermark
     "CameraUnlock" -> Route.CameraUnlock
     "ChargingDetail" -> Route.ChargingDetail
+    "LockscreenBottomText" -> Route.LockscreenBottomText
     "ControlCenterCorner" -> Route.ControlCenterCorner
     "ControlCenterResize" -> Route.ControlCenterResize
     "Debug" -> Route.Debug

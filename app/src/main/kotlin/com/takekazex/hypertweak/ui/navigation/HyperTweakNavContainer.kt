@@ -45,6 +45,7 @@ import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.WatermarkPage
 import com.takekazex.hypertweak.ui.page.CameraUnlockPage
 import com.takekazex.hypertweak.ui.page.ChargingDetailPage
+import com.takekazex.hypertweak.ui.page.LockscreenBottomTextPage
 import com.takekazex.hypertweak.ui.page.ControlCenterCornerPage
 import com.takekazex.hypertweak.ui.page.ControlCenterResizePage
 import com.takekazex.hypertweak.ui.page.DebugPage
@@ -539,6 +540,9 @@ fun HyperTweakNavContainer(
                 onNavigateToChargingDetail = {
                     backStack.add(Route.ChargingDetail)
                 },
+                onNavigateToLockscreenBottomText = {
+                    backStack.add(Route.LockscreenBottomText)
+                },
                 lockscreenAllNotifications = lockscreenAllNotifications,
                 onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
                 lockscreenKeepNotifications = lockscreenKeepNotifications,
@@ -610,6 +614,11 @@ fun HyperTweakNavContainer(
         }
         entry<Route.ChargingDetail> {
             ChargingDetailPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.LockscreenBottomText> {
+            LockscreenBottomTextPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

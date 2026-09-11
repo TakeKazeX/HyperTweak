@@ -80,6 +80,7 @@ fun SystemUIPage(
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
+    onNavigateToLockscreenBottomText: () -> Unit,
     lockscreenAllNotifications: Boolean,
     onLockscreenAllNotificationsChange: (Boolean) -> Unit,
     lockscreenKeepNotifications: Boolean,
@@ -249,6 +250,11 @@ fun SystemUIPage(
                             title = stringResource(R.string.settings_charging_detail_options),
                             summary = stringResource(R.string.settings_charging_detail_options_summary),
                             onClick = onNavigateToChargingDetail
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_lockscreen_bottom_text_options),
+                            summary = stringResource(R.string.settings_lockscreen_bottom_text_options_summary),
+                            onClick = onNavigateToLockscreenBottomText
                         )
                         // Lockscreen notification gates. The first lifts the canShowOnKeyguard
                         // whitelist so every notification can appear on the lockscreen; the second
