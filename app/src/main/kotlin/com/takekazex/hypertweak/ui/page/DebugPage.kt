@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.TestNotifier
 import top.yukonga.miuix.kmp.basic.Button
@@ -58,13 +59,19 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun DebugPage(
     onBack: () -> Unit,
     onNavigateToLogs: () -> Unit,
-    onNavigateToDeveloperSettings: () -> Unit
+    onNavigateToDeveloperSettings: () -> Unit,
+    hotReloading: Boolean,
+    hotReloadTargets: List<String>,
+    hotReloadReport: HotReloadReport?,
+    onHotReload: () -> Unit,
+    onRestartAllScopes: () -> Unit
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
     var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
+    var showHotReloadDialog by remember { mutableStateOf(false) }
     // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
     // notification is posted by the shell uid, not the module app process.
     val postTestNotifications: (Int) -> Unit = { count -> TestNotifier.post(context, count) }
@@ -121,6 +128,13 @@ fun DebugPage(
             SmallTitle(stringResource(R.string.debug_actions_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { showHotReloadDialog = true },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text(stringResource(R.string.debug_hot_reload_button))
+                    }
                     Button(
                         onClick = { launchBiometricAuthentication(context) },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -183,6 +197,15 @@ fun DebugPage(
             }
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
+        HotReloadDialog(
+            show = showHotReloadDialog,
+            hotReloading = hotReloading,
+            targets = hotReloadTargets,
+            lastReport = hotReloadReport,
+            onDismissRequest = { showHotReloadDialog = false },
+            onHotReload = onHotReload,
+            onRestartScopes = onRestartAllScopes
+        )
     }
 }
 

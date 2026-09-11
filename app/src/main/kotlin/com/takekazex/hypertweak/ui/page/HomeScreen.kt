@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -22,11 +21,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -48,7 +45,6 @@ import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
-import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.ScopePrompt
 import com.takekazex.hypertweak.util.ScopePromptAction
@@ -63,7 +59,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
@@ -80,7 +75,8 @@ fun HomeScreenContent(
     pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToBatteryInfo: () -> Unit,
-    onHotReload: (restartAllScopes: Boolean) -> Unit,
+    onHotReload: () -> Unit,
+    onRestartAllScopes: () -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
@@ -322,95 +318,10 @@ fun HomeScreenContent(
             targets = hotReloadTargets,
             lastReport = hotReloadReport,
             onDismissRequest = { showHotReloadDialog = false },
-            onConfirm = { restartAllScopes ->
-                showHotReloadDialog = false
-                DebugLog.d("HomeScreen", "hot reload confirmed restartAllScopes=$restartAllScopes")
-                onHotReload(restartAllScopes)
-            }
+            onHotReload = onHotReload,
+            onRestartScopes = onRestartAllScopes
         )
     }
-}
-
-@Composable
-private fun HotReloadDialog(
-    show: Boolean,
-    hotReloading: Boolean,
-    targets: List<String>,
-    lastReport: HotReloadReport?,
-    onDismissRequest: () -> Unit,
-    onConfirm: (Boolean) -> Unit
-) {
-    var restartAllScopes by remember(show) { mutableStateOf(true) }
-
-    OverlayDialog(
-        show = show,
-        title = stringResource(R.string.home_hot_reload_title),
-        onDismissRequest = onDismissRequest,
-        content = {
-            Text(
-                text = stringResource(R.string.home_hot_reload_question),
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 14.sp
-            )
-            if (targets.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HotReloadTargetsCard(targets)
-            }
-            if (lastReport != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HotReloadResultCard(lastReport)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            SwitchPreference(
-                checked = restartAllScopes,
-                onCheckedChange = { restartAllScopes = it },
-                title = stringResource(R.string.home_hot_reload_restart_all),
-                summary = stringResource(R.string.home_hot_reload_restart_all_summary)
-            )
-            if (!restartAllScopes) {
-                val isDark = isSystemInDarkTheme()
-                val warningContainer = if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
-                val warningText = if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    colors = CardDefaults.defaultColors(
-                        color = warningContainer,
-                        contentColor = warningText
-                    ),
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.home_hot_reload_warning),
-                        color = warningText,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TextButton(
-                    text = stringResource(R.string.home_cancel),
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                    enabled = !hotReloading
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = if (hotReloading) stringResource(R.string.home_reloading) else stringResource(R.string.home_reload),
-                    onClick = { onConfirm(restartAllScopes) },
-                    modifier = Modifier.weight(1f),
-                    enabled = !hotReloading,
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        }
-    )
 }
 
 /**
@@ -573,82 +484,6 @@ private fun LauncherScopeSuggestionCard() {
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
             )
-        }
-    }
-}
-
-@SuppressLint("LocalContextGetResourceValueCall")
-@Composable
-private fun HotReloadTargetsCard(targets: List<String>) {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = stringResource(R.string.home_stale_targets_title),
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = targets.joinToString("\n") {
-                    context.getString(R.string.home_stale_target_line, friendlyProcessName(context, it))
-                },
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                fontSize = 12.sp,
-                lineHeight = 17.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun HotReloadResultCard(report: HotReloadReport) {
-    val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
-    val hasFailure = report.failedCount > 0
-    val container = when {
-        hasFailure -> if (isDark) Color(0xFF3A1F1F) else Color(0xFFFFECEC)
-        report.results.isEmpty() -> if (isDark) Color(0xFF2F2A1B) else Color(0xFFFFF6D9)
-        else -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
-    }
-    val content = when {
-        hasFailure -> if (isDark) Color(0xFFFFB4AB) else Color(0xFF8C1D18)
-        report.results.isEmpty() -> if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
-        else -> if (isDark) Color(0xFF9BE6B3) else Color(0xFF12622D)
-    }
-    val title = when {
-        hasFailure -> stringResource(R.string.home_hot_reload_result_counts, report.succeededCount, report.failedCount)
-        report.results.isEmpty() -> stringResource(R.string.home_hot_reload_result_none)
-        else -> stringResource(R.string.home_hot_reload_result_all)
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.defaultColors(color = container, contentColor = content),
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = title,
-                color = content,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-            if (report.results.isNotEmpty()) {
-                Text(
-                    text = report.results.joinToString("\n") { result ->
-                        val marker = if (result.succeeded) "OK" else "FAIL"
-                        val message = result.message?.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
-                        "$marker ${friendlyProcessName(context, result.processName)}$message"
-                    },
-                    color = content.copy(alpha = 0.86f),
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp
-                )
-            }
         }
     }
 }

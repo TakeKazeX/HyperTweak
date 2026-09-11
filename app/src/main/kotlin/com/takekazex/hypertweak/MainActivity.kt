@@ -177,6 +177,13 @@ private fun restartScopesForDirtyTweaks(keys: Set<String>): RestartScopeSelectio
     }
 }
 
+/** Reads the live LSPosed scope, falling back to the module declaration while the service binds. */
+private suspend fun currentRestartableScopes(context: Context): RestartScopeSelection {
+    return ScopeManager.restartableScope(context)
+        ?.let(RestartScopeSelection::fromPackageSet)
+        ?: RestartScopeSelection.fromPackageSet(ScopeManager.declaredRestartableScope(context))
+}
+
 class MainActivity : ComponentActivity() {
 
     // Intercepted by ModuleStatusHooker. Keep annotation prevents R8 optimization/inlining.
@@ -1392,14 +1399,7 @@ class MainActivity : ComponentActivity() {
                             val restartScopesJob = if (restartAllScopes) {
                                 coroutineScope.launch {
                                     Preferences.flush()
-                                    // Include every package currently enabled in LSPosed, including
-                                    // dynamically requested targets that are not in the legacy
-                                    // fixed selection fields.
-                                    val allScopes = ScopeManager.restartableScope(this@MainActivity)
-                                        ?.let(RestartScopeSelection::fromPackageSet)
-                                        ?: RestartScopeSelection.fromPackageSet(
-                                            ScopeManager.declaredRestartableScope(this@MainActivity)
-                                        )
+                                    val allScopes = currentRestartableScopes(this@MainActivity)
                                     RestartUtils
                                         .restartScope(this@MainActivity, coroutineScope, allScopes)
                                         .join()
@@ -1438,23 +1438,23 @@ class MainActivity : ComponentActivity() {
                         RestartUtils.restartScope(this@MainActivity, coroutineScope, selection)
                         clearRestartedScopes(selection)
                     },
-                    onHotReload = { restartAllScopes ->
-                        XposedServiceManager.hotReloadStaleTargets { report ->
-                            if (restartAllScopes && report.failedCount == 0) {
-                                coroutineScope.launch {
-                                    Preferences.flush()
-                                    // Include every package currently enabled in LSPosed, including
-                                    // dynamically requested IMEs and newer feature targets that are
-                                    // not represented by the legacy fixed selection fields.
-                                    val allScopes = ScopeManager.restartableScope(this@MainActivity)
-                                        ?.let(RestartScopeSelection::fromPackageSet)
-                                        ?: RestartScopeSelection.fromPackageSet(
-                                            ScopeManager.declaredRestartableScope(this@MainActivity)
-                                        )
-                                    RestartUtils.restartScope(this@MainActivity, coroutineScope, allScopes)
-                                    clearRestartedScopes(allScopes)
-                                }
-                            }
+                    onHotReload = {
+                        // Hot reload re-attaches the module to the already running stale targets;
+                        // it must remain independent from the normal force-stop/restart path.
+                        Preferences.flush()
+                        XposedServiceManager.hotReloadStaleTargets()
+                    },
+                    onRestartAllScopes = {
+                        coroutineScope.launch {
+                            Preferences.flush()
+                            val allScopes = currentRestartableScopes(this@MainActivity)
+                            RestartUtils
+                                .restartScope(this@MainActivity, coroutineScope, allScopes)
+                                .join()
+                            clearRestartedScopes(allScopes)
+                            // Refresh after the restart completes so a previously stale warning
+                            // disappears without requiring a second app launch.
+                            XposedServiceManager.refreshHotReloadTargets()
                         }
                     },
                     appLanguage = appLanguage,
@@ -1472,6 +1472,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+    override fun onResume() {
+        super.onResume()
+        // A package update can restart scoped targets without rebinding the service. Re-query when
+        // returning to the app so the Home warning does not outlive the target's actual state.
+        XposedServiceManager.refreshHotReloadTargets()
+    }
 
 private fun setLauncherIconVisible(context: Context, visible: Boolean) {
     runCatching {

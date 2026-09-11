@@ -101,10 +101,11 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             return
         }
 
-        val staleTargets = _staleTargetsFlow.value.ifEmpty {
-            refreshHotReloadTargets()
-            _staleTargetsFlow.value
-        }
+        // Do not trust the UI's previous snapshot: a package update or a normal scope restart can
+        // change runningTargets without rebinding the service. Query again immediately before the
+        // API call so a resolved target is not reloaded a second time by mistake.
+        refreshHotReloadTargets()
+        val staleTargets = _staleTargetsFlow.value
         val targets = staleTargets
         if (targets.isEmpty()) {
             DebugLog.w("XposedService", "hot reload requested but no stale targets")

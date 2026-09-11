@@ -221,7 +221,8 @@ fun HyperTweakNavContainer(
     onViewSourceCode: () -> Unit,
     onClearAllSettings: (restartAllScopes: Boolean, restartHyperTweak: Boolean) -> Unit,
     onSettingsRestored: () -> Unit,
-    onHotReload: (restartAllScopes: Boolean) -> Unit,
+    onHotReload: () -> Unit,
+    onRestartAllScopes: () -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     onShortcutsChanged: () -> Unit,
     appLanguage: Int,
@@ -410,6 +411,7 @@ fun HyperTweakNavContainer(
                     backStack.add(Route.BatteryInfo)
                 },
                 onHotReload = onHotReload,
+                onRestartAllScopes = onRestartAllScopes,
                 onRestartScope = onRestartScope,
                 appLanguage = appLanguage,
                 onAppLanguageChange = onAppLanguageChange
@@ -625,7 +627,12 @@ fun HyperTweakNavContainer(
             DebugPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToLogs = { backStack.add(Route.DebugLogs) },
-                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) }
+                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) },
+                hotReloading = hotReloading,
+                hotReloadTargets = hotReloadTargets,
+                hotReloadReport = hotReloadReport,
+                onHotReload = onHotReload,
+                onRestartAllScopes = onRestartAllScopes
             )
         }
         entry<Route.DeveloperSettings> {

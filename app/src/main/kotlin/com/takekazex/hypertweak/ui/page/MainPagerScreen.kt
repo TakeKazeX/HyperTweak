@@ -145,7 +145,8 @@ fun MainPagerScreen(
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
     onNavigateToBatteryInfo: () -> Unit,
-    onHotReload: (restartAllScopes: Boolean) -> Unit,
+    onHotReload: () -> Unit,
+    onRestartAllScopes: () -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
@@ -306,6 +307,7 @@ fun MainPagerScreen(
                                 onNavigateToHiddenFeatures = onNavigateToHiddenFeatures,
                                 onNavigateToBatteryInfo = onNavigateToBatteryInfo,
                                 onHotReload = onHotReload,
+                                onRestartAllScopes = onRestartAllScopes,
                                 onRestartScope = onRestartScope
                             )
                         }
