@@ -1081,12 +1081,28 @@ object Preferences {
                     .forEach(::add)
             }
 
+            // Snapshot for the rollback below: commitRemoteMutation applies the edits to the
+            // in-memory map even when the disk commit fails.
+            val previous = runCatching { HashMap(remotePrefs.all) }.getOrNull()
+
             val committed = commitRemoteMutation {
                 currentKeys.forEach(::remove)
                 restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                 putLong(KEY_PREFS_EPOCH, epoch)
             }
-            check(committed) { "Unable to write restored settings" }
+            if (!committed) {
+                // A failed restore must not leave a half-applied configuration live in this process
+                // until the next restart: put the captured values back and drop the memo map.
+                runCatching {
+                    remotePrefs.edit(commit = true) {
+                        previous?.forEach { (key, value) ->
+                            if (value != null) putSharedPreferenceValue(key, value)
+                        }
+                    }
+                }.onFailure { DebugLog.w("Preferences", "restore rollback failed", it) }
+                memoClear()
+                error("Unable to write restored settings")
+            }
 
             runCatching {
                 localSourcePrefs?.edit(commit = true) {
@@ -1356,7 +1372,9 @@ object Preferences {
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
         if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
-        memoGet(key)?.let { return it as Boolean }
+        // Safe cast: the memo map is keyed by key alone, so a key read through two different typed
+        // getters would otherwise throw ClassCastException at a hook boundary with no fallback.
+        (memoGet(key) as? Boolean)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
                 val v = remotePrefs.getBoolean(key, default)
@@ -1403,7 +1421,7 @@ object Preferences {
 
     fun getInt(key: String, default: Int = 0): Int {
         if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
-        memoGet(key)?.let { return it as Int }
+        (memoGet(key) as? Int)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
                 val v = remotePrefs.getInt(key, default)
@@ -1426,7 +1444,7 @@ object Preferences {
 
     fun getFloat(key: String, default: Float = 1f): Float {
         if (!isInitialized) return getLocalCache()?.getFloat(key, default) ?: default
-        memoGet(key)?.let { return it as Float }
+        (memoGet(key) as? Float)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
                 val v = remotePrefs.getFloat(key, default)
@@ -1495,7 +1513,7 @@ object Preferences {
 
     fun getString(key: String, default: String = ""): String {
         if (!isInitialized) return getLocalCache()?.getString(key, default) ?: default
-        memoGet(key)?.let { return it as String }
+        (memoGet(key) as? String)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
                 val v = remotePrefs.getString(key, default) ?: default

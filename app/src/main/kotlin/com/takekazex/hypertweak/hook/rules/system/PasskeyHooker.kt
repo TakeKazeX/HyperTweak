@@ -534,13 +534,33 @@ object PasskeyHooker : StaticHooker() {
         }
     }
 
+    /** Cached reflective `proceed()` handle; the chain type is a fixed framework class. */
+    @Volatile
+    private var chainMethod: Method? = null
+
+    /**
+     * Invoke `chain.proceed()` without re-resolving the Method on every interception (this runs in
+     * system_server), unwrapping `InvocationTargetException` so the hooked frame sees the original
+     * failure instead of the reflective wrapper.
+     */
+    private fun proceedChain(chain: Any): Any? {
+        val chainClass = chain.javaClass
+        val cached = chainMethod
+        val method = if (cached != null && cached.declaringClass == chainClass) {
+            cached
+        } else {
+            chainClass.getMethod("proceed").also { chainMethod = it }
+        }
+        return try {
+            method.invoke(chain)
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            throw e.targetException ?: e
+        }
+    }
+
     private fun handleIsInternationalBuild(chain: Any): Any? {
         if (fIsInternationalBuildBoolean == null || !Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
-            try {
-                return chain.javaClass.getMethod("proceed").invoke(chain)
-            } catch (e: java.lang.reflect.InvocationTargetException) {
-                throw e.targetException ?: e
-            }
+            return proceedChain(chain)
         }
         INTL_LOCK.lock()
         try {
@@ -554,11 +574,7 @@ object PasskeyHooker : StaticHooker() {
             }
             DEPTH.set(depth + 1)
             try {
-                try {
-                    return chain.javaClass.getMethod("proceed").invoke(chain)
-                } catch (e: java.lang.reflect.InvocationTargetException) {
-                    throw e.targetException ?: e
-                }
+                return proceedChain(chain)
             } finally {
                 val d = (DEPTH.get() ?: 0) - 1
                 if (d == 0) {

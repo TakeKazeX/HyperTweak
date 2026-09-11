@@ -6,9 +6,11 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.ArrayList
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Restores Security Center's app-consumption card when the native list is empty only because its
@@ -27,6 +29,9 @@ object PowerRankingHooker : StaticHooker() {
     private const val CARD_ROW = "ih.a"
     private const val LABEL_HELPER = "com.miui.powercenter.legacypowerrank.a"
     private const val SYSTEM_PACKAGE_HELPER = "nh.a"
+
+    private val rowFields = ConcurrentHashMap<String, Field>()
+    private val rowFieldMisses = ConcurrentHashMap.newKeySet<String>()
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -149,13 +154,28 @@ object PowerRankingHooker : StaticHooker() {
                 constructor.isAccessible = true
                 constructor.newInstance()
             }.getOrNull() ?: return@forEach
-            rowClass.getField("f32138a").set(row, packageField.get(batteryData))
-            rowClass.getField("f32139b").set(row, label)
-            rowClass.getField("f32140c").set(row, valueField.getDouble(batteryData) / total * 100.0)
-            rowClass.getField("f32141d").setInt(row, iconMethod.invoke(null, batteryData) as Int)
-            rowClass.getField("f32142e").setInt(row, uidField.getInt(batteryData))
+            rowField(rowClass, "f32138a")?.set(row, packageField.get(batteryData))
+            rowField(rowClass, "f32139b")?.set(row, label)
+            rowField(rowClass, "f32140c")?.set(row, valueField.getDouble(batteryData) / total * 100.0)
+            rowField(rowClass, "f32141d")?.setInt(row, iconMethod.invoke(null, batteryData) as Int)
+            rowField(rowClass, "f32142e")?.setInt(row, uidField.getInt(batteryData))
             rows += row
         }
         return rows
+    }
+
+    /**
+     * Cached `getField` lookup for the card row's obfuscated members.
+     *
+     * The names are resolved once per (row class, field) instead of six reflective lookups per row
+     * on every refresh; a miss is cached too, so an OTA-changed row class fails fast and visibly.
+     */
+    private fun rowField(rowClass: Class<*>, name: String): Field? {
+        val key = "${rowClass.name}#$name"
+        rowFields[key]?.let { return it }
+        if (key in rowFieldMisses) return null
+        val field = runCatching { rowClass.getField(name) }.getOrNull()
+        if (field == null) rowFieldMisses.add(key) else rowFields[key] = field
+        return field
     }
 }

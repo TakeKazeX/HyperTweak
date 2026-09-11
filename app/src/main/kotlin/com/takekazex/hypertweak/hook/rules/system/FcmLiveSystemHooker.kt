@@ -270,9 +270,14 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             checkMethod.hook {
                 before { param ->
-                    val broadcastRecord = param.args[1]
-                    val callerPackage = callerPackageField.get(broadcastRecord) as? String
-                    val intent = intentField.get(broadcastRecord) as? Intent
+                    // Reflection on a system_server callback: isolate it so a field-shape change
+                    // can never take down the broadcast queue.
+                    val callerPackage = runCatching {
+                        callerPackageField.get(param.args[1]) as? String
+                    }.getOrNull()
+                    val intent = runCatching {
+                        intentField.get(param.args[1]) as? Intent
+                    }.getOrNull()
 
                     if (callerPackage == GMS_PACKAGE_NAME && intent?.action == ACTION_REMOTE_INTENT) {
                         param.result = true
@@ -342,9 +347,15 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             fun isGmsC2dm(record: Any?): Boolean {
                 if (record == null) return false
-                val caller = callerPackageField.get(record) as? String
+                // Isolated: called from system_server broadcast paths where a field-shape change
+                // would otherwise propagate out of the hook.
+                val caller = runCatching {
+                    callerPackageField.get(record) as? String
+                }.getOrNull()
                 if (caller != GMS_PACKAGE_NAME) return false
-                val intent = intentField.get(record) as? Intent
+                val intent = runCatching {
+                    intentField.get(record) as? Intent
+                }.getOrNull()
                 return intent?.action == ACTION_REMOTE_INTENT
             }
 
