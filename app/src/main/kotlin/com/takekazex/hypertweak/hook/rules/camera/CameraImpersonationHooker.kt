@@ -1013,7 +1013,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * `C1199#F3()=instanceof C1156=false`, `C1143#X2()=false`), so the stock REDMI config
      * drops the switcher.
      *
-     * Gated only on `KEY_CAMERA_LEICA_STYLE` (default on). The hooks install on the REAL
+     * Gated only on `KEY_CAMERA_LEICA_STYLE` (default off). The hooks install on the REAL
      * device config class ([configDispatchClasses]) — myron C1209 inherits the same
      * C1199#F3 / C1143#X2 getters, so forcing them `true` brings the switcher back. The
      * callback is RAISE-ONLY — it never lowers a native value: with the user switch ON it
@@ -1926,7 +1926,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * MasterLive (实况运镜) full focal line-up for the zoom-toggle strip
-     * (`Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default on; research:
+     * (`Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL`, default off; research:
      * RESEARCH_MYRON_12_MASTERLIVE_FOCAL_STRIP.md).
      *
      * The 焦段 strip inside 实况运镜 (`FragmentZoomToggle`'s `ZoomRatioToggleView` row) reads
@@ -2158,7 +2158,7 @@ object CameraImpersonationHooker : StaticHooker() {
      *
      * The role adapter is config-independent, so the fallback applies to the real config's
      * MasterLive session; the gate is the user's own `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK`
-     * switch (default on) alone.
+     * switch (default off) alone.
      *
      * ON-DEVICE RESOLUTION FIX (2026-08-26, RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1): the
      * DexKit probe previously used `"Camera2CompatAdapterRole"`, but the class's log-tag
@@ -2219,7 +2219,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * MasterLive (实况运镜) video-size probe — experimental
-     * (`KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`, enabled automatically on myron).
+     * (`KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`, default off).
      *
      * On-device forensics (2026-08-27, OS4.0.0.19.XPMCNXM; RESEARCH_MYRON_09): the MasterLive
      * live-video stream on myron is sized via the HAL masterlive ratio tag `G()` (reads a
@@ -2642,49 +2642,41 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun streetMode(): String = Preferences.cameraStreetMode()
 
     private fun leicaStyle(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false)
 
-    /** 徕卡一瞬 (mode 256) unlock; automatically on the target myron device. */
+    /** 徕卡一瞬 (mode 256) unlock; default off on every device. */
     private fun legendaryMomentUnlock(): Boolean =
-        isMyronDevice() || Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
 
     /** 智能构图 setting unlock. */
     private fun smartCompositionUnlock(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false)
 
-    /** 内容凭证 setting unlock; automatically on myron and applied once per camera process. */
+    /** 内容凭证 setting unlock; default off and applied once per camera process. */
     private fun contentCredentialUnlock(): Boolean =
-        isMyronDevice() || Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
-
-    private fun isMyronDevice(): Boolean = Build.DEVICE.equals("myron", ignoreCase = true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
 
     /** 自适应镜头 setting unlock. */
     private fun adaptiveLensUnlock(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false)
 
-    /** 实况运镜 unlock master (default ON). */
+    /** 实况运镜 unlock master (default off). */
     private fun masterliveEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, false)
 
-    /** 实况运镜 role-23 tele fallback switch (default ON). */
+    /** 实况运镜 role-23 tele fallback switch (default off). */
     private fun masterliveTeleFallback(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, false)
 
-    /** 实况运镜 video-size probe (automatic on myron; preference remains for other devices). */
+    /** 实况运镜 video-size probe (default off; opt-in on every device). */
     private fun videoSizeProbeEnabled(): Boolean =
-        if (Build.DEVICE.equals("myron", ignoreCase = true)) {
-            // The native myron sizes are the source of the green-frame artifact. Keep the
-            // per-effect binding on regardless of a stale opt-out saved by an older build.
-            true
-        } else {
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, true)
-        }
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
 
-    /** 实况运镜 红毯运镜 (type-1) injection (default ON); gated with [masterliveEnabled]. */
+    /** 实况运镜 红毯运镜 (type-1) injection (default off); gated with [masterliveEnabled]. */
     private fun redCarpetEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
 
-    /** 实况运镜 full focal line-up (超清实况焦段条, default ON); gated with [masterliveEnabled]. */
+    /** 实况运镜 full focal line-up (超清实况焦段条, default off); gated with [masterliveEnabled]. */
     private fun fullFocalEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
 }

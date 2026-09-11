@@ -90,16 +90,16 @@ public final class AospBackGestureRuntime extends CrossTaskWallpaperRuntime {
     }
 
     /**
-     * Gates only the predictive return-home animation. Off by default on Launcher 8 and newer; a
-     * user who explicitly flipped the switch keeps their choice.
+     * Gates only the predictive return-home animation. Off by default on every launcher; a user
+     * who explicitly flipped the switch keeps their choice.
      */
     private boolean isMiuiHomeRouteEnabled(boolean supported) {
         if (Preferences.INSTANCE.getBoolean(
                 Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, false)) {
             return Preferences.INSTANCE.getBoolean(
-                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, supported);
+                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, false);
         }
-        return supported;
+        return false;
     }
 
     @Override

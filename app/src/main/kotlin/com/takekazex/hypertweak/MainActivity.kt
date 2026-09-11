@@ -256,7 +256,7 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(
                     Preferences.getBoolean(
                         Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                        launcherSupportsBackRoute
+                        false
                     )
                 )
             }
@@ -794,7 +794,7 @@ class MainActivity : ComponentActivity() {
                     aospBackSlideAnimation = Preferences.getBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, false)
                     aospBackMiuiHomeHooks = Preferences.getBoolean(
                         Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                        launcherSupportsBackRoute
+                        false
                     )
                     allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
                     pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
@@ -1036,7 +1036,7 @@ class MainActivity : ComponentActivity() {
                         markTweaked(
                             Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
                             enabled,
-                            defaultValue = launcherSupportsBackRoute
+                            defaultValue = false
                         )
                         Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
                         // Records that the choice is the user's, so the runtime stops

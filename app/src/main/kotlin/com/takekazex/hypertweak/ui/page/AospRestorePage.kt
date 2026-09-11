@@ -67,7 +67,7 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false))
     }
     var volumePanelHapticMiui by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, false))
     }
     var clipboardEditor by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))

@@ -39,7 +39,7 @@ import java.lang.reflect.Modifier
  * hook does not fire there and 超高 stays visible regardless of this switch (native flagship
  * behaviour; the default `k100promax` target IS covered).
  *
- * Read live from [Preferences.KEY_CAMERA_ULTRA_HD_QUALITY] (default ON = 固定解锁). When off,
+ * Read live from [Preferences.KEY_CAMERA_ULTRA_HD_QUALITY] (default OFF = 固定解锁). When off,
  * the hook forces false — exactly the stock value on this device — which also re-clamps a
  * stale stored 超高 selection back to 高 through `j#t()`. Toggling takes effect the next time
  * the quality option list is built or the clamp runs (no camera restart once hooks are
@@ -162,10 +162,10 @@ object CameraUltraQualityHooker : StaticHooker() {
     /**
      * Live read of the 超高图片质量 pin switch (same accessor pattern as the impersonation
      * hookers' `streetEnable()` / `masterliveTeleFallback()`; served from the 100 ms
-     * Preferences memo). Default ON = 固定解锁.
+     * Preferences memo). Default OFF = 固定解锁.
      */
     private fun cameraUltraHdQuality(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true)
+        Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false)
 
     private fun hookSelfieMirrorPreference() {
         val clazz = runCatching {
@@ -177,7 +177,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_selfie_mirror_preference") {
             before { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true)) return@before
+                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
                 runCatching {
                     val base = clazz.superclass
                     val groupField = generateSequence(base) { it.superclass }
@@ -211,7 +211,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_remove_common_selfie_mirror") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true)) return@after
+                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@after
                 runCatching {
                     val field = generateSequence(clazz) { it.superclass }
                         .flatMap { it.declaredFields.asSequence() }

@@ -56,15 +56,15 @@ class CameraStreetModeTest {
         assertEquals("off", CameraStreetMode.resolve(stored = null, legacyEnable = false))
     }
 
-    @Test fun `nothing stored at all behaves like the legacy default (true)`() {
-        assertEquals("new", CameraStreetMode.resolve(stored = null, legacyEnable = null))
+    @Test fun `nothing stored at all uses the opt-in default (off)`() {
+        assertEquals("off", CameraStreetMode.resolve(stored = null, legacyEnable = null))
     }
 
     @Test fun `an unparsable stored value falls back to the default, not to legacy`() {
         // A present-but-garbage key means the new scheme owns the setting; the superseded
-        // boolean must not resurrect (e.g. legacy=false + garbage -> default "new", not "off").
-        assertEquals("new", CameraStreetMode.resolve(stored = "garbage", legacyEnable = false))
-        assertEquals("new", CameraStreetMode.resolve(stored = "", legacyEnable = true))
+        // boolean must not resurrect (e.g. legacy=false + garbage -> default "off").
+        assertEquals("off", CameraStreetMode.resolve(stored = "garbage", legacyEnable = false))
+        assertEquals("off", CameraStreetMode.resolve(stored = "", legacyEnable = true))
     }
 
     // ── UI index mapping ────────────────────────────────────────────────────────

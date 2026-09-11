@@ -65,7 +65,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     // Saveable so the pending prompt survives navigating away (Nav3 disposes the entry).
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var multiline by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, false))
     }
     var intervalMs by remember {
         mutableIntStateOf(

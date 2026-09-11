@@ -33,8 +33,8 @@ import java.util.WeakHashMap
  * role `3` (the same role the lockscreen's reverse-charging hint uses; role 13 is the
  * dismissible swipe hint). When it renders, this hooker appends live values. The layout is
  * configurable live:
- * - multi-line (default): the detail sits on its own, slightly smaller line below the charging
- *   text, so the single-line marquee never scrolls; `KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE`;
+ * - multi-line (default off): the detail sits on its own, slightly smaller line below the
+ *   charging text, so the single-line marquee never scrolls; `KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE`;
  * - fields: any of wattage / voltage / current / temperature, bitmask
  *   `KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS`;
  * - refresh interval: `KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS`.
@@ -178,7 +178,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             .coerceIn(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
 
     private fun multiline(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, true)
+        Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, false)
 
     private fun attachDetail(controller: Any?) {
         if (!enabled || controller == null) return

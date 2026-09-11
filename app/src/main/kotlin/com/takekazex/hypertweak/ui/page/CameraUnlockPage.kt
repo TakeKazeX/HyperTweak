@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page
 
-import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,48 +82,42 @@ fun CameraUnlockPage(onBack: () -> Unit) {
         mutableStateOf(Preferences.cameraStreetQuickLaunch())
     }
     var leicaStyle by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false))
     }
     var ultraHdQuality by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false))
     }
     var selfieSettings by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false))
     }
     var legendaryMoment by remember {
-        mutableStateOf(
-            Build.DEVICE.equals("myron", ignoreCase = true) ||
-                Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
-        )
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false))
     }
     var smartComposition by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false))
     }
     var contentCredential by remember {
-        mutableStateOf(
-            Build.DEVICE.equals("myron", ignoreCase = true) ||
-                Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
-        )
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false))
     }
     var adaptiveLens by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false))
     }
     var masterLiveEnable by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, true))
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, false))
     }
     var mlRedCarpet by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, true)
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
         )
     }
     var mlFullFocal by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, true)
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
         )
     }
     var mlVideoSizeProbe by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, true)
+            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
         )
     }
     var themeLcc by remember {

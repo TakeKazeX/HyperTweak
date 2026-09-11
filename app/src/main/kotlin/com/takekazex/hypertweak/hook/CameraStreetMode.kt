@@ -35,8 +35,8 @@ internal object CameraStreetMode {
     /** Impersonation-independent unlock: force `StreetModuleEntry.support()` true. */
     const val MODE_COMPAT = "compat"
 
-    /** Mode used when nothing (or nothing parsable) is stored — preserves the legacy default-on. */
-    const val DEFAULT = MODE_NEW
+    /** Mode used when nothing (or nothing parsable) is stored — street unlock is opt-in. */
+    const val DEFAULT = MODE_OFF
 
     /** All selectable modes, in UI order ([index]/[fromIndex] map over this list). */
     val MODES = listOf(MODE_OFF, MODE_NEW, MODE_COMPAT)
@@ -54,7 +54,7 @@ internal object CameraStreetMode {
      *    `camera_street_enable` boolean migrates (true → [MODE_NEW], false → [MODE_OFF]);
      *  - an UNPARSABLE stored value falls back to [DEFAULT] (not to the legacy boolean — a
      *    present-but-garbage key means the new scheme owns the setting);
-     *  - nothing stored at all behaves like the legacy default (true → [MODE_NEW]).
+     *  - nothing stored at all behaves like the new default ([MODE_OFF]).
      *
      * [legacyEnable] mirrors the legacy boolean: `null` = key absent, `true`/`false` = value.
      */

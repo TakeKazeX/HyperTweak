@@ -234,7 +234,7 @@ object Preferences {
 
     /**
      * Launcher-side hook route. Only Launcher 7 exposes the `com.miui.home` Java classes the
-     * predictive return-home animation hooks, so this defaults off on Launcher 8 and newer.
+     * predictive return-home animation hooks, so this defaults off on every launcher.
      * See [KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET].
      */
     const val KEY_AOSP_BACK_MIUI_HOME_HOOKS = "aosp_back_miui_home_hooks"
@@ -265,7 +265,7 @@ object Preferences {
      * When the AOSP volume panel is active, replaces its generic MSDL "continuous" slider haptic
      * (the strong sustained buzz on every volume change) with MIUI's own per-scene adapted waveform
      * (`miui.util.HapticFeedbackUtil`), matching the feel of the stock MIUI volume panel.
-     * Only meaningful while [KEY_AOSP_VOLUME_PANEL] is on. Defaults on.
+     * Only meaningful while [KEY_AOSP_VOLUME_PANEL] is on. Defaults off.
      */
     const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
 
@@ -627,7 +627,7 @@ object Preferences {
      */
     fun cameraStreetMode(): String {
         val stored = if (containsKey(KEY_CAMERA_STREET_MODE)) getString(KEY_CAMERA_STREET_MODE, "") else null
-        val legacy = if (stored == null) getBoolean(LEGACY_KEY_CAMERA_STREET_ENABLE, true) else null
+        val legacy = if (stored == null) getBoolean(LEGACY_KEY_CAMERA_STREET_ENABLE, false) else null
         return CameraStreetMode.resolve(stored, legacy)
     }
 
@@ -682,7 +682,7 @@ object Preferences {
      * `W0()=instanceof C1178`) nor the 231 LCC-RAW stream, so no purple/RAW regression.
      * Side effect: the shutter-sound list gains the four Leica entries (`f2.c.b()` adds them
      * when `F3()` is true; the resident bounds clamp keeps an old out-of-range selection
-     * from crashing the list). Default on.
+     * from crashing the list). Default off.
      */
     const val KEY_CAMERA_LEICA_STYLE = "camera_impersonate_leica_style"
 
@@ -690,12 +690,12 @@ object Preferences {
      * MasterLive (实况运镜) role-23 (`Standalone`) -> role-20 (`tele`) fallback on the role
      * adapter (`u6.e`/jadx `p703u6.e` `M()`), so the 15x endpoint of the K100 Pro Max effect
      * table resolves on devices whose tele is only labelled role 20 (Samsung JN5). Harmless
-     * when role 23 exists (falls back only when `get(23)==-1`). Default on.
+     * when role 23 exists (falls back only when `get(23)==-1`). Default off.
      */
     const val KEY_CAMERA_MASTERLIVE_TELE_FALLBACK = "camera_masterlive_tele_fallback"
 
     /**
-     * MasterLive (实况运镜) video-size probe — enabled automatically on myron. On myron the
+     * MasterLive (实况运镜) video-size probe — opt-in on every device. On myron the
      * MasterLive live-video stream is sized with the HAL masterlive ratio tag (`G()`,
      * `C3545f#G`, the `masterLivePhotoEISCropFactor` vendor tag) into 16:9 sizes
      * (2560x1440 / per-role HAL pairs from `com.xiaomi.camera.livePhoto.videoSize`) whose
@@ -713,7 +713,7 @@ object Preferences {
     const val KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE = "camera_masterlive_video_size_probe"
 
     /**
-     * MasterLive (实况运镜) 红毯运镜 injection (default ON). The K100 Pro Max effect table
+     * MasterLive (实况运镜) 红毯运镜 injection (default off). The K100 Pro Max effect table
      * (`q0()`) ships only types "0" (超清实况), "2" (主角非线性) and "3" (自由线性) — the
      * 17-Ultra-exclusive "1" 红毯运镜 (slow-motion tail, `master_live_slow_motion`) is
      * missing, so it never appeared in the effect selector even though every UI resource for
@@ -727,7 +727,7 @@ object Preferences {
     const val KEY_CAMERA_MASTERLIVE_RED_CARPET = "camera_masterlive_red_carpet"
 
     /**
-     * MasterLive (实况运镜) full focal line-up (超清实况焦段条, default ON). The zoom toggle
+     * MasterLive (实况运镜) full focal line-up (超清实况焦段条, default off). The zoom toggle
      * strip inside 实况运镜 reads the config's per-mode zoom stops `v1()` keyed by mode id:
      * the real myron config has NO 231 key, so the camera falls back to the hardcoded
      * `{1.0x, 2.0x}` pair and 超清实况 shows only 1x/2x where a full unlock shows the whole
@@ -765,7 +765,7 @@ object Preferences {
      * inherited by both) to this preference's live value: on = 超高 offered and the quality
      * clamp `j#t()` caps at `F1.g3.SUPER` (JPEG quality 100); off = forced false, exactly the
      * stock behaviour here, which also re-clamps a stale stored 超高 selection back to 高.
-     * Plain JPEG-quality values with no HAL dependency. Read live (100 ms memo); default ON.
+     * Plain JPEG-quality values with no HAL dependency. Read live (100 ms memo); default off.
      */
     const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
 
@@ -774,7 +774,7 @@ object Preferences {
 
     /**
      * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; enabled
-     * automatically on myron and manual on other devices. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
+     * manual on every device, off by default. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
      * `support()` is true, and `LegendaryEnter.support()` is
      * `Je.c.W0() && Je.c.V()`: W0() demands the 17-Ultra Nezha config class
      * (`instanceof com.mi.device.Nezha`, jadx C1209 on 6.6.000510.0) and V() the LCC
@@ -818,8 +818,8 @@ object Preferences {
     const val KEY_CAMERA_SMART_COMPOSITION = "camera_smart_composition"
 
     /**
-     * 内容凭证 (Content Credentials, C2PA) setting unlock; enabled automatically on myron and
-     * manual on other devices. The 设置→水印 entry
+     * 内容凭证 (Content Credentials, C2PA) setting unlock; manual on every device and off by
+     * default. The 设置→水印 entry
      * (`pref_cai_type_key` → `CaiSettingFragment`) is gated on a static final boolean in the
      * camera's debug/capability holder class (540 `Qa.b.x`, JADX alias `f11706x`; older 510
      * builds used `u`/`f13393u`) initialised once from the system property
@@ -864,7 +864,7 @@ object Preferences {
      * depends on 17-Ultra modular-lens cameras (13/7) and stays closed in every mode.
      *
      * Supersedes the legacy boolean [LEGACY_KEY_CAMERA_STREET_ENABLE]; read through
-     * [cameraStreetMode], written through [setCameraStreetMode]. Default `"new"`.
+     * [cameraStreetMode], written through [setCameraStreetMode]. Default `"off"`.
      */
     const val KEY_CAMERA_STREET_MODE = "camera_street_mode"
 
@@ -918,7 +918,7 @@ object Preferences {
         getBoolean(KEY_CAMERA_STREET_QUICK_LAUNCH, false)
 
     /**
-     * 实况运镜 (MasterLive, camera mode id 231) unlock master; default ON. While on, the
+     * 实况运镜 (MasterLive, camera mode id 231) unlock master; default off. While on, the
      * registry gate `y4()` (`MasterLiveModuleEntry.support()`) is forced true on the REAL
      * device config's base Method (C1143 — the one stock Redmi configs dispatch to, false on
      * myron), and the REDMI K100 effect table (`q0()`) is borrowed when the real config has
