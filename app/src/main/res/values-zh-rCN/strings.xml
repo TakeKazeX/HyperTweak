@@ -1068,6 +1068,8 @@
     <string name="camera_unlock_leica_style_summary">让相机的「摄影风格」里显示「徕卡经典」和「徕卡生动」两种风格。修改后需重启相机</string>
     <string name="camera_unlock_ultra_hd_title">超高图片质量</string>
     <string name="camera_unlock_ultra_hd_summary">让「设置 → 图片质量」里出现并保留「超高」档位（JPEG 质量 100）。关闭后恢复系统默认。首次开启需重启相机</string>
+    <string name="camera_unlock_selfie_settings_title">完整自拍设置</string>
+    <string name="camera_unlock_selfie_settings_summary">将自拍镜像、合影智能光圈等项目放入自拍设置；需要重启相机</string>
     <string name="camera_unlock_legendary_moment_title">徕卡一瞬</string>
     <string name="camera_unlock_legendary_moment_summary">在相机的「更多」列表里解锁「徕卡一瞬」模式。实验性功能，照片色彩异常时请关闭。开启后需重启相机</string>
     <string name="camera_unlock_smart_composition_title">智能构图</string>
