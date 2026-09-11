@@ -42,5 +42,5 @@
 -keep class kotlin.Triple { *; }
 -keep class com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge { *; }
 
-# Suppress missing class warnings for KavaRef / Java reflect
+# Suppress missing class warnings for Java reflection (annotated types are resolved by name).
 -dontwarn java.lang.reflect.AnnotatedType

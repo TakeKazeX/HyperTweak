@@ -270,7 +270,7 @@ private class ComposeNavigationEventHandler<T : NavigationEventInfo>(
     }
 }
 
-// Compatible with the fucking miuix
+// Miuix calls this callback-only overload, so the shim keeps it alongside the upstream signatures.
 /**
  * A composable that handles only back navigation gestures, driven by a manually hoisted
  * [NavigationEventState].
