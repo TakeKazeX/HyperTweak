@@ -17,7 +17,6 @@ object BatteryInfoChannel {
     const val AUTHORITY = "com.takekazex.hypertweak.batteryprovider"
     const val METHOD_SET = "set"
     const val METHOD_GET = "get"
-    const val METHOD_CLEAR = "clear"
 
     /** Extra key inside the snapshot Bundle carrying the last-publish uptime. */
     const val KEY_UPDATED_AT = "updated_at"

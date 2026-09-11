@@ -18,8 +18,12 @@ import com.takekazex.hypertweak.util.BatteryInfoChannel
  * security center never ran, or the process died) just returns an empty bundle and the page falls
  * back to the always-available `BatteryManager`/sysfs tiers.
  *
- * [METHOD_SET] is only honoured for system-uid callers (the hooked privilege centre), so an
- * arbitrary app cannot poison the snapshot; [METHOD_GET] is open (battery info, read-only).
+ * Both directions are caller-checked, because `ContentProvider.call` is NOT covered by the
+ * manifest's `readPermission`/`writePermission`: [METHOD_SET] only accepts the system-uid hooked
+ * privilege centre (so an arbitrary app cannot poison the snapshot), and [METHOD_GET] only accepts
+ * the module itself plus root/shell for adb diagnostics. The snapshot carries hardware identity
+ * (battery serial, `soh_sn`, manufacturing/first-use dates, authenticity), so it must never be
+ * readable by an ordinary third-party app.
  */
 class BatteryInfoProvider : ContentProvider() {
 
@@ -39,25 +43,19 @@ class BatteryInfoProvider : ContentProvider() {
                 return Bundle().apply { putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt) }
             }
             BatteryInfoChannel.METHOD_GET -> {
-                // GET is intentionally read-only and must also work when the settings UI is
-                // hosted by a different package/UID (some HyperOS builds do that for module
-                // settings).  The provider never exposes a write path through GET.
+                if (!isTrustedReader()) return null
                 val out = Bundle(snapshot)
                 out.putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt)
                 return out
-            }
-            BatteryInfoChannel.METHOD_CLEAR -> {
-                snapshot = Bundle()
-                updatedAt = 0L
-                return null
             }
         }
         return null
     }
 
-    private fun isTrustedCaller(): Boolean {
+    /** The module's own settings UI, plus root/shell so the values stay inspectable over adb. */
+    private fun isTrustedReader(): Boolean {
         val uid = android.os.Binder.getCallingUid()
-        return uid == Process.myUid() || uid == Process.ROOT_UID || uid == Process.SHELL_UID || uid == Process.SYSTEM_UID
+        return uid == Process.myUid() || uid == Process.ROOT_UID || uid == Process.SHELL_UID
     }
 
     // The rest of the provider surface is unused; the snapshot travels completely over [call].
