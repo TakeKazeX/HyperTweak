@@ -131,16 +131,23 @@ class HookEntry : XposedModule() {
     private var systemServerClassLoader: ClassLoader? = null
 
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
+        // Process boundary. The process identity is recorded unconditionally (later callbacks and
+        // the debug log need it), then everything else runs behind a boundary: a module failure
+        // here must be logged, not thrown back into the host's module-load path.
         processName = param.processName
         isSystemServer = param.isSystemServer
-        preferenceRetryGeneration.incrementAndGet()
-        // Initialize EzXposed with the module interface
-        EzXposed.initOnModuleLoaded(this, param)
-        DebugLog.setProcessTag(processName)
-        DebugLog.bindXposed(this)
-        initPreferences()
-        DebugLog.ensureSession()
-        DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
+        try {
+            preferenceRetryGeneration.incrementAndGet()
+            // Initialize EzXposed with the module interface
+            EzXposed.initOnModuleLoaded(this, param)
+            DebugLog.setProcessTag(processName)
+            DebugLog.bindXposed(this)
+            initPreferences()
+            DebugLog.ensureSession()
+            DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
+        } catch (t: Throwable) {
+            DebugLog.e("HookEntry", "module load handling failed", t)
+        }
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
@@ -163,46 +170,57 @@ class HookEntry : XposedModule() {
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
         if (!injectedPackages.add(param.packageName)) return
-        EzXposed.initOnPackageLoaded(param)
-        EzReflect.init(param.defaultClassLoader)
-        recordPackageState(
-            packageName = param.packageName,
-            classLoader = param.defaultClassLoader,
-            appInfo = param.applicationInfo,
-            isFirstPackage = param.isFirstPackage,
-            isPackageReady = false,
-            appContext = null
-        )
-        DebugLog.d(
-            "HookEntry",
-            "package loaded package=${param.packageName} process=$processName first=${param.isFirstPackage}"
-        )
+        // Process boundary: a failure while installing this package's hooks must be isolated and
+        // logged rather than escaping into the host app's own package-load path.
+        try {
+            EzXposed.initOnPackageLoaded(param)
+            EzReflect.init(param.defaultClassLoader)
+            recordPackageState(
+                packageName = param.packageName,
+                classLoader = param.defaultClassLoader,
+                appInfo = param.applicationInfo,
+                isFirstPackage = param.isFirstPackage,
+                isPackageReady = false,
+                appContext = null
+            )
+            DebugLog.d(
+                "HookEntry",
+                "package loaded package=${param.packageName} process=$processName first=${param.isFirstPackage}"
+            )
 
-        dispatchPackageHookers(
-            packageName = param.packageName,
-            classLoader = param.defaultClassLoader,
-            appInfo = param.applicationInfo,
-            isFirstPackage = param.isFirstPackage
-        )
+            dispatchPackageHookers(
+                packageName = param.packageName,
+                classLoader = param.defaultClassLoader,
+                appInfo = param.applicationInfo,
+                isFirstPackage = param.isFirstPackage
+            )
+        } catch (t: Throwable) {
+            DebugLog.e("HookEntry", "package load handling failed package=${param.packageName}", t)
+        }
     }
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
-        // Establishes the target snapshot required for hot reload state restore.
-        EzXposed.initOnPackageReady(param)
-        recordPackageState(
-            packageName = param.packageName,
-            classLoader = param.classLoader,
-            appInfo = param.applicationInfo,
-            isFirstPackage = false,
-            isPackageReady = true,
-            appContext = runCatching { EzXposed.appContextOrNull }.getOrNull(),
-            pluginStates = currentPluginStates(param.packageName)
-        )
+        // Process boundary, same rationale as onPackageLoaded.
+        try {
+            // Establishes the target snapshot required for hot reload state restore.
+            EzXposed.initOnPackageReady(param)
+            recordPackageState(
+                packageName = param.packageName,
+                classLoader = param.classLoader,
+                appInfo = param.applicationInfo,
+                isFirstPackage = false,
+                isPackageReady = true,
+                appContext = runCatching { EzXposed.appContextOrNull }.getOrNull(),
+                pluginStates = currentPluginStates(param.packageName)
+            )
 
-        handlePackageReadyContext(param.packageName, param.classLoader)
+            handlePackageReadyContext(param.packageName, param.classLoader)
 
-        if (param.packageName == "com.android.systemui") {
-            HideBottomBarHooker.onPackageReady(packageStates[param.packageName]?.appContext, param.classLoader)
+            if (param.packageName == "com.android.systemui") {
+                HideBottomBarHooker.onPackageReady(packageStates[param.packageName]?.appContext, param.classLoader)
+            }
+        } catch (t: Throwable) {
+            DebugLog.e("HookEntry", "package ready handling failed package=${param.packageName}", t)
         }
     }
 
@@ -727,12 +745,20 @@ class HookEntry : XposedModule() {
                 // telephony service; keep both the display gate and modem-setting boundary here.
                 attachHooker(VideoRingbackHooker, classLoader, ctx, replacementHandles)
             }
+            "com.xiaomi.phone" -> {
+                // HyperPhone caches the CRBT capability it read from the telephony service above,
+                // so disabling video ringback only takes effect once this UI process restarts.
+                // There is deliberately no feature hook here — the package is scoped so the
+                // restart receiver registered in onPackageReady can kill it without root.
+            }
             "com.xiaomi.aon" -> {
-                // AON service/attention process. Kept in the LSPosed scope (see scope.list /
-                // R.array.xposed_scope) so AON-side hooks can attach here; the visual-perception /
-                // air-gesture capability gates this module unlocks live in com.android.settings
-                // (MiuiUtils, VisualPerceptionSettingsHooker) and in system_server, so no hook is
-                // attached in this process yet — the module load here is otherwise inert.
+                // AON service/attention process. No feature hook attaches here: the
+                // visual-perception / air-gesture capability gates live in com.android.settings
+                // (MiuiUtils, VisualPerceptionSettingsHooker) and in system_server
+                // (AonRuntimeGateHooker, AonGestureFeatureHooker). The process is still scoped on
+                // purpose: every scoped package gets the in-process restart receiver registered by
+                // onPackageReady (see RestartBroadcastHooker.register), which lets the user restart
+                // the attention service from the module's restart picker without root.
             }
             "com.miui.securitycenter" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

@@ -232,10 +232,18 @@ object CameraUltraQualityHooker : StaticHooker() {
         }
     }
 
-    /** Expose the complete stock selfie-settings page on devices that hide capability rows. */
+    /**
+     * Expose the complete stock selfie-settings page on devices that hide capability rows.
+     *
+     * RAISE-ONLY, and gated by [Preferences.KEY_CAMERA_SELFIE_SETTINGS] on every call: with the
+     * switch on the gate is forced open, with it off the native result is left untouched (never
+     * lowered — some devices already show the full page). An earlier build set `result = true`
+     * unconditionally here, which unlocked the selfie capabilities even with the switch off.
+     */
     private fun hookSelfieCapabilityGates() {
         val clazz = runCatching { classLoader.loadClass("com.android.camera.data.data.v") }.getOrNull()
             ?: return
+        var hooked = 0
         listOf("F", "Y", "c0", "O0").forEach { name ->
             val method = clazz.declaredMethods.firstOrNull {
                 it.name == name && Modifier.isStatic(it.modifiers) &&
@@ -243,9 +251,13 @@ object CameraUltraQualityHooker : StaticHooker() {
             } ?: return@forEach
             deoptimize(method)
             method.hook("cam_selfie_unlock_$name") {
-                before { param -> param.result = true }
+                before { param ->
+                    if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
+                    param.result = true
+                }
             }
+            hooked++
         }
-        DebugLog.i(TAG, "all selfie capability gates forced on")
+        DebugLog.i(TAG, "selfie capability gates hooked=$hooked (raise-only, selfie switch gated)")
     }
 }
