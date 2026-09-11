@@ -39,9 +39,19 @@
         <package android:name="com.xiaomi.xmsf" />
         <package android:name="com.android.providers.downloads" />
         <package android:name="com.android.providers.downloads.ui" />
+        <!-- Both phone packages are in `xposed_scope`, so the restart picker renders a row for each;
+             without these entries the picker cannot resolve their real label/icon. -->
+        <package android:name="com.android.phone" />
+        <package android:name="com.xiaomi.phone" />
         <!-- Lets the AOSP IME picker enumerate installed input methods. -->
         <intent>
             <action android:name="android.view.InputMethod" />
+        </intent>
+        <!-- The predictive-back opt-in picker enumerates launchable apps; package visibility hides
+             every launcher activity from a targetSdk 37 app that does not declare this intent. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 
