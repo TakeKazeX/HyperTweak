@@ -14,7 +14,9 @@ android {
 
     defaultConfig {
         applicationId = "com.takekazex.hypertweak"
-        minSdk = 35
+        // HyperOS OS3 (Android 16 / API 36) is the oldest supported platform; Android 15 was never
+        // a supported target.
+        minSdk = 36
         targetSdk = 37
         val explicitVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
         val commitCount = providers.exec {
