@@ -59,7 +59,6 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun DebugPage(
     onBack: () -> Unit,
     onNavigateToLogs: () -> Unit,
-    onNavigateToDeveloperSettings: () -> Unit,
     hotReloading: Boolean,
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
@@ -117,11 +116,6 @@ fun DebugPage(
                         title = stringResource(R.string.debug_logs_title),
                         summary = stringResource(R.string.debug_logs_summary),
                         onClick = onNavigateToLogs
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.debug_developer_settings_title),
-                        summary = stringResource(R.string.debug_developer_settings_summary),
-                        onClick = onNavigateToDeveloperSettings
                     )
                 }
             }

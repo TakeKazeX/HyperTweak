@@ -33,7 +33,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun HiddenFeaturesPage(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToDeveloperSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior()
@@ -100,10 +101,9 @@ fun HiddenFeaturesPage(
                                 tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
-                        onClick = {
-                            val intent = Intent("android.settings.APPLICATION_DEVELOPMENT_SETTINGS")
-                            launchSafe(intent, emptyList())
-                        }
+                        // Opens this module's own developer settings page (the same one the Debug
+                        // page links to); the full system developer options are reachable from there.
+                        onClick = onNavigateToDeveloperSettings
                     )
 
                     ArrowPreference(

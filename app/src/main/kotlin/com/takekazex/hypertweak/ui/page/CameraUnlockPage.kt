@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
@@ -65,6 +66,39 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun CameraUnlockPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = stringResource(R.string.camera_unlock_title),
+            scrollBehavior = scrollBehavior,
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.camera_unlock_back)) }
+            }
+        )
+    }) { padding ->
+        CameraUnlockContent(
+            Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .verticalScroll(rememberScrollState()),
+            topPadding = padding.calculateTopPadding(),
+            bottomPadding = padding.calculateBottomPadding()
+        )
+    }
+}
+
+/**
+ * Camera-unlock controls without any page chrome, so the combined camera/watermark page can host
+ * them inside its own TabRow. [topPadding] / [bottomPadding] are supplied by the host so the body
+ * clears the status bar and the navigation bar without a nested Scaffold.
+ */
+@Composable
+fun CameraUnlockContent(
+    modifier: Modifier,
+    topPadding: Dp,
+    bottomPadding: Dp
+) {
     val requestRestartScopes = LocalRestartScopeRequest.current
 
     fun requestCameraRestart() {
@@ -140,60 +174,45 @@ fun CameraUnlockPage(onBack: () -> Unit) {
         Preferences.putBoolean(key, value)
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.camera_unlock_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.camera_unlock_back)) }
-            }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+    Column(modifier = modifier) {
+        Spacer(Modifier.height(topPadding + 8.dp))
 
-            SmallTitle(stringResource(R.string.camera_unlock_features))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    // 街拍 (mode 225) unlock selector: 新街拍 forces the street-support gate on
-                    // the real config; 兼容模式街拍 opens the entry via its own module entry.
-                    // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.camera_unlock_street_title),
-                        summary = stringResource(R.string.camera_unlock_street_summary),
-                        items = listOf(
-                            stringResource(R.string.camera_unlock_street_off),
-                            stringResource(R.string.camera_unlock_street_new),
-                            stringResource(R.string.camera_unlock_street_compat)
-                        ),
-                        selectedIndex = CameraStreetMode.index(streetMode),
-                        onSelectedIndexChange = { index ->
-                            val mode = CameraStreetMode.fromIndex(index)
-                            streetMode = mode
-                            requestCameraRestart()
-                            Preferences.setCameraStreetMode(mode)
-                        }
-                    )
-                    SwitchPreference(
-                        checked = streetQuickLaunch,
-                        onCheckedChange = { enabled ->
-                            streetQuickLaunch = enabled
-                            set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_street_quick_launch_title),
-                        summary = stringResource(R.string.camera_unlock_street_quick_launch_summary)
-                    )
-                    SwitchPreference(
-                        checked = leicaStyle,
-                        onCheckedChange = { enabled ->
-                            leicaStyle = enabled
-                            set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
+        SmallTitle(stringResource(R.string.camera_unlock_features))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column(Modifier.fillMaxWidth()) {
+                // 街拍 (mode 225) unlock selector: 新街拍 forces the street-support gate on
+                // the real config; 兼容模式街拍 opens the entry via its own module entry.
+                // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.camera_unlock_street_title),
+                    summary = stringResource(R.string.camera_unlock_street_summary),
+                    items = listOf(
+                        stringResource(R.string.camera_unlock_street_off),
+                        stringResource(R.string.camera_unlock_street_new),
+                        stringResource(R.string.camera_unlock_street_compat)
+                    ),
+                    selectedIndex = CameraStreetMode.index(streetMode),
+                    onSelectedIndexChange = { index ->
+                        val mode = CameraStreetMode.fromIndex(index)
+                        streetMode = mode
+                        requestCameraRestart()
+                        Preferences.setCameraStreetMode(mode)
+                    }
+                )
+                SwitchPreference(
+                    checked = streetQuickLaunch,
+                    onCheckedChange = { enabled ->
+                        streetQuickLaunch = enabled
+                        set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_street_quick_launch_title),
+                    summary = stringResource(R.string.camera_unlock_street_quick_launch_summary)
+                )
+                SwitchPreference(
+                    checked = leicaStyle,
+                    onCheckedChange = { enabled ->
+                        leicaStyle = enabled
+                        set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
                         },
                         title = stringResource(R.string.camera_unlock_leica_style_title),
                         summary = stringResource(R.string.camera_unlock_leica_style_summary)
@@ -207,182 +226,181 @@ fun CameraUnlockPage(onBack: () -> Unit) {
                         title = stringResource(R.string.camera_unlock_ultra_hd_title),
                         summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
                     )
-                    SwitchPreference(
-                        checked = selfieSettings,
-                        onCheckedChange = { enabled ->
-                            selfieSettings = enabled
-                            set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
+                SwitchPreference(
+                    checked = selfieSettings,
+                    onCheckedChange = { enabled ->
+                        selfieSettings = enabled
+                        set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_selfie_settings_title),
+                    summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
+                )
+                SwitchPreference(
+                    checked = legendaryMoment,
+                    onCheckedChange = { enabled ->
+                        legendaryMoment = enabled
+                        set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_legendary_moment_title),
+                    summary = stringResource(R.string.camera_unlock_legendary_moment_summary)
+                )
+                SwitchPreference(
+                    checked = smartComposition,
+                    onCheckedChange = { enabled ->
+                        smartComposition = enabled
+                        set(Preferences.KEY_CAMERA_SMART_COMPOSITION, enabled)
+                    },
+                    title = stringResource(R.string.camera_unlock_smart_composition_title),
+                    summary = stringResource(R.string.camera_unlock_smart_composition_summary)
+                )
+                SwitchPreference(
+                    checked = contentCredential,
+                    onCheckedChange = { enabled ->
+                        contentCredential = enabled
+                        set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_content_credential_title),
+                    summary = stringResource(R.string.camera_unlock_content_credential_summary)
+                )
+                SwitchPreference(
+                    checked = adaptiveLens,
+                    onCheckedChange = { enabled ->
+                        adaptiveLens = enabled
+                        set(Preferences.KEY_CAMERA_ADAPTIVE_LENS, enabled)
+                    },
+                    title = stringResource(R.string.camera_unlock_adaptive_lens_title),
+                    summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
+                )
+                SwitchPreference(
+                    checked = masterLiveEnable,
+                    onCheckedChange = { enabled ->
+                        masterLiveEnable = enabled
+                        set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_masterlive_title),
+                    summary = stringResource(R.string.camera_unlock_masterlive_summary)
+                )
+                SwitchPreference(
+                    checked = mlRedCarpet,
+                    onCheckedChange = { enabled ->
+                        mlRedCarpet = enabled
+                        set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_red_carpet_title),
+                    summary = stringResource(R.string.camera_unlock_red_carpet_summary)
+                )
+                SwitchPreference(
+                    checked = mlFullFocal,
+                    onCheckedChange = { enabled ->
+                        mlFullFocal = enabled
+                        set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_full_focal_title),
+                    summary = stringResource(R.string.camera_unlock_full_focal_summary)
+                )
+                SwitchPreference(
+                    checked = mlVideoSizeProbe,
+                    onCheckedChange = { enabled ->
+                        mlVideoSizeProbe = enabled
+                        set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_video_size_probe_title),
+                    summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
+                )
+                SwitchPreference(
+                    checked = themeLcc,
+                    onCheckedChange = { enabled ->
+                        themeLcc = enabled
+                        set(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
+                    },
+                    title = stringResource(R.string.camera_unlock_theme_lcc_title),
+                    summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
+                )
+                SwitchPreference(
+                    checked = customWm,
+                    onCheckedChange = { enabled ->
+                        customWm = enabled
+                        set(Preferences.KEY_CAMERA_WM_CUSTOM, enabled)
+                        if (!enabled) {
+                            editingBrand = false
+                            editingModel = false
+                        }
+                    },
+                    title = stringResource(R.string.camera_unlock_custom_title),
+                    summary = stringResource(R.string.camera_unlock_custom_summary)
+                )
+                if (customWm) {
+                    ArrowPreference(
+                        title = stringResource(R.string.camera_unlock_custom_brand_title),
+                        summary = if (customBrand.isEmpty()) {
+                            stringResource(R.string.camera_unlock_custom_unset)
+                        } else {
+                            customBrand
                         },
-                        title = stringResource(R.string.camera_unlock_selfie_settings_title),
-                        summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
+                        onClick = { editingBrand = true },
+                        holdDownState = editingBrand
                     )
-                    SwitchPreference(
-                        checked = legendaryMoment,
-                        onCheckedChange = { enabled ->
-                            legendaryMoment = enabled
-                            set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled, needsRestart = true)
+                    ArrowPreference(
+                        title = stringResource(R.string.camera_unlock_custom_model_title),
+                        summary = if (customModel.isEmpty()) {
+                            stringResource(R.string.camera_unlock_custom_unset)
+                        } else {
+                            customModel
                         },
-                        title = stringResource(R.string.camera_unlock_legendary_moment_title),
-                        summary = stringResource(R.string.camera_unlock_legendary_moment_summary)
-                    )
-                    SwitchPreference(
-                        checked = smartComposition,
-                        onCheckedChange = { enabled ->
-                            smartComposition = enabled
-                            set(Preferences.KEY_CAMERA_SMART_COMPOSITION, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_smart_composition_title),
-                        summary = stringResource(R.string.camera_unlock_smart_composition_summary)
-                    )
-                    SwitchPreference(
-                        checked = contentCredential,
-                        onCheckedChange = { enabled ->
-                            contentCredential = enabled
-                            set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_content_credential_title),
-                        summary = stringResource(R.string.camera_unlock_content_credential_summary)
-                    )
-                    SwitchPreference(
-                        checked = adaptiveLens,
-                        onCheckedChange = { enabled ->
-                            adaptiveLens = enabled
-                            set(Preferences.KEY_CAMERA_ADAPTIVE_LENS, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_adaptive_lens_title),
-                        summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
-                    )
-                    SwitchPreference(
-                        checked = masterLiveEnable,
-                        onCheckedChange = { enabled ->
-                            masterLiveEnable = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_masterlive_title),
-                        summary = stringResource(R.string.camera_unlock_masterlive_summary)
-                    )
-                    SwitchPreference(
-                        checked = mlRedCarpet,
-                        onCheckedChange = { enabled ->
-                            mlRedCarpet = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_red_carpet_title),
-                        summary = stringResource(R.string.camera_unlock_red_carpet_summary)
-                    )
-                    SwitchPreference(
-                        checked = mlFullFocal,
-                        onCheckedChange = { enabled ->
-                            mlFullFocal = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_full_focal_title),
-                        summary = stringResource(R.string.camera_unlock_full_focal_summary)
-                    )
-                    SwitchPreference(
-                        checked = mlVideoSizeProbe,
-                        onCheckedChange = { enabled ->
-                            mlVideoSizeProbe = enabled
-                            set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_video_size_probe_title),
-                        summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
-                    )
-                    SwitchPreference(
-                        checked = themeLcc,
-                        onCheckedChange = { enabled ->
-                            themeLcc = enabled
-                            set(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
-                        },
-                        title = stringResource(R.string.camera_unlock_theme_lcc_title),
-                        summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
-                    )
-                    SwitchPreference(
-                        checked = customWm,
-                        onCheckedChange = { enabled ->
-                            customWm = enabled
-                            set(Preferences.KEY_CAMERA_WM_CUSTOM, enabled)
-                            if (!enabled) {
-                                editingBrand = false
-                                editingModel = false
-                            }
-                        },
-                        title = stringResource(R.string.camera_unlock_custom_title),
-                        summary = stringResource(R.string.camera_unlock_custom_summary)
-                    )
-                    if (customWm) {
-                        ArrowPreference(
-                            title = stringResource(R.string.camera_unlock_custom_brand_title),
-                            summary = if (customBrand.isEmpty()) {
-                                stringResource(R.string.camera_unlock_custom_unset)
-                            } else {
-                                customBrand
-                            },
-                            onClick = { editingBrand = true },
-                            holdDownState = editingBrand
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.camera_unlock_custom_model_title),
-                            summary = if (customModel.isEmpty()) {
-                                stringResource(R.string.camera_unlock_custom_unset)
-                            } else {
-                                customModel
-                            },
-                            onClick = { editingModel = true },
-                            holdDownState = editingModel
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            SmallTitle(stringResource(R.string.camera_unlock_notes))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        text = stringResource(R.string.camera_unlock_note_scope),
-                        color = MiuixTheme.colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.camera_unlock_note_restart),
-                        color = MiuixTheme.colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.camera_unlock_note_exif),
-                        color = MiuixTheme.colorScheme.onSurface,
-                        fontSize = 13.sp
+                        onClick = { editingModel = true },
+                        holdDownState = editingModel
                     )
                 }
             }
-            // Dialogs composed INSIDE the scaffold content (like ScaleDialog in AppearancePage);
-            // OverlayDialog positioned outside the Scaffold subtree did not show.
-            CameraWatermarkTextDialog(
-                show = editingBrand,
-                title = stringResource(R.string.camera_unlock_custom_brand_title),
-                initial = customBrand,
-                onDismissRequest = { editingBrand = false },
-                onConfirm = { value ->
-                    customBrand = value
-                    Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
-                    editingBrand = false
-                }
-            )
-            CameraWatermarkTextDialog(
-                show = editingModel,
-                title = stringResource(R.string.camera_unlock_custom_model_title),
-                initial = customModel,
-                onDismissRequest = { editingModel = false },
-                onConfirm = { value ->
-                    customModel = value
-                    Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
-                    editingModel = false
-                }
-            )
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
         }
+        Spacer(Modifier.height(12.dp))
+        SmallTitle(stringResource(R.string.camera_unlock_notes))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    text = stringResource(R.string.camera_unlock_note_scope),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.camera_unlock_note_restart),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.camera_unlock_note_exif),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 13.sp
+                )
+            }
+        }
+        // Dialogs composed INSIDE the scaffold content (like ScaleDialog in AppearancePage);
+        // OverlayDialog positioned outside the Scaffold subtree did not show.
+        CameraWatermarkTextDialog(
+            show = editingBrand,
+            title = stringResource(R.string.camera_unlock_custom_brand_title),
+            initial = customBrand,
+            onDismissRequest = { editingBrand = false },
+            onConfirm = { value ->
+                customBrand = value
+                Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
+                editingBrand = false
+            }
+        )
+        CameraWatermarkTextDialog(
+            show = editingModel,
+            title = stringResource(R.string.camera_unlock_custom_model_title),
+            initial = customModel,
+            onDismissRequest = { editingModel = false },
+            onConfirm = { value ->
+                customModel = value
+                Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
+                editingModel = false
+            }
+        )
+        Spacer(Modifier.height(bottomPadding + 24.dp))
     }
 }
 

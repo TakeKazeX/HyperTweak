@@ -113,6 +113,15 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            // Entry point for the full system developer options. The switches below cover the
+            // handful of toggles worth surfacing directly; anything else lives in the system page.
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.developer_settings_system_options_title),
+                    summary = stringResource(R.string.developer_settings_system_options_summary),
+                    onClick = { openSystemDeveloperOptions(context) }
+                )
+            }
             SmallTitle(stringResource(R.string.developer_settings_display_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
@@ -202,6 +211,18 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
+    }
+}
+
+/** Opens the full system developer options page (开发者选项). */
+private fun openSystemDeveloperOptions(context: Context) {
+    try {
+        context.startActivity(
+            Intent("android.settings.APPLICATION_DEVELOPMENT_SETTINGS")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (_: Exception) {
+        Toast.makeText(context, R.string.developer_settings_open_failed, Toast.LENGTH_SHORT).show()
     }
 }
 

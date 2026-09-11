@@ -42,8 +42,9 @@ import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
-import com.takekazex.hypertweak.ui.page.WatermarkPage
-import com.takekazex.hypertweak.ui.page.CameraUnlockPage
+import com.takekazex.hypertweak.ui.page.GoogleServicesPage
+import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
+import com.takekazex.hypertweak.ui.page.CameraWatermarkUnlockPage
 import com.takekazex.hypertweak.ui.page.ChargingDetailPage
 import com.takekazex.hypertweak.ui.page.LockscreenBottomTextPage
 import com.takekazex.hypertweak.ui.page.ControlCenterCornerPage
@@ -288,16 +289,6 @@ fun HyperTweakNavContainer(
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
                 pendingRestartScopes = pendingRestartScopes,
-                removeGms = removeGms,
-                onRemoveGmsChange = onRemoveGmsChange,
-                quickShareEnabled = quickShareEnabled,
-                onQuickShareEnabledChange = onQuickShareEnabledChange,
-                fullScreenTranslate = fullScreenTranslate,
-                onFullScreenTranslateChange = onFullScreenTranslateChange,
-                askAboutScreen = askAboutScreen,
-                onAskAboutScreenChange = onAskAboutScreenChange,
-                ccEditEnabled = ccEditEnabled,
-                onCcEditEnabledChange = onCcEditEnabledChange,
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemUi = {
@@ -311,24 +302,16 @@ fun HyperTweakNavContainer(
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
-                showGoogleServicesInSettings = showGoogleServicesInSettings,
-                onShowGoogleServicesInSettingsChange = onShowGoogleServicesInSettingsChange,
                 disableVideoRingback = disableVideoRingback,
                 onDisableVideoRingbackChange = onDisableVideoRingbackChange,
                 hideLauncherIcon = hideLauncherIcon,
                 onHideLauncherIconChange = onHideLauncherIconChange,
-                unlockPasskey = unlockPasskey,
-                onUnlockPasskeyChange = onUnlockPasskeyChange,
                  unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
                  onUnlockThirdPartyDarkModeChange = onUnlockThirdPartyDarkModeChange,
                 disableSpatialAudio = disableSpatialAudio,
                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                 forceAdaptiveAnc = forceAdaptiveAnc,
                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
-                fcmLiveEnabled = fcmLiveEnabled,
-                onFcmLiveEnabledChange = onFcmLiveEnabledChange,
-                lbeClipboardToast = lbeClipboardToast,
-                onLbeClipboardToastChange = onLbeClipboardToastChange,
                 disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
                 onDisableMiTrustRiskMonitoringChange = onDisableMiTrustRiskMonitoringChange,
                 disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
@@ -375,9 +358,6 @@ fun HyperTweakNavContainer(
                 onNavigateToBackupRestore = {
                     backStack.add(Route.BackupRestore)
                 },
-                onNavigateToDebugLogs = {
-                    backStack.add(Route.Debug)
-                },
                 onNavigateToHiddenFeatures = {
                     backStack.add(Route.HiddenFeatures)
                 },
@@ -390,17 +370,20 @@ fun HyperTweakNavContainer(
                 onNavigateToAospRestore = {
                     backStack.add(Route.AospRestore)
                 },
+                onNavigateToGoogleServices = {
+                    backStack.add(Route.GoogleServices)
+                },
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
                 },
                 onNavigateToGlassTuner = {
                     backStack.add(Route.GlassTuner)
                 },
-                onNavigateToWatermark = {
-                    backStack.add(Route.Watermark)
+                onNavigateToCameraWatermark = {
+                    backStack.add(Route.CameraWatermark)
                 },
-                onNavigateToCameraUnlock = {
-                    backStack.add(Route.CameraUnlock)
+                onNavigateToExperimentalFeatures = {
+                    backStack.add(Route.ExperimentalFeatures)
                 },
                 onNavigateToControlCenterCorner = {
                     backStack.add(Route.ControlCenterCorner)
@@ -463,6 +446,9 @@ fun HyperTweakNavContainer(
                 onViewSourceCode = onViewSourceCode,
                 onNavigateToCredits = {
                     backStack.add(Route.Credits)
+                },
+                onNavigateToDebug = {
+                    backStack.add(Route.Debug)
                 }
             )
         }
@@ -477,6 +463,9 @@ fun HyperTweakNavContainer(
             HiddenFeaturesPage(
                 onBack = {
                     if (backStack.size > 1) backStack.removeLast()
+                },
+                onNavigateToDeveloperSettings = {
+                    backStack.add(Route.DeveloperSettings)
                 }
             )
         }
@@ -581,7 +570,10 @@ fun HyperTweakNavContainer(
                 onAospBackHapticsEnhancedChange = onAospBackHapticsEnhancedChange,
                 aospBackSlideAnimation = aospBackSlideAnimation,
                 onAospBackSlideAnimationChange = onAospBackSlideAnimationChange,
-                launcherSupportsBackRoute = launcherSupportsBackRoute
+                launcherSupportsBackRoute = launcherSupportsBackRoute,
+                onNavigateToIconTuner = {
+                    backStack.add(Route.IconTuner)
+                }
             )
         }
         entry<Route.DownloadManager> {
@@ -602,14 +594,38 @@ fun HyperTweakNavContainer(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
-        entry<Route.Watermark> {
-            WatermarkPage(
+        entry<Route.CameraWatermark> {
+            CameraWatermarkUnlockPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
-        entry<Route.CameraUnlock> {
-            CameraUnlockPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+        entry<Route.GoogleServices> {
+            GoogleServicesPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                showGoogleServicesInSettings = showGoogleServicesInSettings,
+                onShowGoogleServicesInSettingsChange = onShowGoogleServicesInSettingsChange,
+                removeGms = removeGms,
+                onRemoveGmsChange = onRemoveGmsChange,
+                quickShareEnabled = quickShareEnabled,
+                onQuickShareEnabledChange = onQuickShareEnabledChange,
+                fullScreenTranslate = fullScreenTranslate,
+                onFullScreenTranslateChange = onFullScreenTranslateChange,
+                askAboutScreen = askAboutScreen,
+                onAskAboutScreenChange = onAskAboutScreenChange,
+                unlockPasskey = unlockPasskey,
+                onUnlockPasskeyChange = onUnlockPasskeyChange,
+                fcmLiveEnabled = fcmLiveEnabled,
+                onFcmLiveEnabledChange = onFcmLiveEnabledChange
+            )
+        }
+        entry<Route.ExperimentalFeatures> {
+            ExperimentalFeaturesPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onNavigateToGlassTuner = { backStack.add(Route.GlassTuner) },
+                onNavigateToControlCenterCorner = { backStack.add(Route.ControlCenterCorner) },
+                onNavigateToControlCenterResize = { backStack.add(Route.ControlCenterResize) },
+                ccEditEnabled = ccEditEnabled,
+                onCcEditEnabledChange = onCcEditEnabledChange
             )
         }
         entry<Route.ChargingDetail> {
@@ -636,7 +652,6 @@ fun HyperTweakNavContainer(
             DebugPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToLogs = { backStack.add(Route.DebugLogs) },
-                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) },
                 hotReloading = hotReloading,
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,

@@ -1099,6 +1099,8 @@ class MainActivity : ComponentActivity() {
                         downloadAddNewButton = checked
                         Preferences.putBoolean(Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
                     },
+                    // Google services and the experimental switches now live on their own
+                    // second-level pages; the nav container consumes their state directly.
                     removeGms = removeGms,
                     onRemoveGmsChange = { checked ->
                         removeGms = checked
@@ -1113,6 +1115,39 @@ class MainActivity : ComponentActivity() {
                     askAboutScreen = askAboutScreen,
                     onAskAboutScreenChange = { checked ->
                         handleAskAboutScreenChange(checked)
+                    },
+                    showGoogleServicesInSettings = showGoogleServicesInSettings,
+                    onShowGoogleServicesInSettingsChange = { checked ->
+                        markTweaked(Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, checked)
+                        showGoogleServicesInSettings = checked
+                        Preferences.putBoolean(
+                            Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                            checked
+                        )
+                    },
+                    unlockPasskey = unlockPasskey,
+                    onUnlockPasskeyChange = { checked ->
+                        markTweaked(Preferences.KEY_UNLOCK_PASSKEY, checked)
+                        unlockPasskey = checked
+                        Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
+                    },
+                    fcmLiveEnabled = fcmLiveEnabled,
+                    onFcmLiveEnabledChange = { checked ->
+                        markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
+                        fcmLiveEnabled = checked
+                        Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
+                    },
+                    lbeClipboardToast = lbeClipboardToast,
+                    onLbeClipboardToastChange = { checked ->
+                        markTweaked(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
+                        lbeClipboardToast = checked
+                        Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
+                    },
+                    ccEditEnabled = ccEditEnabled,
+                    onCcEditEnabledChange = { checked ->
+                        markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)
+                        ccEditEnabled = checked
+                        Preferences.putBoolean(Preferences.KEY_CC_EDIT_ENABLED, checked)
                     },
                     hideFingerprintAod = hideFingerprintAod,
                     onHideFingerprintAodChange = { checked ->
@@ -1229,7 +1264,6 @@ class MainActivity : ComponentActivity() {
                         sliderSamePercentageStyle = checked
                         Preferences.putBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
                     },
-                    ccEditEnabled = ccEditEnabled,
                     paModelSpoofEnabled = paModelSpoofEnabled,
                     mediaCardHideAppIcon = mediaCardHideAppIcon,
                     onMediaCardHideAppIconChange = { checked ->
@@ -1255,11 +1289,6 @@ class MainActivity : ComponentActivity() {
                         lockscreenKeepNotifications = checked
                         Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, checked)
                     },
-                    onCcEditEnabledChange = { checked ->
-                        markTweaked(Preferences.KEY_CC_EDIT_ENABLED, checked)
-                        ccEditEnabled = checked
-                        Preferences.putBoolean(Preferences.KEY_CC_EDIT_ENABLED, checked)
-                    },
                     onPaModelSpoofEnabledChange = { checked ->
                         handlePaModelSpoofChange(checked)
                     },
@@ -1268,15 +1297,6 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_SHOW_IN_SETTINGS, checked)
                         showInSettings = checked
                         Preferences.putBoolean(Preferences.KEY_SHOW_IN_SETTINGS, checked)
-                    },
-                    showGoogleServicesInSettings = showGoogleServicesInSettings,
-                    onShowGoogleServicesInSettingsChange = { checked ->
-                        markTweaked(Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, checked)
-                        showGoogleServicesInSettings = checked
-                        Preferences.putBoolean(
-                            Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
-                            checked
-                        )
                     },
                     disableVideoRingback = disableVideoRingback,
                     onDisableVideoRingbackChange = { checked ->
@@ -1299,12 +1319,6 @@ class MainActivity : ComponentActivity() {
                         immediateMonetRefresh = enabled
                         Preferences.putBoolean(Preferences.KEY_IMMEDIATE_MONET_REFRESH, enabled)
                     },
-                    unlockPasskey = unlockPasskey,
-                    onUnlockPasskeyChange = { checked ->
-                        markTweaked(Preferences.KEY_UNLOCK_PASSKEY, checked)
-                        unlockPasskey = checked
-                        Preferences.putBoolean(Preferences.KEY_UNLOCK_PASSKEY, checked)
-                    },
                     unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
                      onUnlockThirdPartyDarkModeChange = { checked ->
                          unlockThirdPartyDarkMode = checked
@@ -1321,18 +1335,6 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
                         forceAdaptiveAnc = checked
                         Preferences.putBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, checked)
-                    },
-                    fcmLiveEnabled = fcmLiveEnabled,
-                    onFcmLiveEnabledChange = { checked ->
-                        markTweaked(Preferences.KEY_FCM_LIVE_ENABLED, checked)
-                        fcmLiveEnabled = checked
-                        Preferences.putBoolean(Preferences.KEY_FCM_LIVE_ENABLED, checked)
-                    },
-                    lbeClipboardToast = lbeClipboardToast,
-                    onLbeClipboardToastChange = { checked ->
-                        markTweaked(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
-                        lbeClipboardToast = checked
-                        Preferences.putBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, checked)
                     },
                     disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
                     onDisableMiTrustRiskMonitoringChange = { checked ->

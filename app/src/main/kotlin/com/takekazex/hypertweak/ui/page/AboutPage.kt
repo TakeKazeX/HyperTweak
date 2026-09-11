@@ -58,7 +58,8 @@ import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 fun AboutPage(
     onBack: () -> Unit,
     onViewSourceCode: () -> Unit,
-    onNavigateToCredits: () -> Unit
+    onNavigateToCredits: () -> Unit,
+    onNavigateToDebug: () -> Unit
 ) {
     val lazyListState = rememberLazyListState()
     var logoHeightPx by remember { mutableIntStateOf(0) }
@@ -341,6 +342,11 @@ fun AboutPage(
                                     title = stringResource(R.string.about_credits_acknowledgements),
                                     summary = stringResource(R.string.about_credits_acknowledgements_summary),
                                     onClick = onNavigateToCredits
+                                )
+                                ArrowPreference(
+                                    title = stringResource(R.string.settings_debug),
+                                    summary = stringResource(R.string.settings_debug_summary),
+                                    onClick = onNavigateToDebug
                                 )
                             }
                         }

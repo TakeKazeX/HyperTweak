@@ -203,8 +203,6 @@
     <string name="debug_clipboard_read_failed">Unable to read clipboard</string>
     <string name="debug_clipboard_read_success">Clipboard read successfully</string>
     <string name="debug_diagnostics_title">Diagnostics</string>
-    <string name="debug_developer_settings_title">Developer settings</string>
-    <string name="debug_developer_settings_summary">Display and connection debugging options</string>
     <string name="debug_hot_reload_button">Open hot reload dialog</string>
     <string name="debug_logs_summary">View, filter, copy, and export recorded logs</string>
     <string name="debug_logs_title">Logs</string>
@@ -217,6 +215,8 @@
     <string name="debug_read_clipboard_button">Read clipboard</string>
     <string name="debug_toast_test">Show test Toast</string>
     <string name="developer_settings_page_title">Developer settings</string>
+    <string name="developer_settings_system_options_title">System developer options</string>
+    <string name="developer_settings_system_options_summary">Open the full Android developer options page</string>
     <string name="developer_settings_back">Back</string>
     <string name="developer_settings_display_title">Display</string>
     <string name="developer_settings_show_refresh_rate">Show refresh rate</string>
@@ -345,7 +345,7 @@
     <string name="hidden__default_apps">Default Apps</string>
     <string name="hidden__default_apps_summary">Configure default assistant, browser, home screen, and other apps</string>
     <string name="hidden__developer_settings">Developer Settings</string>
-    <string name="hidden__developer_settings_summary">Open developer options and USB debugging settings</string>
+    <string name="hidden__developer_settings_summary">Open HyperTweak\'s developer settings, including the entry to the system developer options</string>
     <string name="hidden__extra_dim">Extra Dim</string>
     <string name="hidden__extra_dim_summary">Open system-level extra dim settings (reduce screen minimum brightness)</string>
     <string name="hidden__fcm_debug">FCM Debug</string>
@@ -760,6 +760,13 @@
     <string name="settings_debug">Debug</string>
     <string name="settings_debug_summary">Logging and diagnostics</string>
     <string name="settings_experimental">Experimental</string>
+    <string name="settings_experimental_subtitle">Not guaranteed to work fully; still under development</string>
+    <string name="experimental_features_title">Experimental</string>
+    <string name="experimental_features_section">Experimental options</string>
+    <string name="experimental_features_back">Back</string>
+    <string name="experimental_features_notes">These switches are still being developed and may not work completely. Effects depend on the device, firmware version, and whether the target app is in the module scope.</string>
+    <string name="google_services_title">Google Services</string>
+    <string name="google_services_back">Back</string>
     <string name="settings_fingerprint_avoid_always">Always Avoid</string>
     <string name="settings_fingerprint_avoid_default">System Default</string>
     <string name="settings_fingerprint_avoid_none">No Avoidance</string>
@@ -789,6 +796,7 @@
     <string name="scope_prompt_show_again">Show again</string>
     <string name="settings_system_ui_back">Back</string>
     <string name="settings_system_ui_section_general">General</string>
+    <string name="settings_system_ui_section_status_bar">Status Bar</string>
     <string name="settings_system_ui_section_notification_shade">Notification Shade</string>
     <string name="settings_notification_header_clock_seconds_title">Show Seconds On Large Clock</string>
     <string name="settings_notification_header_clock_seconds_summary">Show seconds on the large clock when the notification shade is expanded; long-press either clock to temporarily toggle seconds for five minutes</string>
@@ -806,10 +814,6 @@
     <string name="settings_show_entry_in_system_settings_summary">Inject an entry point for HyperTweak in the system Settings app</string>
     <string name="settings_show_google_services_in_settings">Show Google services</string>
     <string name="settings_show_google_services_in_settings_summary">Restore the native Google services home-page entry. Requires restarting Settings</string>
-    <string name="settings_watermark_unlock">Watermark Unlock</string>
-    <string name="settings_watermark_unlock_summary">Unlock Leica / Disney / POCO / festival watermarks in the media editor</string>
-    <string name="settings_camera_unlock">Camera Unlock</string>
-    <string name="settings_camera_unlock_summary">Unlock hidden camera modes and features</string>
     <string name="shortcuts_back">Back</string>
     <string name="shortcuts_hint">Long press to drag, toggle to enable (max 5)</string>
     <string name="shortcuts_reset">Reset</string>
@@ -1014,6 +1018,8 @@
     <string name="cc_tile_custom_summary">Hand-typed tile specs, comma separated</string>
     <string name="cc_tile_custom_dialog_summary">Comma-separated tile spec names, e.g. focus,miui:xxx</string>
     <string name="tweaks_system_core_title">Google-related services</string>
+    <string name="tweaks_system_core_summary">GMS restrictions, Quick Share, Circle to Search extras, passkey, and Google push</string>
+    <string name="tweaks_camera_watermark_summary">Hidden camera modes plus the media-editor watermark categories</string>
     <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage text visible to match the brightness style</string>
     <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>
     <string name="tweaks_xmsf_unlock_focus_auth_summary">Force the Xiaomi Service Framework signature check for the Super Island whitelist to pass, so apps rejected by it can post Super Island notifications. Requires an xmsf restart to apply.</string>

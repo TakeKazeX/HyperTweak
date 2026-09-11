@@ -203,8 +203,6 @@
     <string name="debug_clipboard_read_failed">无法读取剪贴板</string>
     <string name="debug_clipboard_read_success">已读取剪贴板</string>
     <string name="debug_diagnostics_title">诊断</string>
-    <string name="debug_developer_settings_title">开发者设置</string>
-    <string name="debug_developer_settings_summary">显示与连接调试选项</string>
     <string name="debug_hot_reload_button">打开热重载弹窗</string>
     <string name="debug_logs_summary">查看、筛选、复制和导出已记录的日志</string>
     <string name="debug_logs_title">日志</string>
@@ -217,6 +215,8 @@
     <string name="debug_read_clipboard_button">读取剪贴板</string>
     <string name="debug_toast_test">弹出测试 Toast</string>
     <string name="developer_settings_page_title">开发者设置</string>
+    <string name="developer_settings_system_options_title">系统开发者选项</string>
+    <string name="developer_settings_system_options_summary">打开完整的 Android 开发者选项页面</string>
     <string name="developer_settings_back">返回</string>
     <string name="developer_settings_display_title">显示</string>
     <string name="developer_settings_show_refresh_rate">显示刷新频率</string>
@@ -345,7 +345,7 @@
     <string name="hidden__default_apps">默认应用</string>
     <string name="hidden__default_apps_summary">配置默认助理、浏览器、桌面和其他应用</string>
     <string name="hidden__developer_settings">开发者选项</string>
-    <string name="hidden__developer_settings_summary">打开开发者选项和 USB 调试设置</string>
+    <string name="hidden__developer_settings_summary">打开 HyperTweak 的开发者设置，其中包含系统开发者选项的入口</string>
     <string name="hidden__extra_dim">额外调暗</string>
     <string name="hidden__extra_dim_summary">打开系统级额外调暗设置（降低屏幕最低亮度）</string>
     <string name="hidden__fcm_debug">FCM 调试</string>
@@ -760,6 +760,13 @@
     <string name="settings_debug">调试</string>
     <string name="settings_debug_summary">日志与诊断</string>
     <string name="settings_experimental">实验性功能</string>
+    <string name="settings_experimental_subtitle">不保证完全可用，仍在开发中</string>
+    <string name="experimental_features_title">实验性功能</string>
+    <string name="experimental_features_section">实验性选项</string>
+    <string name="experimental_features_back">返回</string>
+    <string name="experimental_features_notes">这些开关仍在开发中，可能无法完全生效。实际效果取决于设备、系统版本以及目标应用是否在模块作用域内。</string>
+    <string name="google_services_title">Google 服务</string>
+    <string name="google_services_back">返回</string>
     <string name="settings_fingerprint_avoid_always">始终避让</string>
     <string name="settings_fingerprint_avoid_default">跟随系统</string>
     <string name="settings_fingerprint_avoid_none">不避让</string>
@@ -789,6 +796,7 @@
     <string name="scope_prompt_show_again">再次提示</string>
     <string name="settings_system_ui_back">返回</string>
     <string name="settings_system_ui_section_general">通用</string>
+    <string name="settings_system_ui_section_status_bar">状态栏</string>
     <string name="settings_system_ui_section_notification_shade">通知中心</string>
     <string name="settings_notification_header_clock_seconds_title">通知中心大时钟显示秒钟</string>
     <string name="settings_notification_header_clock_seconds_summary">展开通知中心时，让顶部大时钟显示秒钟；长按状态栏或大时钟可临时切换，五分钟后自动恢复</string>
@@ -806,10 +814,6 @@
     <string name="settings_show_entry_in_system_settings_summary">在系统设置应用中为 HyperTweak 注入入口</string>
     <string name="settings_show_google_services_in_settings">显示 Google 服务</string>
     <string name="settings_show_google_services_in_settings_summary">恢复系统设置主页原生的 Google 服务入口。需要重启设置</string>
-    <string name="settings_watermark_unlock">水印解锁</string>
-    <string name="settings_watermark_unlock_summary">在相册编辑中解锁徕卡 / Disney / POCO / 节日水印</string>
-    <string name="settings_camera_unlock">相机解锁</string>
-    <string name="settings_camera_unlock_summary">解锁相机的隐藏模式与功能</string>
     <string name="shortcuts_back">返回</string>
     <string name="shortcuts_hint">长按拖动排序，开关以启用（最多 5 个）</string>
     <string name="shortcuts_reset">重置</string>
@@ -1014,6 +1018,8 @@
     <string name="cc_tile_custom_summary">手动输入的磁贴 spec，逗号分隔</string>
     <string name="cc_tile_custom_dialog_summary">输入磁贴 spec 名称，逗号分隔，如 focus,miui:xxx</string>
     <string name="tweaks_system_core_title">Google 服务相关</string>
+    <string name="tweaks_system_core_summary">GMS 限制、快速分享、即圈即搜扩展、通行密钥与 Google 推送</string>
+    <string name="tweaks_camera_watermark_summary">相机隐藏模式，以及相册编辑的水印分类</string>
     <string name="tweaks_unify_percentage_style_summary">始终显示音量滑块百分比文本，与亮度样式保持一致</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>
     <string name="tweaks_xmsf_unlock_focus_auth_summary">强制小米服务框架对超级岛白名单的签名校验通过，让被其拒签的应用也能发送超级岛通知。需要重启 xmsf 生效。</string>

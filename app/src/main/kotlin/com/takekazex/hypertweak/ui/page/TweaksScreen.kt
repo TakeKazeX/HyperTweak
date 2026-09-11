@@ -56,28 +56,14 @@ fun TweaksScreenContent(
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
     onNavigateToAospRestore: () -> Unit,
-    removeGms: Boolean,
-    onRemoveGmsChange: (Boolean) -> Unit,
-    quickShareEnabled: Boolean,
-    onQuickShareEnabledChange: (Boolean) -> Unit,
-    fullScreenTranslate: Boolean,
-    onFullScreenTranslateChange: (Boolean) -> Unit,
-    askAboutScreen: Boolean,
-    onAskAboutScreenChange: (Boolean) -> Unit,
-    showGoogleServicesInSettings: Boolean,
-    onShowGoogleServicesInSettingsChange: (Boolean) -> Unit,
+    onNavigateToGoogleServices: () -> Unit,
+    onNavigateToCameraWatermark: () -> Unit,
     paModelSpoofEnabled: Boolean,
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
-    unlockPasskey: Boolean,
-    onUnlockPasskeyChange: (Boolean) -> Unit,
     unlockThirdPartyDarkMode: Boolean,
     onUnlockThirdPartyDarkModeChange: (Boolean) -> Unit,
     disableVideoRingback: Boolean,
     onDisableVideoRingbackChange: (Boolean) -> Unit,
-    fcmLiveEnabled: Boolean,
-    onFcmLiveEnabledChange: (Boolean) -> Unit,
-    lbeClipboardToast: Boolean,
-    onLbeClipboardToastChange: (Boolean) -> Unit,
     disableMiTrustRiskMonitoring: Boolean,
     onDisableMiTrustRiskMonitoringChange: (Boolean) -> Unit,
     disableGuardEnvironmentCheck: Boolean,
@@ -192,6 +178,34 @@ fun TweaksScreenContent(
                         },
                         onClick = onNavigateToSecurityCenter
                     )
+                    // Google-related services live on their own second-level page so this card stays
+                    // a list of system components; the row carries the GMS icon like the others.
+                    ArrowPreference(
+                        title = stringResource(R.string.tweaks_system_core_title),
+                        summary = stringResource(R.string.tweaks_system_core_summary),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = RestartScopeSelection.PACKAGE_GMS,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.tweaks_system_core_title)
+                            )
+                        },
+                        onClick = onNavigateToGoogleServices
+                    )
+                    // Camera (com.android.camera) and media-editor watermark unlocks share one
+                    // second-level page split by a TabRow; the row carries the camera icon.
+                    ArrowPreference(
+                        title = stringResource(R.string.camera_unlock_title),
+                        summary = stringResource(R.string.tweaks_camera_watermark_summary),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = RestartScopeSelection.PACKAGE_CAMERA,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.camera_unlock_title)
+                            )
+                        },
+                        onClick = onNavigateToCameraWatermark
+                    )
                 }
             }
 
@@ -231,58 +245,6 @@ fun TweaksScreenContent(
                     title = stringResource(R.string.tweaks_block_milink_hpplay_files_title),
                     summary = stringResource(R.string.tweaks_block_milink_hpplay_files_summary)
                 )
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_system_core_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = showGoogleServicesInSettings,
-                        onCheckedChange = onShowGoogleServicesInSettingsChange,
-                        title = stringResource(R.string.settings_show_google_services_in_settings),
-                        summary = stringResource(R.string.settings_show_google_services_in_settings_summary)
-                    )
-                    SwitchPreference(
-                        checked = removeGms,
-                        onCheckedChange = onRemoveGmsChange,
-                        title = stringResource(R.string.tweaks_gms_bypass_title),
-                        summary = stringResource(R.string.tweaks_gms_bypass_summary)
-                    )
-                    // Bypassing the GMS China ROM restrictions already removes the CN markers that
-                    // gate Quick Share, so the phenotype override is redundant while it is on; grey
-                    // the switch out instead of force-unlocking share with it.
-                    SwitchPreference(
-                        checked = quickShareEnabled,
-                        onCheckedChange = onQuickShareEnabledChange,
-                        title = stringResource(R.string.tweaks_quick_share_title),
-                        summary = stringResource(R.string.tweaks_quick_share_summary),
-                        enabled = !removeGms
-                    )
-                    SwitchPreference(
-                        checked = fullScreenTranslate,
-                        onCheckedChange = onFullScreenTranslateChange,
-                        title = stringResource(R.string.tweaks_full_screen_translate_title),
-                        summary = stringResource(R.string.tweaks_full_screen_translate_summary)
-                    )
-                    SwitchPreference(
-                        checked = askAboutScreen,
-                        onCheckedChange = onAskAboutScreenChange,
-                        title = stringResource(R.string.tweaks_ask_about_screen_title),
-                        summary = stringResource(R.string.tweaks_ask_about_screen_summary)
-                    )
-                    SwitchPreference(
-                        checked = unlockPasskey,
-                        onCheckedChange = onUnlockPasskeyChange,
-                        title = stringResource(R.string.tweaks_passkey_title),
-                        summary = stringResource(R.string.tweaks_passkey_summary)
-                    )
-                    SwitchPreference(
-                        checked = fcmLiveEnabled,
-                        onCheckedChange = onFcmLiveEnabledChange,
-                        title = stringResource(R.string.tweaks_fcm_live_title),
-                        summary = stringResource(R.string.tweaks_fcm_live_summary)
-                    )
-                }
             }
 
             SmallTitle(text = stringResource(R.string.tweaks_personal_assistant_title))
@@ -376,7 +338,7 @@ fun TweaksScreenContent(
 
 /** Loads the target component's launcher icon without blocking the Compose main thread. */
 @Composable
-private fun ApplicationIcon(
+internal fun ApplicationIcon(
     packageName: String,
     modifier: Modifier = Modifier,
     contentDescription: String

@@ -43,6 +43,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -119,7 +120,8 @@ fun SystemUIPage(
     onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
     aospBackSlideAnimation: Boolean,
     onAospBackSlideAnimationChange: (Boolean) -> Unit,
-    launcherSupportsBackRoute: Boolean
+    launcherSupportsBackRoute: Boolean,
+    onNavigateToIconTuner: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
@@ -194,6 +196,15 @@ fun SystemUIPage(
                         )
                     }
                 }
+            }
+
+            SmallTitle(stringResource(R.string.settings_system_ui_section_status_bar))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_icon_tuner),
+                    summary = stringResource(R.string.settings_icon_tuner_summary),
+                    onClick = onNavigateToIconTuner
+                )
             }
 
             SmallTitle(stringResource(R.string.settings_system_ui_section_lockscreen))

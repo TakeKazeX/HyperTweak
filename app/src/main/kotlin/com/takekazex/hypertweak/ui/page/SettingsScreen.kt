@@ -23,7 +23,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.BuildConfig
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.LauncherVersion
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.R
@@ -45,14 +44,7 @@ fun SettingsScreenContent(
     onHideLauncherIconChange: (Boolean) -> Unit,
     onNavigateToScopePrompts: () -> Unit,
     onNavigateToBackupRestore: () -> Unit,
-    ccEditEnabled: Boolean,
-    onCcEditEnabledChange: (Boolean) -> Unit,
-    onNavigateToIconTuner: () -> Unit,
-    onNavigateToGlassTuner: () -> Unit,
-    onNavigateToWatermark: () -> Unit,
-    onNavigateToCameraUnlock: () -> Unit,
-    onNavigateToControlCenterCorner: () -> Unit,
-    onNavigateToControlCenterResize: () -> Unit,
+    onNavigateToExperimentalFeatures: () -> Unit,
     launcherMajor: Int,
     launcherSupportsBackRoute: Boolean,
     aospBackMiuiHomeHooks: Boolean,
@@ -63,7 +55,6 @@ fun SettingsScreenContent(
     allowLandscape: Boolean,
     onAllowLandscapeChange: (Boolean) -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToDebugLogs: () -> Unit,
     onNavigateToAppShortcuts: () -> Unit,
     backdrop: LayerBackdrop,
     appLanguage: Int,
@@ -171,115 +162,6 @@ fun SettingsScreenContent(
                         selectedIndex = appLanguage,
                         onSelectedIndexChange = onAppLanguageChange
                     )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_scope_prompts),
-                        summary = stringResource(R.string.settings_scope_prompts_summary),
-                        onClick = onNavigateToScopePrompts
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup_restore),
-                        summary = stringResource(R.string.settings_backup_restore_summary),
-                        onClick = onNavigateToBackupRestore
-                    )
-                }
-            }
-
-            SmallTitle(text = stringResource(R.string.settings_experimental))
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_icon_tuner),
-                        summary = stringResource(R.string.settings_icon_tuner_summary),
-                        onClick = onNavigateToIconTuner
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_watermark_unlock),
-                        summary = stringResource(R.string.settings_watermark_unlock_summary),
-                        onClick = onNavigateToWatermark
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_camera_unlock),
-                        summary = stringResource(R.string.settings_camera_unlock_summary),
-                        onClick = onNavigateToCameraUnlock
-                    )
-                    // The material style (材质风格) with its two modes only exists on OS4;
-                    // OS3 SystemUI has neither the bionics resources nor the material_style key.
-                    if (PlatformLevel.isOs4) {
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_glass_material_tuner),
-                            summary = stringResource(R.string.settings_glass_material_tuner_summary),
-                            onClick = onNavigateToGlassTuner
-                        )
-                    }
-                    // Control Center custom corner radius. The radius lives in the OS4 control
-                    // center plugin classes, so the entry is OS4-only.
-                    if (PlatformLevel.isOs4) {
-                        ArrowPreference(
-                            title = stringResource(R.string.tweaks_cc_corner_enabled_title),
-                            summary = stringResource(R.string.tweaks_cc_corner_enabled_summary),
-                            onClick = onNavigateToControlCenterCorner
-                        )
-                    }
-                    // Control-center editor cards: the fixed main-panel contents (big cards,
-                    // media player, brightness/volume sliders, device center) show up in
-                    // 编辑与排序 and become drag-reorderable like the quick actions. The editor
-                    // mechanics live in the OS4 plugin classes only.
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = ccEditEnabled,
-                            onCheckedChange = onCcEditEnabledChange,
-                            title = stringResource(R.string.settings_cc_edit_title),
-                            summary = stringResource(R.string.settings_cc_edit_summary)
-                        )
-                        // Control-center element sizes (big cards, sliders, media player, device
-                        // center) plus quick switches rendered as big cards. Same plugin-only scope.
-                        ArrowPreference(
-                            title = stringResource(R.string.cc_resize_title),
-                            summary = stringResource(R.string.cc_resize_enabled_summary),
-                            onClick = onNavigateToControlCenterResize
-                        )
-                    }
-                    // AON visual-perception / air-gesture unlocks: reveal Settings entries that the
-                    // device hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
-                    // These act on the next Settings UI refresh in the same process; the toggles force the
-                    // Settings-side capability checks only — runtime sensor gates in system_server are
-                    // separate (see docs/FEATURE_DETAIL.md).
-                    var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
-                    var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
-                    SwitchPreference(
-                        checked = unlockVisual,
-                        onCheckedChange = {
-                            unlockVisual = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_visual_perception_title),
-                        summary = stringResource(R.string.settings_unlock_visual_perception_summary)
-                    )
-                    SwitchPreference(
-                        checked = unlockGestures,
-                        onCheckedChange = {
-                            unlockGestures = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_AON_GESTURES, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_aon_gestures_title),
-                        summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
-                    )
-                    // 自适应刷新率Pro (Mimotion PWM): reveal the 显示与亮度 row that HyperOS removes
-                    // when `ro.display.enable_pwm_switch` is unset, and let system_server re-apply the
-                    // saved mode at boot. Settings-side reveal needs a fresh Settings process; the
-                    // runtime re-apply needs a reboot; extra gears still depend on panel/DF support.
-                    var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
-                    SwitchPreference(
-                        checked = unlockAdaptiveRefresh,
-                        onCheckedChange = {
-                            unlockAdaptiveRefresh = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
-                        summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
-                    )
                 }
             }
 
@@ -306,15 +188,26 @@ fun SettingsScreenContent(
                 }
             }
 
-            // Other
+            // Other: the less frequent destinations. Debug lives inside About; the experimental
+            // switches moved to their own second-level page so this tab stays short.
             SmallTitle(text = stringResource(R.string.settings_other))
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 ArrowPreference(
-                    title = stringResource(R.string.settings_debug),
-                    summary = stringResource(R.string.settings_debug_summary),
-                    onClick = onNavigateToDebugLogs
+                    title = stringResource(R.string.settings_experimental),
+                    summary = stringResource(R.string.settings_experimental_subtitle),
+                    onClick = onNavigateToExperimentalFeatures
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_scope_prompts),
+                    summary = stringResource(R.string.settings_scope_prompts_summary),
+                    onClick = onNavigateToScopePrompts
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_backup_restore),
+                    summary = stringResource(R.string.settings_backup_restore_summary),
+                    onClick = onNavigateToBackupRestore
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_about),

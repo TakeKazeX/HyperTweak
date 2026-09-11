@@ -17,10 +17,11 @@ sealed interface Route : NavKey {
     data object AospIme : Route
     data object SystemUi : Route
     data object DownloadManager : Route
+    data object GoogleServices : Route
     data object IconTuner : Route
     data object GlassTuner : Route
-    data object Watermark : Route
-    data object CameraUnlock : Route
+    data object ExperimentalFeatures : Route
+    data object CameraWatermark : Route
     data object ChargingDetail : Route
     data object LockscreenBottomText : Route
     data object ControlCenterCorner : Route
@@ -52,10 +53,11 @@ val Route.saveKey: String
         Route.AospIme -> "AospIme"
         Route.SystemUi -> "SystemUi"
         Route.DownloadManager -> "DownloadManager"
+        Route.GoogleServices -> "GoogleServices"
         Route.IconTuner -> "IconTuner"
         Route.GlassTuner -> "GlassTuner"
-        Route.Watermark -> "Watermark"
-        Route.CameraUnlock -> "CameraUnlock"
+        Route.CameraWatermark -> "CameraWatermark"
+        Route.ExperimentalFeatures -> "ExperimentalFeatures"
         Route.ChargingDetail -> "ChargingDetail"
         Route.LockscreenBottomText -> "LockscreenBottomText"
         Route.ControlCenterCorner -> "ControlCenterCorner"
@@ -82,10 +84,11 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "AospIme" -> Route.AospIme
     "SystemUi" -> Route.SystemUi
     "DownloadManager" -> Route.DownloadManager
+    "GoogleServices" -> Route.GoogleServices
     "IconTuner" -> Route.IconTuner
     "GlassTuner" -> Route.GlassTuner
-    "Watermark" -> Route.Watermark
-    "CameraUnlock" -> Route.CameraUnlock
+    "CameraWatermark" -> Route.CameraWatermark
+    "ExperimentalFeatures" -> Route.ExperimentalFeatures
     "ChargingDetail" -> Route.ChargingDetail
     "LockscreenBottomText" -> Route.LockscreenBottomText
     "ControlCenterCorner" -> Route.ControlCenterCorner
