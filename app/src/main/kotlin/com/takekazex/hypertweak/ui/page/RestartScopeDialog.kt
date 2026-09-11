@@ -17,8 +17,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.util.RestartHistory
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.ScopeManager
+import com.takekazex.hypertweak.util.smartRestartScopeOrder
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -74,11 +76,23 @@ fun RestartScopeDialog(
     val candidatePackages = remember(scopedPackages, initialSelection) {
         scopedPackages + initialSelection.toPackageSet()
     }
-    val scopeApps by produceState(initialValue = emptyList<String>(), candidatePackages, show) {
+    val automaticallySelectedPackages = remember(initialSelection) {
+        initialSelection.toPackageSet()
+    }
+    val scopeApps by produceState(
+        initialValue = emptyList<String>(),
+        candidatePackages,
+        automaticallySelectedPackages,
+        show
+    ) {
         if (!show) return@produceState
         value = withContext(Dispatchers.IO) {
-            candidatePackages
-                .sorted()
+            val baseOrder = candidatePackages.sorted()
+            smartRestartScopeOrder(
+                packages = baseOrder,
+                restartCounts = RestartHistory.counts(context, baseOrder),
+                automaticallySelectedPackages = automaticallySelectedPackages
+            )
         }
     }
 

@@ -27,6 +27,9 @@ object RestartUtils {
         val normalized = restartablePackages(packages)
         if (normalized.isEmpty()) return SupervisorJob().apply { complete() }
         return coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                RestartHistory.record(context, normalized)
+            }
             val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra(RestartProtocol.EXTRA_PACKAGES, normalized.toTypedArray())
@@ -57,6 +60,9 @@ object RestartUtils {
         if (packages.isEmpty()) return SupervisorJob().apply { complete() }
 
         return coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                RestartHistory.record(context, packages)
+            }
             val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra(RestartProtocol.EXTRA_SYSTEM_UI, RestartScopeSelection.PACKAGE_SYSTEM_UI in packages)
