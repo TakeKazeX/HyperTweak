@@ -3,18 +3,20 @@ package com.takekazex.hypertweak.util
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
+import androidx.annotation.StringRes
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
+import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 
 object ShortcutUtils {
 
     data class ShortcutDef(
         val id: String,
-        val label: String,
+        @StringRes val labelRes: Int,
         val intentAction: String?,
         val intentComponent: String?,
         val intentData: String?,
@@ -22,17 +24,19 @@ object ShortcutUtils {
         val iconRes: Int = 0
     )
 
+    // Labels reuse the Hidden Features strings so the shortcut names stay identical to the
+    // in-app rows and only need to be translated once.
     fun getAvailableShortcuts(): List<ShortcutDef> = listOf(
-        ShortcutDef("lsposed", "LSPosed Manager", null, "org.lsposed.manager/org.lsposed.manager.ui.activity.MainActivity", null, "org.lsposed.manager", com.takekazex.hypertweak.R.drawable.ic_shortcut_lsposed),
-        ShortcutDef("installerx", "InstallerX Revived", null, "com.android.packageinstaller/com.rosan.installer.ui.activity.SettingsActivity", null, "com.android.packageinstaller", com.takekazex.hypertweak.R.drawable.ic_shortcut_installerx),
-        ShortcutDef("dev_settings", "Developer Settings", "android.settings.APPLICATION_DEVELOPMENT_SETTINGS", null, null, "com.android.settings"),
-        ShortcutDef("google_services", "Google Services", null, "com.google.android.gms/com.google.android.gms.app.settings.GoogleSettingsIALink", null, "com.google.android.gms"),
-        ShortcutDef("extra_dim", "Extra Dim", null, "com.android.settings/com.android.settings.Settings\$ReduceBrightColorsSettingsActivity", null, "com.android.settings"),
-        ShortcutDef("battery_opt", "Battery Optimization", "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS", null, null, "com.android.settings"),
-        ShortcutDef("running_services", "Running Services", null, "com.android.settings/com.android.settings.Settings\$RunningServicesActivity", null, "com.android.settings"),
-        ShortcutDef("notifications", "Notification Settings", null, "com.android.settings/com.android.settings.Settings\$ConfigureNotificationSettingsActivity", null, "com.android.settings"),
-        ShortcutDef("manage_apps", "Manage Applications", null, "com.android.settings/com.android.settings.Settings\$ManageApplicationsActivity", null, "com.android.settings"),
-        ShortcutDef("default_apps", "Default Apps", "android.settings.MANAGE_DEFAULT_APPS_SETTINGS", null, null, "com.android.settings")
+        ShortcutDef("lsposed", R.string.hidden__lsposed_manager, null, "org.lsposed.manager/org.lsposed.manager.ui.activity.MainActivity", null, "org.lsposed.manager", R.drawable.ic_shortcut_lsposed),
+        ShortcutDef("installerx", R.string.hidden__installerx_revived, null, "com.android.packageinstaller/com.rosan.installer.ui.activity.SettingsActivity", null, "com.android.packageinstaller", R.drawable.ic_shortcut_installerx),
+        ShortcutDef("dev_settings", R.string.hidden__developer_settings, "android.settings.APPLICATION_DEVELOPMENT_SETTINGS", null, null, "com.android.settings"),
+        ShortcutDef("google_services", R.string.hidden__google_services, null, "com.google.android.gms/com.google.android.gms.app.settings.GoogleSettingsIALink", null, "com.google.android.gms"),
+        ShortcutDef("extra_dim", R.string.hidden__extra_dim, null, "com.android.settings/com.android.settings.Settings\$ReduceBrightColorsSettingsActivity", null, "com.android.settings"),
+        ShortcutDef("battery_opt", R.string.hidden__battery_optimization, "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS", null, null, "com.android.settings"),
+        ShortcutDef("running_services", R.string.hidden__running_services, null, "com.android.settings/com.android.settings.Settings\$RunningServicesActivity", null, "com.android.settings"),
+        ShortcutDef("notifications", R.string.hidden__notification_settings, null, "com.android.settings/com.android.settings.Settings\$ConfigureNotificationSettingsActivity", null, "com.android.settings"),
+        ShortcutDef("manage_apps", R.string.hidden__manage_applications, null, "com.android.settings/com.android.settings.Settings\$ManageApplicationsActivity", null, "com.android.settings"),
+        ShortcutDef("default_apps", R.string.hidden__default_apps, "android.settings.MANAGE_DEFAULT_APPS_SETTINGS", null, null, "com.android.settings")
     )
 
     fun getEnabledShortcutIds(): Set<String> {
@@ -70,6 +74,13 @@ object ShortcutUtils {
         val orderedIds = getOrderedList()
         val allDefs = getAvailableShortcuts().associateBy { it.id }
         val iconCache = mutableMapOf<String, IconCompat>()
+        // The launcher pulls shortcut labels from here once and caches them, so resolve them
+        // against the app's effective language instead of the raw context locale — the in-app
+        // language preference can differ from the device language.
+        val localizedContext = LocaleHelper.getLocalizedContext(
+            context,
+            Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
+        )
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null
             val intent = if (def.id == "lsposed") {
@@ -88,9 +99,10 @@ object ShortcutUtils {
                 }
             }
             val icon = iconCache.getOrPut(def.id) { loadAppIcon(context, def) }
+            val label = localizedContext.getString(def.labelRes)
             ShortcutInfoCompat.Builder(context, def.id)
-                .setShortLabel(def.label)
-                .setLongLabel(def.label)
+                .setShortLabel(label)
+                .setLongLabel(label)
                 .setIcon(icon)
                 .setIntent(intent)
                 .build()

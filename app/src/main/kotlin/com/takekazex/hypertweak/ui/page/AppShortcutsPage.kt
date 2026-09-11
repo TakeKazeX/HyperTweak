@@ -170,7 +170,7 @@ fun AppShortcutsPage(
                             }
                             DraggableItem(
                                 id = id,
-                                label = def.label,
+                                label = stringResource(def.labelRes),
                                 checked = id in enabledIds,
                                 isDragging = isDragged,
                                 translationY = if (isDragged) dragOffsetY else shift,
