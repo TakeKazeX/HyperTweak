@@ -97,7 +97,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.Code,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__developer_settings),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -114,7 +114,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.AccountCircle,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__google_services),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -134,7 +134,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.BugReport,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__fcm_debug),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -164,7 +164,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.Extension,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__lsposed_manager),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -191,7 +191,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.InstallMobile,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__installerx_revived),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -217,7 +217,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.BrightnessMedium,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__extra_dim),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -237,7 +237,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.BatteryChargingFull,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__battery_optimization),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -254,7 +254,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.PrivacyTip,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__privacy),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -272,7 +272,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.Memory,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__running_services),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -299,7 +299,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.Notifications,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__notification_settings),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -319,7 +319,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.Apps,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__manage_applications),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {
@@ -345,7 +345,7 @@ fun HiddenFeaturesPage(
                                 imageVector = Icons.Rounded.SettingsSuggest,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.hidden__default_apps),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {

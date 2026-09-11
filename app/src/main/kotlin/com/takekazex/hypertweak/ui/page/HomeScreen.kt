@@ -269,7 +269,7 @@ fun HomeScreenContent(
                                 imageVector = Icons.Rounded.BatteryChargingFull,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.battery_info_menu_title),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = onNavigateToBatteryInfo
@@ -282,7 +282,7 @@ fun HomeScreenContent(
                                 imageVector = Icons.Rounded.Extension,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.home_hidden_features),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = onNavigateToHiddenFeatures
@@ -295,7 +295,7 @@ fun HomeScreenContent(
                                 imageVector = Icons.Rounded.Refresh,
                                 modifier = Modifier.padding(end = 6.dp),
                                 contentDescription = stringResource(R.string.home_restart_scope),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         },
                         onClick = { showRestartDialog = true }
