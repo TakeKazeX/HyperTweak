@@ -54,6 +54,7 @@ import com.takekazex.hypertweak.ui.page.DownloadManagerPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.page.ScopePromptsPage
+import com.takekazex.hypertweak.ui.page.BackupRestorePage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import com.takekazex.hypertweak.hook.HotReloadReport
@@ -218,7 +219,8 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
-    onClearAllSettings: () -> Unit,
+    onClearAllSettings: (restartAllScopes: Boolean, restartHyperTweak: Boolean) -> Unit,
+    onSettingsRestored: () -> Unit,
     onHotReload: (restartAllScopes: Boolean) -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
     onShortcutsChanged: () -> Unit,
@@ -368,6 +370,9 @@ fun HyperTweakNavContainer(
                 onNavigateToScopePrompts = {
                     backStack.add(Route.ScopePrompts)
                 },
+                onNavigateToBackupRestore = {
+                    backStack.add(Route.BackupRestore)
+                },
                 onNavigateToDebugLogs = {
                     backStack.add(Route.Debug)
                 },
@@ -438,6 +443,13 @@ fun HyperTweakNavContainer(
         entry<Route.ScopePrompts> {
             ScopePromptsPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
+            )
+        }
+        entry<Route.BackupRestore> {
+            BackupRestorePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onClearAllSettings = onClearAllSettings,
+                onSettingsRestored = onSettingsRestored
             )
         }
         entry<Route.About> {
@@ -613,8 +625,7 @@ fun HyperTweakNavContainer(
             DebugPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToLogs = { backStack.add(Route.DebugLogs) },
-                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) },
-                onClearAllSettings = onClearAllSettings
+                onNavigateToDeveloperSettings = { backStack.add(Route.DeveloperSettings) }
             )
         }
         entry<Route.DeveloperSettings> {

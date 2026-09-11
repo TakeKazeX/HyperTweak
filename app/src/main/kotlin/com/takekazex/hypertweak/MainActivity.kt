@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -766,7 +767,7 @@ class MainActivity : ComponentActivity() {
                     if (!Preferences.isInitialized) return
                     val freshDataDir = !localPrefs.contains("last_known_module_activated")
                     if (freshDataDir && Preferences.hasRemoteConfig()) {
-                        Preferences.clearAllSettings()
+                        if (!Preferences.clearAllSettings()) return
                     }
                     localPrefs.edit { putBoolean(KEY_FIRST_RUN_TOKEN, true) }
                 }
@@ -1385,10 +1386,49 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
-                    onClearAllSettings = {
+                    onClearAllSettings = { restartAllScopes, restartHyperTweak ->
+                        if (Preferences.clearAllSettings()) {
+                            clearPendingRestartTracking()
+                            val restartScopesJob = if (restartAllScopes) {
+                                coroutineScope.launch {
+                                    Preferences.flush()
+                                    // Include every package currently enabled in LSPosed, including
+                                    // dynamically requested targets that are not in the legacy
+                                    // fixed selection fields.
+                                    val allScopes = ScopeManager.restartableScope(this@MainActivity)
+                                        ?.let(RestartScopeSelection::fromPackageSet)
+                                        ?: RestartScopeSelection.fromPackageSet(
+                                            ScopeManager.declaredRestartableScope(this@MainActivity)
+                                        )
+                                    RestartUtils
+                                        .restartScope(this@MainActivity, coroutineScope, allScopes)
+                                        .join()
+                                }
+                            } else {
+                                null
+                            }
+                            if (restartHyperTweak) {
+                                coroutineScope.launch {
+                                    restartScopesJob?.join()
+                                    // Recreate so every Compose state reloads from the now-default prefs.
+                                    this@MainActivity.recreate()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(
+                                this@MainActivity,
+                                R.string.settings_clear_all_failed,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    onSettingsRestored = {
                         clearPendingRestartTracking()
-                        Preferences.clearAllSettings()
-                        // Recreate so every Compose state reloads from the now-default prefs.
+                        setLauncherIconVisible(
+                            this@MainActivity,
+                            !Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
+                        )
+                        // Recreate so every Compose state reflects the restored configuration.
                         this@MainActivity.recreate()
                     },
                     onRestartScope = { selection ->

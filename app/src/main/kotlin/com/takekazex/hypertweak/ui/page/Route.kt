@@ -6,6 +6,7 @@ sealed interface Route : NavKey {
     data object Main : Route
     data object Appearance : Route
     data object ScopePrompts : Route
+    data object BackupRestore : Route
     data object About : Route
     data object Credits : Route
     data object HiddenFeatures : Route
@@ -39,6 +40,7 @@ val Route.saveKey: String
         Route.Main -> "Main"
         Route.Appearance -> "Appearance"
         Route.ScopePrompts -> "ScopePrompts"
+        Route.BackupRestore -> "BackupRestore"
         Route.About -> "About"
         Route.Credits -> "Credits"
         Route.HiddenFeatures -> "HiddenFeatures"
@@ -67,6 +69,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "Main" -> Route.Main
     "Appearance" -> Route.Appearance
     "ScopePrompts" -> Route.ScopePrompts
+    "BackupRestore" -> Route.BackupRestore
     "About" -> Route.About
     "Credits" -> Route.Credits
     "HiddenFeatures" -> Route.HiddenFeatures

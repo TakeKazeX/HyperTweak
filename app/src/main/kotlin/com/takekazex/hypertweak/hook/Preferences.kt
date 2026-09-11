@@ -962,6 +962,8 @@ object Preferences {
 
     private var isLocalOnly = false
     private val serializedWriter = Executors.newSingleThreadExecutor { r -> Thread(r, "HyperTweak-Prefs").apply { isDaemon = true } }
+    /** Serializes bulk mutations with the ordinary preference writes queued below. */
+    private val settingsMutationLock = Any()
 
     /**
      * Bumped on every full reset ([clearAllSettings]). Hooked processes keep a local cache
@@ -971,6 +973,28 @@ object Preferences {
      */
     private const val KEY_PREFS_EPOCH = "prefs_epoch"
     private const val INITIAL_EPOCH = 0L
+    private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
+    private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
+    private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
+    private const val KEY_MANUAL_PENDING_RESTART_SCOPES = "manual_pending_restart_scopes"
+    private const val KEY_FIRST_RUN_TOKEN = "first_run_token"
+    private const val KEY_FINGERPRINT_SPLIT_BASELINE_MIGRATED = "fingerprint_split_baseline_migrated"
+
+    /** Keys used by the module runtime itself rather than by user-facing configuration. */
+    private fun isRuntimeKey(key: String): Boolean =
+        key == KEY_PREFS_EPOCH ||
+            key == KEY_PENDING_RESTART_BOOT_TOKEN ||
+            key == KEY_DIRTY_TWEAK_KEYS ||
+            key.startsWith(KEY_TWEAK_BASELINE_PREFIX) ||
+            key == KEY_MANUAL_PENDING_RESTART_SCOPES ||
+            key == KEY_PENDING_RESTART_SCOPES ||
+            key == KEY_FIRST_RUN_TOKEN ||
+            key == KEY_FINGERPRINT_SPLIT_BASELINE_MIGRATED ||
+            key == LEGACY_KEY_DEBUG_LOG ||
+            key.startsWith(KEY_DEBUG_LOG_PREFIX) ||
+            key == KEY_DEBUG_LOG_PROCESSES ||
+            key == KEY_LOG_SESSION ||
+            key.startsWith(KEY_LOG_LEVEL_PROCESS_PREFIX)
 
     /**
      * Wipes every setting in every storage location the module uses:
@@ -982,17 +1006,96 @@ object Preferences {
      * caches. After this call every setting is at its default; hook processes pick the new
      * state up on their next read without a reboot.
      */
-    fun clearAllSettings() {
+    fun clearAllSettings(): Boolean {
         synchronized(logLock) {
-            if (!isInitialized) return
-            memoClear()
-            val epoch = runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }.getOrDefault(INITIAL_EPOCH) + 1
-            runCatching {
-                remotePrefs.edit().clear().putLong(KEY_PREFS_EPOCH, epoch).commit()
+            synchronized(settingsMutationLock) {
+                if (!isInitialized) return false
+                memoClear()
+                val epoch = runCatching {
+                    remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH)
+                }.getOrDefault(INITIAL_EPOCH) + 1
+
+                // Queue the clear behind every ordinary async write and wait for it. Without this
+                // ordering, a setting changed immediately before the clear could be committed
+                // after the clear and silently resurrect the old configuration.
+                val committed = commitRemoteMutation {
+                    clear()
+                    putLong(KEY_PREFS_EPOCH, epoch)
+                }
+                if (!committed) return false
+                runCatching { localSourcePrefs?.edit(commit = true) { clear() } }
+                val cache = getLocalCache()
+                runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
+                return true
             }
-            runCatching { localSourcePrefs?.edit(commit = true) { clear() } }
+        }
+    }
+
+    /** Serializes the user-facing configuration into a portable, versioned JSON document. */
+    fun exportSettings(): String {
+        synchronized(settingsMutationLock) {
+            // Ordinary puts update the app-local source immediately but reach the daemon through
+            // the serialized writer. Drain that queue so a backup taken right after a toggle also
+            // contains the latest remote value.
+            flush()
+            val source = runCatching {
+                if (isInitialized) remotePrefs.all else emptyMap()
+            }.getOrElse { localSourcePrefs?.all.orEmpty() }
+            return SettingsBackupCodec.encode(source.filterKeys { !isRuntimeKey(it) })
+        }
+    }
+
+    /**
+     * Replaces the current user-facing configuration from a backup document.
+     *
+     * Runtime bookkeeping (restart baselines, debug logs, and preference epochs) is intentionally
+     * kept out of the backup. A new epoch invalidates old hooked-process caches so restored values
+     * are read from the daemon instead of being shadowed by stale per-process copies.
+     *
+     * @return number of restored settings.
+     */
+    fun restoreSettings(json: String): Int {
+        // Ignore runtime bookkeeping even if a hand-edited backup contains those reserved keys.
+        val restored = SettingsBackupCodec.decode(json).filterKeys { !isRuntimeKey(it) }
+        synchronized(settingsMutationLock) {
+            check(isInitialized) { "Preferences are not initialized" }
+            flush()
+            val epoch = runCatching {
+                remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH)
+            }.getOrDefault(INITIAL_EPOCH) + 1
+            val currentKeys = buildSet {
+                runCatching { remotePrefs.all.keys }.getOrDefault(emptySet())
+                    .filterNot(::isRuntimeKey)
+                    .forEach(::add)
+                localSourcePrefs?.all.orEmpty().keys
+                    .filterNot(::isRuntimeKey)
+                    .forEach(::add)
+            }
+
+            val committed = commitRemoteMutation {
+                currentKeys.forEach(::remove)
+                restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
+                putLong(KEY_PREFS_EPOCH, epoch)
+            }
+            check(committed) { "Unable to write restored settings" }
+
+            runCatching {
+                localSourcePrefs?.edit(commit = true) {
+                    currentKeys.forEach(::remove)
+                    restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
+                    putLong(KEY_PREFS_EPOCH, epoch)
+                }
+            }
             val cache = getLocalCache()
-            runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
+            runCatching {
+                cache?.edit(commit = true) {
+                    clear()
+                    restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
+                    putLong(KEY_PREFS_EPOCH, epoch)
+                }
+            }
+            memoClear()
+            return restored.size
         }
     }
 
@@ -1103,27 +1206,62 @@ object Preferences {
     }
 
     private fun write(block: SharedPreferences.Editor.() -> Unit) {
-        if (!isInitialized) return
+        synchronized(settingsMutationLock) {
+            if (!isInitialized) return
+            val local = localSourcePrefs
+            runCatching { local?.edit { block() } }
+            if (isLocalOnly || local === remotePrefs) return
+            serializedWriter.execute {
+                // Synchronous commit: libxposed's RemotePreferences Editor.apply() is asynchronous on
+                // its own executor, so a process killed right after a setting change (e.g. the in-page
+                // "Restart SystemUI" action or the generic restart dialog) could die before the daemon
+                // write lands — and Preferences.flush() only drains this queue, not libxposed's. A
+                // blocking commit makes flush() honest: once this queue is drained, every setting that
+                // was written is already visible to the hooked processes that read the daemon copy.
+                runCatching {
+                    val editor = remotePrefs.edit()
+                    block(editor)
+                    val committed = editor.commit()
+                    if (!committed) {
+                        DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
+                    }
+                }.onFailure { t ->
+                    DebugLog.w("Preferences", "remote pref write failed; retrying on next write", t)
+                }
+            }
+        }
+    }
+
+    /** Applies one remote mutation after all previously queued writes and waits for its result. */
+    private fun commitRemoteMutation(block: SharedPreferences.Editor.() -> Unit): Boolean {
+        if (!isInitialized) return false
         val local = localSourcePrefs
-        runCatching { local?.edit { block() } }
-        if (isLocalOnly || local === remotePrefs) return
-        serializedWriter.execute {
-            // Synchronous commit: libxposed's RemotePreferences Editor.apply() is asynchronous on
-            // its own executor, so a process killed right after a setting change (e.g. the in-page
-            // "Restart SystemUI" action or the generic restart dialog) could die before the daemon
-            // write lands — and Preferences.flush() only drains this queue, not libxposed's. A
-            // blocking commit makes flush() honest: once this queue is drained, every setting that
-            // was written is already visible to the hooked processes that read the daemon copy.
+        if (isLocalOnly || local === remotePrefs) {
+            return runCatching {
+                val editor = remotePrefs.edit()
+                block(editor)
+                editor.commit()
+            }.getOrDefault(false)
+        }
+        val task = serializedWriter.submit<Boolean> {
             runCatching {
                 val editor = remotePrefs.edit()
                 block(editor)
-                val committed = editor.commit()
-                if (!committed) {
-                    DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
-                }
-            }.onFailure { t ->
-                DebugLog.w("Preferences", "remote pref write failed; retrying on next write", t)
-            }
+                editor.commit()
+            }.getOrDefault(false)
+        }
+        return runCatching { task.get(5, TimeUnit.SECONDS) }.getOrDefault(false)
+    }
+
+    private fun SharedPreferences.Editor.putSharedPreferenceValue(key: String, value: Any) {
+        when (value) {
+            is Boolean -> putBoolean(key, value)
+            is Int -> putInt(key, value)
+            is Long -> putLong(key, value)
+            is Float -> putFloat(key, value)
+            is String -> putString(key, value)
+            is Set<*> -> putStringSet(key, value.filterIsInstance<String>().toSet())
+            else -> error("Unsupported restored setting type: ${value::class.java.name}")
         }
     }
 

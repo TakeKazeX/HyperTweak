@@ -52,11 +52,11 @@ object RestartUtils {
         context: Context,
         coroutineScope: CoroutineScope,
         selection: RestartScopeSelection
-    ) {
+    ): Job {
         val packages = restartablePackages(selection.toPackageSet())
-        if (packages.isEmpty()) return
+        if (packages.isEmpty()) return SupervisorJob().apply { complete() }
 
-        coroutineScope.launch {
+        return coroutineScope.launch {
             val intent = Intent(RestartProtocol.ACTION).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                 putExtra(RestartProtocol.EXTRA_SYSTEM_UI, RestartScopeSelection.PACKAGE_SYSTEM_UI in packages)

@@ -32,4 +32,23 @@
     <string name="settings_unlock_aon_gestures_summary">Expérimental : ajoute aussi «左右挥手» (agiter horizontalement) et «隔空暂停或播放» (double pression lecture/pause) à la page 隔空手势 du système et laisse le système les honorer. Les lignes s\'appliquent à la prochaine ouverture de la page ; la partie système nécessite un redémarrage et dépend du moteur AON de l\'appareil</string>
     <string name="settings_unlock_adaptive_refresh_title">Débloquer le taux de rafraîchissement adaptatif Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">Affiche l\'interrupteur masqué «自适应刷新率Pro» de 显示与亮度 et laisse le système le réappliquer après redémarrage. Bascule le gradation DC vers PWM pour plus de paliers de rafraîchissement dynamique ; leur disponibilité réelle dépend du panneau/pilote (effet 20). Nécessite de rouvrir Réglages puis un redémarrage</string>
+    <string name="settings_clear_all_dialog_second_summary">Il s’agit de la confirmation finale. Toute la configuration HyperTweak sera effacée et ne pourra pas être récupérée sans sauvegarde.</string>
+    <string name="settings_clear_all_failed">Impossible d’effacer les réglages. La configuration actuelle a été conservée.</string>
+    <string name="settings_clear_restart_all_scopes">Redémarrer toutes les applications ciblées</string>
+    <string name="settings_clear_restart_all_scopes_summary">Redémarrer toutes les applications ciblées pour appliquer immédiatement le nettoyage</string>
+    <string name="settings_clear_restart_hypertweak">Redémarrer HyperTweak</string>
+    <string name="settings_clear_restart_hypertweak_summary">Recharger cette application après l’effacement de la configuration</string>
+    <string name="settings_continue">Continuer</string>
+    <string name="settings_danger_zone">Zone dangereuse</string>
+    <string name="settings_backup_restore">Sauvegarde et restauration</string>
+    <string name="settings_backup_restore_summary">Enregistrer ou restaurer toute la configuration HyperTweak</string>
+    <string name="settings_backup_restore_title">Configuration</string>
+    <string name="settings_backup">Sauvegarder les réglages</string>
+    <string name="settings_backup_summary">Exporter la configuration vers un fichier JSON avec le sélecteur de fichiers système</string>
+    <string name="settings_restore">Restaurer les réglages</string>
+    <string name="settings_restore_summary">Importer une sauvegarde JSON et remplacer la configuration actuelle</string>
+    <string name="settings_backup_success">Sauvegarde enregistrée</string>
+    <string name="settings_backup_failed">Impossible d’enregistrer la sauvegarde</string>
+    <string name="settings_restore_success">%1$d réglages restaurés. L’application va se recharger.</string>
+    <string name="settings_restore_failed">Impossible de restaurer la sauvegarde</string>
 </resources>

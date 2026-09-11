@@ -44,6 +44,7 @@ fun SettingsScreenContent(
     hideLauncherIcon: Boolean,
     onHideLauncherIconChange: (Boolean) -> Unit,
     onNavigateToScopePrompts: () -> Unit,
+    onNavigateToBackupRestore: () -> Unit,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit,
@@ -174,6 +175,11 @@ fun SettingsScreenContent(
                         title = stringResource(R.string.settings_scope_prompts),
                         summary = stringResource(R.string.settings_scope_prompts_summary),
                         onClick = onNavigateToScopePrompts
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_backup_restore),
+                        summary = stringResource(R.string.settings_backup_restore_summary),
+                        onClick = onNavigateToBackupRestore
                     )
                 }
             }
