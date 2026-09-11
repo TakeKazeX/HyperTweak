@@ -7,12 +7,15 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
@@ -30,6 +33,9 @@ object StackedSignalHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val ADAPTER_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
+    private const val SYSUI_COMPONENT_FIELD = "mSysUIComponent"
+    private const val STARTABLES_METHOD = "getStartables"
+    private const val PER_USER_STARTABLES_METHOD = "getPerUserStartables"
     private const val ICONS_VM_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel"
     private const val SLOT_STACKED = "stacked_mobile_icon"
@@ -89,6 +95,18 @@ object StackedSignalHooker : StaticHooker() {
 
     @Volatile
     private var iconBridge: HostIconBridge? = null
+
+    /** MobileUiAdapter.start() runs once per SystemUI lifetime; carry the adapter across reloads. */
+    @Volatile
+    private var adapterReference: WeakReference<Any>? = null
+
+    /** MobileIconsViewModel.reuseCache retains the full triples behind the public VM list Flow. */
+    @Volatile
+    private var mobileIconsViewModelReference: WeakReference<Any>? = null
+
+    /** Bounded retries cover the short gap between package-ready and Dagger component startup. */
+    private var adapterDiscoveryGeneration = 0L
+    private var adapterDiscoveryAttempt = 0
 
     @Volatile
     private var options = IconTunerOptions.snapshot()
@@ -159,7 +177,10 @@ object StackedSignalHooker : StaticHooker() {
             )
         }.getOrNull()
         svgRepository = moduleContext?.let(::IconSvgRepository)
-        if (enabled) ensureSignalAssets()
+        if (enabled) {
+            ensureSignalAssets()
+            scheduleExistingAdapterDiscovery()
+        }
     }
 
     override fun onPrepareHotReload() {
@@ -172,10 +193,7 @@ object StackedSignalHooker : StaticHooker() {
         // thread-safe; pass every exposed Pair through its original value before unregistering the
         // getter entries. Queued old-generation callbacks are rejected by the generation check.
         MobileSignalVisibility.clearForHotReload()
-        mainHandler.post {
-            if (generation.get() != retiredGeneration) return@post
-            retiringBridge?.removeAllOwned()
-        }
+        removeRetiringBridge(retiredGeneration, retiringBridge)
         flowHandles.forEach { it.cancel() }
         flowHandles.clear()
         bindings.values.toList().forEach { binding ->
@@ -191,8 +209,20 @@ object StackedSignalHooker : StaticHooker() {
         signalAssets = null
         MobileTypeRenderer.clearCache()
         iconBridge = null
+        adapterReference = null
+        mobileIconsViewModelReference = null
+        adapterDiscoveryGeneration = generation.get()
+        adapterDiscoveryAttempt = 0
         adapterFlowInstalled.set(false)
         installed.set(false)
+    }
+
+    override fun saveHotReloadState(): Any? = adapterReference?.get()
+
+    override fun restoreHotReloadState(state: Any?) {
+        val adapter = state ?: return
+        adapterReference = WeakReference(adapter)
+        scheduleAdapterRestore(adapter, generation.get())
     }
 
     override fun onHook() {
@@ -210,12 +240,17 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         if (!installed.compareAndSet(false, true)) return
+        // Invalidate any cleanup runnable posted by the retiring generation before it can touch a
+        // holder published by this generation.
+        generation.incrementAndGet()
         if (!MobileSignalVisibility.installGetter(this)) {
             DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
         }
         hookCreateViewModel()
         hookAdapterStart()
+        adapterReference?.get()?.let { scheduleAdapterRestore(it, generation.get()) }
+        scheduleExistingAdapterDiscovery()
         DebugLog.hookRegistered(TAG, "model-driven stacked signal slot (scale=$scale)")
     }
 
@@ -264,6 +299,7 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun setupAdapter(adapter: Any) {
+        adapterReference = WeakReference(adapter)
         if (!adapterFlowInstalled.compareAndSet(false, true)) return
         val bindingGeneration = generation.get()
         val scope = readField(adapter, "scope")
@@ -275,6 +311,7 @@ object StackedSignalHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "MobileUiAdapter fields", "scope/controller/mobileIconsViewModel missing")
             return
         }
+        mobileIconsViewModelReference = WeakReference(iconsVm)
         val activeDataFlow = readField(iconsVm, "activeMobileDataSubscriptionId")
         val subscriptionIdsFlow = readField(iconsVm, "subscriptionIdsFlow")
         val mobileSubViewModelsFlow = readField(iconsVm, "mobileSubViewModels")
@@ -328,10 +365,9 @@ object StackedSignalHooker : StaticHooker() {
             } || !required(subscriptionIdsFlow) { value ->
                 reduceSubscriptionsOnMain(extractSubscriptionIds(value), bindingGeneration)
             } || !required(mobileSubViewModelsFlow) { value ->
-                // This flow is the host's completed factory output. It is collected as a
-                // readiness witness; subscriptionIdsFlow remains the authoritative ordering
-                // source so a transient empty VM list cannot reorder rows or resurrect a cache.
-                noteFactoryViewModelsOnMain(value, bindingGeneration)
+                // The public flow exposes AOSP VM entries; restoreFactoryViewModelsOnMain joins
+                // them with MobileIconsViewModel.reuseCache to recover the full MIUI triples.
+                restoreFactoryViewModelsOnMain(value, bindingGeneration)
             } || !required(airplaneFlow) { value ->
                 reduceOnMain(MobileSignalEvent.AirplaneMode(value as? Boolean == true), bindingGeneration)
             }
@@ -345,6 +381,112 @@ object StackedSignalHooker : StaticHooker() {
         adapterFlowsReady = true
         DebugLog.i(TAG, "stacked signal adapter flows bound")
         scheduleRender(bindingGeneration)
+    }
+
+    /** Replays setup for an adapter whose start() callback ran before module hot reload. */
+    private fun scheduleAdapterRestore(adapter: Any, bindingGeneration: Long) {
+        mainHandler.post {
+            if (!enabled || generation.get() != bindingGeneration || adapterFlowInstalled.get()) return@post
+            runCatching { setupAdapter(adapter) }
+                .onFailure { DebugLog.w(TAG, "restored stacked adapter setup failed", it) }
+        }
+    }
+
+    /**
+     * Recovers the already-started MobileUiAdapter when the replacement generation has no saved
+     * adapter reference. Hot reload normally carries the host object across generations, but the
+     * first upgrade from an older module build cannot do that. SystemUI's Dagger component keeps
+     * the same singleton in its startable-provider map, so resolving only this verified entry is
+     * enough to reconnect without constructing or restarting any host component.
+     */
+    private fun scheduleExistingAdapterDiscovery() {
+        val bindingGeneration = generation.get()
+        adapterDiscoveryGeneration = bindingGeneration
+        adapterDiscoveryAttempt = 0
+        mainHandler.post { discoverExistingAdapterOnMain(bindingGeneration) }
+    }
+
+    private fun discoverExistingAdapterOnMain(bindingGeneration: Long) {
+        if (!enabled || generation.get() != bindingGeneration || adapterFlowInstalled.get()) return
+        // Give SystemUI's already-started service array a chance to become visible first. Calling
+        // the Dagger Provider too early can eagerly initialize unrelated startables during boot.
+        val adapter = findExistingAdapter(allowProvider = adapterDiscoveryAttempt >= 3)
+        if (adapter != null) {
+            DebugLog.i(TAG, "recovered existing MobileUiAdapter from SysUI component")
+            runCatching { setupAdapter(adapter) }
+                .onFailure { DebugLog.w(TAG, "existing stacked adapter setup failed", it) }
+            return
+        }
+
+        if (adapterDiscoveryGeneration != bindingGeneration) {
+            adapterDiscoveryGeneration = bindingGeneration
+            adapterDiscoveryAttempt = 0
+        }
+        adapterDiscoveryAttempt++
+        if (adapterDiscoveryAttempt >= 30) {
+            DebugLog.w(TAG, "existing MobileUiAdapter discovery timed out")
+            return
+        }
+        mainHandler.postDelayed(
+            { discoverExistingAdapterOnMain(bindingGeneration) },
+            500L
+        )
+    }
+
+    private fun findExistingAdapter(allowProvider: Boolean): Any? {
+        val context = hostContext?.applicationContext ?: hostContext ?: return null
+        val services = readField(context, "mServices")?.let { invokeNoArg(it, "get") }
+        findAdapterInCollection(services)?.let { return it }
+
+        if (!allowProvider) return null
+
+        val component = readField(context, SYSUI_COMPONENT_FIELD)
+            ?: readField(context, "mInitializer")?.let { invokeNoArg(it, "getSysUIComponent") }
+            ?: return null
+        val maps = listOf(STARTABLES_METHOD, PER_USER_STARTABLES_METHOD)
+        maps.forEach { methodName ->
+            val startables = invokeNoArg(component, methodName) as? Map<*, *> ?: return@forEach
+            val provider = startables.entries.firstOrNull { (key, _) ->
+                (key as? Class<*>)?.name == ADAPTER_CLASS
+            }?.value ?: return@forEach
+            val adapter = invokeNoArg(provider, "get")
+            if (adapter != null && adapter.javaClass.name == ADAPTER_CLASS) return adapter
+        }
+        return null
+    }
+
+    private fun findAdapterInCollection(value: Any?): Any? {
+        val entries: Iterable<*> = when (value) {
+            is Iterable<*> -> value
+            is Array<*> -> value.asIterable()
+            else -> return null
+        }
+        return entries.firstOrNull { it?.javaClass?.name == ADAPTER_CLASS }
+    }
+
+    /**
+     * Holder teardown must run on SystemUI's main thread. The generation check and the bridge's
+     * exact-icon ownership check make a late cleanup harmless after a replacement generation has
+     * already published a new holder.
+     */
+    private fun removeRetiringBridge(retiredGeneration: Long, bridge: HostIconBridge?) {
+        if (bridge == null) return
+        val cleanup = Runnable {
+            if (generation.get() == retiredGeneration) bridge.removeAllOwned()
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            cleanup.run()
+            return
+        }
+        val completed = CountDownLatch(1)
+        mainHandler.post {
+            try {
+                cleanup.run()
+            } finally {
+                completed.countDown()
+            }
+        }
+        runCatching { completed.await(1L, TimeUnit.SECONDS) }
     }
 
     private fun registerSubscription(subId: Int, triple: Any, bindingGeneration: Long) {
@@ -489,11 +631,45 @@ object StackedSignalHooker : StaticHooker() {
         renderCurrent()
     }
 
-    private fun noteFactoryViewModelsOnMain(value: Any?, bindingGeneration: Long) {
+    /** Re-registers existing `(AOSP VM, scope, MIUI VM)` triples after hot reload. */
+    private fun restoreFactoryViewModelsOnMain(value: Any?, bindingGeneration: Long) {
         if (generation.get() != bindingGeneration || !enabled) return
-        // Do not make this list authoritative. It is deliberately only a witness that the host
-        // factory has produced its view-model list; subscriptionIdsFlow owns row ordering/removal.
-        factoryViewModelIds = extractSubscriptionIds(value).toSet()
+        val entries: Iterable<*> = when (value) {
+            is Map<*, *> -> value.values
+            is Iterable<*> -> value
+            else -> emptyList<Any?>()
+        }
+        val cachedTriples = LinkedHashMap<Int, Any>()
+        (mobileIconsViewModelReference?.get()?.let { readField(it, "reuseCache") } as? Map<*, *>)
+            ?.forEach { (key, cached) ->
+                val triple = cached ?: return@forEach
+                val subId = (key as? Number)?.toInt() ?: subscriptionIdOfTriple(triple)
+                if (subId != null && triplePart(triple, "getFirst") != null &&
+                    triplePart(triple, "getThird") != null
+                ) {
+                    cachedTriples[subId] = triple
+                }
+            }
+        entries.forEach { entry ->
+            val item = entry ?: return@forEach
+            val directTriple = item.takeIf {
+                triplePart(it, "getFirst") != null && triplePart(it, "getThird") != null
+            }
+            val subId = directTriple?.let(::subscriptionIdOfTriple) ?: subscriptionIdOf(item)
+                ?: return@forEach
+            val triple = directTriple ?: cachedTriples[subId] ?: return@forEach
+            val miuiViewModel = triplePart(triple, "getThird")
+            if (miuiViewModel != null && bindings[subId]?.miuiViewModel === miuiViewModel) {
+                return@forEach
+            }
+            registerSubscription(subId, triple, bindingGeneration)
+        }
+        cachedTriples.forEach { (subId, triple) ->
+            if (bindings[subId]?.miuiViewModel !== triplePart(triple, "getThird")) {
+                registerSubscription(subId, triple, bindingGeneration)
+            }
+        }
+        factoryViewModelIds = (extractSubscriptionIds(value) + cachedTriples.keys).toSet()
         renderCurrent()
     }
 
@@ -850,16 +1026,34 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun extractSubscriptionIds(value: Any?): List<Int> {
-        val list = value as? Iterable<*> ?: return emptyList()
+        val list: Iterable<*> = when (value) {
+            is Map<*, *> -> value.values
+            is Iterable<*> -> value
+            else -> return emptyList()
+        }
         return list.mapNotNull { item ->
             when (item) {
                 is Number -> item.toInt()
                 null -> null
-                else -> readIntOrNull(item, "subscriptionId")
-                    ?: invokeNoArg(item, "getSubscriptionId")?.let { it as? Number }?.toInt()
+                else -> subscriptionIdOf(item)
             }
         }.filter { it != MobileSignalState.INVALID_SUB_ID }.distinct()
     }
+
+    private fun subscriptionIdOfTriple(triple: Any): Int? =
+        triplePart(triple, "getThird")?.let(::subscriptionIdOf)
+            ?: triplePart(triple, "getFirst")?.let(::subscriptionIdOf)
+
+    private fun subscriptionIdOf(value: Any): Int? =
+        readIntOrNull(value, "subscriptionId")
+            ?: (invokeNoArg(value, "getSubscriptionId") as? Number)?.toInt()
+            ?: readIntOrNull(value, "subId")
+            ?: (invokeNoArg(value, "getSubId") as? Number)?.toInt()
+            // MiuiMobileIconVMImpl keeps the subscription id in its interactor rather than on
+            // the VM itself. This path is needed when replaying existing triples after reload;
+            // the createViewModel(int) hook supplies the id on a cold start.
+            ?: readField(value, "originIconInteractor")?.let(::subscriptionIdOf)
+            ?: readField(value, "iconInteractor")?.let(::subscriptionIdOf)
 
     private fun triplePart(triple: Any, getter: String): Any? = invokeNoArg(triple, getter)
 

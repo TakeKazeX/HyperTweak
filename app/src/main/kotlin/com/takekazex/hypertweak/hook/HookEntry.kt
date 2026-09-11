@@ -113,6 +113,7 @@ import io.github.lingqiqi5211.ezhooktool.core.EzReflect
 import io.github.lingqiqi5211.ezhooktool.xposed.ApplicationAttachCallback
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 class HookEntry : XposedModule() {
     /** Bounded retry window for the transient daemon remote-preferences outage. */
@@ -123,6 +124,7 @@ class HookEntry : XposedModule() {
     private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
     private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
+    private val preferenceRetryGeneration = AtomicLong(0L)
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
     private var systemServerClassLoader: ClassLoader? = null
@@ -130,6 +132,7 @@ class HookEntry : XposedModule() {
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
+        preferenceRetryGeneration.incrementAndGet()
         // Initialize EzXposed with the module interface
         EzXposed.initOnModuleLoaded(this, param)
         DebugLog.setProcessTag(processName)
@@ -203,6 +206,7 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
+        preferenceRetryGeneration.incrementAndGet()
         DebugLog.d(
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
@@ -243,6 +247,7 @@ class HookEntry : XposedModule() {
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
+        preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
         initPreferences()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
@@ -279,6 +284,7 @@ class HookEntry : XposedModule() {
             restoreHookerStates(restoredState.hookerStates)
             logHotReloadHandleDiff(oldHandleIds, oldHandles)
             unhookRemainingOldHandles(oldHandles)
+            retryHookersAfterHotReload()
             return
         }
 
@@ -313,6 +319,12 @@ class HookEntry : XposedModule() {
 
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
+        retryHookersAfterHotReload()
+    }
+
+    /** Recover a hooker whose in-place replacement failed without restarting the host process. */
+    private fun retryHookersAfterHotReload() {
+        rootHookers.toList().forEach { it.retryHookIfNeeded() }
     }
 
     private fun logHotReloadHandleDiff(
@@ -502,6 +514,7 @@ class HookEntry : XposedModule() {
 
     private fun initPreferences() {
         if (tryInitPreferences()) return
+        val retryGeneration = preferenceRetryGeneration.get()
         // The LSPosed daemon's remote-preferences channel is unavailable (e.g. it returns
         // null / throws "Framework returns null"). Preferences is left uninitialized; getters
         // fall back to the per-process cache rather than silently reading defaults, and the
@@ -509,17 +522,26 @@ class HookEntry : XposedModule() {
         //
         // The outage may be transient (the daemon not ready when this process loads, or the
         // daemon restarting), so retry with bounded backoff before giving up for this process
-        // lifetime. Hookers attached after a successful retry read the real gates; the ones that
-        // already attached keep their default and still need the process restarted.
+        // lifetime. Once the bridge recovers, hookers that skipped installation are retried
+        // in-place instead of permanently retaining their default-off state.
         Thread({
             var attempt = 0
             while (attempt < MAX_PREFS_INIT_RETRIES) {
                 runCatching { Thread.sleep(PREFS_RETRY_DELAY_MS * (1L shl attempt)) }
-                if (Preferences.isInitialized) break
-                if (tryInitPreferences()) break
+                if (preferenceRetryGeneration.get() != retryGeneration) return@Thread
+                if (tryInitPreferences()) {
+                    retryPreferenceGatedHookers(retryGeneration)
+                    break
+                }
                 attempt++
             }
         }, "HyperTweak-PrefsRetry").apply { isDaemon = true }.start()
+    }
+
+    /** Re-run only hookers that had no installed handles during the transient prefs outage. */
+    private fun retryPreferenceGatedHookers(retryGeneration: Long) {
+        if (preferenceRetryGeneration.get() != retryGeneration) return
+        rootHookers.toList().forEach { it.retryHookIfNeeded() }
     }
 
     /** Runs one attempt at binding the daemon's remote preferences; true on success. */

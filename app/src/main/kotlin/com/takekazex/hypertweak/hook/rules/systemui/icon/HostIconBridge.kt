@@ -30,6 +30,8 @@ class HostIconBridge(
 
     private val lock = Any()
     private val ownedSlots = Collections.synchronizedSet(LinkedHashSet<String>())
+    /** Exact host icon identity prevents stale-generation cleanup from deleting a new holder. */
+    private val ownedIcons = LinkedHashMap<String, Any>()
 
     private val iconListField: Field? = findField(controller.javaClass, "mStatusBarIconList")
         ?.apply { isAccessible = true }
@@ -56,6 +58,7 @@ class HostIconBridge(
             val existingPackage = holderPackage(existing)
             if (existing != null && (existingPackage != MODULE_PACKAGE || !isOrdinary(existing))) {
                 ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
                 if (existingPackage != null) {
                     DebugLog.w(TAG, "icon slot conflict slot=$slot package=$existingPackage")
                 }
@@ -83,6 +86,7 @@ class HostIconBridge(
                 return false
             }
             ownedSlots += slot
+            ownedIcons[slot] = statusIcon
             return true
         }
     }
@@ -93,8 +97,14 @@ class HostIconBridge(
         synchronized(lock) {
             if (slot !in ownedSlots) return false
             val holder = findHolder(slot) ?: return false
+            if (!isOwnedHolder(slot, holder)) {
+                ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
+                return false
+            }
             if (holderPackage(holder) != MODULE_PACKAGE || !isOrdinary(holder)) {
                 ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
                 return false
             }
             return runCatching {
@@ -116,17 +126,27 @@ class HostIconBridge(
             if (slot !in ownedSlots) return false
             val holder = findHolder(slot) ?: run {
                 ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
                 return true
+            }
+            if (!isOwnedHolder(slot, holder)) {
+                ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
+                return false
             }
             if (holderPackage(holder) != MODULE_PACKAGE) {
                 ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
                 return false
             }
             val removed = runCatching {
                 resolveRemoveMethod().invoke(controller, slot, true)
             }.onFailure { DebugLog.w(TAG, "failed to remove icon slot=$slot", it) }.isSuccess
             val currentPackage = holderPackage(findHolder(slot))
-            if (removed && currentPackage != MODULE_PACKAGE) ownedSlots.remove(slot)
+            if (removed && currentPackage != MODULE_PACKAGE) {
+                ownedSlots.remove(slot)
+                ownedIcons.remove(slot)
+            }
             return removed && currentPackage != MODULE_PACKAGE
         }
     }
@@ -137,6 +157,11 @@ class HostIconBridge(
     }
 
     fun owns(slot: String): Boolean = synchronized(lock) { slot in ownedSlots }
+
+    private fun isOwnedHolder(slot: String, holder: Any): Boolean = runCatching {
+        val expectedIcon = ownedIcons[slot] ?: return false
+        holderIconField(holder).get(holder) === expectedIcon
+    }.getOrDefault(false)
 
     private fun createStatusIcon(bitmap: Bitmap, description: CharSequence?): Any? = runCatching {
         val statusIconClass = Class.forName(

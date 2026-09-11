@@ -140,6 +140,22 @@ sealed class BaseHooker {
         isParentEnabled = false
     }
 
+    /**
+     * Retry a hooker that skipped its first [onHook] while the remote preferences bridge was
+     * unavailable. Hookers that already own a managed handle are left untouched.
+     */
+    fun retryHookIfNeeded() {
+        if (isEffectiveEnabled && !isHooked) {
+            runCatching {
+                DebugLog.d("BaseHooker", "retrying $hookerName after preferences became available")
+                onHook()
+            }.onFailure { t ->
+                DebugLog.w("BaseHooker", "preference retry failed for $hookerName", t)
+            }
+        }
+        childHookers.forEach { it.retryHookIfNeeded() }
+    }
+
     fun attach(
         hooker: BaseHooker,
         customClassLoader: ClassLoader? = null,
