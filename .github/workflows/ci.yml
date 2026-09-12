@@ -45,11 +45,16 @@ jobs:
       - name: Run Lint
         run: ./gradlew :app:lintDebug
 
-      # No keystore is decoded in this job, so the release variant is debug-signed.
+      # No keystore is decoded in this job, so the release variant is debug-signed. It exists to
+      # give a pull request a runnable APK to review; a push to `dev` is published by `publish-ci`
+      # instead, so building here too would compile the same sources a second time for an artifact
+      # nobody uses (it was the difference between ~7 and ~14 minutes per push).
       - name: Build Release APK
+        if: github.event_name != 'push' || github.ref != 'refs/heads/dev'
         run: ./gradlew assembleRelease
 
       - name: Upload APK Artifact
+        if: github.event_name != 'push' || github.ref != 'refs/heads/dev'
         uses: actions/upload-artifact@v7      # `archive` does not exist on v6
         with:
           # `archive: false` uploads the bare .apk instead of a zip. Direct mode accepts
