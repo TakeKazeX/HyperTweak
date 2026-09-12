@@ -1,3 +1,5 @@
+@file:Suppress("QueryPermissionsNeeded")
+
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import android.content.Context

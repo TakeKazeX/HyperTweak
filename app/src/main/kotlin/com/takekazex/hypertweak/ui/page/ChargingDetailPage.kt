@@ -179,7 +179,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.charging_section_fields))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    chargingFieldSwitch(
+                    ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_WATTAGE) != 0,
                         title = stringResource(R.string.charging_field_wattage_title),
                         summary = stringResource(R.string.charging_field_wattage_summary),
@@ -189,7 +189,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         fields = value
                         Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
-                    chargingFieldSwitch(
+                    ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_VOLTAGE) != 0,
                         title = stringResource(R.string.charging_field_voltage_title),
                         summary = stringResource(R.string.charging_field_voltage_summary),
@@ -199,7 +199,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         fields = value
                         Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
-                    chargingFieldSwitch(
+                    ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_CURRENT) != 0,
                         title = stringResource(R.string.charging_field_current_title),
                         summary = stringResource(R.string.charging_field_current_summary),
@@ -209,7 +209,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         fields = value
                         Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
-                    chargingFieldSwitch(
+                    ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingDetailHooker.FIELD_TEMPERATURE) != 0,
                         title = stringResource(R.string.charging_field_temperature_title),
                         summary = stringResource(R.string.charging_field_temperature_summary),
@@ -229,7 +229,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
 
 /** Toggle one bit of the charging-detail field bitmask. */
 @Composable
-private fun chargingFieldSwitch(
+private fun ChargingFieldSwitch(
     checked: Boolean,
     title: String,
     summary: String,

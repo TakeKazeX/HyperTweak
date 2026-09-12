@@ -4,12 +4,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.CompoundButton
+import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -287,7 +287,7 @@ object PasskeyHooker : StaticHooker() {
                 if (!original) {
                     // Provider declared no settings activity (or it cannot be started).
                     val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:$packageName")
+                        data = "package:$packageName".toUri()
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     if (tryStartActivityAsUser(context, details, userId)) {

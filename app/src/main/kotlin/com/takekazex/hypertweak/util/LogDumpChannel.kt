@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import androidx.core.net.toUri
+
 /**
  * Cross-process channel for the debug-log dump interface.
  *
@@ -25,5 +27,5 @@ object LogDumpChannel {
     const val KEY_PREVIEW = "preview"
     const val KEY_DATA = "data"
 
-    fun uri() = android.net.Uri.parse("content://$AUTHORITY/$URI_PATH")
+    fun uri() = "content://$AUTHORITY/$URI_PATH".toUri()
 }

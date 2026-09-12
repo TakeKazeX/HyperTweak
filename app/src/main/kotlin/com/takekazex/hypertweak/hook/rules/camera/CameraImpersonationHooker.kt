@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.camera
 import android.os.Build
 import android.util.Size
 import android.util.SparseArray
+import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -1172,6 +1173,7 @@ object CameraImpersonationHooker : StaticHooker() {
             method.hook("cam_unlock_legendary_registry_${method.name}") {
                 after { param ->
                     if (!legendaryMomentUnlock()) return@after
+                    @Suppress("UNCHECKED_CAST")
                     val registry = param.result as? SparseArray<Any?> ?: return@after
                     ensureLegendaryRegistry(registry)
                 }
@@ -1972,7 +1974,7 @@ object CameraImpersonationHooker : StaticHooker() {
                         // Mirror the value type of the existing table (boxed on every verified
                         // build); an empty table gets the boxed default.
                         CameraIdentity.masterLiveFocalStops(
-                            if (array.size() > 0) array.valueAt(0) else null
+                            if (array.isNotEmpty()) array.valueAt(0) else null
                         )
                     )
                     param.result = copy

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import androidx.core.net.toUri
+
 /**
  * Cross-process channel for the battery-info page.
  *
@@ -50,7 +52,7 @@ object BatteryInfoChannel {
     const val SLOT_TYPEC_PORT = "get_typec_port_num"
     const val SLOT_PD_AUTH = "get_pd_authentication"
 
-    fun uri() = android.net.Uri.parse("content://$AUTHORITY")
+    fun uri() = "content://$AUTHORITY".toUri()
 
     // ─── formatting helpers (shared by the producer hook and the reader) ─────
     // The fuel-gauge exposes charge/current in µAh/µA; a value well above any real mAh/mA is µAh,

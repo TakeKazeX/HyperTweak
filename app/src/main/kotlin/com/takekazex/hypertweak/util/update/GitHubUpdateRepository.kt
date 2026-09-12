@@ -509,25 +509,28 @@ class GitHubUpdateRepository(
         var current = URL(UpdateNetworkPolicy.requestUrl(mode, proxy, info.downloadUrl))
         var redirects = 0
         var connection: HttpURLConnection? = null
+        var successfulConnection: HttpURLConnection? = null
         try {
             while (true) {
                 if (!UpdateNetworkPolicy.isAllowedRequestHost(current, mode, proxy)) {
                     throw UpdateException.Redirect("APK redirect is not trusted")
                 }
-                connection = runCatching { current.openConnection() as HttpURLConnection }
+                val openedConnection = runCatching { current.openConnection() as HttpURLConnection }
                     .getOrElse { throw UpdateException.Network("Unable to open APK connection", it) }
-                connection!!.instanceFollowRedirects = false
-                connection!!.connectTimeout = CONNECT_TIMEOUT_MS
-                connection!!.readTimeout = READ_TIMEOUT_MS
-                connection!!.requestMethod = "GET"
-                connection!!.setRequestProperty("User-Agent", "HyperTweak-Update/${BuildConfig.VERSION_NAME}")
+                connection = openedConnection
+                val currentConnection = openedConnection
+                currentConnection.instanceFollowRedirects = false
+                currentConnection.connectTimeout = CONNECT_TIMEOUT_MS
+                currentConnection.readTimeout = READ_TIMEOUT_MS
+                currentConnection.requestMethod = "GET"
+                currentConnection.setRequestProperty("User-Agent", "HyperTweak-Update/${BuildConfig.VERSION_NAME}")
                 val status = try {
-                    connection!!.responseCode
+                    currentConnection.responseCode
                 } catch (failure: Throwable) {
                     throw UpdateException.Network("APK server did not respond", failure)
                 }
                 if (status in 300..399) {
-                    val location = connection!!.getHeaderField("Location")
+                    val location = currentConnection.getHeaderField("Location")
                         ?: throw UpdateException.Redirect("APK redirect has no location")
                     if (redirects >= MAX_REDIRECTS) throw UpdateException.Redirect("Too many APK redirects")
                     val next = runCatching { current.toURI().resolve(location).toURL() }
@@ -537,7 +540,7 @@ class GitHubUpdateRepository(
                     ) {
                         throw UpdateException.Redirect("APK redirect is not trusted")
                     }
-                    connection!!.disconnect()
+                    currentConnection.disconnect()
                     connection = null
                     current = next
                     redirects++
@@ -545,10 +548,13 @@ class GitHubUpdateRepository(
                 }
                 if (status == HttpURLConnection.HTTP_NOT_FOUND) throw UpdateException.StaleAsset()
                 if (status !in 200..299) throw httpException(status)
+                successfulConnection = currentConnection
                 break
             }
 
-            val response = connection!!
+            val response = requireNotNull(successfulConnection) {
+                "APK connection was not created"
+            }
             val contentLength = response.contentLengthLong.takeIf { it >= 0L }
             val expectedSize = info.apkSize
             if (contentLength != null && contentLength > MAX_APK_BYTES) {

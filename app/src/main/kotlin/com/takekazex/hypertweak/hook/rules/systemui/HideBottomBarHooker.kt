@@ -1,3 +1,5 @@
+@file:Suppress("InternalInsetResource")
+
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.content.Context

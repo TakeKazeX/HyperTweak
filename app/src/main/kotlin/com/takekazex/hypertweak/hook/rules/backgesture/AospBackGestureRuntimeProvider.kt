@@ -1,11 +1,15 @@
+@file:Suppress("StaticFieldLeak")
+
 package com.takekazex.hypertweak.hook.rules.backgesture
 
+import android.annotation.SuppressLint
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 
 internal object AospBackGestureRuntimeProvider {
+    @SuppressLint("StaticFieldLeak")
     val runtime = AospBackGestureRuntime()
 }
 

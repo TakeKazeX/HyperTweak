@@ -19,6 +19,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -356,7 +357,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
         // percentage has a real value immediately, then switch to the active stream once known.
         val resolvedStream = if (activeStream >= 0) activeStream
             else if (states != null && states.get(STREAM_MUSIC) != null) STREAM_MUSIC
-            else if (states != null && states.size() > 0) states.keyAt(0)
+            else if (states != null && states.isNotEmpty()) states.keyAt(0)
             else -1
         val streamState = if (resolvedStream >= 0) states?.get(resolvedStream) else null
         val level = readInt(streamLevelField, streamState, -1)

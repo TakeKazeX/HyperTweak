@@ -1,3 +1,5 @@
+@file:Suppress("SdCardPath")
+
 package com.takekazex.hypertweak.hook.rules.downloads
 
 import android.content.Context

@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -370,7 +371,11 @@ private fun FilterCard(
         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
         OverlayDropdownPreference(
             title = stringResource(R.string.logs_log_filter),
-            summary = stringResource(R.string.logs_filter_summary, shownCount),
+            summary = pluralStringResource(
+                R.plurals.logs_filter_summary,
+                shownCount,
+                shownCount
+            ),
             startAction = {
                 Icon(
                     imageVector = MiuixIcons.Filter,

@@ -14,12 +14,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -99,7 +101,7 @@ fun AospImePage(onBack: () -> Unit) {
     }
     var startKey by remember { mutableStateOf(AospImeConfig.navBarLayoutStart()) }
     var endKey by remember { mutableStateOf(AospImeConfig.navBarLayoutEnd()) }
-    var raiseStyle by remember { mutableStateOf(AospImeConfig.raiseStyle()) }
+    var raiseStyle by remember { mutableIntStateOf(AospImeConfig.raiseStyle()) }
 
     var applied by remember { mutableStateOf(Preferences.getStringSet(Preferences.KEY_AOSP_IME_PACKAGES)) }
     var selected by remember { mutableStateOf(applied) }
@@ -258,7 +260,11 @@ fun AospImePage(onBack: () -> Unit) {
                 SmallTitle(
                     text = when {
                         loading -> stringResource(R.string.ime_loading)
-                        else -> stringResource(R.string.ime_selected_count, selected.size)
+                        else -> pluralStringResource(
+                            R.plurals.ime_selected_count,
+                            selected.size,
+                            selected.size
+                        )
                     }
                 )
             }

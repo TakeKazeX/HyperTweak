@@ -135,6 +135,22 @@ android {
             merges += "META-INF/xposed/*"
         }
     }
+
+    lint {
+        // HyperTweak is an Xposed module: private framework/vendor APIs and resource names are
+        // the integration surface of its hooks, and DexKit queries intentionally select the first
+        // descriptor that passes their runtime shape validation. These diagnostics are not
+        // actionable replacements for the verified host signatures used by the module.
+        disable += setOf(
+            "PrivateApi",
+            "DiscouragedPrivateApi",
+            "DiscouragedApi",
+            // The DexKit detector emits this diagnostic before source-level suppressions are
+            // applied. Keep this explicit for the reviewed fallback resolvers; changing any of
+            // those first-match queries still requires a target-Apk review.
+            "NonUniqueDexKitData"
+        )
+    }
 }
 
 androidComponents {
@@ -168,9 +184,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     
     // Compose Runtime & UI
-    implementation("androidx.compose.ui:ui:1.12.0")
-    implementation("androidx.compose.ui:ui-graphics:1.12.0")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.12.0")
+    implementation("androidx.compose.ui:ui:1.12.1")
+    implementation("androidx.compose.ui:ui-graphics:1.12.1")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
@@ -190,8 +206,8 @@ dependencies {
     implementation("io.github.libxposed:service:102.0.0")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.2.1")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.2.1")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.2.2")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.2.2")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.util
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * Keeps the app-local history used to rank the restart picker.
@@ -33,15 +34,15 @@ object RestartHistory {
 
         val preferences = historyPreferences(context)
         synchronized(lock) {
-            val editor = preferences.edit()
-            normalized.forEach { packageName ->
-                val current = preferences.getInt(key(packageName), 0).coerceAtLeast(0)
-                editor.putInt(
-                    key(packageName),
-                    if (current == Int.MAX_VALUE) Int.MAX_VALUE else current + 1
-                )
+            preferences.edit {
+                normalized.forEach { packageName ->
+                    val current = preferences.getInt(key(packageName), 0).coerceAtLeast(0)
+                    putInt(
+                        key(packageName),
+                        if (current == Int.MAX_VALUE) Int.MAX_VALUE else current + 1
+                    )
+                }
             }
-            editor.apply()
         }
     }
 

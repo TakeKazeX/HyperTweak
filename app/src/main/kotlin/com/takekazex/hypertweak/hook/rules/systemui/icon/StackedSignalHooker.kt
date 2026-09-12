@@ -1,5 +1,8 @@
+@file:Suppress("StaticFieldLeak")
+
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -29,6 +32,7 @@ import kotlin.math.roundToInt
  * boundary: it collects the host flows, renders one module-owned bitmap, publishes it through
  * [HostIconBridge], and only then masks the native per-subscription visibility pair.
  */
+@SuppressLint("StaticFieldLeak")
 object StackedSignalHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 

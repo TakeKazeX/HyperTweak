@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.TextPaint
 import android.util.LruCache
+import androidx.core.graphics.createBitmap
 import kotlin.math.ceil
 
 /**
@@ -87,7 +88,7 @@ object MobileTypeRenderer {
         val width = ceil((padStart + contentWidth + padEnd).toDouble())
             .toInt()
             .coerceIn(1, 2048)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         val metrics = paint.fontMetrics

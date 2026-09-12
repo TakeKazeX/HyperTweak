@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,7 +64,7 @@ fun SecurityCenterPage(onBack: () -> Unit) {
         )
     }
     var lowBatteryWarningMode by remember {
-        mutableStateOf(
+        mutableIntStateOf(
             when {
                 Preferences.contains(Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE) ->
                     Preferences.getInt(

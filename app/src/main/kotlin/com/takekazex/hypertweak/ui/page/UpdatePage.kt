@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -118,7 +120,7 @@ fun UpdatePage(
     var showOtherChanges by remember { mutableStateOf(false) }
     var showRawCommits by remember { mutableStateOf(false) }
     var freedBytes by remember { mutableStateOf<Long?>(null) }
-    var downloadedBytes by remember { mutableStateOf(manager.downloadedBytes()) }
+    var downloadedBytes by remember { mutableLongStateOf(manager.downloadedBytes()) }
 
     val isChinese = remember { Locale.getDefault().language.equals("zh", ignoreCase = true) }
     val releaseInfo = state.releaseInfo
@@ -486,7 +488,7 @@ private fun ReleaseCard(
                         add(stringResource(R.string.update_release_published, it))
                     }
                     info.distance?.takeIf { it > 0 }?.let {
-                        add(stringResource(R.string.update_release_distance, it))
+                        add(pluralStringResource(R.plurals.update_release_distance, it, it))
                     }
                 }
                 if (details.isNotEmpty()) {
@@ -728,7 +730,11 @@ private fun ChangeList(
     if (visible.any { it.items.size > COLLAPSED_ITEMS }) {
         IconActionRow(
             title = if (collapsed) {
-                stringResource(R.string.update_changelog_show_more, hiddenItems)
+                pluralStringResource(
+                    R.plurals.update_changelog_show_more,
+                    hiddenItems,
+                    hiddenItems
+                )
             } else {
                 stringResource(R.string.update_changelog_show_less)
             },
@@ -741,7 +747,8 @@ private fun ChangeList(
             title = if (showOtherChanges) {
                 stringResource(R.string.update_changelog_hide_other)
             } else {
-                stringResource(R.string.update_changelog_show_other, secondary.sumOf { it.items.size })
+                    val count = secondary.sumOf { it.items.size }
+                    pluralStringResource(R.plurals.update_changelog_show_other, count, count)
             },
             icon = if (showOtherChanges) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore,
             onClick = onToggleOther
@@ -911,7 +918,7 @@ private fun AvailableDialog(
         )
         info.apkSize?.let { add(formatBytes(it)) }
         info.distance?.takeIf { it > 0 }?.let {
-            add(stringResource(R.string.update_release_distance, it))
+            add(pluralStringResource(R.plurals.update_release_distance, it, it))
         }
     }.joinToString(" · ")
 

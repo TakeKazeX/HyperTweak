@@ -158,19 +158,19 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.bottom_text_items_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_CHARGING != 0,
                         title = stringResource(R.string.bottom_text_charging_title),
                         summary = stringResource(R.string.bottom_text_charging_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_CHARGING, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_DND != 0,
                         title = stringResource(R.string.bottom_text_dnd_title),
                         summary = stringResource(R.string.bottom_text_dnd_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_DND, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_NOTIFICATION_COUNT != 0,
                         title = stringResource(R.string.bottom_text_notification_title),
                         summary = stringResource(R.string.bottom_text_notification_summary),
@@ -178,49 +178,49 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             setMaskBit(LockscreenBottomTextHooker.CATEGORY_NOTIFICATION_COUNT, it)
                         }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_TRUST != 0,
                         title = stringResource(R.string.bottom_text_trust_title),
                         summary = stringResource(R.string.bottom_text_trust_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_TRUST, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_SWIPE != 0,
                         title = stringResource(R.string.bottom_text_swipe_title),
                         summary = stringResource(R.string.bottom_text_swipe_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_SWIPE, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_OWNER_INFO != 0,
                         title = stringResource(R.string.bottom_text_owner_info_title),
                         summary = stringResource(R.string.bottom_text_owner_info_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_OWNER_INFO, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_DISCLOSURE != 0,
                         title = stringResource(R.string.bottom_text_disclosure_title),
                         summary = stringResource(R.string.bottom_text_disclosure_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_DISCLOSURE, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_LOGOUT != 0,
                         title = stringResource(R.string.bottom_text_logout_title),
                         summary = stringResource(R.string.bottom_text_logout_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_LOGOUT, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_ALIGNMENT != 0,
                         title = stringResource(R.string.bottom_text_alignment_title),
                         summary = stringResource(R.string.bottom_text_alignment_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ALIGNMENT, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_TRANSIENT != 0,
                         title = stringResource(R.string.bottom_text_transient_title),
                         summary = stringResource(R.string.bottom_text_transient_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_TRANSIENT, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_PERSISTENT_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_persistent_unlock_title),
                         summary = stringResource(R.string.bottom_text_persistent_unlock_summary),
@@ -228,19 +228,19 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             setMaskBit(LockscreenBottomTextHooker.CATEGORY_PERSISTENT_UNLOCK, it)
                         }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_USER_LOCKED != 0,
                         title = stringResource(R.string.bottom_text_user_locked_title),
                         summary = stringResource(R.string.bottom_text_user_locked_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_USER_LOCKED, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_BIOMETRIC != 0,
                         title = stringResource(R.string.bottom_text_biometric_title),
                         summary = stringResource(R.string.bottom_text_biometric_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_BIOMETRIC, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_BIOMETRIC_FOLLOW_UP != 0,
                         title = stringResource(R.string.bottom_text_biometric_follow_up_title),
                         summary = stringResource(R.string.bottom_text_biometric_follow_up_summary),
@@ -248,13 +248,13 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             setMaskBit(LockscreenBottomTextHooker.CATEGORY_BIOMETRIC_FOLLOW_UP, it)
                         }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_ADAPTIVE_AUTH != 0,
                         title = stringResource(R.string.bottom_text_adaptive_auth_title),
                         summary = stringResource(R.string.bottom_text_adaptive_auth_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ADAPTIVE_AUTH, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_WATCH_DISCONNECTED != 0,
                         title = stringResource(R.string.bottom_text_watch_disconnected_title),
                         summary = stringResource(R.string.bottom_text_watch_disconnected_summary),
@@ -262,7 +262,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             setMaskBit(LockscreenBottomTextHooker.CATEGORY_WATCH_DISCONNECTED, it)
                         }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_SECURE_LOCK_DEVICE != 0,
                         title = stringResource(R.string.bottom_text_secure_lock_device_title),
                         summary = stringResource(R.string.bottom_text_secure_lock_device_summary),
@@ -270,25 +270,25 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             setMaskBit(LockscreenBottomTextHooker.CATEGORY_SECURE_LOCK_DEVICE, it)
                         }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_CLICK_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_click_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_click_to_unlock_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_CLICK_TO_UNLOCK, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_KEY_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_key_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_key_to_unlock_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_KEY_TO_UNLOCK, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_ENTER_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_enter_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_enter_to_unlock_summary),
                         onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ENTER_TO_UNLOCK, it) }
                     )
-                    bottomTextSwitch(
+                    BottomTextSwitch(
                         checked = mask and LockscreenBottomTextHooker.CATEGORY_UNKNOWN != 0,
                         title = stringResource(R.string.bottom_text_unknown_title),
                         summary = stringResource(R.string.bottom_text_unknown_summary),
@@ -303,7 +303,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun bottomTextSwitch(
+private fun BottomTextSwitch(
     checked: Boolean,
     title: String,
     summary: String,

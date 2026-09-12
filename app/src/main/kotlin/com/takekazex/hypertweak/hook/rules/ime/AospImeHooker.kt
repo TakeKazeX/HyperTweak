@@ -11,6 +11,7 @@ import android.view.View.OnClickListener
 import android.view.ViewGroup
 import android.view.ViewParent
 import android.view.WindowInsets
+import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -622,7 +623,7 @@ object AospImeHooker : StaticHooker() {
         }
         @Suppress("ResourceType")
         val frame = root.findViewById(16908318) as? ViewGroup
-        return frame?.getChildAt(0)?.takeIf { it.visibility == View.VISIBLE } ?: root
+        return frame?.getChildAt(0)?.takeIf { it.isVisible } ?: root
     }
 
     /**

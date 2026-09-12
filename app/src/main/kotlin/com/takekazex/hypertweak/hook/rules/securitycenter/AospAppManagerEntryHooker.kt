@@ -6,6 +6,9 @@ import android.content.Intent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.core.view.get
+import androidx.core.view.isEmpty
+import androidx.core.view.size
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -117,7 +120,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
 
     private fun addEntry(activity: Activity, menu: Menu) {
         // An empty end menu means miuix has not populated it yet; adding now would be replaced.
-        if (menu.size() == 0 || hasEntry(menu)) return
+        if (menu.isEmpty() || hasEntry(menu)) return
 
         menu.add(endMenuGroupId(activity), MENU_ITEM_ID, Menu.NONE, allAppsTitle()).apply {
             setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
@@ -129,8 +132,8 @@ object AospAppManagerEntryHooker : StaticHooker() {
         }
     }
 
-    private fun hasEntry(menu: Menu): Boolean = (0 until menu.size()).any { index ->
-        val item = menu.getItem(index)
+    private fun hasEntry(menu: Menu): Boolean = (0 until menu.size).any { index ->
+        val item = menu[index]
         item.itemId == MENU_ITEM_ID || item.title?.toString() == allAppsTitle()
     }
 

@@ -629,7 +629,9 @@
     <string name="ime_right_key">右侧按键</string>
     <string name="ime_scope_not_granted">未授予 %1$s 的作用域；选择未更改</string>
     <string name="ime_scope_update_failed">无法更新作用域：%1$s</string>
-    <string name="ime_selected_count">已选择 %1$d 个</string>
+    <plurals name="ime_selected_count">
+        <item quantity="other">已选择 %1$d 个</item>
+    </plurals>
     <string name="ime_service_unavailable">Xposed 服务不可用</string>
     <string name="logs_back_content_description">返回</string>
     <string name="logs_copy_label">HyperTweak 日志条目</string>
@@ -656,7 +658,9 @@
     <string name="logs_filter_errors">错误</string>
     <string name="logs_filter_hook_failed">Hook 失败</string>
     <string name="logs_filter_hooks">Hook</string>
-    <string name="logs_filter_summary">显示 %1$d 条记录</string>
+    <plurals name="logs_filter_summary">
+        <item quantity="other">显示 %1$d 条记录</item>
+    </plurals>
     <string name="logs_filter_warnings">警告</string>
     <string name="logs_hooks_summary">成功 %1$d · 失败 %2$d</string>
     <string name="logs_issues">问题</string>
@@ -687,7 +691,9 @@
     <string name="predictive_back_apps_title">预测性返回应用</string>
     <string name="predictive_loading_apps">正在加载已安装的应用…</string>
     <string name="predictive_search">搜索</string>
-    <string name="predictive_selected_count">已选择 %1$d 个</string>
+    <plurals name="predictive_selected_count">
+        <item quantity="other">已选择 %1$d 个</item>
+    </plurals>
     <string name="pref_language_device_default">跟随系统</string>
     <string name="pref_language_en">English</string>
     <string name="pref_language_title">语言</string>
@@ -756,7 +762,9 @@
     <string name="settings_restore_summary">导入 JSON 备份并替换当前配置</string>
     <string name="settings_backup_success">设置备份已保存</string>
     <string name="settings_backup_failed">无法保存设置备份</string>
-    <string name="settings_restore_success">已还原 %1$d 项设置，应用将重新加载</string>
+    <plurals name="settings_restore_success">
+        <item quantity="other">已还原 %1$d 项设置，应用将重新加载</item>
+    </plurals>
     <string name="settings_restore_failed">无法还原设置备份</string>
     <string name="settings_debug">调试</string>
     <string name="settings_debug_summary">日志与诊断</string>
@@ -1137,16 +1145,22 @@
     <string name="update_section_available">新版本</string>
     <string name="update_release_size">体积 %1$s</string>
     <string name="update_release_published">发布于 %1$s</string>
-    <string name="update_release_distance">距当前版本 %1$d 次提交</string>
+    <plurals name="update_release_distance">
+        <item quantity="other">距当前版本 %1$d 次提交</item>
+    </plurals>
     <string name="update_legacy_metadata_notice">该版本发布时尚无更新元数据，因此没有可校验的哈希；安装前仍会校验签名证书。</string>
     <string name="update_changelog_recent">本次更新内容</string>
     <string name="update_changelog">更新日志</string>
     <string name="update_changelog_major">重要版本更新</string>
     <string name="update_changelog_empty">该版本没有可显示的更新内容。</string>
     <string name="update_changelog_truncated">仅显示摘要，完整日志请打开发布页。</string>
-    <string name="update_changelog_show_more">展开全部 %1$d 项</string>
+    <plurals name="update_changelog_show_more">
+        <item quantity="other">展开全部 %1$d 项</item>
+    </plurals>
     <string name="update_changelog_show_less">收起</string>
-    <string name="update_changelog_show_other">展开其余 %1$d 项</string>
+    <plurals name="update_changelog_show_other">
+        <item quantity="other">展开其余 %1$d 项</item>
+    </plurals>
     <string name="update_changelog_hide_other">收起其他变更</string>
     <string name="update_changelog_raw_show">展开原始提交记录</string>
     <string name="update_changelog_raw_hide">收起原始提交记录</string>

@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.RectF
 import android.util.Xml
+import androidx.core.graphics.createBitmap
 import com.caverock.androidsvg.RenderOptions
 import com.caverock.androidsvg.SVG
 import com.takekazex.hypertweak.util.DebugLog
@@ -196,7 +197,7 @@ object IconSvgRenderer {
                 document.variants[key] = it
             }
         }
-        val bitmap = Bitmap.createBitmap(outputWidth, contentHeight, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(outputWidth, contentHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         val options = RenderOptions.create().viewPort(start.toFloat(), 0f, contentWidth.toFloat(), contentHeight.toFloat())
@@ -226,7 +227,7 @@ object IconSvgRenderer {
         val extraStart = (-badgeLeft).coerceAtLeast(0)
         val extraEnd = (badgeLeft + badge.width - signal.width).coerceAtLeast(0)
         val output = if (extraStart == 0 && extraEnd == 0) signal else {
-            Bitmap.createBitmap((signal.width + extraStart + extraEnd).coerceAtMost(2048), signal.height, Bitmap.Config.ARGB_8888)
+            createBitmap((signal.width + extraStart + extraEnd).coerceAtMost(2048), signal.height, Bitmap.Config.ARGB_8888)
                 .also { bitmap ->
                     Canvas(bitmap).drawBitmap(signal, extraStart.toFloat(), 0f, null)
                 }

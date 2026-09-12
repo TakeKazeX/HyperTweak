@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -111,7 +112,11 @@ fun PredictiveBackAppsPage(onBack: () -> Unit) {
                 SmallTitle(
                     text = when {
                         loading -> stringResource(R.string.predictive_loading_apps)
-                        else -> stringResource(R.string.predictive_selected_count, selected.size)
+                        else -> pluralStringResource(
+                            R.plurals.predictive_selected_count,
+                            selected.size,
+                            selected.size
+                        )
                     }
                 )
             }

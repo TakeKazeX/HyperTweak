@@ -383,7 +383,7 @@
     <string name="home_hot_reload_checking">Waiting for the module service…</string>
     <string name="home_hot_reload_no_targets">No stale targets reported. You can still run either action to test</string>
     <string name="home_hot_reload_result_all">Last hot reload: all targets succeeded</string>
-    <string name="home_hot_reload_result_counts">Last hot reload: %1$d succeeded, %2$d failed</string>
+    <string name="home_hot_reload_result_counts" tools:ignore="PluralsCandidate">Last hot reload: %1$d succeeded, %2$d failed</string>
     <string name="home_hot_reload_result_none">Last hot reload: no stale targets</string>
     <string name="home_hot_reload_title">Hot Reload Module</string>
     <string name="home_quick_actions">Quick Actions</string>
@@ -629,7 +629,10 @@
     <string name="ime_right_key">Right key</string>
     <string name="ime_scope_not_granted">Scope was not granted for %1$s; selection unchanged</string>
     <string name="ime_scope_update_failed">Could not update the scope: %1$s</string>
-    <string name="ime_selected_count">%1$d selected</string>
+    <plurals name="ime_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="ime_service_unavailable">The Xposed service is unavailable</string>
     <string name="logs_back_content_description">Back</string>
     <string name="logs_copy_label">HyperTweak Log Entry</string>
@@ -656,7 +659,10 @@
     <string name="logs_filter_errors">Errors</string>
     <string name="logs_filter_hook_failed">Hook Failed</string>
     <string name="logs_filter_hooks">Hooks</string>
-    <string name="logs_filter_summary">%1$d records shown</string>
+    <plurals name="logs_filter_summary">
+        <item quantity="one">%1$d record shown</item>
+        <item quantity="other">%1$d records shown</item>
+    </plurals>
     <string name="logs_filter_warnings">Warnings</string>
     <string name="logs_hooks_summary">Succeeded %1$d · Failed %2$d</string>
     <string name="logs_issues">Issues</string>
@@ -687,7 +693,10 @@
     <string name="predictive_back_apps_title">Predictive Back Apps</string>
     <string name="predictive_loading_apps">Loading installed apps…</string>
     <string name="predictive_search">Search</string>
-    <string name="predictive_selected_count">%1$d selected</string>
+    <plurals name="predictive_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="pref_language_device_default">Device Default</string>
     <string name="pref_language_en">English</string>
     <string name="pref_language_title">Language</string>
@@ -756,7 +765,10 @@
     <string name="settings_restore_summary">Import a JSON backup and replace the current configuration</string>
     <string name="settings_backup_success">Settings backup saved</string>
     <string name="settings_backup_failed">Could not save the settings backup</string>
-    <string name="settings_restore_success">Restored %1$d settings. The app will reload.</string>
+    <plurals name="settings_restore_success">
+        <item quantity="one">Restored %1$d setting. The app will reload.</item>
+        <item quantity="other">Restored %1$d settings. The app will reload.</item>
+    </plurals>
     <string name="settings_restore_failed">Could not restore the settings backup</string>
     <string name="settings_debug">Debug</string>
     <string name="settings_debug_summary">Logging and diagnostics</string>
@@ -1137,16 +1149,25 @@
     <string name="update_section_available">New version</string>
     <string name="update_release_size">Size %1$s</string>
     <string name="update_release_published">Published %1$s</string>
-    <string name="update_release_distance">%1$d commits since your build</string>
+    <plurals name="update_release_distance">
+        <item quantity="one">%1$d commit since your build</item>
+        <item quantity="other">%1$d commits since your build</item>
+    </plurals>
     <string name="update_legacy_metadata_notice">This release predates the update metadata, so there is no checksum to verify. The signing certificate is still verified before installing.</string>
     <string name="update_changelog_recent">What is new in this update</string>
     <string name="update_changelog">Changelog</string>
     <string name="update_changelog_major">Major update</string>
     <string name="update_changelog_empty">No change list is available for this release.</string>
     <string name="update_changelog_truncated">Showing a summary. Open the release page for the complete log.</string>
-    <string name="update_changelog_show_more">Show all %1$d items</string>
+    <plurals name="update_changelog_show_more">
+        <item quantity="one">Show all %1$d item</item>
+        <item quantity="other">Show all %1$d items</item>
+    </plurals>
     <string name="update_changelog_show_less">Show less</string>
-    <string name="update_changelog_show_other">Show %1$d other changes</string>
+    <plurals name="update_changelog_show_other">
+        <item quantity="one">Show %1$d other change</item>
+        <item quantity="other">Show %1$d other changes</item>
+    </plurals>
     <string name="update_changelog_hide_other">Hide other changes</string>
     <string name="update_changelog_raw_show">Show raw commits</string>
     <string name="update_changelog_raw_hide">Hide raw commits</string>

@@ -1,5 +1,8 @@
+@file:Suppress("StaticFieldLeak")
+
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -34,6 +37,7 @@ import java.util.Locale
  * from the current class shape and the four battery readers are resolved by their stable string
  * keys with a narrow current-build fallback.
  */
+@SuppressLint("StaticFieldLeak")
 object MoreBatteryInfoHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 

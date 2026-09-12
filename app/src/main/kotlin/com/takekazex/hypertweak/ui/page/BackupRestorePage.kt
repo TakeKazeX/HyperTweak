@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,6 +58,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@SuppressLint("LocalContextResourcesRead")
 @Composable
 fun BackupRestorePage(
     onBack: () -> Unit,
@@ -72,8 +74,6 @@ fun BackupRestorePage(
     var showClearConfirmationDialog by remember { mutableStateOf(false) }
     var restartAllScopesAfterClear by remember(showClearConfirmationDialog) { mutableStateOf(true) }
     var restartHyperTweakAfterClear by remember(showClearConfirmationDialog) { mutableStateOf(true) }
-    val restoreSuccessTemplate = stringResource(R.string.settings_restore_success)
-
     val createBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -125,7 +125,11 @@ fun BackupRestorePage(
             result.onSuccess { restoredCount ->
                 Toast.makeText(
                     context,
-                    String.format(Locale.getDefault(), restoreSuccessTemplate, restoredCount),
+                    context.resources.getQuantityString(
+                        R.plurals.settings_restore_success,
+                        restoredCount,
+                        restoredCount
+                    ),
                     Toast.LENGTH_SHORT
                 ).show()
                 onSettingsRestored()

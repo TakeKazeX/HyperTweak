@@ -368,6 +368,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      * pointer at the RecyclerView level, before child dispatch, and the listener never calls
      * requestDisallowInterceptTouchEvent. qslist tiles keep their tap-to-add/remove behavior.
      */
+    @Suppress("ClickableViewAccessibility")
     private fun installEditTouchBlockHook() {
         val adapter = ADAPTER_NAME.toClassOrNull() ?: return
         val holderCls =

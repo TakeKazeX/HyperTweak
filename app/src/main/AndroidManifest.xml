@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <permission
         android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE"
@@ -17,8 +18,8 @@
       process; no hooked process performs network or install work.
       INTERNET / ACCESS_NETWORK_STATE cover the GitHub release lookup and download, and the
       latter also lets the check be skipped up front instead of reporting a bogus failure offline.
-      REQUEST_INSTALL_PACKAGES is required for the ACTION_INSTALL_PACKAGE hand-off to the system
-      installer; the update is never installed silently.
+      REQUEST_INSTALL_PACKAGES is required to request the user-confirmed package-installer hand-off;
+      the update is never installed silently.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -131,7 +132,8 @@
             android:name="com.takekazex.hypertweak.BatteryInfoProvider"
             android:authorities="com.takekazex.hypertweak.batteryprovider"
             android:exported="true"
-            android:grantUriPermissions="false" />
+            android:grantUriPermissions="false"
+            tools:ignore="ExportedContentProvider" />
 
         <!-- Exposes the aggregated cross-process debug log over content:// so an agent (adb /
              scripting) can dump/read it without opening the app. Exported read-only: the write path
@@ -140,7 +142,8 @@
             android:name="com.takekazex.hypertweak.LogDumpProvider"
             android:authorities="com.takekazex.hypertweak.logdump"
             android:exported="true"
-            android:grantUriPermissions="false" />
+            android:grantUriPermissions="false"
+            tools:ignore="ExportedContentProvider" />
 
         <!-- Hands a downloaded update APK to the system installer. Not exported: the file URI is
              only ever granted to the installer through the explicit intent in UpdateInstaller, and

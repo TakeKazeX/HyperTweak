@@ -1276,6 +1276,7 @@ object Preferences {
     }
 
     /** Applies one remote mutation after all previously queued writes and waits for its result. */
+    @Suppress("UseKtx")
     private fun commitRemoteMutation(block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
         val local = localSourcePrefs
@@ -1570,7 +1571,7 @@ object Preferences {
         if (isLocalOnly || local === remotePrefs) return
         val task = serializedWriter.submit {
             runCatching {
-                remotePrefs.edit().putString(key, value).commit()
+                remotePrefs.edit(commit = true) { putString(key, value) }
             }.onFailure { t ->
                 DebugLog.w("Preferences", "synchronous remote pref write failed", t)
             }

@@ -8,6 +8,7 @@ import android.os.UserHandle
 import android.view.View
 import android.widget.ImageView
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withClip
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -236,11 +237,10 @@ object SettingsHooker : StaticHooker() {
             val mask = Path().apply {
                 addCircle(size / 2f, size / 2f, size / 2f, Path.Direction.CW)
             }
-            canvas.save()
-            canvas.clipPath(mask)
-            drawable.setBounds(0, 0, size, size)
-            drawable.draw(canvas)
-            canvas.restore()
+            canvas.withClip(mask) {
+                drawable.setBounds(0, 0, size, size)
+                drawable.draw(canvas)
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ class UpdateInstaller(
     private val appContext = context.applicationContext
     private val packageManager: PackageManager = appContext.packageManager
 
+    @Suppress("DEPRECATION")
     fun install(info: UpdateInfo, apkFile: File): InstallResult {
         if (!apkFile.isFile) {
             return InstallResult.Failure(error(UpdateErrorKind.INTEGRITY, R.string.update_error_integrity, retryable = false))
