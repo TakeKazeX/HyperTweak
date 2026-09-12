@@ -30,6 +30,7 @@ sealed interface Route : NavKey {
     data object DeveloperSettings : Route
     data object DebugLogs : Route
     data object BatteryInfo : Route
+    data object Update : Route
 }
 
 /**
@@ -66,6 +67,7 @@ val Route.saveKey: String
         Route.DeveloperSettings -> "DeveloperSettings"
         Route.DebugLogs -> "DebugLogs"
         Route.BatteryInfo -> "BatteryInfo"
+        Route.Update -> "Update"
     }
 
 /** Inverse of [saveKey]; returns null for an unknown key so a stale save cannot crash restore. */
@@ -97,5 +99,6 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "DeveloperSettings" -> Route.DeveloperSettings
     "DebugLogs" -> Route.DebugLogs
     "BatteryInfo" -> Route.BatteryInfo
+    "Update" -> Route.Update
     else -> null
 }

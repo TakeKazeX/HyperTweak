@@ -22,6 +22,10 @@ import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import com.takekazex.hypertweak.util.update.UpdateManager
+import com.takekazex.hypertweak.util.update.UpdateRecoveryManager
+import com.takekazex.hypertweak.ui.page.UpdateAvailablePrompt
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
@@ -187,6 +191,12 @@ private suspend fun currentRestartableScopes(context: Context): RestartScopeSele
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * Owns the in-app update flow for the module's own process. Created in [onCreate] and torn down
+     * in [onDestroy] so its coroutine scope cannot outlive the Activity.
+     */
+    private lateinit var updateManager: UpdateManager
+
     // Intercepted by ModuleStatusHooker. Keep annotation prevents R8 optimization/inlining.
     @Keep
     fun isModuleActive(): Boolean {
@@ -227,7 +237,42 @@ class MainActivity : ComponentActivity() {
 
         window.isNavigationBarContrastEnforced = false
 
+        // The update flow is owned by this Activity and runs only in the module's own process; no
+        // hook process constructs it. Reconciliation runs off the main thread below because it
+        // queries the package manager and touches the filesystem.
+        updateManager = UpdateManager(this)
+
         setContent {
+            val snackbarHostState = remember { SnackbarHostState() }
+
+            // Package replacement kills the installing process, so the outcome of an update is
+            // reconciled on the next launch: confirm the installed package really is the armed
+            // target, delete the leftover download, and surface the one-shot completion notice.
+            LaunchedEffect(Unit) {
+                val notice = withContext(Dispatchers.IO) {
+                    val reconciled = runCatching {
+                        UpdateRecoveryManager(applicationContext).reconcile()
+                    }.getOrNull()
+                    // Restore the last known result before any network work, so opening the app
+                    // shows a real answer without having to wait for (or be due for) a fresh query.
+                    updateManager.primeFromCache()
+                    reconciled
+                }
+                // Frequency-throttled and a no-op when the interval is "never", when offline, or
+                // when this build is not the official package. Started before the snackbar below,
+                // because `showSnackbar` suspends until the notice is dismissed and the background
+                // check must not queue behind a completion message.
+                updateManager.startAutoCheck()
+                if (notice != null) {
+                    val message = if (notice.versionCode != null) {
+                        getString(R.string.update_completion_snackbar, notice.versionName, notice.versionCode)
+                    } else {
+                        getString(R.string.update_completion_snackbar_legacy, notice.versionName)
+                    }
+                    snackbarHostState.showSnackbar(message)
+                }
+            }
+
             // Theme settings states
             var themeMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
             var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
@@ -1475,8 +1520,14 @@ class MainActivity : ComponentActivity() {
                         coroutineScope.launch(Dispatchers.IO) {
                             runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this@MainActivity) }
                         }
-                    }
+                    },
+                    updateManager = updateManager,
+                    snackbarHostState = snackbarHostState
                     )
+
+                    // Hosted here, not inside the update page: the silent check runs at launch, so a
+                    // prompt owned by that page would only ever be seen after navigating to it.
+                    UpdateAvailablePrompt(updateManager)
             }
         }
     }
@@ -1487,6 +1538,14 @@ class MainActivity : ComponentActivity() {
         // A package update can restart scoped targets without rebinding the service. Re-query when
         // returning to the app so the Home warning does not outlive the target's actual state.
         XposedServiceManager.refreshHotReloadTargets()
+        // Also the recovery point for the "allow installs from this source" round trip: if the user
+        // granted it while away, the pending install is re-dispatched here.
+        if (::updateManager.isInitialized) updateManager.onResume()
+    }
+
+    override fun onDestroy() {
+        if (::updateManager.isInitialized) updateManager.close()
+        super.onDestroy()
     }
 
 private fun setLauncherIconVisible(context: Context, visible: Boolean) {

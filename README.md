@@ -43,6 +43,7 @@
 - **⚙️ Settings Entry Injection**: Injects the module configuration entry directly into the system Settings app.
 - **⌨️ Gesture Bar Shortcuts**: Long-press or double-tap the gesture bar to open the default assistant or Circle to Search. Unavailable on OS4.
 - **🙈 Launcher Icon Hiding**: Hides the module's app icon from the launcher home screen; access remains available through the LSPosed manager or system Settings.
+- **⬆️ Built-in Updates**: Checks the stable release or the rolling `dev` CI build from inside the app, shows what changed since the installed version, downloads with progress, and verifies the checksum and signing certificate before handing the APK to the system installer. The direct download link can also be shared to an installer app.
 
 ---
 
@@ -58,9 +59,9 @@ Run the following command in the root directory to compile a release build:
 ```bash
 ./gradlew assembleRelease
 ```
-The build script automatically retrieves the git commit count as the `versionCode` at build-time. The generated APK will be outputted to:
+The build script automatically retrieves the git commit count as the `versionCode` at build-time. The `versionCode` is part of the file name, so two CI builds of different commits never collide. The generated APK will be outputted to:
 ```
-app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
+app/build/outputs/apk/release/HyperTweak-v<version>-<versionCode>-release.apk
 ```
 
 ---

@@ -938,6 +938,24 @@ object Preferences {
      */
     const val KEY_CAMERA_MASTERLIVE_ENABLE = "camera_masterlive_enable"
 
+    // --- Update system (module's own process only) ---
+    // Only user-visible settings live here, so they travel with a settings backup exactly like the
+    // rest of the configuration. Everything transient (last-attempt/last-success timestamps, the
+    // per-channel response cache, skipped versions, the recovery arm and download sidecars) is kept
+    // in the separate app-local `hypertweak_update` file by `util/update/UpdateStateStore`, which is
+    // what keeps that churn out of the user's backup.
+    /** `UpdateChannel.wireValue` of the release line to follow. */
+    const val KEY_UPDATE_CHANNEL = "update_channel"
+
+    /** `UpdateCheckInterval.index`: 0 = daily, 1 = weekly, 2 = monthly, 3 = never. */
+    const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
+
+    /** `UpdateProxyMode.wireValue`; see [com.takekazex.hypertweak.util.update.UpdateNetworkPolicy]. */
+    const val KEY_UPDATE_PROXY_MODE = "update_proxy_mode"
+
+    /** User-supplied `https://` proxy base; blank means "use the built-in preset". */
+    const val KEY_UPDATE_PROXY_URL = "update_proxy_url"
+
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"

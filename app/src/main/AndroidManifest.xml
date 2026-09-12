@@ -12,6 +12,18 @@
     -->
     <uses-permission android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE" />
 
+    <!--
+      In-app update checking. All three are only ever exercised from the module's own settings
+      process; no hooked process performs network or install work.
+      INTERNET / ACCESS_NETWORK_STATE cover the GitHub release lookup and download, and the
+      latter also lets the check be skipped up front instead of reporting a bogus failure offline.
+      REQUEST_INSTALL_PACKAGES is required for the ACTION_INSTALL_PACKAGE hand-off to the system
+      installer; the update is never installed silently.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <queries>
         <package android:name="com.android.systemui" />
         <package android:name="com.lbe.security.miui" />
@@ -129,6 +141,19 @@
             android:authorities="com.takekazex.hypertweak.logdump"
             android:exported="true"
             android:grantUriPermissions="false" />
+
+        <!-- Hands a downloaded update APK to the system installer. Not exported: the file URI is
+             only ever granted to the installer through the explicit intent in UpdateInstaller, and
+             `file_paths.xml` exposes nothing beyond filesDir/updates/. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.takekazex.hypertweak.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

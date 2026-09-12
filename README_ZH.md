@@ -43,6 +43,7 @@
 - **⚙️ 原生系统设置项注入**：将模块入口注入系统「设置」应用中。
 - **⌨️ 小白条快捷操作**：长按或双击小白条，直达默认助手或即圈即搜。OS4 上不可用。
 - **🙈 桌面图标动态隐藏**：支持隐藏桌面图标，可通过 LSPosed 管理器或系统设置内的注入入口随时唤起。
+- **⬆️ 应用内更新**：可在应用内检查正式版或滚动更新的 `dev` CI 构建，展示自当前版本以来的全部变更，带进度下载，并在交给系统安装器前校验哈希与签名证书。也可把直链分享给安装器应用。
 
 ---
 
@@ -58,9 +59,9 @@
 ```bash
 ./gradlew assembleRelease
 ```
-编译成功后，脚本会自动读取您的 Git 提交数作为编译的 `versionCode`，生成的安装包将存放于：
+编译成功后，脚本会自动读取您的 Git 提交数作为编译的 `versionCode`。`versionCode` 会写入文件名，因此不同提交的两次 CI 构建不会重名。生成的安装包将存放于：
 ```
-app/build/outputs/apk/release/HyperTweak-v<version>-release.apk
+app/build/outputs/apk/release/HyperTweak-v<version>-<versionCode>-release.apk
 ```
 
 ---

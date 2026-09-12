@@ -57,10 +57,13 @@ import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.page.ScopePromptsPage
 import com.takekazex.hypertweak.ui.page.BackupRestorePage
+import com.takekazex.hypertweak.ui.page.UpdatePage
 import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
 import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.update.UpdateManager
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.launch
 
@@ -228,7 +231,9 @@ fun HyperTweakNavContainer(
     onRestartScope: (RestartScopeSelection) -> Unit,
     onShortcutsChanged: () -> Unit,
     appLanguage: Int,
-    onAppLanguageChange: (Int) -> Unit
+    onAppLanguageChange: (Int) -> Unit,
+    updateManager: UpdateManager,
+    snackbarHostState: SnackbarHostState
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
@@ -397,6 +402,7 @@ fun HyperTweakNavContainer(
                 onHotReload = onHotReload,
                 onRestartAllScopes = onRestartAllScopes,
                 onRestartScope = onRestartScope,
+                snackbarHostState = snackbarHostState,
                 appLanguage = appLanguage,
                 onAppLanguageChange = onAppLanguageChange
             )
@@ -449,7 +455,17 @@ fun HyperTweakNavContainer(
                 },
                 onNavigateToDebug = {
                     backStack.add(Route.Debug)
-                }
+                },
+                onNavigateToUpdate = {
+                    backStack.add(Route.Update)
+                },
+                updateManager = updateManager
+            )
+        }
+        entry<Route.Update> {
+            UpdatePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                manager = updateManager
             )
         }
         entry<Route.Credits> {

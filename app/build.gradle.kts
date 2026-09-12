@@ -1,4 +1,5 @@
 import java.io.FileInputStream
+import java.time.Instant
 import java.util.Properties
 
 val baseVersion = providers.gradleProperty("hypertweak.version").get()
@@ -23,6 +24,23 @@ android {
             commandLine("git", "rev-list", "--count", "HEAD")
         }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
 
+        // The compare API needs the commit this build was made from: the versionCode identifies a
+        // build for the update check, but only the SHA can tell GitHub which commits are missing
+        // locally, which is what produces the per-distance changelog.
+        val commitSha = providers.exec {
+            commandLine("git", "rev-parse", "HEAD")
+        }.standardOutput.asText.map { it.trim() }.getOrElse("")
+
+        // Deliberately *not* a wall-clock instant. Configuration cache would freeze the first
+        // build's value and every later build would report that stale time, which is a different
+        // lie than showing nothing. A per-commit value is deterministic; CI or a reproducible
+        // build can inject the real thing through BUILD_TIMESTAMP / SOURCE_DATE_EPOCH.
+        val buildTimestamp = System.getenv("BUILD_TIMESTAMP")?.takeIf { it.isNotBlank() }
+            ?: System.getenv("SOURCE_DATE_EPOCH")?.toLongOrNull()?.let { Instant.ofEpochSecond(it).toString() }
+            ?: providers.exec {
+                commandLine("git", "log", "-1", "--format=%cI")
+            }.standardOutput.asText.map { it.trim() }.getOrElse("")
+
         versionCode = explicitVersionCode ?: commitCount
 
         val isStableRelease = project.hasProperty("stable") ||
@@ -37,6 +55,8 @@ android {
         }
 
         buildConfigField("String", "GIT_COMMIT_COUNT", "\"$commitCount\"")
+        buildConfigField("String", "GIT_COMMIT_SHA", "\"$commitSha\"")
+        buildConfigField("String", "BUILD_TIMESTAMP", "\"$buildTimestamp\"")
         buildConfigField("boolean", "IS_BETA", (!isStableRelease).toString())
 
         ndk {
@@ -122,7 +142,13 @@ androidComponents {
         variant.outputs.forEach { output ->
             val mainOutput = output as? com.android.build.api.variant.impl.VariantOutputImpl
             val suffix = if (variant.name == "release" && !file("release.keystore").exists()) "-debug-signed" else ""
-            mainOutput?.outputFileName?.set("HyperTweak-v${variant.outputs.first().versionName.get()}-${variant.name}$suffix.apk")
+            // The versionCode is part of the file name because every CI build shares the same
+            // versionName ("1.8.0-dev"), which made two different builds indistinguishable both in
+            // a local download folder and in a share link. Hyphens only: this name ends up inside a
+            // releases/download/<tag>/<name> URL, where parentheses and "+" need escaping.
+            val versionName = variant.outputs.first().versionName.get()
+            val versionCode = variant.outputs.first().versionCode.get()
+            mainOutput?.outputFileName?.set("HyperTweak-v$versionName-$versionCode-${variant.name}$suffix.apk")
         }
     }
 }

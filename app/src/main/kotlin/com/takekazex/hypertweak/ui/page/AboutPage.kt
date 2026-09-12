@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.page
 
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.util.update.UpdateManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -59,10 +60,15 @@ fun AboutPage(
     onBack: () -> Unit,
     onViewSourceCode: () -> Unit,
     onNavigateToCredits: () -> Unit,
-    onNavigateToDebug: () -> Unit
+    onNavigateToDebug: () -> Unit,
+    onNavigateToUpdate: () -> Unit,
+    updateManager: UpdateManager
 ) {
     val lazyListState = rememberLazyListState()
     var logoHeightPx by remember { mutableIntStateOf(0) }
+    val updateState by updateManager.state.collectAsState()
+    // Reading the stored timestamp touches preferences, so only re-read it when the state changes.
+    val lastCheckedAt = remember(updateState) { updateManager.lastCheckedAt() }
 
     val scrollProgress by remember {
         derivedStateOf {
@@ -333,6 +339,11 @@ fun AboutPage(
                             colors = CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
+                                ArrowPreference(
+                                    title = stringResource(R.string.update_title),
+                                    summary = updateStatusSummary(updateState, lastCheckedAt),
+                                    onClick = onNavigateToUpdate
+                                )
                                 ArrowPreference(
                                     title = stringResource(R.string.about_view_source_code),
                                     summary = stringResource(R.string.about_view_source_code_summary),

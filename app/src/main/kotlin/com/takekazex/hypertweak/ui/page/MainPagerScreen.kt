@@ -36,6 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import com.takekazex.hypertweak.R
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -130,6 +132,7 @@ fun MainPagerScreen(
     onHotReload: () -> Unit,
     onRestartAllScopes: () -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit,
+    snackbarHostState: SnackbarHostState,
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {
@@ -142,6 +145,9 @@ fun MainPagerScreen(
     }
 
     Scaffold(
+        // Hosts the one-shot "updated successfully" snackbar. It lives on the root Scaffold because
+        // the app always starts here, so a notice queued before the first frame still has a host.
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (useFloatingBottomBar) {
                 if (floatingBarStyle == 1) {
