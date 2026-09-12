@@ -19,21 +19,29 @@ import java.lang.reflect.Method
  * flows through the Lensient screen-capability gate rather than a `djxk` action bean.
  *
  * The feature is hidden by default through a server-driven capability that HyperOS never
- * delivers. Mirrors upstream MiuiBackGestureHook commit `0f603b1d`, verified against 17.48.13
- * (dex string literals survive R8 renaming each build):
+ * delivers. Mirrors upstream MiuiBackGestureHook commit `0f603b1d` (dex string literals survive
+ * R8 renaming each build). Verified chains — class/method names are per-build, only the shape
+ * and the anchor literals carry over:
  *
- * 1. **Navigation anchor** — the unique 0-arg non-void method referencing all three literals
- *    `com.google.android.apps.search.lens.user` + `45781832` (AIM searchbox) + `45765529`
- *    (AIM screen context) is `wry.iX()`, the Dagger factory that builds the Lensient model
- *    `doqf` (wry.java:9590; both flags registered default-false at wvx.java:3499-3500).
- * 2. **Model constructor** — `wry.iX()`'s only invoked constructor matching its return type is
- *    `doqf.<init>` (41 params); its 7th parameter type (index 6) is the **coordinator** `djyp`
- *    (wri.java:430 builds it).
- * 3. **Capability** — `djyp.<init>` (djyp.java:27) computes `this.d = ((bydc) gpgxVar.hS()).c()`;
- *    `bydc.c()` (0-arg boolean, invoked only through that virtual call) is the unique
- *    screen-thumbnail-retention gate, lazily server-fetched (`bycz` coroutine) and false on
- *    stock. It is the single decision point `djyp.b()/c()/d()` feed (`dnrk.java:92` bottom bar,
- *    `dopu.java:681` / `dopx.java:77` searchbox, `dnpr.java:31`, `dnpk.java:4469`).
+ * | build | factory | model (coordinator idx 6) | capability |
+ * |---|---|---|---|
+ * | 17.48.13 | `wry.iX()` | `doqf` (41 params, `djyp`) | `bydc.c()` |
+ * | 17.57.11 | `wzb.jb()` | `dsnc` (39 params, `dntz`) | `cbof.c()` |
+ *
+ * 1. **Navigation anchor** — the unique 0-arg non-void method referencing
+ *    `com.google.android.apps.search.lens.user` plus the AIM screen-context flag `45765529`
+ *    (registered default-false with its siblings) is the Dagger factory that builds the
+ *    Lensient model. 17.48.13 also read the AIM searchbox flag `45781832` there; 17.57.11
+ *    dropped that read site (the flag is still registered, never read), which is why the
+ *    anchor is a list of literal sets rather than one hard-coded triple.
+ * 2. **Model constructor** — the factory's only invoked constructor matching its return type;
+ *    its 7th parameter (index 6) is the **coordinator**.
+ * 3. **Capability** — the coordinator's constructor computes
+ *    `this.d = ((capability) provider.hS()).c()` (17.48.13 `djyp.java:27`, 17.57.11
+ *    `dntz.java:27`); the 0-arg boolean `c()` (invoked only through that virtual call) is the
+ *    unique screen-thumbnail-retention gate, lazily server-fetched and false on stock. It is
+ *    the single decision point the coordinator's `b()/c()/d()` feed (`dnrk.java:92` bottom bar,
+ *    `dopu.java:681` / `dopx.java:77` searchbox, `dnpr.java:31`, `dnpk.java:4469` on 17.48.13).
  *
  * The hook after-forces the capability's successful `false` result to `true` while the feature
  * is on, exactly like upstream's `overrideGoogleLensScreenCapability`. It does **not** forge a
@@ -55,12 +63,31 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
 
     private const val TAG = "AskAboutScreen"
 
-    /** Navigation anchors: the Lensient AIM model factory references all three literals. */
+    /** Navigation anchors: literal sets the Lensient AIM model factory is known to use. */
     private const val LENS_USER_NAMESPACE = "com.google.android.apps.search.lens.user"
-    private const val FLAG_AIM_SEARCHBOX = "45781832"
+
+    /** AIM screen-context flag; the factory's one anchor literal that survived both builds. */
     private const val FLAG_AIM_SCREEN_CONTEXT = "45765529"
 
-    /** Expected coordinator slot in the model constructor (index 6 on 17.48.13). */
+    /** AIM searchbox flag: read by the factory on 17.48.13, register-only since 17.57.11. */
+    private const val FLAG_AIM_SEARCHBOX = "45781832"
+
+    /** Sibling flag the factory reads on every verified build, pinning the anchor to it. */
+    private const val FLAG_AIM_MODEL_SIBLING = "45710957"
+
+    /**
+     * Anchor sets tried in order, strictest first. Each must match exactly one 0-arg non-void
+     * method; an ambiguous set is skipped and no unique match anywhere fails closed. The list
+     * exists because Google moves flag reads in and out of the factory between builds — the
+     * final set only needs the screen-context flag that names the feature.
+     */
+    private val FACTORY_ANCHORS = listOf(
+        listOf(LENS_USER_NAMESPACE, FLAG_AIM_SCREEN_CONTEXT, FLAG_AIM_MODEL_SIBLING),
+        listOf(LENS_USER_NAMESPACE, FLAG_AIM_SCREEN_CONTEXT, FLAG_AIM_SEARCHBOX),
+        listOf(LENS_USER_NAMESPACE, FLAG_AIM_SCREEN_CONTEXT)
+    )
+
+    /** Expected coordinator slot in the model constructor (index 6 on both verified builds). */
     private const val COORDINATOR_PARAM_INDEX = 6
 
     @Volatile
@@ -124,22 +151,40 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         DebugLog.i(
             TAG,
             "HOOK_OK Lensient screen capability on ${target.capability}" +
+                " via ${target.factorySign}" +
                 ", deoptimized=$deoptimized/${target.callers.size + 1}"
         )
     }
 
     /**
-     * Resolves `bydc.c()` through the upstream 0f603b1d chain. Every step must be unique;
-     * any ambiguity, gap, or unreadable dex entry fails closed (returns null).
+     * Locates the Lensient AIM model factory (17.48.13 `wry.iX()`, 17.57.11 `wzb.jb()`) with the
+     * first anchor set that matches exactly one 0-arg non-void method.
+     */
+    private fun findModelFactory(bridge: DexKitBridge): MethodData? {
+        for (anchors in FACTORY_ANCHORS) {
+            val matches = bridge.findMethod {
+                matcher {
+                    paramCount(0)
+                    usingEqStrings(anchors)
+                }
+            }.filter { it.returnTypeName != "void" }
+            if (matches.size == 1) return matches.single()
+        }
+        return null
+    }
+
+    /**
+     * Resolves the capability gate (17.48.13 `bydc.c()`, 17.57.11 `cbof.c()`) through the
+     * upstream 0f603b1d chain. Every step must be unique; any ambiguity, gap, or unreadable dex
+     * entry fails closed (returns null).
      */
     private fun resolveTarget(bridge: DexKitBridge): Target? {
-        // 1. Unique 0-arg non-void consumer referencing the three navigation anchors.
-        val consumer = bridge.findMethod {
-            matcher {
-                paramCount(0)
-                usingEqStrings(LENS_USER_NAMESPACE, FLAG_AIM_SEARCHBOX, FLAG_AIM_SCREEN_CONTEXT)
-            }
-        }.filter { it.returnTypeName != "void" }.singleOrNull() ?: return null
+        // 1. Unique 0-arg non-void consumer referencing the navigation anchors. This is the step
+        //    an OTA breaks first (the flag literals it reads move between builds), so name it.
+        val consumer = findModelFactory(bridge) ?: run {
+            DebugLog.w(TAG, "no unique Lensient AIM model factory for anchors $FACTORY_ANCHORS")
+            return null
+        }
 
         // 2. The model constructor is the invoked constructor matching the consumer return type.
         val modelConstructor = consumer.invokes.filter {
@@ -202,7 +247,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                 .getOrNull()
                 ?.let { if (it !in callers) callers.add(it) }
         }
-        return Target(capability, coordinatorConstructor, callers)
+        return Target(
+            capability,
+            coordinatorConstructor,
+            callers,
+            "${consumer.declaredClassName}#${consumer.name}"
+        )
     }
 
     private fun materializeClass(dexName: String): Class<*>? = runCatching {
@@ -215,6 +265,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     private class Target(
         val capability: Method,
         val coordinatorConstructor: Constructor<*>,
-        val callers: List<Method>
+        val callers: List<Method>,
+        val factorySign: String
     )
 }
