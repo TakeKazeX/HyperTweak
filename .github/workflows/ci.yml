@@ -12,9 +12,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Release APK
+  # Read-only verification: runs for every push, pull request and manual dispatch.
+  # It deliberately has no signing secrets at all, so a same-repository pull request can
+  # never read the release keystore out of the workspace. With no `app/release.keystore`
+  # the release build falls back to debug signing and the APK name gains a
+  # `-debug-signed` suffix: fine for review, not installable over a release build.
+  verify:
+    name: Verify (tests, lint, release APK)
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout Code
@@ -37,6 +45,58 @@ jobs:
       - name: Run Lint
         run: ./gradlew :app:lintDebug
 
+      # No keystore is decoded in this job, so the release variant is debug-signed.
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v7      # `archive` does not exist on v6
+        with:
+          # `archive: false` uploads the bare .apk instead of a zip. Direct mode accepts
+          # exactly one file and uses the file name as the artifact name, so `name:`
+          # would be ignored here.
+          path: app/build/outputs/apk/release/*.apk
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  # Publishing needs `contents: write` plus the release keystore, so it lives in a
+  # separate job that only ever runs for a direct push to `dev`. Pull requests never
+  # reach this job, which keeps the signing secrets out of PR builds entirely.
+  publish-ci:
+    name: Publish ci-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs: verify
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    # D21: serialise publishes so two dev pushes cannot interleave their upload/delete
+    # sequence. `cancel-in-progress: false` queues the newer run instead of aborting a
+    # publish halfway through, which would leave ci-latest inconsistent.
+    concurrency:
+      group: ci-latest-publish
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Unlike `verify`, this job does require the signing secrets: it re-builds the
+      # release APK with the real release key so the published asset is installable over
+      # an existing release installation.
       - name: Decode Release Keystore
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ] || [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ] || [ -z "${{ secrets.KEY_ALIAS }}" ] || [ -z "${{ secrets.KEY_PASSWORD }}" ]; then
@@ -64,8 +124,330 @@ jobs:
           fi
           "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/*.apk
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: HyperTweak-CI-Build
-          path: app/build/outputs/apk/release/*.apk
+      - name: Determine compare base
+        run: |
+          set -euo pipefail
+          # `compareBase` is the last stable release this dev build sits on top of, so the
+          # client can describe how far a CI build is from the stable channel.
+          STABLE_TAG="$(git tag --list 'v[0-9]*' --sort=-creatordate | head -n 1)"
+          if [ -n "$STABLE_TAG" ] && git rev-parse --verify "${STABLE_TAG}^{commit}" >/dev/null 2>&1; then
+            echo "COMPARE_BASE=$(git merge-base HEAD "${STABLE_TAG}^{commit}")" >> "$GITHUB_ENV"
+          else
+            echo "COMPARE_BASE=" >> "$GITHUB_ENV"
+          fi
+
+      # Keep this block byte-identical to the one in release.yml: both workflows must
+      # produce the same build-info.json contract for the Android client.
+      - name: Generate build-info.json
+        env:
+          CHANNEL: ci
+        run: |
+          set -euo pipefail
+
+          # The client parses these exact field names, so the JSON shape is a contract.
+          # versionCode / versionName / minSdk / targetSdk are read back from the built APK
+          # with aapt2 instead of being recomputed from git: the APK is the only
+          # authoritative source (a shallow clone, a VERSION_CODE override or a checkout of
+          # a different commit would silently desync the client's update check).
+          CHANNEL="${CHANNEL:?CHANNEL must be set to ci or stable}"
+          if [ "$CHANNEL" = "stable" ]; then
+            NOTES_FILE="${NOTES_FILE:-.github/release-notes/${CURRENT_TAG}.md}"
+          else
+            NOTES_FILE=""
+          fi
+
+          extract_lang() {
+            # Everything after `<!-- lang:X -->` up to the next `<!-- lang:* -->` marker.
+            awk -v lang="$2" '
+              $0 ~ ("^<!-- lang:" lang " -->[[:space:]]*$") { inside = 1; next }
+              $0 ~ "^<!-- lang:" { inside = 0 }
+              inside { print }
+            ' "$1"
+          }
+
+          trim_blanks() {
+            # Strip leading/trailing blank lines only; interior formatting is preserved.
+            sed -e '/./,$!d' | awk 'NF { last = NR } { line[NR] = $0 } END { for (i = 1; i <= last; i++) print line[i] }'
+          }
+
+          APK="$(ls app/build/outputs/apk/release/*.apk 2>/dev/null | head -n 1 || true)"
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "ERROR: no release APK found under app/build/outputs/apk/release/"
+            exit 1
+          fi
+          APK_ASSET="$(basename "$APK")"
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          AAPT2="$(find "$SDK_ROOT/build-tools" -maxdepth 2 -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)"
+          if [ -z "$AAPT2" ]; then
+            echo "ERROR: Android SDK aapt2 was not found under $SDK_ROOT/build-tools"
+            exit 1
+          fi
+          BADGING="$("$AAPT2" dump badging "$APK")"
+
+          VERSION_CODE="$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionCode='\([0-9]*\)'.*/\1/p")"
+          VERSION_NAME="$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p")"
+          # build-tools 37 renamed the minimum-SDK line from `sdkVersion:` to `minSdkVersion:`,
+          # so accept either spelling rather than failing the publish over a rename.
+          MIN_SDK="$(printf '%s\n' "$BADGING" | sed -nE "s/^(minSdkVersion|sdkVersion):'([0-9]+)'.*/\2/p")"
+          TARGET_SDK="$(printf '%s\n' "$BADGING" | sed -nE "s/^targetSdkVersion:'([0-9]+)'.*/\1/p")"
+
+          # versionCode and versionName are load-bearing -- the client trusts them -- so an APK whose
+          # badging cannot be read must fail the publish instead of shipping a wrong contract.
+          for value in "$VERSION_CODE" "$VERSION_NAME"; do
+            if [ -z "$value" ]; then
+              echo "ERROR: could not read versionCode/versionName from the aapt2 badging output:"
+              printf '%s\n' "$BADGING"
+              exit 1
+            fi
+          done
+
+          COMMIT="$(git rev-parse HEAD)"
+          SHORT_COMMIT="$(git rev-parse --short=7 HEAD)"
+          BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          APK_SHA256="$(sha256sum "$APK" | cut -d' ' -f1)"
+          APK_SIZE="$(stat -c%s "$APK")"
+
+          # `notes` is stable-channel only (D19). A missing or malformed notes file is a
+          # warning, never a failure: the client falls back to the English commit list.
+          NOTES_ZH=""
+          NOTES_EN=""
+          if [ "$CHANNEL" = "stable" ]; then
+            if [ -n "$NOTES_FILE" ] && [ -f "$NOTES_FILE" ]; then
+              NOTES_ZH="$(extract_lang "$NOTES_FILE" zh | trim_blanks)"
+              NOTES_EN="$(extract_lang "$NOTES_FILE" en | trim_blanks)"
+              if [ -z "$NOTES_ZH" ] && [ -z "$NOTES_EN" ]; then
+                echo "WARNING: $NOTES_FILE has no '<!-- lang:zh -->' / '<!-- lang:en -->' section; omitting notes."
+              elif [ -z "$NOTES_ZH" ] || [ -z "$NOTES_EN" ]; then
+                echo "WARNING: $NOTES_FILE is missing one language section; the client falls back to the other."
+              fi
+              if [ -n "$NOTES_ZH" ] || [ -n "$NOTES_EN" ]; then
+                # Curated bilingual release body: both languages on one page.
+                if [ -n "$NOTES_ZH" ] && [ -n "$NOTES_EN" ]; then
+                  { printf '%s\n\n' "$NOTES_ZH"; printf -- '---\n\n'; printf '%s\n' "$NOTES_EN"; } > release-body.txt
+                elif [ -n "$NOTES_ZH" ]; then
+                  printf '%s\n' "$NOTES_ZH" > release-body.txt
+                else
+                  printf '%s\n' "$NOTES_EN" > release-body.txt
+                fi
+              fi
+            else
+              echo "WARNING: curated release notes '$NOTES_FILE' not found; the release body stays the generated changelog."
+            fi
+          fi
+
+          # `jq --arg` keeps notes escaping correct (newlines, quotes, backslashes).
+          # Key order mirrors docs/UPDATE_SYSTEM_PLAN.md §2.3.
+          jq -n \
+            --argjson schema 1 \
+            --arg channel "$CHANNEL" \
+            --arg versionName "$VERSION_NAME" \
+            --argjson versionCode "$VERSION_CODE" \
+            --arg commit "$COMMIT" \
+            --arg shortCommit "$SHORT_COMMIT" \
+            --arg builtAt "$BUILT_AT" \
+            --arg compareBase "${COMPARE_BASE:-}" \
+            --arg apkAsset "$APK_ASSET" \
+            --argjson apkSize "$APK_SIZE" \
+            --arg apkSha256 "$APK_SHA256" \
+            --arg minSdk "$MIN_SDK" \
+            --arg targetSdk "$TARGET_SDK" \
+            --arg notesZh "$NOTES_ZH" \
+            --arg notesEn "$NOTES_EN" '
+              {
+                schema: $schema,
+                channel: $channel,
+                versionName: $versionName,
+                versionCode: $versionCode,
+                commit: $commit,
+                shortCommit: $shortCommit,
+                builtAt: $builtAt
+              }
+              + (if $compareBase == "" then {} else { compareBase: $compareBase } end)
+              + {
+                apkAsset: $apkAsset,
+                apkSize: $apkSize,
+                apkSha256: $apkSha256
+              }
+              # Informational only; omitted (not zero-filled) when the badging did not carry it.
+              + (if $minSdk == "" then {} else { minSdk: ($minSdk | tonumber) } end)
+              + (if $targetSdk == "" then {} else { targetSdk: ($targetSdk | tonumber) } end)
+              + (
+                if $notesZh == "" and $notesEn == "" then {}
+                else
+                  {
+                    notes: (
+                      (if $notesZh == "" then {} else { zh: $notesZh } end)
+                      + (if $notesEn == "" then {} else { en: $notesEn } end)
+                    )
+                  }
+                end
+              )
+            ' > build-info.json
+
+          jq -e . build-info.json >/dev/null
+          echo "Generated build-info.json:"
+          cat build-info.json
+
+      # Monotonicity guard: an out-of-order run (older commit finishing later) must not
+      # roll ci-latest backwards.
+      - name: Check ci-latest monotonicity
+        id: monotonicity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION_CODE="$(jq -r .versionCode build-info.json)"
+          REMOTE_CODE=""
+          if gh release view ci-latest >/dev/null 2>&1; then
+            TMP="$(mktemp -d)"
+            if gh release download ci-latest --pattern build-info.json --dir "$TMP" --clobber >/dev/null 2>&1; then
+              REMOTE_CODE="$(jq -r '.versionCode // empty' "$TMP/build-info.json" 2>/dev/null || true)"
+            fi
+            rm -rf "$TMP"
+          fi
+          case "$REMOTE_CODE" in
+            ''|*[!0-9]*) REMOTE_CODE="" ;;
+          esac
+          if [ -n "$REMOTE_CODE" ] && [ "$REMOTE_CODE" -ge "$VERSION_CODE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping publish: ci-latest already carries versionCode $REMOTE_CODE >= $VERSION_CODE"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Publishing: ci-latest versionCode '${REMOTE_CODE:-none}' < $VERSION_CODE"
+          fi
+
+      # D21: `ci-latest` is a persistent prerelease that is only ever clobbered, never
+      # deleted and recreated -- recreating it would open a 404 window for links that were
+      # already shared with an installer.
+      - name: Publish ci-latest
+        if: steps.monotonicity.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if ! gh release view ci-latest >/dev/null 2>&1; then
+            gh release create ci-latest \
+              --prerelease \
+              --title "CI 测试版（滚动）" \
+              --target "${{ github.sha }}" \
+              --notes "自动发布的最新 dev 构建。"
+          fi
+
+          # Order matters: upload the APK first and swap the metadata second, so the asset
+          # the metadata names always exists. Deleting stale assets happens last (D24).
+          gh release upload ci-latest app/build/outputs/apk/release/*.apk --clobber
+          gh release upload ci-latest build-info.json --clobber
+
+          # D24: keep exactly one APK -- the one build-info.json points at.
+          KEEP="$(jq -r .apkAsset build-info.json)"
+          gh release view ci-latest --json assets -q '.assets[].name' \
+            | { grep -E '\.apk$' || true; } \
+            | { grep -vxF "$KEEP" || true; } \
+            | while IFS= read -r stale; do
+                [ -n "$stale" ] || continue
+                echo "Deleting stale ci-latest asset: $stale"
+                gh release delete-asset ci-latest "$stale" --yes
+              done
+
+      # §2.6: read everything back from anonymous endpoints, which is exactly how the app
+      # consumes it. No token is passed to this step on purpose.
+      - name: Post-publish self-check (anonymous)
+        if: steps.monotonicity.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          REPO="$GITHUB_REPOSITORY"
+          TAG="ci-latest"
+          API="https://api.github.com/repos/$REPO/releases/tags/$TAG"
+          DL="https://github.com/$REPO/releases/download/$TAG"
+          UA="HyperTweak-CI-SelfCheck"
+
+          CHK="$(mktemp -d)"
+          trap 'rm -rf "$CHK"' EXIT
+
+          fetch() {
+            # Newly published assets can lag on the CDN, so retry a few times.
+            local url="$1" out="$2" i
+            for i in 1 2 3 4 5; do
+              if curl -fsSL -H "User-Agent: $UA" "$url" -o "$out"; then
+                return 0
+              fi
+              echo "Anonymous download failed (attempt $i/5): $url"
+              sleep 5
+            done
+            echo "ERROR: anonymous download failed: $url"
+            return 1
+          }
+
+          fetch "$DL/build-info.json" "$CHK/build-info.json"
+          APK_NAME="$(jq -r .apkAsset "$CHK/build-info.json")"
+          fetch "$DL/$APK_NAME" "$CHK/$APK_NAME"
+
+          JSON="$CHK/build-info.json"
+          APK="$CHK/$APK_NAME"
+
+          JSON_CODE="$(jq -r .versionCode "$JSON")"
+          JSON_SHA="$(jq -r .apkSha256 "$JSON")"
+          JSON_SIZE="$(jq -r .apkSize "$JSON")"
+          JSON_COMMIT="$(jq -r .commit "$JSON")"
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          AAPT2="$(find "$SDK_ROOT/build-tools" -maxdepth 2 -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)"
+          if [ -z "$AAPT2" ]; then
+            echo "ERROR: Android SDK aapt2 was not found under $SDK_ROOT/build-tools"
+            exit 1
+          fi
+          APK_CODE="$("$AAPT2" dump badging "$APK" | sed -n "s/^package:.*versionCode='\([0-9]*\)'.*/\1/p")"
+
+          ACTUAL_SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
+          ACTUAL_SIZE="$(stat -c%s "$APK")"
+
+          # The remote asset list is read anonymously too; poll briefly in case the asset
+          # deletions from the previous step have not propagated yet.
+          APK_COUNT=""
+          APK_NAMES=""
+          for i in 1 2 3 4 5; do
+            if curl -fsSL -H "User-Agent: $UA" -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' "$API" -o "$CHK/release.json"; then
+              APK_COUNT="$(jq -r '[.assets[] | select(.name | endswith(".apk"))] | length' "$CHK/release.json")"
+              APK_NAMES="$(jq -r '[.assets[] | select(.name | endswith(".apk"))] | .[].name' "$CHK/release.json")"
+              if [ "$APK_COUNT" = "1" ] && [ "$APK_NAMES" = "$APK_NAME" ]; then
+                break
+              fi
+            fi
+            echo "Remote asset list not settled yet (attempt $i/5); retrying..."
+            sleep 5
+          done
+
+          fail=0
+          if [ "$JSON_CODE" != "$APK_CODE" ]; then
+            echo "ERROR: build-info versionCode $JSON_CODE != APK versionCode $APK_CODE"
+            fail=1
+          fi
+          if [ "$JSON_SHA" != "$ACTUAL_SHA" ]; then
+            echo "ERROR: build-info apkSha256 $JSON_SHA != downloaded APK sha256 $ACTUAL_SHA"
+            fail=1
+          fi
+          if [ "$JSON_SIZE" != "$ACTUAL_SIZE" ]; then
+            echo "ERROR: build-info apkSize $JSON_SIZE != downloaded APK size $ACTUAL_SIZE"
+            fail=1
+          fi
+          if [ "$JSON_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "ERROR: build-info commit $JSON_COMMIT != GITHUB_SHA $GITHUB_SHA"
+            fail=1
+          fi
+          if [ "$APK_COUNT" != "1" ]; then
+            echo "ERROR: expected exactly 1 .apk asset in ci-latest, found '$APK_COUNT'"
+            fail=1
+          fi
+          if [ "$APK_NAMES" != "$APK_NAME" ]; then
+            echo "ERROR: ci-latest .apk assets '$APK_NAMES' != build-info apkAsset '$APK_NAME'"
+            fail=1
+          fi
+          if [ "$fail" != "0" ]; then
+            exit 1
+          fi
+
+          echo "Post-publish self-check passed for $APK_NAME (versionCode $JSON_CODE, sha256 $ACTUAL_SHA)."
