@@ -22,9 +22,11 @@ namespace hypertweak::native {
 void SetClearButtonHidden(bool hidden);
 
 // Resolves the Dart snapshot and brings the hook in line with the desired
-// state. Idempotent and safe to retry; returns true once the desired state is
-// in effect (which, for "not hidden", is immediately).
-bool ApplyClearButtonRule();
+// state. `dart_handle` is the handle supplied by the LSPosed load callback; it
+// must be used there because that callback runs under the linker load lock.
+// Idempotent and safe to retry; returns true once the desired state is in
+// effect (which, for "not hidden", is immediately).
+bool ApplyClearButtonRule(void* dart_handle = nullptr, bool try_lock = false);
 
 // True when the desired state is "hidden".
 bool ClearButtonHiddenRequested();
@@ -41,6 +43,6 @@ uintptr_t ClearButtonTargetAddress();
 // Gives the rule the same library-load boundary used by the upstream native
 // payload. A remapped libapp.so is revalidated and rebound there; the periodic
 // config poll remains the fallback for remaps that do not emit a load callback.
-void OnClearButtonLibraryLoaded(const char* name);
+void OnClearButtonLibraryLoaded(const char* name, void* handle);
 
 }  // namespace hypertweak::native

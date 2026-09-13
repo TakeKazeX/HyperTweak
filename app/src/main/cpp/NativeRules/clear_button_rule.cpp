@@ -52,11 +52,26 @@ void SetReason(const char* reason) {
 
 class ApplyLock {
   public:
-    ApplyLock() {
+    explicit ApplyLock(bool try_only) : acquired_(false) {
+        if (try_only) {
+            uint32_t expected = 0u;
+            acquired_ = __atomic_compare_exchange_n(
+                &g_applying, &expected, uint32_t{1}, false,
+                __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+            return;
+        }
         while (__atomic_exchange_n(&g_applying, uint32_t{1}, __ATOMIC_ACQUIRE) != 0u) {
         }
+        acquired_ = true;
     }
-    ~ApplyLock() { __atomic_store_n(&g_applying, uint32_t{0}, __ATOMIC_RELEASE); }
+    ~ApplyLock() {
+        if (acquired_) __atomic_store_n(&g_applying, uint32_t{0}, __ATOMIC_RELEASE);
+    }
+
+    bool acquired() const { return acquired_; }
+
+  private:
+    bool acquired_;
 };
 
 bool IsDartLibraryPath(const char* path) {
@@ -70,14 +85,18 @@ struct DartTarget {
     uintptr_t address;
 };
 
-bool ResolveDartTarget(DartTarget* output) {
+bool ResolveDartTarget(void* supplied_handle, DartTarget* output) {
     if (output == nullptr) return false;
     output->address = 0u;
 
     // The Flutter engine may own the AOT load rather than the launcher's own
     // loader boundary. RTLD_NOLOAD is intentional: never manufacture a second
-    // AOT mapping while looking for the current image.
-    void* handle = dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
+    // AOT mapping while looking for the current image. A load callback passes
+    // its existing handle so this path never re-enters the linker.
+    const bool close_handle = supplied_handle == nullptr;
+    void* handle = supplied_handle != nullptr
+        ? supplied_handle
+        : dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
     if (handle == nullptr) {
         SetReason("no_dart_image");
         return false;
@@ -94,13 +113,13 @@ bool ResolveDartTarget(DartTarget* output) {
         } else {
             SetReason("no_dart_image");
         }
-        dlclose(handle);
+        if (close_handle) dlclose(handle);
         return false;
     }
 
     const uintptr_t base = reinterpret_cast<uintptr_t>(info.dli_fbase);
     if (kInsertClearButtonOverlayVa > UINTPTR_MAX - base) {
-        dlclose(handle);
+        if (close_handle) dlclose(handle);
         SetReason("target_overflow");
         return false;
     }
@@ -108,12 +127,12 @@ bool ResolveDartTarget(DartTarget* output) {
     Dl_info target_info{};
     if (dladdr(reinterpret_cast<void*>(target), &target_info) == 0 ||
         target_info.dli_fbase != info.dli_fbase) {
-        dlclose(handle);
+        if (close_handle) dlclose(handle);
         SetReason("target_unmapped");
         return false;
     }
     output->address = target;
-    dlclose(handle);
+    if (close_handle) dlclose(handle);
     return true;
 }
 
@@ -150,8 +169,11 @@ uintptr_t ClearButtonTargetAddress() {
     return __atomic_load_n(&g_target_address, __ATOMIC_ACQUIRE);
 }
 
-bool ApplyClearButtonRule() {
-    ApplyLock lock;
+bool ApplyClearButtonRule(void* dart_handle, bool try_lock) {
+    ApplyLock lock(try_lock);
+    // A library-load callback cannot wait for the config worker: the worker may
+    // be inside RTLD_NOLOAD while this callback owns the linker load lock.
+    if (!lock.acquired()) return false;
     const bool hidden = ClearButtonHiddenRequested();
     const bool installed = __atomic_load_n(&g_installed, __ATOMIC_ACQUIRE) != 0u;
 
@@ -172,7 +194,7 @@ bool ApplyClearButtonRule() {
     }
 
     DartTarget current{};
-    if (!ResolveDartTarget(&current)) return false;
+    if (!ResolveDartTarget(dart_handle, &current)) return false;
     const bool same_target = installed &&
         __atomic_load_n(&g_target_address, __ATOMIC_ACQUIRE) == current.address;
     const bool original_prologue = MatchesTargetPrologue(current.address);
@@ -218,7 +240,7 @@ bool ApplyClearButtonRule() {
     return true;
 }
 
-void OnClearButtonLibraryLoaded(const char* name) {
+void OnClearButtonLibraryLoaded(const char* name, void* handle) {
     if (name == nullptr || !IsDartLibraryPath(name) ||
         !ClearButtonHiddenRequested()) {
         return;
@@ -226,7 +248,8 @@ void OnClearButtonLibraryLoaded(const char* name) {
     // The upstream payload resolves AOT hooks at the library-load boundary and
     // also retries through its remap path. Reuse that boundary for this rule;
     // ConfigPollThread remains the fallback for remaps without a callback.
-    ApplyClearButtonRule();
+    // Pass the callback handle through and never call dlopen or spin here.
+    ApplyClearButtonRule(handle, true);
 }
 
 }  // namespace hypertweak::native

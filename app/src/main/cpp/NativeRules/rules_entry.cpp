@@ -166,7 +166,7 @@ void OnLibraryLoaded(const char* name, void* handle) {
         // the runtime comes from an APK archive path.
         EnsureLsposedMadviseGuard(name);
     }
-    OnClearButtonLibraryLoaded(name);
+    OnClearButtonLibraryLoaded(name, handle);
 }
 
 Stage CurrentStage() {
