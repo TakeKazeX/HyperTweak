@@ -88,6 +88,8 @@ The release is never blocked by this directory:
 | `docs/CHANGELOG.md` (local only, git-ignored) | Cumulative human history, including the rolling "unreleased" section |
 | `.github/release-notes/<tag>.md` (published) | The bilingual fragment for one release tag |
 
-Update both in the release pull request — the Chinese section can usually be reused
-verbatim from the changelog. If a tag has been published without a notes file, CI only
-warns; add the file for the next release rather than retro-fitting history.
+Maintain the published fragment in the release pull request. If the local changelog
+exists, synchronize the relevant entry; its Chinese section can usually be reused.
+The ignored changelog is optional and must not be force-added or treated as a release
+prerequisite. If a tag has been published without a notes file, CI only warns; add
+the file for the next release rather than retro-fitting history.
