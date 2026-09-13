@@ -1,0 +1,7 @@
+HYPERTWEAK_NATIVE_1.0 {
+    global:
+        native_init;
+        Java_com_takekazex_hypertweak_hook_NativeRules_nativeStatus;
+    local:
+        *;
+};

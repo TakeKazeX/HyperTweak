@@ -12,6 +12,9 @@ plugins {
 android {
     namespace = "com.takekazex.hypertweak"
     compileSdk = 37
+    // The native payload is built by CMake and injected by LSPosed. Pin the NDK
+    // so the hook trampolines come from a toolchain we have verified.
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.takekazex.hypertweak"
@@ -61,6 +64,15 @@ android {
 
         ndk {
             abiFilters.add("arm64-v8a")
+        }
+
+        externalNativeBuild {
+            cmake {
+                // `c++_static` keeps libc++ inside the payload: the launcher
+                // process must not need an extra shared runtime from the APK.
+                arguments.add("-DANDROID_STL=c++_static")
+                targets.add("hypertweak_native")
+            }
         }
     }
 
@@ -122,6 +134,15 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // Consumes the LSPlt prefab module the native payload links against.
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("CMakeLists.txt")
+            version = "4.1.2"
+        }
     }
 
     bundle {
@@ -131,6 +152,9 @@ android {
     }
 
     packaging {
+        // The payload is memory-mapped and patched in place, so it must stay
+        // uncompressed and page-aligned inside the APK.
+        jniLibs.useLegacyPackaging = false
         resources {
             merges += "META-INF/xposed/*"
         }
@@ -211,6 +235,11 @@ dependencies {
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
+
+    // LSPlt backs the native payload's MADV_DONTNEED page guard. This is the
+    // 16 KB page-size standalone rebuild; the AAR is vendored in app/libs so CI
+    // and local builds link the exact same binary.
+    implementation(files("libs/lsplt-standalone-2.1-16kb.aar"))
 
     // Full SVG 1.1/Tiny parser and renderer for imported signal artwork.
     implementation("com.caverock:androidsvg-aar:1.4")

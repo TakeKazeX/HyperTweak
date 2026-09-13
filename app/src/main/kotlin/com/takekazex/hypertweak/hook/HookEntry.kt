@@ -146,6 +146,10 @@ class HookEntry : XposedModule() {
             initPreferences()
             DebugLog.ensureSession()
             DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
+            // The native payload is injected before this callback runs. Record what it reports for
+            // this process so a packaging or injection failure shows up in the module log without a
+            // separate logcat capture.
+            DebugLog.i("NativeRules", NativeRules.describe())
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "module load handling failed", t)
         }
@@ -713,6 +717,9 @@ class HookEntry : XposedModule() {
                 if (isMiuiBackGestureHookEnabled()) {
                     attachHooker(AospBackMiuiHomeHooker, classLoader, ctx, replacementHandles)
                 }
+                // The recents clear-button rule needs no Java hook here: LSPosed injects only the
+                // native payload into the launcher, so the switch reaches it through
+                // NativeRuleConfig rather than through this process.
             }
             "com.miui.aod" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

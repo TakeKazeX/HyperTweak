@@ -921,9 +921,19 @@ object Preferences {
      */
     const val KEY_UNLOCK_ADAPTIVE_REFRESH_PRO = "unlock_adaptive_refresh_pro"
 
+    /**
+     * Removes the recents "clean up background apps" button. The button is a Dart widget inside
+     * MiuiHome's Flutter AOT snapshot, so the module suppresses the overlay insertion through the
+     * native payload rather than through an ART hook. It is read when `com.miui.home` loads the
+     * module, which is a separate process: changing it takes effect after the launcher restarts.
+     */
+    const val KEY_HIDE_RECENTS_CLEAR_BUTTON = "hide_recents_clear_button"
+
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
+
+    fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
 
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =

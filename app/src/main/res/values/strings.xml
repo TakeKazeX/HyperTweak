@@ -1116,6 +1116,9 @@
     <string name="settings_unlock_third_party_dark_mode_summary">Show third-party apps in the dark mode settings</string>
     <string name="settings_unlock_adaptive_refresh_title">Unlock Adaptive Refresh Rate Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">Show the hidden Adaptive refresh rate Pro switch</string>
+    <string name="settings_recents_clear_button_section">Recents</string>
+    <string name="settings_recents_clear_button_title">Hide the “Clean up” button in Recents</string>
+    <string name="settings_recents_clear_button_summary">Removes the clean-up-background-apps button from the multitasking screen. Requires HyperTweak\'s com.miui.home scope in LSPosed, and applies after the launcher restarts</string>
     <string name="settings_disable_video_ringback_title">Disable Video Ringback</string>
     <string name="settings_disable_video_ringback_summary">Disable video ringback and reveal its native switch</string>
 

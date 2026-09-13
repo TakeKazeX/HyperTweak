@@ -15,6 +15,9 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - The back-gesture port also has Java sources in `app/src/main/java/com/takekazex/hypertweak/hook/rules/backgesture/`, vendored from MiuiBackGestureHook under Apache-2.0. Include this tree when a change touches that feature or shared platform behavior.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
+## Native payload
+`app/src/main/cpp/NativeRules/` builds `libhypertweak_native.so` from `app/CMakeLists.txt`; LSPosed injects it via `app/src/main/resources/META-INF/xposed/native_init.list` and calls the exported `native_init`. `native_init.cpp` is the entry, `rules_entry.cpp` owns the process gate and delayed installer, `hook_bridge.cpp` wraps LSPosed's inline hook and the GOT/PLT hook, `page_guard.cpp` owns the `madvise` page guard, and `image.cpp` is the bounds-checked ELF view. `liblsplt.so` comes from the vendored AAR in `app/libs/`. The payload is fail-closed: it patches nothing unless the page guard is installed, and it acts only in `com.miui.home`, whose LSPosed scope the user enables through the module's own scope UI rather than `scope.list`.
+
 ## Task references
 - Validation, reverse engineering, release/device delivery, and Git: [.github/AGENT_WORKFLOWS.md](.github/AGENT_WORKFLOWS.md), relevant section only.
 - CI behavior: `.github/workflows/ci.yml` and `.github/workflows/release.yml`; published release-note format: [.github/release-notes/README.md](.github/release-notes/README.md).

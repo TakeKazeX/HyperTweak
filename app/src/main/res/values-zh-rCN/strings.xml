@@ -1112,6 +1112,9 @@
     <string name="settings_unlock_third_party_dark_mode_summary">在深色模式设置中显示第三方应用</string>
     <string name="settings_unlock_adaptive_refresh_title">解锁自适应刷新率Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">显示隐藏的「自适应刷新率 Pro」开关</string>
+    <string name="settings_recents_clear_button_section">最近任务</string>
+    <string name="settings_recents_clear_button_title">隐藏最近任务里的「清理后台」按钮</string>
+    <string name="settings_recents_clear_button_summary">从多任务界面移除清理后台按钮。需先在 LSPosed 里给 HyperTweak 勾选 com.miui.home 作用域，并重启桌面后生效</string>
     <string name="settings_disable_video_ringback_title">关闭视频彩铃</string>
     <string name="settings_disable_video_ringback_summary">关闭视频彩铃并显示系统原生开关</string>
 

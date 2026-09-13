@@ -7,6 +7,13 @@
     public <init>();
 }
 
+# The native payload binds its status query by JNI name, which R8 cannot rewrite.
+# Without this the release APK would look the symbol up under a renamed class and
+# report the payload as unavailable.
+-keep class com.takekazex.hypertweak.hook.NativeRules {
+    native <methods>;
+}
+
 # Hooker simple names double as runtime hook IDs and hot-reload state-map keys
 # (BaseHooker.hookerName = this::class.java.simpleName). Keep them stable across
 # releases so hot-reload state restore and in-place handle replacement still match

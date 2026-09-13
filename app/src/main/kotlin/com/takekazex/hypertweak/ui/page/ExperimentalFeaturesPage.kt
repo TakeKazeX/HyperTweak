@@ -21,10 +21,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
@@ -60,12 +62,14 @@ fun ExperimentalFeaturesPage(
     onCcEditEnabledChange: (Boolean) -> Unit
 ) {
     val scrollBehavior = MiuixScrollBehavior()
+    val context = LocalContext.current
 
     // These switches are read live by the hooks, so the page owns its state directly instead of
     // threading another callback through the navigation layer for each one.
     var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
     var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
     var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
+    var hideRecentsClearButton by remember { mutableStateOf(Preferences.hideRecentsClearButton()) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -172,6 +176,28 @@ fun ExperimentalFeaturesPage(
                         },
                         title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
                         summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
+                    )
+                }
+            }
+
+            // Recents clean-up button. MiuiHome draws its multitasking UI in Flutter, so this one is
+            // not an ART hook: the module's native payload patches the Dart AOT function that
+            // inserts the button's overlay. The launcher is a separate process that reads the
+            // preference when it loads the module, hence the restart requirement.
+            SmallTitle(stringResource(R.string.settings_recents_clear_button_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = hideRecentsClearButton,
+                        onCheckedChange = {
+                            hideRecentsClearButton = it
+                            Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
+                            // The launcher-side payload cannot read this process's preferences, so
+                            // the switch is published to the shared config file it polls.
+                            NativeRuleConfig.publish(context, it)
+                        },
+                        title = stringResource(R.string.settings_recents_clear_button_title),
+                        summary = stringResource(R.string.settings_recents_clear_button_summary)
                     )
                 }
             }

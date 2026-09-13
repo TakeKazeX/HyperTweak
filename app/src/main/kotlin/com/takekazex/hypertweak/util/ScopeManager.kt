@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.util
 
 import android.content.Context
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.Dispatchers
@@ -83,12 +84,20 @@ object ScopeManager {
      * from [requiredScope]: `com.miui.home` is not recommended to every installation, but OS3
      * users still need a restore prompt when the launcher-side back route is unavailable. On OS4,
      * an old installation may still retain the entry, so offer the inverse migration prompt.
+     *
+     * The recents clear-button switch is the one OS4 feature that needs the launcher scope: it
+     * patches Dart code in MiuiHome's Flutter snapshot, and the module has to run in that process
+     * to hand the payload the preference. While it is on, the launcher scope is required rather
+     * than discouraged, so the prompt flips to RESTORE instead of REMOVE.
      */
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
+        val launcherNeeded = Preferences.hideRecentsClearButton()
         return when {
-            PlatformLevel.isOs4 && LAUNCHER_PACKAGE in live ->
+            PlatformLevel.isOs4 && LAUNCHER_PACKAGE in live && !launcherNeeded ->
                 ScopePrompt(ScopePromptAction.REMOVE, LAUNCHER_PACKAGE)
+            LAUNCHER_PACKAGE !in live && launcherNeeded ->
+                ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
             !PlatformLevel.isOs4 && LAUNCHER_PACKAGE !in live ->
                 ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
             else -> null
