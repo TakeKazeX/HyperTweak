@@ -1231,4 +1231,11 @@
     <string name="update_dismiss">关闭</string>
     <string name="update_completion_snackbar">已更新到 v%1$s（%2$d），建议重启设备让 LSPosed 重新加载模块。</string>
     <string name="update_completion_snackbar_legacy">已更新到 v%1$s，建议重启设备让 LSPosed 重新加载模块。</string>
+    <string name="icon_duo_title">Duo 三合一信号（实验性）</string>
+    <string name="icon_duo_enabled">三合一状态图标</string>
+    <string name="icon_duo_summary">电量弧、联网方式和主数据卡信号。仅 OS4；不支持的状态保留原生图标。重启系统界面后生效。</string>
+    <string name="icon_duo_expanded">展开面板样式</string>
+    <string name="icon_duo_keep">保持三合一</string>
+    <string name="icon_duo_native">恢复原本图标</string>
+    <string name="icon_duo_preview">样式预览：普通 Wi-Fi、充电 5G、低电量 4G、省电 5G-A</string>
 </resources>

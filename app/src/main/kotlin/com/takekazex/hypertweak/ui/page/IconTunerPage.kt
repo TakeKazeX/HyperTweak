@@ -369,6 +369,11 @@ fun IconTunerPage(onBack: () -> Unit) {
                         )
                     }
                     1 -> {
+                        DuoSignalSection(
+                            enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
+                            expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
+                            onChange = { key, value -> changed(key, value) }
+                        )
                         StackedSignalSection(
                 enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
                 scale = pref(Preferences.KEY_ICON_STACKED_SCALE, 1f),
@@ -1272,5 +1277,25 @@ private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: 
 private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: Int, onValue: (Int) -> Unit) {
     SliderRow(title, value.toFloat(), rangeStart.toFloat(), rangeEnd.toFloat()) {
         onValue(it.roundToInt().coerceIn(rangeStart, rangeEnd))
+    }
+}
+
+@Composable
+private fun DuoSignalSection(enabled: Boolean, expanded: Int, onChange: (String, Any) -> Unit) {
+    SmallTitle(stringResource(R.string.icon_duo_title))
+    DuoSignalPreview()
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),
+                stringResource(R.string.icon_duo_summary)) { onChange(Preferences.KEY_ICON_DUO_ENABLED, it) }
+            if (enabled) {
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.icon_duo_expanded),
+                    items = listOf(stringResource(R.string.icon_duo_keep), stringResource(R.string.icon_duo_native)),
+                    selectedIndex = expanded.coerceIn(0, 1),
+                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_DUO_EXPANDED, it) }
+                )
+            }
+        }
     }
 }

@@ -35,6 +35,9 @@ object IconPositionHooker : StaticHooker() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
     private val containerStates = WeakHashMap<Any, ContainerState>()
+    private val duoContainers = WeakHashMap<Any, Boolean>()
+    private val duoSlots = setOf("mobile", "stacked_mobile", "wifi", "demo_wifi",
+        "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
     @Volatile
     private var options = IconTunerOptions.snapshot()
@@ -56,6 +59,7 @@ object IconPositionHooker : StaticHooker() {
         }
         mainHandler.post {
             restoring = true
+            duoContainers.clear()
             try {
                 pending.forEach { (container, hostIgnored) -> restoreIgnoredSlots(container, hostIgnored) }
             } finally {
@@ -177,7 +181,9 @@ object IconPositionHooker : StaticHooker() {
         synchronized(stateLock) {
             val existing = containerStates[container]
             val host = IconManagerHooker.pristineFor(incoming)
-                ?: if (existing != null && existing.lastApplied == incomingStrings) {
+                ?: if (existing != null && (existing.lastApplied == incomingStrings ||
+                    (duoContainers[container] == true &&
+                        ((existing.lastApplied.orEmpty() + duoSlots).distinct() == incomingStrings)))) {
                     existing.hostIgnored
                 } else {
                     incomingStrings
@@ -208,7 +214,36 @@ object IconPositionHooker : StaticHooker() {
             val ignored = ignoredSlotsField?.get(container) as? MutableList<Any?> ?: return
             ignored.clear()
             ignored.addAll(values)
+            if (duoContainers[container] == true) {
+                duoSlots.filterNot { it in ignored }.forEach(ignored::add)
+            }
         }.onFailure { DebugLog.w(TAG, "ignoredSlots restore failed", it) }
+    }
+
+    /** Container-local overlay; never changes the shared mobile visibility Flow. Main-thread only. */
+    fun setDuoMask(container: Any, active: Boolean): Boolean {
+        if (Looper.myLooper() != Looper.getMainLooper()) return false
+        return runCatching {
+            val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
+            val wasActive = duoContainers[container] == true
+            if (wasActive == active && (!active || duoSlots.all { it in ignored })) return true
+            val state = synchronized(stateLock) {
+                containerStates[container] ?: ContainerState(stableStrings(ignored)).also {
+                    containerStates[container] = it
+                }
+            }
+            if (active) duoContainers[container] = true else duoContainers.remove(container)
+            val base = state.lastApplied ?: IconSlotPolicy.blockedFor(
+                surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy
+            )
+            restoreIgnoredSlots(container, base)
+            (container as? android.view.View)?.requestLayout()
+            val result = ignoredSlotsField?.get(container) as? List<*> ?: return false
+            if (active) duoSlots.all { it in result } else result == base
+        }.getOrElse {
+            DebugLog.w(TAG, "Duo container mask failed", it)
+            false
+        }
     }
 
     private fun createSlot(owner: Any, name: String): Any? {

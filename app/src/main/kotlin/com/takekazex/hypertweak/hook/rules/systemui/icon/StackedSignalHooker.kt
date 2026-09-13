@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
@@ -68,6 +69,8 @@ object StackedSignalHooker : StaticHooker() {
 
     @Volatile
     private var enabled = false
+
+    private var renderStacked = false
 
     @Volatile
     private var scale = 1f
@@ -157,7 +160,7 @@ object StackedSignalHooker : StaticHooker() {
     private data class SubBinding(
         val subId: Int,
         val miuiViewModel: Any,
-        val visibility: MobileSignalVisibility.Registration,
+        val visibility: MobileSignalVisibility.Registration?,
         val handles: List<HostFlowCollector.Handle>,
         val bindingGeneration: Long
     )
@@ -224,13 +227,13 @@ object StackedSignalHooker : StaticHooker() {
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
         // thread-safe; pass every exposed Pair through its original value before unregistering the
         // getter entries. Queued old-generation callbacks are rejected by the generation check.
-        MobileSignalVisibility.clearForHotReload()
+        if (renderStacked) MobileSignalVisibility.clearForHotReload()
         removeRetiringBridge(retiredGeneration, retiringBridge)
         flowHandles.forEach { it.cancel() }
         flowHandles.clear()
         bindings.values.toList().forEach { binding ->
             binding.handles.forEach { it.cancel() }
-            MobileSignalVisibility.unregister(binding.miuiViewModel)
+            if (binding.visibility != null) MobileSignalVisibility.unregister(binding.miuiViewModel)
         }
         bindings.clear()
         pendingBindings.clear()
@@ -265,7 +268,8 @@ object StackedSignalHooker : StaticHooker() {
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
-        enabled = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
+        renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
+        enabled = renderStacked || DuoSignalHooker.requiresMobileState
         scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f)
             .takeIf { it.isFinite() }
             ?.coerceIn(0.5f, 1.5f)
@@ -280,7 +284,7 @@ object StackedSignalHooker : StaticHooker() {
         // Invalidate any cleanup runnable posted by the retiring generation before it can touch a
         // holder published by this generation.
         generation.incrementAndGet()
-        if (!MobileSignalVisibility.installGetter(this)) {
+        if (renderStacked && !MobileSignalVisibility.installGetter(this)) {
             DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
         }
@@ -555,10 +559,12 @@ object StackedSignalHooker : StaticHooker() {
 
         bindings.remove(subId)?.let { old ->
             old.handles.forEach { it.cancel() }
-            MobileSignalVisibility.unregister(old.miuiViewModel)
+            if (old.visibility != null) MobileSignalVisibility.unregister(old.miuiViewModel)
         }
-        val visibility = MobileSignalVisibility.register(miuiViewModel, subId, originalVisibleFlow)
-            ?: return
+        // Duo only observes. It must not replace a hide-SIM hook's registration or clear its mask.
+        val visibility = if (renderStacked) {
+            MobileSignalVisibility.register(miuiViewModel, subId, originalVisibleFlow) ?: return
+        } else null
         pendingBindings[miuiViewModel] = true
         val handles = ArrayList<HostFlowCollector.Handle>(6)
         val isCurrent = {
@@ -629,7 +635,7 @@ object StackedSignalHooker : StaticHooker() {
         if (!allBound) {
             handles.forEach { it.cancel() }
             flowHandles.removeAll(handles.toSet())
-            MobileSignalVisibility.unregister(miuiViewModel)
+            if (visibility != null) MobileSignalVisibility.unregister(miuiViewModel)
             pendingBindings.remove(miuiViewModel)
             DebugLog.w(TAG, "subscription flow set not ready subId=$subId")
             return
@@ -658,7 +664,7 @@ object StackedSignalHooker : StaticHooker() {
             bindings.remove(binding.subId)
             binding.handles.forEach { it.cancel() }
             flowHandles.removeAll(binding.handles.toSet())
-            MobileSignalVisibility.unregister(binding.miuiViewModel)
+            if (binding.visibility != null) MobileSignalVisibility.unregister(binding.miuiViewModel)
         }
         signalState = signalState.reduce(MobileSignalEvent.Subscriptions(ids))
         pendingEvents.keys.toList().filter { it !in current }.forEach(pendingEvents::remove)
@@ -753,6 +759,11 @@ object StackedSignalHooker : StaticHooker() {
             state.subscriptionOrder.size <= MobileSignalState.MAX_RENDER_ROWS &&
             state.subscriptionOrder.all { it in factoryViewModelIds } &&
             state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
+        DuoSignalHooker.onMobileState(state, complete)
+        if (!renderStacked) {
+            restoreNative()
+            return
+        }
         if (!complete) {
             // The mobile VM briefly emits an incomplete factory/cache state while its two
             // subscription rows are being rebound. Once a module holder is already published,
@@ -896,6 +907,7 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun restoreNative() {
+        if (!renderStacked) return
         MobileSignalVisibility.setHiddenForSubIds(emptySet())
         iconBridge?.removeOwned(SLOT_STACKED)
         iconBridge?.removeOwned(SLOT_STACKED_TYPE)
@@ -919,7 +931,7 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun scheduleSignalAssetsLoad(bindingGeneration: Long) {
-        if (!enabled || signalAssets != null || svgRepository == null) return
+        if (!enabled || !renderStacked || signalAssets != null || svgRepository == null) return
         synchronized(assetLoadLock) {
             if (assetLoadGeneration == bindingGeneration) return
             if (assetLoadInFlightGeneration == bindingGeneration) return

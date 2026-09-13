@@ -1238,4 +1238,11 @@
     <string name="update_dismiss">Close</string>
     <string name="update_completion_snackbar">Updated to v%1$s (%2$d). Reboot so LSPosed reloads the module.</string>
     <string name="update_completion_snackbar_legacy">Updated to v%1$s. Reboot so LSPosed reloads the module.</string>
+    <string name="icon_duo_title">Duo signal (experimental)</string>
+    <string name="icon_duo_enabled">Three-in-one status icon</string>
+    <string name="icon_duo_summary">Battery arc, internet connection and main data SIM signal. OS4 only. Unsupported states use the original icons. Restart SystemUI to apply.</string>
+    <string name="icon_duo_expanded">Expanded panel style</string>
+    <string name="icon_duo_keep">Keep three-in-one</string>
+    <string name="icon_duo_native">Restore original icons</string>
+    <string name="icon_duo_preview">Preview: normal Wi-Fi, charging 5G, low battery 4G, battery saver 5G-A</string>
 </resources>

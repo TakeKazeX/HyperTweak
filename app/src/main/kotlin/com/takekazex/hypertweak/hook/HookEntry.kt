@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotTintHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IgnoreSysIconSettingsHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CompoundIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
@@ -676,6 +677,7 @@ class HookEntry : XposedModule() {
                 attachHooker(IconSlotTintHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LeftContainerHooker, classLoader, ctx, replacementHandles)
+                attachHooker(DuoSignalHooker, classLoader, ctx, replacementHandles)
                 attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CompoundIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)

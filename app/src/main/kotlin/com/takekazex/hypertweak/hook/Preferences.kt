@@ -474,6 +474,9 @@ object Preferences {
     // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The SVG keys match Hyper Helper's t32.f-o:
     // single/stacked styles are independent because their source documents have different id
     // matrices; style 2 means the validated imported SVG for that side.
+    const val KEY_ICON_DUO_ENABLED = "icon_duo_enabled"
+    const val KEY_ICON_DUO_EXPANDED = "icon_duo_expanded"
+
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
     const val KEY_ICON_STACKED_SVG_SINGLE = "icon_tuner_stacked_icon_svg_single"

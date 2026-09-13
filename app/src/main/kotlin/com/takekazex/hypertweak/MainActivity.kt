@@ -50,6 +50,8 @@ internal fun getSystemAccentColor(context: Context): Int {
 }
 
 private val TWEAK_RESTART_SCOPES = mapOf(
+    Preferences.KEY_ICON_DUO_ENABLED to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_ICON_DUO_EXPANDED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_AOD_FULLSCREEN to RestartScopeSelection(
         systemUi = true,
         settings = true,
