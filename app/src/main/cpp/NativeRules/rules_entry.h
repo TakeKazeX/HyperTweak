@@ -13,7 +13,8 @@ namespace hypertweak::native {
 void StartInstaller();
 
 // Invoked by LSPosed for every shared library the process loads afterwards.
-// It fires hundreds of times for the launcher, so it never logs.
+// It fires hundreds of times for the launcher, so it only performs the small
+// amount of lifecycle work needed by the native rules.
 void OnLibraryLoaded(const char* name, void* handle);
 
 enum class Stage : int32_t {

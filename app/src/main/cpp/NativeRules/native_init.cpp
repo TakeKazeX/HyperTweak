@@ -2,7 +2,7 @@
 //
 // The single entry LSPosed calls for this payload, declared by
 // app/src/main/resources/META-INF/xposed/native_init.list.
-#include "hook_bridge.h"
+#include "lsposed_hook_backend.h"
 #include "native_api.h"
 #include "rules_entry.h"
 
@@ -12,7 +12,7 @@
 // launcher's own libraries are observed.
 extern "C" __attribute__((visibility("default"), unused))
 NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
-    if (!hypertweak::native::InitializeHookApi(entries)) {
+    if (!InitializeLsposedHookBackend(entries)) {
         // No API means no page guard and no hook. Failing here leaves the host
         // process completely untouched, which is the only safe outcome.
         return nullptr;

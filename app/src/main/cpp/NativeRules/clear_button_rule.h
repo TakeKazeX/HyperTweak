@@ -38,4 +38,9 @@ const char* ClearButtonRuleReason();
 // Runtime address of the patched function, or 0 while it is unresolved.
 uintptr_t ClearButtonTargetAddress();
 
+// Gives the rule the same library-load boundary used by the upstream native
+// payload. A remapped libapp.so is revalidated and rebound there; the periodic
+// config poll remains the fallback for remaps that do not emit a load callback.
+void OnClearButtonLibraryLoaded(const char* name);
+
 }  // namespace hypertweak::native

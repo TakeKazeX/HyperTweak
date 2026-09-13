@@ -2,11 +2,9 @@
 #include "rules_entry.h"
 
 #include "clear_button_rule.h"
-#include "hook_bridge.h"
-#include "image.h"
+#include "lsposed_hook_backend.h"
 #include "logging.h"
 #include "native_config.h"
-#include "page_guard.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -20,6 +18,7 @@ namespace hypertweak::native {
 namespace {
 
 constexpr char kLauncherProcessName[] = "com.miui.home";
+constexpr char kHyperRuntimeName[] = "libhyper_os_flutter.so";
 // Key the module process writes into the shared config file.
 constexpr char kHideClearButtonKey[] = "hide_recents_clear";
 constexpr uint32_t kConfigPollMillis = 2000u;
@@ -65,6 +64,13 @@ bool IsLauncherProcess() {
     return memcmp(command_line, kLauncherProcessName, expected) == 0;
 }
 
+bool IsHyperRuntimePath(const char* path) {
+    if (path == nullptr) return false;
+    const char* slash = strrchr(path, '/');
+    const char* basename = slash == nullptr ? path : slash + 1;
+    return strcmp(basename, kHyperRuntimeName) == 0;
+}
+
 // The module's Java never runs in the launcher process, so the switch reaches
 // this payload as a file the module writes. Polling it is what makes the toggle
 // take effect without restarting the launcher.
@@ -104,12 +110,8 @@ void* InstallerThread(void*) {
         __atomic_store_n(&g_install_attempts, attempt, __ATOMIC_RELEASE);
         // The guard hooks madvise in the Flutter runtime, which is mapped before
         // the launcher's own libraries; nothing may be patched until it is in
-        // place. Its failure is terminal rather than something to retry.
-        if (!EnsurePageGuard()) {
-            if (PageGuardFailed()) {
-                LogError("page guard is unavailable; the payload will not patch");
-                return nullptr;
-            }
+        // place. A runtime that is not mapped yet is retried on the next pass.
+        if (!EnsureLsposedMadviseGuard()) {
             SleepMillis(kInstallIntervalMillis);
             continue;
         }
@@ -131,12 +133,9 @@ void StartInstaller() {
     if (__atomic_exchange_n(&g_installer_started, uint32_t{1}, __ATOMIC_ACQ_REL) != 0u) {
         return;
     }
-    __atomic_store_n(&g_hook_api_ready, HookApiReady() ? uint32_t{1} : uint32_t{0},
-                     __ATOMIC_RELEASE);
-    if (!HookApiReady()) {
-        LogError("the hook API is not available; not starting the installer");
-        return;
-    }
+    // StartInstaller is called only after InitializeLsposedHookBackend has
+    // accepted the complete LSPosed API from native_init.
+    __atomic_store_n(&g_hook_api_ready, uint32_t{1}, __ATOMIC_RELEASE);
     if (!IsLauncherProcess()) {
         SetStage(Stage::kWrongProcess);
         return;
@@ -157,12 +156,17 @@ void StartInstaller() {
 }
 
 void OnLibraryLoaded(const char* name, void* handle) {
-    (void)name;
     (void)handle;
-    // LSPosed calls this for every library the process loads. Logging here
-    // produced ~80 lines of noise per launcher start, so it stays silent and
-    // only counts.
+    // LSPosed calls this for every library the process loads. Keep the callback
+    // cheap, but re-check a newly published AOT image for remap repair.
     __atomic_fetch_add(&g_library_load_count, uint32_t{1}, __ATOMIC_RELAXED);
+    if (CurrentStage() != Stage::kWrongProcess && IsHyperRuntimePath(name)) {
+        // This is the same load boundary used by the upstream payload. Install
+        // the guard as soon as Flutter publishes the runtime, including when
+        // the runtime comes from an APK archive path.
+        EnsureLsposedMadviseGuard(name);
+    }
+    OnClearButtonLibraryLoaded(name);
 }
 
 Stage CurrentStage() {
@@ -181,10 +185,10 @@ size_t FormatStatus(char* buffer, size_t size) {
     }
     const int written = snprintf(
         buffer, size,
-        "stage=%s hookApi=%u pageGuard=%u attempts=%u loads=%u clearButton=%s/%s "
+        "stage=%s hookApi=%u madviseGuard=%u attempts=%u loads=%u clearButton=%s/%s "
         "target=0x%zx hits=%u config=%s",
         stage_name, __atomic_load_n(&g_hook_api_ready, __ATOMIC_RELAXED),
-        PageGuardReady() ? 1u : 0u,
+        LsposedMadviseGuardReady() ? 1u : 0u,
         __atomic_load_n(&g_install_attempts, __ATOMIC_RELAXED),
         __atomic_load_n(&g_library_load_count, __ATOMIC_RELAXED),
         ClearButtonHiddenRequested() ? "hide" : "keep", ClearButtonRuleReason(),

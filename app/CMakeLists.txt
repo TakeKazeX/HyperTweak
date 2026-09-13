@@ -26,9 +26,7 @@ set(HYPERTWEAK_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/NativeRules"
 
 add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/logging.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/image.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/page_guard.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/hook_bridge.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/lsposed_hook_backend.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/framework_api.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_rule.cpp"

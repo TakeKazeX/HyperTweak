@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "clear_button_rule.h"
 
-#include "hook_bridge.h"
-#include "image.h"
 #include "logging.h"
-#include "page_guard.h"
+#include "lsposed_hook_backend.h"
 
+#include <dlfcn.h>
+#include <stdint.h>
 #include <string.h>
 
 // Defined here so the assembly replacement can reach it with adrp/add.
@@ -21,11 +21,16 @@ namespace {
 
 // Verified against MiuiHome RELEASE-8.01.02.6264 (libapp.so, Dart 3.10.1).
 // The build id pins the exact snapshot; the prologue pins the exact function.
+// The image/base lookup follows the upstream payload: RTLD_NOLOAD acquires the
+// already-loaded AOT image, and dladdr ties the target to that current mapping.
+constexpr char kDartLibraryName[] = "libapp.so";
+constexpr char kDartSnapshotInstructionsSymbol[] =
+    "_kDartIsolateSnapshotInstructions";
+constexpr char kDartSnapshotBuildIdSymbol[] = "_kDartSnapshotBuildId";
 constexpr uint8_t kDartBuildId[16] = {
     0x4f, 0x1b, 0xda, 0xed, 0xdc, 0x7d, 0x86, 0x06,
     0xde, 0x7d, 0x3e, 0xbc, 0x69, 0x99, 0x4a, 0x81,
 };
-constexpr uintptr_t kDartBuildIdVa = 0x1d8u;
 // RecentsPageState._insertClearButtonOverlay, VA in the snapshot's address
 // space (Ghidra shows this as 0x01354b74: subtract its 0x100000 PIE image base).
 constexpr uintptr_t kInsertClearButtonOverlayVa = 0x01354b74u;
@@ -37,21 +42,14 @@ constexpr uint8_t kInsertClearButtonOverlayPrologue[16] = {
 volatile uint32_t g_hidden = 0u;
 volatile uint32_t g_installed = 0u;
 volatile uint32_t g_applying = 0u;
-volatile uint32_t g_target_ready = 0u;
 const char* volatile g_reason = "not_attempted";
 void* g_target = nullptr;
 volatile uintptr_t g_target_address = 0u;
-// Latched once the snapshot is present but does not match the reviewed build.
-// Retrying cannot change that, and each retry would re-scan the mapping table.
-volatile uint32_t g_unsupported = 0u;
-void* g_original = nullptr;
 
 void SetReason(const char* reason) {
     __atomic_store_n(&g_reason, reason, __ATOMIC_RELEASE);
 }
 
-// Serializes apply attempts so the installer thread and the JNI setter cannot
-// patch the same entry twice.
 class ApplyLock {
   public:
     ApplyLock() {
@@ -60,6 +58,74 @@ class ApplyLock {
     }
     ~ApplyLock() { __atomic_store_n(&g_applying, uint32_t{0}, __ATOMIC_RELEASE); }
 };
+
+bool IsDartLibraryPath(const char* path) {
+    if (path == nullptr) return false;
+    const char* slash = strrchr(path, '/');
+    const char* basename = slash == nullptr ? path : slash + 1;
+    return strcmp(basename, kDartLibraryName) == 0;
+}
+
+struct DartTarget {
+    uintptr_t address;
+};
+
+bool ResolveDartTarget(DartTarget* output) {
+    if (output == nullptr) return false;
+    output->address = 0u;
+
+    // The Flutter engine may own the AOT load rather than the launcher's own
+    // loader boundary. RTLD_NOLOAD is intentional: never manufacture a second
+    // AOT mapping while looking for the current image.
+    void* handle = dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
+    if (handle == nullptr) {
+        SetReason("no_dart_image");
+        return false;
+    }
+    void* instructions = dlsym(handle, kDartSnapshotInstructionsSymbol);
+    void* build_id = dlsym(handle, kDartSnapshotBuildIdSymbol);
+    Dl_info info{};
+    const bool mapped = instructions != nullptr && build_id != nullptr &&
+        dladdr(instructions, &info) != 0 && info.dli_fbase != nullptr &&
+        IsDartLibraryPath(info.dli_fname);
+    if (!mapped || memcmp(build_id, kDartBuildId, sizeof(kDartBuildId)) != 0) {
+        if (mapped) {
+            SetReason("build_id_mismatch");
+        } else {
+            SetReason("no_dart_image");
+        }
+        dlclose(handle);
+        return false;
+    }
+
+    const uintptr_t base = reinterpret_cast<uintptr_t>(info.dli_fbase);
+    if (kInsertClearButtonOverlayVa > UINTPTR_MAX - base) {
+        dlclose(handle);
+        SetReason("target_overflow");
+        return false;
+    }
+    const uintptr_t target = base + kInsertClearButtonOverlayVa;
+    Dl_info target_info{};
+    if (dladdr(reinterpret_cast<void*>(target), &target_info) == 0 ||
+        target_info.dli_fbase != info.dli_fbase) {
+        dlclose(handle);
+        SetReason("target_unmapped");
+        return false;
+    }
+    output->address = target;
+    dlclose(handle);
+    return true;
+}
+
+bool MatchesTargetPrologue(uintptr_t target) {
+    // ResolveDartTarget has already tied this address to the current libapp.so
+    // mapping and exact build id. The 16-byte read is therefore bounded by the
+    // same loaded AOT image that the upstream resolver validates before use.
+    uint8_t actual[sizeof(kInsertClearButtonOverlayPrologue)];
+    memcpy(actual, reinterpret_cast<const void*>(target), sizeof(actual));
+    return memcmp(actual, kInsertClearButtonOverlayPrologue,
+                  sizeof(actual)) == 0;
+}
 
 }  // namespace
 
@@ -85,63 +151,82 @@ uintptr_t ClearButtonTargetAddress() {
 }
 
 bool ApplyClearButtonRule() {
-    // A build the prologue check rejected will not start matching on a retry.
-    if (__atomic_load_n(&g_unsupported, __ATOMIC_ACQUIRE) != 0u) return true;
+    ApplyLock lock;
     const bool hidden = ClearButtonHiddenRequested();
     const bool installed = __atomic_load_n(&g_installed, __ATOMIC_ACQUIRE) != 0u;
-    if (hidden == installed) return true;
 
-    ApplyLock lock;
-    // Re-read under the lock: another thread may have finished the transition.
-    const bool now_hidden = ClearButtonHiddenRequested();
-    const bool now_installed = __atomic_load_n(&g_installed, __ATOMIC_ACQUIRE) != 0u;
-    if (now_hidden == now_installed) return true;
-
-    if (!now_hidden) {
-        if (!InlineUnhook(g_target)) {
+    if (!hidden) {
+        if (!installed) {
+            SetReason("disabled");
+            return true;
+        }
+        if (RemoveInlineHook(g_target) != kHookSuccess) {
             SetReason("unhook_failed");
             return false;
         }
         __atomic_store_n(&g_installed, uint32_t{0}, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_target_address, uintptr_t{0}, __ATOMIC_RELEASE);
+        g_target = nullptr;
         SetReason("removed");
         return true;
     }
 
-    Image image{};
-    // The Dart snapshot is mapped out of the launcher's APK, so it has no name of
-    // its own in /proc/self/maps and the linker may not list it in this
-    // namespace. Its build-id note is the one reliable identifier.
-    if (!FindImageByBuildId(kDartBuildId, sizeof(kDartBuildId), kDartBuildIdVa, &image)) {
-        SetReason("no_dart_image");
-        return false;
+    DartTarget current{};
+    if (!ResolveDartTarget(&current)) return false;
+    const bool same_target = installed &&
+        __atomic_load_n(&g_target_address, __ATOMIC_ACQUIRE) == current.address;
+    const bool original_prologue = MatchesTargetPrologue(current.address);
+
+    // A valid inline hook replaces the prologue. If the current target is still
+    // patched, leave it alone. If the original prologue has returned, the AOT
+    // text was remapped (or MADV_DONTNEED won a race) and must be retired and
+    // rebound just as the upstream Dart remap repair does.
+    if (installed && same_target && !original_prologue) {
+        SetReason("installed");
+        return true;
     }
-    const uintptr_t target = image.base + kInsertClearButtonOverlayVa;
-    if (!MatchesBytes(image, target, kInsertClearButtonOverlayPrologue,
-                      sizeof(kInsertClearButtonOverlayPrologue))) {
+    if (!original_prologue) {
         SetReason("prologue_mismatch");
         LogWarn("_insertClearButtonOverlay prologue mismatch at 0x%zx; not patching",
-                static_cast<size_t>(target));
-        __atomic_store_n(&g_unsupported, uint32_t{1}, __ATOMIC_RELEASE);
+                static_cast<size_t>(current.address));
         return false;
     }
-    if (!__atomic_load_n(&g_target_ready, __ATOMIC_ACQUIRE)) {
-        LogInfo("clear button target resolved at 0x%zx", static_cast<size_t>(target));
-        __atomic_store_n(&g_target_ready, uint32_t{1}, __ATOMIC_RELEASE);
+
+    if (installed) {
+        if (RemoveInlineHook(g_target) != kHookSuccess) {
+            SetReason("remap_unhook_failed");
+            return false;
+        }
+        __atomic_store_n(&g_installed, uint32_t{0}, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_target_address, uintptr_t{0}, __ATOMIC_RELEASE);
+        g_target = nullptr;
+        SetReason("remap_detected");
     }
+
     void* original = nullptr;
-    if (!InlineHook(reinterpret_cast<void*>(target),
-                    reinterpret_cast<void*>(&HyperTweakRecentsClearButtonInsertHook),
-                    &original)) {
+    if (InstallInlineHook(reinterpret_cast<void*>(current.address),
+                          reinterpret_cast<void*>(&HyperTweakRecentsClearButtonInsertHook),
+                          &original) != kHookSuccess) {
         SetReason("hook_failed");
         return false;
     }
-    __atomic_store_n(&g_target_address, target, __ATOMIC_RELEASE);
-    g_target = reinterpret_cast<void*>(target);
-    g_original = original;
+    __atomic_store_n(&g_target_address, current.address, __ATOMIC_RELEASE);
+    g_target = reinterpret_cast<void*>(current.address);
     __atomic_store_n(&g_installed, uint32_t{1}, __ATOMIC_RELEASE);
     SetReason("installed");
     LogInfo("clear button rule installed; recents overlay insertion is suppressed");
     return true;
+}
+
+void OnClearButtonLibraryLoaded(const char* name) {
+    if (name == nullptr || !IsDartLibraryPath(name) ||
+        !ClearButtonHiddenRequested()) {
+        return;
+    }
+    // The upstream payload resolves AOT hooks at the library-load boundary and
+    // also retries through its remap path. Reuse that boundary for this rule;
+    // ConfigPollThread remains the fallback for remaps without a callback.
+    ApplyClearButtonRule();
 }
 
 }  // namespace hypertweak::native
