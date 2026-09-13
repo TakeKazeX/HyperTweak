@@ -14,6 +14,7 @@
 // happens to sit at that offset.
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace hypertweak::native {
@@ -21,12 +22,10 @@ namespace hypertweak::native {
 // Desired state, pushed from the module. Safe to call from any thread.
 void SetClearButtonHidden(bool hidden);
 
-// Resolves the Dart snapshot and brings the hook in line with the desired
-// state. `dart_handle` is the handle supplied by the LSPosed load callback; it
-// must be used there because that callback runs under the linker load lock.
-// Idempotent and safe to retry; returns true once the desired state is in
-// effect (which, for "not hidden", is immediately).
-bool ApplyClearButtonRule(void* dart_handle = nullptr, bool try_lock = false);
+// Resolves the Dart snapshot through the upstream native framework and brings
+// the hook in line with the desired state. `dart_handle` is the handle supplied
+// by the LSPosed load callback when available. Idempotent and safe to retry.
+bool ApplyClearButtonRule(void* dart_handle = nullptr);
 
 // True when the desired state is "hidden".
 bool ClearButtonHiddenRequested();
@@ -41,8 +40,25 @@ const char* ClearButtonRuleReason();
 uintptr_t ClearButtonTargetAddress();
 
 // Gives the rule the same library-load boundary used by the upstream native
-// payload. A remapped libapp.so is revalidated and rebound there; the periodic
-// config poll remains the fallback for remaps that do not emit a load callback.
+// payload.
 void OnClearButtonLibraryLoaded(const char* name, void* handle);
 
+// Called by the upstream action-down maintenance path, which is also where the
+// upstream payload detects and repairs remapped Dart AOT pages.
+void MaintainClearButtonRuleOnActionDown(void* dart_handle);
+
+// Called from the upstream post-fork owner reset callback.
+void ResetClearButtonStateAfterFork();
+
+// Reads the shared module switch once during upstream native initialization.
+void RefreshClearButtonConfig();
+
 }  // namespace hypertweak::native
+
+// These wrappers expose the upstream resolver's already-validated Dart image
+// and range checks to the feature rule without duplicating its ELF scanner.
+bool MiuiHomeHyosResolveDartImage(void* dart_handle, uint8_t** base_out,
+                                  const uint8_t** build_id_out);
+void* MiuiHomeHyosCurrentDartHandle();
+bool MiuiHomeHyosDartRangeHasFlags(const uint8_t* base, uintptr_t offset,
+                                   size_t size, uint32_t required_flags);

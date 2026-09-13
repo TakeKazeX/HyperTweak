@@ -6,14 +6,14 @@ import com.takekazex.hypertweak.util.DebugLog
  * Access to the native payload LSPosed injects alongside the module's dex.
  *
  * `libhypertweak_native.so` is declared in `META-INF/xposed/native_init.list`, so the framework
- * maps it into every scoped process — including this module's own process — before [HookEntry]
- * runs. The payload installs hooks only when it finds itself inside `com.miui.home`; everywhere
- * else it reports `stage=wrong_process` and leaves the host untouched.
+ * maps it before [HookEntry] runs. The upstream payload initializes its native launcher state only
+ * in the HYOS launcher process family; other processes return from the native entry without
+ * installing hooks.
  *
  * The status below therefore describes the payload **in the process that calls it**. Reading it
  * from the module's own process proves packaging and JNI binding, not the launcher's state: the
- * launcher exposes no Java surface to answer through. Observe the launcher through the debug log,
- * which every scoped process writes to, or with `adb logcat -s HyperTweakNative:V`.
+ * launcher exposes no Java surface to answer through. Observe the launcher through the
+ * upstream native log tag or its authenticated runtime status path.
  */
 object NativeRules {
     private const val LIBRARY_NAME = "hypertweak_native"

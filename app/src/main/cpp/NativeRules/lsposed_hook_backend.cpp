@@ -239,139 +239,6 @@ bool FindImage(const char* path, uintptr_t base, Image* output) {
     return true;
 }
 
-bool MapContains(const lsplt::MapInfo& map, uintptr_t address, size_t size,
-                 uint8_t required_perms) {
-    if (size == 0u || address > UINTPTR_MAX - size ||
-            address < map.start || address + size > map.end ||
-            (map.perms & required_perms) != required_perms) {
-        return false;
-    }
-    return true;
-}
-
-bool IsElfContainerPath(const std::string& path) {
-    return path.size() > 4u &&
-            (path.compare(path.size() - 4u, 4u, ".apk") == 0 ||
-             path.compare(path.size() - 3u, 3u, ".so") == 0 ||
-             path.find("!/") != std::string::npos);
-}
-
-bool SameBackingObject(const lsplt::MapInfo& left,
-                       const lsplt::MapInfo& right) {
-    return left.dev == right.dev && left.inode == right.inode &&
-            left.path == right.path;
-}
-
-bool HasMappedRange(const std::vector<lsplt::MapInfo>& maps,
-                    const lsplt::MapInfo& image_map, uintptr_t address,
-                    size_t size, uint8_t required_perms) {
-    for (const lsplt::MapInfo& map : maps) {
-        if (SameBackingObject(map, image_map) &&
-                MapContains(map, address, size, required_perms)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool BuildMappedImage(const lsplt::MapInfo& map, Image* output) {
-    if (output == nullptr || map.start == 0u || map.inode == 0 ||
-            (map.perms & PROT_READ) == 0u ||
-            !MapContains(map, map.start, sizeof(ElfW(Ehdr)), PROT_READ)) {
-        return false;
-    }
-    ElfW(Ehdr) header{};
-    memcpy(&header, reinterpret_cast<const void*>(map.start), sizeof(header));
-    if (memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 ||
-            header.e_ident[EI_CLASS] != ELFCLASS64 ||
-            header.e_ident[EI_DATA] != ELFDATA2LSB ||
-            header.e_type != ET_DYN || header.e_machine != EM_AARCH64 ||
-            header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0u ||
-            header.e_phnum > 128u ||
-            header.e_phoff > UINTPTR_MAX - map.start) {
-        return false;
-    }
-    const size_t phdr_size = static_cast<size_t>(header.e_phnum) *
-            sizeof(ElfW(Phdr));
-    if (header.e_phnum != 0u &&
-            phdr_size / sizeof(ElfW(Phdr)) != header.e_phnum) {
-        return false;
-    }
-    const uintptr_t phdr_address = map.start + header.e_phoff;
-    if (!MapContains(map, phdr_address, phdr_size, PROT_READ)) return false;
-
-    Image image{};
-    image.base = map.start;
-    image.phdr = reinterpret_cast<const ElfW(Phdr)*>(phdr_address);
-    image.phnum = header.e_phnum;
-    if (map.path.size() >= sizeof(image.path)) return false;
-    memcpy(image.path, map.path.c_str(), map.path.size() + 1u);
-    for (size_t index = 0u; index < image.phnum; ++index) {
-        const ElfW(Phdr)& phdr = image.phdr[index];
-        if (phdr.p_type != PT_LOAD || phdr.p_memsz == 0u) continue;
-        if (image.segment_count >= kMaxSegments ||
-                phdr.p_vaddr > UINTPTR_MAX - image.base ||
-                phdr.p_memsz > UINTPTR_MAX -
-                        (image.base + phdr.p_vaddr)) {
-            return false;
-        }
-        const uintptr_t begin = image.base + phdr.p_vaddr;
-        image.segments[image.segment_count++] = {
-                begin, begin + phdr.p_memsz, phdr.p_flags};
-    }
-    if (image.segment_count == 0u) return false;
-    *output = image;
-    return true;
-}
-
-bool FindMappedImageTargetByBuildIdImpl(const uint8_t* build_id,
-                                        size_t build_id_size,
-                                        uintptr_t build_id_offset,
-                                        uintptr_t target_offset,
-                                        size_t target_size,
-                                        void** target) {
-    if (build_id == nullptr || build_id_size == 0u || target_size == 0u ||
-            target == nullptr || build_id_offset > UINTPTR_MAX - build_id_size) {
-        return false;
-    }
-    *target = nullptr;
-    const std::vector<lsplt::MapInfo> maps = lsplt::MapInfo::Scan();
-    void* matched_target = nullptr;
-    size_t match_count = 0u;
-    for (const lsplt::MapInfo& map : maps) {
-        if (!IsElfContainerPath(map.path) || map.inode == 0 ||
-                (map.perms & PROT_READ) == 0u ||
-                !MapContains(map, map.start, sizeof(ElfW(Ehdr)), PROT_READ)) {
-            continue;
-        }
-        Image image{};
-        if (!BuildMappedImage(map, &image)) continue;
-        if (build_id_offset > UINTPTR_MAX - image.base ||
-                target_offset > UINTPTR_MAX - image.base) {
-            continue;
-        }
-        const uintptr_t build_id_address = image.base + build_id_offset;
-        if (!HasMappedRange(maps, map, build_id_address, build_id_size,
-                            PROT_READ) ||
-                !RangeInImage(image, build_id_address, build_id_size, PF_R) ||
-                memcmp(reinterpret_cast<const void*>(build_id_address),
-                       build_id, build_id_size) != 0) {
-            continue;
-        }
-        const uintptr_t candidate = image.base + target_offset;
-        if (!RangeInImage(image, candidate, target_size, PF_R | PF_X) ||
-                !HasMappedRange(maps, map, candidate, target_size,
-                                PROT_READ | PROT_EXEC)) {
-            continue;
-        }
-        ++match_count;
-        matched_target = reinterpret_cast<void*>(candidate);
-    }
-    if (match_count != 1u) return false;
-    *target = matched_target;
-    return true;
-}
-
 struct ArchiveHookTarget {
     dev_t dev;
     ino_t inode;
@@ -850,17 +717,6 @@ int PltHookRaw(void* base, const char* symbol, void* replacement,
 
 }  // namespace
 
-bool FindMappedImageTargetByBuildId(const uint8_t* build_id,
-                                    size_t build_id_size,
-                                    uintptr_t build_id_offset,
-                                    uintptr_t target_offset,
-                                    size_t target_size,
-                                    void** target) {
-    return FindMappedImageTargetByBuildIdImpl(
-            build_id, build_id_size, build_id_offset, target_offset,
-            target_size, target);
-}
-
 int InstallPltHook(void* base, const char* symbol, void* replacement,
                    void** original) {
     if (!EnsureLsposedMadviseGuard()) return kHookFailed;
@@ -957,10 +813,6 @@ bool EnsureLsposedMadviseGuard(const char* runtime_name) {
     }
     __atomic_store_n(&g_madvise_guard_state, uint32_t{2}, __ATOMIC_RELEASE);
     return true;
-}
-
-bool LsposedMadviseGuardReady() {
-    return __atomic_load_n(&g_madvise_guard_state, __ATOMIC_ACQUIRE) == 2u;
 }
 
 bool InitializeLsposedHookBackend(const NativeAPIEntries* entries) {

@@ -1,9 +1,8 @@
 # HyperTweak native hook payload.
 #
-# The library is delivered inside the module APK and injected by LSPosed, which
-# calls the exported `native_init` in every process the module is scoped to. It
-# is therefore built as a small, self-contained, fail-closed payload: no
-# exceptions, no RTTI, only `native_init` and the JNI status query exported.
+# The launcher lifecycle and native hook framework are the upstream
+# MiuiBackGestureHook implementation. HyperTweak adds the clear-button rule and
+# its module-side config/status bridge around that entry point.
 cmake_minimum_required(VERSION 3.22)
 
 project(hypertweak_native LANGUAGES CXX ASM)
@@ -27,13 +26,17 @@ set(HYPERTWEAK_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/NativeRules"
 add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/logging.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/lsposed_hook_backend.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/framework_api.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime_profile_resolver.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/dart_runtime_resolver.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/miui_home_native_hook.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/rules_entry.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/broadcast_options_tail_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/broadcast_send_capture_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/dart_state_hooks.S"
+    "${HYPERTWEAK_NATIVE_DIR}/input_monitor_pilfer_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/jni_bridge.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/native_init.cpp"
 )
 
 target_include_directories(${HYPERTWEAK_NATIVE_TARGET} PRIVATE

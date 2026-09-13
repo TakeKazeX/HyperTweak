@@ -5,9 +5,11 @@
 // `System.loadLibrary` on the Kotlin side only succeeds where LSPosed already
 // injected it. The symbols are resolved by the default JNI lookup, so no
 // JNI_OnLoad/RegisterNatives is needed.
-#include "rules_entry.h"
+#include "clear_button_rule.h"
+#include "native_config.h"
 
 #include <jni.h>
+#include <stdio.h>
 
 namespace {
 
@@ -15,7 +17,13 @@ constexpr size_t kStatusBufferSize = 320u;
 
 jstring BuildStatus(JNIEnv* env) {
     char buffer[kStatusBufferSize];
-    hypertweak::native::FormatStatus(buffer, sizeof(buffer));
+    snprintf(buffer, sizeof(buffer),
+             "clearButton=%s/%s target=0x%zx hits=%u config=%s",
+             hypertweak::native::ClearButtonHiddenRequested() ? "hide" : "keep",
+             hypertweak::native::ClearButtonRuleReason(),
+             static_cast<size_t>(hypertweak::native::ClearButtonTargetAddress()),
+             hypertweak::native::ClearButtonHookHits(),
+             hypertweak::native::ConfigChannelPath());
     return env->NewStringUTF(buffer);
 }
 
