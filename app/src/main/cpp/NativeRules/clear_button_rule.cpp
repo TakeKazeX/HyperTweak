@@ -31,6 +31,10 @@ constexpr uint8_t kDartBuildId[16] = {
     0x4f, 0x1b, 0xda, 0xed, 0xdc, 0x7d, 0x86, 0x06,
     0xde, 0x7d, 0x3e, 0xbc, 0x69, 0x99, 0x4a, 0x81,
 };
+// The custom HyperOS loader maps the AOT ELF header at the start of its
+// executable base.apk range, but does not publish a libapp.so link-map entry.
+// This is the note location in the same verified AOT image.
+constexpr uintptr_t kDartBuildIdOffset = 0x1d8u;
 // RecentsPageState._insertClearButtonOverlay, VA in the snapshot's address
 // space (Ghidra shows this as 0x01354b74: subtract its 0x100000 PIE image base).
 constexpr uintptr_t kInsertClearButtonOverlayVa = 0x01354b74u;
@@ -42,6 +46,7 @@ constexpr uint8_t kInsertClearButtonOverlayPrologue[16] = {
 volatile uint32_t g_hidden = 0u;
 volatile uint32_t g_installed = 0u;
 volatile uint32_t g_applying = 0u;
+volatile uint32_t g_mapped_locator_logged = 0u;
 const char* volatile g_reason = "not_attempted";
 void* g_target = nullptr;
 volatile uintptr_t g_target_address = 0u;
@@ -85,6 +90,25 @@ struct DartTarget {
     uintptr_t address;
 };
 
+bool ResolveDartTargetViaMappedImage(DartTarget* output) {
+    if (output == nullptr) return false;
+    void* target = nullptr;
+    if (!FindMappedImageTargetByBuildId(
+                kDartBuildId, sizeof(kDartBuildId), kDartBuildIdOffset,
+                kInsertClearButtonOverlayVa,
+                sizeof(kInsertClearButtonOverlayPrologue), &target) ||
+            target == nullptr) {
+        return false;
+    }
+    output->address = reinterpret_cast<uintptr_t>(target);
+    if (__atomic_exchange_n(&g_mapped_locator_logged, uint32_t{1},
+                            __ATOMIC_ACQ_REL) == 0u) {
+        LogInfo("resolved mapped libapp.so target at 0x%zx",
+                static_cast<size_t>(output->address));
+    }
+    return true;
+}
+
 bool ResolveDartTarget(void* supplied_handle, DartTarget* output) {
     if (output == nullptr) return false;
     output->address = 0u;
@@ -98,6 +122,7 @@ bool ResolveDartTarget(void* supplied_handle, DartTarget* output) {
         ? supplied_handle
         : dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
     if (handle == nullptr) {
+        if (ResolveDartTargetViaMappedImage(output)) return true;
         SetReason("no_dart_image");
         return false;
     }
@@ -111,6 +136,10 @@ bool ResolveDartTarget(void* supplied_handle, DartTarget* output) {
         if (mapped) {
             SetReason("build_id_mismatch");
         } else {
+            if (ResolveDartTargetViaMappedImage(output)) {
+                if (close_handle) dlclose(handle);
+                return true;
+            }
             SetReason("no_dart_image");
         }
         if (close_handle) dlclose(handle);
@@ -128,6 +157,7 @@ bool ResolveDartTarget(void* supplied_handle, DartTarget* output) {
     if (dladdr(reinterpret_cast<void*>(target), &target_info) == 0 ||
         target_info.dli_fbase != info.dli_fbase) {
         if (close_handle) dlclose(handle);
+        if (ResolveDartTargetViaMappedImage(output)) return true;
         SetReason("target_unmapped");
         return false;
     }
