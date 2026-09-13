@@ -27,7 +27,7 @@ class DuoDrawable : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
-        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        typeface = Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), 800, false)
         textAlign = Paint.Align.CENTER
     }
     private val path = Path()
@@ -262,8 +262,8 @@ class DuoDrawable : Drawable() {
         // Cellular labels should occupy roughly the same visual weight as the Wi-Fi glyph.
         // 8.5u makes "5G" ~11u wide on the host's medium sans font; the metric-derived baseline
         // keeps it centred even when MIUI swaps the concrete typeface implementation.
-        const val LABEL_TEXT_SIZE = 8.5f
-        const val LABEL_MAX_WIDTH = 12.0f
+        const val LABEL_TEXT_SIZE = 10.5f
+        const val LABEL_MAX_WIDTH = 17.0f
         const val LABEL_CENTER_Y = 15.9f
 
         const val NO_SERVICE_STROKE = 1.50f

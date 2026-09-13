@@ -4,6 +4,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.RectF
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -12,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -63,6 +65,13 @@ object DuoSignalHooker : StaticHooker() {
 
     private class Binding(val battery: View, val parent: ViewGroup, val icons: View, val surface: DuoSurface) {
         val view = DuoView(battery.context)
+        var observer: ViewTreeObserver? = null
+        var preDraw: ViewTreeObserver.OnPreDrawListener? = null
+        var hostHideBattery = false
+        val privacyId = battery.resources.getIdentifier("mini_state_container", "id", battery.context.packageName)
+        var privacyView: View? = null
+        val privacyRect = RectF()
+        var privacyInset = 0
         var active = false
         var failed = false
         var reconciling = false
@@ -80,14 +89,14 @@ object DuoSignalHooker : StaticHooker() {
             val desired = (26f * resources.displayMetrics.density).roundToInt()
             // WRAP_CONTENT must report an intrinsic desired size. Feeding MeasureSpec.getSize()
             // back into resolveSize() makes an AT_MOST spec consume the parent's whole allowance.
-            // position() still exact-measures this view to the native battery slot once active.
+            // position() aligns the box with the current parent's end edge once active.
             setMeasuredDimension(
-                resolveSize(maxOf(desired, suggestedMinimumWidth), widthMeasureSpec),
+                resolveSize(maxOf(desired + paddingStart + paddingEnd, suggestedMinimumWidth), widthMeasureSpec),
                 resolveSize(maxOf(desired, suggestedMinimumHeight), heightMeasureSpec)
             )
         }
         override fun onDraw(canvas: Canvas) {
-            icon.setBounds(0, 0, width, height)
+            icon.setBounds(paddingLeft, 0, width - paddingRight, height)
             runCatching { icon.draw(canvas) }.onFailure { drawFailed?.invoke() }
         }
     }
@@ -140,6 +149,25 @@ object DuoSignalHooker : StaticHooker() {
                 } } } }
             }
         }
+        // The parent uses mBattery in both measure and layout. Deoptimize these consumers so
+        // compiled host code observes the borrowed reference, then reconcile after every layout.
+        for (name in listOf("onMeasure", "onLayout")) {
+            parentClass.declaredMethods.filter { it.name == name }.forEach { method ->
+                deoptimize(method)
+                if (name == "onLayout") method.hook { after { param ->
+                    bindings.values.firstOrNull { it.parent === param.thisObject }?.let { binding ->
+                        guarded { reconcile(binding); if (binding.active) position(binding) }
+                    }
+                } }
+            }
+        }
+        parentClass.declaredMethods.singleOrNull { it.name == "setIsHideBattery" && it.parameterCount == 1 }?.hook {
+            before { param ->
+                val binding = bindings.values.firstOrNull { it.parent === param.thisObject } ?: return@before
+                binding.hostHideBattery = param.args[0] as? Boolean ?: return@before
+                if (binding.active) param.args[0] = false
+            }
+        }
         hookWifi()
         DebugLog.hookRegistered(TAG, "OS4 battery container, expanded=$expandedStyle")
     }
@@ -160,10 +188,14 @@ object DuoSignalHooker : StaticHooker() {
         val parent = battery.parent as? ViewGroup ?: return
         if (parent.javaClass.name != CONTAINER || batteryLayoutField?.get(parent) !== battery) return
         val surface = surface(battery)
-        if (!DuoPolicy.replaces(surface, expandedStyle)) return
+        // Keep dormant expanded bindings too: switching from native to Duo must not require
+        // that the already-attached control-center header happens to be reinflated.
+        if (surface == DuoSurface.UNSUPPORTED) return
         val icons = statusIconsField?.get(parent) as? View ?: return
         ensureConnectivity(battery.context)
         val binding = Binding(battery, parent, icons, surface)
+        binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
+        binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
         bindings[battery] = binding
         binding.view.drawFailed = {
@@ -185,7 +217,13 @@ object DuoSignalHooker : StaticHooker() {
             bindings.remove(battery)
             throw error
         }
-        binding.view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> guarded { reconcile(binding) } }
+        binding.observer = parent.viewTreeObserver
+        binding.preDraw = ViewTreeObserver.OnPreDrawListener {
+            guarded { reconcile(binding) }
+            // This listener observes one icon. It must never veto the whole shade/window frame,
+            // including while the host expansion animation keeps requesting layout.
+            true
+        }.also { binding.observer?.addOnPreDrawListener(it) }
         reconcile(binding)
     }
 
@@ -204,28 +242,27 @@ object DuoSignalHooker : StaticHooker() {
         return DuoSurface.UNSUPPORTED
     }
 
-    /**
-     * Gives the carrier the retained battery's measured size and slot. The host container keeps
-     * `mBattery` pointing at the carrier, but never lays it out, so without this the carrier stays
-     * at zero bounds: invisible, never redrawn, and never able to claim the signal mask.
-     */
+    /** Use current parent geometry, never the GONE battery's stale portrait coordinates. */
     private fun position(binding: Binding) {
-        val battery = binding.battery
+        val parent = binding.parent
         val view = binding.view
-        if (battery.width <= 0 || battery.height <= 0) return
-        view.measure(
-            View.MeasureSpec.makeMeasureSpec(battery.width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(battery.height, View.MeasureSpec.EXACTLY)
-        )
-        if (view.left == battery.left && view.top == battery.top &&
-            view.right == battery.right && view.bottom == battery.bottom) return
-        view.layout(battery.left, battery.top, battery.right, battery.bottom)
+        if (parent.width <= 0 || parent.height <= 0) return
+        val box = DuoLayout.box(parent.width, parent.height, parent.paddingLeft, parent.paddingTop,
+            parent.paddingRight, parent.paddingBottom,
+            (26f * view.resources.displayMetrics.density).roundToInt(), view.paddingStart + view.paddingEnd,
+            parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+        view.measure(View.MeasureSpec.makeMeasureSpec(box.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(box.height, View.MeasureSpec.EXACTLY))
+        if (view.left != box.left || view.top != box.top || view.width != box.width || view.height != box.height)
+            view.layout(box.left, box.top, box.left + box.width, box.top + box.height)
     }
 
     private fun reconcile(binding: Binding) {
         if (binding.reconciling) return
         binding.reconciling = true
         try {
+            expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
+                DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
@@ -233,8 +270,10 @@ object DuoSignalHooker : StaticHooker() {
             val powerSave = read(battery, "mPowerSave") as? Boolean
             val content = if (percent != null && charging != null && powerSave != null)
                 DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) else null
-            val visible = read(battery, "mHomeBlock") == false && read(battery, "mMinimalism") == false &&
-                read(battery, "mIsAddBatteryIsland") == false && read(battery, "mIsAodAnimate") != true
+            val privacyState = read(binding.parent, "mPrivacyState")?.toString()
+            val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
+            val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&
+                (charging == true || read(battery, "mIsAddBatteryIsland") == false) && read(battery, "mIsAodAnimate") != true
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
                 !DuoPolicy.replaces(surface(battery), expandedStyle)) {
                 restore(binding)
@@ -253,24 +292,30 @@ object DuoSignalHooker : StaticHooker() {
                     if (content.noInternet) append(", !")
                 }
             }
-            binding.view.alpha = battery.alpha
-            binding.view.translationX = battery.translationX
-            binding.view.translationY = battery.translationY
-            binding.view.scaleX = battery.scaleX
-            binding.view.scaleY = battery.scaleY
+            // Charging animates the retained battery into the island (alpha/scale/translation).
+            // Those transforms belong to the old battery, not this fixed connectivity cluster.
+            binding.view.alpha = 1f
+            binding.view.translationX = privacyOffset(binding, privacyState)
+            binding.view.translationY = 0f
+            binding.view.scaleX = 1f
+            binding.view.scaleY = 1f
             if (!binding.active) {
                 if (batteryLayoutField?.get(binding.parent) !== battery) return
                 // Establish a measured, visible replacement before claiming the signal mask.
                 batteryLayoutField?.set(binding.parent, binding.view)
                 binding.active = true
+                field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
                 binding.view.visibility = View.VISIBLE
                 battery.visibility = View.GONE
                 binding.parent.requestLayout()
             }
-            // MiuiStatusBatteryContainer only lays out its own known children, so this carrier never
-            // receives bounds from the host and must take the retained native battery's slot itself.
-            position(binding)
-            if (battery.width > 0 && battery.height > 0 && binding.view.isAttachedToWindow) {
+            battery.visibility = View.GONE
+            // During the full capsule the host reserves its width instead of the battery width.
+            // Reserve the extra Duo box too, so neighbouring native icons cannot occupy it.
+            setPrivacyInset(binding, if (privacyState == "START_SHOW_PRIVACY" ||
+                privacyState == "COMPLETE_SHOW_PRIVACY") binding.view.width else 0)
+            // Geometry is owned by the parent layout pass, not by callbacks/pre-draw.
+            if (binding.view.width > 0 && binding.view.height > 0 && binding.view.isAttachedToWindow) {
                 if (!IconPositionHooker.setDuoMask(binding.icons, true)) {
                     binding.failed = true
                     restore(binding)
@@ -286,6 +331,43 @@ object DuoSignalHooker : StaticHooker() {
             restore(binding)
             DebugLog.w(TAG, "container failed; restored native", error)
         } finally { binding.reconciling = false }
+    }
+
+    /** Follow host Folme transforms without creating another animator or cancelling frames. */
+    private fun privacyOffset(binding: Binding, state: String?): Float {
+        if (binding.surface != DuoSurface.HOME || !DuoPrivacyGeometry.isTransition(state)) return 0f
+        var chip = binding.privacyView
+        if (chip == null || !chip.isAttachedToWindow) {
+            chip = if (binding.privacyId != 0) binding.parent.findViewById(binding.privacyId) else null
+            binding.privacyView = chip
+        }
+        chip ?: return 0f
+        if (chip.width <= 0 || chip.height <= 0) return 0f
+        val rect = binding.privacyRect
+        rect.set(0f, 0f, chip.width.toFloat(), chip.height.toFloat())
+        var node: View = chip
+        repeat(16) {
+            if (node.visibility != View.VISIBLE || node.alpha <= 0.01f) return 0f
+            node.matrix.mapRect(rect)
+            rect.offset(node.left.toFloat(), node.top.toFloat())
+            val ancestor = node.parent as? View ?: return 0f
+            rect.offset(-ancestor.scrollX.toFloat(), -ancestor.scrollY.toFloat())
+            if (ancestor === binding.parent) {
+                return DuoPrivacyGeometry.offset(binding.view.left.toFloat(), binding.view.right.toFloat(),
+                    rect.left, rect.right, 4f * chip.resources.displayMetrics.density,
+                    binding.parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+            }
+            node = ancestor
+        }
+        return 0f
+    }
+
+    private fun setPrivacyInset(binding: Binding, inset: Int) {
+        if (binding.privacyInset == inset) return
+        val icons = binding.icons
+        val base = (icons.paddingEnd - binding.privacyInset).coerceAtLeast(0)
+        binding.privacyInset = inset
+        icons.setPaddingRelative(icons.paddingStart, icons.paddingTop, base + inset, icons.paddingBottom)
     }
 
     /** Snapshot the host's own airplane-slot policy before Duo changes anything. */
@@ -342,12 +424,15 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun restore(binding: Binding) {
+        setPrivacyInset(binding, 0)
+        binding.view.translationX = 0f
         IconPositionHooker.setDuoMask(binding.icons, false)
         setNativeAirplaneMasked(binding, false)
         if (!binding.active) return
         binding.active = false
         runCatching {
             if (batteryLayoutField?.get(binding.parent) === binding.view) batteryLayoutField?.set(binding.parent, binding.battery)
+            field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, binding.hostHideBattery)
             binding.view.visibility = View.GONE
             visibilityMethod?.invoke(binding.battery)
             binding.parent.requestLayout()
@@ -358,6 +443,7 @@ object DuoSignalHooker : StaticHooker() {
         val binding = bindings.remove(battery) ?: return
         binding.reconciling = true
         restore(binding)
+        binding.preDraw?.let { listener -> binding.observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener) }
         // Removal during the parent's detach traversal can skip sibling detach callbacks.
         main.post { if (binding.view.parent === binding.parent) binding.parent.removeView(binding.view) }
     }

@@ -45,6 +45,8 @@ object IconPositionHooker : StaticHooker() {
     @Volatile
     private var restoring = false
 
+    private var mobileVisibleState: Method? = null
+    private var mobileViewClass: Class<*>? = null
     private var slotsField: Field? = null
     private var slotNameField: Field? = null
     private var ignoredSlotsField: Field? = null
@@ -74,6 +76,19 @@ object IconPositionHooker : StaticHooker() {
         options = IconTunerOptions.snapshot()
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
+        val mobileClass = "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView".toClassOrNull()
+        mobileViewClass = mobileClass
+        mobileVisibleState = mobileClass?.declaredMethods?.singleOrNull {
+            it.name == "setVisibleState" && it.parameterTypes.contentEquals(arrayOf(
+                Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
+        }?.apply { isAccessible = true }
+        mobileVisibleState?.let { method ->
+            deoptimize(method)
+            method.hook { before { param ->
+                val view = param.thisObject as? android.view.View ?: return@before
+                if (duoContainers[view.parent] == true) param.args[0] = 2
+            } }
+        }
         DebugLog.i(TAG, "IconPosition hooks installed")
     }
 
@@ -226,7 +241,10 @@ object IconPositionHooker : StaticHooker() {
         return runCatching {
             val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
             val wasActive = duoContainers[container] == true
-            if (wasActive == active && (!active || duoSlots.all { it in ignored })) return true
+            if (wasActive == active && (!active || duoSlots.all { it in ignored })) {
+                if (active) hideNativeMobileChildren(container)
+                return true
+            }
             val state = synchronized(stateLock) {
                 containerStates[container] ?: ContainerState(stableStrings(ignored)).also {
                     containerStates[container] = it
@@ -237,12 +255,24 @@ object IconPositionHooker : StaticHooker() {
                 surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy
             )
             restoreIgnoredSlots(container, base)
+            if (active) hideNativeMobileChildren(container)
             (container as? android.view.View)?.requestLayout()
             val result = ignoredSlotsField?.get(container) as? List<*> ?: return false
             if (active) duoSlots.all { it in result } else result == base
         }.getOrElse {
             DebugLog.w(TAG, "Duo container mask failed", it)
             false
+        }
+    }
+
+    /** Modern mobile has an independent binder/alpha path; ignoredSlots alone can leave it drawn. */
+    private fun hideNativeMobileChildren(container: Any) {
+        val group = container as? android.view.ViewGroup ?: return
+        val type = mobileViewClass ?: return
+        val method = mobileVisibleState ?: return
+        for (index in 0 until group.childCount) {
+            val child = group.getChildAt(index)
+            if (type.isInstance(child)) method.invoke(child, 2, false)
         }
     }
 
