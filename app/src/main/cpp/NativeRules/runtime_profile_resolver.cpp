@@ -23,7 +23,6 @@ constexpr char kMotionRawY[] = "input_MotionEvent_getRawY";
 constexpr char kRuntimeIncStrong[] = "Runtime_inc_strong";
 constexpr char kRuntimeGetBinder[] =
         "Runtime_get_application_thread_binder";
-constexpr char kRuntimeGetContext[] = "Runtime_get_context";
 constexpr char kRuntimeDecStrong[] = "Runtime_dec_strong";
 constexpr char kBundleDefault[] = "Bundle_default";
 constexpr char kIntentSetAction[] = "Intent_set_action";
@@ -1072,6 +1071,37 @@ bool ResolveModernRuntime(const ElfView& view, const RequiredImports& imports,
                     offset < 8u) {
                 continue;
             }
+            // Newer callers borrow the global Runtime directly. Require the
+            // same acquire-loaded state and pointer independently proven by
+            // the unique strong-reference helper above; a nearby singleton
+            // or an unguarded pointer load is not a confirmation.
+            uintptr_t borrowed_state = 0u;
+            uintptr_t borrowed_page = 0u;
+            uintptr_t borrowed_immediate = 0u;
+            uint32_t borrowed_branch = 0u;
+            uint32_t borrowed_load = 0u;
+            uint32_t borrowed_adrp = 0u;
+            if (offset >= 0x18u &&
+                    DecodeAddressPair(view, offset - 0x18u, 8u,
+                                      &borrowed_state) &&
+                    borrowed_state == matched_state &&
+                    InstructionEquals(view, offset - 0x10u, 0x88dffd08u) &&
+                    ReadInstruction(view, offset - 0x0cu, &borrowed_branch) &&
+                    (borrowed_branch & 0xff00001fu) == 0x35000008u &&
+                    // The non-ready branch must skip the entire borrowed use.
+                    ((borrowed_branch >> 5u) & 0x7ffffu) > 3u &&
+                    ((borrowed_branch >> 5u) & 0x7ffffu) < 0x40000u &&
+                    ReadInstruction(view, offset - 8u, &borrowed_adrp) &&
+                    DecodeAdrp(borrowed_adrp, offset - 8u, 8u,
+                               &borrowed_page) &&
+                    ReadInstruction(view, offset - 4u, &borrowed_load) &&
+                    DecodeLdr64Immediate(borrowed_load, 0u, 8u,
+                                         &borrowed_immediate) &&
+                    !AddOverflows(borrowed_page, borrowed_immediate) &&
+                    borrowed_page + borrowed_immediate == matched_pointer) {
+                ++confirmations;
+                continue;
+            }
             uintptr_t called_helper = 0u;
             uint32_t saved_register = 0u;
             uint32_t instruction = 0u;
@@ -1089,66 +1119,7 @@ bool ResolveModernRuntime(const ElfView& view, const RequiredImports& imports,
         }
     }
     if (confirmation_count != nullptr) *confirmation_count = confirmations;
-    if (confirmations >= kMinimumRuntimeConfirmations &&
-            pointer_offset != nullptr && state_offset != nullptr) {
-        *pointer_offset = matched_pointer;
-        *state_offset = matched_state;
-        return true;
-    }
-
-    // Newer HYOS launcher builds keep the same unique acquire helper and
-    // pointer/state pair, but consume the retained Runtime through
-    // Runtime_get_context instead of Runtime_get_application_thread_binder.
-    // Keep the proof entirely structural: the call must immediately follow a
-    // move of the helper result and the same function must release that
-    // retained Runtime through Runtime_dec_strong within a bounded window.
-    uintptr_t runtime_get_context = 0u;
-    if (!FindImportGot(view, kRuntimeGetContext, &runtime_get_context)) {
-        return false;
-    }
-    uint32_t context_confirmations = 0u;
-    for (size_t segment_index = 0u; segment_index < view.load_count;
-         ++segment_index) {
-        const LoadSegment& load = view.loads[segment_index];
-        if ((load.flags & (PF_R | PF_X)) != (PF_R | PF_X) ||
-                load.end - load.start < 0x0cu) {
-            continue;
-        }
-        const uintptr_t start = (load.start + 3u) & ~uintptr_t{3u};
-        for (uintptr_t context_call = start;
-             context_call <= load.end - 0x0cu; context_call += 4u) {
-            if (!CallTargetsImport(view, context_call,
-                                   runtime_get_context) ||
-                    context_call < 8u) {
-                continue;
-            }
-            uintptr_t called_helper = 0u;
-            uint32_t saved_register = 0u;
-            uint32_t instruction = 0u;
-            if (!DecodeBlTarget(view, context_call - 8u, &called_helper) ||
-                    called_helper != helper ||
-                    !ReadInstruction(view, context_call - 4u, &instruction) ||
-                    !DecodeMovXFromX0(instruction, &saved_register)) {
-                continue;
-            }
-            const uintptr_t release_end = context_call > UINTPTR_MAX - 0x100u
-                    ? load.end : context_call + 0x100u;
-            bool release_seen = false;
-            for (uintptr_t release_call = context_call + 4u;
-                 release_call <= release_end && release_call <= load.end - 4u;
-                 release_call += 4u) {
-                if (CallTargetsImport(view, release_call,
-                                       imports.runtime_dec_strong)) {
-                    release_seen = true;
-                    break;
-                }
-            }
-            if (release_seen) ++context_confirmations;
-        }
-    }
-    if (confirmation_count != nullptr) *confirmation_count =
-            context_confirmations;
-    if (context_confirmations < kMinimumRuntimeConfirmations ||
+    if (confirmations < kMinimumRuntimeConfirmations ||
             pointer_offset == nullptr || state_offset == nullptr) {
         return false;
     }
