@@ -5,7 +5,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -114,6 +116,43 @@ bool ReadConfigFlag(const char* key, bool fallback) {
             const char value = cursor[key_length + 1u];
             if (value == '1') return true;
             if (value == '0') return false;
+        }
+        cursor = end != nullptr ? end + 1 : nullptr;
+    }
+    return fallback;
+}
+
+int32_t ReadConfigInt(const char* key, int32_t fallback) {
+    if (key == nullptr) return fallback;
+    const char* path = __atomic_load_n(&g_channel, __ATOMIC_ACQUIRE);
+    if (path == nullptr || strcmp(path, "unprobed") == 0 ||
+            strcmp(path, "none_readable") == 0) {
+        return fallback;
+    }
+    char contents[kMaxFileSize];
+    if (!ReadFile(path, contents, sizeof(contents))) return fallback;
+    const size_t key_length = strlen(key);
+    const char* cursor = contents;
+    while (cursor != nullptr && *cursor != '\0') {
+        const char* end = strchr(cursor, '\n');
+        const size_t length = end != nullptr ? static_cast<size_t>(end - cursor)
+                                             : strlen(cursor);
+        if (length <= kMaxLineLength && length > key_length + 1u &&
+            strncmp(cursor, key, key_length) == 0 && cursor[key_length] == '=') {
+            const size_t value_length = length - key_length - 1u;
+            if (value_length == 0u || value_length > kMaxLineLength) {
+                cursor = end != nullptr ? end + 1 : nullptr;
+                continue;
+            }
+            char value[kMaxLineLength + 1u]{};
+            memcpy(value, cursor + key_length + 1u, value_length);
+            char* parsed_end = nullptr;
+            errno = 0;
+            const long long parsed = strtoll(value, &parsed_end, 10);
+            if (errno == 0 && parsed_end != value && *parsed_end == '\0' &&
+                    parsed >= INT32_MIN && parsed <= INT32_MAX) {
+                return static_cast<int32_t>(parsed);
+            }
         }
         cursor = end != nullptr ? end + 1 : nullptr;
     }

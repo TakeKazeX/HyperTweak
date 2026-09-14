@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace hypertweak::native {
 
@@ -26,6 +27,10 @@ void ProbeConfigChannel();
 // Reads `key=<0|1>` from the selected channel. Returns `fallback` when no
 // channel is readable or the key is absent.
 bool ReadConfigFlag(const char* key, bool fallback);
+
+// Reads `key=<signed integer>` from the selected channel. Returns `fallback`
+// when no channel is readable, the key is absent, or the value is malformed.
+int32_t ReadConfigInt(const char* key, int32_t fallback);
 
 // The channel currently in use, or a static reason string. For status output.
 const char* ConfigChannelPath();

@@ -1,5 +1,6 @@
 #include "lsposed_hook_backend.h"
 #include "clear_button_rule.h"
+#include "folder_columns_rule.h"
 #include "dart_runtime_resolver.h"
 #include "dart_state_publication.h"
 #include "launcher_profiles.h"
@@ -599,6 +600,7 @@ void ResetDartStateOwnerForProcess(int32_t process_pid) {
 void ResetDartStateOwnerAfterFork() {
     ResetDartStateOwnerForProcess(static_cast<int32_t>(getpid()));
     hypertweak::native::ResetClearButtonStateAfterFork();
+    hypertweak::native::ResetFolderColumnsStateAfterFork();
 }
 
 bool EnsureDartStateOwnerForCurrentProcess() {
@@ -3267,6 +3269,7 @@ void* HookLauncherDlopenForSlot(
             }
         }
         hypertweak::native::OnClearButtonLibraryLoaded(filename, result);
+        hypertweak::native::OnFolderColumnsLibraryLoaded(filename, result);
     }
     return result;
 }
@@ -3322,6 +3325,8 @@ void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
     }
     TryInstallLoadedDartDrawerStateHook(profile);
     hypertweak::native::MaintainClearButtonRuleOnActionDown(
+            g_dart_app_handle);
+    hypertweak::native::MaintainFolderColumnsRuleOnActionDown(
             g_dart_app_handle);
 }
 
@@ -4908,6 +4913,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
         }
     }
     hypertweak::native::OnClearButtonLibraryLoaded(name, handle);
+    hypertweak::native::OnFolderColumnsLibraryLoaded(name, handle);
     TryInstallArbiterBridge();
 }
 
@@ -4985,6 +4991,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
         return nullptr;
     }
     hypertweak::native::RefreshClearButtonConfig();
+    hypertweak::native::RefreshFolderColumnsConfig();
     uint32_t atfork_expected = 0u;
     if (__atomic_compare_exchange_n(
                 &g_dart_state_atfork_state, &atfork_expected, uint32_t{1},

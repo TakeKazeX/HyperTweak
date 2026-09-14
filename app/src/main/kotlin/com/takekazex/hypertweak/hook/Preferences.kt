@@ -929,11 +929,26 @@ object Preferences {
      */
     const val KEY_HIDE_RECENTS_CLEAR_BUTTON = "hide_recents_clear_button"
 
+    /**
+     * Number of application columns in an opened MiuiHome folder. Three preserves the launcher's
+     * native behavior; four and five are applied by the native Dart AOT rule after a launcher
+     * restart. This does not affect the small folder preview on the desktop.
+     */
+    const val KEY_OPENED_FOLDER_COLUMNS = "opened_folder_columns"
+    const val DEFAULT_OPENED_FOLDER_COLUMNS = 3
+    const val MIN_OPENED_FOLDER_COLUMNS = 3
+    const val MAX_OPENED_FOLDER_COLUMNS = 5
+
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+
+    fun openedFolderColumns(): Int = getInt(
+        KEY_OPENED_FOLDER_COLUMNS,
+        DEFAULT_OPENED_FOLDER_COLUMNS
+    ).coerceIn(MIN_OPENED_FOLDER_COLUMNS, MAX_OPENED_FOLDER_COLUMNS)
 
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =

@@ -1119,6 +1119,14 @@
     <string name="settings_recents_clear_button_section">Recents</string>
     <string name="settings_recents_clear_button_title">Hide the “Clean up” button in Recents</string>
     <string name="settings_recents_clear_button_summary">Removes the clean-up-background-apps button from the multitasking screen. Requires HyperTweak\'s com.miui.home scope in LSPosed, and applies after the launcher restarts</string>
+    <string name="settings_opened_folder_section">Opened folder</string>
+    <string name="settings_opened_folder_columns_title">App columns in opened folders</string>
+    <string name="settings_opened_folder_columns_summary">Choose how many app icons appear in each row after opening a folder. This does not change the desktop folder preview; restart Xiaomi System Launcher after changing</string>
+    <string name="settings_opened_folder_columns_default">System default (currently 3 columns)</string>
+    <string name="settings_opened_folder_columns_four">4 columns</string>
+    <string name="settings_opened_folder_columns_five">5 columns</string>
+    <string name="settings_opened_folder_restart_title">Restart Xiaomi System Launcher</string>
+    <string name="settings_opened_folder_restart_summary">Apply the opened-folder grid column setting now</string>
     <string name="settings_disable_video_ringback_title">Disable Video Ringback</string>
     <string name="settings_disable_video_ringback_summary">Disable video ringback and reveal its native switch</string>
 

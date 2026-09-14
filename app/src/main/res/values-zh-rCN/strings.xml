@@ -1115,6 +1115,14 @@
     <string name="settings_recents_clear_button_section">最近任务</string>
     <string name="settings_recents_clear_button_title">隐藏最近任务里的「清理后台」按钮</string>
     <string name="settings_recents_clear_button_summary">从多任务界面移除清理后台按钮。需先在 LSPosed 里给 HyperTweak 勾选 com.miui.home 作用域，并重启桌面后生效</string>
+    <string name="settings_opened_folder_section">打开文件夹</string>
+    <string name="settings_opened_folder_columns_title">打开文件夹后的图标列数</string>
+    <string name="settings_opened_folder_columns_summary">选择打开文件夹后每行显示的应用图标数量。不影响桌面上的文件夹小预览，修改后需重启小米桌面</string>
+    <string name="settings_opened_folder_columns_default">跟随系统（当前 3 列）</string>
+    <string name="settings_opened_folder_columns_four">4 列</string>
+    <string name="settings_opened_folder_columns_five">5 列</string>
+    <string name="settings_opened_folder_restart_title">重启小米桌面</string>
+    <string name="settings_opened_folder_restart_summary">立即应用打开文件夹后的网格列数设置</string>
     <string name="settings_disable_video_ringback_title">关闭视频彩铃</string>
     <string name="settings_disable_video_ringback_summary">关闭视频彩铃并显示系统原生开关</string>
 

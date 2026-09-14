@@ -9,8 +9,9 @@ import java.io.File
  *
  * LSPosed injects only the *native* payload into `com.miui.home`: the launcher's package carries no
  * dex, so the module's Java never runs there and the payload cannot read the module's preferences.
- * The switches therefore reach it as a small file that the payload polls, which also means a change
- * takes effect without restarting the launcher.
+ * The settings therefore reach it as a small file that the payload reads during native
+ * initialization. Launcher-side AOT rules are deliberately installed before their target code is
+ * used, so changing one of these settings requires restarting the launcher.
  *
  * The launcher runs as `platform_app`. Probing on OS4.0.0.25 showed it can read shared external
  * storage but not app-private storage, the app-specific external directory (`Android/data/<pkg>` is
@@ -26,15 +27,29 @@ import java.io.File
  */
 object NativeRuleConfig {
     const val KEY_HIDE_RECENTS_CLEAR = "hide_recents_clear"
+    const val KEY_OPENED_FOLDER_COLUMNS = "opened_folder_columns"
     private const val FILE_NAME = "hypertweak_native.conf"
 
     /** Writes the current value of every native rule to each supported channel. */
     @Suppress("DEPRECATION")
-    fun publish(context: Context, hideRecentsClearButton: Boolean) {
+    fun publish(
+        context: Context,
+        hideRecentsClearButton: Boolean,
+        openedFolderColumns: Int = Preferences.openedFolderColumns()
+    ) {
         val contents = buildString {
             append(KEY_HIDE_RECENTS_CLEAR)
             append('=')
             append(if (hideRecentsClearButton) '1' else '0')
+            append('\n')
+            append(KEY_OPENED_FOLDER_COLUMNS)
+            append('=')
+            append(
+                openedFolderColumns.coerceIn(
+                    Preferences.MIN_OPENED_FOLDER_COLUMNS,
+                    Preferences.MAX_OPENED_FOLDER_COLUMNS
+                )
+            )
             append('\n')
         }
         context.getExternalMediaDirs().orEmpty().forEach { directory ->
