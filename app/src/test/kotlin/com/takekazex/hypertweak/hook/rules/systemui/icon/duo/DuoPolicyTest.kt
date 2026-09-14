@@ -33,12 +33,10 @@ class DuoPolicyTest {
         assertNull(DuoPolicy.content(battery, mobile().reduce(MobileSignalEvent.ActiveDataSubId(999)), cellular))
     }
 
-    @Test fun hostWifiLevelWinsOverTheDefaultTransport() {
-        // A VPN hides the Wi-Fi transport from the default-network callback, so a non-null host
-        // Wi-Fi level is the authoritative signal for showing the Wi-Fi layer.
+    @Test fun connectedWifiCannotOverrideDefaultCellularTransport() {
         val result = DuoPolicy.content(battery, mobile(), cellular.copy(wifiLevel = 4))!!
-        assertEquals(4, result.wifiLevel)
-        assertNull(result.networkLabel)
+        assertNull(result.wifiLevel)
+        assertEquals("5G-A", result.networkLabel)
         assertEquals(4, result.mobileLevel)
     }
 
@@ -53,9 +51,9 @@ class DuoPolicyTest {
     @Test fun unknownWifiOrDefaultTransportRestoresNativeInsteadOfGuessing() {
         // Wi-Fi transport without a host level means the host model is not ready yet.
         assertNull(DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.WIFI, true)))
-        // A known host Wi-Fi level still renders, whatever the default transport reports.
+        // A radio strength value cannot invent a default route.
         for (type in listOf(DuoTransport.NONE, DuoTransport.UNKNOWN, DuoTransport.OTHER)) {
-            assertEquals(4, DuoPolicy.content(battery, mobile(), DuoNetwork(type, true, 4))?.wifiLevel)
+            assertNull(DuoPolicy.content(battery, mobile(), DuoNetwork(type, true, 4)))
         }
     }
 
@@ -63,19 +61,37 @@ class DuoPolicyTest {
         val connectedMobile = mobile()
             .reduce(MobileSignalEvent.InService(11, true))
             .reduce(MobileSignalEvent.DataConnected(11, true))
-        val connected = DuoPolicy.content(battery, connectedMobile, DuoNetwork(DuoTransport.VPN, true))!!
+        val connected = DuoPolicy.content(battery, connectedMobile, DuoNetwork(DuoTransport.VPN, true, wifiDefault = false))!!
         assertEquals("5G-A", connected.networkLabel)
         assertFalse(connected.noInternet)
 
         // Without a host data connection the VPN path cannot confirm cellular, so fall back.
         val idle = mobile().reduce(MobileSignalEvent.DataConnected(11, false))
-        assertNull(DuoPolicy.content(battery, idle, DuoNetwork(DuoTransport.VPN, true))?.networkLabel)
+        assertNull(DuoPolicy.content(battery, idle, DuoNetwork(DuoTransport.VPN, true, wifiDefault = false))?.networkLabel)
 
         // No default data network is a supported Duo state, not a fallback.
         val offline = mobile().reduce(MobileSignalEvent.InService(11, false))
         val noService = DuoPolicy.content(battery, offline, DuoNetwork(DuoTransport.NONE, false))!!
         assertTrue(noService.noService)
         assertFalse(noService.noInternet)
+    }
+
+    @Test fun vpnUsesHostDefaultRouteRatherThanWifiAssociation() {
+        val data = mobile().reduce(MobileSignalEvent.DataConnected(11, true))
+        val wifi = DuoPolicy.content(battery, data, DuoNetwork(DuoTransport.VPN, true, 3, true))!!
+        assertEquals(3, wifi.wifiLevel)
+        val cell = DuoPolicy.content(battery, data, DuoNetwork(DuoTransport.VPN, true, 3, false))!!
+        assertNull(cell.wifiLevel)
+        assertEquals("5G-A", cell.networkLabel)
+        assertNull(DuoPolicy.content(battery, data, DuoNetwork(DuoTransport.VPN, true, 3)))
+    }
+
+    @Test fun collapsedProxyAlwaysMatchesHomeInBothPanelModes() {
+        for (style in DuoExpandedStyle.entries) {
+            assertTrue(DuoPolicy.replaces(DuoSurface.COLLAPSED_PROXY, style))
+            assertTrue(DuoPolicy.replaces(DuoSurface.HOME, style))
+        }
+        assertFalse(DuoPolicy.replaces(DuoSurface.EXPANDED, DuoExpandedStyle.RESTORE_NATIVE))
     }
 
     @Test fun noServiceAndZeroBarsAreDifferent() {

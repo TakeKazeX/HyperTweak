@@ -1,7 +1,11 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import android.animation.ValueAnimator
+import android.view.animation.LinearInterpolator
 import android.content.Context
+import androidx.core.view.isVisible
+import android.graphics.Matrix
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.RectF
@@ -46,12 +50,14 @@ object DuoSignalHooker : StaticHooker() {
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var enabled = false
     @Volatile private var epoch = 0
+    private var panelProgress = 1f
     private var expandedStyle = DuoExpandedStyle.RESTORE_NATIVE
     private var mobile = MobileSignalState()
     private var network = DuoNetwork()
     private var connectivity: ConnectivityManager? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var currentNetwork: Network? = null
+    private var networkPending: Runnable? = null
     private var batteryLayoutField: Field? = null
     private var statusIconsField: Field? = null
     private var visibilityMethod: Method? = null
@@ -72,6 +78,12 @@ object DuoSignalHooker : StaticHooker() {
         var privacyView: View? = null
         val privacyRect = RectF()
         var privacyInset = 0
+        val panelMotion = DuoPanelMotion()
+        val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
+            battery.resources.getIdentifier(it, "id", battery.context.packageName)
+        }
+        var missingSince = -1L
+        var expiry: Runnable? = null
         var active = false
         var failed = false
         var reconciling = false
@@ -83,10 +95,45 @@ object DuoSignalHooker : StaticHooker() {
     private class DuoView(context: Context) : View(context) {
         val icon = DuoDrawable().also { it.callback = this }
         var drawFailed: (() -> Unit)? = null
+        private val previousIcon = DuoDrawable()
+        private var blend = 1f
+        private var animator: ValueAnimator? = null
+
+        fun submit(content: DuoContent) {
+            val old = icon.content
+            if (old == content) return
+            icon.content = content
+            // Signal strength and charge updates remain immediate; only a change of network
+            // representation crossfades. No layout or host visibility mutations in the animator.
+            if (old != null && ((old.wifiLevel != null) != (content.wifiLevel != null) ||
+                    old.networkLabel != content.networkLabel || old.airplaneMode != content.airplaneMode)) {
+                animator?.cancel()
+                previousIcon.content = old
+                blend = if (ValueAnimator.areAnimatorsEnabled()) 0f else 1f
+                if (blend == 0f) animator = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 160L
+                    interpolator = LinearInterpolator()
+                    addUpdateListener { blend = it.animatedValue as Float; invalidate() }
+                    start()
+                }
+            }
+        }
+
+        fun finishTransition() {
+            animator?.cancel()
+            animator = null
+            blend = 1f
+            previousIcon.content = null
+        }
+
+        override fun onDetachedFromWindow() {
+            finishTransition()
+            super.onDetachedFromWindow()
+        }
         override fun verifyDrawable(who: android.graphics.drawable.Drawable): Boolean = who === icon || super.verifyDrawable(who)
         /** The carrier takes the retained battery's box in full; the drawable fits its glyph. */
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val desired = (26f * resources.displayMetrics.density).roundToInt()
+            val desired = (24f * resources.displayMetrics.density).roundToInt()
             // WRAP_CONTENT must report an intrinsic desired size. Feeding MeasureSpec.getSize()
             // back into resolveSize() makes an AT_MOST spec consume the parent's whole allowance.
             // position() aligns the box with the current parent's end edge once active.
@@ -97,7 +144,17 @@ object DuoSignalHooker : StaticHooker() {
         }
         override fun onDraw(canvas: Canvas) {
             icon.setBounds(paddingLeft, 0, width - paddingRight, height)
-            runCatching { icon.draw(canvas) }.onFailure { drawFailed?.invoke() }
+            runCatching {
+                if (blend < 1f) {
+                    previousIcon.hideNetwork = icon.hideNetwork
+                    previousIcon.bounds = icon.bounds
+                    previousIcon.foreground = icon.foreground
+                    previousIcon.alpha = ((1f - blend) * 255).toInt()
+                    previousIcon.draw(canvas)
+                }
+                icon.alpha = (blend * 255).toInt()
+                icon.draw(canvas)
+            }.onFailure { drawFailed?.invoke() }
         }
     }
 
@@ -168,6 +225,7 @@ object DuoSignalHooker : StaticHooker() {
                 if (binding.active) param.args[0] = false
             }
         }
+        hookProxyCompensation()
         hookWifi()
         DebugLog.hookRegistered(TAG, "OS4 battery container, expanded=$expandedStyle")
     }
@@ -177,7 +235,7 @@ object DuoSignalHooker : StaticHooker() {
     /** Reuses the existing mobile reducer; collector-only mode never masks native mobile flows. */
     fun onMobileState(state: MobileSignalState, ready: Boolean) {
         if (!enabled) return
-        val next = if (ready) state else MobileSignalState()
+        val next = if (ready || state.airplaneMode) state else MobileSignalState()
         if (mobile == next) return
         mobile = next
         refresh()
@@ -219,7 +277,7 @@ object DuoSignalHooker : StaticHooker() {
         }
         binding.observer = parent.viewTreeObserver
         binding.preDraw = ViewTreeObserver.OnPreDrawListener {
-            guarded { reconcile(binding) }
+            guarded { reconcile(binding); updatePanelBinding(binding) }
             // This listener observes one icon. It must never veto the whole shade/window frame,
             // including while the host expansion animation keeps requesting layout.
             true
@@ -234,8 +292,8 @@ object DuoSignalHooker : StaticHooker() {
             when (current.javaClass.name) {
                 "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView" -> return DuoSurface.HOME
                 "com.android.systemui.qs.MiuiQSHeaderView",
-                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon",
-                "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons" -> return DuoSurface.EXPANDED
+                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon" -> return DuoSurface.EXPANDED
+                "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons" -> return DuoSurface.COLLAPSED_PROXY
             }
             node = current.parent
         }
@@ -249,7 +307,7 @@ object DuoSignalHooker : StaticHooker() {
         if (parent.width <= 0 || parent.height <= 0) return
         val box = DuoLayout.box(parent.width, parent.height, parent.paddingLeft, parent.paddingTop,
             parent.paddingRight, parent.paddingBottom,
-            (26f * view.resources.displayMetrics.density).roundToInt(), view.paddingStart + view.paddingEnd,
+            (24f * view.resources.displayMetrics.density).roundToInt(), view.paddingStart + view.paddingEnd,
             parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         view.measure(View.MeasureSpec.makeMeasureSpec(box.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(box.height, View.MeasureSpec.EXACTLY))
@@ -268,18 +326,19 @@ object DuoSignalHooker : StaticHooker() {
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
             val charging = read(battery, "mCharging") as? Boolean
             val powerSave = read(battery, "mPowerSave") as? Boolean
-            val content = if (percent != null && charging != null && powerSave != null)
+            val freshContent = if (percent != null && charging != null && powerSave != null)
                 DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) else null
+            val content = presentationContent(binding, freshContent)
             val privacyState = read(binding.parent, "mPrivacyState")?.toString()
             val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
             val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&
-                (charging == true || read(battery, "mIsAddBatteryIsland") == false) && read(battery, "mIsAodAnimate") != true
+                read(battery, "mIsAodAnimate") != true
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
                 !DuoPolicy.replaces(surface(battery), expandedStyle)) {
                 restore(binding)
                 return
             }
-            binding.view.icon.content = content
+            binding.view.submit(content)
             binding.view.icon.foreground = foreground(binding)
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
@@ -331,6 +390,112 @@ object DuoSignalHooker : StaticHooker() {
             restore(binding)
             DebugLog.w(TAG, "container failed; restored native", error)
         } finally { binding.reconciling = false }
+    }
+
+    /** Keep a valid picture briefly while independent host flows finish a handover. */
+    private fun presentationContent(binding: Binding, fresh: DuoContent?): DuoContent? {
+        if (fresh != null) {
+            binding.missingSince = -1L
+            binding.expiry?.let(main::removeCallbacks)
+            binding.expiry = null
+            return fresh
+        }
+        if (!binding.active) return null
+        val now = android.os.SystemClock.uptimeMillis()
+        if (binding.missingSince < 0L) {
+            binding.missingSince = now
+            val token = epoch
+            binding.expiry = Runnable {
+                if (enabled && token == epoch && bindings[binding.battery] === binding) guarded { reconcile(binding) }
+            }.also { main.postDelayed(it, DuoHandover.GRACE_MS) }
+        }
+        return binding.view.icon.content.takeIf { DuoHandover.keepPrevious(binding.missingSince, now) }
+    }
+
+    /** Reuse the actual panel progress, but anchor Duo to Duo rather than native signal widths. */
+    private fun hookProxyCompensation() {
+        val type = "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1".toClassOrNull() ?: return
+        val method = type.declaredMethods.singleOrNull {
+            it.name == "onExpansionChanged" && it.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType))
+        } ?: return
+        deoptimize(method)
+        method.hook { after { param -> guarded {
+            val progress = param.args.getOrNull(0) as? Float ?: return@guarded
+            if (progress !in 0f..1f) return@guarded
+            panelProgress = progress
+            bindings.values.toList().forEach(::updatePanelBinding)
+        } } }
+    }
+
+    private fun ancestor(view: View, name: String): View? {
+        var node: View? = view
+        while (node != null) {
+            if (node.javaClass.name == name) return node
+            node = node.parent as? View
+        }
+        return null
+    }
+
+    private val panelMatrix = Matrix()
+    private val panelPoint = FloatArray(2)
+    private fun screenRight(view: View): Float {
+        panelMatrix.reset()
+        view.transformMatrixToGlobal(panelMatrix)
+        panelPoint[0] = view.width.toFloat()
+        panelPoint[1] = view.height / 2f
+        panelMatrix.mapPoints(panelPoint)
+        return panelPoint[0]
+    }
+
+    private fun updatePanelBinding(binding: Binding) {
+        if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
+        fun clear() {
+            binding.panelMotion.clear()
+            if (binding.view.icon.hideNetwork) { binding.view.icon.hideNetwork = false; binding.view.invalidate() }
+        }
+        if (!binding.active) { clear(); return }
+        val proxyRoot = ancestor(binding.view,
+            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons") ?: return
+        val home = bindings.values.firstOrNull { it.active && it.surface == DuoSurface.HOME &&
+            it.view.isLaidOut && it.view.display?.displayId == binding.view.display?.displayId }
+        val expanded = bindings.values.firstOrNull { it.surface == DuoSurface.EXPANDED &&
+            it.parent.rootView === binding.parent.rootView && ancestor(it.battery,
+                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") != null }
+        if (home == null || expanded == null || binding.view.width <= 0) { clear(); return }
+        val target = if (expanded.active) expanded.view else expanded.battery
+        if (!target.isLaidOut || target.width <= 0) { clear(); return }
+        val expandedRoot = ancestor(target,
+            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") ?: return
+        val endpoint = screenRight(target) - expandedRoot.translationX
+        val desired = DuoPanelGeometry.mix(screenRight(home.view), endpoint, panelProgress)
+        // Correct measured endpoint error, including padding/old native-holder width. Reading the
+        // current transformed position makes this idempotent even when pre-draw runs twice.
+        proxyRoot.translationX += desired - screenRight(binding.view)
+        val content = binding.view.icon.content
+        if (expandedStyle == DuoExpandedStyle.KEEP_DUO || content == null || content.airplaneMode ||
+            panelProgress <= 0f || panelProgress >= 1f) { clear(); return }
+        val native = nativeNetworkView(expanded, content.wifiLevel != null)
+        val root = proxyRoot.rootView as? ViewGroup
+        if (native == null || root == null) { clear(); return }
+        val hidden = binding.panelMotion.update(root, home.view, native, content,
+            binding.view.icon.foreground, panelProgress)
+        if (binding.view.icon.hideNetwork != hidden) {
+            binding.view.icon.hideNetwork = hidden
+            binding.view.invalidate()
+        }
+    }
+
+    private fun nativeNetworkView(binding: Binding, wifi: Boolean): View? {
+        fun byId(root: View, name: String): View? = binding.networkIds[name]?.takeIf { it != 0 }
+            ?.let { root.findViewById<View>(it) }?.takeIf { it.isVisible && it.width > 0 }
+        if (wifi) return byId(binding.icons, "wifi_signal")
+        val group = binding.icons as? ViewGroup ?: return null
+        for (i in 0 until group.childCount) {
+            val child = group.getChildAt(i)
+            if (child.isVisible && read(child, "subId") == mobile.activeDataSubId)
+                return byId(child, "mobile_type") ?: byId(child, "mobile_signal")
+        }
+        return null
     }
 
     /** Follow host Folme transforms without creating another animator or cancelling frames. */
@@ -424,6 +589,12 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun restore(binding: Binding) {
+        binding.panelMotion.clear()
+        binding.view.icon.hideNetwork = false
+        binding.expiry?.let(main::removeCallbacks)
+        binding.expiry = null
+        binding.missingSince = -1L
+        binding.view.finishTransition()
         setPrivacyInset(binding, 0)
         binding.view.translationX = 0f
         IconPositionHooker.setDuoMask(binding.icons, false)
@@ -466,9 +637,13 @@ object DuoSignalHooker : StaticHooker() {
         if (wifiInteractor === interactor && wifiHandles.isNotEmpty()) return
         wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
         wifiScope = scope; wifiInteractor = interactor; wifiContext = context.applicationContext
-        network = network.copy(wifiLevel = null)
+        network = network.copy(wifiLevel = null, wifiDefault = null)
         ensureConnectivity(context)
         val token = epoch
+        HostFlowCollector.collect(scope, read(interactor, "isDefault"), { value ->
+            network = network.copy(wifiDefault = value as? Boolean)
+            refresh()
+        }, { enabled && token == epoch })?.let(wifiHandles::add)
         val wifiMax = (context.getSystemService(WifiManager::class.java)?.maxSignalLevel ?: 4).coerceAtLeast(1)
         HostFlowCollector.collect(scope, read(interactor, "wifiNetwork"), { value ->
             val level = if (value?.javaClass?.name?.endsWith("WifiNetworkModel\$Active") == true)
@@ -488,11 +663,20 @@ object DuoSignalHooker : StaticHooker() {
             override fun onAvailable(value: Network) {
                 if (!enabled || token != epoch) return
                 currentNetwork = value
-                network = network.copy(transport = DuoTransport.UNKNOWN, validated = false)
-                refresh()
+                // Capabilities follow onAvailable. Keep the previous representation for this
+                // bounded handover instead of exposing the native cluster between callbacks.
+                networkPending?.let(main::removeCallbacks)
+                networkPending = Runnable {
+                    if (enabled && token == epoch && currentNetwork == value) {
+                        network = network.copy(transport = DuoTransport.UNKNOWN, validated = false)
+                        refresh()
+                    }
+                }.also { main.postDelayed(it, 200L) }
             }
             override fun onCapabilitiesChanged(value: Network, caps: NetworkCapabilities) {
                 if (!enabled || token != epoch || currentNetwork != value) return
+                networkPending?.let(main::removeCallbacks)
+                networkPending = null
                 network = network.copy(transport = when {
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> DuoTransport.WIFI
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> DuoTransport.CELLULAR
@@ -503,6 +687,8 @@ object DuoSignalHooker : StaticHooker() {
             }
             override fun onLost(value: Network) {
                 if (!enabled || token != epoch || currentNetwork != value) return
+                networkPending?.let(main::removeCallbacks)
+                networkPending = null
                 currentNetwork = null
                 network = network.copy(transport = DuoTransport.NONE, validated = false)
                 refresh()
@@ -551,6 +737,8 @@ object DuoSignalHooker : StaticHooker() {
         onMainBlocking {
             bindings.keys.toList().forEach(::detach)
             callback?.let { listener -> runCatching { connectivity?.unregisterNetworkCallback(listener) } }
+            networkPending?.let(main::removeCallbacks)
+            networkPending = null
             callback = null; connectivity = null; currentNetwork = null
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null

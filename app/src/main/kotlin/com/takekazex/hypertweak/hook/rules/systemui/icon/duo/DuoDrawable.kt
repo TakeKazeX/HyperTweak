@@ -36,6 +36,8 @@ class DuoDrawable : Drawable() {
 
     var foreground: Int = Color.WHITE
         set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var networkOnly = false
+    var hideNetwork = false
     var content: DuoContent? = null
         set(value) { if (field != value) { field = value; invalidateSelf() } }
 
@@ -51,14 +53,15 @@ class DuoDrawable : Drawable() {
                 bounds.top + (bounds.height() - side) / 2f
             )
             canvas.scale(side / VIEWPORT, side / VIEWPORT)
-            drawPowerTrack(canvas, state)
+            if (!networkOnly) drawPowerTrack(canvas, state)
             if (state.airplaneMode) {
-                drawAirplane(canvas)
+                if (!hideNetwork) drawAirplane(canvas)
             } else {
-                if (state.wifiLevel != null) drawWifi(canvas, state.wifiLevel) else drawNetworkLabel(canvas, state)
-                drawSignalDots(canvas, state)
-                if (state.noService) drawNoService(canvas)
-                if (state.noInternet) drawNoInternet(canvas)
+                if (!hideNetwork) {
+                    if (state.wifiLevel != null) drawWifi(canvas, state.wifiLevel) else drawNetworkLabel(canvas, state)
+                }
+                if (!networkOnly) drawSignalDots(canvas, state)
+                if (!hideNetwork && state.noInternet) drawNoInternet(canvas)
             }
         } finally {
             canvas.restoreToCount(save)
@@ -198,13 +201,6 @@ class DuoDrawable : Drawable() {
         }
     }
 
-    private fun drawNoService(canvas: Canvas) {
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = NO_SERVICE_STROKE
-        colorOf(foreground)
-        canvas.drawLine(9.8f, 22.6f, 22.2f, 17.2f, paint)
-    }
-
     private fun drawNoInternet(canvas: Canvas) {
         paint.style = Paint.Style.FILL
         colorOf(foreground)
@@ -219,8 +215,8 @@ class DuoDrawable : Drawable() {
     }
 
     override fun setAlpha(alpha: Int) {
-        opacity = alpha.coerceIn(0, 255)
-        invalidateSelf()
+        val next = alpha.coerceIn(0, 255)
+        if (opacity != next) { opacity = next; invalidateSelf() }
     }
 
     // Semantic battery colours are deliberately exempt from a whole-icon colour filter.
@@ -266,7 +262,6 @@ class DuoDrawable : Drawable() {
         const val LABEL_MAX_WIDTH = 17.0f
         const val LABEL_CENTER_Y = 15.9f
 
-        const val NO_SERVICE_STROKE = 1.50f
         const val NO_INTERNET_TEXT_SIZE = 6.2f
 
         const val SIGNAL_DOT_COUNT = 4
