@@ -21,21 +21,41 @@ extern "C" void HyperTweakRecentsClearButtonInsertHook();
 namespace hypertweak::native {
 namespace {
 
-// Verified against MiuiHome RELEASE-8.01.02.6264 (libapp.so, Dart 3.10.1).
-// The function target remains fail-closed on the verified snapshot; the
-// upstream framework owns image discovery and lifecycle repair.
+// Verified against MiuiHome RELEASE-8.01.02.6264 and 7653 (libapp.so, Dart
+// 3.10.1). The upstream framework owns image discovery and lifecycle repair;
+// this table only describes the feature target for each verified snapshot.
 constexpr char kDartLibraryName[] = "libapp.so";
-constexpr uint8_t kDartBuildId[16] = {
+constexpr uint8_t kDartBuildId6264[16] = {
     0x4f, 0x1b, 0xda, 0xed, 0xdc, 0x7d, 0x86, 0x06,
     0xde, 0x7d, 0x3e, 0xbc, 0x69, 0x99, 0x4a, 0x81,
 };
-constexpr uintptr_t kInsertClearButtonOverlayVa = 0x01354b74u;
+constexpr uint8_t kDartBuildId7653[16] = {
+    0x4f, 0x1b, 0xda, 0xed, 0xd4, 0x7b, 0xeb, 0x4e,
+    0xde, 0x7d, 0x3e, 0xbc, 0xd2, 0x92, 0x50, 0x4e,
+};
 constexpr uint8_t kInsertClearButtonOverlayPrologue[16] = {
     0xfd, 0x79, 0xbf, 0xa9, 0xfd, 0x03, 0x0f, 0xaa,
     0xef, 0xe1, 0x00, 0xd1, 0xa1, 0x83, 0x1f, 0xf8,
 };
 constexpr size_t kDartBuildNoteHeaderSize = 16u;
 constexpr char kHideClearButtonKey[] = "hide_recents_clear";
+
+struct ClearButtonProfile {
+    const char* id;
+    const uint8_t* build_id;
+    uintptr_t target_rva;
+    const uint8_t* target_prologue;
+    size_t target_prologue_size;
+};
+
+constexpr ClearButtonProfile kClearButtonProfiles[] = {
+    {"6264", kDartBuildId6264, 0x01354b74u,
+            kInsertClearButtonOverlayPrologue,
+            sizeof(kInsertClearButtonOverlayPrologue)},
+    {"7653", kDartBuildId7653, 0x013f0e54u,
+            kInsertClearButtonOverlayPrologue,
+            sizeof(kInsertClearButtonOverlayPrologue)},
+};
 
 volatile uint32_t g_hidden = 0u;
 volatile uint32_t g_installed = 0u;
@@ -78,43 +98,61 @@ bool IsDartLibraryPath(const char* path) {
 struct DartTarget {
     uint8_t* base;
     uintptr_t address;
+    const ClearButtonProfile* profile;
 };
+
+const ClearButtonProfile* FindClearButtonProfile(const uint8_t* build_id) {
+    if (build_id == nullptr) return nullptr;
+    for (const auto& profile : kClearButtonProfiles) {
+        if (memcmp(build_id, profile.build_id, sizeof(kDartBuildId6264)) == 0) {
+            return &profile;
+        }
+    }
+    return nullptr;
+}
 
 bool ResolveDartTarget(void* handle, DartTarget* output) {
     if (handle == nullptr || output == nullptr) return false;
     output->base = nullptr;
     output->address = 0u;
+    output->profile = nullptr;
 
     const uint8_t* build_id = nullptr;
     uint8_t* base = nullptr;
     if (!MiuiHomeHyosResolveDartImage(handle, &base, &build_id) ||
-            base == nullptr || build_id == nullptr ||
-            memcmp(build_id + kDartBuildNoteHeaderSize, kDartBuildId,
-                   sizeof(kDartBuildId)) != 0) {
+            base == nullptr || build_id == nullptr) {
         SetReason("build_id_mismatch");
         return false;
     }
-    if (kInsertClearButtonOverlayVa > UINTPTR_MAX -
+    const ClearButtonProfile* profile = FindClearButtonProfile(
+            build_id + kDartBuildNoteHeaderSize);
+    if (profile == nullptr) {
+        SetReason("build_id_mismatch");
+        return false;
+    }
+    if (profile->target_rva > UINTPTR_MAX -
             reinterpret_cast<uintptr_t>(base)) {
         SetReason("target_overflow");
         return false;
     }
     if (!MiuiHomeHyosDartRangeHasFlags(
-                base, kInsertClearButtonOverlayVa,
-                sizeof(kInsertClearButtonOverlayPrologue), PF_R | PF_X)) {
+                base, profile->target_rva, profile->target_prologue_size,
+                PF_R | PF_X)) {
         SetReason("target_unmapped");
         return false;
     }
     output->base = base;
     output->address = reinterpret_cast<uintptr_t>(base) +
-            kInsertClearButtonOverlayVa;
+            profile->target_rva;
+    output->profile = profile;
     return true;
 }
 
-bool MatchesTargetPrologue(uintptr_t target) {
-    return memcmp(reinterpret_cast<const void*>(target),
-                  kInsertClearButtonOverlayPrologue,
-                  sizeof(kInsertClearButtonOverlayPrologue)) == 0;
+bool MatchesTargetPrologue(const DartTarget& target) {
+    if (target.address == 0u || target.profile == nullptr) return false;
+    return memcmp(reinterpret_cast<const void*>(target.address),
+                  target.profile->target_prologue,
+                  target.profile->target_prologue_size) == 0;
 }
 
 void* ResolveHandleForApply(void* supplied_handle, bool* close_handle) {
@@ -186,14 +224,15 @@ bool ApplyClearButtonRule(void* dart_handle) {
     const bool same_target = installed &&
             __atomic_load_n(&g_target_address, __ATOMIC_ACQUIRE) ==
                     current.address;
-    const bool original_prologue = MatchesTargetPrologue(current.address);
+    const bool original_prologue = MatchesTargetPrologue(current);
     if (installed && same_target && !original_prologue) {
         SetReason("installed");
         return true;
     }
     if (!original_prologue) {
         SetReason("prologue_mismatch");
-        LogWarn("_insertClearButtonOverlay prologue mismatch at 0x%zx; not patching",
+        LogWarn("_insertClearButtonOverlay prologue mismatch for %s at 0x%zx; not patching",
+                current.profile == nullptr ? "unknown" : current.profile->id,
                 static_cast<size_t>(current.address));
         return false;
     }
@@ -221,7 +260,8 @@ bool ApplyClearButtonRule(void* dart_handle) {
     g_target = reinterpret_cast<void*>(current.address);
     __atomic_store_n(&g_installed, uint32_t{1}, __ATOMIC_RELEASE);
     SetReason("installed");
-    LogInfo("clear button rule installed; recents overlay insertion is suppressed");
+    LogInfo("clear button rule installed for %s; recents overlay insertion is suppressed",
+            current.profile == nullptr ? "unknown" : current.profile->id);
     return true;
 }
 

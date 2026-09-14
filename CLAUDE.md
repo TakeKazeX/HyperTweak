@@ -20,7 +20,7 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 
 ## Task references
 
-Native AOT identity: `_kDartSnapshotBuildId` points to the 32-byte GNU note (16-byte header followed by the 16-byte ID), not the ID alone. The upstream Dart resolver validates this note and the mapped executable ranges before feature code reads the target prologue. Current clear-button offsets remain pinned to the verified snapshot; launcher lifecycle and remap handling come from the upstream framework.
+Native AOT identity: `_kDartSnapshotBuildId` points to the 32-byte GNU note (16-byte header followed by the 16-byte ID), not the ID alone. The upstream Dart resolver validates this note and the mapped executable ranges before feature code reads the target prologue. Clear-button targets are a small allowlisted set of verified snapshot profiles; unknown builds fail closed. Launcher lifecycle and remap handling come from the upstream framework.
 - Validation, reverse engineering, release/device delivery, and Git: [.github/AGENT_WORKFLOWS.md](.github/AGENT_WORKFLOWS.md), relevant section only.
 - CI behavior: `.github/workflows/ci.yml` and `.github/workflows/release.yml`; published release-note format: [.github/release-notes/README.md](.github/release-notes/README.md).
 - Local feature mechanisms, baseline hashes, and regressions: `docs/FEATURE_DETAIL.md`, searched by feature or symbol. `docs/` is git-ignored and may be absent in another checkout; its dated findings are not automatically the current device baseline.
