@@ -83,6 +83,16 @@ fun ExperimentalFeaturesPage(
     var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
     var launcherRestartPending by rememberSaveable { mutableStateOf(false) }
 
+    // Notification switches. 恢复更多通知设置 repairs a shell in each of the two processes that own
+    // notification settings (the channel page in com.android.settings, the status-bar silent-notification
+    // filter in com.android.systemui); the other two are single-process. Each affected process gets
+    // its own restart prompt.
+    var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
+    var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
+    var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
+    var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
+    var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
+
     fun requestLauncherRestart() {
         launcherRestartPending = true
         requestRestartScopes(RestartScopeSelection(miuiHome = true))
@@ -269,6 +279,114 @@ fun ExperimentalFeaturesPage(
                         title = stringResource(R.string.settings_recents_clear_button_title),
                         summary = stringResource(R.string.settings_recents_clear_button_summary)
                     )
+                }
+            }
+
+            // Notification behavior: repairs to the notification settings HyperOS ships as shells.
+            // The first one spans both processes that own them, so the whole group is listed here
+            // rather than behind the platform gate above (none of it needs OS4-only resources).
+            SmallTitle(stringResource(R.string.experimental_features_section_notification))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    // 1) 恢复更多通知设置 — a code repair in two processes: the channel page's
+                    //    「重要性」 dropdown (com.android.settings) and the status-bar silent-notification
+                    //    filter (com.android.systemui). The latter has no switch of its own: it only
+                    //    makes the stock 「隐藏状态栏中的静音通知」 switch work, and whether silent
+                    //    icons are hidden stays whatever the user sets there.
+                    SwitchPreference(
+                        checked = notifMoreSettings,
+                        onCheckedChange = { value ->
+                            notifMoreSettings = value
+                            Preferences.putBoolean(
+                                Preferences.KEY_NOTIFICATION_MORE_SETTINGS,
+                                value
+                            )
+                            Preferences.flush()
+                            notifSettingsRestartPending = true
+                            notifSystemUiRestartPending = true
+                            requestRestartScopes(
+                                RestartScopeSelection(settings = true, systemUi = true)
+                            )
+                        },
+                        title = stringResource(
+                            R.string.experimental_notification_more_settings_title
+                        ),
+                        summary = stringResource(
+                            R.string.experimental_notification_more_settings_summary
+                        )
+                    )
+                    // 2) 通知角标 — the same defect and the same fix, for 「显示角标」.
+                    SwitchPreference(
+                        checked = notifBadge,
+                        onCheckedChange = { value ->
+                            notifBadge = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BADGE, value)
+                            Preferences.flush()
+                            notifSettingsRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(settings = true))
+                        },
+                        title = stringResource(R.string.experimental_notification_badge_title),
+                        summary = stringResource(R.string.experimental_notification_badge_summary)
+                    )
+                    // 3) 禁止折叠通知 — reuse the ROM's own international-build master switch.
+                    SwitchPreference(
+                        checked = notifBlockFold,
+                        onCheckedChange = { value ->
+                            notifBlockFold = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BLOCK_FOLD, value)
+                            Preferences.flush()
+                            notifSystemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                        },
+                        title = stringResource(
+                            R.string.experimental_notification_block_fold_title
+                        ),
+                        summary = stringResource(
+                            R.string.experimental_notification_block_fold_summary
+                        )
+                    )
+                    // 4) 隐藏状态栏中的静音通知 has no switch here on purpose: repairing `isSilent`
+                    //    (part of 恢复更多通知设置) only makes the stock switch functional, and that
+                    //    switch already has a value the user controls in the stock notification
+                    //    settings page (隐藏功能 → 通知设置). The module never forces that value.
+                    if (notifSettingsRestartPending) {
+                        val restartSelection = RestartScopeSelection(settings = true)
+                        ArrowPreference(
+                            title = stringResource(
+                                R.string.experimental_notification_restart_settings_title
+                            ),
+                            summary = stringResource(
+                                R.string.experimental_notification_restart_settings_summary
+                            ),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                notifSettingsRestartPending = false
+                            }
+                        )
+                    }
+                    if (notifSystemUiRestartPending) {
+                        val restartSelection = RestartScopeSelection(systemUi = true)
+                        ArrowPreference(
+                            title = stringResource(R.string.aosp_restart_system_ui),
+                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                notifSystemUiRestartPending = false
+                            }
+                        )
+                    }
                 }
             }
 

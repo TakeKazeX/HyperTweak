@@ -774,6 +774,15 @@
     <string name="experimental_features_section">实验性选项</string>
     <string name="experimental_features_back">返回</string>
     <string name="experimental_features_notes">这些开关仍在开发中，可能无法在所有设备上生效</string>
+    <string name="experimental_features_section_notification">通知</string>
+    <string name="experimental_notification_more_settings_title">恢复更多通知设置</string>
+    <string name="experimental_notification_more_settings_summary">重新显示通知渠道的「重要性」下拉并让它真正能保存，同时让系统的「隐藏状态栏中的静音通知」开关重新生效（HyperOS 把两者都做成了没有写回逻辑的空壳）</string>
+    <string name="experimental_notification_badge_title">通知角标</string>
+    <string name="experimental_notification_badge_summary">重新显示渠道的「显示角标」复选框，并让它真正能保存（与「重要性」同一个毛病）</string>
+    <string name="experimental_notification_block_fold_title">禁止折叠通知</string>
+    <string name="experimental_notification_block_fold_summary">通知不再被折叠进「历史通知」（与国际版行为一致）</string>
+    <string name="experimental_notification_restart_settings_title">重启设置</string>
+    <string name="experimental_notification_restart_settings_summary">立即应用通知渠道页的更改</string>
     <string name="google_services_title">Google 服务</string>
     <string name="google_services_back">返回</string>
     <string name="settings_fingerprint_avoid_always">始终避让</string>

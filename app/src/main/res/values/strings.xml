@@ -778,6 +778,15 @@
     <string name="experimental_features_section">Experimental options</string>
     <string name="experimental_features_back">Back</string>
     <string name="experimental_features_notes">These switches are still in development and may not work on every device</string>
+    <string name="experimental_features_section_notification">Notifications</string>
+    <string name="experimental_notification_more_settings_title">Restore More Notification Settings</string>
+    <string name="experimental_notification_more_settings_summary">Show the channel \"Importance\" dropdown again and make it actually save, and make the system \"hide silent notifications\" switch work again (HyperOS ships both as shells with no write-back)</string>
+    <string name="experimental_notification_badge_title">Notification Badges</string>
+    <string name="experimental_notification_badge_summary">Show the channel \"Show badge\" checkbox again and make it actually save (same defect as Importance)</string>
+    <string name="experimental_notification_block_fold_title">Block Notification Folding</string>
+    <string name="experimental_notification_block_fold_summary">Never move notifications into the \"history\" section (the same behavior as the international build)</string>
+    <string name="experimental_notification_restart_settings_title">Restart Settings</string>
+    <string name="experimental_notification_restart_settings_summary">Apply the notification channel page changes now</string>
     <string name="google_services_title">Google Services</string>
     <string name="google_services_back">Back</string>
     <string name="settings_fingerprint_avoid_always">Always Avoid</string>

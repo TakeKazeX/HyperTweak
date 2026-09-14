@@ -31,6 +31,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHo
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.systemui.NotificationBlockFoldHooker
+import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -79,6 +81,8 @@ import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHook
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
+import com.takekazex.hypertweak.hook.rules.settings.NotificationMoreSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.NotificationBadgeSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
 import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
@@ -696,6 +700,11 @@ class HookEntry : XposedModule() {
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+                // Notification fold suppression (its own switch) and the status-bar "silent
+                // notification" filter repair, which rides on the 恢复更多通知设置 switch and has no
+                // preference of its own — it only makes the stock system switch work again.
+                attachHooker(NotificationBlockFoldHooker, classLoader, ctx, replacementHandles)
+                attachHooker(StatusBarHideSilentHooker, classLoader, ctx, replacementHandles)
                 // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
@@ -746,6 +755,10 @@ class HookEntry : XposedModule() {
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
                 attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
+                // Reveal + wire up the channel page's importance drop-down and badge checkbox
+                // (HyperOS ships both as shells with no write-back listener).
+                attachHooker(NotificationMoreSettingsHooker, classLoader, ctx, replacementHandles)
+                attachHooker(NotificationBadgeSettingsHooker, classLoader, ctx, replacementHandles)
                 // Restore Settings' own Google services home-page header on domestic builds.
                 attachHooker(GoogleServicesSettingsHooker, classLoader, ctx, replacementHandles)
             }

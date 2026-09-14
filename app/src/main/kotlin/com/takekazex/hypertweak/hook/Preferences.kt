@@ -383,6 +383,43 @@ object Preferences {
      */
     const val KEY_LOCKSCREEN_KEEP_NOTIFICATIONS = "lockscreen_keep_notifications"
 
+    // ─── Notification channel page + fold / silent status-bar filters (experimental 通知) ───
+
+    /**
+     * 恢复更多通知设置: repairs the notification settings HyperOS ships as shells, in both processes
+     * that own them.
+     *
+     * - Settings (`NotificationMoreSettingsHooker`): puts the channel details page's 「重要性」
+     *   dropdown back and — the part HyperOS never shipped — wires up its write-back listener.
+     *   `removeDefaultPrefs()` removes the drop-down, `BaseNotificationSettings.mImportance` is never
+     *   assigned, and the ROM's own listener class is dead code (the AOSP variant does not even
+     *   contain it), so revealing the row alone leaves it unable to save.
+     * - SystemUI (`StatusBarHideSilentHooker`): repairs `ActiveNotificationsStoreBuilder.toModel`'s
+     *   `isSilent`, which MIUI's empty `RankingCoordinatorInjectorImpl` stub pins to false, so AOSP's
+     *   `importance < IMPORTANCE_DEFAULT(3)` filter starts working.
+     *
+     * Both are code repairs rather than behavior switches: each restores the stock control the ROM
+     * already has (the channel 「重要性」 dropdown, the system 「隐藏状态栏中的静音通知」 switch, which
+     * the user reaches through 隐藏功能 → 通知设置) and leaves that control's value alone. Requires a
+     * Settings and a SystemUI restart to install.
+     */
+    const val KEY_NOTIFICATION_MORE_SETTINGS = "notification_more_settings"
+
+    /**
+     * 通知角标: the same defect as [KEY_NOTIFICATION_MORE_SETTINGS], for the channel page's
+     * 「显示角标」 checkbox (key `setting_badge`, field `mBadge`). Read by
+     * `NotificationBadgeSettingsHooker` at hook-install time; requires a Settings restart.
+     */
+    const val KEY_NOTIFICATION_BADGE = "notification_badge"
+
+    /**
+     * 禁止折叠通知: forces `MiuiBaseNotifUtil.shouldSuppressFold()` to true, i.e. the international
+     * build's "never fold" behavior. That single ROM gate is consulted by ~35 call sites covering
+     * every fold entry point. Read by `NotificationBlockFoldHooker` at hook-install time; requires
+     * a SystemUI restart.
+     */
+    const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
+
     /**
      * Removes the Super Island notification whitelist (SystemUI): hooks
      * `NotificationSettingsManager.canShowFocusState` / `canShowFocusStateApp` to treat every
@@ -949,6 +986,12 @@ object Preferences {
         KEY_OPENED_FOLDER_COLUMNS,
         DEFAULT_OPENED_FOLDER_COLUMNS
     ).coerceIn(MIN_OPENED_FOLDER_COLUMNS, MAX_OPENED_FOLDER_COLUMNS)
+
+    fun notificationMoreSettings(): Boolean = getBoolean(KEY_NOTIFICATION_MORE_SETTINGS, false)
+
+    fun notificationBadge(): Boolean = getBoolean(KEY_NOTIFICATION_BADGE, false)
+
+    fun notificationBlockFold(): Boolean = getBoolean(KEY_NOTIFICATION_BLOCK_FOLD, false)
 
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =
