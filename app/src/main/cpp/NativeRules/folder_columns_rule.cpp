@@ -2,6 +2,7 @@
 #include "folder_columns_rule.h"
 
 #include "clear_button_rule.h"
+#include "dart_rule_support.h"
 #include "logging.h"
 #include "lsposed_hook_backend.h"
 #include "native_config.h"
@@ -32,92 +33,31 @@ extern "C" void HyperTweakFolderPreviewSetItemsHook();
 namespace hypertweak::native {
 namespace {
 
-// These profiles are verified against the exact Dart AOT snapshots stored in
-// /Users/ink/developer/reverse/:
-//   6264: 1723fc1114a70c88f863d509d6f6183a5bc217b9d5dd0b806aa2c7eeb0d7650c
-//   7653: a747a7ef8c65cde838b1d8e9686af437e4e08b88446725e6c892e764182ad33c
-// The upstream framework still owns image discovery, lifecycle, and remap
-// handling; this table only describes this feature's exact target.
+// Targets are found structurally, not by build id: a launcher update relocates
+// them, and the registry re-derives each one from instruction shape and
+// call-graph relationships. See dart_targets.cpp for the evidence and
+// dart_rule_support.h for the boundary. No RVA appears in this file.
 constexpr char kDartLibraryName[] = "libapp.so";
-constexpr size_t kDartBuildIdSize = 16u;
-constexpr size_t kDartBuildNoteHeaderSize = 16u;
 constexpr char kFolderColumnsKey[] = "opened_folder_columns";
 constexpr int32_t kDefaultFolderColumns = 3;
 constexpr int32_t kMinFolderColumns = 3;
 constexpr int32_t kMaxFolderColumns = 5;
 constexpr size_t kPreviewTargetCount = 3u;
 
-constexpr uint8_t kDartBuildId6264[kDartBuildIdSize] = {
-    0x4f, 0x1b, 0xda, 0xed, 0xdc, 0x7d, 0x86, 0x06,
-    0xde, 0x7d, 0x3e, 0xbc, 0x69, 0x99, 0x4a, 0x81,
-};
-constexpr uint8_t kDartBuildId7653[kDartBuildIdSize] = {
-    0x4f, 0x1b, 0xda, 0xed, 0xd4, 0x7b, 0xeb, 0x4e,
-    0xde, 0x7d, 0x3e, 0xbc, 0xd2, 0x92, 0x50, 0x4e,
-};
+// Registry site names, shared by the resolution look-ups, the hook table and the
+// diagnostics so they cannot drift apart.
+constexpr char kSiteGridReturn[] = "grid_return";
+constexpr char kSitePreviewIcon[] = "preview_icon";
+constexpr char kSitePreviewItems[] = "preview_items";
+constexpr char kSitePreviewSetItems[] = "preview_set_items";
+constexpr char kSitePreviewContinuation[] = "preview_continuation";
 
-// The following four-instruction epilogues are stable across the verified
-// snapshots. Hooking at the epilogue leaves the complete original Getter body
-// (including its state/cache reads) intact for folder open/close animation.
-constexpr uint8_t kFolderGridReturnEpilogue[16] = {
-    0x00, 0x18, 0x00, 0x91, 0xef, 0x03, 0x1d, 0xaa,
-    0xfd, 0x79, 0xc1, 0xa8, 0xc0, 0x03, 0x5f, 0xd6,
-};
-
-constexpr uint8_t kPreviewIconReturnEpilogue[16] = {
-    0xe0, 0x03, 0x01, 0xaa, 0xef, 0x03, 0x1d, 0xaa,
-    0xfd, 0x79, 0xc1, 0xa8, 0xc0, 0x03, 0x5f, 0xd6,
-};
-constexpr uint8_t kPreviewItemsReturnEpilogue[16] = {
-    0x20, 0x7c, 0x01, 0x9b, 0xef, 0x03, 0x1d, 0xaa,
-    0xfd, 0x79, 0xc1, 0xa8, 0xc0, 0x03, 0x5f, 0xd6,
-};
-constexpr uint8_t kPreviewSetItemsReadPrologue6264[16] = {
-    0x40, 0x3f, 0x40, 0xf9, 0x00, 0xac, 0x63, 0xf9,
-    0x70, 0x23, 0x40, 0xf9, 0x1f, 0x00, 0x10, 0x6b,
-};
-constexpr uint8_t kPreviewSetItemsReadPrologue7653[16] = {
-    0x40, 0x3f, 0x40, 0xf9, 0x00, 0xc0, 0x64, 0xf9,
-    0x70, 0x23, 0x40, 0xf9, 0x1f, 0x00, 0x10, 0x6b,
-};
-
-struct FolderColumnsTarget {
-    uintptr_t rva;
-    const uint8_t* prologue;
-    size_t prologue_size;
-};
-
-struct FolderColumnsProfile {
-    const char* id;
-    const uint8_t* build_id;
-    FolderColumnsTarget grid_return;
-    FolderColumnsTarget preview_icon;
-    FolderColumnsTarget preview_items;
-    FolderColumnsTarget preview_set_items_read;
-    uintptr_t preview_set_items_continuation_rva;
-};
-
-constexpr FolderColumnsProfile kFolderColumnsProfiles[] = {
-    {"6264", kDartBuildId6264,
-            {0x00930404u, kFolderGridReturnEpilogue,
-                    sizeof(kFolderGridReturnEpilogue)},
-            {0x01781de8u, kPreviewIconReturnEpilogue,
-                    sizeof(kPreviewIconReturnEpilogue)},
-            {0x01782778u, kPreviewItemsReturnEpilogue,
-                    sizeof(kPreviewItemsReturnEpilogue)},
-            {0x0152dcb4u, kPreviewSetItemsReadPrologue6264,
-                    sizeof(kPreviewSetItemsReadPrologue6264)},
-            0x0152dcd4u},
-    {"7653", kDartBuildId7653,
-            {0x008fec50u, kFolderGridReturnEpilogue,
-                    sizeof(kFolderGridReturnEpilogue)},
-            {0x0182e840u, kPreviewIconReturnEpilogue,
-                    sizeof(kPreviewIconReturnEpilogue)},
-            {0x0182f538u, kPreviewItemsReturnEpilogue,
-                    sizeof(kPreviewItemsReturnEpilogue)},
-            {0x015e4d20u, kPreviewSetItemsReadPrologue7653,
-                    sizeof(kPreviewSetItemsReadPrologue7653)},
-            0x015e4d40u},
+// The three preview sites, in the order PreviewReplacement() expects: icon,
+// item-count, item-list.
+constexpr const char* kPreviewSites[kPreviewTargetCount] = {
+    kSitePreviewIcon,
+    kSitePreviewItems,
+    kSitePreviewSetItems,
 };
 
 volatile int32_t g_requested_columns = kDefaultFolderColumns;
@@ -160,82 +100,71 @@ bool IsDartLibraryPath(const char* path) {
     return strcmp(basename, kDartLibraryName) == 0;
 }
 
+// A resolved target: image base, the per-site addresses, and the resolution
+// itself so the apply path can re-check the bytes it is about to patch.
 struct DartTarget {
     uint8_t* base;
-    uintptr_t address;
-    const FolderColumnsProfile* profile;
+    uintptr_t address;              // grid return epilogue
+    uintptr_t preview[kPreviewTargetCount];
+    uintptr_t preview_continuation;
+    DartResolution resolution;
 };
-
-const FolderColumnsProfile* FindFolderColumnsProfile(
-        const uint8_t* build_id) {
-    if (build_id == nullptr) return nullptr;
-    for (const auto& profile : kFolderColumnsProfiles) {
-        if (memcmp(build_id, profile.build_id, kDartBuildIdSize) == 0) {
-            return &profile;
-        }
-    }
-    return nullptr;
-}
 
 bool ResolveDartTarget(void* handle, DartTarget* output) {
     if (handle == nullptr || output == nullptr) return false;
     output->base = nullptr;
     output->address = 0u;
-    output->profile = nullptr;
+    output->preview_continuation = 0u;
+    for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
+        output->preview[index] = 0u;
+    }
+    output->resolution = DartResolution{};
 
-    const uint8_t* build_id = nullptr;
-    uint8_t* base = nullptr;
-    if (!MiuiHomeHyosResolveDartImage(handle, &base, &build_id) ||
-            base == nullptr || build_id == nullptr) {
-        SetReason("build_id_mismatch");
+    if (!ResolveDartSites(handle, dart::kFolderColumnsTarget,
+                          &output->resolution)) {
+        SetReason(output->resolution.reason);
+        if (output->resolution.failing_site != nullptr) {
+            LogWarn("opened folder columns target unresolved: %s (%s site %s)",
+                    output->resolution.reason, dart::kFolderColumnsTarget.id,
+                    output->resolution.failing_site);
+        }
         return false;
     }
-    const FolderColumnsProfile* profile = FindFolderColumnsProfile(
-            build_id + kDartBuildNoteHeaderSize);
-    if (profile == nullptr) {
-        SetReason("build_id_mismatch");
+    output->base = output->resolution.base;
+    output->address = output->resolution.Find(kSiteGridReturn);
+    output->preview_continuation =
+            output->resolution.Find(kSitePreviewContinuation);
+    for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
+        output->preview[index] = output->resolution.Find(kPreviewSites[index]);
+    }
+    // Find() returns 0 for a missing name. The registry resolves every required
+    // site or fails, so a zero here means the spec and this table disagree.
+    if (output->address == 0u || output->preview_continuation == 0u) {
+        SetReason("dart_site_missing");
         return false;
     }
-    if (profile->grid_return.rva > UINTPTR_MAX -
-            reinterpret_cast<uintptr_t>(base)) {
-        SetReason("target_overflow");
-        return false;
+    for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
+        if (output->preview[index] == 0u) {
+            SetReason("dart_site_missing");
+            return false;
+        }
     }
-    if (!MiuiHomeHyosDartRangeHasFlags(
-                base, profile->grid_return.rva,
-                profile->grid_return.prologue_size,
-                PF_R | PF_X)) {
-        SetReason("target_unmapped");
-        return false;
-    }
-    output->base = base;
-    output->address = reinterpret_cast<uintptr_t>(base) +
-            profile->grid_return.rva;
-    output->profile = profile;
     return true;
 }
 
-bool ResolveDartRange(const DartTarget& dart, uintptr_t rva, size_t size,
-                      uintptr_t* address) {
-    if (dart.base == nullptr || address == nullptr ||
-            rva > UINTPTR_MAX - reinterpret_cast<uintptr_t>(dart.base) ||
-            !MiuiHomeHyosDartRangeHasFlags(
-                    dart.base, rva, size, PF_R | PF_X)) {
-        return false;
+// True while the original bytes are still in place at `site`. After the inline
+// hook is installed they are not, which is how an already-patched target -- and a
+// relocation after a launcher remap -- are told apart.
+bool IsOriginalBytesPresent(const DartResolution& resolution,
+                            const char* site_name) {
+    for (size_t index = 0u; index < resolution.site_count; ++index) {
+        const ResolvedDartSite& site = resolution.sites[index];
+        if (site.name == nullptr || strcmp(site.name, site_name) != 0) continue;
+        if (site.address == 0u || site.verify.bytes == nullptr) return false;
+        return dart::MatchPatternAtAddress(site.address + site.verify_delta,
+                                           site.verify);
     }
-    *address = reinterpret_cast<uintptr_t>(dart.base) + rva;
-    return true;
-}
-
-bool ResolveTargetAddress(const DartTarget& dart, const FolderColumnsTarget& target,
-                          uintptr_t* address) {
-    return ResolveDartRange(dart, target.rva, target.prologue_size, address);
-}
-
-bool MatchesTargetPrologue(uintptr_t address, const FolderColumnsTarget& target) {
-    return address != 0u &&
-            memcmp(reinterpret_cast<const void*>(address),
-                   target.prologue, target.prologue_size) == 0;
+    return false;
 }
 
 void* PreviewReplacement(size_t index) {
@@ -358,31 +287,15 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
     if (!resolved) return false;
     if (handle != nullptr && !close_handle) g_last_dart_handle = handle;
 
-    const FolderColumnsProfile& profile = *current.profile;
-    const FolderColumnsTarget* preview_targets[kPreviewTargetCount] = {
-        &profile.preview_icon,
-        &profile.preview_items,
-        &profile.preview_set_items_read,
-    };
+    // Addresses come straight from the registry, which already proved each site
+    // unique and verified its bytes. Copying them into a local array keeps the
+    // comparison below readable.
     uintptr_t preview_addresses[kPreviewTargetCount] = {};
     for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
-        if (!ResolveTargetAddress(current, *preview_targets[index],
-                                  &preview_addresses[index])) {
-            SetReason("preview_target_unmapped");
-            LogWarn("opened folder preview target %zu is unmapped for %s; not patching",
-                    index, profile.id);
-            return false;
-        }
+        preview_addresses[index] = current.preview[index];
     }
-    uintptr_t preview_set_items_continuation = 0u;
-    if (!ResolveDartRange(
-                current, profile.preview_set_items_continuation_rva,
-                sizeof(uint32_t), &preview_set_items_continuation)) {
-        SetReason("preview_continuation_unmapped");
-        LogWarn("opened folder preview continuation is unmapped for %s; not patching",
-                profile.id);
-        return false;
-    }
+    const uintptr_t preview_set_items_continuation =
+            current.preview_continuation;
 
     bool same_installation = installed &&
             g_target == reinterpret_cast<void*>(current.address);
@@ -391,13 +304,16 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
                 g_preview_targets[index] ==
                         reinterpret_cast<void*>(preview_addresses[index]);
     }
+    // Every site our hook overwrites must now differ from its original bytes;
+    // otherwise part of the installation was lost and it has to be redone.
     bool all_targets_patched = same_installation &&
-            !MatchesTargetPrologue(current.address, profile.grid_return);
-    for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
-        all_targets_patched = all_targets_patched &&
-                !MatchesTargetPrologue(preview_addresses[index],
-                                       *preview_targets[index]);
-    }
+            !IsOriginalBytesPresent(current.resolution, kSiteGridReturn);
+    all_targets_patched = all_targets_patched &&
+            !IsOriginalBytesPresent(current.resolution, kSitePreviewIcon);
+    all_targets_patched = all_targets_patched &&
+            !IsOriginalBytesPresent(current.resolution, kSitePreviewItems);
+    all_targets_patched = all_targets_patched &&
+            !IsOriginalBytesPresent(current.resolution, kSitePreviewSetItems);
     if (all_targets_patched) {
         SetReason("installed");
         return true;
@@ -411,20 +327,21 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
         SetReason("remap_detected");
     }
 
-    if (!MatchesTargetPrologue(current.address, profile.grid_return)) {
-        SetReason("prologue_mismatch");
+    if (!IsOriginalBytesPresent(current.resolution, kSiteGridReturn)) {
+        SetReason("target_bytes_mismatch");
         LogWarn("GridController.folderGridViewCol return epilogue mismatch for %s at 0x%zx; not patching",
-                profile.id, static_cast<size_t>(current.address));
+                dart::kFolderColumnsTarget.id,
+                static_cast<size_t>(current.address));
         return false;
     }
     for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
-        if (MatchesTargetPrologue(preview_addresses[index],
-                                  *preview_targets[index])) {
+        if (IsOriginalBytesPresent(current.resolution, kPreviewSites[index])) {
             continue;
         }
-        SetReason("preview_prologue_mismatch");
-        LogWarn("opened folder preview target %zu prologue mismatch for %s at 0x%zx; not patching",
-                index, profile.id, static_cast<size_t>(preview_addresses[index]));
+        SetReason("preview_bytes_mismatch");
+        LogWarn("opened folder preview target %s mismatch for %s at 0x%zx; not patching",
+                kPreviewSites[index], dart::kFolderColumnsTarget.id,
+                static_cast<size_t>(preview_addresses[index]));
         return false;
     }
 
@@ -458,7 +375,7 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
     __atomic_store_n(&g_installed, uint32_t{1}, __ATOMIC_RELEASE);
     SetReason("installed");
     LogInfo("opened folder columns hook installed for %s: %d columns; preview held at 3",
-            profile.id, columns);
+            dart::kFolderColumnsTarget.id, columns);
     return true;
 }
 

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "clear_button_rule.h"
 
+#include "dart_rule_support.h"
 #include "logging.h"
 #include "lsposed_hook_backend.h"
 #include "native_config.h"
 
 #include <dlfcn.h>
-#include <elf.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -21,41 +21,16 @@ extern "C" void HyperTweakRecentsClearButtonInsertHook();
 namespace hypertweak::native {
 namespace {
 
-// Verified against MiuiHome RELEASE-8.01.02.6264 and 7653 (libapp.so, Dart
-// 3.10.1). The upstream framework owns image discovery and lifecycle repair;
-// this table only describes the feature target for each verified snapshot.
+// The target is found structurally, not by build id: a launcher update relocates
+// the function, and the registry re-derives it from instruction shape and
+// call-graph relationships. See dart_targets.cpp for the evidence and
+// dart_rule_support.h for the boundary. Nothing here carries an RVA.
 constexpr char kDartLibraryName[] = "libapp.so";
-constexpr uint8_t kDartBuildId6264[16] = {
-    0x4f, 0x1b, 0xda, 0xed, 0xdc, 0x7d, 0x86, 0x06,
-    0xde, 0x7d, 0x3e, 0xbc, 0x69, 0x99, 0x4a, 0x81,
-};
-constexpr uint8_t kDartBuildId7653[16] = {
-    0x4f, 0x1b, 0xda, 0xed, 0xd4, 0x7b, 0xeb, 0x4e,
-    0xde, 0x7d, 0x3e, 0xbc, 0xd2, 0x92, 0x50, 0x4e,
-};
-constexpr uint8_t kInsertClearButtonOverlayPrologue[16] = {
-    0xfd, 0x79, 0xbf, 0xa9, 0xfd, 0x03, 0x0f, 0xaa,
-    0xef, 0xe1, 0x00, 0xd1, 0xa1, 0x83, 0x1f, 0xf8,
-};
-constexpr size_t kDartBuildNoteHeaderSize = 16u;
 constexpr char kHideClearButtonKey[] = "hide_recents_clear";
 
-struct ClearButtonProfile {
-    const char* id;
-    const uint8_t* build_id;
-    uintptr_t target_rva;
-    const uint8_t* target_prologue;
-    size_t target_prologue_size;
-};
-
-constexpr ClearButtonProfile kClearButtonProfiles[] = {
-    {"6264", kDartBuildId6264, 0x01354b74u,
-            kInsertClearButtonOverlayPrologue,
-            sizeof(kInsertClearButtonOverlayPrologue)},
-    {"7653", kDartBuildId7653, 0x013f0e54u,
-            kInsertClearButtonOverlayPrologue,
-            sizeof(kInsertClearButtonOverlayPrologue)},
-};
+// Registry site name. Kept as a named constant so the lookup and the diagnostics
+// cannot drift apart.
+constexpr char kSiteInsertOverlay[] = "insert_overlay";
 
 volatile uint32_t g_hidden = 0u;
 volatile uint32_t g_installed = 0u;
@@ -95,64 +70,58 @@ bool IsDartLibraryPath(const char* path) {
     return strcmp(basename, kDartLibraryName) == 0;
 }
 
+// A resolved target: the image base, the absolute address to patch, and the
+// verification contract for the bytes that must be there.
 struct DartTarget {
     uint8_t* base;
     uintptr_t address;
-    const ClearButtonProfile* profile;
+    dart::BytePattern verify;
+    size_t verify_delta;
 };
-
-const ClearButtonProfile* FindClearButtonProfile(const uint8_t* build_id) {
-    if (build_id == nullptr) return nullptr;
-    for (const auto& profile : kClearButtonProfiles) {
-        if (memcmp(build_id, profile.build_id, sizeof(kDartBuildId6264)) == 0) {
-            return &profile;
-        }
-    }
-    return nullptr;
-}
 
 bool ResolveDartTarget(void* handle, DartTarget* output) {
     if (handle == nullptr || output == nullptr) return false;
     output->base = nullptr;
     output->address = 0u;
-    output->profile = nullptr;
+    output->verify = {nullptr, nullptr, 0u};
+    output->verify_delta = 0u;
 
-    const uint8_t* build_id = nullptr;
-    uint8_t* base = nullptr;
-    if (!MiuiHomeHyosResolveDartImage(handle, &base, &build_id) ||
-            base == nullptr || build_id == nullptr) {
-        SetReason("build_id_mismatch");
+    DartResolution resolution{};
+    if (!ResolveDartSites(handle, dart::kRecentsClearButtonTarget,
+                          &resolution)) {
+        // The reason is a static string chosen by the adapter; the failing site
+        // is static too, so both are safe to keep and log.
+        SetReason(resolution.reason);
+        if (resolution.failing_site != nullptr) {
+            LogWarn("clear button target unresolved: %s (%s site %s)",
+                    resolution.reason, dart::kRecentsClearButtonTarget.id,
+                    resolution.failing_site);
+        }
         return false;
     }
-    const ClearButtonProfile* profile = FindClearButtonProfile(
-            build_id + kDartBuildNoteHeaderSize);
-    if (profile == nullptr) {
-        SetReason("build_id_mismatch");
-        return false;
+    for (size_t index = 0u; index < resolution.site_count; ++index) {
+        const ResolvedDartSite& site = resolution.sites[index];
+        if (site.name == nullptr ||
+                strcmp(site.name, kSiteInsertOverlay) != 0) {
+            continue;
+        }
+        output->base = resolution.base;
+        output->address = site.address;
+        output->verify = site.verify;
+        output->verify_delta = site.verify_delta;
+        return true;
     }
-    if (profile->target_rva > UINTPTR_MAX -
-            reinterpret_cast<uintptr_t>(base)) {
-        SetReason("target_overflow");
-        return false;
-    }
-    if (!MiuiHomeHyosDartRangeHasFlags(
-                base, profile->target_rva, profile->target_prologue_size,
-                PF_R | PF_X)) {
-        SetReason("target_unmapped");
-        return false;
-    }
-    output->base = base;
-    output->address = reinterpret_cast<uintptr_t>(base) +
-            profile->target_rva;
-    output->profile = profile;
-    return true;
+    SetReason("dart_site_missing");
+    return false;
 }
 
-bool MatchesTargetPrologue(const DartTarget& target) {
-    if (target.address == 0u || target.profile == nullptr) return false;
-    return memcmp(reinterpret_cast<const void*>(target.address),
-                  target.profile->target_prologue,
-                  target.profile->target_prologue_size) == 0;
+// True while the original bytes are still in place. After the inline hook is
+// installed they are not, which is how an already-patched target -- and a
+// relocation of the target after a launcher remap -- are told apart.
+bool IsOriginalBytesPresent(const DartTarget& target) {
+    if (target.address == 0u || target.verify.bytes == nullptr) return false;
+    return dart::MatchPatternAtAddress(target.address + target.verify_delta,
+                                      target.verify);
 }
 
 void* ResolveHandleForApply(void* supplied_handle, bool* close_handle) {
@@ -224,15 +193,17 @@ bool ApplyClearButtonRule(void* dart_handle) {
     const bool same_target = installed &&
             __atomic_load_n(&g_target_address, __ATOMIC_ACQUIRE) ==
                     current.address;
-    const bool original_prologue = MatchesTargetPrologue(current);
-    if (installed && same_target && !original_prologue) {
+    // The target's original bytes are gone once our hook is written, so "stale
+    // bytes present" means the patch was lost and has to be reapplied.
+    const bool original_bytes_present = IsOriginalBytesPresent(current);
+    if (installed && same_target && !original_bytes_present) {
         SetReason("installed");
         return true;
     }
-    if (!original_prologue) {
-        SetReason("prologue_mismatch");
-        LogWarn("_insertClearButtonOverlay prologue mismatch for %s at 0x%zx; not patching",
-                current.profile == nullptr ? "unknown" : current.profile->id,
+    if (!original_bytes_present) {
+        SetReason("target_bytes_mismatch");
+        LogWarn("_insertClearButtonOverlay target bytes mismatch for %s at 0x%zx; not patching",
+                dart::kRecentsClearButtonTarget.id,
                 static_cast<size_t>(current.address));
         return false;
     }
@@ -261,7 +232,7 @@ bool ApplyClearButtonRule(void* dart_handle) {
     __atomic_store_n(&g_installed, uint32_t{1}, __ATOMIC_RELEASE);
     SetReason("installed");
     LogInfo("clear button rule installed for %s; recents overlay insertion is suppressed",
-            current.profile == nullptr ? "unknown" : current.profile->id);
+            dart::kRecentsClearButtonTarget.id);
     return true;
 }
 
