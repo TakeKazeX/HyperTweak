@@ -278,6 +278,19 @@ object Preferences {
     const val SECURITY_CENTER_LOW_BATTERY_HIDE_DIALOG = 1
     const val SECURITY_CENTER_LOW_BATTERY_SILENT = 2
 
+    /**
+     * Security Center permission-warning intercept mode (危险权限确认倒计时). Read by
+     * `WarningCountdownHooker` at hook-install time; requires a Security Center restart.
+     * 0 follows the system, 1 skips the countdown (wait time 0, page still shown), and 2
+     * directly executes the native Allow path after the page is created. The hard-excluded
+     * `miui_close_optimization` permission keeps the native page, countdown and manual Allow
+     * in every mode.
+     */
+    const val KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE = "securitycenter_permission_warning_mode"
+    const val SECURITY_CENTER_WARNING_FOLLOW_SYSTEM = 0
+    const val SECURITY_CENTER_WARNING_SKIP_COUNTDOWN = 1
+    const val SECURITY_CENTER_WARNING_DIRECT_APPROVE = 2
+
     /** Exposes Security Center's screen-use and detailed power-ranking data path. */
     const val KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA = "securitycenter_show_detailed_power_data"
 

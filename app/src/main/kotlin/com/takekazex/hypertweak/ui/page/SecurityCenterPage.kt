@@ -80,6 +80,17 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             }
         )
     }
+    var permissionWarningMode by remember {
+        mutableIntStateOf(
+            Preferences.getInt(
+                Preferences.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
+                Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
+            ).coerceIn(
+                Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM,
+                Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE
+            )
+        )
+    }
     var showDetailedPowerData by remember {
         mutableStateOf(
             Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
@@ -168,6 +179,28 @@ fun SecurityCenterPage(onBack: () -> Unit) {
                     },
                     title = stringResource(R.string.security_bubble_notification_unlock),
                     summary = stringResource(R.string.security_bubble_notification_unlock_summary)
+                )
+            }
+
+            SmallTitle(stringResource(R.string.security_center_warning_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                OverlayDropdownPreference(
+                    items = listOf(
+                        stringResource(R.string.security_center_warning_follow_system),
+                        stringResource(R.string.security_center_warning_skip_countdown),
+                        stringResource(R.string.security_center_warning_direct_approve)
+                    ),
+                    selectedIndex = permissionWarningMode,
+                    onSelectedIndexChange = { mode ->
+                        permissionWarningMode = mode
+                        requestRestart(RestartScopeSelection(securityCenter = true))
+                        Preferences.putInt(
+                            Preferences.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
+                            mode
+                        )
+                    },
+                    title = stringResource(R.string.security_center_warning_mode),
+                    summary = stringResource(R.string.security_center_warning_mode_summary)
                 )
             }
 

@@ -40,6 +40,12 @@
     <string name="security_center_low_battery_follow">Follow system</string>
     <string name="security_center_low_battery_hide_dialog">Hide dialog</string>
     <string name="security_center_low_battery_silent">Fully silent</string>
+    <string name="security_center_warning_section">Danger permission confirmations</string>
+    <string name="security_center_warning_mode">Skip warning countdown</string>
+    <string name="security_center_warning_mode_summary">How Security Center dangerous-option confirmations are handled. The MIUI optimization warning is always kept with its native countdown.</string>
+    <string name="security_center_warning_follow_system">Follow system</string>
+    <string name="security_center_warning_skip_countdown">Skip countdown</string>
+    <string name="security_center_warning_direct_approve">Skip warning (auto-allow)</string>
     <string name="security_center_show_detailed_power_data">Show detailed power data</string>
     <string name="security_center_show_detailed_power_data_summary">Show detailed power entries in the power ranking</string>
     <string name="security_center_restore_power_ranking">Restore power ranking</string>

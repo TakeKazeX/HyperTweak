@@ -40,6 +40,12 @@
     <string name="security_center_low_battery_follow">跟随系统</string>
     <string name="security_center_low_battery_hide_dialog">隐藏弹窗</string>
     <string name="security_center_low_battery_silent">完全静默</string>
+    <string name="security_center_warning_section">危险权限确认</string>
+    <string name="security_center_warning_mode">跳过警告倒计时</string>
+    <string name="security_center_warning_mode_summary">选择手机管家危险选项确认页的处理方式。「关闭 MIUI 优化」的警告与倒计时始终保留。</string>
+    <string name="security_center_warning_follow_system">跟随系统</string>
+    <string name="security_center_warning_skip_countdown">跳过倒计时</string>
+    <string name="security_center_warning_direct_approve">跳过警告（直接允许）</string>
     <string name="security_center_show_detailed_power_data">显示详细耗电数据</string>
     <string name="security_center_show_detailed_power_data_summary">在耗电排行中显示详细耗电项</string>
     <string name="security_center_restore_power_ranking">恢复耗电排行</string>
