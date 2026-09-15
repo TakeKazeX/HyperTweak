@@ -36,7 +36,6 @@ import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.HotReloadReport
-import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.TestNotifier
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -68,7 +67,6 @@ fun DebugPage(
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
-    var aospBackLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_LOGS, false)) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var showHotReloadDialog by remember { mutableStateOf(false) }
     // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
@@ -101,17 +99,6 @@ fun DebugPage(
                         title = stringResource(R.string.debug_record_logs_title),
                         summary = stringResource(R.string.debug_record_logs_summary)
                     )
-                    if (!PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = aospBackLogs,
-                            onCheckedChange = { enabled ->
-                                aospBackLogs = enabled
-                                Preferences.putBoolean(Preferences.KEY_AOSP_BACK_LOGS, enabled)
-                            },
-                            title = stringResource(R.string.debug_aosp_back_gesture_logs_title),
-                            summary = stringResource(R.string.debug_aosp_back_gesture_logs_summary)
-                        )
-                    }
                     ArrowPreference(
                         title = stringResource(R.string.debug_logs_title),
                         summary = stringResource(R.string.debug_logs_summary),

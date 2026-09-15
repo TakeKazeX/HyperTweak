@@ -17,7 +17,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
 import com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderClockSecondsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationMonetTextColorHooker
@@ -67,7 +66,6 @@ import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.PowerButtonCtsHooker
-import com.takekazex.hypertweak.hook.rules.system.VoiceInteractionServiceRepairHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
@@ -86,9 +84,6 @@ import com.takekazex.hypertweak.hook.rules.settings.NotificationBadgeSettingsHoo
 import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
 import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackMiuiHomeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
@@ -111,7 +106,6 @@ import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppL
 import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.PlatformLevel
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -611,12 +605,6 @@ class HookEntry : XposedModule() {
         }
     }
 
-    private fun isMiuiBackGestureHookEnabled(): Boolean =
-        // HyperTweak: on OS4 the predictive-back Shell pipeline is broken platform-side, so
-        // the AOSP back gesture is force-disabled regardless of the (hidden) preference.
-        !PlatformLevel.isOs4 &&
-            Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
-
     private fun dispatchSystemServerHookers(
         classLoader: ClassLoader,
         replacementHandles: HotReloadHandleStore? = null
@@ -630,7 +618,6 @@ class HookEntry : XposedModule() {
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)
-        attachHooker(VoiceInteractionServiceRepairHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
@@ -649,9 +636,6 @@ class HookEntry : XposedModule() {
         attachHooker(ForceDarkAppListHooker, classLoader, ctx, replacementHandles)
         if (AospImeConfig.isEnabled()) {
             attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
-        }
-        if (isMiuiBackGestureHookEnabled()) {
-            attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         }
     }
 
@@ -701,7 +685,6 @@ class HookEntry : XposedModule() {
                 attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
-                attachHooker(GestureBarActionHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CellularIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(WifiIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideCellularIconHooker, classLoader, ctx, replacementHandles)
@@ -734,9 +717,6 @@ class HookEntry : XposedModule() {
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
                 // loader (see attachPluginHooker).
-                if (isMiuiBackGestureHookEnabled()) {
-                    attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
-                }
             }
             "com.miui.screenshot" -> {
                 // HyperOS delegates normal screenshots to this process. Its provider hard-codes
@@ -748,11 +728,8 @@ class HookEntry : XposedModule() {
                 attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.home" -> {
-                if (isMiuiBackGestureHookEnabled()) {
-                    attachHooker(AospBackMiuiHomeHooker, classLoader, ctx, replacementHandles)
-                }
-                // The recents clear-button rule needs no Java hook here: LSPosed injects only the
-                // native payload into the launcher, so the switch reaches it through
+                // The launcher rules need no Java hook here: LSPosed injects only the native
+                // payload into the launcher, so feature switches reach it through
                 // NativeRuleConfig rather than through this process.
             }
             "com.miui.aod" -> {

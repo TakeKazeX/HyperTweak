@@ -123,7 +123,7 @@ fun CreditsPage(
                     ArrowPreference(
                         title = "MiuiBackGestureHook",
                         summary = stringResource(R.string.credits_backgesture_desc),
-                        onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook/commit/a5f1ae5d76609f8323d30ce108117081369c426f") }
+                        onClick = { uriHandler.openUri("https://github.com/wxxsfxyzm/MiuiBackGestureHook") }
                     )
                     ArrowPreference(
                         title = "AOSP Package Installer",

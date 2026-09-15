@@ -12,7 +12,6 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - `hook/`: process entry and feature hooks; `hook/base/`: shared resolution and lifecycle infrastructure.
 - `ui/`: Compose screens; `util/`: shared utilities, including `PlatformLevel.kt` for OS3/OS4 gates.
 - `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns lifecycle/resolution; `DexKitManager` resolves and caches obfuscated targets.
-- The back-gesture port also has Java sources in `app/src/main/java/com/takekazex/hypertweak/hook/rules/backgesture/`, vendored from MiuiBackGestureHook under Apache-2.0. Include this tree when a change touches that feature or shared platform behavior.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
 ## Native payload

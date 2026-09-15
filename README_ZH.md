@@ -81,8 +81,8 @@ app/build/outputs/apk/release/HyperTweak-v<version>-<versionCode>-release.apk
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - 系统设置项注入实现参考。
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - 澎湃系统谷歌推送限制解除 / FCM Live 实现参考，作者 howard20181。
-* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - 返回手势兼容实现，按其 Apache-2.0 许可证整合。
-* **[MiCTS](https://github.com/parallelcc/MiCTS)** - 小白条快捷操作所用 Android 15 上下文搜索服务路径的实现参考（GPL-3.0）。
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome 原生桌面钩子框架（Dart AOT 解析、桌面生命周期），按其 Apache-2.0 许可证整合。
+* **[MiCTS](https://github.com/parallelcc/MiCTS)** - 圈选搜索（Circle to Search）所用 Android 15 上下文搜索服务路径的实现参考（GPL-3.0）。
 * **[AOSP Package Installer](https://github.com/tehcneko/AospPackageInstaller)** - AOSP 包安装器还原方案，作者 tehcneko（GPL-3.0）。
 * **[HyperTrust](https://github.com/StevenWin818/HyperTrust)** - Extend Unlock 信任状态修复，作者 StevenWin818（GPL-3.0）。
 * **[HighLight Icons](https://t.me/HighLightIcons)** - 应用快捷方式图标，作者 [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221)。

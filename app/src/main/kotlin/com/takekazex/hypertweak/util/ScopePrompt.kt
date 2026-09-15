@@ -2,7 +2,14 @@ package com.takekazex.hypertweak.util
 
 import com.takekazex.hypertweak.hook.Preferences
 
-/** The two kinds of scope guidance shown on the Home page. */
+/**
+ * The kinds of scope guidance shown on the Home page.
+ *
+ * Only [RESTORE] is produced now: the module's sole recommendation is to add the launcher while a
+ * native launcher rule needs it. [REMOVE] is kept because it is part of the persisted dismissal
+ * format (`KEY_IGNORED_SCOPE_PROMPTS` stores `action:package`), so an entry dismissed by an older
+ * build still parses and stays reviewable on the ignored-prompts page.
+ */
 enum class ScopePromptAction(val storageKey: String) {
     RESTORE("restore"),
     REMOVE("remove")

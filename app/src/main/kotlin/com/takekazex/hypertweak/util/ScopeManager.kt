@@ -37,7 +37,7 @@ object ScopeManager {
     /** What LSPosed builds before the `system` rename call the system server. */
     private const val LEGACY_SYSTEM_SERVER = "android"
 
-    /** The system launcher; listed in the scope for Launcher 7 and older only. */
+    /** The system launcher; listed in the scope only while a native launcher rule needs it. */
     private const val LAUNCHER_PACKAGE = "com.miui.home"
 
     private val NON_APPLICATION_SCOPE = setOf(SYSTEM_SERVER, LEGACY_SYSTEM_SERVER, "system_server")
@@ -64,8 +64,7 @@ object ScopeManager {
      * page's module-status card already tells the user to check HyperTweak itself when the module
      * is not active. Older LSPosed builds name the system server `android` rather than `system`,
      * so either satisfies the `system` entry. The launcher is intentionally not part of the
-     * static recommended scope: OS3 may still need it for the Java predictive-back route, while
-     * OS4 no longer has a hookable launcher-side gesture stack.
+     * static recommended scope: only the native launcher rules need it, and those are opt-in.
      */
     suspend fun missingRequiredScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
@@ -81,26 +80,22 @@ object ScopeManager {
 
     /**
      * Returns the launcher recommendation for the current platform. It is intentionally separate
-     * from [requiredScope]: `com.miui.home` is not recommended to every installation, but OS3
-     * users still need a restore prompt when the launcher-side back route is unavailable. On OS4,
-     * an old installation may still retain the entry, so offer the inverse migration prompt.
+     * from [requiredScope]: `com.miui.home` is not recommended to every installation, only to the
+     * ones that turned on a native launcher rule.
      *
-     * The recents clear-button switch is the one OS4 feature that needs the launcher scope: it
-     * patches Dart code in MiuiHome's Flutter snapshot, and the module has to run in that process
-     * to hand the payload the preference. While it is on, the launcher scope is required rather
-     * than discouraged, so the prompt flips to RESTORE instead of REMOVE.
+     * The recents clear-button switch and the opened-folder column count are the two features that
+     * need the launcher scope: they patch Dart code in MiuiHome's Flutter snapshot, and the module
+     * has to run in that process to hand the payload the preference. So the only recommendation is
+     * to *add* the launcher while either rule is on; the module never asks for its scope back.
      */
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
-        val launcherNeeded = Preferences.hideRecentsClearButton()
-        return when {
-            PlatformLevel.isOs4 && LAUNCHER_PACKAGE in live && !launcherNeeded ->
-                ScopePrompt(ScopePromptAction.REMOVE, LAUNCHER_PACKAGE)
-            LAUNCHER_PACKAGE !in live && launcherNeeded ->
-                ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
-            !PlatformLevel.isOs4 && LAUNCHER_PACKAGE !in live ->
-                ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
-            else -> null
+        val launcherNeeded = Preferences.hideRecentsClearButton() ||
+            Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS
+        return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {
+            ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
+        } else {
+            null
         }
     }
 
@@ -109,20 +104,6 @@ object ScopeManager {
         if (normalized.isEmpty()) return Result.NoChange
         val active = service ?: return Result.ServiceUnavailable
         return requestScope(active, normalized)
-    }
-
-    /** Removes [packages] from the scope without touching anything else. */
-    suspend fun remove(packages: Set<String>): Result {
-        val normalized = packages.mapNotNull(::normalize).toSet()
-        if (normalized.isEmpty()) return Result.NoChange
-        val active = service ?: return Result.ServiceUnavailable
-        val removed = withContext(Dispatchers.IO) {
-            runCatching { active.removeScope(normalized.toList()) }
-        }
-        removed.exceptionOrNull()?.let { t ->
-            return Result.Failed(t.message ?: "Could not update the scope")
-        }
-        return Result.Applied(added = emptySet(), removed = normalized)
     }
 
     /**

@@ -35,7 +35,6 @@ import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
 import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.AppShortcutsPage
-import com.takekazex.hypertweak.ui.page.PredictiveBackAppsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
@@ -86,22 +85,6 @@ fun HyperTweakNavContainer(
     onFloatingBarStyleChange: (Int) -> Unit,
     predictiveBackStyle: Int,
     onPredictiveBackStyleChange: (Int) -> Unit,
-    miuiBackGestureHook: Boolean,
-    onMiuiBackGestureHookChange: (Boolean) -> Unit,
-    crossTaskWallpaperBackground: Boolean,
-    onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
-    aospBackIndicator: Boolean,
-    onAospBackIndicatorChange: (Boolean) -> Unit,
-    aospBackHaptics: Boolean,
-    onAospBackHapticsChange: (Boolean) -> Unit,
-    aospBackHapticsEnhanced: Boolean,
-    onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
-    aospBackSlideAnimation: Boolean,
-    onAospBackSlideAnimationChange: (Boolean) -> Unit,
-    launcherMajor: Int,
-    launcherSupportsBackRoute: Boolean,
-    aospBackMiuiHomeHooks: Boolean,
-    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
     predictiveBackFollowGesture: Boolean,
     onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
     allowLandscape: Boolean,
@@ -178,16 +161,10 @@ fun HyperTweakNavContainer(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
-    gestureBarActionsEnabled: Boolean,
-    onGestureBarActionsEnabledChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
     powerButtonHaptic: Boolean,
     onPowerButtonHapticChange: (Boolean) -> Unit,
-    gestureBarLongPressAction: Int,
-    onGestureBarLongPressActionChange: (Int) -> Unit,
-    gestureBarDoubleTapAction: Int,
-    onGestureBarDoubleTapActionChange: (Int) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
     unlockThirdPartyDarkMode: Boolean,
@@ -341,10 +318,6 @@ fun HyperTweakNavContainer(
                 onFloatingBarStyleChange = onFloatingBarStyleChange,
                 predictiveBackStyle = predictiveBackStyle,
                 onPredictiveBackStyleChange = onPredictiveBackStyleChange,
-                launcherMajor = launcherMajor,
-                launcherSupportsBackRoute = launcherSupportsBackRoute,
-                aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
-                onAospBackMiuiHomeHooksChange = onAospBackMiuiHomeHooksChange,
                 predictiveBackFollowGesture = predictiveBackFollowGesture,
                 onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
                 allowLandscape = allowLandscape,
@@ -368,9 +341,6 @@ fun HyperTweakNavContainer(
                 },
                 onNavigateToAppShortcuts = {
                     backStack.add(Route.AppShortcuts)
-                },
-                onNavigateToPredictiveBackApps = {
-                    backStack.add(Route.PredictiveBackApps)
                 },
                 onNavigateToAospRestore = {
                     backStack.add(Route.AospRestore)
@@ -493,11 +463,6 @@ fun HyperTweakNavContainer(
                 onShortcutsChanged = onShortcutsChanged
             )
         }
-        entry<Route.PredictiveBackApps> {
-            PredictiveBackAppsPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
-            )
-        }
         entry<Route.AospRestore> {
             AospRestorePage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
@@ -564,29 +529,10 @@ fun HyperTweakNavContainer(
                 onHideGestureBarChange = onHideGestureBarChange,
                 gestureBarRaiseLayout = gestureBarRaiseLayout,
                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
-                gestureBarActionsEnabled = gestureBarActionsEnabled,
-                onGestureBarActionsEnabledChange = onGestureBarActionsEnabledChange,
                 powerButtonAction = powerButtonAction,
                 onPowerButtonActionChange = onPowerButtonActionChange,
                 powerButtonHaptic = powerButtonHaptic,
                 onPowerButtonHapticChange = onPowerButtonHapticChange,
-                gestureBarLongPressAction = gestureBarLongPressAction,
-                onGestureBarLongPressActionChange = onGestureBarLongPressActionChange,
-                gestureBarDoubleTapAction = gestureBarDoubleTapAction,
-                onGestureBarDoubleTapActionChange = onGestureBarDoubleTapActionChange,
-                miuiBackGestureHook = miuiBackGestureHook,
-                onMiuiBackGestureHookChange = onMiuiBackGestureHookChange,
-                crossTaskWallpaperBackground = crossTaskWallpaperBackground,
-                onCrossTaskWallpaperBackgroundChange = onCrossTaskWallpaperBackgroundChange,
-                aospBackIndicator = aospBackIndicator,
-                onAospBackIndicatorChange = onAospBackIndicatorChange,
-                aospBackHaptics = aospBackHaptics,
-                onAospBackHapticsChange = onAospBackHapticsChange,
-                aospBackHapticsEnhanced = aospBackHapticsEnhanced,
-                onAospBackHapticsEnhancedChange = onAospBackHapticsEnhancedChange,
-                aospBackSlideAnimation = aospBackSlideAnimation,
-                onAospBackSlideAnimationChange = onAospBackSlideAnimationChange,
-                launcherSupportsBackRoute = launcherSupportsBackRoute,
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
                 }

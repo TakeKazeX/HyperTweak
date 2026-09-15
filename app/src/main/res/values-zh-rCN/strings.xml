@@ -170,7 +170,7 @@
     <string name="bottom_text_watch_disconnected_title">手表断开</string>
     <string name="credits_aospinstaller_desc">tehcneko 的 AOSP 安装器恢复方案 · GPL-3.0</string>
     <string name="credits_back">返回</string>
-    <string name="credits_backgesture_desc">wxxsfxyzm 的返回手势兼容 · v0.8.5 · git a5f1ae5 · Apache-2.0</string>
+    <string name="credits_backgesture_desc">wxxsfxyzm 的 MiuiHome 原生桌面钩子框架 · Apache-2.0</string>
     <string name="credits_dexkit_desc">强大的 Dex 分析工具，用于动态查找 Hook 点 · v2.2.0</string>
     <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v1.2.1</string>
     <string name="credits_fcm_desc">howard20181 的 Google 推送 / FCM Live 实现</string>
@@ -187,8 +187,6 @@
     <string name="credits_miuix_title">Miuix UI（top.yukonga.miuix.kmp）</string>
     <string name="credits_title">致谢</string>
     <string name="credits_xiaomihelper_desc">Settings 偏好注入参考</string>
-    <string name="debug_aosp_back_gesture_logs_summary">记录 AOSP 返回手势的详细日志</string>
-    <string name="debug_aosp_back_gesture_logs_title">AOSP 返回手势日志</string>
     <string name="debug_actions_title">调试操作</string>
     <string name="debug_back">返回</string>
     <string name="debug_biometric_button">生物验证</string>
@@ -400,8 +398,6 @@
     <string name="home_scope_mitrust">MiTrustService</string>
     <string name="home_scope_missing">缺少作用域</string>
     <string name="home_scope_powerkeeper">省电精灵</string>
-    <string name="home_scope_remove">移除作用域</string>
-    <string name="home_scope_remove_summary">OS4 上桌面未被挂钩，移除其作用域是安全的</string>
     <string name="home_scope_ignore">永久忽略</string>
     <string name="home_scope_restore">恢复作用域</string>
     <string name="home_scope_restore_summary">请求缺失的作用域以恢复功能</string>
@@ -412,7 +408,6 @@
     <string name="home_scope_system_server">系统服务器</string>
     <string name="home_scope_system_ui">系统界面</string>
     <string name="home_scope_title">作用域</string>
-    <string name="home_scope_unneeded">多余的作用域</string>
     <string name="home_stale_target_line">- %1$s</string>
     <string name="home_stale_targets_title">过期目标</string>
     <string name="home_status_active">模块已启用</string>
@@ -688,12 +683,6 @@
     <string name="main_theme_light">浅色</string>
     <string name="module_description">HyperOS 系统增强：锁屏、状态栏、控制中心、相机与 GMS 解锁</string>
     <string name="predictive_back">返回</string>
-    <string name="predictive_back_apps_title">预测性返回应用</string>
-    <string name="predictive_loading_apps">正在加载已安装的应用…</string>
-    <string name="predictive_search">搜索</string>
-    <plurals name="predictive_selected_count">
-        <item quantity="other">已选择 %1$d 个</item>
-    </plurals>
     <string name="pref_language_device_default">跟随系统</string>
     <string name="pref_language_en">English</string>
     <string name="pref_language_title">语言</string>
@@ -733,9 +722,6 @@
     <string name="settings_app_shortcuts">应用快捷方式</string>
     <string name="settings_app_shortcuts_summary">选择长按应用图标显示的快捷方式</string>
     <string name="settings_appearance">外观</string>
-    <string name="settings_back_route_supported">返回桌面手势交由启动器动画处理（已安装启动器 %1$s）</string>
-    <string name="settings_back_route_unsupported_unknown">不可用：无法检测到已安装的启动器</string>
-    <string name="settings_back_route_unsupported_version">不可用：启动器 %1$s 不受支持（需要 Launcher 7）</string>
     <string name="settings_cancel">取消</string>
     <string name="settings_charging_detail_options">充电详情选项</string>
     <string name="settings_charging_detail_options_summary">配置锁屏充电详情的布局与字段</string>
@@ -796,8 +782,6 @@
     <string name="settings_icon_tuner_summary">调整状态栏布局与各类图标</string>
     <string name="settings_immediate_monet_refresh">立即刷新 Monet 配色</string>
     <string name="settings_immediate_monet_refresh_summary">壁纸变更后立即刷新 Monet 配色</string>
-    <string name="settings_launcher_hooks">桌面 Hook</string>
-    <string name="settings_launcher_version_unknown">未知</string>
     <string name="settings_lockscreen_fingerprint_avoid">锁屏指纹避让</string>
     <string name="settings_lockscreen_fingerprint_avoid_summary">让锁屏通知避开指纹图标</string>
     <string name="settings_module_preferences">模块偏好</string>
@@ -824,9 +808,6 @@
     <string name="settings_notification_font_weight_summary">恢复通知文字的原生字重</string>
     <string name="settings_system_ui_section_lockscreen">锁屏</string>
     <string name="settings_system_ui_section_media">媒体卡片</string>
-    <string name="settings_predictive_back_apps">预测性返回应用</string>
-    <string name="settings_predictive_back_apps_summary">为未选择加入的应用强制启用预测性返回</string>
-    <string name="settings_predictive_return_to_home">预测性返回桌面</string>
     <string name="settings_settings">设置</string>
     <string name="settings_show_entry_in_system_settings">在系统设置中显示入口</string>
     <string name="settings_show_entry_in_system_settings_summary">在系统设置中显示 HyperTweak 入口</string>
@@ -854,23 +835,12 @@
     <string name="theme_palette_vibrant">鲜明</string>
     <string name="tweaks_action_circle_to_search">即圈即搜</string>
     <string name="tweaks_action_default_assistant">默认助理</string>
-    <string name="tweaks_action_disabled">已禁用</string>
     <string name="tweaks_aod_fullscreen_summary">解锁 AOD 的全屏背景</string>
     <string name="tweaks_aod_fullscreen_title">AOD 全屏显示</string>
-    <string name="tweaks_aosp_back_gesture_summary">恢复 AOSP 返回手势</string>
-    <string name="tweaks_aosp_back_gesture_summary_launcher_scope">恢复 AOSP 返回手势（需桌面支持）</string>
-    <string name="tweaks_aosp_back_gesture_title">AOSP 返回手势</string>
-    <string name="tweaks_back_gesture_haptics_summary">返回手势预备与触发时震动</string>
-    <string name="tweaks_back_gesture_haptics_title">返回手势触感</string>
     <string name="tweaks_block_spatial_audio_summary">阻止 AirPods 启用空间音频</string>
     <string name="tweaks_block_spatial_audio_title">屏蔽空间音频</string>
     <string name="tweaks_bluetooth_title">蓝牙</string>
     <string name="tweaks_control_center_title">控制中心</string>
-    <string name="tweaks_cross_task_wallpaper_summary">跨任务返回动画使用模糊壁纸</string>
-    <string name="tweaks_cross_task_wallpaper_title">跨任务壁纸背景</string>
-    <string name="tweaks_double_tap_action_title">双击操作</string>
-    <string name="tweaks_enhanced_haptics_summary">使用更丰富的 HyperOS 触感</string>
-    <string name="tweaks_enhanced_haptics_title">增强触感</string>
     <string name="tweaks_fcm_live_summary">解除系统对 Google 推送的限制</string>
     <string name="tweaks_fcm_live_title">修复 Google 推送（FCM Live）</string>
     <string name="tweaks_lbe_clipboard_toast_summary">用系统 Toast 替换剪贴板读取浮层</string>
@@ -919,8 +889,6 @@
     <string name="tweaks_media_super_island_unlock_whitelist_title">移除媒体超级岛下拉白名单</string>
     <string name="tweaks_force_adaptive_anc_summary">将 AirPods 关闭模式替换为自适应降噪</string>
     <string name="tweaks_force_adaptive_anc_title">强制自适应降噪</string>
-    <string name="tweaks_gesture_bar_shortcuts_summary">支持手势条的长按与双击操作</string>
-    <string name="tweaks_gesture_bar_shortcuts_title">手势条快捷操作</string>
     <string name="tweaks_gms_bypass_summary">解除国行固件的 Google Play 服务安装限制</string>
     <string name="tweaks_gms_bypass_title">绕过 GMS 国行 ROM 限制</string>
     <string name="tweaks_hide_fingerprint_lockscreen_summary">隐藏锁屏上的指纹图标和光圈</string>
@@ -933,10 +901,6 @@
     <string name="tweaks_hide_gesture_bar_title">隐藏底部手势条</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">锁屏时隐藏时钟与状态图标</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">隐藏锁屏状态栏</string>
-    <string name="tweaks_hyperos_back_arrow_summary">用 HyperOS 箭头替换 AOSP 返回指示器</string>
-    <string name="tweaks_hyperos_back_arrow_title">HyperOS 返回箭头</string>
-    <string name="tweaks_long_press_action_summary">即圈即搜不依赖默认助理</string>
-    <string name="tweaks_long_press_action_title">长按操作</string>
     <string name="tweaks_navigation_bar_title">导航栏</string>
     <string name="tweaks_passkey_summary">启用 Google 通行密钥与第三方凭据管理器</string>
     <string name="tweaks_passkey_title">解锁 Google 通行密钥 / 凭据管理器</string>
@@ -953,8 +917,6 @@
     <string name="tweaks_ask_about_screen_summary">在即圈即搜中启用「针对屏幕提问」</string>
     <string name="tweaks_raise_layout_summary">保留导航栏高度，让内容位于手势区上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>
-    <string name="tweaks_slide_back_animation_summary">返回时在手势后方滑入上一个界面</string>
-    <string name="tweaks_slide_back_animation_title">滑回动画</string>
     <string name="tweaks_slider_show_percentage_summary">在亮度与音量滑块上显示百分比</string>
     <string name="tweaks_slider_show_percentage_title">滑块显示百分比数值</string>
     <string name="tweaks_cc_corner_enabled_summary">自定义控制中心各类元素的圆角</string>

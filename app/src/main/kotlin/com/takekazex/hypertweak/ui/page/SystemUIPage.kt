@@ -31,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -98,40 +97,14 @@ fun SystemUIPage(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
-    gestureBarActionsEnabled: Boolean,
-    onGestureBarActionsEnabledChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
     powerButtonHaptic: Boolean,
     onPowerButtonHapticChange: (Boolean) -> Unit,
-    gestureBarLongPressAction: Int,
-    onGestureBarLongPressActionChange: (Int) -> Unit,
-    gestureBarDoubleTapAction: Int,
-    onGestureBarDoubleTapActionChange: (Int) -> Unit,
-    miuiBackGestureHook: Boolean,
-    onMiuiBackGestureHookChange: (Boolean) -> Unit,
-    crossTaskWallpaperBackground: Boolean,
-    onCrossTaskWallpaperBackgroundChange: (Boolean) -> Unit,
-    aospBackIndicator: Boolean,
-    onAospBackIndicatorChange: (Boolean) -> Unit,
-    aospBackHaptics: Boolean,
-    onAospBackHapticsChange: (Boolean) -> Unit,
-    aospBackHapticsEnhanced: Boolean,
-    onAospBackHapticsEnhancedChange: (Boolean) -> Unit,
-    aospBackSlideAnimation: Boolean,
-    onAospBackSlideAnimationChange: (Boolean) -> Unit,
-    launcherSupportsBackRoute: Boolean,
     onNavigateToIconTuner: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
-    val gestureActionOptions = remember {
-        listOf(
-            GestureBarAction.DISABLED to context.getString(R.string.tweaks_action_disabled),
-            GestureBarAction.DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant),
-            GestureBarAction.CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search)
-        )
-    }
     val powerButtonActionOptions = remember {
         listOf(
             Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
@@ -346,46 +319,6 @@ fun SystemUIPage(
                         summary = stringResource(R.string.tweaks_raise_layout_summary),
                         enabled = hideGestureBar
                     )
-                    SwitchPreference(
-                        checked = gestureBarActionsEnabled,
-                        onCheckedChange = onGestureBarActionsEnabledChange,
-                        title = stringResource(R.string.tweaks_gesture_bar_shortcuts_title),
-                        summary = stringResource(R.string.tweaks_gesture_bar_shortcuts_summary),
-                        enabled = GestureBarAction.actionsAvailable
-                    )
-                    AnimatedVisibility(
-                        visible = gestureBarActionsEnabled,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            OverlayDropdownPreference(
-                                title = stringResource(R.string.tweaks_long_press_action_title),
-                                summary = stringResource(R.string.tweaks_long_press_action_summary),
-                                items = gestureActionOptions.map { it.second },
-                                selectedIndex = gestureActionOptions.indexOfFirst {
-                                    it.first.persistedId == gestureBarLongPressAction
-                                }.coerceAtLeast(0),
-                                onSelectedIndexChange = { index ->
-                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
-                                        onGestureBarLongPressActionChange
-                                    )
-                                }
-                            )
-                            OverlayDropdownPreference(
-                                title = stringResource(R.string.tweaks_double_tap_action_title),
-                                items = gestureActionOptions.map { it.second },
-                                selectedIndex = gestureActionOptions.indexOfFirst {
-                                    it.first.persistedId == gestureBarDoubleTapAction
-                                }.coerceAtLeast(0),
-                                onSelectedIndexChange = { index ->
-                                    gestureActionOptions.getOrNull(index)?.first?.persistedId?.let(
-                                        onGestureBarDoubleTapActionChange
-                                    )
-                                }
-                            )
-                        }
-                    }
                     OverlayDropdownPreference(
                         title = stringResource(R.string.tweaks_power_button_action_title),
                         summary = stringResource(R.string.tweaks_power_button_action_summary),
@@ -411,59 +344,6 @@ fun SystemUIPage(
                                 title = stringResource(R.string.tweaks_power_button_haptic_title),
                                 summary = stringResource(R.string.tweaks_power_button_haptic_summary)
                             )
-                        }
-                    }
-                    if (!PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = miuiBackGestureHook,
-                            onCheckedChange = onMiuiBackGestureHookChange,
-                            title = stringResource(R.string.tweaks_aosp_back_gesture_title),
-                            summary = if (launcherSupportsBackRoute) {
-                                stringResource(R.string.tweaks_aosp_back_gesture_summary_launcher_scope)
-                            } else {
-                                stringResource(R.string.tweaks_aosp_back_gesture_summary)
-                            }
-                        )
-                        SwitchPreference(
-                            checked = crossTaskWallpaperBackground,
-                            onCheckedChange = onCrossTaskWallpaperBackgroundChange,
-                            title = stringResource(R.string.tweaks_cross_task_wallpaper_title),
-                            summary = stringResource(R.string.tweaks_cross_task_wallpaper_summary),
-                            enabled = miuiBackGestureHook
-                        )
-                        AnimatedVisibility(
-                            visible = miuiBackGestureHook,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                SwitchPreference(
-                                    checked = aospBackIndicator,
-                                    onCheckedChange = onAospBackIndicatorChange,
-                                    title = stringResource(R.string.tweaks_hyperos_back_arrow_title),
-                                    summary = stringResource(R.string.tweaks_hyperos_back_arrow_summary)
-                                )
-                                SwitchPreference(
-                                    checked = aospBackHaptics,
-                                    onCheckedChange = onAospBackHapticsChange,
-                                    title = stringResource(R.string.tweaks_back_gesture_haptics_title),
-                                    summary = stringResource(R.string.tweaks_back_gesture_haptics_summary),
-                                    enabled = aospBackIndicator
-                                )
-                                SwitchPreference(
-                                    checked = aospBackHapticsEnhanced,
-                                    onCheckedChange = onAospBackHapticsEnhancedChange,
-                                    title = stringResource(R.string.tweaks_enhanced_haptics_title),
-                                    summary = stringResource(R.string.tweaks_enhanced_haptics_summary),
-                                    enabled = aospBackIndicator && aospBackHaptics
-                                )
-                                SwitchPreference(
-                                    checked = aospBackSlideAnimation,
-                                    onCheckedChange = onAospBackSlideAnimationChange,
-                                    title = stringResource(R.string.tweaks_slide_back_animation_title),
-                                    summary = stringResource(R.string.tweaks_slide_back_animation_summary)
-                                )
-                            }
                         }
                     }
                 }

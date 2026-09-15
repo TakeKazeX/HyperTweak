@@ -23,8 +23,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.BuildConfig
-import com.takekazex.hypertweak.util.LauncherVersion
-import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.R
 import androidx.compose.ui.res.stringResource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -45,11 +43,6 @@ fun SettingsScreenContent(
     onNavigateToScopePrompts: () -> Unit,
     onNavigateToBackupRestore: () -> Unit,
     onNavigateToExperimentalFeatures: () -> Unit,
-    launcherMajor: Int,
-    launcherSupportsBackRoute: Boolean,
-    aospBackMiuiHomeHooks: Boolean,
-    onAospBackMiuiHomeHooksChange: (Boolean) -> Unit,
-    onNavigateToPredictiveBackApps: () -> Unit,
     themeSummary: String,
     onNavigateToAppearance: () -> Unit,
     allowLandscape: Boolean,
@@ -165,29 +158,6 @@ fun SettingsScreenContent(
                 }
             }
 
-            // Launcher-dependent halves of the AOSP back gesture. The gesture itself and its
-            // SystemUI-only options stay under Features; only what hooks com.miui.home lives here.
-            // Hidden on OS4 together with the AOSP back gesture feature.
-            if (!PlatformLevel.isOs4) {
-                SmallTitle(text = stringResource(R.string.settings_launcher_hooks))
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                ) {
-                    SwitchPreference(
-                        checked = aospBackMiuiHomeHooks && launcherSupportsBackRoute,
-                        onCheckedChange = onAospBackMiuiHomeHooksChange,
-                        title = stringResource(R.string.settings_predictive_return_to_home),
-                        summary = launcherBackRouteSummary(context, launcherMajor, launcherSupportsBackRoute),
-                        enabled = launcherSupportsBackRoute
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_predictive_back_apps),
-                        summary = stringResource(R.string.settings_predictive_back_apps_summary),
-                        onClick = onNavigateToPredictiveBackApps
-                    )
-                }
-            }
-
             // Other: the less frequent destinations. Debug lives inside About; the experimental
             // switches moved to their own second-level page so this tab stays short.
             SmallTitle(text = stringResource(R.string.settings_other))
@@ -218,23 +188,5 @@ fun SettingsScreenContent(
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
-    }
-}
-
-/**
- * The predictive return-home animation hooks `com.miui.home` Java classes that only Launcher 7
- * and older ship, so explain why the switch is unavailable rather than just greying it out.
- */
-private fun launcherBackRouteSummary(context: Context, launcherMajor: Int, supported: Boolean): String {
-    val version = LauncherVersion.versionName.ifBlank {
-        context.getString(R.string.settings_launcher_version_unknown)
-    }
-    return when {
-        // Upstream documents the launcher animation hooks as matched to 7.50.xx. Other 7.x
-        // builds move the members it resolves, so show the exact version to compare against.
-        supported -> context.getString(R.string.settings_back_route_supported, version)
-        launcherMajor > 0 ->
-            context.getString(R.string.settings_back_route_unsupported_version, version)
-        else -> context.getString(R.string.settings_back_route_unsupported_unknown)
     }
 }

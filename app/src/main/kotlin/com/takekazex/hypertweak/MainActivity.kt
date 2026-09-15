@@ -17,7 +17,6 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
-import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
@@ -36,8 +35,6 @@ import kotlinx.coroutines.withContext
 import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.LauncherVersion
-import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.LocaleHelper
 import androidx.compose.ui.platform.LocalContext
 
@@ -79,15 +76,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_MIUI_BACK_GESTURE_HOOK to RestartScopeSelection(
-        systemUi = true,
-        miuiHome = true
-    ),
-    Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND to RestartScopeSelection(systemUi = true),
-    // Installs or removes the launcher-side hooks, so only the launcher has to come back.
-    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS to RestartScopeSelection(miuiHome = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
     // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
@@ -288,34 +277,6 @@ class MainActivity : ComponentActivity() {
             var useFloatingBottomBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_FLOATING_BOTTOM_BAR, false)) }
             var floatingBarStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)) }
             var predictiveBackStyle by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)) }
-            // HyperTweak: on OS4 the AOSP back gesture is hidden and force-disabled (the
-            // predictive-back Shell pipeline is broken platform-side). Retire the preference
-            // once per launch so the off state persists even though the switch is hidden.
-            val backGestureDisabledOnOs4 = remember {
-                if (PlatformLevel.isOs4 &&
-                    Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
-                ) {
-                    Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)
-                }
-                PlatformLevel.isOs4
-            }
-            var miuiBackGestureHook by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, false)) }
-            var crossTaskWallpaperBackground by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)) }
-            var aospBackIndicator by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, false)) }
-            var aospBackHaptics by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS, false)) }
-            var aospBackHapticsEnhanced by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED, false)) }
-            var aospBackSlideAnimation by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, false)) }
-            // Detected once per launch; the hook processes read the cached value.
-            val launcherMajor = remember { LauncherVersion.refresh(applicationContext) }
-            val launcherSupportsBackRoute = remember(launcherMajor) { LauncherVersion.isSupported }
-            var aospBackMiuiHomeHooks by remember {
-                mutableStateOf(
-                    Preferences.getBoolean(
-                        Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                        false
-                    )
-                )
-            }
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
             var pageScale by remember { mutableFloatStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
@@ -376,12 +337,6 @@ class MainActivity : ComponentActivity() {
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
-            var gestureBarActionsEnabled by remember {
-                mutableStateOf(
-                    Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
-                        GestureBarAction.actionsAvailable
-                )
-            }
             var powerButtonAction by remember {
                 mutableIntStateOf(Preferences.powerButtonAction())
             }
@@ -390,22 +345,6 @@ class MainActivity : ComponentActivity() {
                     Preferences.getBoolean(
                         Preferences.KEY_POWER_BUTTON_HAPTIC,
                         Preferences.DEFAULT_POWER_BUTTON_HAPTIC
-                    )
-                )
-            }
-            var gestureBarLongPressAction by remember {
-                mutableIntStateOf(
-                    Preferences.getInt(
-                        Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-                        GestureBarAction.DEFAULT_ASSISTANT.persistedId
-                    )
-                )
-            }
-            var gestureBarDoubleTapAction by remember {
-                mutableIntStateOf(
-                    Preferences.getInt(
-                        Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
-                        GestureBarAction.CIRCLE_TO_SEARCH.persistedId
                     )
                 )
             }
@@ -563,11 +502,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
                     Preferences.KEY_NOTIFICATION_FONT_WEIGHT -> notificationFontWeight
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
-                    Preferences.KEY_MIUI_BACK_GESTURE_HOOK -> miuiBackGestureHook
-                    Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND -> crossTaskWallpaperBackground
-                    Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS -> aospBackMiuiHomeHooks
                     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
-                    Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED -> gestureBarActionsEnabled
                     Preferences.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
                     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
                     Preferences.KEY_SHOW_IN_SETTINGS -> showInSettings
@@ -843,15 +778,6 @@ class MainActivity : ComponentActivity() {
                     floatingBarStyle = Preferences.getInt(Preferences.KEY_FLOATING_BAR_STYLE, 0)
                     predictiveBackStyle = Preferences.getInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, 1)
                     predictiveBackFollowGesture = Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)
-                    crossTaskWallpaperBackground = Preferences.getBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, false)
-                    aospBackIndicator = Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, false)
-                    aospBackHaptics = Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS, false)
-                    aospBackHapticsEnhanced = Preferences.getBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED, false)
-                    aospBackSlideAnimation = Preferences.getBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, false)
-                    aospBackMiuiHomeHooks = Preferences.getBoolean(
-                        Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                        false
-                    )
                     allowLandscape = Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)
                     pageScale = Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)
                     appLanguage = Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
@@ -901,20 +827,10 @@ class MainActivity : ComponentActivity() {
                     )
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-                    gestureBarActionsEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) &&
-                        GestureBarAction.actionsAvailable
                     powerButtonAction = Preferences.powerButtonAction()
                     powerButtonHaptic = Preferences.getBoolean(
                         Preferences.KEY_POWER_BUTTON_HAPTIC,
                         Preferences.DEFAULT_POWER_BUTTON_HAPTIC
-                    )
-                    gestureBarLongPressAction = Preferences.getInt(
-                        Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-                        GestureBarAction.DEFAULT_ASSISTANT.persistedId
-                    )
-                    gestureBarDoubleTapAction = Preferences.getInt(
-                        Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
-                        GestureBarAction.CIRCLE_TO_SEARCH.persistedId
                     )
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
@@ -1050,56 +966,6 @@ class MainActivity : ComponentActivity() {
                     onPredictiveBackStyleChange = { style ->
                         predictiveBackStyle = style
                         Preferences.putInt(Preferences.KEY_PREDICTIVE_BACK_STYLE, style)
-                    },
-                    miuiBackGestureHook = miuiBackGestureHook,
-                    onMiuiBackGestureHookChange = { enabled ->
-                        markTweaked(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
-                        miuiBackGestureHook = enabled
-                        Preferences.putBoolean(Preferences.KEY_MIUI_BACK_GESTURE_HOOK, enabled)
-                    },
-                    crossTaskWallpaperBackground = crossTaskWallpaperBackground,
-                    onCrossTaskWallpaperBackgroundChange = { enabled ->
-                        markTweaked(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
-                        crossTaskWallpaperBackground = enabled
-                        Preferences.putBoolean(Preferences.KEY_CROSS_TASK_WALLPAPER_BACKGROUND, enabled)
-                    },
-                    // Read at dispatch time by the SystemUI runtime, so no restart is needed.
-                    aospBackIndicator = aospBackIndicator,
-                    onAospBackIndicatorChange = { enabled ->
-                        aospBackIndicator = enabled
-                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_INDICATOR, enabled)
-                    },
-                    aospBackHaptics = aospBackHaptics,
-                    onAospBackHapticsChange = { enabled ->
-                        aospBackHaptics = enabled
-                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS, enabled)
-                    },
-                    aospBackHapticsEnhanced = aospBackHapticsEnhanced,
-                    onAospBackHapticsEnhancedChange = { enabled ->
-                        aospBackHapticsEnhanced = enabled
-                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_HYPEROS_HAPTICS_ENHANCED, enabled)
-                    },
-                    aospBackSlideAnimation = aospBackSlideAnimation,
-                    onAospBackSlideAnimationChange = { enabled ->
-                        aospBackSlideAnimation = enabled
-                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_SLIDE_ANIMATION, enabled)
-                    },
-                    launcherMajor = launcherMajor,
-                    launcherSupportsBackRoute = launcherSupportsBackRoute,
-                    aospBackMiuiHomeHooks = aospBackMiuiHomeHooks,
-                    onAospBackMiuiHomeHooksChange = { enabled ->
-                        aospBackMiuiHomeHooks = enabled
-                        markTweaked(
-                            Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS,
-                            enabled,
-                            defaultValue = false
-                        )
-                        Preferences.putBoolean(Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS, enabled)
-                        // Records that the choice is the user's, so the runtime stops
-                        // following the launcher-version default.
-                        Preferences.putBoolean(
-                            Preferences.KEY_AOSP_BACK_MIUI_HOME_HOOKS_USER_SET, true
-                        )
                     },
                     predictiveBackFollowGesture = predictiveBackFollowGesture,
                     onPredictiveBackFollowGestureChange = { follow ->
@@ -1261,15 +1127,6 @@ class MainActivity : ComponentActivity() {
                         gestureBarRaiseLayout = checked
                         Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                     },
-                    gestureBarActionsEnabled = gestureBarActionsEnabled,
-                    onGestureBarActionsEnabledChange = { checked ->
-                        markTweaked(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, checked)
-                        gestureBarActionsEnabled = checked
-                        Preferences.putBoolean(
-                            Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED,
-                            checked
-                        )
-                    },
                     powerButtonAction = powerButtonAction,
                     onPowerButtonActionChange = { action ->
                         // System-server hooks: no restart scope exists, so no markTweaked; the
@@ -1283,22 +1140,6 @@ class MainActivity : ComponentActivity() {
                     onPowerButtonHapticChange = { checked ->
                         powerButtonHaptic = checked
                         Preferences.putBoolean(Preferences.KEY_POWER_BUTTON_HAPTIC, checked)
-                    },
-                    gestureBarLongPressAction = gestureBarLongPressAction,
-                    onGestureBarLongPressActionChange = { action ->
-                        gestureBarLongPressAction = action
-                        Preferences.putInt(
-                            Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-                            action
-                        )
-                    },
-                    gestureBarDoubleTapAction = gestureBarDoubleTapAction,
-                    onGestureBarDoubleTapActionChange = { action ->
-                        gestureBarDoubleTapAction = action
-                        Preferences.putInt(
-                            Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
-                            action
-                        )
                     },
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->

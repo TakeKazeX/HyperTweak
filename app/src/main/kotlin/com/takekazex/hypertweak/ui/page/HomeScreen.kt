@@ -35,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -407,9 +406,10 @@ private fun ScopeWarningCard() {
 }
 
 /**
- * The launcher is not part of the static recommended scope. OS3 can still need it for the
- * Java predictive-back route, while OS4 can migrate an old installation away from the stale
- * launcher entry.
+ * The launcher is not part of the static recommended scope, but the two native launcher rules
+ * (recents clear button, opened-folder columns) patch Dart code inside the launcher process, so
+ * the module has to be scoped there to hand the payload their preference. Recommend it only while
+ * one of those rules is on; nothing else needs the launcher.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -427,7 +427,6 @@ private fun LauncherScopeSuggestionCard() {
     if (prompt.id in ignoredIds) return
 
     val scope = rememberCoroutineScope()
-    val restoring = prompt.action == ScopePromptAction.RESTORE
 
     SmallTitle(text = stringResource(R.string.home_scope_title))
     Card(
@@ -439,27 +438,19 @@ private fun LauncherScopeSuggestionCard() {
                 summary = prompt.packageName,
                 startAction = {
                     Icon(
-                        imageVector = if (restoring) Icons.Rounded.WarningAmber else Icons.Rounded.Info,
+                        imageVector = Icons.Rounded.WarningAmber,
                         modifier = Modifier.padding(end = 6.dp),
-                        contentDescription = stringResource(
-                            if (restoring) R.string.home_scope_missing else R.string.home_scope_unneeded
-                        ),
-                        tint = if (restoring) Color(0xFFFFB300) else Color(0xFF42A5F5)
+                        contentDescription = stringResource(R.string.home_scope_missing),
+                        tint = Color(0xFFFFB300)
                     )
                 }
             )
             ArrowPreference(
-                title = stringResource(if (restoring) R.string.home_scope_restore else R.string.home_scope_remove),
-                summary = stringResource(
-                    if (restoring) R.string.home_scope_restore_summary else R.string.home_scope_remove_summary
-                ),
+                title = stringResource(R.string.home_scope_restore),
+                summary = stringResource(R.string.home_scope_restore_summary),
                 onClick = {
                     scope.launch {
-                        when (val result = if (restoring) {
-                            ScopeManager.request(setOf(prompt.packageName))
-                        } else {
-                            ScopeManager.remove(setOf(prompt.packageName))
-                        }) {
+                        when (val result = ScopeManager.request(setOf(prompt.packageName))) {
                             is ScopeManager.Result.Failed ->
                                 Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             ScopeManager.Result.ServiceUnavailable ->

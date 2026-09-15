@@ -81,8 +81,8 @@ Special thanks to the following open-source projects for their support and inspi
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - Reference implementations for Settings entry injection.
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - Google Push / FCM Live implementation reference by howard20181.
-* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - Back gesture compatibility implementation, integrated under its Apache-2.0 license.
-* **[MiCTS](https://github.com/parallelcc/MiCTS)** - Reference for the Android 15 contextual-search service path used by Gesture Bar Shortcuts (GPL-3.0).
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome native launcher hook framework (Dart AOT resolution, launcher lifecycle), integrated under its Apache-2.0 license.
+* **[MiCTS](https://github.com/parallelcc/MiCTS)** - Reference for the Android 15 contextual-search service path used by Circle to Search (GPL-3.0).
 * **[AOSP Package Installer](https://github.com/tehcneko/AospPackageInstaller)** - AOSP package-installer restoration approach by tehcneko (GPL-3.0).
 * **[HyperTrust](https://github.com/StevenWin818/HyperTrust)** - Extend Unlock trust-state repair by StevenWin818 (GPL-3.0).
 * **[HighLight Icons](https://t.me/HighLightIcons)** - App shortcut icons by [@GotohHitoriBocchi0221](https://t.me/GotohHitoriBocchi0221).

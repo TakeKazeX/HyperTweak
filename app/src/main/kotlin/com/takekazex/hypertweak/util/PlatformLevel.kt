@@ -6,9 +6,9 @@ import android.os.Build
  * Platform-level gates.
  *
  * The supported floor is HyperOS OS3 (Android 16 / API 36, enforced by `minSdk`); OS4 ships
- * Android 17 (API 37). On OS4 the predictive-back Shell pipeline is broken at the platform level —
- * the `services.jar` task functions it depends on are gutted — so the AOSP back gesture feature is
- * hidden from the UI and force-disabled there (see `docs/FEATURE_DETAIL.md`, "AOSP back gesture").
+ * Android 17 (API 37). OS4 changes several internals the module hooks — system_server transition
+ * handling, SystemUI navigation-bar state, and the launcher's native gesture stack — so features
+ * with an OS-specific implementation branch on [isOs4] rather than assuming the API 36 shape.
  */
 object PlatformLevel {
     /** The oldest supported platform: HyperOS OS3. */

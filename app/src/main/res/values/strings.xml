@@ -170,7 +170,7 @@
     <string name="bottom_text_watch_disconnected_title">Watch Disconnected</string>
     <string name="credits_aospinstaller_desc">AOSP installer restoration approach by tehcneko · GPL-3.0</string>
     <string name="credits_back">Back</string>
-    <string name="credits_backgesture_desc">Back gesture compatibility by wxxsfxyzm · v0.8.5 · git a5f1ae5 · Apache-2.0</string>
+    <string name="credits_backgesture_desc">MiuiHome native launcher hook framework by wxxsfxyzm · Apache-2.0</string>
     <string name="credits_dexkit_desc">Powerful Dex analysis tool for finding hook points dynamically · v2.2.0</string>
     <string name="credits_ezhook_desc">Kotlin Xposed helper library by lingqiqi5211 · v1.2.1</string>
     <string name="credits_fcm_desc">Google Push / FCM Live implementation by howard20181</string>
@@ -187,8 +187,6 @@
     <string name="credits_miuix_title">Miuix UI (top.yukonga.miuix.kmp)</string>
     <string name="credits_title">Credits</string>
     <string name="credits_xiaomihelper_desc">References for Settings preference injection</string>
-    <string name="debug_aosp_back_gesture_logs_summary">Record detailed AOSP back gesture logs</string>
-    <string name="debug_aosp_back_gesture_logs_title">AOSP Back Gesture Logs</string>
     <string name="debug_actions_title">Debug actions</string>
     <string name="debug_back">Back</string>
     <string name="debug_biometric_button">Biometric verification</string>
@@ -400,8 +398,6 @@
     <string name="home_scope_mitrust">MiTrustService</string>
     <string name="home_scope_missing">Missing scope</string>
     <string name="home_scope_powerkeeper">PowerKeeper</string>
-    <string name="home_scope_remove">Remove Scope</string>
-    <string name="home_scope_remove_summary">The launcher is not hooked on OS4, so removing its scope is safe</string>
     <string name="home_scope_ignore">Ignore permanently</string>
     <string name="home_scope_restore">Restore Scope</string>
     <string name="home_scope_restore_summary">Request the missing scope to restore these features</string>
@@ -412,7 +408,6 @@
     <string name="home_scope_system_server">System Server</string>
     <string name="home_scope_system_ui">System UI</string>
     <string name="home_scope_title">Scope</string>
-    <string name="home_scope_unneeded">Unneeded scope</string>
     <string name="home_stale_target_line">- %1$s</string>
     <string name="home_stale_targets_title">Stale targets</string>
     <string name="home_status_active">Module is ACTIVE</string>
@@ -690,13 +685,6 @@
     <string name="main_theme_light">Light</string>
     <string name="module_description">HyperOS system tweaks: lockscreen, status bar, control center, camera and GMS unlocks</string>
     <string name="predictive_back">Back</string>
-    <string name="predictive_back_apps_title">Predictive Back Apps</string>
-    <string name="predictive_loading_apps">Loading installed apps…</string>
-    <string name="predictive_search">Search</string>
-    <plurals name="predictive_selected_count">
-        <item quantity="one">%1$d selected</item>
-        <item quantity="other">%1$d selected</item>
-    </plurals>
     <string name="pref_language_device_default">Device Default</string>
     <string name="pref_language_en">English</string>
     <string name="pref_language_title">Language</string>
@@ -736,9 +724,6 @@
     <string name="settings_app_shortcuts">App Shortcuts</string>
     <string name="settings_app_shortcuts_summary">Choose the shortcuts in the long-press app icon menu</string>
     <string name="settings_appearance">Appearance</string>
-    <string name="settings_back_route_supported">Use the launcher animation for the back-to-home gesture (installed launcher %1$s)</string>
-    <string name="settings_back_route_unsupported_unknown">Unavailable: could not detect the installed launcher</string>
-    <string name="settings_back_route_unsupported_version">Unavailable: launcher %1$s is not supported (requires Launcher 7)</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_charging_detail_options">Charging Detail Options</string>
     <string name="settings_charging_detail_options_summary">Configure the lockscreen charging detail layout and fields</string>
@@ -800,8 +785,6 @@
     <string name="settings_icon_tuner_summary">Adjust the status-bar layout and icons</string>
     <string name="settings_immediate_monet_refresh">Immediate Monet Refresh</string>
     <string name="settings_immediate_monet_refresh_summary">Refresh Monet colors right after a wallpaper change</string>
-    <string name="settings_launcher_hooks">Launcher Hooks</string>
-    <string name="settings_launcher_version_unknown">unknown</string>
     <string name="settings_lockscreen_fingerprint_avoid">Lockscreen Fingerprint Avoid</string>
     <string name="settings_lockscreen_fingerprint_avoid_summary">Keep lockscreen notifications clear of the fingerprint icon</string>
     <string name="settings_module_preferences">Module Preferences</string>
@@ -828,9 +811,6 @@
     <string name="settings_notification_font_weight_summary">Restore the native notification font weights</string>
     <string name="settings_system_ui_section_lockscreen">Lockscreen</string>
     <string name="settings_system_ui_section_media">Media Cards</string>
-    <string name="settings_predictive_back_apps">Predictive Back Apps</string>
-    <string name="settings_predictive_back_apps_summary">Force predictive back for apps that did not opt in</string>
-    <string name="settings_predictive_return_to_home">Predictive Return to Home</string>
     <string name="settings_settings">Settings</string>
     <string name="settings_show_entry_in_system_settings">Show Entry in System Settings</string>
     <string name="settings_show_entry_in_system_settings_summary">Show a HyperTweak entry in the system Settings app</string>
@@ -858,23 +838,12 @@
     <string name="theme_palette_vibrant">Vibrant</string>
     <string name="tweaks_action_circle_to_search">Circle to Search</string>
     <string name="tweaks_action_default_assistant">Default assistant</string>
-    <string name="tweaks_action_disabled">Disabled</string>
     <string name="tweaks_aod_fullscreen_summary">Unlock full-screen backgrounds for AOD</string>
     <string name="tweaks_aod_fullscreen_title">Always-On Display Fullscreen</string>
-    <string name="tweaks_aosp_back_gesture_summary">Restore the AOSP back gesture</string>
-    <string name="tweaks_aosp_back_gesture_summary_launcher_scope">Restore the AOSP back gesture (requires launcher support)</string>
-    <string name="tweaks_aosp_back_gesture_title">AOSP Back Gesture</string>
-    <string name="tweaks_back_gesture_haptics_summary">Vibrate when the back gesture arms and triggers</string>
-    <string name="tweaks_back_gesture_haptics_title">Back Gesture Haptics</string>
     <string name="tweaks_block_spatial_audio_summary">Prevent AirPods from enabling spatial audio</string>
     <string name="tweaks_block_spatial_audio_title">Block Spatial Audio</string>
     <string name="tweaks_bluetooth_title">Bluetooth</string>
     <string name="tweaks_control_center_title">Control Center</string>
-    <string name="tweaks_cross_task_wallpaper_summary">Use a blurred wallpaper behind cross-task back animations</string>
-    <string name="tweaks_cross_task_wallpaper_title">Cross Task Wallpaper Background</string>
-    <string name="tweaks_double_tap_action_title">Double Tap Action</string>
-    <string name="tweaks_enhanced_haptics_summary">Use the richer HyperOS haptic pattern</string>
-    <string name="tweaks_enhanced_haptics_title">Enhanced Haptics</string>
     <string name="tweaks_fcm_live_summary">Remove the system restrictions on Google push messaging</string>
     <string name="tweaks_fcm_live_title">Fix Google Push (FCM Live)</string>
     <string name="tweaks_lbe_clipboard_toast_summary">Replace the clipboard overlay with a system toast</string>
@@ -923,8 +892,6 @@
     <string name="tweaks_media_super_island_unlock_whitelist_title">Remove Media Super Island Dropdown Whitelist</string>
     <string name="tweaks_force_adaptive_anc_summary">Replace the AirPods Off mode with Adaptive noise cancellation</string>
     <string name="tweaks_force_adaptive_anc_title">Force Adaptive ANC</string>
-    <string name="tweaks_gesture_bar_shortcuts_summary">Support long press and double tap on the gesture bar</string>
-    <string name="tweaks_gesture_bar_shortcuts_title">Gesture Bar Shortcuts</string>
     <string name="tweaks_gms_bypass_summary">Remove the Google Play Services install restrictions on Chinese firmware</string>
     <string name="tweaks_gms_bypass_title">Bypass GMS China ROM Restrictions</string>
     <string name="tweaks_hide_fingerprint_lockscreen_summary">Hide the fingerprint icon and halo on the lockscreen</string>
@@ -937,10 +904,6 @@
     <string name="tweaks_hide_gesture_bar_title">Hide Bottom Gesture Bar</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">Hide the clock and status icons while locked</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">Hide Lockscreen Status Bar</string>
-    <string name="tweaks_hyperos_back_arrow_summary">Use the HyperOS arrow instead of the AOSP back indicator</string>
-    <string name="tweaks_hyperos_back_arrow_title">HyperOS Back Arrow</string>
-    <string name="tweaks_long_press_action_summary">Circle to Search without a default assistant</string>
-    <string name="tweaks_long_press_action_title">Long Press Action</string>
     <string name="tweaks_navigation_bar_title">Navigation Bar</string>
     <string name="tweaks_passkey_summary">Enable Google Passkey and third-party credential managers</string>
     <string name="tweaks_passkey_title">Unlock Google Passkey / Credential Manager</string>
@@ -957,8 +920,6 @@
     <string name="tweaks_ask_about_screen_summary">Enable Ask about this screen in Circle to Search</string>
     <string name="tweaks_raise_layout_summary">Keep the navigation bar space so content sits above the gesture area</string>
     <string name="tweaks_raise_layout_title">Raise Layout</string>
-    <string name="tweaks_slide_back_animation_summary">Slide the previous screen in behind the gesture</string>
-    <string name="tweaks_slide_back_animation_title">Slide Back Animation</string>
     <string name="tweaks_slider_show_percentage_summary">Show percentages on the brightness and volume sliders</string>
     <string name="tweaks_slider_show_percentage_title">Slider Show Percentage Value</string>
     <string name="tweaks_cc_corner_enabled_summary">Customize the corner radius of control-center elements</string>

@@ -7,14 +7,13 @@ import android.os.IBinder
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.GestureBarAction
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
 object ContextualSearchSystemHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
-    private const val SCOPE = "GestureBarCTS"
+    private const val SCOPE = "PowerButtonCtsBridge"
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
     private const val GOOGLE_SEARCH_PACKAGE = "com.google.android.googlequicksearchbox"
 
@@ -37,7 +36,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
 
     override fun onHook() {
         // The bridge relaxes system_server permission checks and forces the service on, so it must
-        // not be installed unless the Circle to Search gesture action that needs it is actually on.
+        // not be installed unless the Circle to Search action that needs it is actually on.
         if (!isCircleToSearchActionEnabled()) {
             DebugLog.hookSkipped(SCOPE, "contextual search bridge", "Circle to Search disabled")
             return
@@ -47,40 +46,13 @@ object ContextualSearchSystemHooker : StaticHooker() {
     }
 
     /**
-     * The system-side bridge exists solely to make SystemUI's Circle to Search gesture action
-     * succeed, so it follows the same live predicate the SystemUI-side hookers read: gesture-bar
-     * actions enabled, with Circle to Search bound to the long-press or double-tap slot, or the
-     * long-press power button action set to [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH].
-     * Mirrors
-     * [com.takekazex.hypertweak.hook.rules.systemui.GestureBarActionHooker] /
-     * [VoiceInteractionServiceRepairHooker] / [PowerButtonCtsHooker].
+     * The system-side bridge exists solely to make SystemUI's Circle to Search action succeed, so
+     * it follows the same live predicate the power-button hooker reads: the long-press power button
+     * action is set to [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH]. Mirrors
+     * [PowerButtonCtsHooker].
      */
-    private fun isCircleToSearchActionEnabled(): Boolean {
-        if (Preferences.powerButtonAction() ==
-            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
-        ) {
-            return true
-        }
-        if (!Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ACTIONS_ENABLED, false) ||
-            !GestureBarAction.actionsAvailable
-        ) {
-            return false
-        }
-        val longPress = GestureBarAction.fromPersistedId(
-            Preferences.getInt(
-                Preferences.KEY_GESTURE_BAR_LONG_PRESS_ACTION,
-                GestureBarAction.DEFAULT_ASSISTANT.persistedId
-            )
-        )
-        val doubleTap = GestureBarAction.fromPersistedId(
-            Preferences.getInt(
-                Preferences.KEY_GESTURE_BAR_DOUBLE_TAP_ACTION,
-                GestureBarAction.CIRCLE_TO_SEARCH.persistedId
-            )
-        )
-        return longPress == GestureBarAction.CIRCLE_TO_SEARCH ||
-            doubleTap == GestureBarAction.CIRCLE_TO_SEARCH
-    }
+    private fun isCircleToSearchActionEnabled(): Boolean =
+        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
 
     /**
      * Starts Circle to Search from system_server itself (long-press power button). The bridge
