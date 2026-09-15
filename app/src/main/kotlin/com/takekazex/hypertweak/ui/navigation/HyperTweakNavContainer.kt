@@ -163,8 +163,8 @@ fun HyperTweakNavContainer(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
-    powerButtonHaptic: Boolean,
-    onPowerButtonHapticChange: (Boolean) -> Unit,
+    contextualSearchLongPress: Boolean,
+    onContextualSearchLongPressChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
     onUnlockPasskeyChange: (Boolean) -> Unit,
     unlockThirdPartyDarkMode: Boolean,
@@ -531,8 +531,8 @@ fun HyperTweakNavContainer(
                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
                 powerButtonAction = powerButtonAction,
                 onPowerButtonActionChange = onPowerButtonActionChange,
-                powerButtonHaptic = powerButtonHaptic,
-                onPowerButtonHapticChange = onPowerButtonHapticChange,
+                contextualSearchLongPress = contextualSearchLongPress,
+                onContextualSearchLongPressChange = onContextualSearchLongPressChange,
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
                 }

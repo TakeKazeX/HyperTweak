@@ -77,6 +77,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
+    // The launcher reads this from the shared native config when it loads the payload, so the
+    // launcher process is what has to come back.
+    Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to RestartScopeSelection(miuiHome = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
     // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
@@ -340,13 +343,8 @@ class MainActivity : ComponentActivity() {
             var powerButtonAction by remember {
                 mutableIntStateOf(Preferences.powerButtonAction())
             }
-            var powerButtonHaptic by remember {
-                mutableStateOf(
-                    Preferences.getBoolean(
-                        Preferences.KEY_POWER_BUTTON_HAPTIC,
-                        Preferences.DEFAULT_POWER_BUTTON_HAPTIC
-                    )
-                )
+            var contextualSearchLongPress by remember {
+                mutableStateOf(Preferences.contextualSearchLongPress())
             }
             var hideLauncherIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)) }
             var sliderShowPercentage by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)) }
@@ -828,10 +826,7 @@ class MainActivity : ComponentActivity() {
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     powerButtonAction = Preferences.powerButtonAction()
-                    powerButtonHaptic = Preferences.getBoolean(
-                        Preferences.KEY_POWER_BUTTON_HAPTIC,
-                        Preferences.DEFAULT_POWER_BUTTON_HAPTIC
-                    )
+                    contextualSearchLongPress = Preferences.contextualSearchLongPress()
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -1127,6 +1122,15 @@ class MainActivity : ComponentActivity() {
                         gestureBarRaiseLayout = checked
                         Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                     },
+                    contextualSearchLongPress = contextualSearchLongPress,
+                    onContextualSearchLongPressChange = { enabled ->
+                        markTweaked(Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, enabled)
+                        contextualSearchLongPress = enabled
+                        Preferences.putBoolean(
+                            Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS,
+                            enabled
+                        )
+                    },
                     powerButtonAction = powerButtonAction,
                     onPowerButtonActionChange = { action ->
                         // System-server hooks: no restart scope exists, so no markTweaked; the
@@ -1135,11 +1139,6 @@ class MainActivity : ComponentActivity() {
                         // feature on from disabled still needs a reboot for the hooks to install.
                         powerButtonAction = action
                         Preferences.setPowerButtonAction(action)
-                    },
-                    powerButtonHaptic = powerButtonHaptic,
-                    onPowerButtonHapticChange = { checked ->
-                        powerButtonHaptic = checked
-                        Preferences.putBoolean(Preferences.KEY_POWER_BUTTON_HAPTIC, checked)
                     },
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->

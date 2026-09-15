@@ -8,13 +8,15 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import io.github.libxposed.api.XposedInterface
 
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
 object ContextualSearchSystemHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
-    private const val SCOPE = "PowerButtonCtsBridge"
+    private const val SCOPE = "ContextualSearchBridge"
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+    private const val MIUI_HOME_PACKAGE = "com.miui.home"
     private const val GOOGLE_SEARCH_PACKAGE = "com.google.android.googlequicksearchbox"
 
     private val activeBridgedInvocation = ThreadLocal<Boolean>()
@@ -35,24 +37,27 @@ object ContextualSearchSystemHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        // The bridge relaxes system_server permission checks and forces the service on, so it must
-        // not be installed unless the Circle to Search action that needs it is actually on.
-        if (!isCircleToSearchActionEnabled()) {
-            DebugLog.hookSkipped(SCOPE, "contextual search bridge", "Circle to Search disabled")
-            return
-        }
+        // Installed unconditionally, on purpose. The permission bypass is double-gated at
+        // invocation time -- the preference must be on AND the Binder caller must be one of the
+        // two owners -- so an idle install changes nothing. Gating the install itself would couple
+        // the feature to a system_server restart instead: `hookServiceStartupGate` must run during
+        // boot to keep the dormant contextual-search service registered, and missing that one
+        // opportunity cannot be recovered later. Upstream keeps it available for the same reason.
         hookServiceStartupGate()
         hookContextualSearchService()
     }
 
     /**
-     * The system-side bridge exists solely to make SystemUI's Circle to Search action succeed, so
-     * it follows the same live predicate the power-button hooker reads: the long-press power button
-     * action is set to [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH]. Mirrors
-     * [PowerButtonCtsHooker].
+     * The system-side bridge exists solely to make a Circle to Search entry point succeed. There
+     * are two independent ones, so either being on is enough:
+     * - the long-press power button action set to
+     *   [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] (see [PowerButtonCtsHooker]); or
+     * - the launcher's own long press on the gesture bar, which the native payload drives (see
+     *   [NativeRuleConfig.KEY_CONTEXTUAL_SEARCH_LONG_PRESS]).
      */
-    private fun isCircleToSearchActionEnabled(): Boolean =
-        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+    private fun isContextualSearchEnabled(): Boolean =
+        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
+            Preferences.contextualSearchLongPress()
 
     /**
      * Starts Circle to Search from system_server itself (long-press power button). The bridge
@@ -62,8 +67,14 @@ object ContextualSearchSystemHooker : StaticHooker() {
      */
     fun startFromSystemServer(): Boolean {
         // Re-checked live so turning the power-button re-bind off works without a reboot: the
-        // bridge flag is never set and the original power action runs.
-        if (!isCircleToSearchActionEnabled()) return false
+        // bridge flag is never set and the original power action runs. This path is the
+        // system_server invocation, so it is gated on the power-button binding specifically --
+        // not on [isContextualSearchEnabled], which the launcher entry point also satisfies.
+        if (Preferences.powerButtonAction() !=
+            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+        ) {
+            return false
+        }
         activeBridgedInvocation.set(true)
         return try {
             invokeContextualSearchService()
@@ -148,9 +159,17 @@ object ContextualSearchSystemHooker : StaticHooker() {
         if (startMethod == null) {
             DebugLog.hookSkipped(SCOPE, "ContextualSearchManagerStub#startContextualSearch", "method not found")
         } else {
-            startMethod.hook("gesture_bar_cts_systemui_call") {
+            startMethod.hook("gesture_bar_cts_entry_call") {
                 intercept { chain ->
-                    withBridgedInvocation(SYSTEM_UI_PACKAGE) { chain.proceed() }
+                    // Two callers reach this AIDL: SystemUI when the power button is bound to
+                    // Circle to Search, and the launcher when the native payload owns the
+                    // gesture-bar long press (the Android 17 arrangement, where the launcher --
+                    // not SystemUI -- is the contextual-search owner).
+                    withBridgedInvocationFrom(
+                        chain,
+                        SYSTEM_UI_PACKAGE,
+                        MIUI_HOME_PACKAGE
+                    ) { chain.proceed() }
                 }
             }
         }
@@ -204,9 +223,37 @@ object ContextualSearchSystemHooker : StaticHooker() {
     ): Any? {
         // Re-checked live so turning Circle to Search off takes effect without a reboot: the bridge
         // flag is never set, so enforcePermission and getContextualSearchPackageName run unchanged.
-        if (!isCircleToSearchActionEnabled()) return proceed()
+        if (!isContextualSearchEnabled()) return proceed()
         val expectedUid = resolveUid(expectedPackage)
         if (expectedUid < 0 || Binder.getCallingUid() != expectedUid) return proceed()
+
+        activeBridgedInvocation.set(true)
+        return try {
+            proceed()
+        } finally {
+            activeBridgedInvocation.remove()
+        }
+    }
+
+    /**
+     * Multi-caller form of [withBridgedInvocation]: the Binder caller must match one of
+     * `expectedPackages`. Used where the platform routes the same AIDL through different owners
+     * depending on the platform version, so pinning a single package would silently disable the
+     * other entry point.
+     */
+    private inline fun withBridgedInvocationFrom(
+        chain: XposedInterface.Chain,
+        vararg expectedPackages: String,
+        proceed: () -> Any?
+    ): Any? {
+        // Re-checked live so turning Circle to Search off takes effect without a reboot.
+        if (!isContextualSearchEnabled()) return proceed()
+        val callingUid = Binder.getCallingUid()
+        val callerMatches = expectedPackages.any { expected ->
+            val expectedUid = resolveUid(expected)
+            expectedUid >= 0 && callingUid == expectedUid
+        }
+        if (!callerMatches) return proceed()
 
         activeBridgedInvocation.set(true)
         return try {

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
@@ -99,8 +100,8 @@ fun SystemUIPage(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
-    powerButtonHaptic: Boolean,
-    onPowerButtonHapticChange: (Boolean) -> Unit,
+    contextualSearchLongPress: Boolean,
+    onContextualSearchLongPressChange: (Boolean) -> Unit,
     onNavigateToIconTuner: () -> Unit
 ) {
     val context = LocalContext.current
@@ -319,6 +320,26 @@ fun SystemUIPage(
                         summary = stringResource(R.string.tweaks_raise_layout_summary),
                         enabled = hideGestureBar
                     )
+                    SwitchPreference(
+                        checked = contextualSearchLongPress,
+                        onCheckedChange = { checked ->
+                            onContextualSearchLongPressChange(checked)
+                            // Keep the published record in step with the preference. The payload is
+                            // not driven by this file -- the launcher cannot read it -- but takes
+                            // the switch from `NativeRules.applyRuleSwitches` when the launcher
+                            // next loads the module, which is why the change raises a
+                            // launcher-restart prompt. `checked` is passed explicitly rather than
+                            // re-read, so the published value cannot lag the write above.
+                            NativeRuleConfig.publish(
+                                context,
+                                Preferences.hideRecentsClearButton(),
+                                Preferences.openedFolderColumns(),
+                                checked
+                            )
+                        },
+                        title = stringResource(R.string.tweaks_cts_long_press_title),
+                        summary = stringResource(R.string.tweaks_cts_long_press_summary)
+                    )
                     OverlayDropdownPreference(
                         title = stringResource(R.string.tweaks_power_button_action_title),
                         summary = stringResource(R.string.tweaks_power_button_action_summary),
@@ -332,20 +353,6 @@ fun SystemUIPage(
                             )
                         }
                     )
-                    AnimatedVisibility(
-                        visible = powerButtonAction != Preferences.POWER_BUTTON_ACTION_DISABLED,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            SwitchPreference(
-                                checked = powerButtonHaptic,
-                                onCheckedChange = onPowerButtonHapticChange,
-                                title = stringResource(R.string.tweaks_power_button_haptic_title),
-                                summary = stringResource(R.string.tweaks_power_button_haptic_summary)
-                            )
-                        }
-                    }
                 }
             }
 

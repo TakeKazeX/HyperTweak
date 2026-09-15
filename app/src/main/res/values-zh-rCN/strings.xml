@@ -899,6 +899,8 @@
     <string name="tweaks_hide_fingerprint_app_auth_title">隐藏应用认证指纹</string>
     <string name="tweaks_hide_gesture_bar_summary">隐藏底部手势线和分屏栏</string>
     <string name="tweaks_hide_gesture_bar_title">隐藏底部手势条</string>
+    <string name="tweaks_cts_long_press_title">长按手势条启动圈定即搜</string>
+    <string name="tweaks_cts_long_press_summary">长按底部手势条启动圈定即搜。需重启桌面后生效；重启系统会同时重新绑定该手势。</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">锁屏时隐藏时钟与状态图标</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">隐藏锁屏状态栏</string>
     <string name="tweaks_navigation_bar_title">导航栏</string>
@@ -907,8 +909,6 @@
     <string name="tweaks_power_button_action_follow_system">跟随系统</string>
     <string name="tweaks_power_button_action_summary">长按电源键执行所选操作</string>
     <string name="tweaks_power_button_action_title">长按电源键</string>
-    <string name="tweaks_power_button_haptic_summary">触发长按电源键操作时震动</string>
-    <string name="tweaks_power_button_haptic_title">电源键震动反馈</string>
     <string name="tweaks_quick_share_summary">在国行 Google Play 服务上解锁快速分享</string>
     <string name="tweaks_quick_share_title">解锁附近分享（Quick Share）</string>
     <string name="tweaks_full_screen_translate_title">即圈即搜内全屏翻译</string>

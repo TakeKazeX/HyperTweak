@@ -83,15 +83,18 @@ object ScopeManager {
      * from [requiredScope]: `com.miui.home` is not recommended to every installation, only to the
      * ones that turned on a native launcher rule.
      *
-     * The recents clear-button switch and the opened-folder column count are the two features that
-     * need the launcher scope: they patch Dart code in MiuiHome's Flutter snapshot, and the module
-     * has to run in that process to hand the payload the preference. So the only recommendation is
-     * to *add* the launcher while either rule is on; the module never asks for its scope back.
+     * Three switches need the launcher scope. The recents clear button and the opened-folder column
+     * count patch Dart code in MiuiHome's Flutter snapshot; the gesture-bar contextual-search long
+     * press (长按小白条呼出圈定即搜) replaces the launcher's own gesture terminal. All three run in
+     * the payload, and the module's Java is what hands it the preference — so the launcher has to be
+     * in scope or the switch silently does nothing. The only recommendation is to *add* the
+     * launcher while one of them is on; the module never asks for its scope back.
      */
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
         val launcherNeeded = Preferences.hideRecentsClearButton() ||
-            Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS
+            Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS ||
+            Preferences.contextualSearchLongPress()
         return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {
             ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
         } else {

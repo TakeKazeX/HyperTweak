@@ -7,8 +7,9 @@
     public <init>();
 }
 
-# The native payload binds its status query by JNI name, which R8 cannot rewrite.
-# Without this the release APK would look the symbol up under a renamed class and
+# The native payload binds its status query and its rule-switch push by JNI name,
+# which R8 cannot rewrite.
+# Without this the release APK would look the symbols up under a renamed class and
 # report the payload as unavailable.
 -keep class com.takekazex.hypertweak.hook.NativeRules {
     native <methods>;

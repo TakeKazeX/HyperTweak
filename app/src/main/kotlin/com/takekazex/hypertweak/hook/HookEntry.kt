@@ -64,7 +64,9 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
+import com.takekazex.hypertweak.hook.rules.system.CircleToSearchGestureHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
+import com.takekazex.hypertweak.hook.rules.system.DefaultAssistantHooker
 import com.takekazex.hypertweak.hook.rules.system.PowerButtonCtsHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
@@ -115,6 +117,15 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 class HookEntry : XposedModule() {
+    private companion object {
+        /**
+         * The launcher process. It carries no dex of its own for the module's hooks, but it is in
+         * the declared scope so LSPosed injects both the native payload (which owns the Dart
+         * rules) and this module's Java (which is the only side able to read the preferences).
+         */
+        const val LAUNCHER_PACKAGE = "com.miui.home"
+    }
+
     /** Bounded retry window for the transient daemon remote-preferences outage. */
     private val MAX_PREFS_INIT_RETRIES = 4
     private val PREFS_RETRY_DELAY_MS = 500L
@@ -147,6 +158,7 @@ class HookEntry : XposedModule() {
             // this process so a packaging or injection failure shows up in the module log without a
             // separate logcat capture.
             DebugLog.i("NativeRules", NativeRules.describe())
+            publishNativeRuleSwitches()
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "module load handling failed", t)
         }
@@ -578,6 +590,7 @@ class HookEntry : XposedModule() {
                 if (preferenceRetryGeneration.get() != retryGeneration) return@Thread
                 if (tryInitPreferences()) {
                     retryPreferenceGatedHookers(retryGeneration)
+                    publishNativeRuleSwitches()
                     break
                 }
                 attempt++
@@ -589,6 +602,28 @@ class HookEntry : XposedModule() {
     private fun retryPreferenceGatedHookers(retryGeneration: Long) {
         if (preferenceRetryGeneration.get() != retryGeneration) return
         rootHookers.toList().forEach { it.retryHookIfNeeded() }
+    }
+
+    /**
+     * Hands the launcher-side rule switches to the payload, in the launcher process only.
+     *
+     * `NativeRuleConfig` publishes the same values as a file in the module's shared media
+     * directory, but that file is unreadable from here: the launcher is a `platform_app_36`
+     * process with an ordinary app uid, is neither the file's owner nor in its `media_rw` group,
+     * and scoped storage refuses it. The module's Java is injected into the launcher as well, so
+     * this call is what actually reaches the rules — see [NativeRules.applyRuleSwitches].
+     */
+    private fun publishNativeRuleSwitches() {
+        if (processName != LAUNCHER_PACKAGE) return
+        runCatching {
+            NativeRules.applyRuleSwitches(
+                hideRecentsClearButton = Preferences.hideRecentsClearButton(),
+                openedFolderColumns = Preferences.openedFolderColumns(),
+                contextualSearchLongPress = Preferences.contextualSearchLongPress()
+            )
+        }.onFailure { t ->
+            DebugLog.w("HookEntry", "native rule switch publish failed", t)
+        }
     }
 
     /** Runs one attempt at binding the daemon's remote preferences; true on success. */
@@ -618,6 +653,13 @@ class HookEntry : XposedModule() {
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)
+        // Aligns the AOSP assistant setting with the assistant selected in 默认应用 so the
+        // platform's own assist path can launch it (see the hooker's comment for what HyperOS
+        // leaves inconsistent).
+        attachHooker(DefaultAssistantHooker, classLoader, ctx, replacementHandles)
+        // Binds the launcher's gesture-bar long press to a route that reaches Circle to Search
+        // instead of XiaoAI; the native terminal patch alone is not enough (see the hooker).
+        attachHooker(CircleToSearchGestureHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)

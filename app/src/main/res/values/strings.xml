@@ -902,6 +902,8 @@
     <string name="tweaks_hide_fingerprint_app_auth_title">Hide App Authentication Fingerprint</string>
     <string name="tweaks_hide_gesture_bar_summary">Hide the bottom gesture line and split-screen bar</string>
     <string name="tweaks_hide_gesture_bar_title">Hide Bottom Gesture Bar</string>
+    <string name="tweaks_cts_long_press_title">Circle to Search on Long Press</string>
+    <string name="tweaks_cts_long_press_summary">Long press the gesture handle to start Circle to Search. Restart the launcher to apply; rebooting also rebinds the gesture.</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">Hide the clock and status icons while locked</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">Hide Lockscreen Status Bar</string>
     <string name="tweaks_navigation_bar_title">Navigation Bar</string>
@@ -910,8 +912,6 @@
     <string name="tweaks_power_button_action_follow_system">Follow system</string>
     <string name="tweaks_power_button_action_summary">Run the selected action on a long press of the power button</string>
     <string name="tweaks_power_button_action_title">Power Button Long Press</string>
-    <string name="tweaks_power_button_haptic_summary">Vibrate when the power long-press action triggers</string>
-    <string name="tweaks_power_button_haptic_title">Power Button Haptic Feedback</string>
     <string name="tweaks_quick_share_summary">Unlock Quick Share on Chinese Google Play services</string>
     <string name="tweaks_quick_share_title">Unlock Nearby Share (Quick Share)</string>
     <string name="tweaks_full_screen_translate_title">Full-screen Translate in Circle to Search</string>

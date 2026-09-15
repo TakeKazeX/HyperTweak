@@ -129,23 +129,23 @@ object Preferences {
 
     /**
      * Long-press power button action (长按电源键操作). `PowerButtonCtsHooker` intercepts
-     * `PowerKeyRule.onMiuiLongPress` (the MIUI 快捷手势 layer) and
-     * `PhoneWindowManager.powerLongPress` (the AOSP fallback) in system_server and dispatches
-     * the selected action: [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] starts the contextual-search
-     * service through `ContextualSearchSystemHooker`, [POWER_BUTTON_ACTION_DEFAULT_ASSISTANT]
-     * launches the user's default digital assistant (Google Assistant / Gemini / 小爱) through
-     * the platform assist pipeline. [POWER_BUTTON_ACTION_DISABLED] leaves the system's own
-     * long-press action untouched. The action and the haptic toggle are read live at dispatch
-     * time, so switching between actions (or off) takes effect without a reboot once the
-     * system-server hooks are installed; turning the feature on from disabled still needs a
-     * reboot for those hooks (and the CTS bridge) to install.
+     * `PhoneWindowManager$PowerKeyRule.onLongPress(SingleKeyGestureEvent)` (the single entry
+     * point shared by MIUI's assistant route and the `powerLongPress` fallback) and
+     * `PhoneWindowManager.powerLongPress` in system_server, then dispatches the selected action:
+     * [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] starts the contextual-search service through
+     * `ContextualSearchSystemHooker`, [POWER_BUTTON_ACTION_DEFAULT_ASSISTANT] launches the user's
+     * default digital assistant (Google Assistant / Gemini / 小爱) through the platform assist
+     * pipeline. [POWER_BUTTON_ACTION_DISABLED] leaves the system's own long-press action
+     * untouched. The action is read live at dispatch time, so switching between actions (or off)
+     * takes effect without a reboot once the system-server hooks are installed; turning the
+     * feature on from disabled still needs a reboot for those hooks (and the CTS bridge) to
+     * install. The power-long-press haptic has no preference: it fires whenever a custom action
+     * is bound.
      */
     const val KEY_POWER_BUTTON_ACTION = "power_button_long_press_action"
-    const val KEY_POWER_BUTTON_HAPTIC = "power_button_long_press_haptic"
     const val POWER_BUTTON_ACTION_DISABLED = 0
     const val POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH = 1
     const val POWER_BUTTON_ACTION_DEFAULT_ASSISTANT = 2
-    const val DEFAULT_POWER_BUTTON_HAPTIC = true
 
     /** Legacy single-switch Circle to Search enable; superseded by [KEY_POWER_BUTTON_ACTION]. */
     const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
@@ -950,11 +950,23 @@ object Preferences {
     const val MIN_OPENED_FOLDER_COLUMNS = 3
     const val MAX_OPENED_FOLDER_COLUMNS = 5
 
+    /**
+     * 长按底部手势指示器启动圈定即搜. The launcher's own long-press terminal is replaced by the
+     * native payload so the gesture starts Circle to Search instead of Xiaomi's route, which
+     * rejects NavLongPress on China builds. Like the other native launcher rules the value reaches
+     * the payload through `NativeRules.applyRuleSwitches` when `com.miui.home` loads the module,
+     * so changing it takes effect after a launcher restart. It is independent of
+     * [KEY_POWER_BUTTON_ACTION]: either entry point may be on.
+     */
+    const val KEY_CONTEXTUAL_SEARCH_LONG_PRESS = "contextual_search_long_press"
+
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+
+    fun contextualSearchLongPress(): Boolean = getBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
 
     fun openedFolderColumns(): Int = getInt(
         KEY_OPENED_FOLDER_COLUMNS,

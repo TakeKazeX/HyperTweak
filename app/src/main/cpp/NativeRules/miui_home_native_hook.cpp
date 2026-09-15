@@ -790,8 +790,8 @@ constexpr char kSystemUiPackage[] = "com.android.systemui";
 constexpr char kArbiterStateAction[] =
         "dev.codex.miuibackgesturehook.action.SYSTEMUI_INPUT_ARBITER_STATE";
 constexpr char kArbiterStateCarrierAction[] = "com.android.systemui.fsgesture";
-constexpr char kContextualSearchEnabledExtra[] =
-        "contextual_search_enabled";
+// `contextual_search_enabled` is intentionally not read from the arbiter broadcast;
+// see ObserveArbiterStateIntent for why the launcher's switch is module-owned.
 constexpr char kPlatformContextualSearchFeature[] =
         "android.software.contextualsearch";
 constexpr char kGoogleContextualSearchFeature[] =
@@ -1254,14 +1254,29 @@ void ObserveArbiterStateIntent(void* intent) {
 
     void* extras = get_extras(intent);
     bool ready = false;
-    bool contextual_search_enabled = false;
     int32_t sender_uid = -1;
     int64_t generation = 0;
-    // The preference is optional for compatibility with an older companion
-    // APK. Missing or malformed state must fail closed without preventing the
-    // authenticated arbiter readiness update.
-    ReadNativeBool(extras, kContextualSearchEnabledExtra,
-                   &contextual_search_enabled);
+    // The contextual-search gate is deliberately NOT read from here.
+    //
+    // It used to be, when the sender was this module's own SystemUI side: the gate
+    // travelled with the arbiter readiness update. That sender was part of the OS3
+    // back-gesture route, which this module no longer carries — but the broadcast
+    // itself is still sent on this device by the *upstream* companion module
+    // (`dev.codex.miuibackgesturehook`), which is independently installed and
+    // publishes its own `contextual_search_enabled` (false whenever its own switch is
+    // off). Accepting that value made the launcher rule work exactly once after a
+    // launcher restart — the module's push set it, the first foreign broadcast after
+    // the first long press cleared it — and every later long press fell through to
+    // Xiaomi's stock route. Observed on OS4.0.0.30:
+    //   handler trigger_mode=1 enabled=1 -> invoked result=1
+    //   native arbiter ready=1 contextual_search=0 ... uid=10228
+    //   handler trigger_mode=1 enabled=0 -> passthrough
+    //
+    // The launcher-side switch is owned by this module's preference, which reaches
+    // the payload through JNI (nativeApplyRuleSwitches) and, at boot, through the
+    // shared config file. Nothing else may overwrite it. Arbiter readiness stays
+    // here: that part of the broadcast is the module's own arbitration state and is
+    // not a feature switch.
     if (!ReadNativeBool(extras, "input_arbiter_ready", &ready) ||
             !ReadNativeI32(extras, "sender_uid", &sender_uid) ||
             !ReadNativeI64(extras, "input_arbiter_generation", &generation) ||
@@ -1273,15 +1288,12 @@ void ObserveArbiterStateIntent(void* intent) {
     if (generation < current) return;
     AtomicStore(&g_systemui_arbiter_generation, generation);
     AtomicStore(&g_systemui_arbiter_ready, ready ? uint32_t{1} : uint32_t{0});
-    __atomic_store_n(&g_contextual_search_enabled,
-                     contextual_search_enabled ? uint32_t{1} : uint32_t{0},
-                     __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                        "native arbiter ready=%u contextual_search=%u "
-                        "generation=%lld uid=%d",
+                        "native arbiter ready=%u generation=%lld uid=%d "
+                        "contextual_search=%u (module-owned)",
                         ready ? 1u : 0u,
-                        contextual_search_enabled ? 1u : 0u,
-                        static_cast<long long>(generation), sender_uid);
+                        static_cast<long long>(generation), sender_uid,
+                        AtomicLoad(&g_contextual_search_enabled));
 }
 
 bool IntentActionEquals(void* intent, const char* expected) {
@@ -4917,6 +4929,32 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
     TryInstallArbiterBridge();
 }
 
+// HyperTweak: the contextual-search enable gate used to arrive in the
+// SYSTEMUI_INPUT_ARBITER_STATE broadcast. That sender was part of the OS3 back
+// gesture route, which this module no longer carries, so the gate would stay 0
+// forever and the long-press terminal would always fall through to stock.
+//
+// The authoritative source is now the module's Java, which pushes the value
+// through nativeApplyRuleSwitches (see HyperTweakSetContextualSearchLongPress
+// below): the shared config file consulted here is not readable from the
+// launcher process. This bootstrap read still runs once from native_init so a
+// hand-placed file (or a build whose Java never reached this process) can enable
+// the gate, and it is then overwritten by the push when that arrives.
+constexpr char kContextualSearchLongPressKey[] = "contextual_search_long_press";
+
+void RefreshContextualSearchConfig() {
+    hypertweak::native::ProbeConfigChannel();
+    const bool enabled = hypertweak::native::ReadConfigFlag(
+            kContextualSearchLongPressKey, false);
+    __atomic_store_n(&g_contextual_search_enabled,
+                     enabled ? uint32_t{1} : uint32_t{0}, __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                        "contextual-search long press from config: enabled=%d"
+                        " channel=%s",
+                        enabled ? 1 : 0,
+                        hypertweak::native::ConfigChannelPath());
+}
+
 }  // namespace
 
 bool MiuiHomeHyosResolveDartImage(void* dart_handle, uint8_t** base_out,
@@ -4963,6 +5001,23 @@ bool MiuiHomeHyosDartRangeHasFlags(const uint8_t* base, uintptr_t offset,
     return DartMappedRangeHasFlags(base, offset, size, required_flags);
 }
 
+// Module-facing gate for the gesture-bar contextual-search long press. The shared
+// config file is written by the module, but scoped storage refuses the launcher
+// (a `platform_app_36` process with an ordinary app uid) the module's
+// `Android/media` directory, so the payload takes this switch from the module's
+// own Java instead: LSPosed injects the dex into the launcher too, and the Java
+// side reads the preference through the remote-preferences channel.
+//
+// Internal to the library: the JNI entry point in jni_bridge.cpp is what the
+// module calls, and exports.map keeps every other symbol local.
+extern "C" void HyperTweakSetContextualSearchLongPress(bool enabled) {
+    __atomic_store_n(&g_contextual_search_enabled,
+                     enabled ? uint32_t{1} : uint32_t{0}, __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                        "contextual-search long press pushed by module: enabled=%d",
+                        enabled ? 1 : 0);
+}
+
 extern "C" __attribute__((visibility("hidden")))
 void MiuiHomeHyosInputMonitorPilferImpl(void* monitor, uintptr_t return_pc) {
     HandleInputMonitorPilfer(monitor, return_pc);
@@ -4992,6 +5047,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
     }
     hypertweak::native::RefreshClearButtonConfig();
     hypertweak::native::RefreshFolderColumnsConfig();
+    RefreshContextualSearchConfig();
     uint32_t atfork_expected = 0u;
     if (__atomic_compare_exchange_n(
                 &g_dart_state_atfork_state, &atfork_expected, uint32_t{1},
