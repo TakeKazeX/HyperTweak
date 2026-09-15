@@ -97,8 +97,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
-import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppLiveTranslateHooker
-import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppAskAboutScreenHooker
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
@@ -239,6 +238,13 @@ class HookEntry : XposedModule() {
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
         )
+        if (GoogleAppRuntime.isResolvingDex) {
+            DebugLog.w(
+                "HookEntry",
+                "deferred hot reload during Google App DexKit resolution process=$processName"
+            )
+            return false
+        }
         val ready = runCatching {
             refreshHotReloadSnapshots()
             if (!DexKitManager.prepareForHotReload()) {
@@ -295,6 +301,25 @@ class HookEntry : XposedModule() {
             DebugLog.w("HookEntry", "hot reloaded without restorable target state")
             unhookRemainingOldHandles(oldHandles)
             return
+        }
+
+        // Match upstream's ordering: stable Google callbacks are attached to the carried old
+        // executable before the new generation starts its DexKit pass. Retired investigation IDs
+        // are neutralized here as well, so they cannot keep stale behavior alive after an update.
+        val googleProcess = processName == GoogleAppRuntime.PACKAGE ||
+            processName.startsWith("${GoogleAppRuntime.PACKAGE}:") ||
+            restoredState.packages.any { it.packageName == GoogleAppRuntime.PACKAGE }
+        var googleReplaced = 0
+        if (googleProcess) {
+            oldHandles.remainingHandles().forEach { handle ->
+                if (GoogleAppRuntime.replaceOldHandle(handle)) {
+                    oldHandles.markHandled(handle)
+                    googleReplaced++
+                }
+            }
+        }
+        if (googleReplaced > 0) {
+            DebugLog.d("HookEntry", "replaced carried Google hooks=$googleReplaced")
         }
 
         processName = restoredState.processName
@@ -809,12 +834,9 @@ class HookEntry : XposedModule() {
                 attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
             }
             "com.google.android.googlequicksearchbox" -> {
-                // Only act while a Google-side feature switch is on (the package is a declared
-                // required scope, see `scope.list` + `ScopeManager`); each hooker returns early
-                // when its own preference is off. See GoogleAppLiveTranslateHooker and
-                // GoogleAppAskAboutScreenHooker.
-                attachHooker(GoogleAppLiveTranslateHooker, classLoader, ctx, replacementHandles)
-                attachHooker(GoogleAppAskAboutScreenHooker, classLoader, ctx, replacementHandles)
+                // The coordinator owns both independent Google features and one shared DexKit
+                // bridge. Their callbacks still gate each feature by its own preference.
+                attachHooker(GoogleAppRuntime, classLoader, ctx, replacementHandles)
             }
             "com.miui.mediaeditor" -> {
                 attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)

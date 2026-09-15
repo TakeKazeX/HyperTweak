@@ -50,20 +50,20 @@ object Preferences {
      * `com.google.android.apps.search.lens.user/45785436` master flag, the
      * `CONTEXTUAL_SEARCH_LIVE_TRANSLATE` system feature, and the EXTRA_MEDIA_PROJECTION display
      * predicate). The Google app is a declared required Xposed scope (see `scope.list`); the
-     * switch flips the preference and queues the Google app in the Home restart dialog. Disabled
-     * (default) installs nothing and leaves the app untouched.
+     * switch flips the preference and queues the Google app in the Home restart dialog. The
+     * runtime may prepare its bridge while disabled, but callbacks preserve the native result.
      */
     const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
 
     /**
      * Shows "Ask about this screen" (针对屏幕内容提问) in the Circle to Search (即圈即搜)
      * Lensient searchbox on the Google app (`com.google.android.googlequicksearchbox`).
-     * `GoogleAppAskAboutScreenHooker` resolves the native Lensient screen-capability gate
-     * (`bydc.c()`, lazily server-fetched and false on stock) through the AIM model DI chain
-     * (`wry.iX()` → `doqf.<init>` → `djyp` coordinator) and force-opens it, mirroring upstream
-     * MiuiBackGestureHook commit `0f603b1d`. The Google app is a declared required Xposed scope
-     * (see `scope.list`); the switch flips the preference and queues the Google app in the Home
-     * restart dialog. Disabled (default) installs nothing.
+     * `GoogleAppAskAboutScreenHooker` resolves the native Lensient bridge from the `vidcip` and
+     * AIM hint markers, validates Google's OMNI entrypoint, and opens the capability plus the
+     * constructor-time AIM booleans. The Google app is a declared required Xposed scope (see
+     * `scope.list`); the switch flips the preference and queues the Google app in the Home restart
+     * dialog. The runtime may prepare the native bridge while disabled, but every callback
+     * preserves Google's original behavior until this switch is enabled.
      */
     const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
     /** Legacy aggregate switch kept as a fallback for upgrades from the original single toggle. */

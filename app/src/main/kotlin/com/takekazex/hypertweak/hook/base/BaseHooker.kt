@@ -243,9 +243,30 @@ sealed class BaseHooker {
     fun Constructor<*>.hook(
         managed: Boolean = true,
         block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle =
+        hookConstructor(this, defaultHookId(this), managed, block)
+
+    /**
+     * Hook a [Constructor] under an explicit hook id.
+     *
+     * The default constructor id embeds the declaring class and parameter types, so it changes
+     * whenever an obfuscated host build renames them and a hot reload can no longer match the
+     * previous handle. Targets resolved from obfuscation-independent markers need an id that
+     * survives the host build.
+     */
+    fun Constructor<*>.hook(
+        hookId: String,
+        managed: Boolean = true,
+        block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle = hookConstructor(this, hookId, managed, block)
+
+    private fun hookConstructor(
+        constructor: Constructor<*>,
+        hookId: String,
+        managed: Boolean,
+        block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
-        val target = formatExecutable(this)
-        val hookId = defaultHookId(this)
+        val target = formatExecutable(constructor)
         return try {
             val replacementMap = replacementHandles
             val oldHandle = replacementMap?.firstForId(hookId)
@@ -253,7 +274,7 @@ sealed class BaseHooker {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)
                 }
-            } else this.createHook {
+            } else constructor.createHook {
                 id(hookId)
                 block()
             }
@@ -284,6 +305,16 @@ sealed class BaseHooker {
 
     fun collectManagedHookHandles(): List<XposedInterface.HookHandle> {
         return hookHandles.toList() + childHookers.flatMap { it.collectManagedHookHandles() }
+    }
+
+    /**
+     * Adopts a handle that was replaced before the new hooker generation was attached.
+     * Hot-reload coordinators use this to keep carried hooks visible to lifecycle cleanup and
+     * diagnostics even when their normal install path intentionally skips an already-replaced id.
+     */
+    internal fun adoptManagedHookHandle(handle: XposedInterface.HookHandle) {
+        hookHandles.add(wrapHandle(handle))
+        DebugLog.hookRegistered(hookerName, "carried id=${handle.id}")
     }
 
     /**

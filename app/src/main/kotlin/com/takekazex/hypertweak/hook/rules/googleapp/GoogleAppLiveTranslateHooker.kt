@@ -1,11 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
-import android.content.pm.PackageManager
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import io.github.libxposed.api.XposedInterface
+import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Method
 
@@ -53,8 +53,8 @@ import java.lang.reflect.Method
  *
  * The Google app is a declared required Xposed scope (see `scope.list` and `ScopeManager`), so
  * the switch flips the preference and queues the app in the Home restart dialog; the hooks then
- * read the preference live, so turning the feature off is a no-op restart away from stock
- * behaviour.
+ * read the preference live, so turning the feature off preserves stock behaviour without leaving
+ * a stale hook generation behind.
  */
 object GoogleAppLiveTranslateHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -81,44 +81,64 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
      */
     private const val ACTION_LIVE_TRANSLATE = 271520
 
+    private const val HOOK_SYSTEM_FEATURE = "google_live_translate_system_feature"
+    private const val HOOK_SYSTEM_FEATURE_BASE = "google_live_translate_system_feature_base"
+    private const val HOOK_ACTION_VISIBILITY = "google_live_translate_action_visibility"
+    private const val HOOK_CAPABILITY = "google_live_translate_capability"
+
     @Volatile
     private var enabledCache = false
 
     private fun featureEnabled(): Boolean {
-        if (Preferences.isInitialized) {
-            enabledCache = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
-        }
+        enabledCache = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
         return enabledCache
     }
 
     override fun onHook() {
-        if (hookParam.packageName != PACKAGE) return
-        enabledCache = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
-        if (!enabledCache) {
-            DebugLog.i(TAG, "feature disabled; not installing hooks")
-            return
-        }
-        installGateHooks()
+        // GoogleAppRuntime owns the one shared DexKit session. Keeping this child hooker inert
+        // prevents an independent scan when the feature runtimes are attached below it.
     }
 
-    private fun installGateHooks() {
-        // Reliable: framework method, cannot be R8-inlined at the dmkp call site.
-        hookHasSystemFeature()
+    /** Installs the Google feature hooks from the coordinator's shared DexKit bridge. */
+    internal fun installSystemFeature(existingHookIds: Set<String> = emptySet()) {
+        hookHasSystemFeature(existingHookIds)
+    }
+
+    /** Installs the DexKit-backed Google feature hooks from the coordinator's shared bridge. */
+    internal fun installWithBridge(
+        bridge: DexKitBridge,
+        existingHookIds: Set<String> = emptySet()
+    ) {
         // Display gate: invoked through a Guava Function interface, cannot be inlined.
-        hookMediaProjectionGate()
+        hookMediaProjectionGate(bridge)
         // Best-effort master flag leaf (may be sunk into its single call site by R8).
-        hookFlagLeaf(FLAG_LIVE_TRANSLATE)
+        hookFlagLeaf(bridge, FLAG_LIVE_TRANSLATE)
         // The on-device decision points the flags feed into. These are the ones that actually
         // win: `dmwl.i()` (View path) and `dmwn.a()` (Compose path + backs dmwl.i()), both
         // reached through non-inlinable virtual calls.
-        hookActionBeanVisibility()
+        hookActionBeanVisibility(bridge, existingHookIds)
 
         DebugLog.i(TAG, "gate hooks installed")
     }
 
+    /** Replacement callbacks used before a hot-reload generation resolves DexKit again. */
+    internal fun replacement(id: String): XposedInterface.Hooker? = when (id) {
+        HOOK_SYSTEM_FEATURE,
+        HOOK_SYSTEM_FEATURE_BASE -> XposedInterface.Hooker { chain ->
+            overrideLiveTranslateSystemFeature(chain)
+        }
+        HOOK_ACTION_VISIBILITY -> XposedInterface.Hooker { chain ->
+            overrideLiveTranslateActionVisibility(chain)
+        }
+        HOOK_CAPABILITY -> XposedInterface.Hooker { chain ->
+            overrideLiveTranslateBooleanGate(chain)
+        }
+        else -> null
+    }
+
     // ─── Gate 2: system feature ───────────────────────────────────────────────────
 
-    private fun hookHasSystemFeature() {
+    private fun hookHasSystemFeature(existingHookIds: Set<String>) {
         val impl = runCatching {
             Class.forName("android.app.ApplicationPackageManager", false, classLoader)
         }.getOrNull()
@@ -127,19 +147,15 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         }.getOrNull()
 
         for (clazz in listOfNotNull(base, impl)) {
+            val hookId = if (clazz == impl) HOOK_SYSTEM_FEATURE else HOOK_SYSTEM_FEATURE_BASE
+            if (existingHookIds.contains(hookId)) continue
             runCatching {
                 val method = clazz.getDeclaredMethod("hasSystemFeature", String::class.java)
                 deoptimize(method)
-                method.hook {
-                    after { param ->
-                        // Check the feature name first so the preference read only happens for
-                        // the rare matching query, not on every process-wide hasSystemFeature call.
-                        if (param.args[0] == FEATURE_LIVE_TRANSLATE && featureEnabled()) {
-                            param.result = true
-                        }
-                    }
+                method.hook(hookId) {
+                    intercept { chain -> overrideLiveTranslateSystemFeature(chain) }
                 }
-                DebugLog.d(TAG, "hasSystemFeature hook installed on ${clazz.name}")
+                DebugLog.i(TAG, "hasSystemFeature hook installed on ${clazz.name} id=$hookId")
             }.onFailure { t ->
                 DebugLog.w(TAG, "hasSystemFeature hook failed on ${clazz.name}", t)
             }
@@ -148,8 +164,8 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
 
     // ─── Gate 3: EXTRA_MEDIA_PROJECTION display predicate ─────────────────────────
 
-    private fun hookMediaProjectionGate() {
-        methodsUsingString(EXTRA_MEDIA_PROJECTION).forEach { md ->
+    private fun hookMediaProjectionGate(bridge: DexKitBridge) {
+        methodsUsingString(bridge, EXTRA_MEDIA_PROJECTION).forEach { md ->
             val method = methodFor(md) ?: return@forEach
             // The display predicate is a Guava `Function<InvocationIntent, Boolean>` whose JVM
             // signature erases to `Object apply(Object)` (the boxed Boolean returns through the
@@ -177,8 +193,8 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
 
     // ─── Gate 1: master flag leaf ─────────────────────────────────────────────────
 
-    private fun hookFlagLeaf(anchor: String) {
-        methodsUsingString(anchor).forEach { md ->
+    private fun hookFlagLeaf(bridge: DexKitBridge, anchor: String) {
+        methodsUsingString(bridge, anchor).forEach { md ->
             val method = methodFor(md) ?: return@forEach
             if (method.parameterCount != 0 || method.returnType != java.lang.Boolean.TYPE) {
                 return@forEach
@@ -208,21 +224,19 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
      * Both are reached through virtual interface calls (`invoke-interface Ldjxk;->i()` /
      * `invoke-virtual Ldmwn;->a()Z`), so R8/ART cannot inline or sink them.
      */
-    private fun hookActionBeanVisibility() {
-        val apkPath = hookParam.appInfo?.sourceDir ?: run {
-            DebugLog.w(TAG, "no sourceDir; cannot resolve action bean")
-            return
-        }
-        val beanClass = DexKitManager.withBridge(apkPath) { bridge ->
-            bridge.findMethod { matcher { usingNumbers(ACTION_LIVE_TRANSLATE) } }
-                .firstOrNull {
-                    // `dmwl.a()` is the only 0-arg method that returns the live-translate action
-                    // id; its consumers (`dljh`'s render path, `dmit`'s compose lambda) reference
-                    // the same id from multi-arg methods, so the shape is already unique.
-                    it.paramCount == 0 && it.methodName == "a"
-                }
-                ?.let { materializeClass(it.className) }
-        } ?: run {
+    private fun hookActionBeanVisibility(
+        bridge: DexKitBridge,
+        existingHookIds: Set<String>
+    ) {
+        val beanClass = bridge.findMethod { matcher { usingNumbers(ACTION_LIVE_TRANSLATE) } }
+            .firstOrNull {
+                // `dmwl.a()` is the only 0-arg method that returns the live-translate action
+                // id; its consumers (`dljh`'s render path, `dmit`'s compose lambda) reference
+                // the same id from multi-arg methods, so the shape is already unique.
+                it.paramCount == 0 && it.methodName == "a"
+            }
+            ?.let { materializeClass(it.className) }
+            ?: run {
             DebugLog.w(TAG, "live-translate action bean (a()==$ACTION_LIVE_TRANSLATE) not resolved")
             return
         }
@@ -230,11 +244,11 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         val visibility = beanClass.declaredMethods.firstOrNull {
             it.name == "i" && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
         }
-        if (visibility != null) {
+        if (visibility != null && !existingHookIds.contains(HOOK_ACTION_VISIBILITY)) {
             visibility.isAccessible = true
             deoptimize(visibility)
-            visibility.hook {
-                after { param -> if (featureEnabled()) param.result = true }
+            visibility.hook(HOOK_ACTION_VISIBILITY) {
+                intercept { chain -> overrideLiveTranslateActionVisibility(chain) }
             }
             DebugLog.i(TAG, "action bean i() hooked on ${beanClass.name}")
         } else {
@@ -250,11 +264,11 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
             val capability = capabilityClass.declaredMethods.firstOrNull {
                 it.name == "a" && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
             }
-            if (capability != null) {
+            if (capability != null && !existingHookIds.contains(HOOK_CAPABILITY)) {
                 capability.isAccessible = true
                 deoptimize(capability)
-                capability.hook {
-                    after { param -> if (featureEnabled()) param.result = true }
+                capability.hook(HOOK_CAPABILITY) {
+                    intercept { chain -> overrideLiveTranslateBooleanGate(chain) }
                 }
                 DebugLog.i(TAG, "capability a() hooked on ${capabilityClass.name}")
             } else {
@@ -267,14 +281,32 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
 
     // ─── DexKit method resolution ─────────────────────────────────────────────────
 
-    private fun methodsUsingString(anchor: String): List<MethodData> {
-        val apkPath = hookParam.appInfo?.sourceDir ?: run {
-            DebugLog.w(TAG, "no sourceDir; cannot resolve '$anchor'")
-            return emptyList()
+    private fun methodsUsingString(bridge: DexKitBridge, anchor: String): List<MethodData> =
+        bridge.findMethod { matcher { usingStrings(anchor) } }
+
+    private fun overrideLiveTranslateSystemFeature(chain: XposedInterface.Chain): Any? {
+        val result = chain.proceed()
+        return if (chain.args.size == 1 &&
+            chain.args[0] == FEATURE_LIVE_TRANSLATE &&
+            featureEnabled()
+        ) {
+            true
+        } else {
+            result
         }
-        return DexKitManager.withBridge(apkPath) { bridge ->
-            bridge.findMethod { matcher { usingStrings(anchor) } }
-        } ?: emptyList()
+    }
+
+    private fun overrideLiveTranslateBooleanGate(chain: XposedInterface.Chain): Any? {
+        val result = chain.proceed()
+        return if (featureEnabled()) true else result
+    }
+
+    private fun overrideLiveTranslateActionVisibility(chain: XposedInterface.Chain): Any? {
+        val result = chain.proceed()
+        // HyperTweak intentionally exposes the native action on the initial OMNI page. The
+        // upstream runtime keeps this callback pass-through, but that would regress this
+        // project's existing full-screen-translate surface on HyperOS.
+        return if (featureEnabled()) true else result
     }
 
     private fun materializeClass(dexName: String): Class<*>? = runCatching {
