@@ -112,7 +112,7 @@ object WarningCountdownHooker : StaticHooker() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
         if (mode == Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
-            DebugLog.hookSkipped(TAG, "permission warning intercept", "follow system")
+            DebugLog.hookSkippedDebug(TAG, "permission warning intercept", "follow system")
             return
         }
 

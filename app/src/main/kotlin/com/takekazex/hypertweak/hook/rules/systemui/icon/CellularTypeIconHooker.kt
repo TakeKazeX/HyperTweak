@@ -81,7 +81,7 @@ object CellularTypeIconHooker : StaticHooker() {
         val configEnabled = forceSingle || useCustom
         val binderEnabled = swapSingle || singleSizeEnabled || singleFontEnabled
         if (!configEnabled && !binderEnabled && !drawableFontEnabled) {
-            DebugLog.hookSkipped(TAG, "CellularTypeIcon", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "CellularTypeIcon", "disabled")
             return
         }
         if (configEnabled) hookOperatorConfig()

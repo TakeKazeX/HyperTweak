@@ -60,7 +60,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.notificationMoreSettings()
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "status bar silent filter", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "status bar silent filter", "disabled")
             return
         }
         val builderClass = BUILDER.toClassOrNull() ?: run {

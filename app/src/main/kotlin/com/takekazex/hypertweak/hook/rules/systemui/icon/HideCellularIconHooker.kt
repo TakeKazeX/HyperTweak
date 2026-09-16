@@ -81,7 +81,7 @@ object HideCellularIconHooker : StaticHooker() {
         hideSimOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_ONE, false)
         hideSimTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_TWO, false)
         if (stackedEnabled || (!hideNonDefault && !hideSimOne && !hideSimTwo)) {
-            DebugLog.hookSkipped(
+            DebugLog.hookSkippedDebug(
                 TAG,
                 "HideCellularIcon",
                 if (stackedEnabled) "stacked signal owns visibility" else "hide sim options off"

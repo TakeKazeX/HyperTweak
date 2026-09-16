@@ -36,7 +36,7 @@ object NotificationMaxNumberHooker : StaticHooker() {
             )
         )
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "NotificationMaxNumber", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "NotificationMaxNumber", "disabled")
             return
         }
         val transformClass = TRANSFORM_CLASS.toClassOrNull() ?: run {

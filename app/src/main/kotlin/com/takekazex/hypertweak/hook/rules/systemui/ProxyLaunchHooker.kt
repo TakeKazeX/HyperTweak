@@ -84,7 +84,15 @@ object ProxyLaunchHooker : StaticHooker() {
     private fun unregister() {
         registration?.let { (context, receiver) ->
             runCatching { context.unregisterReceiver(receiver) }
-                .onFailure { t -> DebugLog.w(TAG, "failed to unregister proxy launch receiver", t) }
+                .onFailure { t ->
+                    if (t is IllegalArgumentException &&
+                        t.message?.contains("Receiver not registered") == true
+                    ) {
+                        DebugLog.d(TAG, "proxy launch receiver already unregistered")
+                    } else {
+                        DebugLog.w(TAG, "failed to unregister proxy launch receiver", t)
+                    }
+                }
         }
         registration = null
     }

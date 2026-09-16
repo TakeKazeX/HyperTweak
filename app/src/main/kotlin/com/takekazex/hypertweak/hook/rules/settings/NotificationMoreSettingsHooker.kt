@@ -77,7 +77,7 @@ object NotificationMoreSettingsHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.notificationMoreSettings()) {
-            DebugLog.hookSkipped(TAG, "channel importance dropdown", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "channel importance dropdown", "disabled")
             return
         }
         val baseClass = BASE.toClassOrNull() ?: run {

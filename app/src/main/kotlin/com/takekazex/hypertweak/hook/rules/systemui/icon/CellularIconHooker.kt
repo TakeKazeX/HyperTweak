@@ -73,7 +73,7 @@ object CellularIconHooker : StaticHooker() {
         val anyEnabled = hideActivity || hideType || hideRoamGlobal || hideRoam || hideSmallRoam ||
             hideVoWifi || hideVolte || hideVolteNoService || hideSpeechHd
         if (!anyEnabled) {
-            DebugLog.hookSkipped(TAG, "CellularIcon", "no icon tuner cellular switches enabled")
+            DebugLog.hookSkippedDebug(TAG, "CellularIcon", "no icon tuner cellular switches enabled")
             return
         }
 

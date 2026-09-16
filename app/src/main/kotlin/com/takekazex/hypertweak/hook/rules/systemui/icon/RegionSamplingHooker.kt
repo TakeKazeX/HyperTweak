@@ -29,7 +29,7 @@ object RegionSamplingHooker : StaticHooker() {
     override fun onHook() {
         val mode = Preferences.getInt(Preferences.KEY_STATUSBAR_REGION_SAMPLING, 0)
         if (mode !in 1..2) {
-            DebugLog.hookSkipped(TAG, "RegionSampling", "mode $mode not active")
+            DebugLog.hookSkippedDebug(TAG, "RegionSampling", "mode $mode not active")
             return
         }
         val transformClass = TRANSFORM_CLASS.toClassOrNull()

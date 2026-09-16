@@ -45,7 +45,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
         ) != IconSlotMode.HIDE_EVERYWHERE
 
         if (!ignoreSysHide && !hidePrivacy) {
-            DebugLog.hookSkipped(TAG, "IgnoreSysIconSettings", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "IgnoreSysIconSettings", "disabled")
             return
         }
 

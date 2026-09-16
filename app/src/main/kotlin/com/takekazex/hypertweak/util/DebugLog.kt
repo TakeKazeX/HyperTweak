@@ -137,6 +137,11 @@ object DebugLog {
         w(scope, "HOOK_SKIPPED target=$target reason=$reason")
     }
 
+    /** Records an expected, preference-gated or optional probe skip without polluting W logs. */
+    fun hookSkippedDebug(scope: String, target: String, reason: String) {
+        d(scope, "HOOK_SKIPPED target=$target reason=$reason")
+    }
+
     private fun currentThreshold(): Int {
         // Per-process override wins, so one process can be debugged at DEBUG without flooding the
         // rest. Falls back to the global level.

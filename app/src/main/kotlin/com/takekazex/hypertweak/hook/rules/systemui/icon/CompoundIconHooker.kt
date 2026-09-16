@@ -142,7 +142,7 @@ object CompoundIconHooker : StaticHooker() {
         // mode 0 = follow system and 4 = hidden everywhere disable it.
         val slotMode = Preferences.getInt(Preferences.slotKey("compound_icon"), 0)
         if (slotMode !in 1..3) {
-            DebugLog.hookSkipped(TAG, "CompoundIcon", "slot mode $slotMode not active")
+            DebugLog.hookSkippedDebug(TAG, "CompoundIcon", "slot mode $slotMode not active")
             return
         }
         alarmOn = Preferences.getBoolean(Preferences.KEY_ICON_COMPOUND_ALARM, false)

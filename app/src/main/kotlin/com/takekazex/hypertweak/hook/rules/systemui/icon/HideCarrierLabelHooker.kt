@@ -59,7 +59,7 @@ object HideCarrierLabelHooker : StaticHooker() {
         hideLsOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
         hideLsTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
         if (!hideOne && !hideTwo && !hideHd && !hideLsOne && !hideLsTwo) {
-            DebugLog.hookSkipped(TAG, "HideCarrierLabel", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "HideCarrierLabel", "disabled")
             return
         }
 

@@ -167,7 +167,7 @@ object MiuiImeBottomHooker : StaticHooker() {
                 return
             }
         val method = CompatibleMethodResolver.find(listener, "deleteNotSupportIme") ?: run {
-            DebugLog.hookSkipped(TAG, "$listenerName#deleteNotSupportIme()", "method not found")
+            DebugLog.hookSkippedDebug(TAG, "$listenerName#deleteNotSupportIme()", "method not found")
             return
         }
 

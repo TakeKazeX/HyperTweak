@@ -68,7 +68,7 @@ object RestartBroadcastHooker : StaticHooker() {
                         }
 
                         if (shouldRestart) {
-                            DebugLog.w("RestartBroadcastHooker", "killing process $pkgName by restart broadcast")
+                            DebugLog.i("RestartBroadcastHooker", "killing process $pkgName by restart broadcast")
                             Process.killProcess(Process.myPid())
                         }
                     }
@@ -89,7 +89,13 @@ object RestartBroadcastHooker : StaticHooker() {
                 entry.first.unregisterReceiver(entry.second)
                 DebugLog.d("RestartBroadcastHooker", "unregistered restart receiver in $pkgName")
             }.onFailure { t ->
-                DebugLog.w("RestartBroadcastHooker", "failed to unregister restart receiver in $pkgName", t)
+                if (t is IllegalArgumentException &&
+                    t.message?.contains("Receiver not registered") == true
+                ) {
+                    DebugLog.d("RestartBroadcastHooker", "restart receiver already unregistered in $pkgName")
+                } else {
+                    DebugLog.w("RestartBroadcastHooker", "failed to unregister restart receiver in $pkgName", t)
+                }
             }
         }
         receivers.clear()
