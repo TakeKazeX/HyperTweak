@@ -214,7 +214,11 @@ object HideCellularIconHooker : StaticHooker() {
             DebugLog.w(TAG, "createViewModel returned no scope subId=$subId")
             return
         }
-        val originalVisibleFlow = invokeNoArg(actualMiuiViewModel, "isVisible") ?: run {
+        // Resolved through the host field, never through the hooked getter: once this VM has a
+        // registration, `isVisible()` answers with the module's own exposed flow.
+        val originalVisibleFlow = MobileSignalVisibility.hostVisibilityFlow(actualMiuiViewModel) {
+            invokeNoArg(actualMiuiViewModel, "isVisible")
+        } ?: run {
             DebugLog.w(TAG, "MIUI VM visibility getter missing subId=$subId")
             return
         }

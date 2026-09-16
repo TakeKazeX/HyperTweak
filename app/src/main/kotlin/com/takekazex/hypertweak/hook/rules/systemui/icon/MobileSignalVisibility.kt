@@ -12,11 +12,20 @@ import java.util.WeakHashMap
  * Boolean flow loses the second value and makes the detail indicators diverge from the signal
  * group. This registry exposes a host-loader StateFlow<Pair<Boolean, Boolean>>, updates only the
  * first value, and returns the original flow through the getter whenever no registration exists.
+ *
+ * Because [installGetter] answers **every** caller of `isVisible()` — including this module's own
+ * reflective lookup — the host flow must be resolved through [hostVisibilityFlow] and kept in
+ * sync through [collectOriginal]. A registration whose `original` was captured from the exposed
+ * flow instead (or never updated) reports the module's own mask back as the host's opinion, which
+ * is how the stacked-signal replacement gate once ended up permanently closed.
  */
 object MobileSignalVisibility {
     private const val TAG = "IconTuner"
     private const val VM_IMPL_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconVMImpl"
+
+    /** Host field behind the hooked getter (verified on OS4: `MiuiMobileIconVMImpl.isVisible`). */
+    private const val VISIBILITY_FIELD = "isVisible"
 
     private val lock = Any()
     private val registrations = WeakHashMap<Any, Registration>()
@@ -118,9 +127,30 @@ object MobileSignalVisibility {
 
     fun pairValueOf(value: Any?): PairValue? = pairValue(value)
 
-    /** Removes one registration and returns it so the caller can cancel its collector. */
+    /**
+     * Resolves the host Pair flow for one MIUI VM.
+     *
+     * The getter hook answers `isVisible()` with the module-owned exposed flow for as long as a
+     * registration exists, so calling it here would record the module's own (possibly masked)
+     * Pair as the host original. The host field is read first; the hooked getter is only a
+     * fallback for a build whose field name differs, and it runs after dropping any registration
+     * for this VM so this module can never capture its own flow.
+     */
+    fun hostVisibilityFlow(viewModel: Any, getter: () -> Any?): Any? {
+        readVisibilityField(viewModel)?.let { return it }
+        unregister(viewModel)
+        return getter()
+    }
+
+    /**
+     * Removes one registration and returns it so the caller can cancel its collector.
+     *
+     * The mask is cleared before the entry disappears: the host binder keeps collecting the
+     * exposed flow it received from the getter, so leaving a masked value behind would keep the
+     * native icon hidden after the module stopped replacing it.
+     */
     fun unregister(viewModel: Any): Registration? = synchronized(lock) {
-        registrations.remove(viewModel)
+        registrations.remove(viewModel)?.also { it.clearMask() }
     }
 
     fun setHiddenForSubIds(subIds: Set<Int>) {
@@ -169,6 +199,27 @@ object MobileSignalVisibility {
                 ?: return@runCatching null
             PairValue(first, second)
         }.getOrNull()
+    }
+
+    /** Reads the host's own Pair flow field, ignoring whatever the hooked getter would return. */
+    private fun readVisibilityField(viewModel: Any): Any? {
+        var current: Class<*>? = viewModel.javaClass
+        while (current != null) {
+            val field = runCatching { current.getDeclaredField(VISIBILITY_FIELD) }.getOrNull()
+            // A primitive/Boolean field of the same name is not the visibility Pair; keep walking
+            // (and finally fall back to the getter) instead of handing a wrong value to the
+            // reducer, which would disable the replacement silently.
+            if (field != null && field.type != Boolean::class.javaObjectType &&
+                !field.type.isPrimitive
+            ) {
+                return runCatching {
+                    field.isAccessible = true
+                    field.get(viewModel)
+                }.getOrNull()
+            }
+            current = current.superclass
+        }
+        return null
     }
 
     private fun Class<*>.findNoArg(name: String): Method? {

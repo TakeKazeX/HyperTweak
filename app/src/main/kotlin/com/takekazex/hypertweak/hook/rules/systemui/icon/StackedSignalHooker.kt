@@ -539,8 +539,21 @@ object StackedSignalHooker : StaticHooker() {
             DebugLog.w(TAG, "createViewModel returned incomplete Triple subId=$subId")
             return
         }
+        // One subscription reaches this function twice on a normal boot: once from the
+        // createViewModel after-hook and once from the mobileSubViewModels emission. The second
+        // pass must not re-register the live VM — `isVisible()` then answers with the module's own
+        // exposed flow, so the replacement gate would be re-derived from the module's mask (and
+        // from the host Pair's false initial value) instead of from the host.
+        val bound = bindings[subId]
+        if (bound != null && bound.miuiViewModel === miuiViewModel &&
+            bound.bindingGeneration == bindingGeneration
+        ) {
+            return
+        }
         val originInteractor = invokeNoArg(miuiViewModel, "getOriginIconInteractor")
-        val originalVisibleFlow = invokeNoArg(miuiViewModel, "isVisible")
+        val originalVisibleFlow = MobileSignalVisibility.hostVisibilityFlow(miuiViewModel) {
+            invokeNoArg(miuiViewModel, "isVisible")
+        }
         val signalFlow = originInteractor?.let { invokeNoArg(it, "getSignalLevelIcon") }
         val dataConnectedFlow = originInteractor?.let { invokeNoArg(it, "isDataConnected") }
         val inServiceFlow = originInteractor?.let { invokeNoArg(it, "isInService") }
@@ -610,15 +623,51 @@ object StackedSignalHooker : StaticHooker() {
             }
         }
 
-        // Register the host visibility flow with the same cancellation/generation gate as the
-        // signal flows. It remains a Pair so the binder's detail chain keeps its second value.
-        val allBound = required(originalVisibleFlow) { value ->
-            val pair = MobileSignalVisibility.pairValueOf(value) ?: return@required
+        fun originalVisibilityConsumer(value: Any?): Unit {
+            val pair = MobileSignalVisibility.pairValueOf(value) ?: return
             reduceOnMain(
                 MobileSignalEvent.OriginalVisibility(subId, pair.first, pair.second),
                 bindingGeneration
             )
-        } && required(signalFlow) { value ->
+        }
+
+        /**
+         * Collects the host Pair through its registration so the exposed flow keeps following the
+         * host value. Without this the registration would answer every host reader with the pair
+         * it saw when it was created (usually the false initial state), and the module's own
+         * replacement gate would be reading that stale value back through the getter.
+         */
+        fun requiredOriginalVisibility(): Boolean {
+            val registration = visibility
+            val handle = if (registration != null) {
+                MobileSignalVisibility.collectOriginal(
+                    scope = scope,
+                    originalFlow = originalVisibleFlow,
+                    registration = registration,
+                    isCurrent = isCurrent,
+                    consumer = ::originalVisibilityConsumer
+                )
+            } else {
+                HostFlowCollector.collect(
+                    scope = scope,
+                    flow = originalVisibleFlow,
+                    isCurrent = isCurrent,
+                    consumer = ::originalVisibilityConsumer
+                )
+            } ?: return false
+            handles += handle
+            flowHandles += handle
+            IconTunerFlows.readFlowValue(originalVisibleFlow)?.let { initial ->
+                mainHandler.post {
+                    if (isCurrent()) originalVisibilityConsumer(initial)
+                }
+            }
+            return true
+        }
+
+        // Register the host visibility flow with the same cancellation/generation gate as the
+        // signal flows. It remains a Pair so the binder's detail chain keeps its second value.
+        val allBound = requiredOriginalVisibility() && required(signalFlow) { value ->
             reduceOnMain(
                 MobileSignalEvent.SignalModel(subId, parseSignalModel(value)),
                 bindingGeneration
