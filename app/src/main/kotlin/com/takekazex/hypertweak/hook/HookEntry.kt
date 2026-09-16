@@ -840,6 +840,9 @@ class HookEntry : XposedModule() {
                 attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
                 attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
+                // Security Center ships its own copy of the vendor clipboard-read overlay and is the
+                // one that actually builds it; see LbeClipboardToastHooker.
+                attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.securitycore" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

@@ -121,6 +121,9 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     ),
     Preferences.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true),
     Preferences.KEY_LBE_CLIPBOARD_TOAST to RestartScopeSelection(
+        // Both packages ship the vendor clipboard-read overlay; Security Center is the one that
+        // actually builds the one the user sees, so both processes must reload the hook.
+        securityCenter = true,
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
     ),
     Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
