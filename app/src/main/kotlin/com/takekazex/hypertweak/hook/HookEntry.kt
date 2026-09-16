@@ -500,6 +500,9 @@ class HookEntry : XposedModule() {
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
         Preferences.initLocalCache(appContext)
         RestartBroadcastHooker.register(appContext)
+        if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
+            BatteryInfoHooker.onPackageReady(appContext)
+        }
         if (packageName == "com.android.systemui") {
             ProxyLaunchHooker.register(appContext)
             ExtendUnlockHooker.syncTrustAgent(appContext)
@@ -530,6 +533,9 @@ class HookEntry : XposedModule() {
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
+            if (state.packageName == BatteryInfoHooker.PACKAGE && processName == state.packageName) {
+                BatteryInfoHooker.onPackageReady(appContext)
+            }
             if (state.packageName == "com.android.systemui") {
                 ProxyLaunchHooker.register(appContext)
                 ExtendUnlockHooker.syncTrustAgent(appContext)
@@ -832,7 +838,12 @@ class HookEntry : XposedModule() {
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
-                attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                // Only the package's main application process owns the battery snapshot
+                // publisher. Auxiliary Security Center processes are short-lived workers and do
+                // not need a second timer or a context retry window.
+                if (processName == packageName) {
+                    attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                }
                 attachHooker(BerserkModeHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)

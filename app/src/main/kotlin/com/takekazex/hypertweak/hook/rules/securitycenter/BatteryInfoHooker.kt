@@ -27,6 +27,8 @@ import java.util.Locale
 object BatteryInfoHooker : StaticHooker() {
     private const val TAG = "BatteryInfoHooker"
 
+    const val PACKAGE = "com.miui.securitycenter"
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val PUBLISH_INTERVAL_MS = 1_000L
@@ -50,6 +52,10 @@ object BatteryInfoHooker : StaticHooker() {
     /** Consecutive ticks that have not found an application context yet. */
     @Volatile
     private var contextMisses = 0
+
+    private val publishSuccessLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val publishAcknowledgementMissingLogged =
+        java.util.concurrent.atomic.AtomicBoolean(false)
 
     // ─── IMiCharge reflection (cached) ───────────────────────────────────────
 
@@ -126,6 +132,10 @@ object BatteryInfoHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         publishGeneration++
+        appContext = null
+        contextMisses = 0
+        publishSuccessLogged.set(false)
+        publishAcknowledgementMissingLogged.set(false)
         imiChargeResolved = false
         imiChargeInstance = null
         miChargePathMethod = null
@@ -142,6 +152,13 @@ object BatteryInfoHooker : StaticHooker() {
         publishOnce()
         schedulePublish(publishGeneration)
         DebugLog.d(TAG, "battery-info publisher started")
+    }
+
+    /** Called by HookEntry after the host Application has been attached. */
+    fun onPackageReady(context: Context) {
+        appContext = context.applicationContext ?: context
+        contextMisses = 0
+        publishOnce()
     }
 
     /**
@@ -192,7 +209,7 @@ object BatteryInfoHooker : StaticHooker() {
         contextMisses = 0
         val bundle = collect(context)
         if (bundle.isEmpty) return
-        runCatching {
+        val acknowledgement = runCatching {
             context.contentResolver.call(
                 BatteryInfoChannel.uri(),
                 BatteryInfoChannel.METHOD_SET,
@@ -201,6 +218,18 @@ object BatteryInfoHooker : StaticHooker() {
             )
         }.onFailure {
             DebugLog.w(TAG, "push battery snapshot failed", it)
+        }.getOrNull()
+        if (acknowledgement?.containsKey(BatteryInfoChannel.KEY_UPDATED_AT) == true) {
+            if (publishSuccessLogged.compareAndSet(false, true)) {
+                DebugLog.i(
+                    TAG,
+                    "published battery snapshot updated_at=${acknowledgement.getLong(
+                        BatteryInfoChannel.KEY_UPDATED_AT
+                    )} slots=${bundle.size()}"
+                )
+            }
+        } else if (publishAcknowledgementMissingLogged.compareAndSet(false, true)) {
+            DebugLog.w(TAG, "push battery snapshot returned no acknowledgement")
         }
     }
 
