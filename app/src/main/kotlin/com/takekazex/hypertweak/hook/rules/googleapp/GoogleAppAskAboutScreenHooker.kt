@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -576,7 +577,11 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         }
         val aimBooleanParameterIndices = findAimBooleanParameterIndices(modelConstructor)
         if (aimBooleanParameterIndices.isEmpty()) {
-            DebugLog.w(TAG, "model constructor has no boolean AIM tail before Executor")
+            DebugLog.w(
+                TAG,
+                "model constructor has no boolean AIM tail before Executor " +
+                    "version=${googleAppVersion()} constructor=${modelConstructor.toGenericString()}"
+            )
         }
         if (Modifier.isStatic(eligibility.modifiers) ||
             Modifier.isStatic(hintField.modifiers) ||
@@ -619,6 +624,23 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         indices.reverse()
         return indices.toIntArray()
     }
+
+    /** Best-effort host version for diagnosing a resolver change after a Google App update. */
+    private fun googleAppVersion(): String = runCatching {
+        val context = hookParam.appContext
+            ?: runCatching {
+                val activityThread = Class.forName("android.app.ActivityThread")
+                activityThread.getDeclaredMethod("currentApplication").invoke(null) as? Context
+            }.getOrNull()
+            ?: runCatching {
+                val activityThread = Class.forName("android.app.ActivityThread")
+                val thread = activityThread.getMethod("currentActivityThread").invoke(null)
+                activityThread.getMethod("getSystemContext").invoke(thread) as? Context
+            }.getOrNull()
+            ?: return "unknown"
+        val info = context.packageManager.getPackageInfo(PACKAGE, 0)
+        "${info.versionName ?: "unknown"}(${info.longVersionCode})"
+    }.getOrDefault("unknown")
 
     private class ThumbnailTarget(
         val method: Method,

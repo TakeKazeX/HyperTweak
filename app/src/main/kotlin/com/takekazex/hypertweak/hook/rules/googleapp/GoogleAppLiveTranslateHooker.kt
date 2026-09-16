@@ -8,6 +8,7 @@ import io.github.libxposed.api.XposedInterface
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 /**
  * Shows the full-screen live-translate (屏幕实时翻译 / 滚动并翻译) button inside Circle to Search
@@ -151,6 +152,10 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
             if (existingHookIds.contains(hookId)) continue
             runCatching {
                 val method = clazz.getDeclaredMethod("hasSystemFeature", String::class.java)
+                if (Modifier.isAbstract(method.modifiers)) {
+                    DebugLog.d(TAG, "skipping abstract hasSystemFeature on ${clazz.name}")
+                    return@runCatching
+                }
                 deoptimize(method)
                 method.hook(hookId) {
                     intercept { chain -> overrideLiveTranslateSystemFeature(chain) }
