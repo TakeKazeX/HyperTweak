@@ -1,9 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -31,8 +28,6 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -40,22 +35,13 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderConfig
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SvgKind
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
-import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
-import java.util.Locale
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -67,7 +53,6 @@ import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -140,11 +125,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    var stackedSingleImportStatus by rememberSaveable { mutableStateOf<String?>(null) }
-    var stackedSinglePreview by remember { mutableStateOf<ImageBitmap?>(null) }
-    var stackedImportStatus by rememberSaveable { mutableStateOf<String?>(null) }
-    var stackedPreview by remember { mutableStateOf<ImageBitmap?>(null) }
-    val iconSvgRepository = remember(context) { IconSvgRepository(context.applicationContext) }
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
     // async, so reading Preferences directly in composition made switches bounce back.
@@ -198,77 +178,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
             is Set<*> -> Preferences.putStringSet(key, value.filterIsInstance<String>().toSet())
         }
         systemUiRestartPending = true
-    }
-
-    val signalImportInProgressText = stringResource(R.string.icon_stacked_signal_importing)
-    val signalImportSuccessTemplate = stringResource(R.string.icon_stacked_signal_import_success)
-    val signalImportFailedText = stringResource(R.string.icon_stacked_signal_import_failed)
-
-    val importSingleSignalLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        stackedSingleImportStatus = signalImportInProgressText
-        coroutineScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                iconSvgRepository.importFromUri(uri, SvgKind.SINGLE_SIGNAL)
-            }
-            result.fold(
-                onSuccess = { snapshot ->
-                    stackedSinglePreview = withContext(Dispatchers.Default) {
-                        iconSvgRepository.preview(
-                            snapshot,
-                            levelA = 3,
-                            config = IconSvgRenderConfig(iconHeightPx = 48)
-                        ).getOrNull()?.asImageBitmap()
-                    }
-                    changed(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 2)
-                    stackedSingleImportStatus = String.format(
-                        Locale.getDefault(),
-                        signalImportSuccessTemplate,
-                        snapshot.displayName
-                    )
-                },
-                onFailure = { failure ->
-                    DebugLog.w("IconTuner", "single signal SVG import failed", failure)
-                    stackedSingleImportStatus = signalImportFailedText
-                }
-            )
-        }
-    }
-
-    val importStackedSignalLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        stackedImportStatus = signalImportInProgressText
-        coroutineScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                iconSvgRepository.importFromUri(uri, SvgKind.STACKED_SIGNAL)
-            }
-            result.fold(
-                onSuccess = { snapshot ->
-                    stackedPreview = withContext(Dispatchers.Default) {
-                        iconSvgRepository.preview(
-                            snapshot,
-                            levelA = 3,
-                            levelB = 2,
-                            config = IconSvgRenderConfig(iconHeightPx = 48)
-                        ).getOrNull()?.asImageBitmap()
-                    }
-                    changed(Preferences.KEY_ICON_STACKED_SVG_STACKED, 2)
-                    stackedImportStatus = String.format(
-                        Locale.getDefault(),
-                        signalImportSuccessTemplate,
-                        snapshot.displayName
-                    )
-                },
-                onFailure = { failure ->
-                    DebugLog.w("IconTuner", "stacked signal SVG import failed", failure)
-                    stackedImportStatus = signalImportFailedText
-                }
-            )
-        }
     }
 
     // Modes follow Hyper Helper: 0 = follow system (lists untouched), 1 = visible everywhere,
@@ -357,54 +266,16 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                             onChange = { key, value -> changed(key, value) }
                         )
                         StackedSignalSection(
-                enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
-                scale = pref(Preferences.KEY_ICON_STACKED_SCALE, 1f),
-                singleStyle = pref(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0),
-                stackedStyle = pref(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0),
-                signalAlphaFg = pref(Preferences.KEY_ICON_STACKED_ALPHA_FG, 1f),
-                signalAlphaBg = pref(Preferences.KEY_ICON_STACKED_ALPHA_BG, 0.4f),
-                signalAlphaError = pref(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, 0.2f),
-                signalPaddingStart = pref(Preferences.KEY_ICON_STACKED_PADDING_START, 0f),
-                signalPaddingEnd = pref(Preferences.KEY_ICON_STACKED_PADDING_END, 0f),
-                hideWhenDisconnected = pref(Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false),
-                hideWhenWifi = pref(Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI, false),
-                showSingleBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE, false),
-                showStackedBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED, false),
-                showRoaming = pref(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, false),
-                typeSize = pref(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 14f),
-                badgeSize = pref(Preferences.KEY_ICON_STACKED_TYPE_BADGE_SIZE, 7.16f),
-                width = pref(Preferences.KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED, 80),
-                weight = pref(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 630),
-                singleWeight = pref(Preferences.KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT, 400),
-                paddingStart = pref(Preferences.KEY_ICON_STACKED_TYPE_PADDING_START, 2f),
-                paddingEnd = pref(Preferences.KEY_ICON_STACKED_TYPE_PADDING_END, 2f),
-                verticalOffset = pref(Preferences.KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET, 0f),
-                fontMode = pref(Preferences.KEY_ICON_STACKED_TYPE_FONT, 0),
-                singleImportStatus = stackedSingleImportStatus,
-                stackedImportStatus = stackedImportStatus,
-                singlePreview = stackedSinglePreview,
-                stackedPreview = stackedPreview,
-                onImportSingle = {
-                    importSingleSignalLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain"))
-                },
-                onImportStacked = {
-                    importStackedSignalLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain"))
-                },
-                onChange = { key, value ->
-                    if (value is Int && value != 2) {
-                        when (key) {
-                            Preferences.KEY_ICON_STACKED_SVG_SINGLE -> {
-                                stackedSinglePreview = null
-                                stackedSingleImportStatus = null
-                            }
-                            Preferences.KEY_ICON_STACKED_SVG_STACKED -> {
-                                stackedPreview = null
-                                stackedImportStatus = null
-                            }
-                        }
-                    }
-                    changed(key, value)
-                }
+                            enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
+                            hideWhenDisconnected = pref(
+                                Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
+                                false
+                            ),
+                            hideWhenWifi = pref(Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI, false),
+                            showSingleBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE, false),
+                            showStackedBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED, false),
+                            showRoaming = pref(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, false),
+                            onChange = { key, value -> changed(key, value) }
                         )
                         CellularSection(
                 activity = pref(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false),
@@ -520,137 +391,25 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
 @Composable
 private fun StackedSignalSection(
     enabled: Boolean,
-    scale: Float,
-    singleStyle: Int,
-    stackedStyle: Int,
-    signalAlphaFg: Float,
-    signalAlphaBg: Float,
-    signalAlphaError: Float,
-    signalPaddingStart: Float,
-    signalPaddingEnd: Float,
     hideWhenDisconnected: Boolean,
     hideWhenWifi: Boolean,
     showSingleBadge: Boolean,
     showStackedBadge: Boolean,
     showRoaming: Boolean,
-    typeSize: Float,
-    badgeSize: Float,
-    width: Int,
-    weight: Int,
-    singleWeight: Int,
-    paddingStart: Float,
-    paddingEnd: Float,
-    verticalOffset: Float,
-    fontMode: Int,
-    singleImportStatus: String?,
-    stackedImportStatus: String?,
-    singlePreview: ImageBitmap?,
-    stackedPreview: ImageBitmap?,
-    onImportSingle: () -> Unit,
-    onImportStacked: () -> Unit,
     onChange: (String, Any) -> Unit
 ) {
-    val signalStyles = listOf(
-        stringResource(R.string.icon_stacked_signal_hyperos3),
-        stringResource(R.string.icon_stacked_signal_ios26),
-        stringResource(R.string.icon_stacked_signal_imported),
-        stringResource(R.string.icon_stacked_signal_ios27)
-    )
+    // The signal artwork is fixed to the built-in HyperOS 3 SVGs, and icon scale, opacity, signal
+    // padding, SVG import and every type-appearance knob are no longer exposed here, so the hook
+    // renders its built-in values for them.
     SmallTitle(stringResource(R.string.icon_stacked_signal_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(
                 enabled,
-                stringResource(R.string.icon_custom_signal_icon),
-                stringResource(R.string.icon_custom_signal_icon_summary)
+                stringResource(R.string.icon_stacked_signal_style),
+                stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
             if (enabled) {
-                SliderRow(stringResource(R.string.icon_icon_scale), scale, 0.5f, 1.5f) {
-                    onChange(Preferences.KEY_ICON_STACKED_SCALE, it)
-                }
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_stacked_signal_single_style),
-                    items = signalStyles,
-                    selectedIndex = singleStyle.coerceIn(0, signalStyles.lastIndex),
-                    onSelectedIndexChange = {
-                        onChange(Preferences.KEY_ICON_STACKED_SVG_SINGLE, it)
-                    }
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_stacked_signal_stacked_style),
-                    items = signalStyles,
-                    selectedIndex = stackedStyle.coerceIn(0, signalStyles.lastIndex),
-                    onSelectedIndexChange = {
-                        onChange(Preferences.KEY_ICON_STACKED_SVG_STACKED, it)
-                    }
-                )
-                SliderRow(stringResource(R.string.icon_stacked_signal_alpha_fg), signalAlphaFg, 0f, 1f) {
-                    onChange(Preferences.KEY_ICON_STACKED_ALPHA_FG, it)
-                }
-                SliderRow(stringResource(R.string.icon_stacked_signal_alpha_bg), signalAlphaBg, 0f, 1f) {
-                    onChange(Preferences.KEY_ICON_STACKED_ALPHA_BG, it)
-                }
-                SliderRow(stringResource(R.string.icon_stacked_signal_alpha_error), signalAlphaError, 0f, 1f) {
-                    onChange(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, it)
-                }
-                SliderRow(
-                    stringResource(R.string.icon_stacked_signal_padding_start),
-                    signalPaddingStart,
-                    0f,
-                    24f
-                ) { onChange(Preferences.KEY_ICON_STACKED_PADDING_START, it) }
-                SliderRow(
-                    stringResource(R.string.icon_stacked_signal_padding_end),
-                    signalPaddingEnd,
-                    0f,
-                    24f
-                ) { onChange(Preferences.KEY_ICON_STACKED_PADDING_END, it) }
-                Button(
-                    onClick = onImportSingle,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColorsPrimary()
-                ) { Text(stringResource(R.string.icon_stacked_signal_import_single)) }
-                if (singleImportStatus != null) {
-                    Text(singleImportStatus, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                }
-                if (singlePreview != null && singleStyle == 2) {
-                    Text(
-                        stringResource(R.string.icon_stacked_signal_preview_single),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    Image(
-                        bitmap = singlePreview,
-                        contentDescription = stringResource(R.string.icon_stacked_signal_preview_single),
-                        modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp)
-                    )
-                }
-                Button(
-                    onClick = onImportStacked,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColorsPrimary()
-                ) { Text(stringResource(R.string.icon_stacked_signal_import_stacked)) }
-                if (stackedImportStatus != null) {
-                    Text(stackedImportStatus, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                }
-                if (stackedPreview != null && stackedStyle == 2) {
-                    Text(
-                        stringResource(R.string.icon_stacked_signal_preview_stacked),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    Image(
-                        bitmap = stackedPreview,
-                        contentDescription = stringResource(R.string.icon_stacked_signal_preview_stacked),
-                        modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp)
-                    )
-                }
-                TextButton(
-                    text = stringResource(R.string.icon_stacked_signal_restore),
-                    onClick = {
-                        onChange(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0)
-                        onChange(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0)
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                )
                 TunerSwitch(
                     hideWhenDisconnected,
                     stringResource(R.string.icon_stacked_type_hide_disconnect),
@@ -676,42 +435,6 @@ private fun StackedSignalSection(
                     stringResource(R.string.icon_stacked_type_roaming),
                     stringResource(R.string.icon_stacked_type_roaming_summary)
                 ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, it) }
-                SliderRow(stringResource(R.string.icon_stacked_type_size), typeSize, 6f, 24f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_SIZE, it)
-                }
-                SliderRow(stringResource(R.string.icon_stacked_type_badge_size), badgeSize, 3f, 16f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_BADGE_SIZE, it)
-                }
-                IntSliderRow(stringResource(R.string.icon_stacked_type_width), width, 40, 100) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED, it)
-                }
-                IntSliderRow(stringResource(R.string.icon_stacked_type_weight), weight, 100, 900) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, it)
-                }
-                IntSliderRow(stringResource(R.string.icon_stacked_type_single_weight), singleWeight, 100, 900) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT, it)
-                }
-                val fontModes = listOf(
-                    stringResource(R.string.icon_stacked_type_font_default),
-                    stringResource(R.string.icon_stacked_type_font_condensed)
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.icon_stacked_type_font),
-                    items = fontModes,
-                    selectedIndex = if (fontMode == 2) 1 else 0,
-                    onSelectedIndexChange = {
-                        onChange(Preferences.KEY_ICON_STACKED_TYPE_FONT, if (it == 1) 2 else 0)
-                    }
-                )
-                SliderRow(stringResource(R.string.icon_stacked_type_padding_start), paddingStart, 0f, 12f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_PADDING_START, it)
-                }
-                SliderRow(stringResource(R.string.icon_stacked_type_padding_end), paddingEnd, 0f, 12f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_PADDING_END, it)
-                }
-                SliderRow(stringResource(R.string.icon_stacked_type_offset), verticalOffset, -8f, 8f) {
-                    onChange(Preferences.KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET, it)
-                }
             }
         }
     }

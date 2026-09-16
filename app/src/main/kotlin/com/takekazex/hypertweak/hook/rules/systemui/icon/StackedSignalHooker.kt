@@ -22,7 +22,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 /**
  * Publishes the custom cellular signal as a normal SystemUI icon-controller slot.
@@ -53,6 +52,23 @@ object StackedSignalHooker : StaticHooker() {
     /** Bounded backoff before re-reading signal artwork that failed to load. */
     private const val ASSET_LOAD_RETRY_BACKOFF_MS = 5_000L
 
+    // Signal appearance is fixed. The settings page no longer exposes opacity, scale, start/end
+    // padding or any type-appearance knob (size, weight, condensed width, font, padding, offset),
+    // so the renderer always uses these built-in values instead of reading a stored preference.
+    private const val SIGNAL_ALPHA_FG = 1f
+    private const val SIGNAL_ALPHA_BG = 0.4f
+    private const val SIGNAL_ALPHA_ERROR = 0.2f
+    private const val SIGNAL_SCALE = 1f
+    private const val SIGNAL_PADDING_START_PX = 0
+    private const val SIGNAL_PADDING_END_PX = 0
+
+    /**
+     * The signal artwork is fixed to the built-in HyperOS 3 SVGs. The style selector was removed
+     * from the settings page, so the iOS and imported styles are no longer reachable and this
+     * index is never read back from a stored preference.
+     */
+    private const val SIGNAL_SVG_STYLE_HYPEROS3 = 0
+
     private val mainHandler = Handler(Looper.getMainLooper())
     /** SVG parsing and remote-file reads must not delay SystemUI application startup. */
     private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
@@ -71,30 +87,6 @@ object StackedSignalHooker : StaticHooker() {
     private var enabled = false
 
     private var renderStacked = false
-
-    @Volatile
-    private var scale = 1f
-
-    @Volatile
-    private var singleSvgStyle = 0
-
-    @Volatile
-    private var stackedSvgStyle = 0
-
-    @Volatile
-    private var signalAlphaFg = 1f
-
-    @Volatile
-    private var signalAlphaBg = 0.4f
-
-    @Volatile
-    private var signalAlphaError = 0.2f
-
-    @Volatile
-    private var signalPaddingStart = 0f
-
-    @Volatile
-    private var signalPaddingEnd = 0f
 
     @Volatile
     private var adapterFlowsReady = false
@@ -270,11 +262,6 @@ object StackedSignalHooker : StaticHooker() {
         options = IconTunerOptions.snapshot()
         renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
         enabled = renderStacked || DuoSignalHooker.requiresMobileState
-        scale = Preferences.getFloat(Preferences.KEY_ICON_STACKED_SCALE, 1f)
-            .takeIf { it.isFinite() }
-            ?.coerceIn(0.5f, 1.5f)
-            ?: 1f
-        readSignalSvgConfig()
         typeConfig = readTypeConfig()
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
@@ -293,7 +280,7 @@ object StackedSignalHooker : StaticHooker() {
         adapterReference?.get()?.let { scheduleAdapterRestore(it, generation.get()) }
         scheduleExistingAdapterDiscovery()
         hostContext?.let { scheduleSignalAssetsLoad(generation.get()) }
-        DebugLog.hookRegistered(TAG, "model-driven stacked signal slot (scale=$scale)")
+        DebugLog.hookRegistered(TAG, "model-driven stacked signal slot")
     }
 
     private fun hookCreateViewModel() {
@@ -1009,7 +996,7 @@ object StackedSignalHooker : StaticHooker() {
                     signalAssets = assets
                     DebugLog.i(
                         TAG,
-                        "signal SVG assets ready singleStyle=$singleSvgStyle stackedStyle=$stackedSvgStyle"
+                        "signal SVG assets ready style=HyperOS3"
                     )
                 }
                 if (enabled) renderCurrent()
@@ -1019,31 +1006,15 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun loadSignalAssets(): SignalAssets? {
         val repository = svgRepository ?: return null
-        val single = repository.loadSignalSingle(singleSvgStyle) { module.openRemoteFile(it) }
+        // No host opener: the fixed HyperOS 3 style resolves straight to the bundled asset, so no
+        // imported or remote artwork is read.
+        val single = repository.loadSignalSingle(SIGNAL_SVG_STYLE_HYPEROS3)
             .onFailure { DebugLog.w(TAG, "single signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        val stacked = repository.loadSignalStacked(stackedSvgStyle) { module.openRemoteFile(it) }
+        val stacked = repository.loadSignalStacked(SIGNAL_SVG_STYLE_HYPEROS3)
             .onFailure { DebugLog.w(TAG, "stacked signal SVG unavailable", it) }.getOrNull()
             ?: return null
         return SignalAssets(single, stacked)
-    }
-
-    /** Reads Hyper Helper's independent t32 single/stacked SVG configuration. */
-    private fun readSignalSvgConfig() {
-        singleSvgStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_SINGLE, 0)
-            .coerceIn(0, 3)
-        stackedSvgStyle = Preferences.getInt(Preferences.KEY_ICON_STACKED_SVG_STACKED, 0)
-            .coerceIn(0, 3)
-        signalAlphaFg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_FG, 1f)
-            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 1f
-        signalAlphaBg = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_BG, 0.4f)
-            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 0.4f
-        signalAlphaError = Preferences.getFloat(Preferences.KEY_ICON_STACKED_ALPHA_ERROR, 0.2f)
-            .takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: 0.2f
-        signalPaddingStart = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_START, 0f)
-            .takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 0f
-        signalPaddingEnd = Preferences.getFloat(Preferences.KEY_ICON_STACKED_PADDING_END, 0f)
-            .takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 0f
     }
 
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {
@@ -1084,6 +1055,10 @@ object StackedSignalHooker : StaticHooker() {
         }
     }
 
+    /**
+     * Only the visibility toggles stay user-configurable; every appearance field keeps
+     * [MobileTypeConfig]'s built-in default because the settings page no longer exposes it.
+     */
     private fun readTypeConfig(): MobileTypeConfig = MobileTypeConfig(
         hideWhenDisconnected = Preferences.getBoolean(
             Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
@@ -1104,44 +1079,20 @@ object StackedSignalHooker : StaticHooker() {
         showRoamingPrefix = Preferences.getBoolean(
             Preferences.KEY_ICON_STACKED_TYPE_ROAMING,
             false
-        ),
-        textSizeSp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_SIZE, 14f),
-        weight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 630),
-        singleWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT, 400),
-        badgeTextSizeSp = Preferences.getFloat(Preferences.KEY_ICON_STACKED_TYPE_BADGE_SIZE, 7.16f),
-        badgeWeight = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_WEIGHT, 630),
-        condensedWidthPercent = Preferences.getInt(
-            Preferences.KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED,
-            80
-        ),
-        paddingStartSp = Preferences.getFloat(
-            Preferences.KEY_ICON_STACKED_TYPE_PADDING_START,
-            2f
-        ),
-        paddingEndSp = Preferences.getFloat(
-            Preferences.KEY_ICON_STACKED_TYPE_PADDING_END,
-            2f
-        ),
-        verticalOffsetSp = Preferences.getFloat(
-            Preferences.KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET,
-            0f
-        ),
-        fontMode = Preferences.getInt(Preferences.KEY_ICON_STACKED_TYPE_FONT, 0)
+        )
     ).safe()
 
     private fun renderConfig(): IconSvgRenderConfig {
         val context = hostContext
         val height = renderIconHeight(context)
-        val density = context?.resources?.displayMetrics?.density
-            ?.takeIf { it.isFinite() && it > 0f } ?: 1f
         return IconSvgRenderConfig(
             iconHeightPx = height.coerceIn(1, 512),
-            scale = scale,
-            alphaFg = signalAlphaFg,
-            alphaBg = signalAlphaBg,
-            alphaError = signalAlphaError,
-            paddingStartPx = (signalPaddingStart * density).roundToInt().coerceIn(0, 512),
-            paddingEndPx = (signalPaddingEnd * density).roundToInt().coerceIn(0, 512),
+            scale = SIGNAL_SCALE,
+            alphaFg = SIGNAL_ALPHA_FG,
+            alphaBg = SIGNAL_ALPHA_BG,
+            alphaError = SIGNAL_ALPHA_ERROR,
+            paddingStartPx = SIGNAL_PADDING_START_PX,
+            paddingEndPx = SIGNAL_PADDING_END_PX,
             densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
             fontScale = context?.resources?.configuration?.fontScale ?: 1f,
             configVersion = 3
