@@ -577,6 +577,11 @@ object Preferences {
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.
     const val KEY_STATUSBAR_REGION_SAMPLING = "statusbar_region_sampling"
+
+    // Limit how many notification icons the status bar keeps (ported from Hyper Helper's u32.a/b;
+    // the switch is off by default). The count is Int-typed: minimum 0 (keep no notification
+    // icons), default 3, maximum 15 — see `NotificationIconLimit`, which the settings row and
+    // `NotificationMaxNumberHooker` both use.
     const val KEY_STATUSBAR_NOTIFICATION_MAX = "statusbar_notif_max"
     const val KEY_STATUSBAR_NOTIFICATION_ICON_MAX = "statusbar_notif_icon_max"
 

@@ -9,6 +9,8 @@ import com.takekazex.hypertweak.util.DebugLog
  * Adjusts the integer emitted by NotificationIconObserver's existing max-icon combine transform.
  * The concrete `maxIconFlow` is deliberately left untouched because AOD and status-bar binders
  * consume that concrete flow type.
+ *
+ * Bounds come from [NotificationIconLimit], which the settings row also uses.
  */
 object NotificationMaxNumberHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -18,19 +20,21 @@ object NotificationMaxNumberHooker : StaticHooker() {
         "com.android.systemui.statusbar.policy.NotificationIconObserver\$maxIconFlow\$1"
 
     @Volatile private var enabled = false
-    @Volatile private var maximum = 3
+    @Volatile private var maximum = NotificationIconLimit.DEFAULT
 
     override fun onPrepareHotReload() {
         enabled = false
-        maximum = 3
+        maximum = NotificationIconLimit.DEFAULT
     }
 
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, false)
-        maximum = Preferences.getInt(
-            Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
-            3
-        ).coerceIn(1, 20)
+        maximum = NotificationIconLimit.clamp(
+            Preferences.getInt(
+                Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
+                NotificationIconLimit.DEFAULT
+            )
+        )
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "NotificationMaxNumber", "disabled")
             return

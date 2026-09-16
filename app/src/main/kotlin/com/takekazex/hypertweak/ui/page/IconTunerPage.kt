@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +42,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
+import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SvgKind
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
 import com.takekazex.hypertweak.util.DebugLog
@@ -58,6 +61,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
@@ -276,14 +280,6 @@ fun IconTunerPage(onBack: () -> Unit) {
         stringResource(R.string.icon_slot_mode_control_center),
         stringResource(R.string.icon_slot_mode_hidden)
     )
-    val commonSlots = listOf(
-        "mobile", "no_sim", "airplane", "wifi", "demo_wifi", "hotspot", "vpn",
-        "network_speed", "bluetooth", "bluetooth_handsfree_battery", "handle_battery",
-        "nfc", "gps", "location", "wireless_headset", "phone", "pad", "pc",
-        "sound_box_group", "stereo", "sound_box_screen", "sound_box", "tv", "glasses",
-        "car", "camera", "dist_compute", "headset", "alarm_clock", "zen", "volume",
-        "second_space", "compound_icon"
-    ) + IconSlotPolicy.MODULE_SLOTS
 
     val legacyLeftEnabled = pref(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED, false)
     val leftMode = pref(
@@ -470,7 +466,12 @@ fun IconTunerPage(onBack: () -> Unit) {
                     3 -> {
                         NotificationSection(
                 enabled = pref(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, false),
-                maximum = pref(Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, 3),
+                maximum = NotificationIconLimit.clamp(
+                    pref(
+                        Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
+                        NotificationIconLimit.DEFAULT
+                    )
+                ),
                 onChange = { key, value -> changed(key, value) }
                         )
                         CompoundSection(
@@ -493,7 +494,6 @@ fun IconTunerPage(onBack: () -> Unit) {
                         )
                         SlotsSection(
                 slotModes = slotModes,
-                commonSlots = commonSlots,
                 slotModeOf = { slot -> pref(Preferences.slotKey(slot), 0) },
                 ignoreSysHide = pref(Preferences.KEY_ICON_IGNORE_SYS_HIDE, false),
                 hidePrivacy = pref(Preferences.KEY_ICON_HIDE_PRIVACY, false),
@@ -1042,12 +1042,70 @@ private fun NotificationSection(
                 stringResource(R.string.icon_notification_max_summary)
             ) { onChange(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, it) }
             if (enabled) {
-                IntSliderRow(stringResource(R.string.icon_notification_max_value), maximum, 1, 20) {
+                NotificationMaxIconsRow(maximum) {
                     onChange(Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, it)
                 }
             }
         }
     }
+}
+
+/**
+ * Notification-icon limit: a discrete slider plus the same tap-to-type dialog the
+ * interface-scale row uses.
+ *
+ * The spec is minimum 0, default 3, maximum 15, all taken from [NotificationIconLimit] so the row
+ * and [com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationMaxNumberHooker] cannot drift.
+ *
+ * The slider snaps to whole icons because Miuix's `steps` resolves the dragged fraction through
+ * `round(fraction * (steps + 1))`; [NotificationIconLimit.sliderSteps] derives the count that makes
+ * every integer in the range reachable. A slider alone cannot hit an exact value reliably, which is
+ * why the row also opens a text field.
+ */
+@Composable
+private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) {
+    val current = NotificationIconLimit.clamp(maximum)
+    var sliderValue by remember(current) { mutableFloatStateOf(current.toFloat()) }
+    var expanded by remember { mutableStateOf(false) }
+    ArrowPreference(
+        title = stringResource(R.string.icon_notification_max_value),
+        summary = stringResource(R.string.icon_notification_max_range),
+        endActions = {
+            Text(
+                text = sliderValue.roundToInt().toString(),
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        },
+        onClick = { expanded = !expanded },
+        holdDownState = expanded,
+        bottomAction = {
+            Slider(
+                value = sliderValue.coerceIn(
+                    NotificationIconLimit.MIN.toFloat(),
+                    NotificationIconLimit.MAX.toFloat()
+                ),
+                onValueChange = { sliderValue = it },
+                onValueChangeFinished = { onValueChange(sliderValue.roundToInt()) },
+                valueRange = NotificationIconLimit.MIN.toFloat()..NotificationIconLimit.MAX.toFloat(),
+                steps = NotificationIconLimit.sliderSteps(),
+                showKeyPoints = true,
+                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+            )
+        }
+    )
+    IntValueDialog(
+        show = expanded,
+        title = stringResource(R.string.icon_notification_max_value),
+        summary = stringResource(R.string.icon_notification_max_range),
+        suffix = null,
+        range = NotificationIconLimit.RANGE,
+        currentValue = { current },
+        // The minimum (0) is a meaningful choice here — keep no notification icons — so a blank
+        // field commits MIN rather than the current value.
+        emptyValue = NotificationIconLimit.MIN,
+        onValueConfirmed = onValueChange,
+        onDismissRequest = { expanded = false }
+    )
 }
 
 @Composable
@@ -1221,7 +1279,6 @@ private fun CarrierSection(
 @Composable
 private fun SlotsSection(
     slotModes: List<String>,
-    commonSlots: List<String>,
     slotModeOf: (String) -> Int,
     ignoreSysHide: Boolean,
     hidePrivacy: Boolean,
@@ -1231,14 +1288,28 @@ private fun SlotsSection(
     SmallTitle(stringResource(R.string.icon_slots_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            commonSlots.forEach { slot ->
+            IconSlotCatalog.slots.forEach { slot ->
                 val mode = slotModeOf(slot)
+                val info = IconSlotCatalog.of(slot)
                 OverlayDropdownPreference(
-                    title = slot.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    title = if (info != null) {
+                        stringResource(info.labelRes)
+                    } else {
+                        IconSlotCatalog.fallbackLabel(slot)
+                    },
                     items = slotModes,
                     selectedIndex = mode.coerceIn(0, slotModes.lastIndex),
                     onSelectedIndexChange = { index ->
                         onChange(Preferences.slotKey(slot), index)
+                    },
+                    startAction = {
+                        Icon(
+                            imageVector = info?.icon ?: IconSlotCatalog.fallbackIcon(),
+                            // The row title already names the slot, so the preview stays decorative.
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp).size(22.dp),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
                     }
                 )
             }

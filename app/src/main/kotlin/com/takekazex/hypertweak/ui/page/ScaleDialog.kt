@@ -1,26 +1,11 @@
 package com.takekazex.hypertweak.ui.page
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import kotlin.math.roundToInt
 
+/** Interface-scale row: 85%–115% typed as a whole percentage. */
 @Composable
 fun ScaleDialog(
     show: Boolean,
@@ -28,56 +13,17 @@ fun ScaleDialog(
     volumeState: () -> Float,
     onVolumeChange: (Float) -> Unit,
 ) {
-    OverlayDialog(
+    val current = { (volumeState() * 100).roundToInt() }
+    IntValueDialog(
         show = show,
         title = stringResource(R.string.scale_title),
         summary = stringResource(R.string.scale_summary),
+        suffix = stringResource(R.string.scale_percent),
+        range = 85..115,
+        currentValue = current,
+        // A blank field keeps the current scale instead of jumping to the minimum.
+        emptyValue = current(),
+        onValueConfirmed = { onVolumeChange(it / 100f) },
         onDismissRequest = onDismissRequest,
-        content = {
-            var text by remember(show) {
-                mutableStateOf((volumeState() * 100).toInt().toString())
-            }
-            TextField(
-                modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
-                trailingIcon = {
-                    Text(
-                        text = stringResource(R.string.scale_percent),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = colorScheme.onSurfaceVariantActions,
-                    )
-                },
-                onValueChange = { newValue ->
-                    if (newValue.isEmpty()) {
-                        text = ""
-                    } else {
-                        val valid = newValue.all { it.isDigit() }
-                        if (valid) {
-                            text = newValue
-                        }
-                    }
-                },
-            )
-            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(
-                    text = stringResource(R.string.scale_cancel),
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = stringResource(R.string.scale_ok),
-                    onClick = {
-                        val parsed = text.toIntOrNull()
-                        val clamped = parsed?.coerceIn(85, 115) ?: (volumeState() * 100).toInt()
-                        onVolumeChange(clamped / 100f)
-                        onDismissRequest()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            }
-        }
     )
 }

@@ -1,8 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -12,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,7 +28,6 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -41,12 +37,9 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -237,65 +230,18 @@ private fun CornerRadiusDialog(
     current: () -> Float,
     onValueChange: (Float) -> Unit
 ) {
-    OverlayDialog(
+    IntValueDialog(
         show = show,
         title = stringResource(R.string.tweaks_cc_corner_dialog_title),
         summary = stringResource(R.string.tweaks_cc_corner_dialog_summary),
-        onDismissRequest = onDismissRequest,
-        content = {
-            var text by remember(show) {
-                mutableStateOf(
-                    if (current() <= 0f) "" else current().toInt().toString()
-                )
-            }
-            TextField(
-                modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
-                trailingIcon = {
-                    Text(
-                        text = stringResource(R.string.tweaks_cc_corner_unit),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                },
-                onValueChange = { newValue ->
-                    if (newValue.isEmpty()) {
-                        text = ""
-                    } else {
-                        val valid = newValue.all { it.isDigit() }
-                        if (valid) {
-                            text = newValue
-                        }
-                    }
-                }
-            )
-            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(
-                    text = stringResource(R.string.scale_cancel),
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = stringResource(R.string.scale_ok),
-                    onClick = {
-                        // Empty field means 0 dp = follow system; any integer is clamped to the
-                        // slider range. Empty text therefore maps to 0, not to the current value.
-                        val parsed = text.toIntOrNull()
-                        val clamped = if (parsed != null) {
-                            parsed.coerceIn(0, MAX_CORNER_RADIUS_DP.toInt()).toFloat()
-                        } else {
-                            0f
-                        }
-                        onValueChange(clamped)
-                        onDismissRequest()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
-            }
-        }
+        suffix = stringResource(R.string.tweaks_cc_corner_unit),
+        range = 0..MAX_CORNER_RADIUS_DP.toInt(),
+        currentValue = { current().toInt() },
+        // Empty field means 0 dp = follow system, so a blank value commits 0 rather than the
+        // current radius.
+        emptyValue = 0,
+        onValueConfirmed = { onValueChange(it.toFloat()) },
+        onDismissRequest = onDismissRequest
     )
 }
 
