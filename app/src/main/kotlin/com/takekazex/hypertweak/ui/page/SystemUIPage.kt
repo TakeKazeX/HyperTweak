@@ -110,6 +110,7 @@ fun SystemUIPage(
         listOf(
             Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
             Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
+            Preferences.POWER_BUTTON_ACTION_GOOGLE_LENS to context.getString(R.string.tweaks_action_google_lens),
             Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
         )
     }

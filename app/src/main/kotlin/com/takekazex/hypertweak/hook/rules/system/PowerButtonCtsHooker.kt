@@ -4,14 +4,15 @@ import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleLensLauncher
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Re-binds the long-press power button to a configurable action (长按电源键操作):
- * Circle to Search (即圈即搜) or the default digital assistant (默认助理, e.g. Google
- * Assistant / Gemini / 小爱).
+ * Circle to Search (即圈即搜), Google Lens (Google 智能镜头), or the default digital assistant
+ * (默认助理, e.g. Google Assistant / Gemini / 小爱).
  *
  * The long press is bound in system_server on two *stacked* layers, and which one runs
  * depends on the user's MIUI shortcut setting:
@@ -48,7 +49,9 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Each dispatch marks the power key handled, runs the selected action, and plays the platform's
  * own `LONG_PRESS_POWER_BUTTON` haptic through the policy's `performHapticFeedback`. Circle to
- * Search goes through [ContextualSearchSystemHooker.startFromSystemServer]. The default assistant
+ * Search goes through [ContextualSearchSystemHooker.startFromSystemServer]. Google Lens is a plain
+ * launch of the Google App's exported `google://lens` entry point ([GoogleLensLauncher]), so it
+ * needs no contextual-search bridge. The default assistant
  * goes through `PhoneWindowManager.launchAssistAction(null, -2, eventTime, 6)` — the same call the
  * AOSP "assistant" long-press (setting 5) makes on this build, so the platform assist pipeline
  * creates a real assist session (bare activity launches of Gemini/ChatGPT self-terminate without
@@ -389,6 +392,10 @@ object PowerButtonCtsHooker : StaticHooker() {
                 DebugLog.i(SCOPE, "$layer long-press power -> Circle to Search")
                 ContextualSearchSystemHooker.startFromSystemServer()
             }
+            Preferences.POWER_BUTTON_ACTION_GOOGLE_LENS -> {
+                DebugLog.i(SCOPE, "$layer long-press power -> Google Lens")
+                launchGoogleLens()
+            }
             Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT -> {
                 DebugLog.i(SCOPE, "$layer long-press power -> default assistant")
                 launchDefaultAssistant(policy, eventTime)
@@ -399,6 +406,28 @@ object PowerButtonCtsHooker : StaticHooker() {
             performHapticFeedback(policy)
         }
         return dispatched
+    }
+
+    /**
+     * Opens Google Lens (Google 智能镜头) — the Google App's camera/image search surface.
+     *
+     * This is the plain launch route, deliberately not the contextual-search bridge Circle to
+     * Search uses: Lens is an exported entry point of the Google App, so nothing here needs the
+     * `contextual_search` service or its permission bypass, and the action therefore also works
+     * while that feature is off. [GoogleLensLauncher] owns the entry-point ladder and starts the
+     * intent as the foreground user.
+     *
+     * A false result (no Google App, or no route accepted) makes [dispatchAction] report failure,
+     * which leaves the platform's own long-press handling in place rather than swallowing the
+     * press.
+     */
+    private fun launchGoogleLens(): Boolean {
+        val context = systemContext()
+        if (context == null) {
+            DebugLog.w(SCOPE, "Google Lens unavailable: no system context")
+            return false
+        }
+        return GoogleLensLauncher.launch(context)
     }
 
     /**

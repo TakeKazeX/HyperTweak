@@ -866,6 +866,7 @@
     <string name="theme_palette_vibrant">鲜明</string>
     <string name="tweaks_action_circle_to_search">即圈即搜</string>
     <string name="tweaks_action_default_assistant">默认助理</string>
+    <string name="tweaks_action_google_lens">Google 智能镜头</string>
     <string name="tweaks_aod_fullscreen_summary">解锁 AOD 的全屏背景</string>
     <string name="tweaks_aod_fullscreen_title">AOD 全屏显示</string>
     <string name="tweaks_block_spatial_audio_summary">阻止 AirPods 启用空间音频</string>

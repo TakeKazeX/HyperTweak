@@ -133,7 +133,9 @@ object Preferences {
      * point shared by MIUI's assistant route and the `powerLongPress` fallback) and
      * `PhoneWindowManager.powerLongPress` in system_server, then dispatches the selected action:
      * [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] starts the contextual-search service through
-     * `ContextualSearchSystemHooker`, [POWER_BUTTON_ACTION_DEFAULT_ASSISTANT] launches the user's
+     * `ContextualSearchSystemHooker`, [POWER_BUTTON_ACTION_GOOGLE_LENS] opens the Google App's
+     * Google Lens (Google 智能镜头) camera surface through its exported `google://lens` entry point
+     * (`GoogleLensLauncher`), and [POWER_BUTTON_ACTION_DEFAULT_ASSISTANT] launches the user's
      * default digital assistant (Google Assistant / Gemini / 小爱) through the platform assist
      * pipeline. [POWER_BUTTON_ACTION_DISABLED] leaves the system's own long-press action
      * untouched. The action is read live at dispatch time, so switching between actions (or off)
@@ -146,6 +148,14 @@ object Preferences {
     const val POWER_BUTTON_ACTION_DISABLED = 0
     const val POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH = 1
     const val POWER_BUTTON_ACTION_DEFAULT_ASSISTANT = 2
+
+    /**
+     * Google Lens (Google 智能镜头), the camera/image search surface. Unlike
+     * [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] this is not the contextual-search overlay: it needs no
+     * platform bridge and no `ContextualSearchSystemHooker` install, so it works while the
+     * Circle to Search feature is off and has no Google App process requirements of its own.
+     */
+    const val POWER_BUTTON_ACTION_GOOGLE_LENS = 3
 
     /** Legacy single-switch Circle to Search enable; superseded by [KEY_POWER_BUTTON_ACTION]. */
     const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
@@ -636,7 +646,8 @@ object Preferences {
         val action = getInt(KEY_POWER_BUTTON_ACTION, -1)
         if (action == POWER_BUTTON_ACTION_DISABLED ||
             action == POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
-            action == POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
+            action == POWER_BUTTON_ACTION_DEFAULT_ASSISTANT ||
+            action == POWER_BUTTON_ACTION_GOOGLE_LENS
         ) {
             return action
         }

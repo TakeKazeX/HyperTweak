@@ -869,6 +869,7 @@
     <string name="theme_palette_vibrant">Vibrant</string>
     <string name="tweaks_action_circle_to_search">Circle to Search</string>
     <string name="tweaks_action_default_assistant">Default assistant</string>
+    <string name="tweaks_action_google_lens">Google Lens</string>
     <string name="tweaks_aod_fullscreen_summary">Unlock full-screen backgrounds for AOD</string>
     <string name="tweaks_aod_fullscreen_title">Always-On Display Fullscreen</string>
     <string name="tweaks_block_spatial_audio_summary">Prevent AirPods from enabling spatial audio</string>

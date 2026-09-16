@@ -48,6 +48,7 @@ object GoogleAppRuntime : StaticHooker() {
         // happens through this one coordinator bridge.
         attach(GoogleAppLiveTranslateHooker, classLoader, hookParam)
         attach(GoogleAppAskAboutScreenHooker, classLoader, hookParam)
+        attach(GoogleAppLensEntryHooker, classLoader, hookParam)
 
         val apk = hookParam.appInfo?.sourceDir?.takeIf { it.isNotBlank() }
             ?: resolveSourceDir()
@@ -69,6 +70,15 @@ object GoogleAppRuntime : StaticHooker() {
         dexResolutionInFlight.incrementAndGet()
         try {
             DexKitManager.withBridge(apk) { bridge ->
+                // The Lens entry hook resolves first on purpose: it is the one whose target the
+                // Google App calls *during* its own cold start (the exported Lens activity asks for
+                // the caller package and the eligibility decision as soon as it resumes), so its
+                // query must not queue behind the two OMNI features' scans.
+                runCatching {
+                    GoogleAppLensEntryHooker.installWithBridge(bridge, existingHookIds)
+                }.onFailure { failure ->
+                    DebugLog.e(TAG, "Lens entry resolution failed", failure)
+                }
                 runCatching {
                     GoogleAppLiveTranslateHooker.installWithBridge(bridge, existingHookIds)
                 }.onFailure { failure ->
@@ -123,6 +133,7 @@ object GoogleAppRuntime : StaticHooker() {
     fun replacement(id: String): XposedInterface.Hooker? {
         GoogleAppLiveTranslateHooker.replacement(id)?.let { return it }
         GoogleAppAskAboutScreenHooker.replacement(id)?.let { return it }
+        GoogleAppLensEntryHooker.replacement(id)?.let { return it }
         if (id == RETIRED_CAPABILITY || id.startsWith(RETIRED_DIAGNOSTIC_PREFIX)) {
             return XposedInterface.Hooker { chain -> chain.proceed() }
         }
@@ -135,6 +146,9 @@ object GoogleAppRuntime : StaticHooker() {
         }
         if (GoogleAppAskAboutScreenHooker.replacement(id) != null) {
             return GoogleAppAskAboutScreenHooker
+        }
+        if (GoogleAppLensEntryHooker.replacement(id) != null) {
+            return GoogleAppLensEntryHooker
         }
         if (id == RETIRED_CAPABILITY || id.startsWith(RETIRED_DIAGNOSTIC_PREFIX)) {
             return this
