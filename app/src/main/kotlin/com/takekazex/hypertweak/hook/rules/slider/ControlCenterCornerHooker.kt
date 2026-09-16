@@ -19,9 +19,11 @@ import java.util.concurrent.ConcurrentHashMap
  * the plugin's dimens (`control_center_universal_corner_radius` 24dp, `toggle_slider_clip_round_corner_radius`
  * 2dp, ...). This hooker re-applies a user radius on the code points that rebuild those shapes:
  *
- * - [KEY_CC_CORNER_SLIDER] — the brightness/volume toggle slider track: mutates the
- *   `progressBg`/`progress`/`bionicsProgressBg` `GradientDrawable`s inside `ToggleSliderViewHolder`
- *   after `updateResources()`/`updateSize()` rebuild them and re-sets progress/outline radius.
+ * - [KEY_CC_CORNER_SLIDER] — the brightness/volume toggle slider TRACK: mutates the
+ *   `progressBg`/`bionicsProgressBg` `GradientDrawable`s inside `ToggleSliderViewHolder` after
+ *   `updateResources()`/`updateSize()` rebuild them and re-sets the track outline radius. The white
+ *   progress fill is deliberately left at the vendor's own radius — see
+ *   [applyToggleSliderCorner] for why forcing it there rounds the fill too.
  * - [KEY_CC_CORNER_TILE] — small QS tiles (`QSTileItemIconView`, the bottom quick-action grid):
  *   forces `setCornerRadius(float)` and, because the tiles switch between a GradientDrawable
  *   background and the bionics/glass blend surface (`applyTileBackgroundStyle` on the inner `icon`
@@ -135,7 +137,7 @@ class ControlCenterCornerHooker(
     // ─── Cached reflective accessors (keyed by Class, the plugin reloads can reuse them) ─────
 
     private val radiusMethodCache = ConcurrentHashMap<String, Method?>()
-    private val sliderRadiusMethodCache = ConcurrentHashMap<String, Pair<Method?, Method?>>()
+    private val sliderRadiusMethodCache = ConcurrentHashMap<String, Method?>()
     private val iconFieldCache = ConcurrentHashMap<String, java.lang.reflect.Field?>()
     private val blurOutlineMethodCache = ConcurrentHashMap<String, Method?>()
 
@@ -145,15 +147,15 @@ class ControlCenterCornerHooker(
             runCatching { clazz.getMethod("setCornerRadius", Float::class.javaPrimitiveType) }.getOrNull()
         }
 
-    /** `setProgressRadius(float)` + `setOutlineRadius(float)` on ToggleSliderViewHolder. */
-    private fun getSetSliderRadius(clazz: Class<*>): Pair<Method?, Method?> {
-        val key = "sliderRadius@${clazz.name}"
-        return sliderRadiusMethodCache.getOrPut(key) {
-            val progress = runCatching { clazz.getMethod("setProgressRadius", Float::class.javaPrimitiveType) }.getOrNull()
-            val outline = runCatching { clazz.getMethod("setOutlineRadius", Float::class.javaPrimitiveType) }.getOrNull()
-            progress to outline
+    /**
+     * `setOutlineRadius(float)` on ToggleSliderViewHolder (the track container's radius).
+     * `setProgressRadius` is intentionally not resolved: the fill's own radius must keep the vendor
+     * value, as [applyToggleSliderCorner] explains.
+     */
+    private fun getSetOutlineRadius(clazz: Class<*>): Method? =
+        sliderRadiusMethodCache.getOrPut("setOutlineRadius@${clazz.name}") {
+            runCatching { clazz.getMethod("setOutlineRadius", Float::class.javaPrimitiveType) }.getOrNull()
         }
-    }
 
     /** Finds one declared method by name, optionally pinning the parameter count. */
     private fun findDeclaredMethod(clazz: Class<*>, name: String, paramCount: Int? = null): Method? =
@@ -221,7 +223,7 @@ class ControlCenterCornerHooker(
 
     /**
      * dp value from prefs, converted to the px the plugin's radius APIs expect
-     * (`GradientDrawable.setCornerRadius`, `setProgressRadius`, tile/card/media
+     * (`GradientDrawable.setCornerRadius`, `setOutlineRadius`, tile/card/media
      * `setCornerRadius` all take px). The plugin reads its dimens with
      * `getDimensionPixelSize`, so a raw dp passed through unchanged renders ~1/density
      * of the intended radius on high-density devices — the "no visible effect" report.
@@ -312,21 +314,35 @@ class ControlCenterCornerHooker(
 
     private fun applyToggleSliderCorner(holder: Any, clz: Class<*>, radius: Float) {
         val binding = runCatching { clz.getMethod("getBinding").invoke(holder) }.getOrNull() ?: return
-        // binding.progressBg / binding.progress / binding.bionicsProgressBg are public fields of
-        // the ViewBinding; their backgrounds are GradientDrawables rebuilt by updateResources().
-        for (fieldName in listOf("progressBg", "progress", "bionicsProgressBg")) {
+        // This override is the slider TRACK radius only. The vendor gives the track and the white
+        // progress fill deliberately different stock radii and derives the fill's rounding from both:
+        //   track (progressBg / bionicsProgressBg, @attr/sliderBgColor)
+        //         = control_center_universal_corner_radius (24dp)
+        //   fill  (progress, @attr/sliderFgColor)
+        //         = toggle_slider_clip_round_corner_radius (2dp)
+        // `ToggleSliderViewHolder$3` is the fill's ViewOutlineProvider (installed on `progress`); it
+        // sizes its round rect to the filled fraction and takes its radius from
+        // `ApiUtils.i(getProgressRadius(), progressBg.background.cornerRadius)` — `i` is `min()` — so
+        // raising progressBg's drawable corner also raises the fill's ceiling. Applying the override
+        // to `progressBg`/`bionicsProgressBg` plus setOutlineRadius below is therefore the entire
+        // override; `progress` and setProgressRadius stay untouched so the fill keeps its own 2dp.
+        // Both track drawables are rebuilt by updateResources(), hence the after-hooks.
+        for (fieldName in listOf("progressBg", "bionicsProgressBg")) {
             val view = runCatching { binding.javaClass.getField(fieldName).get(binding) as? View }.getOrNull()
                 ?: runCatching { binding.javaClass.getMethod("get$fieldName").invoke(binding) as? View }.getOrNull()
             if (view != null) setDrawableCorner(view, radius)
         }
-        // Keep the outline providers (they read the drawable corner radius / progressRadius
-        // fields at invalidate time) consistent with the forced drawable.
-        val setRadius = getSetSliderRadius(clz)
-        setRadius.first?.invoke(holder, radius)
-        setRadius.second?.invoke(holder, radius)
+        // Only the track container's outline radius (`toggleSliderInner`, provider `$2`, which falls
+        // back to `outlineRadius` when progressBg's background is not a GradientDrawable) is forced.
+        // setProgressRadius is deliberately NOT called: the fill's own radius must stay at the vendor
+        // value, because `$3` computes min(progressRadius, progressBg.cornerRadius) and forcing both
+        // to the user radius is exactly what rounded the white progress.
+        getSetOutlineRadius(clz)?.invoke(holder, radius)
         val inner = runCatching { binding.javaClass.getField("toggleSliderInner").get(binding) as? View }.getOrNull()
             ?: runCatching { binding.javaClass.getMethod("getToggleSliderInner").invoke(binding) as? View }.getOrNull()
         inner?.invalidateOutline()
+        // The fill's outline reads progressBg's drawable corner, so it must be recomputed now that
+        // the track corner changed; it stays at min(vendor 2dp, track radius) as a result.
         val progress = runCatching { binding.javaClass.getField("progress").get(binding) as? View }.getOrNull()
             ?: runCatching { binding.javaClass.getMethod("getProgress").invoke(binding) as? View }.getOrNull()
         progress?.invalidateOutline()
