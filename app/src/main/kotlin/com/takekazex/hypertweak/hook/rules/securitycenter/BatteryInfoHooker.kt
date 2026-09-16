@@ -31,11 +31,25 @@ object BatteryInfoHooker : StaticHooker() {
 
     private const val PUBLISH_INTERVAL_MS = 1_000L
 
+    /**
+     * Ticks the publisher tolerates without an application context before it stops. Two minutes is
+     * far beyond any real process start, so reaching it means the host never built an Application.
+     */
+    private const val CONTEXT_GIVE_UP_TICKS = 120
+
     private const val BATTERY_SYSFS = "/sys/class/power_supply/battery"
     private const val QCOM_SYSFS = "/sys/class/qcom-battery"
 
     @Volatile
     private var publishGeneration = 0
+
+    /** Host application context, cached once resolved; null until the process finishes booting. */
+    @Volatile
+    private var appContext: Context? = null
+
+    /** Consecutive ticks that have not found an application context yet. */
+    @Volatile
+    private var contextMisses = 0
 
     // ─── IMiCharge reflection (cached) ───────────────────────────────────────
 
@@ -119,37 +133,43 @@ object BatteryInfoHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        val context = resolveAppContext() ?: run {
-            DebugLog.hookSkipped(TAG, "publish", "no app context")
-            return
-        }
+        // Package hooks attach before the host process has built its Application, so there is no app
+        // context yet — and on an ordinary process start nothing ever calls onHook() again. Waiting
+        // for a context here would therefore leave the snapshot empty for the process's whole
+        // lifetime, so the publisher starts unconditionally and acquires the context on its ticks.
         publishGeneration++
-        publishOnce(context)
-        schedulePublish(context, publishGeneration)
+        contextMisses = 0
+        publishOnce()
+        schedulePublish(publishGeneration)
         DebugLog.d(TAG, "battery-info publisher started")
     }
 
     /**
-     * The `ModuleContext.appContext` is null for package hooks, so resolve the process application
-     * through `ActivityThread.currentApplication()` (the classic LSPosed route), falling back to the
-     * ezxhook app context.
+     * Resolves the host application context, which does not exist yet while the process is still
+     * starting, so the publisher retries this on every tick and caches the first non-null result.
+     * `ModuleContext.appContext` is fixed at attach time and null for package hooks, so the live
+     * `ActivityThread.currentApplication()` is the usable route, with the ezxhook app context as a
+     * fallback.
      */
     private fun resolveAppContext(): Context? {
-        hookParam.appContext?.let { return it }
-        runCatching {
-            val at = Class.forName("android.app.ActivityThread")
-            return (at.getDeclaredMethod("currentApplication").invoke(null) as? Context)
-        }
-        return runCatching { EzXposed.appContextOrNull }.getOrNull()
+        appContext?.let { return it }
+        val resolved = hookParam.appContext
+            ?: runCatching {
+                val at = Class.forName("android.app.ActivityThread")
+                at.getDeclaredMethod("currentApplication").invoke(null) as? Context
+            }.getOrNull()
+            ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+        if (resolved != null) appContext = resolved
+        return resolved
     }
 
-    private fun schedulePublish(context: Context, gen: Int) {
+    private fun schedulePublish(gen: Int) {
         val handler = Handler(Looper.getMainLooper())
         val runnable = object : Runnable {
             override fun run() {
                 if (gen != publishGeneration) return
                 try {
-                    publishOnce(context)
+                    publishOnce()
                 } catch (_: Throwable) {
                 } finally {
                     if (gen == publishGeneration) handler.postDelayed(this, PUBLISH_INTERVAL_MS)
@@ -159,7 +179,17 @@ object BatteryInfoHooker : StaticHooker() {
         handler.postDelayed(runnable, PUBLISH_INTERVAL_MS)
     }
 
-    private fun publishOnce(context: Context) {
+    private fun publishOnce() {
+        val context = resolveAppContext() ?: run {
+            // A process that never builds an Application must not keep a tick alive for its whole
+            // lifetime; the give-up is what preserves the old "no app context" diagnosis.
+            if (++contextMisses > CONTEXT_GIVE_UP_TICKS) {
+                publishGeneration++
+                DebugLog.hookSkipped(TAG, "publish", "no app context")
+            }
+            return
+        }
+        contextMisses = 0
         val bundle = collect(context)
         if (bundle.isEmpty) return
         runCatching {
