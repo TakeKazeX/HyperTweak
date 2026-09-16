@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 fun AboutPage(
     onBack: () -> Unit,
     onViewSourceCode: () -> Unit,
+    onJoinTelegramGroup: () -> Unit,
     onNavigateToCredits: () -> Unit,
     onNavigateToDebug: () -> Unit,
     onNavigateToUpdate: () -> Unit,
@@ -348,6 +349,11 @@ fun AboutPage(
                                     title = stringResource(R.string.about_view_source_code),
                                     summary = stringResource(R.string.about_view_source_code_summary),
                                     onClick = onViewSourceCode
+                                )
+                                ArrowPreference(
+                                    title = stringResource(R.string.about_telegram_group),
+                                    summary = stringResource(R.string.about_telegram_group_summary),
+                                    onClick = onJoinTelegramGroup
                                 )
                                 ArrowPreference(
                                     title = stringResource(R.string.about_credits_acknowledgements),

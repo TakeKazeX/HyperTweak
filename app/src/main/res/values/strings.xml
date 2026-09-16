@@ -4,6 +4,8 @@
     <string name="about_credits_acknowledgements">Credits &amp; Acknowledgements</string>
     <string name="about_credits_acknowledgements_summary">View open source libraries and contributors</string>
     <string name="about_project">PROJECT</string>
+    <string name="about_telegram_group">Telegram Group</string>
+    <string name="about_telegram_group_summary">Join the community chat on Telegram</string>
     <string name="about_title">About</string>
     <string name="about_version">Version v%1$s (%2$d)</string>
     <string name="about_view_source_code">View Source Code</string>

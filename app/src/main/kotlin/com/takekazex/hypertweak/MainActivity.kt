@@ -1286,6 +1286,17 @@ class MainActivity : ComponentActivity() {
                             // Ignore
                         }
                     },
+                    onJoinTelegramGroup = {
+                        try {
+                            // The https form resolves to the Telegram app when it is installed (t.me is
+                            // an app link) and falls back to a browser otherwise, so no tg:// scheme
+                            // and no explicit package check is needed.
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://t.me/PerlinkcaTweak".toUri())
+                            this@MainActivity.startActivity(intent)
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
+                    },
                     onClearAllSettings = { restartAllScopes, restartHyperTweak ->
                         // clearAllSettings() waits on the daemon-backed commit (up to 5 s via
                         // commitRemoteMutation), so it must not run on the main thread: invoking it

@@ -201,6 +201,7 @@ fun HyperTweakNavContainer(
 
     // Actions
     onViewSourceCode: () -> Unit,
+    onJoinTelegramGroup: () -> Unit,
     onClearAllSettings: (restartAllScopes: Boolean, restartHyperTweak: Boolean) -> Unit,
     onSettingsRestored: () -> Unit,
     onHotReload: () -> Unit,
@@ -420,6 +421,7 @@ fun HyperTweakNavContainer(
                     if (backStack.size > 1) backStack.removeLast()
                 },
                 onViewSourceCode = onViewSourceCode,
+                onJoinTelegramGroup = onJoinTelegramGroup,
                 onNavigateToCredits = {
                     backStack.add(Route.Credits)
                 },

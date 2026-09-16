@@ -4,6 +4,8 @@
     <string name="about_credits_acknowledgements">开源致谢</string>
     <string name="about_credits_acknowledgements_summary">查看开源库与贡献者</string>
     <string name="about_project">项目</string>
+    <string name="about_telegram_group">Telegram 群组</string>
+    <string name="about_telegram_group_summary">加入 Telegram 交流群</string>
     <string name="about_title">关于</string>
     <string name="about_version">版本 v%1$s（%2$d）</string>
     <string name="about_view_source_code">查看源代码</string>
