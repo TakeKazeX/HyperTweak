@@ -40,6 +40,7 @@ import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
+import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.GoogleServicesPage
 import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
@@ -483,6 +484,12 @@ fun HyperTweakNavContainer(
         }
         entry<Route.IconTuner> {
             IconTunerPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onNavigateToIconOrder = { backStack.add(Route.IconOrder) }
+            )
+        }
+        entry<Route.IconOrder> {
+            IconOrderPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }

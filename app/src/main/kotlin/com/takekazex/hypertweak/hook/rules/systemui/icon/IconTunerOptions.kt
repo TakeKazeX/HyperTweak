@@ -52,6 +52,13 @@ object IconTunerOptions {
         Preferences.KEY_ICON_LEFT_COMPOUND to "icon_tuner_left_compound_icon"
     )
 
+    /**
+     * The left-placement toggles, in display order. The settings page renders exactly this list, so
+     * a toggle added here cannot be silently missing from the UI (and vice versa: the page has no
+     * label for an unknown key, which its test asserts).
+     */
+    val leftPreferenceKeys: List<String> = leftPreferenceSlots.keys.toList()
+
     fun snapshot(): IconTunerSnapshot {
         val modes = LinkedHashMap<String, Int>()
         policySlots.forEach { slot ->
@@ -77,15 +84,17 @@ object IconTunerOptions {
 
         val position = readInt(KEY_POSITION, null, IconSlotPolicyConfig.POSITION_SYSTEM)
         val customEntries = readStringSet(KEY_POSITION_VALUES, null)
-        val extraHidden = parseSlotList(
-            readString(Preferences.KEY_ICON_EXT_BLOCKED, LEGACY_EXTRA_BLOCKED, "")
+        // The legacy extra-hidden list is not a separate mode: an entry means HIDE_EVERYWHERE, which
+        // the per-slot dropdown also offers, so it is folded in as a *default* for that slot.
+        val slotModes = IconSlotPolicy.foldExtraHiddenIntoModes(
+            modes,
+            parseSlotList(readString(Preferences.KEY_ICON_EXT_BLOCKED, LEGACY_EXTRA_BLOCKED, ""))
         )
         val policy = IconSlotPolicyConfig(
             position = position,
             customOrderEntries = customEntries,
             reorderHidden = readBoolean(KEY_POSITION_REORDER, null, false),
-            slotModes = modes,
-            extraHiddenSlots = extraHidden,
+            slotModes = slotModes,
             enabledModuleSlots = buildSet {
                 if (stackedEnabled) addAll(IconSlotPolicy.SIGNAL_SLOTS)
             },
@@ -179,10 +188,6 @@ object IconTunerOptions {
         return Preferences.getStringSet(key, emptySet())
     }
 
-    private fun parseSlotList(value: String): Set<String> = value
-        .split(',', ' ', '\uFF0C')
-        .asSequence()
-        .map(String::trim)
-        .filter(String::isNotEmpty)
-        .toCollection(LinkedHashSet())
+    private fun parseSlotList(value: String): Set<String> =
+        LinkedHashSet(IconSlotPolicy.parseSlotList(value))
 }

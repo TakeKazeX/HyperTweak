@@ -62,7 +62,7 @@ internal class DuoPanelMotion {
             restoreTarget(); target = native; savedAlpha = native.alpha; appliedAlpha = native.alpha
         }
         if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
-        val handoff = ((progress - .75f) / .25f).coerceIn(0f, 1f)
+        val handoff = DuoPanelGeometry.handoff(progress)
         // Do not hide either endpoint until the overlay has actually drawn successfully.
         appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
         native.alpha = appliedAlpha
@@ -101,9 +101,13 @@ internal class DuoPanelMotion {
 }
 
 internal object DuoPanelGeometry {
+    /** The same endpoint hand-off fraction used by the Duo Wi-Fi overlay. */
+    fun handoff(progress: Float): Float = ((progress - .75f) / .25f).coerceIn(0f, 1f)
+
+    fun overlayFraction(progress: Float): Float = 1f - handoff(progress)
+
     fun overlayAlpha(progress: Float): Int {
-        val handoff = ((progress - .75f) / .25f).coerceIn(0f, 1f)
-        return ((1f - handoff) * 255f).toInt().coerceIn(0, 255)
+        return (overlayFraction(progress) * 255f).toInt().coerceIn(0, 255)
     }
     fun mix(start: Float, end: Float, progress: Float) = start + (end - start) * progress.coerceIn(0f, 1f)
 }

@@ -7,13 +7,16 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import kotlin.math.abs
 
 /**
  * 图标左置 — shows selected status-bar slots (勿扰 zen, 静音/振动 volume+mute, 热点 hotspot,
@@ -84,25 +87,47 @@ object LeftContainerHooker : StaticHooker() {
     private const val STATUS_BAR_ICON_VIEW_CLASS =
         "com.android.systemui.statusbar.StatusBarIconView"
 
-    /** Per-slot toggle -> the status-bar slot names it moves. */
-    private val slotGroups: Map<String, List<String>> = mapOf(
-        Preferences.KEY_ICON_LEFT_ZEN to listOf("zen"),
-        // MIUI splits the ringer state across two slots depending on mode.
-        Preferences.KEY_ICON_LEFT_VOLUME to listOf("volume", "mute"),
-        Preferences.KEY_ICON_LEFT_HOTSPOT to listOf("hotspot"),
-        Preferences.KEY_ICON_LEFT_ALARM_CLOCK to listOf("alarm_clock"),
-        // The satellite "gps" dot and the privacy-style "location" dot are separate slots.
-        Preferences.KEY_ICON_LEFT_LOCATION to listOf("location", "gps"),
-        Preferences.KEY_ICON_LEFT_BLUETOOTH to listOf("bluetooth"),
-        Preferences.KEY_ICON_LEFT_NFC to listOf("nfc"),
-        Preferences.KEY_ICON_LEFT_VPN to listOf("vpn"),
-        Preferences.KEY_ICON_LEFT_AIRPLANE to listOf("airplane"),
-        Preferences.KEY_ICON_LEFT_HEADSET to listOf("headset", "wireless_headset"),
-        Preferences.KEY_ICON_LEFT_COMPOUND to listOf(
-            "compound_location", "compound_alarm_clock", "compound_zen",
-            "compound_volume_vibrate", "compound_volume_mute"
-        )
+    /**
+     * Per-frame panel expansion of the control center, in resolution order. Both carry the same
+     * `float` the host uses to slide its own rows between the status bar and the control-center
+     * header, which makes it the hand-over's follow-finger signal (the header alpha used before is a
+     * *blur* ramp: it only falls near the end of the drag, so the icons were drawn twice until
+     * release).
+     *
+     * The delegate is preferred because it is a named class and because its callback list — which
+     * includes the header controller that translates the control-center rows — has already run when
+     * its own method returns, so the frame's destination geometry is current. The panel callback
+     * behind it is the fallback (`DuoSignalHooker` hooks that one for the same value).
+     */
+    private val CC_EXPAND_CLASSES = listOf(
+        "com.miui.systemui.controlcenter.container.ControlCenterExpandControllerDelegate",
+        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1"
     )
+
+    /** The control-center header's status bar: the row that owns the moved slots once it is open. */
+    private const val CC_STATUS_ROW_CLASS =
+        "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon"
+
+    /**
+     * The QS header's own status row. On OS4 the control center header (`QS` above) is the visible
+     * one, but the pre-OS4 "old" control-center style keeps its icons here instead
+     * (`MiuiQSHeaderView.onAttachedToWindow` destroys its manager in the new style), and it carries
+     * the same slots either way.
+     */
+    private const val CC_QS_HEADER_CLASS = "com.android.systemui.qs.MiuiQSHeaderView"
+
+    /** The shade header's mirror of the home bar, drawn over it for the whole drag. */
+    private const val CC_FAKE_STATUS_ROW_CLASS =
+        "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons"
+
+    /** Candidate rows for the real endpoint and for suppressing duplicate host copies. */
+    private val CC_ROW_CLASSES = listOf(
+        CC_STATUS_ROW_CLASS, CC_QS_HEADER_CLASS, CC_FAKE_STATUS_ROW_CLASS
+    )
+
+    // The per-toggle slot groups live in `IconTunerOptions.slotsForLeftPreference` only: an earlier
+    // copy here was never read (the live path is `snapshot().policy.leftSlots`) and would have
+    // drifted from the slots the hook actually moves.
 
     // ── Live snapshot (refreshed by the ticker; read by the per-event hooks) ──
     @Volatile
@@ -118,22 +143,34 @@ object LeftContainerHooker : StaticHooker() {
     @Volatile
     private var resetPending = false
 
-    /** Re-entrancy guard: our own setBlockList re-apply must not re-record the merged list as the
-     *  pristine system list (that would pollute the snapshot permanently). */
-    @Volatile
-    private var inApplyBlocked = false
-
-    /** Identifies our nested setBlockList call to the cooperating policy hook. */
-    private val applyingBlockListManager = ThreadLocal<Any?>()
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
 
     fun onPackageReady(context: Context) { appContext = context }
 
-    /** IconManagerHooker must not re-process the list while we publish our owner overlay. */
-    fun isApplyingBlockList(manager: Any?): Boolean =
-        manager != null && applyingBlockListManager.get() === manager
+    /**
+     * Slots the home status bar's left container actually renders, i.e. the ones the HOME row must
+     * stop drawing. Empty while the feature is off.
+     *
+     * This is the home state's [LeftState.migratedSlots] — the slots whose clone was really created
+     * — and deliberately not the requested `activeSlots`: a slot whose clone could not be built must
+     * stay visible on the right. Read by [IconManagerHooker.applyPolicy] when it merges a host
+     * block-list emission, so the change reaches an already-attached row.
+     */
+    fun homeOwnedSlots(): Set<String> = synchronized(states) {
+        states.values.firstOrNull { !it.isKeyguard }?.migratedSlots ?: emptySet()
+    }
+
+    /**
+     * Same for the lockscreen row, from the keyguard state. Non-empty only in
+     * [IconTunerOptions.LEFT_MODE_HOME_AND_LOCKSCREEN] (its own left container exists), which is why
+     * the per-location rule in [IconSlotPolicy.ownedSlotsFor] can hand the keyguard its own set
+     * instead of the home bar's.
+     */
+    fun keyguardOwnedSlots(): Set<String> = synchronized(states) {
+        states.values.firstOrNull { it.isKeyguard }?.migratedSlots ?: emptySet()
+    }
 
     private var iconViewConstructor: java.lang.reflect.Constructor<*>? = null
     private var iconViewMIconField: Field? = null
@@ -142,7 +179,6 @@ object LeftContainerHooker : StaticHooker() {
     private var iconViewSetMethod: Method? = null
     private var iconViewSetResolved = false
     private var darkDispatcherField: Field? = null
-    private var setBlockListMethod: Method? = null
     private var islandShowingField: Field? = null
     private var slotGetter: Method? = null
     @Volatile private var appContext: Context? = null
@@ -156,12 +192,12 @@ object LeftContainerHooker : StaticHooker() {
         val rightContainer: ViewGroup,
         val manager: Any,
         val isKeyguard: Boolean = false,
-        var islandHandler: Any? = null
+        /**
+         * The status-bar view that owns this row's dependency object (`mDependence`), which is where
+         * the island and shade controllers hang. Not [leftHost]: that is a plain container.
+         */
+        val barRoot: View? = null
     ) {
-        /** Pristine system block list (last value the binder fed us), never polluted. */
-        var systemBlocked: List<String> = emptyList()
-        /** Effective list we last applied to the manager (to avoid churn). */
-        var lastApplied: List<String>? = null
         var leftContainer: LinearLayout? = null
         /** slot -> clone view (our own, sized from the system view of the same slot). */
         val clones = HashMap<String, View>()
@@ -171,6 +207,7 @@ object LeftContainerHooker : StaticHooker() {
         val anchorEntries = ArrayList<AnchorEntry>()
         var anchorWrapper: LinearLayout? = null
         var islandShowing: Boolean = false
+        var islandHandler: Any? = null
     }
 
     private data class AnchorEntry(
@@ -183,6 +220,52 @@ object LeftContainerHooker : StaticHooker() {
     private fun masterEnabled(): Boolean = leftMode != IconTunerOptions.LEFT_MODE_DISABLED
 
     private fun selectedSlots(): Set<String> = IconTunerOptions.snapshot().policy.leftSlots
+
+    /** Owned slots as of the last tick, so a change can refresh the merged block lists. */
+    private var publishedOwnedSlots: Set<String> = emptySet()
+    private var publishedKeyguardOwnedSlots: Set<String> = emptySet()
+
+    /**
+     * Panel expansion of the control center: 0 while the bar is alone, 1 once the shade owns the top
+     * of the screen. Written per frame by the host's expand callback and re-read on every tick.
+     */
+    @Volatile
+    private var panelProgress = 0f
+
+    /** True while the control-center window is still visible, including a gesture resting at 0. */
+    @Volatile
+    private var panelVisible = false
+
+    /** True once the host expansion callback is hooked; only then the hand-over is authoritative. */
+    @Volatile
+    private var panelProgressHooked = false
+
+    /** The shade owns the status-bar band. Read on every tick as the coarser fallback signal. */
+    @Volatile
+    private var shadeFullyOpen = false
+
+    /**
+     * The live control-center rows, in [CC_ROW_CLASSES] order. Weak: the shade views are recreated on
+     * configuration changes and the old ones must not be kept alive. Read and written on the main
+     * thread only.
+     */
+    private val ccRows = LinkedHashMap<String, WeakReference<ViewGroup>>()
+    private val ccRowsScratch = ArrayList<ViewGroup>(CC_ROW_CLASSES.size)
+
+    /** A secondary host copy temporarily hidden while the overlay carries the icon. */
+    private class EndpointState(
+        var savedAlpha: Float,
+        var appliedAlpha: Float,
+        var holdUntilReady: Boolean = false
+    )
+
+    /** One Duo-style overlay per moved slot; all operations are main-thread-only. */
+    private val panelMotions = HashMap<String, LeftPanelMotion>()
+
+    /** Duplicate fake/QS copies are alpha-owned only while the overlay is ready. */
+    private val endpointStates = WeakHashMap<View, EndpointState>()
+
+    private var statusIconsId = 0
 
     private fun reloadSnapshot() {
         val snapshot = IconTunerOptions.snapshot()
@@ -210,6 +293,8 @@ object LeftContainerHooker : StaticHooker() {
         // Binder thread: never touch views here. Flag a full teardown; the main-thread ticker
         // performs it (and re-applies the pristine system block list).
         resetPending = true
+        panelVisible = false
+        panelProgress = 0f
         mainHandler.removeCallbacks(reconcileRunnable)
         mainHandler.post(reconcileRunnable)
     }
@@ -292,25 +377,10 @@ object LeftContainerHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, ICON_MANAGER_BASE_CLASS, "class not found")
             return
         }
-        setBlockListMethod = blockListOwner.findMethodOrNull {
-            name("setBlockList"); paramCount(1)
-        }
-        blockListOwner.findMethodOrNull { name("setBlockList"); paramCount(1) }?.let { method ->
-            method.hook {
-                after { param ->
-                    if (inApplyBlocked) return@after
-                    val state = synchronized(states) { states[param.thisObject] }
-                        ?: return@after
-                    val list = param.args.getOrNull(0) as? List<*> ?: return@after
-                    val system = IconManagerHooker.pristineForManager(param.thisObject)
-                        ?: list.filterIsInstance<String>().toList()
-                    synchronized(states) {
-                        state.systemBlocked = system
-                    }
-                    applyBlocked(state)
-                }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$ICON_MANAGER_BASE_CLASS#setBlockList", "method not found")
+        // The block list is no longer written from here: `IconManagerHooker` owns that single merge
+        // path (slot modes first, then this hooker's owned slots per host location). This hook only
+        // had to observe the emission to remember the pristine list, which the policy hook already
+        // tracks itself — writing it from here used to bypass the slot modes entirely.
 
         // 3. Re-sync the left clones whenever the bar changes (slot scan, no indices).
         managerClass.findMethodOrNull {
@@ -427,10 +497,320 @@ object LeftContainerHooker : StaticHooker() {
                 )
         }
 
+        // 5. Hand the moved icons over to the control center while the shade is dragged.
+        hookControlCenterHandover()
+
         reloadSnapshot()
         mainHandler.removeCallbacks(reconcileRunnable)
         mainHandler.postDelayed(reconcileRunnable, RECONCILE_INTERVAL_MS)
-        DebugLog.i(TAG, "LeftContainer hooks installed (block-hide + clone, snapshot=$activeSlots)")
+        DebugLog.i(
+            TAG,
+            "LeftContainer hooks installed (clone + policy merge, panelProgress=$panelProgressHooked, " +
+                "snapshot=$activeSlots)"
+        )
+    }
+
+    /**
+     * Hooks the host signal that drives the hand-over, and captures the rows that draw the moved
+     * slots while the shade is open.
+     *
+     * `ControlCenterHeaderExpandController`'s panel callback is called with the panel expansion on
+     * every frame of the drag, and the host uses the same value to slide its own rows from the
+     * status-bar position to the control-center header (`onExpansionChanged`:
+     * `controlCenterStatusBarIcon.setTranslationX/Y(offset * (1 - progress))`). Following it is
+     * therefore exactly as "跟手" as the system's own icons.
+     *
+     * Every row that draws a copy of the home cluster is captured from its own `onAttachedToWindow`
+     * ([CC_ROW_CLASSES]): the control center's own row, the QS header's row of the old control-center
+     * style, and the shade header's mirror of the bar. Each of them draws the same moved slots, so
+     * each of them has to join the hand-over or the icon is on screen twice.
+     *
+     * Fail-open: an unresolved target leaves the previous behavior (the icons stay in the left
+     * container) — and the ticker's `isShadeFullyOpen` fallback still hides them once the shade is
+     * open, so a missing hook cannot leave the duplicate behind permanently.
+     */
+    private fun hookControlCenterHandover() {
+        CC_ROW_CLASSES.forEach { name ->
+            val rowClass = name.toClassOrNull()
+            if (rowClass == null) {
+                DebugLog.hookSkipped(TAG, name, "class not found")
+                return@forEach
+            }
+            rowClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.let { method ->
+                method.hook {
+                    after { param -> (param.thisObject as? ViewGroup)?.let(::captureShadeRow) }
+                }
+            } ?: DebugLog.hookSkipped(TAG, "$name#onAttachedToWindow", "method not found")
+        }
+
+        val source = CC_EXPAND_CLASSES.firstNotNullOfOrNull { name ->
+            val type = name.toClassOrNull()
+            if (type == null) {
+                DebugLog.hookSkipped(TAG, name, "class not found")
+                return@firstNotNullOfOrNull null
+            }
+            type.findMethodOrNull { name("onExpansionChanged"); paramCount(1) }?.let { method ->
+                deoptimize(method)
+                method.hook {
+                    after { param ->
+                        val progress = (param.args.getOrNull(0) as? Number)?.toFloat() ?: return@after
+                        if (progress < 0f || progress > 1f) return@after
+                        onPanelProgress(progress)
+                    }
+                }
+                DebugLog.hookRegistered(TAG, "${type.name}#onExpansionChanged")
+                type
+            } ?: run {
+                DebugLog.hookSkipped(TAG, "$name#onExpansionChanged", "method not found")
+                null
+            }
+        }
+        if (source == null) return
+        panelProgressHooked = true
+        // Visibility, rather than progress alone, tells us whether the panel has actually been
+        // dismissed. The panel can rest at progress=0 while the finger is still down; restoring the
+        // endpoints there would show the right copy beside the left clone.
+        source.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.let { method ->
+            method.hook {
+                after { param ->
+                    val visible = param.args.getOrNull(0) as? Boolean ?: return@after
+                    panelVisible = visible
+                    if (!visible) panelProgress = 0f
+                    applyHandoverGuarded(if (visible) panelProgress else 0f)
+                }
+            }
+        }
+        source.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.let { method ->
+            method.hook {
+                after { param ->
+                    // Appearance changes swap the fake and real rows, but do not necessarily mean
+                    // that the panel window has been dismissed. Keep the current hand-over fraction
+                    // and let onVisibleChanged(false) perform the final restore.
+                    if (param.args.getOrNull(0) == true) panelVisible = true
+                    applyHandoverGuarded(if (panelVisible) panelProgress else 0f)
+                }
+            }
+        }
+    }
+
+    /** Remembers a control-center row that draws the moved slots (weak: the shade is recreated). */
+    private fun captureShadeRow(row: ViewGroup) {
+        if (row.javaClass.name !in CC_ROW_CLASSES) return
+        ccRows[row.javaClass.name] = WeakReference(row)
+        // Install the parked copies immediately: a row that turns visible before the first expansion
+        // callback (or attaches mid-gesture) must not draw the icon on the right.
+        mainHandler.post { applyHandoverGuarded(panelProgress) }
+    }
+
+    /** The live rows that draw a copy of the home cluster, in hand-over preference order. */
+    private fun liveControlCenterRows(): List<ViewGroup> {
+        ccRowsScratch.clear()
+        CC_ROW_CLASSES.forEach { name ->
+            val row = ccRows[name]?.get() ?: return@forEach
+            if (row.isAttachedToWindow) ccRowsScratch.add(row)
+        }
+        return ccRowsScratch
+    }
+
+    private fun onPanelProgress(progress: Float) {
+        panelProgress = progress.coerceIn(0f, 1f)
+        if (panelProgress > 0f && !panelVisible) {
+            // The first expansion callback can arrive after the fake row has already been made
+            // visible. Park its copies before creating the overlay so that frame cannot flash the
+            // original icon on the right.
+            panelVisible = true
+            parkHandover()
+        } else if (panelProgress > 0f) {
+            panelVisible = true
+        }
+        applyHandoverGuarded(panelProgress)
+    }
+
+    /**
+     * Carries every selected icon through the same hand-over as Duo's middle Wi-Fi glyph.
+     *
+     * The host rows remain untouched geometrically. One overlay per slot draws the already tinted
+     * left clone from its real screen position to the real expanded endpoint; duplicate fake-row
+     * copies are alpha-suppressed only after the overlay has produced a frame. The last quarter fades
+     * the overlay out while the endpoint fades in, exactly like `DuoPanelMotion`.
+     */
+    private fun applyHandover(progress: Float) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { applyHandoverGuarded(progress) }
+            return
+        }
+        val clamped = progress.coerceIn(0f, 1f)
+        if (clamped <= 0f) {
+            if (panelVisible) parkHandover() else restoreHandover()
+            return
+        }
+
+        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } }
+        val rows = liveControlCenterRows()
+        if (!active || state == null || state.clones.isEmpty() || rows.isEmpty()) {
+            restoreHandover()
+            return
+        }
+
+        val usedSlots = HashSet<String>()
+        val liveSecondaryEndpoints = HashSet<View>()
+        state.clones.forEach { (slot, clone) ->
+            val targets = rows.mapNotNull { statusRowIcon(it, slot) }
+                .filter(::isUsableDestination)
+                .distinct()
+            // Prefer the real expanded control-center row. The fake/QS rows are only fallbacks for
+            // layouts where that endpoint is not inflated yet.
+            val target = targets.firstOrNull { it.parentRowClass() == CC_STATUS_ROW_CLASS }
+                ?: targets.firstOrNull { it.parentRowClass() == CC_QS_HEADER_CLASS }
+                ?: targets.firstOrNull()
+            if (!clone.isAttachedToWindow || !clone.isShown || clone.width <= 0 || clone.height <= 0 ||
+                target == null
+            ) {
+                if (clone.alpha != 1f) clone.alpha = 1f
+                panelMotions.remove(slot)?.clear()
+                return@forEach
+            }
+
+            // A view can have been parked while the panel was visible at progress=0. Carry its saved
+            // host alpha into the motion, but keep its currently hidden value until the overlay draws.
+            val parkedTargetAlpha = takeEndpointForMotion(target)
+            val root = target.rootView as? ViewGroup
+            if (root == null || !root.isAttachedToWindow) {
+                if (clone.alpha != 1f) clone.alpha = 1f
+                panelMotions.remove(slot)?.clear()
+                return@forEach
+            }
+
+            val motion = panelMotions[slot] ?: LeftPanelMotion().also { panelMotions[slot] = it }
+            val ready = motion.update(root, clone, target, clamped, parkedTargetAlpha)
+            usedSlots += slot
+
+            // Do not translate host children. Only duplicate copies are hidden after the overlay's
+            // first successful draw; the selected target is owned by LeftPanelMotion.
+            if (clamped < 1f) {
+                targets.filterNot { it === target }.forEach { duplicate ->
+                    liveSecondaryEndpoints += duplicate
+                    suppressEndpoint(duplicate, ready)
+                }
+            }
+            clone.alpha = LeftHandover.sourceAlpha(clamped, ready)
+        }
+
+        panelMotions.entries.removeIf { (slot, motion) ->
+            if (slot in usedSlots) false else { motion.clear(); true }
+        }
+        releaseEndpointStates(liveSecondaryEndpoints)
+        if (clamped >= 1f) releaseEndpointStates(emptySet())
+    }
+
+    /** The host callback runs inside a frame; never let a failure in here reach SystemUI. */
+    private fun applyHandoverGuarded(progress: Float) {
+        runCatching { applyHandover(progress) }
+            .onFailure { DebugLog.w(TAG, "LeftContainer hand-over failed", it) }
+    }
+
+    /** Candidate endpoint must be attached, visible, and measured. */
+    private fun isUsableDestination(view: View): Boolean =
+        view.isAttachedToWindow && view.isVisible && view.width > 0 && view.height > 0
+
+    /** The row class is resolved from the captured ancestor rather than from an icon name. */
+    private fun View.parentRowClass(): String? =
+        CC_ROW_CLASSES.firstOrNull { name -> ancestorOf(name) != null }
+
+    private fun View.ancestorOf(name: String): View? {
+        var node: View? = parent as? View
+        while (node != null) {
+            if (node.javaClass.name == name) return node
+            node = node.parent as? View
+        }
+        return null
+    }
+
+    private fun suppressEndpoint(view: View, ready: Boolean, holdUntilReady: Boolean = false) {
+        val entry = endpointStates[view] ?: EndpointState(view.alpha, view.alpha)
+            .also { endpointStates[view] = it }
+        if (holdUntilReady) entry.holdUntilReady = true
+        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
+        val alpha = if (ready || entry.holdUntilReady) 0f else entry.savedAlpha
+        if (view.alpha != alpha) view.alpha = alpha
+        entry.appliedAlpha = alpha
+    }
+
+    /** Removes a parked duplicate without revealing it; [LeftPanelMotion] owns it next. */
+    private fun takeEndpointForMotion(view: View): Float? {
+        val entry = endpointStates.remove(view) ?: return null
+        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
+        if (view.alpha != entry.appliedAlpha) view.alpha = entry.appliedAlpha
+        return entry.savedAlpha
+    }
+
+    /** Restore only values still owned by us, matching DuoPanelMotion's fail-open cleanup. */
+    private fun releaseEndpointStates(live: Set<View>) {
+        if (endpointStates.isEmpty()) return
+        val iterator = endpointStates.entries.iterator()
+        while (iterator.hasNext()) {
+            val (view, entry) = iterator.next()
+            if (view in live) continue
+            if (abs(view.alpha - entry.appliedAlpha) < .001f) view.alpha = entry.savedAlpha
+            iterator.remove()
+        }
+    }
+
+    /** Gives every moved slot back to the left container (closed shade, feature off, teardown). */
+    private fun restoreHandover() {
+        panelMotions.values.forEach(LeftPanelMotion::clear)
+        panelMotions.clear()
+        releaseEndpointStates(emptySet())
+        synchronized(states) {
+            states.values.forEach { state ->
+                state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
+                state.leftContainer?.let { container -> if (container.alpha != 1f) container.alpha = 1f }
+            }
+        }
+    }
+
+    /**
+     * Progress can reach zero before the user lifts the finger. Keep the left clone as the visible
+     * owner and park every currently inflated control-center copy until the host reports dismissal.
+     */
+    private fun parkHandover() {
+        panelMotions.values.forEach(LeftPanelMotion::clear)
+        panelMotions.clear()
+        releaseEndpointStates(emptySet())
+        synchronized(states) {
+            states.values.forEach { state ->
+                state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
+                state.leftContainer?.let { container -> if (container.alpha != 1f) container.alpha = 1f }
+            }
+        }
+        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } } ?: return
+        if (!active || state.clones.isEmpty()) return
+        liveControlCenterRows().forEach { row ->
+            state.clones.keys.forEach { slot ->
+                statusRowIcon(row, slot)?.takeIf(::isUsableDestination)?.let { duplicate ->
+                    suppressEndpoint(duplicate, ready = false, holdUntilReady = true)
+                }
+            }
+        }
+    }
+
+    private fun statusRowIcon(row: ViewGroup?, slot: String): View? {
+        val icons = row?.let(::statusIconsContainer) ?: return null
+        for (index in 0 until icons.childCount) {
+            val child = icons.getChildAt(index)
+            if (child != null && slotOf(child) == slot) return child
+        }
+        return null
+    }
+
+    /** `R.id.statusIcons` of a control-center row; resolved through the row's own resources. */
+    private fun statusIconsContainer(row: ViewGroup): ViewGroup? {
+        if (statusIconsId == 0) {
+            statusIconsId = row.resources.getIdentifier("statusIcons", "id", "com.android.systemui")
+        }
+        val id = statusIconsId
+        if (id == 0) return null
+        return row.findViewById<View>(id) as? ViewGroup
     }
 
     private fun hookManagerEvents(managerClass: Class<*>) {
@@ -487,11 +867,9 @@ object LeftContainerHooker : StaticHooker() {
                 teardownState(it)
                 states.remove(manager)
             }
-            val state = LeftState(leftFrame, clock, right, manager, isKeyguard = true)
+            val state = LeftState(leftFrame, clock, right, manager, isKeyguard = true, barRoot = view)
             state.islandHandler = resolveIslandHandler(view)
             state.islandShowing = readIslandShowing(state.islandHandler)
-            state.systemBlocked = IconManagerHooker.pristineForManager(manager)
-                ?: readRightBlockSeed()
             anchors.forEach { anchor ->
                 val parent = anchor.parent as? ViewGroup ?: return@forEach
                 state.anchorEntries += AnchorEntry(
@@ -511,7 +889,9 @@ object LeftContainerHooker : StaticHooker() {
         val state = synchronized(states) { states.remove(manager) } ?: return
         runOnMain {
             teardownState(state)
-            applyBlocked(state)
+            publishOwnedChange()
+            // No clones left: hand the control-center copies back instead of leaving them parked.
+            applyHandoverGuarded(panelProgress)
         }
     }
 
@@ -521,7 +901,8 @@ object LeftContainerHooker : StaticHooker() {
         val state = synchronized(states) { states[manager] } ?: return
         runOnMain {
             teardownState(state)
-            applyBlocked(state)
+            publishOwnedChange()
+            applyHandoverGuarded(panelProgress)
         }
     }
 
@@ -536,14 +917,35 @@ object LeftContainerHooker : StaticHooker() {
         (field.get(null) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
     }.getOrDefault(emptyList())
 
-    private fun resolveIslandHandler(view: Any): Any? = runCatching {
-        val dependency = hierarchyField(view.javaClass, "mDependence")?.get(view)
+    /** The home status bar's dependency object, which holds the island and shade controllers. */
+    private fun statusBarDependency(view: Any): Any? = runCatching {
+        hierarchyField(view.javaClass, "mDependence")?.get(view)
             ?: hierarchyField(view.javaClass, "mDep")?.get(view)
-            ?: return null
+    }.getOrNull()
+
+    private fun resolveIslandHandler(view: Any): Any? = runCatching {
+        val dependency = statusBarDependency(view) ?: return null
         val islandController = hierarchyField(dependency.javaClass, "islandController")?.get(dependency)
             ?: return null
         hierarchyField(islandController.javaClass, "islandStateHandler")?.get(islandController)
     }.getOrNull()
+
+    /**
+     * True once the shade owns the whole top of the screen. Read from the same dependency object the
+     * island lookup uses (`ShadeController.isShadeFullyOpen`). The per-frame panel progress drives
+     * the hand-over; this coarse flag is only the ticker's fallback for a build where that callback
+     * could not be hooked.
+     */
+    private fun readShadeFullyOpen(view: Any?): Boolean = runCatching {
+        val root = view as? View ?: return false
+        val dependency = statusBarDependency(root) ?: return false
+        val shadeController = hierarchyField(dependency.javaClass, "shadeController")
+            ?.get(dependency) ?: return false
+        val method = shadeController.javaClass.methods.firstOrNull {
+            it.name == "isShadeFullyOpen" && it.parameterTypes.isEmpty()
+        } ?: return false
+        method.invoke(shadeController) as? Boolean == true
+    }.getOrDefault(false)
 
     private fun readIslandShowing(handler: Any?): Boolean = handler?.let { value ->
         runCatching { islandShowingField?.getBoolean(value) == true }.getOrDefault(false)
@@ -565,7 +967,6 @@ object LeftContainerHooker : StaticHooker() {
         iconViewSetMethod = null
         iconViewSetResolved = false
         darkDispatcherField = null
-        setBlockListMethod = null
         islandShowingField = null
         slotGetter = null
     }
@@ -587,30 +988,49 @@ object LeftContainerHooker : StaticHooker() {
                     teardownState(state)
                 }
                 sweepLegacyLeftContainers()
-                states.values.forEach { state ->
-                    applyBlocked(state)
-                }
                 states.clear()
                 resetReflectionCaches()
             }
+            // Give every slot back to the right cluster: with nothing owned, the merge is just the
+            // slot modes applied to the pristine host list. The hand-over is released as well, or a
+            // hot reload during the shade drag would leave the control-center icons suppressed.
+            restoreHandover()
+            publishOwnedChange()
             DebugLog.i(TAG, "LeftContainer teardown after hot reload")
         }
         reloadSnapshot()
+        var needsOverlayRefresh = false
         synchronized(states) {
             states.values.forEach { state ->
                 if (shouldRender(state)) {
                     syncClones(state)
-                    applyBlocked(state)
                 } else {
                     if (active && !state.isKeyguard && keyguardShowing()) {
                         state.leftContainer?.visibility = View.GONE
                     } else {
                         teardownState(state)
                     }
-                    applyBlocked(state) // restore pristine system list
                 }
             }
+            // A merged list only changes when the owned slots do, so react to that instead of
+            // re-publishing on every tick (the host asserts the main thread and re-measures).
+            val home = homeOwnedSlots()
+            val keyguard = keyguardOwnedSlots()
+            if (home != publishedOwnedSlots || keyguard != publishedKeyguardOwnedSlots) {
+                publishedOwnedSlots = home
+                publishedKeyguardOwnedSlots = keyguard
+                needsOverlayRefresh = true
+            }
         }
+        if (needsOverlayRefresh) IconManagerHooker.republishMergedLists()
+        // The hand-over runs per frame from the host's expansion callback; re-applying it here
+        // repairs whatever a dropped frame left behind. While the shade owns the top of the screen
+        // the hand-over is forced to its open endpoint, which is also all the fallback there is on a
+        // build where the per-frame callback could not be resolved.
+        shadeFullyOpen = readShadeFullyOpen(
+            synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.barRoot }
+        )
+        applyHandoverGuarded(if (shadeFullyOpen) 1f else panelProgress)
     }
 
     /**
@@ -657,16 +1077,13 @@ object LeftContainerHooker : StaticHooker() {
         }
         if (leftHost.indexOfChild(clock) < 0) return null
 
-        // Seed the pristine system block list from the static lists the OS4 interactor seeds
-        // from (`HomeStatusBarIconBlockListInteractor.defaultBlockedIcons`).
-        val systemSeed = runCatching {
-            val utils = Class.forName("com.android.systemui.statusbar.phone.MiuiIconManagerUtils")
-            val f = utils.getDeclaredField("RIGHT_BLOCK_LIST").apply { isAccessible = true }
-            (f.get(null) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-        }.getOrDefault(emptyList())
+        // The pristine host block list is captured by `IconManagerHooker` from the static OS4 lists
+        // it registers (`RIGHT_BLOCK_LIST` / `CONTROL_CENTER_BLOCK_LIST`); this hook no longer keeps
+        // its own copy, which is what let the two disagree.
 
-        val state = LeftState(leftHost, clock, right, manager)
-        state.systemBlocked = systemSeed
+        val state = LeftState(leftHost, clock, right, manager, barRoot = root)
+        state.islandHandler = resolveIslandHandler(root)
+        state.islandShowing = readIslandShowing(state.islandHandler)
         states[manager] = state
         return state
     }
@@ -767,7 +1184,6 @@ object LeftContainerHooker : StaticHooker() {
         state.clones.clear()
         state.migratedSlots = emptySet()
         restoreKeyguardAnchors(state)
-        state.lastApplied = null
     }
 
     private fun restoreKeyguardAnchors(state: LeftState) {
@@ -789,41 +1205,22 @@ object LeftContainerHooker : StaticHooker() {
 
     // ─── Right-cluster block list ────────────────────────────────────────────────
 
-    /** Re-apply system ∪ selected to the manager if it differs from what we last applied. */
-    private fun applyBlocked(state: LeftState) {
+    /**
+     * Tells the policy hook to re-merge every manager's block list, which is where the owned slots
+     * are applied and where the slot modes win. This hooker deliberately does not write the list
+     * itself any more: doing so bypassed `IconSlotPolicy.blockedFor` for the row it wrote.
+     *
+     * Called when the owned set changes and on teardown, so a removed container gives its slots back
+     * to the right cluster (the merge then has nothing to add).
+     */
+    private fun publishOwnedChange() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { applyBlocked(state) }
+            mainHandler.post { publishOwnedChange() }
             return
         }
-        val effective = buildEffectiveList(state)
-        val last = state.lastApplied
-        if (last != null && last == effective) return
-        state.lastApplied = effective
-        val method = setBlockListMethod ?: return
-        runCatching {
-            inApplyBlocked = true
-            val previousManager = applyingBlockListManager.get()
-            applyingBlockListManager.set(state.manager)
-            try {
-                method.invoke(state.manager, effective)
-            } finally {
-                if (previousManager == null) applyingBlockListManager.remove()
-                else applyingBlockListManager.set(previousManager)
-                inApplyBlocked = false
-            }
-        }.onFailure { t ->
-            DebugLog.w(TAG, "LeftContainer setBlockList failed", t)
-        }
-    }
-
-    private fun buildEffectiveList(state: LeftState): List<String> {
-        if (state.migratedSlots.isEmpty()) return state.systemBlocked
-        val effective = ArrayList<String>(state.systemBlocked.size + activeSlots.size)
-        effective.addAll(state.systemBlocked)
-        for (slot in state.migratedSlots) {
-            if (!effective.contains(slot)) effective.add(slot)
-        }
-        return effective
+        publishedOwnedSlots = homeOwnedSlots()
+        publishedKeyguardOwnedSlots = keyguardOwnedSlots()
+        IconManagerHooker.republishMergedLists()
     }
 
     // ─── Left clones ─────────────────────────────────────────────────────────────
@@ -837,8 +1234,9 @@ object LeftContainerHooker : StaticHooker() {
         runCatching {
             synchronized(states) {
                 syncClones(state)
-                applyBlocked(state)
             }
+            // A new clone needs its control-center copy parked before the next drag frame.
+            applyHandoverGuarded(panelProgress)
         }
             .onFailure { t -> DebugLog.w(TAG, "LeftContainer sync failed", t) }
     }

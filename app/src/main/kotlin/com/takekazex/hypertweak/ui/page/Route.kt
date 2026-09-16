@@ -18,6 +18,7 @@ sealed interface Route : NavKey {
     data object DownloadManager : Route
     data object GoogleServices : Route
     data object IconTuner : Route
+    data object IconOrder : Route
     data object GlassTuner : Route
     data object ExperimentalFeatures : Route
     data object CameraWatermark : Route
@@ -54,6 +55,7 @@ val Route.saveKey: String
         Route.DownloadManager -> "DownloadManager"
         Route.GoogleServices -> "GoogleServices"
         Route.IconTuner -> "IconTuner"
+        Route.IconOrder -> "IconOrder"
         Route.GlassTuner -> "GlassTuner"
         Route.CameraWatermark -> "CameraWatermark"
         Route.ExperimentalFeatures -> "ExperimentalFeatures"
@@ -85,6 +87,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "DownloadManager" -> Route.DownloadManager
     "GoogleServices" -> Route.GoogleServices
     "IconTuner" -> Route.IconTuner
+    "IconOrder" -> Route.IconOrder
     "GlassTuner" -> Route.GlassTuner
     "CameraWatermark" -> Route.CameraWatermark
     "ExperimentalFeatures" -> Route.ExperimentalFeatures

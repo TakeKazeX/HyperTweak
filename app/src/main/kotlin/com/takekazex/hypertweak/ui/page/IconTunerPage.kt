@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.page
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -38,7 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
@@ -132,7 +132,7 @@ private fun TunerSwitch(
 }
 
 @Composable
-fun IconTunerPage(onBack: () -> Unit) {
+fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -336,26 +336,12 @@ fun IconTunerPage(onBack: () -> Unit) {
 
                 when (selectedCategory.coerceIn(0, categories.lastIndex)) {
                     0 -> {
-                        PositionSection(
-                            position = pref(IconTunerOptions.KEY_POSITION, 0),
-                            customOrder = pref(IconTunerOptions.KEY_POSITION_VALUES, emptySet<String>()),
-                            reorderHidden = pref(IconTunerOptions.KEY_POSITION_REORDER, false),
-                            extraHidden = pref(Preferences.KEY_ICON_EXT_BLOCKED, ""),
-                            onChange = { key, value -> changed(key, value) }
-                        )
+                        PositionSection(onNavigateToIconOrder = onNavigateToIconOrder)
                         LeftContainerSection(
                             mode = leftMode,
-                            zen = pref(Preferences.KEY_ICON_LEFT_ZEN, false),
-                            volume = pref(Preferences.KEY_ICON_LEFT_VOLUME, false),
-                            hotspot = pref(Preferences.KEY_ICON_LEFT_HOTSPOT, false),
-                            alarmClock = pref(Preferences.KEY_ICON_LEFT_ALARM_CLOCK, false),
-                            location = pref(Preferences.KEY_ICON_LEFT_LOCATION, false),
-                            bluetooth = pref(Preferences.KEY_ICON_LEFT_BLUETOOTH, false),
-                            nfc = pref(Preferences.KEY_ICON_LEFT_NFC, false),
-                            vpn = pref(Preferences.KEY_ICON_LEFT_VPN, false),
-                            airplane = pref(Preferences.KEY_ICON_LEFT_AIRPLANE, false),
-                            headset = pref(Preferences.KEY_ICON_LEFT_HEADSET, false),
-                            compound = pref(Preferences.KEY_ICON_LEFT_COMPOUND, false),
+                            leftSelected = IconTunerOptions.leftPreferenceKeys.associateWith { key ->
+                                pref(key, false)
+                            },
                             onChange = { key, value ->
                                 changed(key, value)
                                 if (key == IconTunerOptions.KEY_LEFT_MODE && value is Int) {
@@ -731,20 +717,55 @@ private fun StackedSignalSection(
     }
 }
 
+/**
+ * Left-placement rows: the preference key, its label, and the slots it moves.
+ *
+ * [previewSlot] is resolved from [IconTunerOptions.slotsForLeftPreference] so the row cannot show a
+ * different glyph than the hook's actual slot group, and [LeftContainerSectionTest] keeps the list
+ * in step with [IconTunerOptions.leftPreferenceKeys].
+ */
+internal data class LeftToggleRow(
+    val key: String,
+    @StringRes val labelRes: Int,
+    /** Representative slot for the preview; the compound group names no host slot of its own. */
+    val previewSlot: String
+)
+
+internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_ZEN, R.string.icon_left_zen, "zen"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_VOLUME, R.string.icon_left_volume, "volume"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_HOTSPOT, R.string.icon_left_hotspot, "hotspot"),
+    LeftToggleRow(
+        Preferences.KEY_ICON_LEFT_ALARM_CLOCK,
+        R.string.icon_left_alarm_clock,
+        "alarm_clock"
+    ),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_LOCATION, R.string.icon_left_location, "location"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_BLUETOOTH, R.string.icon_left_bluetooth, "bluetooth"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_NFC, R.string.icon_left_nfc, "nfc"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_VPN, R.string.icon_left_vpn, "vpn"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_AIRPLANE, R.string.icon_left_airplane, "airplane"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset"),
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_COMPOUND, R.string.icon_compound_title, "compound_icon")
+)
+
+/**
+ * 图标左置.
+ *
+ * The container is the left region of the bar — `phone_status_bar_left_container`, the row the
+ * clock and the notification icons already share — and the hook inserts it right after the clock
+ * (`indexOfChild(clock) + 1`). So the icons land where MIUI shows notification icons, which is what
+ * "left placement" means; the moved icons are hidden from the right cluster instead.
+ *
+ * The scope dropdown is the only gate. This card used to carry a second "将图标移至时间旁" switch
+ * whose checked state *was* `mode != OFF`; turning it back on forced the Home-only scope, so a user
+ * who had chosen 主屏和锁屏 silently lost the lockscreen half. The dropdown's own 关闭 already
+ * means off, so the switch is gone.
+ */
 @Composable
 private fun LeftContainerSection(
     mode: Int,
-    zen: Boolean,
-    volume: Boolean,
-    hotspot: Boolean,
-    alarmClock: Boolean,
-    location: Boolean,
-    bluetooth: Boolean,
-    nfc: Boolean,
-    vpn: Boolean,
-    airplane: Boolean,
-    headset: Boolean,
-    compound: Boolean,
+    leftSelected: Map<String, Boolean>,
     onChange: (String, Any) -> Unit
 ) {
     val modes = listOf(
@@ -762,49 +783,28 @@ private fun LeftContainerSection(
                 selectedIndex = mode.coerceIn(0, modes.lastIndex),
                 onSelectedIndexChange = { onChange(IconTunerOptions.KEY_LEFT_MODE, it) }
             )
-            TunerSwitch(
-                mode != IconTunerOptions.LEFT_MODE_DISABLED,
-                stringResource(R.string.icon_left_container_master),
-                stringResource(R.string.icon_left_container_master_summary)
-            ) {
-                onChange(
-                    IconTunerOptions.KEY_LEFT_MODE,
-                    if (it) IconTunerOptions.LEFT_MODE_HOME else IconTunerOptions.LEFT_MODE_DISABLED
-                )
-            }
             if (mode != IconTunerOptions.LEFT_MODE_DISABLED) {
-                TunerSwitch(zen, stringResource(R.string.icon_left_zen)) {
-                    onChange(Preferences.KEY_ICON_LEFT_ZEN, it)
-                }
-                TunerSwitch(volume, stringResource(R.string.icon_left_volume)) {
-                    onChange(Preferences.KEY_ICON_LEFT_VOLUME, it)
-                }
-                TunerSwitch(hotspot, stringResource(R.string.icon_left_hotspot)) {
-                    onChange(Preferences.KEY_ICON_LEFT_HOTSPOT, it)
-                }
-                TunerSwitch(alarmClock, stringResource(R.string.icon_left_alarm_clock)) {
-                    onChange(Preferences.KEY_ICON_LEFT_ALARM_CLOCK, it)
-                }
-                TunerSwitch(location, stringResource(R.string.icon_left_location)) {
-                    onChange(Preferences.KEY_ICON_LEFT_LOCATION, it)
-                }
-                TunerSwitch(bluetooth, stringResource(R.string.icon_left_bluetooth)) {
-                    onChange(Preferences.KEY_ICON_LEFT_BLUETOOTH, it)
-                }
-                TunerSwitch(nfc, stringResource(R.string.icon_left_nfc)) {
-                    onChange(Preferences.KEY_ICON_LEFT_NFC, it)
-                }
-                TunerSwitch(vpn, stringResource(R.string.icon_left_vpn)) {
-                    onChange(Preferences.KEY_ICON_LEFT_VPN, it)
-                }
-                TunerSwitch(airplane, stringResource(R.string.icon_left_airplane)) {
-                    onChange(Preferences.KEY_ICON_LEFT_AIRPLANE, it)
-                }
-                TunerSwitch(headset, stringResource(R.string.icon_left_headset)) {
-                    onChange(Preferences.KEY_ICON_LEFT_HEADSET, it)
-                }
-                TunerSwitch(compound, stringResource(R.string.icon_compound_title)) {
-                    onChange(Preferences.KEY_ICON_LEFT_COMPOUND, it)
+                Text(
+                    text = stringResource(R.string.icon_left_hint),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                LEFT_TOGGLE_ROWS.forEach { row ->
+                    val info = IconSlotCatalog.of(row.previewSlot)
+                    SwitchPreference(
+                        checked = leftSelected[row.key] == true,
+                        onCheckedChange = { onChange(row.key, it) },
+                        title = stringResource(row.labelRes),
+                        startAction = {
+                            Icon(
+                                imageVector = info?.icon ?: IconSlotCatalog.fallbackIcon(),
+                                // The row title already names the icon group.
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp).size(22.dp),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -968,64 +968,34 @@ private fun WifiSection(
     }
 }
 
+/**
+ * Entry row for the order editor. The controls themselves live on [IconOrderPage], which renders
+ * the same slot catalog as [SlotsSection]; the two comma-separated host-slot fields this row used
+ * to expose were removed because they required the internal wire names to be known by hand.
+ *
+ * The current mode is read live instead of through the page's local preference cache: the sub-page
+ * writes the same key, and a remembered copy would show the value from before the visit.
+ */
 @Composable
-private fun PositionSection(
-    position: Int,
-    customOrder: Set<String>,
-    reorderHidden: Boolean,
-    extraHidden: String,
-    onChange: (String, Any) -> Unit
-) {
+private fun PositionSection(onNavigateToIconOrder: () -> Unit) {
     val positions = listOf(
         stringResource(R.string.icon_position_system),
         stringResource(R.string.icon_position_wifi_before_mobile),
         stringResource(R.string.icon_position_custom)
     )
+    val position = Preferences.getInt(
+        IconTunerOptions.KEY_POSITION,
+        IconSlotPolicyConfig.POSITION_SYSTEM
+    )
     SmallTitle(stringResource(R.string.icon_position_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            OverlayDropdownPreference(
-                title = stringResource(R.string.icon_position_title),
-                summary = stringResource(R.string.icon_position_summary),
-                items = positions,
-                selectedIndex = position.coerceIn(0, positions.lastIndex),
-                onSelectedIndexChange = { onChange(IconTunerOptions.KEY_POSITION, it) }
-            )
-            if (position == IconSlotPolicyConfig.POSITION_CUSTOM) {
-                TextField(
-                    value = customOrderDisplay(customOrder),
-                    onValueChange = { value ->
-                        onChange(IconTunerOptions.KEY_POSITION_VALUES, customOrderEntries(value))
-                    },
-                    label = stringResource(R.string.icon_position_custom_order),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-            TunerSwitch(
-                reorderHidden,
-                stringResource(R.string.icon_position_reorder_hidden),
-                stringResource(R.string.icon_position_reorder_hidden_summary)
-            ) { onChange(IconTunerOptions.KEY_POSITION_REORDER, it) }
-            TextField(
-                value = extraHidden,
-                onValueChange = { onChange(Preferences.KEY_ICON_EXT_BLOCKED, it) },
-                label = stringResource(R.string.icon_position_extra_hidden),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-        }
+        ArrowPreference(
+            title = stringResource(R.string.icon_position_title),
+            summary = positions[position.coerceIn(0, positions.lastIndex)],
+            onClick = onNavigateToIconOrder
+        )
     }
 }
-
-private fun customOrderDisplay(entries: Set<String>): String =
-    IconSlotPolicy.parseLegacyOrder(entries).joinToString(",") { it.slot }
-
-private fun customOrderEntries(value: String): Set<String> = value
-    .split(',', '，', '\n')
-    .asSequence()
-    .map(String::trim)
-    .filter(String::isNotEmpty)
-    .mapIndexed { index, slot -> "$index:$slot" }
-    .toCollection(LinkedHashSet())
 
 @Composable
 private fun NotificationSection(

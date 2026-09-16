@@ -146,4 +146,126 @@ class IconSlotPolicyTest {
             IconTunerOptions.slotsForLeftPreference(Preferences.KEY_ICON_LEFT_ALARM_CLOCK)
         )
     }
+
+    /**
+     * The order page shows [IconSlotPolicy.displayOrder] and stores
+     * [IconSlotPolicy.orderEntries]; a drag must survive that round trip, and an entry the catalog
+     * cannot draw must stay in the stored set instead of being dropped by the next write.
+     */
+    @Test
+    fun displayedOrderRoundTripsThroughTheStoredWireFormat() {
+        val catalog = listOf("mobile", "wifi", "hotspot", "nfc")
+        assertEquals(catalog, IconSlotPolicy.displayOrder(emptySet(), catalog))
+        assertEquals(
+            listOf("wifi", "mobile", "hotspot", "nfc"),
+            IconSlotPolicy.displayOrder(setOf("0:wifi"), catalog)
+        )
+
+        val stored = setOf("0:wifi", "1:mute")
+        assertEquals(
+            listOf("wifi", "mobile", "hotspot", "nfc"),
+            IconSlotPolicy.displayOrder(stored, catalog)
+        )
+        val dragging = listOf("nfc", "wifi", "mobile", "hotspot")
+        val written = IconSlotPolicy.orderEntries(dragging + listOf("mute"))
+        assertEquals(
+            dragging + listOf("mute"),
+            IconSlotPolicy.parseLegacyOrder(written).map { it.slot }
+        )
+        assertEquals(dragging, IconSlotPolicy.displayOrder(written, catalog))
+    }
+
+    @Test
+    fun hiddenSlotListIsParsedWithEveryAcceptedSeparator() {
+        assertEquals(
+            listOf("wifi", "nfc"),
+            IconSlotPolicy.parseSlotList(" wifi ,nfc,\uFF0C ")
+        )
+        assertEquals(emptyList<String>(), IconSlotPolicy.parseSlotList(""))
+    }
+
+    /**
+     * `icon_ext_blocked` is HIDE_EVERYWHERE, so folding it must not outrank the per-slot dropdown:
+     * the settings page offers that same mode, and a legacy entry that overrode it made the slot
+     * impossible to unhide.
+     */
+    @Test
+    fun legacyExtraHiddenFoldsInAsADefaultNotAnOverride() {
+        val folded = IconSlotPolicy.foldExtraHiddenIntoModes(
+            mapOf("wifi" to IconSlotMode.SHOW_EVERYWHERE.value),
+            listOf("wifi", "zen")
+        )
+        assertEquals(IconSlotMode.SHOW_EVERYWHERE.value, folded["wifi"])
+        assertEquals(IconSlotMode.HIDE_EVERYWHERE.value, folded["zen"])
+
+        val config = IconSlotPolicyConfig(
+            slotModes = folded,
+            extraHiddenSlots = emptySet()
+        )
+        assertEquals(IconSlotMode.HIDE_EVERYWHERE, IconSlotPolicy.modeFor("zen", config.slotModes))
+        assertEquals(
+            listOf("zen"),
+            IconSlotPolicy.blockedFor(IconSurface.STATUS_BAR, listOf("wifi", "zen"), config)
+        )
+    }
+
+    @Test
+    fun foldingAnEmptyOrBlankExtraHiddenListChangesNothing() {
+        val modes = mapOf("wifi" to IconSlotMode.STATUS_BAR_ONLY.value)
+        assertEquals(modes, IconSlotPolicy.foldExtraHiddenIntoModes(modes, emptyList()))
+        assertEquals(modes, IconSlotPolicy.foldExtraHiddenIntoModes(modes, listOf(" ", "")))
+    }
+
+    /**
+     * Left placement takes icons out of the home row only. The control center draws its own rows in
+     * its own layout, where the icons belong on the right — that is what makes them end up on the
+     * right once the shade is open — and the keyguard is only affected when its own left container
+     * exists (i.e. 主屏和锁屏).
+     */
+    @Test
+    fun leftOwnedSlotsAreTakenFromTheRowThatDrawsThemOnly() {
+        val home = setOf("zen", "volume")
+        val keyguard = setOf("nfc")
+        assertEquals(home, IconSlotPolicy.ownedSlotsFor("HOME", home, keyguard))
+        assertEquals(keyguard, IconSlotPolicy.ownedSlotsFor("KEYGUARD", home, keyguard))
+        // The control center's own rows keep drawing them.
+        assertEquals(emptySet<String>(), IconSlotPolicy.ownedSlotsFor("QS", home, keyguard))
+        assertEquals(emptySet<String>(), IconSlotPolicy.ownedSlotsFor("QS_FAKE", home, keyguard))
+        assertEquals(emptySet<String>(), IconSlotPolicy.ownedSlotsFor(null, home, keyguard))
+        assertEquals(
+            emptySet<String>(),
+            IconSlotPolicy.ownedSlotsFor("UNKNOWN_FUTURE_LOCATION", home, keyguard)
+        )
+    }
+
+    @Test
+    fun ownedSlotsAreFoldedIntoABlockListWithoutDuplicatingIt() {
+        val blocked = listOf("bluetooth", "nfc")
+        assertEquals(blocked, IconSlotPolicy.withOwnedSlots(blocked, emptyList()))
+        assertEquals(blocked, IconSlotPolicy.withOwnedSlots(blocked, listOf("nfc", " ", "")))
+        assertEquals(
+            listOf("bluetooth", "nfc", "zen", "volume"),
+            IconSlotPolicy.withOwnedSlots(blocked, listOf("zen", "nfc", "volume", "zen"))
+        )
+    }
+
+    /**
+     * The merged list is the slot modes first, then the left overlay: a slot the user hid with a mode
+     * must stay hidden even when it is not left-placed, and a left-placed slot must be hidden even
+     * though its mode is 跟随系统.
+     */
+    @Test
+    fun slotModesDecideFirstAndTheLeftOverlayIsLayeredOnTop() {
+        val pristine = listOf("zen", "nfc", "wifi")
+        val modes = IconSlotPolicy.blockedFor(
+            IconSurface.STATUS_BAR,
+            pristine,
+            IconSlotPolicyConfig(slotModes = mapOf("nfc" to IconSlotMode.HIDE_EVERYWHERE.value))
+        )
+        assertEquals(listOf("zen", "nfc", "wifi"), modes)
+        assertEquals(
+            listOf("zen", "nfc", "wifi", "volume"),
+            IconSlotPolicy.withOwnedSlots(modes, setOf("volume"))
+        )
+    }
 }

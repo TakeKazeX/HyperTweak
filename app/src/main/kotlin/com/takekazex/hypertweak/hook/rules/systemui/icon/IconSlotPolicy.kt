@@ -86,6 +86,40 @@ object IconSlotPolicy {
     }
 
     /**
+     * Slots the left container renders itself, for one host `StatusBarLocation`.
+     *
+     * Left placement only takes icons out of the row that draws them next to the home clock. The
+     * control center draws its own rows (`QS`, and the shade header's `QS_FAKE` mirror of the real
+     * bar) in its own layout, where the icons belong on the right, so nothing is taken from them —
+     * that is what makes the moved icons appear on the right once the shade is open. `KEYGUARD` is
+     * taken only when the lockscreen half of the scope is on, which is exactly when its own left
+     * container exists ([keyguardOwned] is empty otherwise), so 主屏状态栏 mode leaves the lockscreen
+     * untouched.
+     *
+     * Pure so the per-location rule is unit-tested; the live sets come from `LeftContainerHooker`.
+     */
+    fun ownedSlotsFor(
+        location: String?,
+        homeOwned: Set<String>,
+        keyguardOwned: Set<String>
+    ): Set<String> = when (location) {
+        "HOME" -> homeOwned
+        "KEYGUARD" -> keyguardOwned
+        else -> emptySet()
+    }
+
+    /**
+     * Folds [ownedSlots] — the slots the left container renders itself — into a merged block list.
+     * They must be blocked wherever that row would otherwise draw them, otherwise the moved icon is
+     * rendered a second time. Returns [blocked] unchanged when there is nothing to add.
+     */
+    fun withOwnedSlots(blocked: List<String>, ownedSlots: Iterable<String>): List<String> {
+        val extra = ownedSlots.filter { it.isNotBlank() && it !in blocked }
+        if (extra.isEmpty()) return blocked
+        return blocked + extra.distinct()
+    }
+
+    /**
      * Parses XiaomiHelper's legacy StringSet entries. A malformed entry is ignored, while the
      * caller's collection order is retained for equal indexes so sorting remains stable.
      */
@@ -101,7 +135,69 @@ object IconSlotPolicy {
         }
         .sortedWith(compareBy<IndexedIconSlot> { it.index }.thenBy { it.ordinal })
 
-    /** Returns the first explicitly configured alias, with extra hiding taking precedence. */
+    /**
+     * Expands the stored custom order into the full list the settings page renders: the slots the
+     * user placed, in their stored index order, followed by every [catalog] slot that was not
+     * placed. An entry naming a slot outside [catalog] cannot be drawn, so it is skipped here and
+     * stays untouched in the stored set; [applyCustomOrder] still honors it against the host list.
+     */
+    fun displayOrder(entries: Iterable<String>, catalog: List<String>): List<String> {
+        val placed = parseLegacyOrder(entries).map { it.slot }.filter { it in catalog }.distinct()
+        val placedSlots = placed.toSet()
+        return placed + catalog.filterNot { it in placedSlots }
+    }
+
+    /**
+     * Wire form of a displayed order: `index:slot` for every position, exactly what
+     * [parseLegacyOrder] reads back. [displayOrder] is its inverse for the same [catalog].
+     */
+    fun orderEntries(slots: List<String>): Set<String> = slots
+        .mapIndexedNotNull { index, slot ->
+            if (slot.isBlank()) null else "$index:$slot"
+        }
+        .toCollection(LinkedHashSet())
+
+    /** Splits an extra-hidden list on every separator the settings UI and the hook accept. */
+    fun parseSlotList(value: String): List<String> = value
+        .split(',', ' ', '\uFF0C')
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .distinct()
+        .toList()
+
+    /**
+     * Folds the legacy extra-hidden list (`icon_ext_blocked`) into the per-slot modes.
+     *
+     * An entry in that list means [IconSlotMode.HIDE_EVERYWHERE], which the per-slot dropdown also
+     * offers, so the list is not a second feature: it is a default for those slots. It used to be
+     * passed as `extraHiddenSlots`, which [modeFor] tests *before* the configured mode, so a slot
+     * listed there could not be unhidden from the settings page at all — every mode chosen in the
+     * dropdown was overruled. Folding with `putIfAbsent` keeps the old hiding behavior for anyone
+     * who still has the key while letting an explicit mode win.
+     */
+    fun foldExtraHiddenIntoModes(
+        modes: Map<String, Int>,
+        extraHidden: Iterable<String>
+    ): Map<String, Int> {
+        val folded = LinkedHashMap(modes)
+        var changed = false
+        extraHidden.forEach { slot ->
+            if (slot.isNotBlank() && folded.putIfAbsent(slot, IconSlotMode.HIDE_EVERYWHERE.value) == null) {
+                changed = true
+            }
+        }
+        return if (changed) folded else modes
+    }
+
+    /**
+     * Returns the first explicitly configured alias, with [extraHiddenSlots] taking precedence.
+     *
+     * That precedence is a forced-hide input for callers that need one; the settings snapshot must
+     * NOT pass the legacy `icon_ext_blocked` list here — it would again outrank the slot dropdown.
+     * `IconTunerOptions.snapshot` folds that list into the modes instead
+     * ([foldExtraHiddenIntoModes]), so it stays editable from the settings page.
+     */
     fun modeFor(
         slot: String,
         configuredModes: Map<String, Int>,

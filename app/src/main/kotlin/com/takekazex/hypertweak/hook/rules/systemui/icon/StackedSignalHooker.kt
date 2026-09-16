@@ -965,11 +965,9 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun customStackVisible(): Boolean {
-        val mode = IconSlotPolicy.modeFor(
-            SLOT_STACKED,
-            options.policy.slotModes,
-            options.policy.extraHiddenSlots
-        )
+        // No separate extra-hidden set is passed: the legacy `icon_ext_blocked` list is folded into
+        // `slotModes` by `IconTunerOptions.snapshot` (`IconSlotPolicy.foldExtraHiddenIntoModes`).
+        val mode = IconSlotPolicy.modeFor(SLOT_STACKED, options.policy.slotModes)
         return when (mode) {
             IconSlotMode.FOLLOW_SYSTEM,
             IconSlotMode.SHOW_EVERYWHERE,
@@ -1076,11 +1074,8 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun typeSlotVisible(): Boolean {
-        return when (IconSlotPolicy.modeFor(
-            SLOT_STACKED_TYPE,
-            options.policy.slotModes,
-            options.policy.extraHiddenSlots
-        )) {
+        // Same as `customStackVisible`: the folded `slotModes` already carry the legacy entry.
+        return when (IconSlotPolicy.modeFor(SLOT_STACKED_TYPE, options.policy.slotModes)) {
             IconSlotMode.FOLLOW_SYSTEM,
             IconSlotMode.SHOW_EVERYWHERE,
             IconSlotMode.STATUS_BAR_ONLY -> true

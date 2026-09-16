@@ -87,9 +87,9 @@ object IconManagerHooker : StaticHooker() {
         setBlockListMethod = method
         method.hook {
             before { param ->
-                if (restoring || LeftContainerHooker.isApplyingBlockList(param.thisObject)) {
-                    return@before
-                }
+                // No caller is excluded any more: the left container used to write its own overlay
+                // through this method and skip the merge, which silently bypassed the slot modes.
+                if (restoring) return@before
                 applyPolicy(param.thisObject, param.args.getOrNull(0)) { merged ->
                     param.args[0] = ArrayList(merged)
                 }
@@ -152,20 +152,58 @@ object IconManagerHooker : StaticHooker() {
                 pristine = pristineFor(incoming) ?: incomingStrings
             ).also { states[manager] = it }
         }
-        val leftOwned = options.policy.leftSlots
-        val incomingWithoutLeft = incomingStrings.filterNot(leftOwned::contains)
         val hostPristine = pristineFor(incoming)
-            ?: if (state.lastApplied == incomingStrings || state.lastApplied == incomingWithoutLeft) {
-                // LeftContainer adds its own slots when it re-applies the manager list. Those
-                // slots are an owner overlay, not a new host pristine list.
+            ?: if (state.lastApplied == incomingStrings) {
+                // The host echoed our own merged list back (it is not one of the static lists this
+                // hook captured), so keep the pristine list instead of polluting it.
                 state.pristine
             } else {
                 incomingStrings
             }
         state.pristine = hostPristine
-        val merged = IconSlotPolicy.blockedFor(surface, hostPristine, options.policy)
+        // The slot modes decide first and always win; the left container's overlay is layered on top
+        // for the one row that would otherwise draw the same icon a second time. Everything else —
+        // including a host re-emission that would otherwise drop the overlay — goes through here,
+        // because this is the single place a host block-list emission is merged.
+        val merged = IconSlotPolicy.withOwnedSlots(
+            IconSlotPolicy.blockedFor(surface, hostPristine, options.policy),
+            IconSlotPolicy.ownedSlotsFor(
+                location,
+                LeftContainerHooker.homeOwnedSlots(),
+                LeftContainerHooker.keyguardOwnedSlots()
+            )
+        )
         state.lastApplied = merged
         publish(merged)
+    }
+
+    /**
+     * Re-publishes the pristine host list for every tracked manager so [applyPolicy] re-merges it.
+     *
+     * A manager takes its block list when the host sets it (`onAttachedToWindow` for the control
+     * center rows, and once at attach for the status bar / keyguard), so a change in the left
+     * container's owned slots has to be pushed out — otherwise an attached row keeps a list that
+     * predates the change. [LeftContainerHooker] calls this from its main-thread ticker whenever the
+     * owned sets change.
+     *
+     * The pristine list is republished, never a merged one: [applyPolicy] derives the result again,
+     * so this carries no policy state of its own.
+     */
+    fun republishMergedLists() {
+        // `IconManager.setBlockList` asserts the main thread.
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { republishMergedLists() }
+            return
+        }
+        val method = setBlockListMethod ?: return
+        val pending = synchronized(stateLock) {
+            states.entries.map { (manager, state) -> manager to ArrayList(state.pristine) }
+        }
+        if (pending.isEmpty()) return
+        pending.forEach { (manager, pristine) ->
+            runCatching { method.invoke(manager, pristine) }
+                .onFailure { DebugLog.w(TAG, "failed to re-apply a merged block list", it) }
+        }
     }
 
     private fun readLocation(manager: Any): String? = runCatching {
