@@ -76,25 +76,55 @@ object CircleToSearchGestureHooker : StaticHooker() {
     @Volatile
     private var observerInstalled = false
 
+    @Volatile
+    private var settingObserver: ContentObserver? = null
+
+    private val startupRetry = SystemServerStartupRetry(
+        scope = SCOPE,
+        action = {
+            applyAlignmentInternal(logFailure = false) &&
+                installSettingObserver(logFailure = false)
+        }
+    )
+
     override fun onHook() {
-        applyAlignment()
-        installSettingObserver()
+        val aligned = applyAlignmentInternal(logFailure = true)
+        val observed = installSettingObserver(logFailure = true)
+        if (!aligned || !observed) startupRetry.schedule()
     }
 
     override fun onPrepareHotReload() {
+        startupRetry.cancel()
+        val observer = settingObserver
+        if (observer != null) {
+            runCatching { systemContext()?.contentResolver?.unregisterContentObserver(observer) }
+                .onFailure { DebugLog.w(SCOPE, "could not unregister the gesture observer", it) }
+            settingObserver = null
+        }
         observerInstalled = false
     }
 
     /** Aligns the gesture-line action with the switch: applied while on, restored while off. */
     fun applyAlignment() {
-        val context = systemContext() ?: return
+        if (!applyAlignmentInternal(logFailure = true)) startupRetry.schedule()
+    }
+
+    private fun applyAlignmentInternal(logFailure: Boolean): Boolean {
+        val context = systemContext() ?: return false
         if (!isCircleToSearchLongPressEnabled()) {
             restore(context)
-            return
+            return true
         }
-        runCatching { align(context) }.onFailure {
-            DebugLog.w(SCOPE, "could not align $SETTING_NAV_LONG_PRESS", it)
-        }
+        return runCatching {
+            align(context)
+            true
+        }.onFailure {
+            if (logFailure) {
+                DebugLog.w(SCOPE, "could not align $SETTING_NAV_LONG_PRESS", it)
+            } else {
+                DebugLog.d(SCOPE, "gesture setting alignment still waiting for system services")
+            }
+        }.getOrDefault(false)
     }
 
     private fun isCircleToSearchLongPressEnabled(): Boolean =
@@ -140,23 +170,31 @@ object CircleToSearchGestureHooker : StaticHooker() {
      * Re-applies when something else moves the key, which the switch's owner is expected to undo.
      * Our own write settles immediately (the value already equals the target), so this cannot loop.
      */
-    private fun installSettingObserver() {
-        if (observerInstalled) return
-        val context = systemContext() ?: return
-        runCatching {
+    private fun installSettingObserver(logFailure: Boolean): Boolean {
+        if (observerInstalled) return true
+        val context = systemContext() ?: return false
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                applyAlignment()
+            }
+        }
+        return runCatching {
             context.contentResolver.registerContentObserver(
                 Settings.Secure.getUriFor(SETTING_NAV_LONG_PRESS),
                 false,
-                object : ContentObserver(Handler(Looper.getMainLooper())) {
-                    override fun onChange(selfChange: Boolean, uri: Uri?) {
-                        applyAlignment()
-                    }
-                }
+                observer
             )
+            settingObserver = observer
             observerInstalled = true
+            true
         }.onFailure {
-            DebugLog.w(SCOPE, "could not observe $SETTING_NAV_LONG_PRESS", it)
-        }
+            runCatching { context.contentResolver.unregisterContentObserver(observer) }
+            if (logFailure) {
+                DebugLog.w(SCOPE, "could not observe $SETTING_NAV_LONG_PRESS", it)
+            } else {
+                DebugLog.d(SCOPE, "gesture setting observer still waiting for system services")
+            }
+        }.getOrDefault(false)
     }
 
     // ─── Platform access ──────────────────────────────────────────────────────

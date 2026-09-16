@@ -114,12 +114,22 @@ object DefaultAssistantHooker : StaticHooker() {
     @Volatile
     private var settingObserver: android.database.ContentObserver? = null
 
+    private val startupRetry = SystemServerStartupRetry(
+        scope = SCOPE,
+        action = {
+            applyAlignmentInternal(logFailure = false) &&
+                installSettingObserver(logFailure = false)
+        }
+    )
+
     override fun onHook() {
-        applyAlignment()
-        installSettingObserver()
+        val aligned = applyAlignmentInternal(logFailure = true)
+        val observed = installSettingObserver(logFailure = true)
+        if (!aligned || !observed) startupRetry.schedule()
     }
 
     override fun onPrepareHotReload() {
+        startupRetry.cancel()
         // The alignment is a setting write, not a hook. Unregister the old observer before the
         // replacement generation installs its own one; otherwise every hot reload leaves a live
         // callback behind and each assistant-setting update is processed multiple times.
@@ -137,14 +147,25 @@ object DefaultAssistantHooker : StaticHooker() {
      * action is the default assistant, restored otherwise. Safe to call repeatedly.
      */
     fun applyAlignment() {
+        if (!applyAlignmentInternal(logFailure = true)) startupRetry.schedule()
+    }
+
+    private fun applyAlignmentInternal(logFailure: Boolean): Boolean {
         if (!isDefaultAssistantAction()) {
             restore()
-            return
+            return true
         }
-        val context = systemContext() ?: return
-        runCatching { align(context) }.onFailure {
-            DebugLog.w(SCOPE, "could not align the assistant setting", it)
-        }
+        val context = systemContext() ?: return false
+        return runCatching {
+            align(context)
+            true
+        }.onFailure {
+            if (logFailure) {
+                DebugLog.w(SCOPE, "could not align the assistant setting", it)
+            } else {
+                DebugLog.d(SCOPE, "assistant setting alignment still waiting for system services")
+            }
+        }.getOrDefault(false)
     }
 
     /** True when `AssistManager`'s own path can launch the selected assistant as configured. */
@@ -391,32 +412,38 @@ object DefaultAssistantHooker : StaticHooker() {
      * AOSP rewrites `assistant` whenever the ASSISTANT role changes, so re-apply when the value
      * this hooker depends on moves.
      */
-    private fun installSettingObserver() {
-        if (observerInstalled) return
-        val context = systemContext() ?: return
-        runCatching {
+    private fun installSettingObserver(logFailure: Boolean): Boolean {
+        if (observerInstalled) return true
+        val context = systemContext() ?: return false
+        val observer = object : android.database.ContentObserver(
+            android.os.Handler(android.os.Looper.getMainLooper())
+        ) {
+            override fun onChange(selfChange: Boolean) {
+                applyAlignment()
+            }
+        }
+        return runCatching {
             context.contentResolver.registerContentObserver(
                 Settings.Secure.getUriFor(SETTING_ASSISTANT),
                 false,
-                object : android.database.ContentObserver(
-                    android.os.Handler(android.os.Looper.getMainLooper())
-                ) {
-                    override fun onChange(selfChange: Boolean) {
-                        applyAlignment()
-                    }
-                }.also { settingObserver = it }
+                observer
             )
-            settingObserver?.let { observer ->
-                context.contentResolver.registerContentObserver(
-                    Settings.Secure.getUriFor(SETTING_VOICE_SERVICE),
-                    false,
-                    observer
-                )
-            }
+            context.contentResolver.registerContentObserver(
+                Settings.Secure.getUriFor(SETTING_VOICE_SERVICE),
+                false,
+                observer
+            )
+            settingObserver = observer
             observerInstalled = true
+            true
         }.onFailure {
-            DebugLog.w(SCOPE, "could not observe the assistant setting", it)
-        }
+            runCatching { context.contentResolver.unregisterContentObserver(observer) }
+            if (logFailure) {
+                DebugLog.w(SCOPE, "could not observe the assistant setting", it)
+            } else {
+                DebugLog.d(SCOPE, "assistant setting observer still waiting for system services")
+            }
+        }.getOrDefault(false)
     }
 
     // ─── Platform access ──────────────────────────────────────────────────────
