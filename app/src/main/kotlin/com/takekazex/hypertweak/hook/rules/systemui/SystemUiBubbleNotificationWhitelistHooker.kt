@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Removes the second, SystemUI-side app-map check for MIUI bubble notifications.
@@ -40,7 +41,9 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     private const val SECURE_BUBBLE_APP_SETTINGS = "miui_bubble_app_settings"
 
     private var currentApplicationMethod: Method? = null
+    @Volatile
     private var secureStringForUserMethod: Method? = null
+    private val secureReadFailureLogged = AtomicBoolean(false)
 
     private enum class SecureAppState {
         ABSENT,
@@ -50,6 +53,12 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+
+    override fun onPrepareHotReload() {
+        secureReadFailureLogged.set(false)
+        secureStringForUserMethod = null
+        currentApplicationMethod = null
+    }
 
     override fun onHook() {
         if (!Preferences.getBoolean(
@@ -203,20 +212,29 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
         userId: Int
     ): SecureAppState {
         val serialized: String? = runCatching {
-            val method = secureStringForUserMethod ?: Settings.Secure::class.java
-                .getDeclaredMethod(
-                    "getStringForUser",
-                    ContentResolver::class.java,
-                    String::class.java,
-                    Int::class.javaPrimitiveType
-                )
+            if (userId < 0) {
+                // MIUI uses -1 as an "unspecified" user on this path, but the Settings provider
+                // rejects USER_ALL for getStringForUser. The resolver belongs to SystemUI's
+                // current user, which is the correct scope for this notification decision.
+                Settings.Secure.getString(context.contentResolver, SECURE_BUBBLE_APP_SETTINGS)
+            } else {
+                val method = secureStringForUserMethod ?: Settings.Secure::class.java
+                    .getDeclaredMethod(
+                        "getStringForUser",
+                        ContentResolver::class.java,
+                        String::class.java,
+                        Int::class.javaPrimitiveType
+                    )
                 .apply {
                     isAccessible = true
                     secureStringForUserMethod = this
                 }
-            method.invoke(null, context.contentResolver, SECURE_BUBBLE_APP_SETTINGS, userId) as? String
+                method.invoke(null, context.contentResolver, SECURE_BUBBLE_APP_SETTINGS, userId) as? String
+            }
         }.onFailure {
-            DebugLog.w(TAG, "failed to read per-app bubble setting", it)
+            if (secureReadFailureLogged.compareAndSet(false, true)) {
+                DebugLog.w(TAG, "failed to read per-app bubble setting", it)
+            }
         }.getOrElse { return SecureAppState.UNAVAILABLE }
 
         if (serialized.isNullOrBlank()) return SecureAppState.ABSENT
