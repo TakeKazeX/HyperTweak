@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -56,6 +57,8 @@ object BatteryInfoHooker : StaticHooker() {
     private val publishSuccessLogged = java.util.concurrent.atomic.AtomicBoolean(false)
     private val publishAcknowledgementMissingLogged =
         java.util.concurrent.atomic.AtomicBoolean(false)
+    private val publishFailureLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val publishProviderMissingLogged = java.util.concurrent.atomic.AtomicBoolean(false)
 
     // ─── IMiCharge reflection (cached) ───────────────────────────────────────
 
@@ -136,6 +139,8 @@ object BatteryInfoHooker : StaticHooker() {
         contextMisses = 0
         publishSuccessLogged.set(false)
         publishAcknowledgementMissingLogged.set(false)
+        publishFailureLogged.set(false)
+        publishProviderMissingLogged.set(false)
         imiChargeResolved = false
         imiChargeInstance = null
         miChargePathMethod = null
@@ -209,16 +214,20 @@ object BatteryInfoHooker : StaticHooker() {
         contextMisses = 0
         val bundle = collect(context)
         if (bundle.isEmpty) return
-        val acknowledgement = runCatching {
+        val attempt = runCatching {
             context.contentResolver.call(
                 BatteryInfoChannel.uri(),
                 BatteryInfoChannel.METHOD_SET,
                 null,
                 bundle
             )
-        }.onFailure {
-            DebugLog.w(TAG, "push battery snapshot failed", it)
-        }.getOrNull()
+        }
+        val failure = attempt.exceptionOrNull()
+        if (failure != null) {
+            reportPublishFailure(context, failure)
+            return
+        }
+        val acknowledgement = attempt.getOrNull()
         if (acknowledgement?.containsKey(BatteryInfoChannel.KEY_UPDATED_AT) == true) {
             if (publishSuccessLogged.compareAndSet(false, true)) {
                 DebugLog.i(
@@ -232,6 +241,59 @@ object BatteryInfoHooker : StaticHooker() {
             DebugLog.w(TAG, "push battery snapshot returned no acknowledgement")
         }
     }
+
+    /**
+     * Classifies a failed push, once per generation.
+     *
+     * `Unknown authority` means the module APK's provider is not registered *at this instant*. It
+     * happens while the module is being updated: the replace drops the old provider registration
+     * before the new one lands, and LSPosed restarts every hooked process in that window — this one
+     * included. The ticker retries every second, so that case heals without user action.
+     *
+     * The one-shot probe separates it from the case that does not heal: if the authority is not
+     * declared for this user either, no amount of retrying will publish the snapshot, and that is
+     * what the user needs to see. Every other failure is reported once as well, so a permanently
+     * broken push cannot flood the log at one line per second.
+     */
+    private fun reportPublishFailure(context: Context, failure: Throwable) {
+        val unknownAuthority = failure is IllegalArgumentException &&
+            failure.message?.contains("Unknown authority") == true
+        if (unknownAuthority) {
+            if (publishProviderMissingLogged.compareAndSet(false, true)) {
+                if (providerDeclared(context)) {
+                    DebugLog.i(
+                        TAG,
+                        "battery provider not registered yet (${failure.message}); retrying every " +
+                            "${PUBLISH_INTERVAL_MS}ms"
+                    )
+                } else {
+                    DebugLog.w(
+                        TAG,
+                        "battery provider is not installed for this user; the snapshot cannot be " +
+                            "published until the module is installed again",
+                        failure
+                    )
+                }
+            }
+            return
+        }
+        if (publishFailureLogged.compareAndSet(false, true)) {
+            DebugLog.w(TAG, "push battery snapshot failed", failure)
+        }
+    }
+
+    /** Whether the module's own provider is installed at all, for the one-shot diagnosis above. */
+    private fun providerDeclared(context: Context): Boolean = runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            context.packageManager.resolveContentProvider(
+                BatteryInfoChannel.AUTHORITY,
+                PackageManager.ComponentInfoFlags.of(0L)
+            ) != null
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.resolveContentProvider(BatteryInfoChannel.AUTHORITY, 0) != null
+        }
+    }.getOrDefault(false)
 
     private fun collect(context: Context): Bundle {
         val b = Bundle()
