@@ -1,7 +1,10 @@
 package com.takekazex.hypertweak.ui.page
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -27,16 +30,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
 import kotlinx.coroutines.launch
@@ -202,6 +209,38 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
         }
     )
 
+    // The preview and the 布局 tab read the same left-placement toggles, so the map is built once
+    // here instead of inside the section.
+    val leftSelected = IconTunerOptions.leftPreferenceKeys.associateWith { key -> pref(key, false) }
+    val previewModel = buildStatusBarPreview(
+        StatusBarPreviewInput(
+            position = pref(IconTunerOptions.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
+            customOrder = pref(IconTunerOptions.KEY_POSITION_VALUES, emptySet<String>()),
+            reorderHidden = pref(IconTunerOptions.KEY_POSITION_REORDER, false),
+            slotModes = IconSlotCatalog.slots.associateWith { pref(Preferences.slotKey(it), 0) },
+            extraHidden = IconSlotPolicy.parseSlotList(
+                pref(Preferences.KEY_ICON_EXT_BLOCKED, "")
+            ).toSet(),
+            leftSlots = if (leftMode == IconTunerOptions.LEFT_MODE_DISABLED) {
+                emptySet()
+            } else {
+                IconTunerOptions.leftPreferenceKeys
+                    .filter { leftSelected[it] == true }
+                    .flatMap { IconTunerOptions.slotsForLeftPreference(it) }
+                    .toSet()
+            },
+            stackedEnabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
+            duoEnabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
+            duoSizeDp = pref(
+                Preferences.KEY_ICON_DUO_SIZE,
+                DuoLayout.DEFAULT_ICON_SIZE_DP
+            ).toFloat(),
+            hideMobileOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
+            hideWifiConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
+        )
+    )
+    val showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false)
+
     val categories = listOf(
         stringResource(R.string.icon_tuner_tab_layout),
         stringResource(R.string.icon_tuner_tab_mobile),
@@ -227,6 +266,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
+            StatusBarPreview(model = previewModel, showCellularType = showCellularType)
             TabRowWithContour(
                 tabs = categories,
                 selectedTabIndex = selectedCategory.coerceIn(0, categories.lastIndex),
@@ -248,9 +288,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                         PositionSection(onNavigateToIconOrder = onNavigateToIconOrder)
                         LeftContainerSection(
                             mode = leftMode,
-                            leftSelected = IconTunerOptions.leftPreferenceKeys.associateWith { key ->
-                                pref(key, false)
-                            },
+                            leftSelected = leftSelected,
                             onChange = { key, value ->
                                 changed(key, value)
                                 if (key == IconTunerOptions.KEY_LEFT_MODE && value is Int) {
@@ -263,6 +301,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                         DuoSignalSection(
                             enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
+                            sizeDp = pref(
+                                Preferences.KEY_ICON_DUO_SIZE,
+                                DuoLayout.DEFAULT_ICON_SIZE_DP
+                            ),
                             onChange = { key, value -> changed(key, value) }
                         )
                         StackedSignalSection(
@@ -521,7 +563,9 @@ private fun LeftContainerSection(
                         title = stringResource(row.labelRes),
                         startAction = {
                             Icon(
-                                imageVector = info?.icon ?: IconSlotCatalog.fallbackIcon(),
+                                painter = painterResource(
+                                    id = info?.iconRes ?: IconSlotCatalog.fallbackIconRes()
+                                ),
                                 // The row title already names the icon group.
                                 contentDescription = null,
                                 modifier = Modifier.padding(end = 8.dp).size(22.dp),
@@ -1004,7 +1048,9 @@ private fun SlotsSection(
                     },
                     startAction = {
                         Icon(
-                            imageVector = info?.icon ?: IconSlotCatalog.fallbackIcon(),
+                            painter = painterResource(
+                                id = info?.iconRes ?: IconSlotCatalog.fallbackIconRes()
+                            ),
                             // The row title already names the slot, so the preview stays decorative.
                             contentDescription = null,
                             modifier = Modifier.padding(end = 8.dp).size(22.dp),
@@ -1052,7 +1098,7 @@ private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: I
 }
 
 @Composable
-private fun DuoSignalSection(enabled: Boolean, expanded: Int, onChange: (String, Any) -> Unit) {
+private fun DuoSignalSection(enabled: Boolean, expanded: Int, sizeDp: Int, onChange: (String, Any) -> Unit) {
     SmallTitle(stringResource(R.string.icon_duo_title))
     DuoSignalPreview()
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -1066,7 +1112,50 @@ private fun DuoSignalSection(enabled: Boolean, expanded: Int, onChange: (String,
                     selectedIndex = expanded.coerceIn(0, 1),
                     onSelectedIndexChange = { onChange(Preferences.KEY_ICON_DUO_EXPANDED, it) }
                 )
+                DuoSizeRow(sizeDp) { onChange(Preferences.KEY_ICON_DUO_SIZE, it) }
             }
         }
     }
+}
+
+/**
+ * Duo glyph size in dp.
+ *
+ * The slider is centred on the 24dp default and snaps back to it, so the untouched size is a
+ * detent. Tapping the value opens [IntValueDialog] for an exact number, because a slider cannot
+ * reach an arbitrary dp on a narrow screen.
+ */
+@Composable
+private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
+    var showDialog by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clickable { showDialog = true },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(R.string.icon_duo_size))
+            Text(stringResource(R.string.icon_duo_size_value, sizeDp))
+        }
+        Slider(
+            value = sizeDp.toFloat().coerceIn(
+                DuoLayout.MIN_ICON_SIZE_DP.toFloat(),
+                DuoLayout.MAX_ICON_SIZE_DP.toFloat()
+            ),
+            onValueChange = { onChange(DuoLayout.snapSizeDp(it)) },
+            valueRange = DuoLayout.MIN_ICON_SIZE_DP.toFloat()..DuoLayout.MAX_ICON_SIZE_DP.toFloat()
+        )
+    }
+    IntValueDialog(
+        show = showDialog,
+        title = stringResource(R.string.icon_duo_size),
+        summary = stringResource(R.string.icon_duo_size_summary),
+        suffix = stringResource(R.string.icon_duo_size_unit),
+        range = DuoLayout.MIN_ICON_SIZE_DP..DuoLayout.MAX_ICON_SIZE_DP,
+        currentValue = { sizeDp },
+        // A blank field keeps the current size instead of jumping to the minimum.
+        emptyValue = sizeDp,
+        onValueConfirmed = onChange,
+        onDismissRequest = { showDialog = false }
+    )
 }

@@ -546,6 +546,7 @@
     <string name="icon_ignore_system_hiding">忽略系统隐藏</string>
     <string name="icon_ignore_system_hiding_summary">显示系统自行隐藏的图标（隐私指示符等）</string>
     <string name="icon_page_title">图标调整</string>
+    <string name="icon_preview_network_type">5G</string>
     <string name="icon_restart_systemui">重启 SystemUI</string>
     <string name="icon_restart_systemui_summary">应用此页面所做的更改</string>
     <string name="icon_slot_mode_control_center">仅控制中心</string>
@@ -1251,6 +1252,10 @@
     <string name="icon_duo_enabled">三合一状态图标</string>
     <string name="icon_duo_summary">电量弧、联网方式和主数据卡信号。仅 OS4；不支持的状态保留原生图标。重启系统界面后生效。</string>
     <string name="icon_duo_expanded">展开面板样式</string>
+    <string name="icon_duo_size">图标大小</string>
+    <string name="icon_duo_size_value">%1$d dp</string>
+    <string name="icon_duo_size_summary">三合一图标高度（dp），默认 24</string>
+    <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">保持三合一</string>
     <string name="icon_duo_native">恢复原本图标</string>
     <string name="icon_duo_preview">样式预览：普通 Wi-Fi、充电 5G、低电量 4G、省电 5G-A</string>

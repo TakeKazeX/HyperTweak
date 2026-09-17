@@ -546,6 +546,7 @@
     <string name="icon_ignore_system_hiding">Ignore System Hiding</string>
     <string name="icon_ignore_system_hiding_summary">Show icons the system hides on its own (privacy indicator and others)</string>
     <string name="icon_page_title">Icon Tuner</string>
+    <string name="icon_preview_network_type">5G</string>
     <string name="icon_restart_systemui">Restart SystemUI</string>
     <string name="icon_restart_systemui_summary">Apply the changes made on this page</string>
     <string name="icon_slot_mode_control_center">Control Center Only</string>
@@ -1257,6 +1258,10 @@
     <string name="icon_duo_enabled">Three-in-one status icon</string>
     <string name="icon_duo_summary">Battery arc, internet connection and main data SIM signal. OS4 only. Unsupported states use the original icons. Restart SystemUI to apply.</string>
     <string name="icon_duo_expanded">Expanded panel style</string>
+    <string name="icon_duo_size">Icon size</string>
+    <string name="icon_duo_size_value">%1$d dp</string>
+    <string name="icon_duo_size_summary">Height of the Duo glyph in dp; 24 dp is the default</string>
+    <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">Keep three-in-one</string>
     <string name="icon_duo_native">Restore original icons</string>
     <string name="icon_duo_preview">Preview: normal Wi-Fi, charging 5G, low battery 4G, battery saver 5G-A</string>

@@ -52,6 +52,7 @@ object DuoSignalHooker : StaticHooker() {
     @Volatile private var epoch = 0
     private var panelProgress = 1f
     private var expandedStyle = DuoExpandedStyle.RESTORE_NATIVE
+    private var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
     private var mobile = MobileSignalState()
     private var network = DuoNetwork()
     private var connectivity: ConnectivityManager? = null
@@ -95,6 +96,8 @@ object DuoSignalHooker : StaticHooker() {
     private class DuoView(context: Context) : View(context) {
         val icon = DuoDrawable().also { it.callback = this }
         var drawFailed: (() -> Unit)? = null
+        /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
+        var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
         private val previousIcon = DuoDrawable()
         private var blend = 1f
         private var animator: ValueAnimator? = null
@@ -133,7 +136,7 @@ object DuoSignalHooker : StaticHooker() {
         override fun verifyDrawable(who: android.graphics.drawable.Drawable): Boolean = who === icon || super.verifyDrawable(who)
         /** The carrier takes the retained battery's box in full; the drawable fits its glyph. */
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val desired = (24f * resources.displayMetrics.density).roundToInt()
+            val desired = DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp)
             // WRAP_CONTENT must report an intrinsic desired size. Feeding MeasureSpec.getSize()
             // back into resolveSize() makes an AT_MOST spec consume the parent's whole allowance.
             // position() aligns the box with the current parent's end edge once active.
@@ -165,6 +168,12 @@ object DuoSignalHooker : StaticHooker() {
         epoch++
         expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
+        iconSizeDp = DuoLayout.safeSizeDp(
+            Preferences.getInt(
+                Preferences.KEY_ICON_DUO_SIZE,
+                DuoLayout.DEFAULT_ICON_SIZE_DP
+            ).toFloat()
+        )
         IconTunerFlows.init(classLoader)
         val batteryClass = BATTERY.toClassOrNull() ?: run { enabled = false; return }
         val parentClass = CONTAINER.toClassOrNull() ?: run { enabled = false; return }
@@ -253,6 +262,7 @@ object DuoSignalHooker : StaticHooker() {
         ensureConnectivity(battery.context)
         val binding = Binding(battery, parent, icons, surface)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
+        binding.view.iconSizeDp = iconSizeDp
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
         bindings[battery] = binding
@@ -307,7 +317,8 @@ object DuoSignalHooker : StaticHooker() {
         if (parent.width <= 0 || parent.height <= 0) return
         val box = DuoLayout.box(parent.width, parent.height, parent.paddingLeft, parent.paddingTop,
             parent.paddingRight, parent.paddingBottom,
-            (24f * view.resources.displayMetrics.density).roundToInt(), view.paddingStart + view.paddingEnd,
+            DuoLayout.iconSizePx(view.resources.displayMetrics.density, view.iconSizeDp),
+            view.paddingStart + view.paddingEnd,
             parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         view.measure(View.MeasureSpec.makeMeasureSpec(box.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(box.height, View.MeasureSpec.EXACTLY))

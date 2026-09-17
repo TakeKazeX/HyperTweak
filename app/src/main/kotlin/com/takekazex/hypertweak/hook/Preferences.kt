@@ -516,6 +516,9 @@ object Preferences {
     const val KEY_ICON_DUO_ENABLED = "icon_duo_enabled"
     const val KEY_ICON_DUO_EXPANDED = "icon_duo_expanded"
 
+    /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
+    const val KEY_ICON_DUO_SIZE = "icon_duo_size"
+
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
     const val KEY_ICON_STACKED_SVG_SINGLE = "icon_tuner_stacked_icon_svg_single"

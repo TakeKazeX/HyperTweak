@@ -1,58 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PhoneMissed
-import androidx.compose.material.icons.automirrored.rounded.VolumeMute
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.AirplanemodeActive
-import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.BatteryChargingFull
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BluetoothConnected
-import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.Cast
-import androidx.compose.material.icons.rounded.Computer
-import androidx.compose.material.icons.rounded.DirectionsCar
-import androidx.compose.material.icons.rounded.DoNotDisturbOn
-import androidx.compose.material.icons.rounded.Duo
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.GpsFixed
-import androidx.compose.material.icons.rounded.Hd
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.HeadsetMic
-import androidx.compose.material.icons.rounded.Hearing
-import androidx.compose.material.icons.rounded.HighQuality
-import androidx.compose.material.icons.rounded.Keyboard
-import androidx.compose.material.icons.rounded.Layers
-import androidx.compose.material.icons.rounded.LooksOne
-import androidx.compose.material.icons.rounded.LooksTwo
-import androidx.compose.material.icons.rounded.Memory
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.MyLocation
-import androidx.compose.material.icons.rounded.Nfc
-import androidx.compose.material.icons.rounded.PrivacyTip
-import androidx.compose.material.icons.rounded.SettingsEthernet
-import androidx.compose.material.icons.rounded.SignalCellularAlt
-import androidx.compose.material.icons.rounded.SignalCellularAlt2Bar
-import androidx.compose.material.icons.rounded.SimCardAlert
-import androidx.compose.material.icons.rounded.SmartButton
-import androidx.compose.material.icons.rounded.SmartDisplay
-import androidx.compose.material.icons.rounded.Smartphone
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.SpeakerGroup
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.SurroundSound
-import androidx.compose.material.icons.rounded.TabletAndroid
-import androidx.compose.material.icons.rounded.TextFields
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.VpnKey
-import androidx.compose.material.icons.rounded.Wifi
-import androidx.compose.material.icons.rounded.WifiTethering
-import androidx.compose.material.icons.rounded.Work
-import androidx.compose.ui.graphics.vector.ImageVector
 import com.takekazex.hypertweak.R
 
 /**
@@ -65,7 +14,12 @@ import com.takekazex.hypertweak.R
 data class IconSlotInfo(
     val slot: String,
     @StringRes val labelRes: Int,
-    val icon: ImageVector,
+    /**
+     * HyperOS status-bar glyph (a tintable vector). Sourced from Hyper Helper's bundled
+     * `ic_stat_sys_*` foreground layers, with the rounded-square tile background removed so the
+     * artwork matches what the status bar actually draws.
+     */
+    @DrawableRes val iconRes: Int,
     /**
      * False for a settings-only key that never occupies a position in the host's slot list, so the
      * order page must not offer it: it is a `Preferences` key for a group of slots, not a slot.
@@ -74,11 +28,11 @@ data class IconSlotInfo(
 )
 
 /**
- * Single source of truth for the slot list rendered by [SlotsSection] and [IconOrderPage].
+ * Single source of truth for the slot list rendered by `SlotsSection` and `IconOrderPage`.
  *
  * Labels reuse the same wording as the ported upstream slot list (network / connect / device /
- * other groups). Icons are Material rounded glyphs — the module's established icon language — so
- * the preview needs no bundled ROM artwork and cannot drift from a MIUI asset.
+ * other groups). Icons are the upstream `ic_stat_sys_*` vectors, so the module uses the same
+ * HyperOS glyphs Hyper Helper does instead of Material placeholders.
  *
  * [slots] is kept in SystemUI's own slot order (`config_statusBarIcons`, identical on the two OS4
  * builds in the reverse cache), with the module's signal slots where `IconSlotPolicy` inserts them
@@ -101,68 +55,68 @@ object IconSlotCatalog {
 
     /** Catalog keyed by host slot name; `internal` so the unit test can assert full coverage. */
     internal val bySlot: Map<String, IconSlotInfo> = listOf(
-        IconSlotInfo("handle", R.string.icon_slot_handle, Icons.Rounded.Hd),
-        IconSlotInfo("network_speed", R.string.icon_slot_network_speed, Icons.Rounded.Speed),
-        IconSlotInfo("mute", R.string.icon_slot_mute, Icons.AutoMirrored.Rounded.VolumeOff),
-        IconSlotInfo("micphone", R.string.icon_slot_micphone, Icons.Rounded.Mic),
-        IconSlotInfo("headset", R.string.icon_slot_headset, Icons.Rounded.HeadsetMic),
-        IconSlotInfo("mikey", R.string.icon_slot_mikey, Icons.Rounded.SmartButton),
-        IconSlotInfo("privacy_mode", R.string.icon_slot_privacy_mode, Icons.Rounded.PrivacyTip),
-        IconSlotInfo("nfc", R.string.icon_slot_nfc, Icons.Rounded.Nfc),
-        IconSlotInfo("gps", R.string.icon_slot_gps, Icons.Rounded.GpsFixed),
-        IconSlotInfo("missed_call", R.string.icon_slot_missed_call, Icons.AutoMirrored.Rounded.PhoneMissed),
-        IconSlotInfo("managed_profile", R.string.icon_slot_managed_profile, Icons.Rounded.Work),
-        IconSlotInfo("second_space", R.string.icon_slot_second_space, Icons.Rounded.Duo),
-        IconSlotInfo("ime", R.string.icon_slot_ime, Icons.Rounded.Keyboard),
-        IconSlotInfo("cast", R.string.icon_slot_cast, Icons.Rounded.Cast),
-        IconSlotInfo("location", R.string.icon_slot_location, Icons.Rounded.MyLocation),
-        IconSlotInfo("stealth", R.string.icon_slot_stealth, Icons.Rounded.VisibilityOff),
-        IconSlotInfo("tty", R.string.icon_slot_tty, Icons.Rounded.Hearing),
-        IconSlotInfo("alarm_clock", R.string.icon_slot_alarm_clock, Icons.Rounded.Alarm),
-        IconSlotInfo("vpn", R.string.icon_slot_vpn, Icons.Rounded.VpnKey),
-        IconSlotInfo("ethernet", R.string.icon_slot_ethernet, Icons.Rounded.SettingsEthernet),
-        IconSlotInfo("handle_battery", R.string.icon_slot_handle_battery, Icons.Rounded.BatteryChargingFull),
-        IconSlotInfo("bluetooth", R.string.icon_slot_bluetooth, Icons.Rounded.Bluetooth),
+        IconSlotInfo("handle", R.string.icon_slot_handle, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("network_speed", R.string.icon_slot_network_speed, R.drawable.ic_stat_sys_net_speed),
+        IconSlotInfo("mute", R.string.icon_slot_mute, R.drawable.ic_stat_sys_volume),
+        IconSlotInfo("micphone", R.string.icon_slot_micphone, R.drawable.ic_stat_sys_micphone),
+        IconSlotInfo("headset", R.string.icon_slot_headset, R.drawable.ic_stat_sys_headset),
+        IconSlotInfo("mikey", R.string.icon_slot_mikey, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("privacy_mode", R.string.icon_slot_privacy_mode, R.drawable.ic_stat_sys_privacy_notice),
+        IconSlotInfo("nfc", R.string.icon_slot_nfc, R.drawable.ic_stat_sys_nfc),
+        IconSlotInfo("gps", R.string.icon_slot_gps, R.drawable.ic_stat_sys_location),
+        IconSlotInfo("missed_call", R.string.icon_slot_missed_call, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("managed_profile", R.string.icon_slot_managed_profile, R.drawable.ic_stat_sys_managed_profile),
+        IconSlotInfo("second_space", R.string.icon_slot_second_space, R.drawable.ic_stat_sys_second_space),
+        IconSlotInfo("ime", R.string.icon_slot_ime, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("cast", R.string.icon_slot_cast, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("location", R.string.icon_slot_location, R.drawable.ic_stat_sys_location),
+        IconSlotInfo("stealth", R.string.icon_slot_stealth, R.drawable.ic_stat_sys_stealth),
+        IconSlotInfo("tty", R.string.icon_slot_tty, R.drawable.ic_stat_sys_tty),
+        IconSlotInfo("alarm_clock", R.string.icon_slot_alarm_clock, R.drawable.ic_stat_sys_alarm_clock),
+        IconSlotInfo("vpn", R.string.icon_slot_vpn, R.drawable.ic_stat_sys_vpn),
+        IconSlotInfo("ethernet", R.string.icon_slot_ethernet, R.drawable.ic_stat_sys_unknown),
+        IconSlotInfo("handle_battery", R.string.icon_slot_handle_battery, R.drawable.ic_stat_sys_handle_battery),
+        IconSlotInfo("bluetooth", R.string.icon_slot_bluetooth, R.drawable.ic_stat_sys_bluetooth),
         IconSlotInfo(
             "bluetooth_handsfree_battery",
             R.string.icon_slot_bluetooth_battery,
-            Icons.Rounded.BluetoothConnected
+            R.drawable.ic_stat_sys_bluetooth_handsfree_battery
         ),
-        IconSlotInfo("hotspot", R.string.icon_slot_hotspot, Icons.Rounded.WifiTethering),
-        IconSlotInfo("sound_box_group", R.string.icon_slot_sound_box_group, Icons.Rounded.SpeakerGroup),
-        IconSlotInfo("stereo", R.string.icon_slot_stereo, Icons.Rounded.SurroundSound),
-        IconSlotInfo("sound_box_screen", R.string.icon_slot_sound_box_screen, Icons.Rounded.SmartDisplay),
-        IconSlotInfo("sound_box", R.string.icon_slot_sound_box, Icons.Rounded.Speaker),
-        IconSlotInfo("wireless_headset", R.string.icon_slot_wireless_headset, Icons.Rounded.Headphones),
-        IconSlotInfo("zen", R.string.icon_slot_zen, Icons.Rounded.DoNotDisturbOn),
-        IconSlotInfo("volume", R.string.icon_slot_volume, Icons.AutoMirrored.Rounded.VolumeMute),
-        IconSlotInfo("dist_compute", R.string.icon_slot_dist_compute, Icons.Rounded.Memory),
-        IconSlotInfo("camera", R.string.icon_slot_camera, Icons.Rounded.CameraAlt),
-        IconSlotInfo("glasses", R.string.icon_slot_glasses, Icons.Rounded.Visibility),
-        IconSlotInfo("car", R.string.icon_slot_car, Icons.Rounded.DirectionsCar),
-        IconSlotInfo("tv", R.string.icon_slot_tv, Icons.Rounded.Tv),
-        IconSlotInfo("pc", R.string.icon_slot_pc, Icons.Rounded.Computer),
-        IconSlotInfo("pad", R.string.icon_slot_pad, Icons.Rounded.TabletAndroid),
-        IconSlotInfo("phone", R.string.icon_slot_phone, Icons.Rounded.Smartphone),
-        IconSlotInfo("hd", R.string.icon_slot_hd, Icons.Rounded.HighQuality),
-        IconSlotInfo("airplane", R.string.icon_slot_airplane, Icons.Rounded.AirplanemodeActive),
+        IconSlotInfo("hotspot", R.string.icon_slot_hotspot, R.drawable.ic_stat_sys_hotspot),
+        IconSlotInfo("sound_box_group", R.string.icon_slot_sound_box_group, R.drawable.ic_stat_sys_sound_box_group),
+        IconSlotInfo("stereo", R.string.icon_slot_stereo, R.drawable.ic_stat_sys_stereo),
+        IconSlotInfo("sound_box_screen", R.string.icon_slot_sound_box_screen, R.drawable.ic_stat_sys_sound_box_screen),
+        IconSlotInfo("sound_box", R.string.icon_slot_sound_box, R.drawable.ic_stat_sys_sound_box),
+        IconSlotInfo("wireless_headset", R.string.icon_slot_wireless_headset, R.drawable.ic_stat_sys_wireless_headset),
+        IconSlotInfo("zen", R.string.icon_slot_zen, R.drawable.ic_stat_sys_zen),
+        IconSlotInfo("volume", R.string.icon_slot_volume, R.drawable.ic_stat_sys_volume),
+        IconSlotInfo("dist_compute", R.string.icon_slot_dist_compute, R.drawable.ic_stat_sys_dist_compute),
+        IconSlotInfo("camera", R.string.icon_slot_camera, R.drawable.ic_stat_sys_camera),
+        IconSlotInfo("glasses", R.string.icon_slot_glasses, R.drawable.ic_stat_sys_glasses),
+        IconSlotInfo("car", R.string.icon_slot_car, R.drawable.ic_stat_sys_car),
+        IconSlotInfo("tv", R.string.icon_slot_tv, R.drawable.ic_stat_sys_tv),
+        IconSlotInfo("pc", R.string.icon_slot_pc, R.drawable.ic_stat_sys_pc),
+        IconSlotInfo("pad", R.string.icon_slot_pad, R.drawable.ic_stat_sys_pad),
+        IconSlotInfo("phone", R.string.icon_slot_phone, R.drawable.ic_stat_sys_phone),
+        IconSlotInfo("hd", R.string.icon_slot_hd, R.drawable.ic_stat_sys_speech_hd),
+        IconSlotInfo("airplane", R.string.icon_slot_airplane, R.drawable.ic_stat_sys_airplane),
         IconSlotInfo(
             "stacked_mobile_icon",
             R.string.icon_slot_stacked_mobile_icon,
-            Icons.Rounded.SignalCellularAlt2Bar
+            R.drawable.ic_stat_sys_stacked_icon
         ),
-        IconSlotInfo("stacked_mobile_type", R.string.icon_slot_stacked_mobile_type, Icons.Rounded.TextFields),
-        IconSlotInfo("single_mobile_sim1", R.string.icon_slot_single_sim1, Icons.Rounded.LooksOne),
-        IconSlotInfo("single_mobile_sim2", R.string.icon_slot_single_sim2, Icons.Rounded.LooksTwo),
-        IconSlotInfo("mobile", R.string.icon_slot_mobile, Icons.Rounded.SignalCellularAlt),
-        IconSlotInfo("demo_mobile", R.string.icon_slot_demo_mobile, Icons.Rounded.SignalCellularAlt),
-        IconSlotInfo("no_sim", R.string.icon_slot_no_sim, Icons.Rounded.SimCardAlert),
-        IconSlotInfo("wifi", R.string.icon_slot_wifi, Icons.Rounded.Wifi),
-        IconSlotInfo("demo_wifi", R.string.icon_slot_demo_wifi, Icons.Rounded.Wifi),
+        IconSlotInfo("stacked_mobile_type", R.string.icon_slot_stacked_mobile_type, R.drawable.ic_stat_sys_stacked_type),
+        IconSlotInfo("single_mobile_sim1", R.string.icon_slot_single_sim1, R.drawable.ic_stat_sys_single_sim1),
+        IconSlotInfo("single_mobile_sim2", R.string.icon_slot_single_sim2, R.drawable.ic_stat_sys_single_sim2),
+        IconSlotInfo("mobile", R.string.icon_slot_mobile, R.drawable.ic_stat_sys_mobile),
+        IconSlotInfo("demo_mobile", R.string.icon_slot_demo_mobile, R.drawable.ic_stat_sys_mobile),
+        IconSlotInfo("no_sim", R.string.icon_slot_no_sim, R.drawable.ic_stat_sys_no_sim),
+        IconSlotInfo("wifi", R.string.icon_slot_wifi, R.drawable.ic_stat_sys_wifi),
+        IconSlotInfo("demo_wifi", R.string.icon_slot_demo_wifi, R.drawable.ic_stat_sys_wifi),
         IconSlotInfo(
             "compound_icon",
             R.string.icon_slot_compound_icon,
-            Icons.Rounded.Layers,
+            R.drawable.ic_stat_sys_compound,
             orderable = false
         )
     ).associateBy(IconSlotInfo::slot)
@@ -174,7 +128,8 @@ object IconSlotCatalog {
     fun of(slot: String): IconSlotInfo? = bySlot[slot]
 
     /** Used when a row has no catalog entry, so an unknown slot still renders readably. */
-    fun fallbackIcon(): ImageVector = Icons.Rounded.Extension
+    @DrawableRes
+    fun fallbackIconRes(): Int = R.drawable.ic_stat_sys_unknown
 
     /** Last-resort label for an unknown slot: the wire name, prettified. */
     fun fallbackLabel(slot: String): String =

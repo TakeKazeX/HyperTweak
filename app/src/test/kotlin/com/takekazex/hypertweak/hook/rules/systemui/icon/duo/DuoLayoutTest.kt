@@ -22,4 +22,23 @@ class DuoLayoutTest {
         assertEquals(20, box.width)
         assertEquals(2, box.top)
     }
+
+    @Test fun iconSizeClampsAndScalesTheBoxEdge() {
+        assertEquals(24f, DuoLayout.safeSizeDp(Float.NaN))
+        assertEquals(16f, DuoLayout.safeSizeDp(1f))
+        assertEquals(32f, DuoLayout.safeSizeDp(99f))
+        assertEquals(24, DuoLayout.iconSizePx(1f, 24f))
+        assertEquals(32, DuoLayout.iconSizePx(1f, 32f))
+        assertEquals(48, DuoLayout.iconSizePx(2f, 24f))
+    }
+
+    @Test fun sizeSnapsToTheCentredDefault() {
+        assertEquals(24, DuoLayout.snapSizeDp(23.7f))
+        assertEquals(24, DuoLayout.snapSizeDp(24f))
+        assertEquals(24, DuoLayout.snapSizeDp(24.4f))
+        assertEquals(22, DuoLayout.snapSizeDp(22f))
+        assertEquals(26, DuoLayout.snapSizeDp(26f))
+        assertEquals(16, DuoLayout.snapSizeDp(0f))
+        assertEquals(32, DuoLayout.snapSizeDp(99f))
+    }
 }
