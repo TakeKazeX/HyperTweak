@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -20,6 +21,13 @@ import java.util.ArrayList
  * The card helper is R8-obfuscated outside the stable `legacypowerrank` model package. Resolve it
  * by its static `(Context, int, boolean, boolean) -> List` shape and require one unique result;
  * the old `ih.b`/current `oh.b` names below are compatibility locators only, never active hooks.
+ *
+ * **DexKit lifetime rule.** A `MethodData` is only readable while its bridge is open:
+ * [DexKitManager.withBridge] wraps `DexKitBridge.create(...).use(block)`, so the bridge is closed
+ * the moment the block returns and any later `invokes`/`getClassInstance` call throws
+ * `IllegalStateException: DexKitBridge is not valid`. Every `MethodData` read — the call-graph
+ * disambiguation and the whole fallback row graph — therefore happens inside the block, and only
+ * materialized `Method`/`Class`/`Field` objects leave it ([CardResolution]).
  */
 object PowerRankingHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -50,23 +58,25 @@ object PowerRankingHooker : StaticHooker() {
             return
         }
 
-        val target = resolveCardTarget() ?: run {
+        val resolution = resolveCard() ?: run {
             DebugLog.hookSkipped(TAG, "power ranking", "card method not uniquely resolved")
             return
         }
-        fallbackBuilder = runCatching { resolveFallbackBuilder(target) }
+        fallbackBuilder = runCatching { resolveFallbackBuilder(resolution) }
             .onFailure {
-                DebugLog.w(TAG, "card fallback resolver failed; card hook remains active", it)
+                DebugLog.w(TAG, "card fallback resolver failed; installing the hook without rows", it)
             }
             .getOrNull()
         if (fallbackBuilder == null) {
-            DebugLog.w(TAG, "card fallback row graph unresolved; card hook installed only")
+            DebugLog.w(TAG, "card fallback rows unavailable; card hook installed only")
+        } else {
+            DebugLog.i(TAG, "card fallback ready ${fallbackBuilder?.describe()}")
         }
 
         runCatching {
-            target.method.isAccessible = true
-            deoptimize(target.method)
-            target.method.hook("power_ranking_card_fallback") {
+            resolution.method.isAccessible = true
+            deoptimize(resolution.method)
+            resolution.method.hook("power_ranking_card_fallback") {
                 after { param ->
                     HookFailurePolicy.open(TAG, "card fallback", Unit) {
                         val current = param.result as? List<*>
@@ -82,57 +92,23 @@ object PowerRankingHooker : StaticHooker() {
                 }
             }
         }.onFailure {
-            DebugLog.hookFailed(TAG, target.method.toGenericString(), it)
+            DebugLog.hookFailed(TAG, resolution.method.toGenericString(), it)
         }
     }
 
-    private fun resolveCardTarget(): CardTarget? {
+    /**
+     * Resolves the card method, preferring the structural DexKit lookup and falling back to the
+     * versioned class-name locators. Everything that reads DexKit data is done inside the bridge
+     * block; see the lifetime rule in the class comment.
+     */
+    private fun resolveCard(): CardResolution? {
         val apkPath = hookParam.appInfo?.sourceDir
-        val dexTarget = apkPath?.let { path ->
-            DexKitManager.withBridge(path) { bridge ->
-                val candidates = runCatching {
-                    bridge.findMethod {
-                        matcher {
-                            paramTypes(
-                                Context::class.java,
-                                Int::class.javaPrimitiveType!!,
-                                Boolean::class.javaPrimitiveType!!,
-                                Boolean::class.javaPrimitiveType!!
-                            )
-                            paramCount(4)
-                            returnType(List::class.java)
-                        }
-                    }.toList()
-                }.onFailure {
-                    DebugLog.w(TAG, "card method structural lookup failed", it)
-                }.getOrDefault(emptyList())
-
-                val materialized = candidates.mapNotNull { data ->
-                    materializeMethod(data)?.takeIf(::isCardMethod)?.let { CardTarget(it, data) }
-                }
-                when {
-                    materialized.size == 1 -> materialized.single()
-                    materialized.size > 1 -> {
-                        val graphMatches = materialized.filter {
-                            it.data?.let(::looksLikePowerRanking) == true
-                        }
-                        graphMatches.singleOrNull()?.also {
-                            DebugLog.d(TAG, "card method disambiguated by power-rank call graph")
-                        } ?: run {
-                            DebugLog.w(
-                                TAG,
-                                "card method shape is ambiguous candidates=${materialized.size}"
-                            )
-                            null
-                        }
-                    }
-                    else -> null
-                }
-            }
+        val dexResolved = apkPath?.let { path ->
+            DexKitManager.withBridge(path) { bridge -> resolveCardWithBridge(bridge) }
         }
-        if (dexTarget != null) {
-            DebugLog.i(TAG, "card method resolved structurally target=${dexTarget.method}")
-            return dexTarget
+        if (dexResolved != null) {
+            DebugLog.i(TAG, "card method resolved structurally target=${dexResolved.method}")
+            return dexResolved
         }
 
         val namedCandidates = CARD_HELPER_LOCATORS.flatMap { className ->
@@ -140,8 +116,59 @@ object PowerRankingHooker : StaticHooker() {
         }
         return namedCandidates.singleOrNull()?.let { method ->
             DebugLog.i(TAG, "card method resolved via compatibility locator target=$method")
-            CardTarget(method, null)
+            CardResolution(method, emptyList(), null)
         }
+    }
+
+    /** Runs with the bridge open: every `MethodData` read in this function is legal here only. */
+    private fun resolveCardWithBridge(bridge: DexKitBridge): CardResolution? {
+        val candidates = runCatching {
+            bridge.findMethod {
+                matcher {
+                    paramTypes(
+                        Context::class.java,
+                        Int::class.javaPrimitiveType!!,
+                        Boolean::class.javaPrimitiveType!!,
+                        Boolean::class.javaPrimitiveType!!
+                    )
+                    paramCount(4)
+                    returnType(List::class.java)
+                }
+            }.toList()
+        }.onFailure {
+            DebugLog.w(TAG, "card method structural lookup failed", it)
+        }.getOrDefault(emptyList())
+
+        val materialized = candidates.mapNotNull { data ->
+            materializeMethod(data)?.takeIf(::isCardMethod)?.let { it to data }
+        }
+        val chosen = when {
+            materialized.size == 1 -> materialized.single()
+            materialized.size > 1 -> materialized
+                .filter { looksLikePowerRanking(it.second) }
+                .singleOrNull()
+                ?.also { DebugLog.d(TAG, "card method disambiguated by power-rank call graph") }
+                ?: run {
+                    DebugLog.w(
+                        TAG,
+                        "card method shape is ambiguous candidates=${materialized.size}"
+                    )
+                    return null
+                }
+            else -> return null
+        }
+
+        // Materialize the call graph now: the row graph cannot be derived from a closed bridge.
+        val invokedMethods = chosen.second.invokes
+            .filterNot { it.isConstructor }
+            .mapNotNull(::materializeMethod)
+        val rowClass = chosen.second.invokes.asSequence()
+            .filter { it.isConstructor && it.paramCount == 0 }
+            .mapNotNull { data ->
+                runCatching { data.getClassInstance(classLoader) }.getOrNull()
+            }
+            .firstOrNull(::looksLikeCardRow)
+        return CardResolution(chosen.first, invokedMethods, rowClass)
     }
 
     private fun looksLikePowerRanking(data: MethodData): Boolean {
@@ -173,11 +200,11 @@ object PowerRankingHooker : StaticHooker() {
                 )
             )
 
-    private fun resolveFallbackBuilder(target: CardTarget): FallbackBuilder? {
-        val rankClass = POWER_RANK_HELPER.toClassOrNull() ?: return null
-        val dataClass = BATTERY_DATA.toClassOrNull() ?: return null
-        val rowClass = resolveRowClass(target) ?: return null
-        val invokedMethods = target.data?.invokes?.mapNotNull(::materializeMethod).orEmpty()
+    private fun resolveFallbackBuilder(resolution: CardResolution): FallbackBuilder? {
+        val rankClass = POWER_RANK_HELPER.toClassOrNull() ?: return missing("rank helper class")
+        val dataClass = BATTERY_DATA.toClassOrNull() ?: return missing("battery data class")
+        val rowClass = resolveRowClass(resolution) ?: return missing("card row class")
+        val invokedMethods = resolution.invokedMethods
 
         val dataMethod = invokedMethods.singleOrNull {
             it.declaringClass == rankClass &&
@@ -188,7 +215,7 @@ object PowerRankingHooker : StaticHooker() {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterCount == 0 &&
                 it.returnType == List::class.java
-        } ?: return null
+        } ?: return missing("rank list accessor on $POWER_RANK_HELPER")
 
         val totalMethod = invokedMethods.singleOrNull {
             it.declaringClass == rankClass &&
@@ -199,28 +226,28 @@ object PowerRankingHooker : StaticHooker() {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterCount == 0 &&
                 it.returnType == Double::class.javaPrimitiveType
-        } ?: return null
+        } ?: return missing("rank total accessor on $POWER_RANK_HELPER")
 
         val labelClass = LABEL_HELPER.toClassOrNull()
         val labelMethod = invokedMethods.singleOrNull {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterTypes.contentEquals(arrayOf(Context::class.java, dataClass)) &&
                 it.returnType == String::class.java
-        } ?: labelClass?.declaredMethods?.singleOrNull {
+        } ?: uniqueOrPublic(labelClass?.declaredMethods?.toList().orEmpty()) {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterTypes.contentEquals(arrayOf(Context::class.java, dataClass)) &&
                 it.returnType == String::class.java
-        } ?: return null
+        } ?: return missing("label method(Context, BatteryData)")
 
         val iconMethod = invokedMethods.singleOrNull {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterTypes.contentEquals(arrayOf(dataClass)) &&
                 it.returnType == Int::class.javaPrimitiveType
-        } ?: labelClass?.declaredMethods?.singleOrNull {
+        } ?: uniqueOrPublic(labelClass?.declaredMethods?.toList().orEmpty()) {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterTypes.contentEquals(arrayOf(dataClass)) &&
                 it.returnType == Int::class.javaPrimitiveType
-        } ?: return null
+        } ?: return missing("icon method(BatteryData)")
 
         val systemPackageMethod = invokedMethods.firstOrNull {
             Modifier.isStatic(it.modifiers) &&
@@ -236,11 +263,13 @@ object PowerRankingHooker : StaticHooker() {
             }
 
         val constructor = rowClass.declaredConstructors.singleOrNull { it.parameterCount == 0 }
-            ?: return null
-        val packageField = dataClass.accessibleField("defaultPackageName") ?: return null
-        val uidField = dataClass.accessibleField("uid") ?: return null
-        val valueField = dataClass.accessibleField("value") ?: return null
-        val rowFields = resolveRowFields(rowClass) ?: return null
+            ?: return missing("no-arg row constructor on ${rowClass.name}")
+        val packageField = dataClass.accessibleField("defaultPackageName")
+            ?: return missing("BatteryData#defaultPackageName")
+        val uidField = dataClass.accessibleField("uid") ?: return missing("BatteryData#uid")
+        val valueField = dataClass.accessibleField("value") ?: return missing("BatteryData#value")
+        val rowFields = resolveRowFields(rowClass)
+            ?: return missing("row fields on ${rowClass.name}")
 
         return FallbackBuilder(
             dataMethod = dataMethod.apply { isAccessible = true },
@@ -257,16 +286,36 @@ object PowerRankingHooker : StaticHooker() {
         )
     }
 
-    private fun resolveRowClass(target: CardTarget): Class<*>? {
-        target.data?.invokes?.asSequence()
-            ?.filter { it.isConstructor && it.paramCount == 0 }
-            ?.mapNotNull { data ->
-                runCatching { data.getClassInstance(classLoader) }.getOrNull()
-            }
-            ?.firstOrNull(::looksLikeCardRow)
-            ?.let { return it }
+    /**
+     * Names the missing link so one capture says which part of the graph an OTA changed, instead of
+     * a single "unresolved" line that leaves the whole chain suspect.
+     */
+    private fun missing(what: String): Nothing? {
+        DebugLog.w(TAG, "card fallback row graph incomplete: $what")
+        return null
+    }
 
-        val derived = target.method.declaringClass.name.substringBeforeLast('.', "")
+    /**
+     * One match wins; several matches are narrowed to the single public one.
+     *
+     * The label helper carries an internal static `(Context, BatteryData) -> String` beside the
+     * public one the card path calls, so a class-level lookup that insisted on a unique match would
+     * give up on a buildable graph. Public is the tie-breaker because the card path calls the
+     * public accessor.
+     */
+    private fun uniqueOrPublic(
+        candidates: List<Method>,
+        predicate: (Method) -> Boolean
+    ): Method? {
+        val matches = candidates.filter(predicate)
+        return matches.singleOrNull() ?: matches.filter { Modifier.isPublic(it.modifiers) }
+            .singleOrNull()
+    }
+
+    private fun resolveRowClass(resolution: CardResolution): Class<*>? {
+        resolution.rowClass?.let { return it }
+
+        val derived = resolution.method.declaringClass.name.substringBeforeLast('.', "")
             .takeIf { it.isNotBlank() }
             ?.let { "$it.a" }
         return (listOfNotNull(derived) + CARD_ROW_LOCATORS)
@@ -337,9 +386,17 @@ object PowerRankingHooker : StaticHooker() {
     private fun Class<*>.accessibleField(name: String): Field? =
         runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
 
-    private data class CardTarget(
+    /**
+     * The card method and everything read from its DexKit data while the bridge was open.
+     *
+     * [invokedMethods] and [rowClass] hold materialized reflection objects on purpose: a
+     * `MethodData` would throw `DexKitBridge is not valid` here, because the bridge that produced
+     * it is closed by the time this value is used.
+     */
+    private data class CardResolution(
         val method: Method,
-        val data: MethodData?
+        val invokedMethods: List<Method>,
+        val rowClass: Class<*>?
     )
 
     private data class RowFields(
@@ -363,6 +420,14 @@ object PowerRankingHooker : StaticHooker() {
         private val valueField: Field,
         private val rowFields: RowFields
     ) {
+        fun describe(): String =
+            "rank=${dataMethod.name}/${totalMethod.name} label=${labelMethod.name} " +
+                "icon=${iconMethod.name} systemPackage=${systemPackageMethod?.name ?: "none"} " +
+                "row=${constructor.declaringClass.simpleName}(" +
+                "pkg=${rowFields.packageName.name},label=${rowFields.label.name}," +
+                "percent=${rowFields.percent.name},icon=${rowFields.icon.name}," +
+                "uid=${rowFields.uid.name})"
+
         fun build(context: Context, limit: Int): List<Any> {
             val data = runCatching {
                 (dataMethod.invoke(null) as? List<*>)
