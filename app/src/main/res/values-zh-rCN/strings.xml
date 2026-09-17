@@ -488,6 +488,8 @@
     <string name="icon_hide_hd_call_summary">隐藏 HD 语音指示符</string>
     <string name="icon_hide_network_type">隐藏网络类型</string>
     <string name="icon_hide_network_type_summary">隐藏信号图标旁的 4G/5G 文字</string>
+    <string name="icon_hide_mobile_on_wifi">连接 WiFi 时隐藏移动网络图标</string>
+    <string name="icon_hide_mobile_on_wifi_summary">连接 WiFi 时隐藏整个蜂窝图标（包括信号强度）</string>
     <string name="icon_hide_non_default_sim_icon">隐藏非默认 SIM 卡图标</string>
     <string name="icon_hide_non_default_sim_icon_summary">隐藏非默认数据卡的蜂窝图标</string>
     <string name="icon_hide_sim_one">隐藏 SIM 1</string>

@@ -135,6 +135,21 @@ class MobileSignalStateTest {
     }
 
     @Test
+    fun wifiConnectedTracksAnySubscriptionDefaultWifi() {
+        val disconnected = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(1, 2)))
+            .reduce(MobileSignalEvent.WifiAvailable(1, false))
+            .reduce(MobileSignalEvent.WifiAvailable(2, false))
+        assertFalse(disconnected.wifiConnected)
+
+        val oneRowConnected = disconnected.reduce(MobileSignalEvent.WifiAvailable(2, true))
+        assertTrue(oneRowConnected.wifiConnected)
+
+        val removed = oneRowConnected.reduce(MobileSignalEvent.Subscriptions(listOf(1)))
+        assertFalse(removed.wifiConnected)
+    }
+
+    @Test
     fun levelsUseTheMaximumIndexAsDenominator() {
         assertEquals(4, MobileSubscriptionState.normalizeLevel(4, 5))
         assertEquals(4, MobileSubscriptionState.normalizeLevel(5, 6))

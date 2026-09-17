@@ -488,6 +488,8 @@
     <string name="icon_hide_hd_call_summary">Hide the HD voice indicator</string>
     <string name="icon_hide_network_type">Hide Network Type</string>
     <string name="icon_hide_network_type_summary">Hide the 4G/5G text next to the signal icon</string>
+    <string name="icon_hide_mobile_on_wifi">Hide Mobile Icon on WiFi</string>
+    <string name="icon_hide_mobile_on_wifi_summary">Hide the whole cellular icon, including signal strength, while WiFi is connected</string>
     <string name="icon_hide_non_default_sim_icon">Hide Non-Default SIM Icon</string>
     <string name="icon_hide_non_default_sim_icon_summary">Hide the cellular icon of the SIM that is not the default data line</string>
     <string name="icon_hide_sim_one">Hide SIM 1</string>

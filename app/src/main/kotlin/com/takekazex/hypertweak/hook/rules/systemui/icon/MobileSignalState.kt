@@ -149,6 +149,16 @@ data class MobileSignalState(
         get() = subscriptionOrder.mapNotNull(subscriptions::get)
 
     /**
+     * True while any subscription reports WiFi as the connected default network.
+     *
+     * `MiuiMobileIconInteractorImpl.wifiAvailable` maps `DefaultConnectionModel.wifi.isDefault`, so
+     * this is the same signal the stacked type policy uses. A missing value (null) is not
+     * connected.
+     */
+    val wifiConnected: Boolean
+        get() = rows.any { it.wifiAvailable == true }
+
+    /**
      * A replacement may be rendered only when every row is a known cellular model.
      *
      * The icon-tuner "ignore system hide" option intentionally bypasses only the host

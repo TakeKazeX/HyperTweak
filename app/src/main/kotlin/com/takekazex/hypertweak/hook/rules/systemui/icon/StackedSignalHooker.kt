@@ -88,6 +88,10 @@ object StackedSignalHooker : StaticHooker() {
 
     private var renderStacked = false
 
+    /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
+    @Volatile
+    private var hideMobileOnWifi = false
+
     @Volatile
     private var adapterFlowsReady = false
 
@@ -214,6 +218,7 @@ object StackedSignalHooker : StaticHooker() {
         val retiredGeneration = generation.incrementAndGet()
         val retiringBridge = iconBridge
         enabled = false
+        hideMobileOnWifi = false
         adapterFlowsReady = false
 
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
@@ -261,6 +266,7 @@ object StackedSignalHooker : StaticHooker() {
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
         renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
+        hideMobileOnWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
         enabled = renderStacked || DuoSignalHooker.requiresMobileState
         typeConfig = readTypeConfig()
         if (!enabled) {
@@ -798,6 +804,15 @@ object StackedSignalHooker : StaticHooker() {
         DuoSignalHooker.onMobileState(state, complete)
         if (!renderStacked) {
             restoreNative()
+            return
+        }
+        // The WiFi rule hides the whole mobile signal (signal strength included), not just the
+        // type label that [MobileTypeConfig.hideWhenWifiAvailable] controls. It runs before the
+        // completeness gate so a transient incomplete emission cannot flash the native icon back.
+        if (hideMobileOnWifi && state.wifiConnected) {
+            iconBridge?.removeOwned(SLOT_STACKED)
+            iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+            MobileSignalVisibility.setHiddenForSubIds(state.subscriptionOrder.toSet())
             return
         }
         if (!complete) {

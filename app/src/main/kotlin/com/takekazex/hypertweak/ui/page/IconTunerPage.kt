@@ -290,6 +290,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 hideNonDefaultSim = pref(Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
                 hideSimOne = pref(Preferences.KEY_ICON_HIDE_SIM_ONE, false),
                 hideSimTwo = pref(Preferences.KEY_ICON_HIDE_SIM_TWO, false),
+                hideOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                 onChange = { key, value ->
                     changed(key, value)
                 }
@@ -548,6 +549,7 @@ private fun CellularSection(
     hideNonDefaultSim: Boolean,
     hideSimOne: Boolean,
     hideSimTwo: Boolean,
+    hideOnWifi: Boolean,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_cellular_title))
@@ -613,6 +615,11 @@ private fun CellularSection(
                 stringResource(R.string.icon_hide_sim_two),
                 stringResource(R.string.icon_hide_sim_two_summary)
             ) { onChange(Preferences.KEY_ICON_HIDE_SIM_TWO, it) }
+            TunerSwitch(
+                hideOnWifi,
+                stringResource(R.string.icon_hide_mobile_on_wifi),
+                stringResource(R.string.icon_hide_mobile_on_wifi_summary)
+            ) { onChange(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, it) }
         }
     }
 }

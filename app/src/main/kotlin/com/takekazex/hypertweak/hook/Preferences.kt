@@ -491,6 +491,11 @@ object Preferences {
     const val KEY_ICON_HIDE_SIM_ONE = "icon_hide_sim_one"
     const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
 
+    // Hide the whole mobile signal icon (signal bars and network type) while WiFi is the connected
+    // default network. Applies to the native cellular row and, when stacked signal is enabled, to
+    // the module-owned stacked slot as well.
+    const val KEY_ICON_HIDE_MOBILE_ON_WIFI = "icon_hide_mobile_on_wifi"
+
     // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
     // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"

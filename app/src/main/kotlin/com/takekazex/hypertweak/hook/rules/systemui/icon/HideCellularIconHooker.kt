@@ -46,11 +46,27 @@ object HideCellularIconHooker : StaticHooker() {
     @Volatile
     private var hideSimTwo = false
 
+    @Volatile
+    private var hideNonDefault = false
+
+    @Volatile
+    private var hideOnWifi = false
+
     private var state = MobileSignalState()
+
+    /**
+     * Per-subscription WiFi availability, consumed on the main looper.
+     *
+     * Kept outside [state] because the WiFi flow can emit before `subscriptionsFlow` has published
+     * the subscription ids; a reducer event for an unknown subId is discarded, so a boot-time WiFi
+     * connection would otherwise never be applied. [applyMask] reads this map directly.
+     */
+    private val wifiBySub = LinkedHashMap<Int, Boolean>()
 
     private data class Binding(
         val viewModel: Any,
-        val visibilityHandle: HostFlowCollector.Handle
+        val visibilityHandle: HostFlowCollector.Handle,
+        val wifiHandle: HostFlowCollector.Handle? = null
     )
 
     override fun onPrepareHotReload() {
@@ -58,6 +74,9 @@ object HideCellularIconHooker : StaticHooker() {
         enabled = false
         hideSimOne = false
         hideSimTwo = false
+        hideNonDefault = false
+        hideOnWifi = false
+        wifiBySub.clear()
         // The host binder consumes both members of this Pair. Restore the original first member
         // before cancellation/unregistration so a hot reload cannot leave a stopped false flow.
         MobileSignalVisibility.clearForHotReload()
@@ -74,13 +93,16 @@ object HideCellularIconHooker : StaticHooker() {
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         val stackedEnabled = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
-        val hideNonDefault = Preferences.getBoolean(
+        hideNonDefault = Preferences.getBoolean(
             Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM,
             false
         ) || Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_AUTO, false)
         hideSimOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_ONE, false)
         hideSimTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_TWO, false)
-        if (stackedEnabled || (!hideNonDefault && !hideSimOne && !hideSimTwo)) {
+        hideOnWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+        if (stackedEnabled ||
+            (!hideNonDefault && !hideSimOne && !hideSimTwo && !hideOnWifi)
+        ) {
             DebugLog.hookSkippedDebug(
                 TAG,
                 "HideCellularIcon",
@@ -230,14 +252,16 @@ object HideCellularIconHooker : StaticHooker() {
             originalVisibleFlow
         ) ?: return
         pendingBindings[actualMiuiViewModel] = true
+        val isCurrent = {
+            enabled && generation.get() == bindingGeneration &&
+                (bindings[subId]?.viewModel === actualMiuiViewModel ||
+                    pendingBindings.containsKey(actualMiuiViewModel))
+        }
         val handle = MobileSignalVisibility.collectOriginal(
             scope = scope,
             originalFlow = originalVisibleFlow,
             registration = registration,
-            isCurrent = {
-                enabled && generation.get() == bindingGeneration &&
-                    (bindings[subId]?.viewModel === actualMiuiViewModel || pendingBindings.containsKey(actualMiuiViewModel))
-            }
+            isCurrent = isCurrent
         )
         if (handle == null) {
             pendingBindings.remove(actualMiuiViewModel)
@@ -245,8 +269,36 @@ object HideCellularIconHooker : StaticHooker() {
             DebugLog.w(TAG, "MIUI visibility flow not collectable subId=$subId")
             return
         }
+        // Same source the stacked type policy uses; only needed while the WiFi rule is on.
+        val wifiAvailableFlow = if (hideOnWifi) {
+            readField(actualMiuiViewModel, "iconInteractor")
+                ?.let { readField(it, "wifiAvailable") }
+        } else null
+        val wifiHandle = wifiAvailableFlow?.let { flow ->
+            HostFlowCollector.collect(
+                scope = scope,
+                flow = flow,
+                isCurrent = isCurrent,
+                consumer = { value ->
+                    reduceOnMain(
+                        MobileSignalEvent.WifiAvailable(subId, value as? Boolean == true),
+                        bindingGeneration
+                    )
+                }
+            )?.also { collected ->
+                flowHandles += collected
+                IconTunerFlows.readFlowValue(flow)?.let { initial ->
+                    mainHandler.post {
+                        reduceOnMain(
+                            MobileSignalEvent.WifiAvailable(subId, initial as? Boolean == true),
+                            bindingGeneration
+                        )
+                    }
+                }
+            }
+        }
         flowHandles += handle
-        bindings[subId] = Binding(actualMiuiViewModel, handle)
+        bindings[subId] = Binding(actualMiuiViewModel, handle, wifiHandle)
         pendingBindings.remove(actualMiuiViewModel)
         applyMask()
     }
@@ -257,6 +309,11 @@ object HideCellularIconHooker : StaticHooker() {
             return
         }
         if (!enabled || generation.get() != bindingGeneration) return
+        if (event is MobileSignalEvent.WifiAvailable) {
+            wifiBySub[event.subId] = event.value
+            applyMask()
+            return
+        }
         val subId = when (event) {
             is MobileSignalEvent.SignalModel -> event.subId
             is MobileSignalEvent.DataConnected -> event.subId
@@ -270,6 +327,7 @@ object HideCellularIconHooker : StaticHooker() {
         if (event is MobileSignalEvent.Subscriptions) {
             val ids = event.subIds.toSet()
             bindings.keys.toList().filter { it !in ids }.forEach(::removeBinding)
+            wifiBySub.keys.toList().filter { it !in ids }.forEach(wifiBySub::remove)
         }
         state = state.reduce(event)
         applyMask()
@@ -279,13 +337,25 @@ object HideCellularIconHooker : StaticHooker() {
         if (!enabled) return
         val complete = state.subscriptionOrder.isNotEmpty() &&
             state.subscriptionOrder.all { bindings.containsKey(it) }
-        val mask = state.nonDefaultMask(complete).toMutableSet()
+        val mask = LinkedHashSet<Int>()
+        // The pre-existing SIM options keep their historical behavior: the non-default row is
+        // masked whenever any of them is active. The WiFi rule alone must not mask it.
+        if (hideNonDefault || hideSimOne || hideSimTwo) {
+            mask += state.nonDefaultMask(complete)
+        }
         if (complete) {
             state.subscriptionOrder.forEach { subId ->
                 val slot = runCatching { SubscriptionManager.getSlotIndex(subId) }
                     .getOrDefault(SubscriptionManager.INVALID_SIM_SLOT_INDEX)
                 if ((slot == 0 && hideSimOne) || (slot == 1 && hideSimTwo)) mask += subId
             }
+        }
+        // WiFi connected hides every mobile row, signal strength included (first Pair member).
+        // Only known subscriptions count, so a value left by a removed row cannot mask the rest.
+        if (hideOnWifi &&
+            wifiBySub.any { (subId, available) -> available && subId in state.subscriptions }
+        ) {
+            mask += state.subscriptionOrder
         }
         MobileSignalVisibility.setHiddenForSubIds(mask)
     }
@@ -294,6 +364,11 @@ object HideCellularIconHooker : StaticHooker() {
         val binding = bindings.remove(subId) ?: return
         binding.visibilityHandle.cancel()
         flowHandles.remove(binding.visibilityHandle)
+        binding.wifiHandle?.let {
+            it.cancel()
+            flowHandles.remove(it)
+        }
+        wifiBySub.remove(subId)
         MobileSignalVisibility.unregister(binding.viewModel)
         applyMask()
     }
