@@ -1278,7 +1278,7 @@
     <string name="icon_duo_expanded">Expanded panel style</string>
     <string name="icon_duo_size">Icon size</string>
     <string name="icon_duo_size_value">%1$d dp</string>
-    <string name="icon_duo_size_summary">Height of the Duo glyph in dp; 24 dp is the default</string>
+    <string name="icon_duo_size_summary">Height of the Duo glyph in dp; the slider snaps back to the 24 dp default in the middle</string>
     <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">Keep three-in-one</string>
     <string name="icon_duo_native">Restore original icons</string>

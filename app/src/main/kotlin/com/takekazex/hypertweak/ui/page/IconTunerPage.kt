@@ -1,8 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,7 +28,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -1227,35 +1224,52 @@ private fun DuoSignalSection(enabled: Boolean, expanded: Int, sizeDp: Int, onCha
 }
 
 /**
- * Duo glyph size in dp.
+ * Duo glyph size in dp, built like the interface-scale row in `AppearancePage`: an arrow row that
+ * shows the current size in its end actions and expands into the slider underneath, and whose tap
+ * also opens [IntValueDialog] for an exact number, because a slider cannot reach an arbitrary dp on
+ * a narrow screen.
  *
- * The slider is centred on the 24dp default and snaps back to it, so the untouched size is a
- * detent. Tapping the value opens [IntValueDialog] for an exact number, because a slider cannot
- * reach an arbitrary dp on a narrow screen.
+ * The key points put a magnetic detent on the 24dp default, so the untouched size is reachable by
+ * feel; the released value is normalised through [DuoLayout.snapSizeDp], which also rounds the
+ * continuous track to whole dp.
  */
 @Composable
 private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
-    var showDialog by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Row(
-            Modifier.fillMaxWidth().clickable { showDialog = true },
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(stringResource(R.string.icon_duo_size))
-            Text(stringResource(R.string.icon_duo_size_value, sizeDp))
+    var sliderValue by remember(sizeDp) { mutableFloatStateOf(sizeDp.toFloat()) }
+    var expanded by remember { mutableStateOf(false) }
+    ArrowPreference(
+        title = stringResource(R.string.icon_duo_size),
+        summary = stringResource(R.string.icon_duo_size_summary),
+        endActions = {
+            Text(
+                text = stringResource(R.string.icon_duo_size_value, sliderValue.roundToInt()),
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        },
+        onClick = { expanded = !expanded },
+        holdDownState = expanded,
+        bottomAction = {
+            Slider(
+                value = sliderValue.coerceIn(
+                    DuoLayout.MIN_ICON_SIZE_DP.toFloat(),
+                    DuoLayout.MAX_ICON_SIZE_DP.toFloat()
+                ),
+                onValueChange = { sliderValue = it },
+                onValueChangeFinished = {
+                    val snapped = DuoLayout.snapSizeDp(sliderValue)
+                    sliderValue = snapped.toFloat()
+                    onChange(snapped)
+                },
+                valueRange = DuoLayout.MIN_ICON_SIZE_DP.toFloat()..DuoLayout.MAX_ICON_SIZE_DP.toFloat(),
+                showKeyPoints = true,
+                keyPoints = DuoLayout.SLIDER_KEY_POINTS_DP,
+                magnetThreshold = DuoLayout.SLIDER_MAGNET_THRESHOLD,
+                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+            )
         }
-        Slider(
-            value = sizeDp.toFloat().coerceIn(
-                DuoLayout.MIN_ICON_SIZE_DP.toFloat(),
-                DuoLayout.MAX_ICON_SIZE_DP.toFloat()
-            ),
-            onValueChange = { onChange(DuoLayout.snapSizeDp(it)) },
-            valueRange = DuoLayout.MIN_ICON_SIZE_DP.toFloat()..DuoLayout.MAX_ICON_SIZE_DP.toFloat()
-        )
-    }
+    )
     IntValueDialog(
-        show = showDialog,
+        show = expanded,
         title = stringResource(R.string.icon_duo_size),
         summary = stringResource(R.string.icon_duo_size_summary),
         suffix = stringResource(R.string.icon_duo_size_unit),
@@ -1264,6 +1278,6 @@ private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
         // A blank field keeps the current size instead of jumping to the minimum.
         emptyValue = sizeDp,
         onValueConfirmed = onChange,
-        onDismissRequest = { showDialog = false }
+        onDismissRequest = { expanded = false }
     )
 }

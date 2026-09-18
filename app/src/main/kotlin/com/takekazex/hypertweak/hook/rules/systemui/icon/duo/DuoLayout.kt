@@ -14,6 +14,21 @@ internal object DuoLayout {
     /** Drag distance around the default that snaps back to it, so the middle is a detent. */
     private const val SNAP_DP = 0.6f
 
+    /**
+     * Slider key points in dp: the range ends plus the centred default. Miuix draws a tick at each
+     * one and magnetises the thumb to it, which is what makes the untouched 24dp size a detent
+     * instead of one position among thirty-two.
+     */
+    val SLIDER_KEY_POINTS_DP: List<Float> =
+        listOf(MIN_ICON_SIZE_DP.toFloat(), DEFAULT_ICON_SIZE_DP.toFloat(), MAX_ICON_SIZE_DP.toFloat())
+
+    /**
+     * Miuix's `magnetThreshold` is a fraction of the slider's value range, not a dp distance, so the
+     * dp-wide [SNAP_DP] window is expressed relative to the span. Deriving it keeps the drag detent
+     * and [snapSizeDp] agreeing about where the middle is.
+     */
+    const val SLIDER_MAGNET_THRESHOLD = SNAP_DP / (MAX_ICON_SIZE_DP - MIN_ICON_SIZE_DP)
+
     data class Box(val left: Int, val top: Int, val width: Int, val height: Int)
 
     /** Clamps a stored size; a missing or non-finite value falls back to the default. */
