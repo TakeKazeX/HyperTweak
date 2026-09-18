@@ -32,6 +32,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHo
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationBlockFoldHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
+import com.takekazex.hypertweak.hook.rules.systemui.FreeformBlurTransitionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -774,6 +775,11 @@ class HookEntry : XposedModule() {
                 // preference of its own — it only makes the stock system switch work again.
                 attachHooker(NotificationBlockFoldHooker, classLoader, ctx, replacementHandles)
                 attachHooker(StatusBarHideSilentHooker, classLoader, ctx, replacementHandles)
+                // 多任务过渡模糊: the WM Shell multitasking classes reach this process through the
+                // `com.miui.wm.shell` shared library declared in SystemUI's manifest, so the plain
+                // SystemUI class loader resolves them (same channel as HideBottomBarHooker's
+                // MiuiDecorationBottomView).
+                attachHooker(FreeformBlurTransitionHooker, classLoader, ctx, replacementHandles)
                 // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that

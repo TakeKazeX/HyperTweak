@@ -823,6 +823,9 @@
     <string name="experimental_notification_block_fold_summary">通知不再被折叠进「历史通知」（与国际版行为一致）</string>
     <string name="experimental_notification_restart_settings_title">重启设置</string>
     <string name="experimental_notification_restart_settings_summary">立即应用通知渠道页的更改</string>
+    <string name="experimental_features_section_multitasking">多任务过渡</string>
+    <string name="experimental_freeform_blur_title">过渡模糊</string>
+    <string name="experimental_freeform_blur_summary">恢复小窗／分屏／全屏切换时的动态背景高斯模糊，并移除遮挡模糊的白色底板</string>
     <string name="google_services_title">Google 服务</string>
     <string name="google_services_back">返回</string>
     <string name="settings_fingerprint_avoid_always">始终避让</string>

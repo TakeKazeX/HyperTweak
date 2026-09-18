@@ -426,6 +426,20 @@ object Preferences {
     const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
 
     /**
+     * 多任务过渡模糊 (SystemUI): restores the dynamic gaussian-blur transition HyperOS uses when a
+     * freeform / split-screen / full-screen window is swapped, and removes the opaque bottom board
+     * that otherwise hides it. Some regional or device builds ship the three
+     * `persist.sys.background_blur_*` / `persist.sys.multi_task.mask_blur_enable` props disabled, so
+     * `MultiTaskingCommonUtils` reports blur off and the mask cross-fade collapses to a hard switch.
+     *
+     * The hooker forces those props, opens the two `MultiTaskingCommonUtils` gates, blanks the
+     * bottom-board colours, and drives the cover-layer / Folme mask from blur=100 down to 0 with the
+     * ROM's own hide easings. Read by `FreeformBlurTransitionHooker` at hook-install time; requires a
+     * SystemUI restart.
+     */
+    const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
+
+    /**
      * Removes the Super Island notification whitelist (SystemUI): hooks
      * `NotificationSettingsManager.canShowFocusState` / `canShowFocusStateApp` to treat every
      * package as Super Island-capable. The per-app `<pkg>_focus` preference is respected — a
@@ -1084,6 +1098,8 @@ object Preferences {
     fun notificationBadge(): Boolean = getBoolean(KEY_NOTIFICATION_BADGE, false)
 
     fun notificationBlockFold(): Boolean = getBoolean(KEY_NOTIFICATION_BLOCK_FOLD, false)
+
+    fun freeformBlurTransition(): Boolean = getBoolean(KEY_FREEFORM_BLUR_TRANSITION, false)
 
     /** True when the lock-screen quick-capture route should classify as street. */
     fun cameraStreetQuickLaunch(): Boolean =

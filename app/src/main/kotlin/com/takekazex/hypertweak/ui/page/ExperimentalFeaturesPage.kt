@@ -93,6 +93,11 @@ fun ExperimentalFeaturesPage(
     var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
     var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
+    // 多任务过渡模糊. The WM Shell multitasking classes live in SystemUI's process, and the hooker
+    // reads the switch when it installs, so this one also asks for a SystemUI restart.
+    var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
+    var freeformBlurRestartPending by rememberSaveable { mutableStateOf(false) }
+
     fun requestLauncherRestart() {
         launcherRestartPending = true
         requestRestartScopes(RestartScopeSelection(miuiHome = true))
@@ -384,6 +389,47 @@ fun ExperimentalFeaturesPage(
                                 )
                                 handleRestartedScopes(restartSelection)
                                 notifSystemUiRestartPending = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Multitasking transitions: the blur cross-fade HyperOS uses when a freeform,
+            // split-screen or sidebar window is swapped, plus removal of the opaque bottom board
+            // that hides it. Everything runs in com.android.systemui.
+            SmallTitle(stringResource(R.string.experimental_features_section_multitasking))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = freeformBlur,
+                        onCheckedChange = { value ->
+                            freeformBlur = value
+                            Preferences.putBoolean(
+                                Preferences.KEY_FREEFORM_BLUR_TRANSITION,
+                                value
+                            )
+                            Preferences.flush()
+                            freeformBlurRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                        },
+                        title = stringResource(R.string.experimental_freeform_blur_title),
+                        summary = stringResource(R.string.experimental_freeform_blur_summary)
+                    )
+                    if (freeformBlurRestartPending) {
+                        val restartSelection = RestartScopeSelection(systemUi = true)
+                        ArrowPreference(
+                            title = stringResource(R.string.aosp_restart_system_ui),
+                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                freeformBlurRestartPending = false
                             }
                         )
                     }

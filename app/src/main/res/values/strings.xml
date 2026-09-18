@@ -826,6 +826,9 @@
     <string name="experimental_notification_block_fold_summary">Never move notifications into the \"history\" section (the same behavior as the international build)</string>
     <string name="experimental_notification_restart_settings_title">Restart Settings</string>
     <string name="experimental_notification_restart_settings_summary">Apply the notification channel page changes now</string>
+    <string name="experimental_features_section_multitasking">Multitasking transitions</string>
+    <string name="experimental_freeform_blur_title">Blur Transition</string>
+    <string name="experimental_freeform_blur_summary">Restore the blurred background when switching between freeform, split-screen and full screen, and remove the white board behind it</string>
     <string name="google_services_title">Google Services</string>
     <string name="google_services_back">Back</string>
     <string name="settings_fingerprint_avoid_always">Always Avoid</string>
