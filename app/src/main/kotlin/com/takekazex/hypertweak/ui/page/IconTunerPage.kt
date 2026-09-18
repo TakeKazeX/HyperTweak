@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -237,10 +235,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 DuoLayout.DEFAULT_ICON_SIZE_DP
             ).toFloat(),
             hideMobileOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
-            hideWifiConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
+            hideWifiConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+            showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false)
         )
     )
-    val showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false)
 
     val categories = listOf(
         stringResource(R.string.icon_tuner_tab_layout),
@@ -267,7 +265,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
-            StatusBarPreview(model = previewModel, showCellularType = showCellularType)
+            StatusBarPreview(model = previewModel)
             TabRowWithContour(
                 tabs = categories,
                 selectedTabIndex = selectedCategory.coerceIn(0, categories.lastIndex),
@@ -580,14 +578,11 @@ private fun LeftContainerSection(
                         onCheckedChange = { onChange(row.key, it) },
                         title = stringResource(row.labelRes),
                         startAction = {
-                            Icon(
-                                painter = painterResource(
-                                    id = info?.iconRes ?: IconSlotCatalog.fallbackIconRes()
-                                ),
+                            SlotRowGlyph(
+                                iconRes = info?.iconRes ?: IconSlotCatalog.fallbackIconRes(),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                 // The row title already names the icon group.
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp).size(22.dp),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                modifier = Modifier.padding(end = 8.dp)
                             )
                         }
                     )
@@ -1152,14 +1147,11 @@ private fun SlotsSection(
                         onChange(Preferences.slotKey(slot), index)
                     },
                     startAction = {
-                        Icon(
-                            painter = painterResource(
-                                id = info?.iconRes ?: IconSlotCatalog.fallbackIconRes()
-                            ),
+                        SlotRowGlyph(
+                            iconRes = info?.iconRes ?: IconSlotCatalog.fallbackIconRes(),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                             // The row title already names the slot, so the preview stays decorative.
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 8.dp).size(22.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            modifier = Modifier.padding(end = 8.dp)
                         )
                     }
                 )

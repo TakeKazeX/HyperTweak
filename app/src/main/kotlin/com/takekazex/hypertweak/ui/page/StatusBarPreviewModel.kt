@@ -10,55 +10,66 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
  */
 internal const val PREVIEW_DUO_SLOT = "duo"
 
+/** Native per-subscription mobile slots: the ROM binds one of these per active SIM. */
+private const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
+private const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
+
+/** The module's replacement slot for the stacked dual-row signal. */
+private const val SLOT_STACKED = "stacked_mobile_icon"
+
+/** Host slot every native per-subscription mobile holder is published under. */
+private const val SLOT_MOBILE = "mobile"
+private const val SLOT_WIFI = "wifi"
+private const val SLOT_BATTERY = "handle_battery"
+private const val SLOT_COMPOUND = "compound_icon"
+
 /**
- * Slots the preview treats as live.
+ * Indicator sample drawn in the right cluster, before the pinned connectivity cluster.
  *
- * The host never reports which status-bar icons are actually showing to the settings process, so a
- * preview cannot be exhaustive. This is a representative "typical phone" set that covers the core
- * connectivity cluster plus the indicator slots users reorder or hide most often. Order, per-slot
- * visibility and left placement are then applied to it through [IconSlotPolicy], exactly as
- * SystemUI applies them to the real slot list.
+ * The host never reports which status-bar icons are actually showing to the settings process, so
+ * the preview cannot be exhaustive. This is a deliberately short list: a mock that drew every slot
+ * the module can reorder read as a wall of glyphs instead of a status bar. Reordering and hiding
+ * still have visible feedback for these slots, and the layout/left-placement tabs move whatever
+ * the user moved.
  */
-internal val PREVIEW_ACTIVE_SLOTS: List<String> = listOf(
-    "network_speed",
-    "alarm_clock",
-    "zen",
-    "bluetooth",
-    "location",
-    "nfc",
-    "vpn",
-    "hotspot",
-    "airplane",
-    "headset",
-    "volume",
-    "compound_icon",
-    "wifi",
-    "mobile",
-    "handle_battery"
-)
-
-private val PREVIEW_CORE_SLOTS = setOf("wifi", "mobile", "handle_battery")
+internal val PREVIEW_INDICATOR_SLOTS: List<String> =
+    listOf("alarm_clock", "bluetooth", "location", "zen")
 
 /**
- * Connectivity cluster pinned to the end of the bar. It stays outside the scrollable indicator
- * region, so a narrow screen can never push the battery or the signal off the visible edge.
+ * Most indicators the preview draws, so the sample above stays a sample even when more entries are
+ * added later.
  */
-private val PINNED_CORE_SLOTS =
-    PREVIEW_CORE_SLOTS + setOf("stacked_mobile_icon", PREVIEW_DUO_SLOT)
+internal const val PREVIEW_MAX_INDICATOR_SLOTS = 3
+
+/**
+ * Most left-placed icons the preview draws.
+ *
+ * The left container is the one region a user can fill with a dozen glyphs, and a preview that
+ * mirrors all of them stops reading as a status bar. Only the first entries of the configured
+ * order are drawn; a left-placed slot beyond this cap is deliberately absent rather than moved
+ * back into the right cluster (the hook hides it there).
+ */
+internal const val PREVIEW_MAX_LEFT_SLOTS = 2
 
 /**
  * Immutable rendering plan for one composition of the preview status bar.
  *
  * [leftSlots] draw immediately after the clock (the left container is inserted right after the
  * clock in SystemUI). [indicatorSlots] are the remaining right-cluster icons, right-aligned against
- * [coreSlots]; [coreSlots] are pinned to the end of the bar.
+ * [coreSlots]; [coreSlots] are pinned to the end of the bar, with the battery last because the ROM
+ * draws it in its own trailing container (`MiuiStatusBatteryContainer`).
  */
 internal data class StatusBarPreviewModel(
     val leftSlots: List<String>,
     val indicatorSlots: List<String>,
     val coreSlots: List<String>,
     /** Duo glyph height in dp, already clamped to the same range the hook uses. */
-    val duoSizeDp: Float
+    val duoSizeDp: Float,
+    /**
+     * Whether the network type label (e.g. `5G`) draws left of the signal cluster. The ROM draws
+     * the type inside the mobile view, left of the bars; Duo already carries the type in its glyph.
+     */
+    val showNetworkType: Boolean
 )
 
 /** Raw settings the preview reasons about; all values come from the page's live preference state. */
@@ -73,15 +84,17 @@ internal data class StatusBarPreviewInput(
     val duoEnabled: Boolean,
     val duoSizeDp: Float,
     val hideMobileOnWifi: Boolean,
-    val hideWifiConnected: Boolean
+    val hideWifiConnected: Boolean,
+    val showCellularType: Boolean
 )
 
 /**
  * Applies the icon-tuner policy to the preview sample. Pure so the layout rules are unit-tested
  * instead of only being visible on a device.
  *
- * The sample represents a WiFi-connected phone, which is why [StatusBarPreviewInput.hideMobileOnWifi]
- * removes the signal slot and [StatusBarPreviewInput.hideWifiConnected] removes the WiFi slot.
+ * The sample represents a WiFi-connected dual-SIM phone, which is why [StatusBarPreviewInput.
+ * hideMobileOnWifi] removes the signal group and [StatusBarPreviewInput.hideWifiConnected] removes
+ * the WiFi slot.
  */
 internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPreviewModel {
     val modes = IconSlotPolicy.foldExtraHiddenIntoModes(input.slotModes, input.extraHidden)
@@ -94,36 +107,56 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         leftSlots = input.leftSlots
     )
     val order = IconSlotPolicy.normalizeOrder(IconSlotCatalog.slots, config)
+    val hostIndex = { slot: String ->
+        order.indexOf(slot).let { if (it < 0) Int.MAX_VALUE else it }
+    }
 
-    val slots = LinkedHashSet<String>()
-    PREVIEW_ACTIVE_SLOTS.forEach { slot ->
-        // Duo folds the whole core cluster into one glyph, so the three slots are dropped and the
-        // pseudo-slot is added once below.
-        if (slot in PREVIEW_CORE_SLOTS && input.duoEnabled) return@forEach
-        if (slot == "mobile") {
-            val signal = when {
-                input.duoEnabled -> null
-                input.stackedEnabled -> "stacked_mobile_icon"
-                else -> "mobile"
-            }
-            if (signal != null && !previewHidden(signal, modes) && !input.hideMobileOnWifi) slots += signal
-            return@forEach
+    val left = leftPreviewSlots(input.leftSlots).sortedBy(hostIndex).take(PREVIEW_MAX_LEFT_SLOTS)
+    val indicators = PREVIEW_INDICATOR_SLOTS
+        .filterNot { it in input.leftSlots }
+        .filterNot { previewHidden(it, modes) }
+        .sortedBy(hostIndex)
+        .take(PREVIEW_MAX_INDICATOR_SLOTS)
+    val signal = signalPreviewSlots(input, modes)
+    val core = buildList {
+        addAll(signal)
+        // Duo folds the battery arc, the network state and the data card into one glyph, so its
+        // glyph replaces the whole pinned cluster instead of joining it.
+        if (!input.duoEnabled) {
+            if (!input.hideWifiConnected && !previewHidden(SLOT_WIFI, modes)) add(SLOT_WIFI)
+            // The order policy may front Wi-Fi; the battery never moves, because the host draws it
+            // in a separate trailing container rather than in the icon row.
+            sortBy(hostIndex)
+            if (!previewHidden(SLOT_BATTERY, modes)) add(SLOT_BATTERY)
         }
-        if (previewHidden(slot, modes)) return@forEach
-        if (slot == "wifi" && input.hideWifiConnected) return@forEach
-        slots += slot
     }
-    if (input.duoEnabled) slots += PREVIEW_DUO_SLOT
 
-    val ordered = slots.sortedBy { slot ->
-        val host = if (slot == PREVIEW_DUO_SLOT) "handle_battery" else slot
-        order.indexOf(host).let { if (it < 0) Int.MAX_VALUE else it }
+    return StatusBarPreviewModel(
+        leftSlots = left,
+        indicatorSlots = indicators,
+        coreSlots = core,
+        duoSizeDp = DuoLayout.safeSizeDp(input.duoSizeDp),
+        showNetworkType = input.showCellularType && signal.isNotEmpty() && !input.duoEnabled
+    )
+}
+
+/**
+ * The signal group for the selected display mode.
+ *
+ * Native is the ROM's own layout: one mobile holder per subscription, so a dual-SIM bar shows both
+ * cards' badged signal icons. Stacked replaces the pair with the module's two-row glyph, and Duo
+ * folds signal, WiFi and battery into one glyph.
+ */
+private fun signalPreviewSlots(input: StatusBarPreviewInput, modes: Map<String, Int>): List<String> {
+    if (input.hideMobileOnWifi) return emptyList()
+    if (input.duoEnabled) return listOf(PREVIEW_DUO_SLOT)
+    if (input.stackedEnabled) {
+        return if (previewHidden(SLOT_STACKED, modes)) emptyList() else listOf(SLOT_STACKED)
     }
-    val left = ordered.filter { isLeftPreviewSlot(it, input.leftSlots) }
-    val right = ordered.filterNot { isLeftPreviewSlot(it, input.leftSlots) }
-    val core = right.filter { it in PINNED_CORE_SLOTS }
-    val indicators = right.filterNot { it in PINNED_CORE_SLOTS }
-    return StatusBarPreviewModel(left, indicators, core, DuoLayout.safeSizeDp(input.duoSizeDp))
+    // Every per-subscription holder is published under the host's `mobile` slot, so that slot's
+    // mode - not the per-SIM customization names - is what hides or shows the native pair.
+    return if (previewHidden(SLOT_MOBILE, modes)) emptyList()
+    else listOf(SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2)
 }
 
 /** A module mode hides a slot from the status bar when it is "hidden" or control-center only. */
@@ -134,11 +167,16 @@ private fun previewHidden(slot: String, modes: Map<String, Int>): Boolean =
     }
 
 /**
- * The compound row drives the synthetic `compound_*` slots, so its toggle moves the catalog's
- * `compound_icon` entry rather than naming it directly.
+ * The user's left-placed host slots, reduced to glyphs the catalog can draw.
+ *
+ * The 合成图标 row drives synthetic `compound_*` slots that carry no artwork of their own, so that
+ * group collapses to the catalog's `compound_icon` row. A left-placed slot stays out of the right
+ * cluster even when it exceeds [PREVIEW_MAX_LEFT_SLOTS], because the hook hides it there too.
  */
-private fun isLeftPreviewSlot(slot: String, leftSlots: Set<String>): Boolean = when (slot) {
-    PREVIEW_DUO_SLOT -> false
-    "compound_icon" -> leftSlots.any { it.startsWith("compound_") }
-    else -> slot in leftSlots
-}
+private fun leftPreviewSlots(leftSlots: Set<String>): List<String> = leftSlots.mapNotNull { slot ->
+    when {
+        slot.startsWith("compound_") -> SLOT_COMPOUND
+        IconSlotCatalog.of(slot) != null -> slot
+        else -> null
+    }
+}.distinct()

@@ -41,7 +41,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -400,12 +399,8 @@ private fun SlotOrderRow(
             Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(
-                    id = info?.iconRes ?: IconSlotCatalog.fallbackIconRes()
-                ),
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
+            SlotRowGlyph(
+                iconRes = info?.iconRes ?: IconSlotCatalog.fallbackIconRes(),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantActions
             )
             Spacer(Modifier.width(12.dp))
