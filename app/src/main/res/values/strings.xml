@@ -443,6 +443,11 @@
     <string name="icon_cellular_type_single_font">Custom Single Type Font</string>
     <string name="icon_cellular_type_single_font_summary">Apply a numeric font weight only to the single-SIM type label</string>
     <string name="icon_font_weight">Font Weight</string>
+    <string name="icon_battery_style_title">Status Bar Battery</string>
+    <string name="icon_battery_style_outside">Percentage Outside in the Control Center</string>
+    <string name="icon_battery_style_outside_summary">Draw the control center battery as the solid icon with its percentage outside it. The home status bar, lockscreen and notification shade keep the system style</string>
+    <string name="icon_battery_style_left">Percentage on the Left</string>
+    <string name="icon_battery_style_left_summary">Put the control center percentage on the left of the icon instead of the right. The in-glyph number has no side, so this also switches to the outside style</string>
     <string name="icon_compound_alarm">Alarm Clock</string>
     <string name="icon_compound_alarm_summary">Merge the alarm clock state into the compound icon</string>
     <string name="icon_compound_location">Location</string>

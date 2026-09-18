@@ -388,6 +388,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 slotModes = slotModes,
                 onChange = { key, value -> changed(key, value) }
                         )
+                        BatteryStyleSection(
+                outside = pref(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
+                leadingPercent = pref(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false),
+                onChange = { key, value -> changed(key, value) }
+                        )
                         CarrierSection(
                 hideOne = pref(Preferences.KEY_ICON_HIDE_CARRIER_ONE, false),
                 hideTwo = pref(Preferences.KEY_ICON_HIDE_CARRIER_TWO, false),
@@ -986,6 +991,38 @@ private fun CompoundSection(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Control-center battery percentage style.
+ *
+ * Stock draws the CN default (`battery_indicator_style` 1) as a number inside the battery glyph.
+ * The first switch asks the control center's own battery view for the icon-plus-outside-percentage
+ * style; the second moves that outside percentage to the leading side (visual left in LTR), which
+ * is the only style that has a side to choose, so it also selects it. Both apply to the control
+ * center only — see `CcBatteryStyleHooker`.
+ */
+@Composable
+private fun BatteryStyleSection(
+    outside: Boolean,
+    leadingPercent: Boolean,
+    onChange: (String, Any) -> Unit
+) {
+    SmallTitle(stringResource(R.string.icon_battery_style_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(
+                outside,
+                stringResource(R.string.icon_battery_style_outside),
+                stringResource(R.string.icon_battery_style_outside_summary)
+            ) { onChange(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, it) }
+            TunerSwitch(
+                leadingPercent,
+                stringResource(R.string.icon_battery_style_left),
+                stringResource(R.string.icon_battery_style_left_summary)
+            ) { onChange(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, it) }
         }
     }
 }

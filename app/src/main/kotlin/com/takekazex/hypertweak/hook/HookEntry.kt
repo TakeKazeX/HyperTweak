@@ -44,6 +44,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CompoundIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.CcBatteryStyleHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
@@ -750,6 +751,7 @@ class HookEntry : XposedModule() {
                 attachHooker(CompoundIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterHeaderHooker, classLoader, ctx, replacementHandles)
+                attachHooker(CcBatteryStyleHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterCarrierBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)

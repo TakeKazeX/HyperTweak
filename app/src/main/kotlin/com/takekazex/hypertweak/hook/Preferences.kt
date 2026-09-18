@@ -606,6 +606,18 @@ object Preferences {
     const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"
     const val KEY_CC_CARRIER_BADGE_TWO = "systemui_cc_carrier_badge_two"
 
+    // Control-center battery percentage style (see `CcBatteryStyleHooker`). Both switches target
+    // only the control center's own `MiuiBatteryMeterView` instances (the CC header icons and the
+    // fake status bar used while the CC expands); the home status bar, lockscreen and notification
+    // shade keep the system `battery_indicator_style`.
+    //   KEY_CC_BATTERY_PERCENT_OUTSIDE — 开关 1: solid icon with the percentage outside it,
+    //                                    instead of the system's in-glyph number.
+    //   KEY_CC_BATTERY_PERCENT_LEFT — 开关 2: put that outside percentage on the leading edge
+    //                                 (visual left in LTR). The in-glyph number has no left/right
+    //                                 side, so this switch also selects the outside style.
+    const val KEY_CC_BATTERY_PERCENT_OUTSIDE = "systemui_cc_battery_percent_outside"
+    const val KEY_CC_BATTERY_PERCENT_LEFT = "systemui_cc_battery_percent_left"
+
     // Force status-bar region sampling (light-bar samples the region behind the status bar so
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.

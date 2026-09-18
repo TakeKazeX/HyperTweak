@@ -443,6 +443,11 @@
     <string name="icon_cellular_type_single_font">自定义单卡类型字重</string>
     <string name="icon_cellular_type_single_font_summary">仅为单卡类型文字应用数字字重</string>
     <string name="icon_font_weight">字体字重</string>
+    <string name="icon_battery_style_title">状态栏电量样式</string>
+    <string name="icon_battery_style_outside">控制中心电量百分比显示在图标外</string>
+    <string name="icon_battery_style_outside_summary">控制中心的电量改为实心图标，并把百分比显示在图标外；桌面状态栏、锁屏和通知中心保持系统样式</string>
+    <string name="icon_battery_style_left">电量百分比放在图标左侧</string>
+    <string name="icon_battery_style_left_summary">把控制中心的电量百分比从图标右侧移到左侧；图标内的数字没有左右之分，开启后会自动改为图标外显示</string>
     <string name="icon_compound_alarm">闹钟</string>
     <string name="icon_compound_alarm_summary">将闹钟状态合并进合成图标</string>
     <string name="icon_compound_location">定位</string>
