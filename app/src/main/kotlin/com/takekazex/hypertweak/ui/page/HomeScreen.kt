@@ -493,6 +493,7 @@ internal fun friendlyProcessName(context: android.content.Context, processName: 
         "com.milink.service" -> context.getString(R.string.home_scope_milink)
         "com.xiaomi.trustservice" -> context.getString(R.string.home_scope_mitrust)
         "com.miui.guardprovider" -> context.getString(R.string.home_scope_guard_provider)
+        "com.android.thememanager" -> context.getString(R.string.home_scope_theme_manager)
         "com.xiaomi.bluetooth" -> context.getString(R.string.home_scope_bluetooth)
         "com.takekazex.hypertweak" -> "HyperTweak"
         else -> processName

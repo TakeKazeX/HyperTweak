@@ -44,6 +44,7 @@ private fun fallbackAppName(context: Context, packageName: String): String = whe
     RestartScopeSelection.PACKAGE_MILINK -> context.getString(R.string.restart_scope_milink)
     RestartScopeSelection.PACKAGE_TRUST_SERVICE -> context.getString(R.string.restart_scope_mitrust)
     RestartScopeSelection.PACKAGE_GUARD_PROVIDER -> context.getString(R.string.restart_scope_guard_provider)
+    RestartScopeSelection.PACKAGE_THEME_MANAGER -> context.getString(R.string.restart_scope_theme_manager)
     RestartScopeSelection.PACKAGE_BLUETOOTH -> context.getString(R.string.restart_scope_bluetooth)
     RestartScopeSelection.PACKAGE_POWERKEEPER -> context.getString(R.string.restart_scope_powerkeeper)
     RestartScopeSelection.PACKAGE_GMS -> context.getString(R.string.restart_scope_gms)

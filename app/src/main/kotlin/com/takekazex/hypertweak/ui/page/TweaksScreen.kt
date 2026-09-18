@@ -72,6 +72,8 @@ fun TweaksScreenContent(
     onBlockGuardUploadAppListChange: (Boolean) -> Unit,
     blockMiLinkHpplayFiles: Boolean,
     onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
+    allowThirdPartyTheme: Boolean,
+    onAllowThirdPartyThemeChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -216,6 +218,16 @@ fun TweaksScreenContent(
                     onCheckedChange = onDisableMiTrustRiskMonitoringChange,
                     title = stringResource(R.string.tweaks_disable_risk_monitoring_title),
                     summary = stringResource(R.string.tweaks_disable_risk_monitoring_summary)
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.tweaks_theme_manager_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = allowThirdPartyTheme,
+                    onCheckedChange = onAllowThirdPartyThemeChange,
+                    title = stringResource(R.string.tweaks_allow_third_party_theme_title),
+                    summary = stringResource(R.string.tweaks_allow_third_party_theme_summary)
                 )
             }
 

@@ -35,5 +35,8 @@
         <item>com.android.providers.downloads.ui</item>
         <item>com.android.phone</item>
         <item>com.xiaomi.phone</item>
+        <!-- Theme Manager (com.android.thememanager). The third-party-theme switch hooks this
+             process, so it must be in the declared scope for LSPosed to inject the module. -->
+        <item>com.android.thememanager</item>
     </string-array>
 </resources>

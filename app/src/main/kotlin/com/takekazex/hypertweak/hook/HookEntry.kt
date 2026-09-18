@@ -68,6 +68,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppL
 import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
+import com.takekazex.hypertweak.hook.rules.system.ThemeDrmRevalidationHooker
 import com.takekazex.hypertweak.hook.rules.system.CircleToSearchGestureHooker
 import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.DefaultAssistantHooker
@@ -111,6 +112,7 @@ import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmen
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
 import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
+import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -687,6 +689,9 @@ class HookEntry : XposedModule() {
         // Dark-mode app data is returned through the uimode Binder. Keep system_server as the
         // single source of truth so Settings and app processes observe the same persistent state.
         attachHooker(ForceDarkAppListHooker, classLoader, ctx, replacementHandles)
+        // Stops the framework's periodic theme DRM re-validation from restoring the default theme
+        // when a locally imported (third-party) theme is applied.
+        attachHooker(ThemeDrmRevalidationHooker, classLoader, ctx, replacementHandles)
         if (AospImeConfig.isEnabled()) {
             attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
         }
@@ -908,6 +913,11 @@ class HookEntry : XposedModule() {
                 // The Download Manager UI has its own package/process and must be explicitly
                 // scoped; provider-side .xlDownload filtering does not reach this process.
                 attachHooker(DownloadUiHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.thememanager" -> {
+                // Local/third-party theme apply gate. The framework-side counterpart lives in
+                // system_server (ThemeDrmRevalidationHooker).
+                attachHooker(ThemeManagerRightsCheckHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.xmsf" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

@@ -401,6 +401,7 @@
     <string name="home_scope_aod">息屏显示</string>
     <string name="home_scope_bluetooth">小米蓝牙</string>
     <string name="home_scope_guard_provider">安全组件</string>
+    <string name="home_scope_theme_manager">主题壁纸</string>
     <string name="home_scope_launcher">系统桌面</string>
     <string name="home_scope_milink">MiLink 服务</string>
     <string name="home_scope_mitrust">MiTrustService</string>
@@ -746,6 +747,7 @@
     <string name="restart_scope_bluetooth">小米蓝牙</string>
     <string name="restart_scope_gms">Google Play 服务</string>
     <string name="restart_scope_guard_provider">安全组件</string>
+    <string name="restart_scope_theme_manager">主题壁纸</string>
     <string name="restart_scope_milink">MiLink 服务</string>
     <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">小米桌面</string>
@@ -909,6 +911,9 @@
     <string name="tweaks_milink_title">互联互通服务</string>
     <string name="tweaks_block_milink_hpplay_files_title">阻止生成乐播投屏相关文件</string>
     <string name="tweaks_block_milink_hpplay_files_summary">阻止投屏服务创建外部存储目录</string>
+    <string name="tweaks_theme_manager_title">主题</string>
+    <string name="tweaks_allow_third_party_theme_title">允许加载本地自定义主题</string>
+    <string name="tweaks_allow_third_party_theme_summary">跳过 MIUI 主题版权验证，本地导入的主题可以应用且不会被还原。重启主题壁纸生效，系统框架部分需热重载或重启</string>
     <string name="download_manager_title">下载管理</string>
     <string name="download_manager_summary">调整下载管理界面与迅雷集成</string>
     <string name="download_manager_back">返回</string>

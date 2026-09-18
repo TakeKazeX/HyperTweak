@@ -179,6 +179,13 @@ object Preferences {
     /** Prevents MiLink's HPPlay/LeBo integration from creating optional external files. */
     const val KEY_MILINK_BLOCK_HPPLAY_FILES = "milink_block_hpplay_files"
 
+    /**
+     * Lets the Theme Manager apply locally imported (third-party) themes by disabling MIUI's OMA
+     * DRM rights verification. Gates both the app-side rights check that blocks the apply and the
+     * system_server re-validation that would otherwise restore the default theme afterwards.
+     */
+    const val KEY_ALLOW_THIRD_PARTY_THEME = "allow_third_party_theme"
+
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
@@ -1043,6 +1050,9 @@ object Preferences {
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+
+    /** Whether MIUI's theme DRM rights verification is bypassed for local/third-party themes. */
+    fun allowThirdPartyTheme(): Boolean = getBoolean(KEY_ALLOW_THIRD_PARTY_THEME, false)
 
     /**
      * Whether the module-rendered cellular type stays visible while Wi-Fi carries the data

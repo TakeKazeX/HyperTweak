@@ -158,6 +158,12 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_ASK_ABOUT_SCREEN to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_GOOGLE_APP)
     ),
+    // The theme rights-check hook installs into the Theme Manager process. The framework-side
+    // re-validation hook lives in system_server, which the app cannot restart; the Home page's
+    // hot reload (or a reboot) is what applies that half.
+    Preferences.KEY_ALLOW_THIRD_PARTY_THEME to RestartScopeSelection(
+        additionalPackages = setOf(RestartScopeSelection.PACKAGE_THEME_MANAGER)
+    ),
 )
 
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
@@ -387,6 +393,9 @@ class MainActivity : ComponentActivity() {
             var blockMiLinkHpplayFiles by remember {
                 mutableStateOf(Preferences.getBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, false))
             }
+            var allowThirdPartyTheme by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, false))
+            }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -519,6 +528,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK -> disableGuardEnvironmentCheck
                     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
                     Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
+                    Preferences.KEY_ALLOW_THIRD_PARTY_THEME -> allowThirdPartyTheme
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -859,6 +869,10 @@ class MainActivity : ComponentActivity() {
                     )
                     blockMiLinkHpplayFiles = Preferences.getBoolean(
                         Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES,
+                        false
+                    )
+                    allowThirdPartyTheme = Preferences.getBoolean(
+                        Preferences.KEY_ALLOW_THIRD_PARTY_THEME,
                         false
                     )
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
@@ -1260,6 +1274,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
                         blockMiLinkHpplayFiles = checked
                         Preferences.putBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
+                    },
+                    allowThirdPartyTheme = allowThirdPartyTheme,
+                    onAllowThirdPartyThemeChange = { checked ->
+                        markTweaked(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
+                        allowThirdPartyTheme = checked
+                        Preferences.putBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
                     },
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->

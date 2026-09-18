@@ -401,6 +401,7 @@
     <string name="home_scope_aod">Always-On Display</string>
     <string name="home_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="home_scope_guard_provider">GuardProvider</string>
+    <string name="home_scope_theme_manager">Theme Manager</string>
     <string name="home_scope_launcher">System Launcher</string>
     <string name="home_scope_milink">MiLink Service</string>
     <string name="home_scope_mitrust">MiTrustService</string>
@@ -748,6 +749,7 @@
     <string name="restart_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="restart_scope_gms">Google Play Services</string>
     <string name="restart_scope_guard_provider">GuardProvider</string>
+    <string name="restart_scope_theme_manager">Theme Manager</string>
     <string name="restart_scope_milink">MiLink Service</string>
     <string name="restart_scope_mitrust">MiTrustService</string>
     <string name="restart_scope_miui_home">Xiaomi Home</string>
@@ -912,6 +914,9 @@
     <string name="tweaks_milink_title">MiLink Service</string>
     <string name="tweaks_block_milink_hpplay_files_title">Block LeBo Cast Files</string>
     <string name="tweaks_block_milink_hpplay_files_summary">Stop the cast service from creating external storage folders</string>
+    <string name="tweaks_theme_manager_title">Themes</string>
+    <string name="tweaks_allow_third_party_theme_title">Allow Local Custom Themes</string>
+    <string name="tweaks_allow_third_party_theme_summary">Skip MIUI\'s theme rights verification so locally imported themes can be applied and stay applied. Restart Theme Manager; a hot reload or reboot covers the framework part</string>
     <string name="download_manager_title">Download Manager</string>
     <string name="download_manager_summary">Adjust the Download Manager UI and Xunlei integration</string>
     <string name="download_manager_back">Back</string>
