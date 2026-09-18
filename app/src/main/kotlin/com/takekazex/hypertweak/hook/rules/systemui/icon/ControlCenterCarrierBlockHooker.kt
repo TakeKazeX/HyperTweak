@@ -75,9 +75,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val installed = AtomicBoolean(false)
     private val artLock = Any()
 
-    /** The type text bitmap uses the same renderer as the stacked/Duo type, one size smaller. */
+    /** Use the regular network-type size, not the former compact 11sp variant. */
     private val typeConfig = MobileTypeConfig(
-        textSizeSp = 11f,
+        textSizeSp = 14f,
         weight = 630,
         singleWeight = 400,
         paddingStartSp = 1f,
@@ -87,6 +87,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val blocks = WeakHashMap<Any, Block>()
     private val rowIndex = WeakHashMap<Any, RowParts>()
     private val motions = IdentityHashMap<View, CarrierTypeMotion>()
+    private val duoTargets = IdentityHashMap<View, Any>()
     private val endpointStates = IdentityHashMap<View, EndpointState>()
     private val maskedContainers = WeakHashMap<Any, CarrierMask>()
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
@@ -94,6 +95,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
+    private var showBadge = true
+    private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
     @Volatile private var svgRepository: IconSvgRepository? = null
     @Volatile private var artwork: Artwork? = null
@@ -146,6 +149,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val textState = ViewState(carrierText)
         val gravity = row.gravity
         val baselineAligned = row.isBaselineAligned
+        val contentDescription = row.contentDescription
         val textSize = carrierText.textSize
         val maxWidth = carrierText.maxWidth
         val ellipsize = carrierText.ellipsize
@@ -225,6 +229,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         onMainBlocking {
             motions.values.forEach(CarrierTypeMotion::clear)
             motions.clear()
+            duoTargets.clear()
             restoreEndpoints()
             maskedContainers.keys.toList().forEach { container ->
                 runCatching { IconPositionHooker.setCarrierMask(container, CarrierMask()) }
@@ -249,6 +254,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
             false
         )
+        showBadge = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true)
+        badgeTexts = listOf(
+            Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
+            Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_TWO, "2")
+        ).mapIndexed(CarrierBlockPolicy::badgeText)
         // 开关 2 is the enabling switch for 开关 3/4: without the hidden date the second row would
         // overlap the date, and the settings page disables the dependent rows for the same reason.
         enabled = hideDate && twoLine
@@ -533,10 +543,43 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         ownsLayout(row.parent as? ViewGroup)
 
     fun firstRowCenter(layout: ViewGroup): Int = blocks[layout]?.rows
-        ?.firstOrNull { it.row.visibility == View.VISIBLE }?.row?.let { it.top + it.measuredHeight / 2 } ?: 0
+        ?.firstOrNull { it.row.isVisible }?.row?.let { it.top + it.measuredHeight / 2 } ?: 0
 
     /** Duo asks about this exact expanded container, never a global signal preference. */
     fun ownsNetworkContainer(container: Any): Boolean = maskedContainers[container]?.active == true
+
+    fun ownsNetwork(container: Any, wifi: Boolean): Boolean = maskedContainers[container]?.let {
+        if (wifi) it.wifi else it.cellular
+    } == true
+
+    /** Only expose a measured replacement in this expanded header, never another SIM or window. */
+    fun duoHandoverTarget(container: Any, wifi: Boolean, subId: Int?): View? = blocks.values
+        .firstOrNull { it.maskContainer === container && it.compact && it.layout.isShown }
+        ?.rows?.firstNotNullOfOrNull { parts ->
+            val target = if (wifi && parts.wifiReady) parts.wifi else if (!wifi &&
+                parts.cellularReady && subId != null && parts.model?.subId == subId) parts.type else null
+            target?.takeIf { isUsable(it) && it.drawable != null && parts.row.isShown }
+        }
+
+    /** Alpha has one writer during a Duo hand-over; ordinary masks must not reset it each frame. */
+    fun acquireDuoTarget(target: View, owner: Any): Boolean {
+        val parts = rowIndex[target.parent] ?: return false
+        val ready = if (target === parts.wifi) parts.wifiReady else target === parts.type && parts.cellularReady
+        if (!ready || !isUsable(target) || (duoTargets[target]?.let { it !== owner } == true)) return false
+        if (duoTargets[target] === owner) return true
+        motions.remove(target)?.clear()
+        target.alpha = 1f
+        duoTargets[target] = owner
+        return true
+    }
+
+    fun releaseDuoTarget(target: View, owner: Any) {
+        if (duoTargets[target] !== owner) return
+        duoTargets.remove(target)
+        val parts = rowIndex[target.parent]
+        target.alpha = if (parts != null &&
+            (if (target === parts.wifi) parts.wifiReady else parts.cellularReady)) 1f else 0f
+    }
 
     private fun installBlock(layout: ViewGroup) {
         if (blocks.containsKey(layout)) return
@@ -589,7 +632,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val text = carrierTextField?.get(row) as? TextView ?: return null
         val context = row.context
         return RowParts(slot, row, text, glyphView(context), TextView(context).apply {
-            this.text = (slot + 1).toString()
+            this.text = badgeTexts[slot]
+            setSingleLine()
+            ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
             includeFontPadding = false
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -643,9 +688,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.carrierText.ellipsize = TextUtils.TruncateAt.END
             parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
             parts.signal.layoutParams = LinearLayout.LayoutParams(icon, icon).apply { marginEnd = gap }
-            val badgeSize = (11 * density * parts.row.resources.configuration.fontScale).roundToInt()
-            parts.badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8f)
-            parts.badge.layoutParams = LinearLayout.LayoutParams(badgeSize, badgeSize).apply { marginEnd = gap }
+            parts.badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
+            parts.badge.setPaddingRelative((2 * density).roundToInt(), 0, (2 * density).roundToInt(), 0)
+            parts.badge.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                (13 * density * parts.row.resources.configuration.fontScale).roundToInt()).apply { marginEnd = gap }
             listOf(parts.wifi, parts.type).forEach { view ->
                 view.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                     icon).apply { marginStart = gap }
@@ -678,6 +724,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     else Preferences.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned
+            parts.row.contentDescription = parts.contentDescription
             parts.carrierText.setTextSize(TypedValue.COMPLEX_UNIT_PX, parts.textSize)
             parts.carrierText.maxWidth = parts.maxWidth
             parts.carrierText.ellipsize = parts.ellipsize
@@ -697,13 +744,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         restoreBlockStyle(block)
         block.rows.forEach { parts ->
             rowIndex.remove(parts.row)
+            duoTargets.remove(parts.wifi)
+            duoTargets.remove(parts.type)
             listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach(parts.row::removeView)
         }
     }
 
     private fun measureRows(block: Block, width: Int) {
         block.rows.forEach { parts ->
-            val fixed = listOf(parts.signal, parts.badge, parts.wifi, parts.type)
+            val fixed = listOf(parts.signal, parts.wifi, parts.type)
                 .filter { it.visibility != View.GONE }.sumOf { view ->
                     view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
                         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
@@ -713,7 +762,23 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             val textParams = parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams
             val padding = block.layout.paddingStart + block.layout.paddingEnd + parts.row.paddingStart +
                 parts.row.paddingEnd + (textParams?.marginStart ?: 0) + (textParams?.marginEnd ?: 0)
-            val max = CarrierBlockPolicy.textWidth(width, fixed + padding)
+            val available = CarrierBlockPolicy.textWidth(width, fixed + padding)
+            val gap = (4 * parts.row.resources.displayMetrics.density).roundToInt()
+            val badgeWidth = if (parts.badge.isVisible) CarrierBlockPolicy.badgeWidth(
+                available,
+                kotlin.math.ceil(parts.badge.paint.measureText(parts.badge.text.toString())).toInt() +
+                    parts.badge.paddingStart + parts.badge.paddingEnd,
+                gap,
+                kotlin.math.ceil(parts.carrierText.paint.measureText("MMMM")).toInt()
+            ) else 0
+            val badgeParams = parts.badge.layoutParams as LinearLayout.LayoutParams
+            val badgeGap = if (badgeWidth > 0) gap else 0
+            if (badgeParams.width != badgeWidth || badgeParams.marginEnd != badgeGap) {
+                badgeParams.width = badgeWidth
+                badgeParams.marginEnd = badgeGap
+                parts.badge.layoutParams = badgeParams
+            }
+            val max = CarrierBlockPolicy.textWidth(available, badgeWidth + badgeGap)
             if (parts.carrierText.maxWidth != max) parts.carrierText.maxWidth = max
         }
     }
@@ -769,7 +834,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val art = artwork
         val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
         parts.model = model
-        parts.badge.visibility = if (art == null || model == null) View.GONE else View.VISIBLE
+        parts.badge.visibility = if (!showBadge || art == null || model == null) View.GONE else View.VISIBLE
         if (art == null || model == null) {
             // Before reducer/artwork readiness the host label remains usable. An actually absent
             // slot is hidden only when another subscription establishes a known row set.
@@ -822,7 +887,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                         isRoaming = mobileState.subscriptions[model.subId]?.roaming == true
                     ),
                     config = typeConfig,
-                    iconHeightPx = iconHeightPx(context),
+                    iconHeightPx = CarrierBlockPolicy.typeHeight(iconHeightPx(context),
+                        context.resources.displayMetrics.density, fontScale),
                     densityDpi = densityDpi,
                     fontScale = fontScale,
                     rtl = rtl
@@ -832,7 +898,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publish(parts.type, typeBitmap, tint)
         parts.typeBitmap = typeBitmap
         parts.row.contentDescription = buildString {
-            append(parts.slot + 1).append(", ").append(parts.carrierText.text)
+            if (showBadge) append(parts.badge.text).append(", ")
+            append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
             model.typeText?.let { append(", ").append(it) }
         }
@@ -868,9 +935,14 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         configVersion = 3
     )
 
-    private fun iconHeightPx(context: Context): Int =
-        (14f * context.resources.displayMetrics.density * context.resources.configuration.fontScale)
-            .roundToInt().coerceAtLeast(1)
+    private fun iconHeightPx(context: Context): Int {
+        val resources = context.resources
+        val height = runCatching {
+            val id = resources.getIdentifier("status_bar_icon_height", "dimen", "com.android.systemui")
+            if (id != 0) resources.getDimensionPixelSize(id) else null
+        }.getOrNull()
+        return CarrierBlockPolicy.iconHeight(height, resources.displayMetrics.density)
+    }
 
     private fun scheduleArtworkLoad(token: Long) {
         if (!enabled || artwork != null || svgRepository == null) return
@@ -948,7 +1020,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 }
                 for ((target, glyph) in entries) {
                     val (source, bitmap) = glyph
-                    if (target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
+                    if (target in duoTargets || target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
                     if (source == null) {
                         motions.remove(target)?.clear()
                         target.alpha = 1f
@@ -968,7 +1040,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             if (view in used) false else {
                 motion.clear()
                 val parts = rowIndex[view.parent]
-                view.alpha = if (parts != null &&
+                if (view !in duoTargets) view.alpha = if (parts != null &&
                     (if (view === parts.type) parts.cellularReady else parts.wifiReady)) 1f else 0f
                 true
             }
@@ -982,8 +1054,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         restoreEndpoints()
         blocks.values.forEach { block ->
             block.rows.forEach { parts ->
-                parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
-                parts.type.alpha = if (parts.cellularReady) 1f else 0f
+                if (parts.wifi !in duoTargets) parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
+                if (parts.type !in duoTargets) parts.type.alpha = if (parts.cellularReady) 1f else 0f
             }
         }
     }
@@ -1073,8 +1145,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.wifiReady = acquired && wifi
             parts.signal.alpha = if (parts.cellularReady) 1f else 0f
             // An in-flight overlay owns the type/Wi-Fi alpha until it is released.
-            if (parts.type !in motions) parts.type.alpha = if (parts.cellularReady) 1f else 0f
-            if (parts.wifi !in motions) parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
+            if (!parts.cellularReady || (parts.type !in motions && parts.type !in duoTargets))
+                parts.type.alpha = if (parts.cellularReady) 1f else 0f
+            if (!parts.wifiReady || (parts.wifi !in motions && parts.wifi !in duoTargets))
+                parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
         }
     }
 

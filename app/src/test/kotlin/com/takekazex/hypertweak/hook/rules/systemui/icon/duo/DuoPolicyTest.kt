@@ -7,6 +7,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DuoPolicyTest {
+    @Test fun carrierTargetReplacesNativeHandoffEvenWhenKeepDuoWasSelected() {
+        for (style in DuoExpandedStyle.entries) {
+            assertEquals(DuoNetworkDestination.CARRIER, DuoPolicy.networkDestination(style, true, true))
+            // Carrier may own cellular only; Wi-Fi must still hand off to the native Wi-Fi view.
+            assertEquals(DuoNetworkDestination.NATIVE, DuoPolicy.networkDestination(style, true, false))
+        }
+        assertEquals(DuoNetworkDestination.NONE,
+            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, false, false))
+        assertEquals(DuoNetworkDestination.NATIVE,
+            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, false, false))
+    }
+
     private val battery = DuoBattery(60, false, false)
     private val cellular = DuoNetwork(DuoTransport.CELLULAR, true)
     private fun mobile(): MobileSignalState = MobileSignalState()

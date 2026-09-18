@@ -6,6 +6,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test fun releasingOneNetworkOwnerKeepsTheOtherOwnerAndUserBlocks() {
+        val masks = IconMaskOwners()
+        val container = Any()
+        val otherContainer = Any()
+        val host = listOf("alarm_clock", "wifi")
+        val duo = IconMaskOwners.Owner.DUO
+        val carrier = IconMaskOwners.Owner.CARRIER
+        masks.set(container, duo, setOf("mobile", "wifi"))
+        masks.set(container, carrier, CarrierMask(cellular = true, wifi = true).slots())
+        masks.set(container, duo, emptySet())
+        assertTrue("mobile" in masks.slots(container))
+        assertTrue("wifi" in masks.slots(container))
+        assertTrue(masks.slots(otherContainer).isEmpty())
+        masks.set(container, carrier, CarrierMask(cellular = true).slots())
+        assertTrue("wifi" !in masks.slots(container))
+        assertTrue("wifi" in masks.merged(container, host))
+        masks.set(container, duo, setOf("mobile", "wifi"))
+        masks.set(container, carrier, emptySet())
+        assertEquals(setOf("mobile", "wifi"), masks.slots(container).toSet())
+        masks.set(container, duo, emptySet())
+        assertEquals(host, masks.merged(container, host))
+    }
+
     @Test
     fun fiveModesAreExplicitForEachKnownSurface() {
         val base = listOf("wifi")

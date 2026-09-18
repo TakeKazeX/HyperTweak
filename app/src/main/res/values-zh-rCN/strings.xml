@@ -485,6 +485,10 @@
     <string name="icon_cc_carrier_two_line">运营商标签两行显示</string>
     <string name="icon_cc_carrier_two_line_summary">每张卡紧凑排列信号、卡槽标识、运营商和网络指示；电池与首行对齐</string>
     <string name="icon_cc_carrier_name_priority">两行模式下，紧凑控制中心始终显示双卡名称；此偏好仍适用于其他布局</string>
+    <string name="icon_cc_carrier_show_badge">显示卡槽标签</string>
+    <string name="icon_cc_carrier_show_badge_summary">分别自定义卡槽标签；留空使用 1 或 2。关闭后仍保留自定义内容</string>
+    <string name="icon_cc_carrier_badge_one">卡一标签内容</string>
+    <string name="icon_cc_carrier_badge_two">卡二标签内容</string>
     <string name="icon_cc_carrier_show_non_data_type">显示非上网卡类型</string>
     <string name="icon_cc_carrier_show_non_data_type_summary">同时显示非默认数据卡的网络类型</string>
     <string name="icon_region_sampling">强制区域采样</string>

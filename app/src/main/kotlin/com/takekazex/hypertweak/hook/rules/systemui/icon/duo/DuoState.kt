@@ -18,6 +18,7 @@ enum class BatteryTone { NORMAL, CHARGING, LOW, POWER_SAVE }
 enum class DuoTransport { UNKNOWN, NONE, WIFI, CELLULAR, VPN, OTHER }
 enum class DuoSurface { HOME, COLLAPSED_PROXY, EXPANDED, UNSUPPORTED }
 enum class DuoExpandedStyle { KEEP_DUO, RESTORE_NATIVE }
+internal enum class DuoNetworkDestination { NONE, NATIVE, CARRIER }
 
 data class DuoNetwork(
     val transport: DuoTransport = DuoTransport.UNKNOWN,
@@ -45,6 +46,16 @@ object DuoPolicy {
         DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
         DuoSurface.EXPANDED -> !carrierOwnsNetwork && expandedStyle == DuoExpandedStyle.KEEP_DUO
         DuoSurface.UNSUPPORTED -> false
+    }
+
+    internal fun networkDestination(
+        expandedStyle: DuoExpandedStyle,
+        carrierOwnsContainer: Boolean,
+        carrierOwnsNetwork: Boolean
+    ): DuoNetworkDestination = when {
+        replaces(DuoSurface.EXPANDED, expandedStyle, carrierOwnsContainer) -> DuoNetworkDestination.NONE
+        carrierOwnsNetwork -> DuoNetworkDestination.CARRIER
+        else -> DuoNetworkDestination.NATIVE
     }
 
     /**

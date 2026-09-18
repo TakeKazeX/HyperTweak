@@ -485,6 +485,10 @@
     <string name="icon_cc_carrier_two_line">Two-Line Carrier Label</string>
     <string name="icon_cc_carrier_two_line_summary">Compact SIM rows: signal, SIM badge, carrier and network indicators; battery aligned with the first row</string>
     <string name="icon_cc_carrier_name_priority">Two-line mode keeps both carrier names visible in the compact control center; this preference still applies to other layouts</string>
+    <string name="icon_cc_carrier_show_badge">Show SIM Labels</string>
+    <string name="icon_cc_carrier_show_badge_summary">Customize each SIM label; blank text uses 1 or 2. Turning this off keeps your text saved.</string>
+    <string name="icon_cc_carrier_badge_one">SIM 1 label</string>
+    <string name="icon_cc_carrier_badge_two">SIM 2 label</string>
     <string name="icon_cc_carrier_show_non_data_type">Show Non-Data SIM Type</string>
     <string name="icon_cc_carrier_show_non_data_type_summary">Also show the network type of the SIM that is not the default data line</string>
     <string name="icon_region_sampling">Force Region Sampling</string>

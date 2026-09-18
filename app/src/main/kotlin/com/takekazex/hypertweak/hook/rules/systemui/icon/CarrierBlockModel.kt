@@ -97,6 +97,25 @@ object CarrierBlockPolicy {
 
     fun preserveCarrierName(compactOwner: Boolean, requestedHidden: Boolean): Boolean =
         compactOwner || !requestedHidden
+
+    fun badgeText(slot: Int, value: String): String = value.mapNotNull { char ->
+        when {
+            char.isWhitespace() -> ' '
+            char.isISOControl() -> null
+            else -> char
+        }
+    }.joinToString("").trim().ifBlank { (slot + 1).toString() }
+
+    /** The badge may use at most a third of the remaining width, without displacing the name. */
+    fun badgeWidth(available: Int, desired: Int, gap: Int, nameReserve: Int): Int =
+        desired.coerceAtLeast(0).coerceAtMost((available / 3).coerceAtLeast(0))
+            .coerceAtMost(textWidth(available, nameReserve.coerceAtLeast(0) + gap.coerceAtLeast(0)))
+
+    fun iconHeight(resourceHeight: Int?, density: Float): Int =
+        resourceHeight?.takeIf { it > 0 } ?: kotlin.math.round(20f * density).toInt().coerceAtLeast(1)
+
+    fun typeHeight(iconHeight: Int, density: Float, fontScale: Float): Int =
+        maxOf(iconHeight, kotlin.math.ceil(20f * density * fontScale).toInt()).coerceIn(1, 512)
 }
 
 /** Replacement ownership is container-local; Wi-Fi is independent from the cellular group. */

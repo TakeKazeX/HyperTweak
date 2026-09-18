@@ -602,6 +602,9 @@ object Preferences {
     const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
     const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
     const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"
+    const val KEY_CC_CARRIER_SHOW_BADGE = "systemui_cc_carrier_show_badge"
+    const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"
+    const val KEY_CC_CARRIER_BADGE_TWO = "systemui_cc_carrier_badge_two"
 
     // Force status-bar region sampling (light-bar samples the region behind the status bar so
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream

@@ -31,6 +31,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val dates = WeakHashMap<View, DateState>()
     private val layouts = WeakHashMap<View, LayoutState>()
+    private val compactHeaders = WeakHashMap<ViewGroup, Pair<View, View?>>()
 
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
@@ -53,6 +54,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             }
             dates.clear()
             layouts.keys.toList().forEach(::restoreLayout)
+            compactHeaders.clear()
             fields.clear()
         }
         if (Looper.myLooper() == Looper.getMainLooper()) restore() else {
@@ -77,6 +79,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
                     if (name == "updateConstraint") {
                         (read(owner, "carrierLayout") as? View)?.let(layouts::remove)
                         (read(owner, "controlCenterStatusBar") as? View)?.let(layouts::remove)
+                        (read(owner, "fakeStatusBar") as? View)?.let(layouts::remove)
                     }
                     (read(owner, "dateView") as? View)?.let(::hideDateView)
                     (read(owner, "carrierLayout") as? ViewGroup)?.let(::updateCarrierLayout)
@@ -150,6 +153,8 @@ object ControlCenterHeaderHooker : StaticHooker() {
         if (ControlCenterCarrierBlockHooker.ownsLayout(carrier) && supportsCompactLayout(carrier)) {
             val statusId = id(carrier, "normal_control_center_status_bar")
             val status = parent.findViewById<View>(statusId) ?: return@guarded
+            val fake = parent.findViewById<View>(id(carrier, "normal_fake_control_center_status_bar"))
+            compactHeaders[carrier] = status to fake
             val firstCenter = ControlCenterCarrierBlockHooker.firstRowCenter(carrier)
             // Break carrier -> status -> date: the block ends above the cards, while the
             // battery/status cluster is anchored to the block's top (its first text row).
@@ -170,12 +175,27 @@ object ControlCenterHeaderHooker : StaticHooker() {
                 "topMargin" to (firstCenter - status.measuredHeight / 2),
                 "bottomMargin" to 0
             ))
+            // The host applies the SAME Y translation to real and fake rows. Keeping the fake
+            // anchored to the hidden date would leave the closing Duo below its HOME endpoint.
+            fake?.let {
+                change(it, mapOf(
+                    "startToStart" to PARENT_ID, "startToEnd" to UNSET,
+                    "topToTop" to statusId, "topToBottom" to UNSET,
+                    "bottomToTop" to UNSET, "bottomToBottom" to statusId,
+                    "topMargin" to 0, "bottomMargin" to 0
+                ))
+            }
             (carrier as? LinearLayout)?.let {
                 if (it.gravity != (Gravity.START or Gravity.CENTER_VERTICAL))
                     it.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
-        } else if (carrierLeft) {
-            applyCarrierSide(carrier)
+        } else {
+            compactHeaders.remove(carrier)?.let { (status, fake) ->
+                restoreLayout(carrier)
+                restoreLayout(status)
+                fake?.let(::restoreLayout)
+            }
+            if (carrierLeft) applyCarrierSide(carrier)
         }
     }
 

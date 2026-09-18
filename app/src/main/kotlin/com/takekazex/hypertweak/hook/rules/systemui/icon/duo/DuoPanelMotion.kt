@@ -52,14 +52,18 @@ internal class DuoPanelMotion {
     }
 
     fun update(root: ViewGroup, source: View, native: View, content: DuoContent, color: Int, progress: Float): Boolean {
-        if (progress <= 0f || progress >= 1f || !native.isAttachedToWindow || native.width <= 0 || native.height <= 0) {
+        if (progress <= 0f || progress >= 1f || !root.isAttachedToWindow ||
+            !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
+            !native.isAttachedToWindow || native.width <= 0 || native.height <= 0) {
             clear(); return false
         }
         val previousX = x; val previousY = y; val previousSide = side; val previousOpacity = layerAlpha
-        val contentChanged = glyph.content != content || glyph.foreground != color || host !== root
+        val contentChanged = glyph.content != content || glyph.foreground != color || host !== root || target !== native
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         if (target !== native) {
             restoreTarget(); target = native; savedAlpha = native.alpha; appliedAlpha = native.alpha
+            frameReady = false
+            drawFailed = false
         }
         if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
         val handoff = DuoPanelGeometry.handoff(progress)
@@ -100,7 +104,33 @@ internal class DuoPanelMotion {
     }
 }
 
+internal data class DuoPanelPoint(val x: Float, val y: Float)
+
+/** An additive correction, restoring only the value still owned by this writer. */
+internal class DuoOwnedTranslation {
+    private var baseline: Float? = null
+    private var applied = 0f
+
+    fun apply(current: Float, delta: Float): Float {
+        if (baseline == null || abs(current - applied) > .001f) baseline = current
+        applied = current + delta
+        return applied
+    }
+
+    fun restore(current: Float): Float {
+        val result = baseline?.takeIf { abs(current - applied) <= .001f } ?: current
+        baseline = null
+        return result
+    }
+}
+
 internal object DuoPanelGeometry {
+    fun position(home: DuoPanelPoint, expanded: DuoPanelPoint, progress: Float,
+        stretch: DuoPanelPoint = DuoPanelPoint(0f, 0f)): DuoPanelPoint = DuoPanelPoint(
+        mix(home.x, expanded.x, progress) + stretch.x,
+        mix(home.y, expanded.y, progress) + stretch.y
+    )
+
     /** The same endpoint hand-off fraction used by the Duo Wi-Fi overlay. */
     fun handoff(progress: Float): Float = ((progress - .75f) / .25f).coerceIn(0f, 1f)
 

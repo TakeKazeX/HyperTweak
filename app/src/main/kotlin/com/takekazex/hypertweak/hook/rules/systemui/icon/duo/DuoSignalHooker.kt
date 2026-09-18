@@ -51,7 +51,9 @@ object DuoSignalHooker : StaticHooker() {
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var enabled = false
     @Volatile private var epoch = 0
-    private var panelProgress = 1f
+    private var panelProgress = 0f
+    private var panelVisible = false
+    private var panelStretchHeight = 0f
     private var expandedStyle = DuoExpandedStyle.RESTORE_NATIVE
     private var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
     private var mobile = MobileSignalState()
@@ -81,6 +83,10 @@ object DuoSignalHooker : StaticHooker() {
         val privacyRect = RectF()
         var privacyInset = 0
         val panelMotion = DuoPanelMotion()
+        var carrierTarget: View? = null
+        var proxyRoot: View? = null
+        val proxyX = DuoOwnedTranslation()
+        val proxyY = DuoOwnedTranslation()
         val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
             battery.resources.getIdentifier(it, "id", battery.context.packageName)
         }
@@ -432,12 +438,35 @@ object DuoSignalHooker : StaticHooker() {
             it.name == "onExpansionChanged" && it.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType))
         } ?: return
         deoptimize(method)
-        method.hook { after { param -> guarded {
-            val progress = param.args.getOrNull(0) as? Float ?: return@guarded
-            if (progress !in 0f..1f) return@guarded
-            panelProgress = progress
-            bindings.values.toList().forEach(::updatePanelBinding)
-        } } }
+        method.hook {
+            before { guarded { bindings.values.toList().forEach(::restoreProxyPosition) } }
+            after { param -> guarded {
+                val progress = param.args.getOrNull(0) as? Float ?: return@guarded
+                if (progress !in 0f..1f) return@guarded
+                panelProgress = progress
+                if (progress > 0f) panelVisible = true
+                bindings.values.toList().forEach(::updatePanelBinding)
+            } }
+        }
+        type.findMethodOrNull { name("onStretchHeightChanged"); paramCount(1) }?.hook {
+            after { param -> guarded {
+                panelStretchHeight = (param.args.getOrNull(0) as? Number)?.toFloat() ?: 0f
+            } }
+        }
+        type.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.hook {
+            after { param -> guarded {
+                panelVisible = param.args.getOrNull(0) == true
+                if (!panelVisible) { panelProgress = 0f; panelStretchHeight = 0f }
+                bindings.values.toList().forEach(::updatePanelBinding)
+            } }
+        }
+        type.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.hook {
+            after { param -> guarded {
+                if (param.args.getOrNull(0) == true) panelVisible = true
+                // Appearance can swap rows before the finger is released. Keep the actual fraction.
+                bindings.values.toList().forEach(::updatePanelBinding)
+            } }
+        }
     }
 
     private fun ancestor(view: View, name: String): View? {
@@ -450,14 +479,60 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private val panelMatrix = Matrix()
+    private val inversePanelMatrix = Matrix()
     private val panelPoint = FloatArray(2)
-    private fun screenRight(view: View): Float {
+
+    private fun screenAnchor(view: View): DuoPanelPoint {
         panelMatrix.reset()
         view.transformMatrixToGlobal(panelMatrix)
-        panelPoint[0] = view.width.toFloat()
+        panelPoint[0] = if (view.layoutDirection == View.LAYOUT_DIRECTION_RTL) 0f else view.width.toFloat()
         panelPoint[1] = view.height / 2f
         panelMatrix.mapPoints(panelPoint)
-        return panelPoint[0]
+        return DuoPanelPoint(panelPoint[0], panelPoint[1])
+    }
+
+    private fun screenVector(view: View, x: Float, y: Float): DuoPanelPoint {
+        panelMatrix.reset()
+        (view.parent as? View)?.transformMatrixToGlobal(panelMatrix)
+        panelPoint[0] = x; panelPoint[1] = y
+        panelMatrix.mapVectors(panelPoint)
+        return DuoPanelPoint(panelPoint[0], panelPoint[1])
+    }
+
+    private fun restoreProxyPosition(binding: Binding) {
+        binding.proxyRoot?.let { root ->
+            root.translationX = binding.proxyX.restore(root.translationX)
+            root.translationY = binding.proxyY.restore(root.translationY)
+        }
+        binding.proxyRoot = null
+    }
+
+    private fun positionProxy(binding: Binding, root: View, home: View, target: View, expandedRoot: View) {
+        if (binding.proxyRoot !== root) restoreProxyPosition(binding)
+        val translated = screenAnchor(target)
+        val translation = screenVector(expandedRoot, expandedRoot.translationX, expandedRoot.translationY)
+        val endpoint = DuoPanelPoint(translated.x - translation.x, translated.y - translation.y)
+        val stretch = screenVector(expandedRoot, 0f, -panelStretchHeight * (1f - panelProgress))
+        val desired = DuoPanelGeometry.position(screenAnchor(home), endpoint, panelProgress, stretch)
+        val actual = screenAnchor(binding.view)
+        panelMatrix.reset()
+        (root.parent as? View)?.transformMatrixToGlobal(panelMatrix)
+        if (!panelMatrix.invert(inversePanelMatrix)) { restoreProxyPosition(binding); return }
+        panelPoint[0] = desired.x - actual.x; panelPoint[1] = desired.y - actual.y
+        inversePanelMatrix.mapVectors(panelPoint)
+        binding.proxyRoot = root
+        root.translationX = binding.proxyX.apply(root.translationX, panelPoint[0])
+        root.translationY = binding.proxyY.apply(root.translationY, panelPoint[1])
+    }
+
+    private fun clearPanelMotion(binding: Binding) {
+        binding.panelMotion.clear()
+        binding.carrierTarget?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
+        binding.carrierTarget = null
+        if (binding.view.icon.hideNetwork) {
+            binding.view.icon.hideNetwork = false
+            binding.view.invalidate()
+        }
     }
 
     fun hasActiveProxy(root: View): Boolean = enabled && bindings.values.any {
@@ -467,38 +542,48 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun updatePanelBinding(binding: Binding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
-        fun clear() {
-            binding.panelMotion.clear()
-            if (binding.view.icon.hideNetwork) { binding.view.icon.hideNetwork = false; binding.view.invalidate() }
-        }
-        if (!binding.active) { clear(); return }
+        fun clearPosition() { clearPanelMotion(binding); restoreProxyPosition(binding) }
+        if (!binding.active || !panelVisible) { clearPosition(); return }
         val proxyRoot = ancestor(binding.view,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons") ?: return
+            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
+            ?: run { clearPosition(); return }
         val home = bindings.values.firstOrNull { it.active && it.surface == DuoSurface.HOME &&
             it.view.isLaidOut && it.view.display?.displayId == binding.view.display?.displayId }
         val expanded = bindings.values.firstOrNull { it.surface == DuoSurface.EXPANDED &&
             it.parent.rootView === binding.parent.rootView && ancestor(it.battery,
                 "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") != null }
-        if (home == null || expanded == null || binding.view.width <= 0) { clear(); return }
+        if (home == null || expanded == null || binding.view.width <= 0) { clearPosition(); return }
         val target = if (expanded.active) expanded.view else expanded.battery
-        if (!target.isLaidOut || target.width <= 0) { clear(); return }
+        if (!target.isLaidOut || target.width <= 0) { clearPosition(); return }
         val expandedRoot = ancestor(target,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") ?: return
-        val endpoint = screenRight(target) - expandedRoot.translationX
-        val desired = DuoPanelGeometry.mix(screenRight(home.view), endpoint, panelProgress)
-        // Correct measured endpoint error, including padding/old native-holder width. Reading the
-        // current transformed position makes this idempotent even when pre-draw runs twice.
-        proxyRoot.translationX += desired - screenRight(binding.view)
+            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
+            ?: run { clearPosition(); return }
+        positionProxy(binding, proxyRoot, home.view, target, expandedRoot)
         val content = binding.view.icon.content
-        if (expandedStyle == DuoExpandedStyle.KEEP_DUO || content == null || content.airplaneMode ||
-            panelProgress <= 0f || panelProgress >= 1f) { clear(); return }
-        // The carrier block owns its own destination. Do not create a second hand-over
-        // toward a native glyph that its container-local mask is suppressing.
-        if (ControlCenterCarrierBlockHooker.ownsNetworkContainer(expanded.icons)) { clear(); return }
-        val native = nativeNetworkView(expanded, content.wifiLevel != null)
+        if (content == null || content.airplaneMode || panelProgress <= 0f || panelProgress >= 1f) {
+            clearPanelMotion(binding); return
+        }
+        val wifi = content.wifiLevel != null
+        val destination = DuoPolicy.networkDestination(expandedStyle,
+            ControlCenterCarrierBlockHooker.ownsNetworkContainer(expanded.icons),
+            ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi))
+        val networkTarget = when (destination) {
+            DuoNetworkDestination.NONE -> null
+            DuoNetworkDestination.CARRIER -> ControlCenterCarrierBlockHooker.duoHandoverTarget(
+                expanded.icons, wifi, mobile.activeDataSubId)
+            DuoNetworkDestination.NATIVE -> nativeNetworkView(expanded, wifi)
+        }
         val root = proxyRoot.rootView as? ViewGroup
-        if (native == null || root == null) { clear(); return }
-        val hidden = binding.panelMotion.update(root, home.view, native, content,
+        if (networkTarget == null || root == null) { clearPanelMotion(binding); return }
+        val carrierTarget = networkTarget.takeIf { destination == DuoNetworkDestination.CARRIER }
+        if (binding.carrierTarget !== carrierTarget) clearPanelMotion(binding)
+        if (carrierTarget != null) {
+            if (!ControlCenterCarrierBlockHooker.acquireDuoTarget(carrierTarget, binding)) {
+                clearPanelMotion(binding); return
+            }
+            binding.carrierTarget = carrierTarget
+        }
+        val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
             binding.view.icon.foreground, panelProgress)
         if (binding.view.icon.hideNetwork != hidden) {
             binding.view.icon.hideNetwork = hidden
@@ -514,7 +599,7 @@ object DuoSignalHooker : StaticHooker() {
         for (i in 0 until group.childCount) {
             val child = group.getChildAt(i)
             if (child.isVisible && read(child, "subId") == mobile.activeDataSubId)
-                return byId(child, "mobile_type") ?: byId(child, "mobile_signal")
+                return byId(child, "mobile_type")
         }
         return null
     }
@@ -610,8 +695,8 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun restore(binding: Binding) {
-        binding.panelMotion.clear()
-        binding.view.icon.hideNetwork = false
+        clearPanelMotion(binding)
+        restoreProxyPosition(binding)
         binding.expiry?.let(main::removeCallbacks)
         binding.expiry = null
         binding.missingSince = -1L
@@ -764,6 +849,7 @@ object DuoSignalHooker : StaticHooker() {
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null
             mobile = MobileSignalState(); network = DuoNetwork()
+            panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
         }
     }
 }

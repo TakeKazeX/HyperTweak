@@ -398,6 +398,9 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 ccHideDate = pref(Preferences.KEY_CC_HIDE_DATE, false),
                 ccTwoLine = pref(Preferences.KEY_CC_CARRIER_TWO_LINE, false),
                 ccShowNonDataType = pref(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false),
+                ccShowBadge = pref(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true),
+                ccBadgeOne = pref(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
+                ccBadgeTwo = pref(Preferences.KEY_CC_CARRIER_BADGE_TWO, "2"),
                 onChange = { key, value -> changed(key, value) }
                         )
                         SlotsSection(
@@ -998,6 +1001,9 @@ private fun CarrierSection(
     ccHideDate: Boolean,
     ccTwoLine: Boolean,
     ccShowNonDataType: Boolean,
+    ccShowBadge: Boolean,
+    ccBadgeOne: String,
+    ccBadgeTwo: String,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_carrier_title))
@@ -1021,6 +1027,28 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_two_line_summary),
                 enabled = ccHideDate
             ) { onChange(Preferences.KEY_CC_CARRIER_TWO_LINE, it) }
+            TunerSwitch(
+                ccShowBadge,
+                stringResource(R.string.icon_cc_carrier_show_badge),
+                stringResource(R.string.icon_cc_carrier_show_badge_summary),
+                enabled = ccHideDate && ccTwoLine
+            ) { onChange(Preferences.KEY_CC_CARRIER_SHOW_BADGE, it) }
+            if (ccHideDate && ccTwoLine && ccShowBadge) {
+                TextField(
+                    value = ccBadgeOne,
+                    onValueChange = { onChange(Preferences.KEY_CC_CARRIER_BADGE_ONE, it) },
+                    label = stringResource(R.string.icon_cc_carrier_badge_one),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                TextField(
+                    value = ccBadgeTwo,
+                    onValueChange = { onChange(Preferences.KEY_CC_CARRIER_BADGE_TWO, it) },
+                    label = stringResource(R.string.icon_cc_carrier_badge_two),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
             TunerSwitch(
                 ccShowNonDataType,
                 stringResource(R.string.icon_cc_carrier_show_non_data_type),

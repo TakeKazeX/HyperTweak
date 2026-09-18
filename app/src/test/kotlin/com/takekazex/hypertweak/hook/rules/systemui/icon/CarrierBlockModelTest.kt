@@ -7,6 +7,43 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CarrierBlockModelTest {
+    @Test
+    fun labelsAreIndependentAndKeepUnicode() {
+        assertEquals("工作", CarrierBlockPolicy.badgeText(0, " 工作 "))
+        assertEquals("🌐 私人", CarrierBlockPolicy.badgeText(1, "🌐 私人"))
+        val labels = listOf("工作", "私人")
+        val reordered = resolve(dualSim(activeData = 202).reduce(MobileSignalEvent.Subscriptions(listOf(202, 101))))
+        assertEquals(listOf("工作", "私人"), reordered.map { CarrierBlockPolicy.badgeText(it.slot, labels[it.slot]) })
+    }
+
+    @Test
+    fun blankLabelsUseSlotDefaultsAndNeverContainNewlines() {
+        assertEquals("1", CarrierBlockPolicy.badgeText(0, " \n\t"))
+        assertEquals("2", CarrierBlockPolicy.badgeText(1, "\u0000"))
+        assertEquals("SIM 工作", CarrierBlockPolicy.badgeText(0, "SIM\n工作\u0000"))
+        assertEquals("1", CarrierBlockPolicy.badgeText(0, ""))
+    }
+
+    @Test
+    fun longBadgeLeavesRoomForCarrierAndDisabledBadgeCostsNothing() {
+        val width = CarrierBlockPolicy.badgeWidth(220, 200, 4, 52)
+        assertEquals(73, width)
+        assertEquals(143, CarrierBlockPolicy.textWidth(220, width + 4))
+        assertEquals(11, CarrierBlockPolicy.badgeWidth(220, 11, 4, 52))
+        assertEquals(0, CarrierBlockPolicy.badgeWidth(40, 60, 4, 52))
+        assertEquals(0, CarrierBlockPolicy.badgeWidth(220, 0, 4, 52))
+        assertEquals(220, CarrierBlockPolicy.textWidth(220, 0))
+    }
+
+    @Test
+    fun iconHeightUsesHostPixelsWhileTypeTextCanGrowWithFontScale() {
+        assertEquals(60, CarrierBlockPolicy.iconHeight(60, 3f))
+        assertEquals(60, CarrierBlockPolicy.iconHeight(null, 3f))
+        assertEquals(40, CarrierBlockPolicy.iconHeight(0, 2f))
+        assertEquals(60, CarrierBlockPolicy.typeHeight(60, 3f, 1f))
+        assertEquals(120, CarrierBlockPolicy.typeHeight(60, 3f, 2f))
+    }
+
     /** 卡一 = slot 0, 卡二 = slot 1; the test doubles for `SubscriptionManager.getSlotIndex`. */
     private val slots = mapOf(101 to 0, 202 to 1)
     private val slotOf: (Int) -> Int = { subId -> slots[subId] ?: CarrierBlockPolicy.INVALID_SLOT }

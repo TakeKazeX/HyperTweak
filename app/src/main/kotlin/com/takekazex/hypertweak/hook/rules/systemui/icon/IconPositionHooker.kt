@@ -35,8 +35,7 @@ object IconPositionHooker : StaticHooker() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
     private val containerStates = WeakHashMap<Any, ContainerState>()
-    private val duoContainers = WeakHashMap<Any, Set<String>>()
-    private val carrierContainers = WeakHashMap<Any, Set<String>>()
+    private val maskOwners = IconMaskOwners()
     private val duoSlots = setOf("mobile", "stacked_mobile", "wifi", "demo_wifi",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
@@ -62,8 +61,7 @@ object IconPositionHooker : StaticHooker() {
         }
         mainHandler.post {
             restoring = true
-            duoContainers.clear()
-            carrierContainers.clear()
+            maskOwners.clear()
             try {
                 pending.forEach { (container, hostIgnored) -> restoreIgnoredSlots(container, hostIgnored) }
             } finally {
@@ -221,10 +219,7 @@ object IconPositionHooker : StaticHooker() {
     }
 
     /** Slots currently owned by a module overlay on this container. */
-    private fun maskSlotsFor(container: Any): List<String> = buildList {
-        duoContainers[container]?.let(::addAll)
-        carrierContainers[container]?.let(::addAll)
-    }
+    private fun maskSlotsFor(container: Any): List<String> = maskOwners.slots(container)
 
     private fun surfaceFor(container: Any, incoming: List<*>): IconSurface {
         IconManagerHooker.surfaceFor(incoming)?.let { return it }
@@ -244,27 +239,26 @@ object IconPositionHooker : StaticHooker() {
         runCatching {
             val ignored = ignoredSlotsField?.get(container) as? MutableList<Any?> ?: return
             ignored.clear()
-            ignored.addAll(values)
-            maskSlotsFor(container).filterNot { it in ignored }.forEach(ignored::add)
+            ignored.addAll(maskOwners.merged(container, values))
         }.onFailure { DebugLog.w(TAG, "ignoredSlots restore failed", it) }
     }
 
     /** Independent, container-local owners; no shared visibility Flow is changed. */
     fun setDuoMask(container: Any, active: Boolean): Boolean =
-        setContainerMask(container, if (active) duoSlots else emptySet(), duoContainers)
+        setContainerMask(container, if (active) duoSlots else emptySet(), IconMaskOwners.Owner.DUO)
 
     internal fun setCarrierMask(container: Any, mask: CarrierMask): Boolean =
-        setContainerMask(container, mask.slots(), carrierContainers)
+        setContainerMask(container, mask.slots(), IconMaskOwners.Owner.CARRIER)
 
     private fun setContainerMask(
         container: Any,
         slots: Set<String>,
-        owners: WeakHashMap<Any, Set<String>>
+        owner: IconMaskOwners.Owner
     ): Boolean {
         if (Looper.myLooper() != Looper.getMainLooper()) return false
         return runCatching {
             val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
-            if (owners[container].orEmpty() == slots && slots.all { it in ignored }) {
+            if (maskOwners.owned(container, owner) == slots && slots.all { it in ignored }) {
                 hideNativeNetworkChildren(container)
                 return true
             }
@@ -273,7 +267,7 @@ object IconPositionHooker : StaticHooker() {
                     containerStates[container] = it
                 }
             }
-            if (slots.isEmpty()) owners.remove(container) else owners[container] = slots
+            maskOwners.set(container, owner, slots)
             val base = state.lastApplied ?: IconSlotPolicy.blockedFor(
                 surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy
             )
@@ -281,7 +275,7 @@ object IconPositionHooker : StaticHooker() {
             hideNativeNetworkChildren(container)
             (container as? android.view.View)?.requestLayout()
             val result = ignoredSlotsField?.get(container) as? List<*> ?: return false
-            result == (base + maskSlotsFor(container)).distinct()
+            result == maskOwners.merged(container, base)
         }.getOrElse {
             DebugLog.w(TAG, "container slot mask failed", it)
             false
