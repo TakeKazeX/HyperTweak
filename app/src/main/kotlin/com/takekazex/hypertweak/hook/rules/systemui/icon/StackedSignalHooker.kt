@@ -145,6 +145,17 @@ object StackedSignalHooker : StaticHooker() {
     @Volatile
     private var typeConfig = MobileTypeConfig()
 
+    /**
+     * Alpha crossfade for the module-owned type slot. A Wi-Fi hand-off must not collapse the slot:
+     * the host lays the icon row out from the trailing edge, so removing it shifts the signal icon
+     * sideways. See [BitmapAlphaFade].
+     */
+    private val typeFade = BitmapAlphaFade(mainHandler)
+
+    /** True once the type has faded out and given its box back, so a re-render keeps it collapsed. */
+    @Volatile
+    private var typeCollapsed = false
+
     /** All mutable reducer state is consumed on the main looper. */
     private var signalState = MobileSignalState()
 
@@ -220,6 +231,8 @@ object StackedSignalHooker : StaticHooker() {
         enabled = false
         hideMobileOnWifi = false
         adapterFlowsReady = false
+        typeFade.cancel()
+        typeCollapsed = false
 
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
         // thread-safe; pass every exposed Pair through its original value before unregistering the
@@ -813,7 +826,7 @@ object StackedSignalHooker : StaticHooker() {
         // completeness gate so a transient incomplete emission cannot flash the native icon back.
         if (hideMobileOnWifi && state.wifiConnected) {
             iconBridge?.removeOwned(SLOT_STACKED)
-            iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+            releaseTypeSlot(iconBridge)
             MobileSignalVisibility.setHiddenForSubIds(state.subscriptionOrder.toSet())
             return
         }
@@ -833,7 +846,7 @@ object StackedSignalHooker : StaticHooker() {
         // native rows masked. No automatic path takes this branch without a published bitmap.
         if (!customStackVisible()) {
             iconBridge?.removeOwned(SLOT_STACKED)
-            iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+            releaseTypeSlot(iconBridge)
             MobileSignalVisibility.setHiddenForSubIds(state.subscriptionOrder.toSet())
             return
         }
@@ -847,7 +860,7 @@ object StackedSignalHooker : StaticHooker() {
                 hasPublishedReplacement()
             ) {
                 iconBridge?.setVisible(SLOT_STACKED, false)
-                iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+                releaseTypeSlot(iconBridge)
                 MobileSignalVisibility.setHiddenForSubIds(emptySet())
                 return
             }
@@ -919,7 +932,8 @@ object StackedSignalHooker : StaticHooker() {
             bridge.removeOwned(SLOT_STACKED)
             return
         }
-        bridge.removeOwned(SLOT_STACKED_TYPE)
+        // The type slot is owned by `renderTypeSlot`; removing it here would cancel an in-flight
+        // fade and give the box back mid-transition.
         bridge.removeOwned(SLOT_SINGLE_SIM1)
         bridge.removeOwned(SLOT_SINGLE_SIM2)
         // This is the first point at which a complete replacement exists.
@@ -940,7 +954,13 @@ object StackedSignalHooker : StaticHooker() {
         state: MobileSignalState,
         signalConfig: IconSvgRenderConfig
     ): android.graphics.Bitmap? {
-        if (output.text.isBlank() || !MobileTypePolicy.showInternalBadge(state, typeConfig)) return null
+        // A badge is baked into the signal bitmap, so it cannot fade: a Wi-Fi suppression drops it
+        // outright, exactly like the separate type slot being faded out.
+        if (output.text.isBlank() || output.suppressed ||
+            !MobileTypePolicy.showInternalBadge(state, typeConfig)
+        ) {
+            return null
+        }
         val badgeConfig = typeConfig.safe().copy(
             textSizeSp = typeConfig.safe().badgeTextSizeSp,
             weight = typeConfig.safe().badgeWeight,
@@ -963,7 +983,7 @@ object StackedSignalHooker : StaticHooker() {
         if (!renderStacked) return
         MobileSignalVisibility.setHiddenForSubIds(emptySet())
         iconBridge?.removeOwned(SLOT_STACKED)
-        iconBridge?.removeOwned(SLOT_STACKED_TYPE)
+        releaseTypeSlot(iconBridge)
         iconBridge?.removeOwned(SLOT_SINGLE_SIM1)
         iconBridge?.removeOwned(SLOT_SINGLE_SIM2)
     }
@@ -1037,9 +1057,11 @@ object StackedSignalHooker : StaticHooker() {
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {
         val output = MobileTypePolicy.resolve(state, typeConfig)
         if (output.text.isBlank() || !typeSlotVisible()) {
-            bridge.removeOwned(SLOT_STACKED_TYPE)
+            releaseTypeSlot(bridge)
             return
         }
+        // Already faded away, and it must stay away: the slot was released so the row closes up.
+        if (output.suppressed && typeCollapsed) return
         val context = hostContext
         val config = typeConfig.safe()
         val iconHeight = renderIconHeight(context)
@@ -1053,12 +1075,47 @@ object StackedSignalHooker : StaticHooker() {
                 rtl = context?.resources?.configuration?.layoutDirection == android.util.LayoutDirection.RTL
             )
         }.onFailure { DebugLog.w(TAG, "mobile type render failed", it) }.getOrNull()
-        if (bitmap == null || !bridge.publish(SLOT_STACKED_TYPE, bitmap, output.text)) {
-            bridge.removeOwned(SLOT_STACKED_TYPE)
+        if (bitmap == null) {
+            releaseTypeSlot(bridge)
             return
         }
-        bridge.setVisible(SLOT_STACKED_TYPE, true)
+        val publish: (Float) -> Unit = { alpha ->
+            val frame = if (alpha >= 1f) bitmap else scaledAlphaBitmap(bitmap, alpha)
+            if (bridge.publish(SLOT_STACKED_TYPE, frame, output.text)) {
+                bridge.setVisible(SLOT_STACKED_TYPE, true)
+            }
+        }
+        if (output.suppressed) {
+            // Fade the glyph out with its box still held, then release the box: a hidden type leaves
+            // no empty gap. `bridge.owns` is false when it was already released.
+            if (bridge.owns(SLOT_STACKED_TYPE)) {
+                typeFade.animate(visible = false, apply = publish) {
+                    typeCollapsed = true
+                    bridge.removeOwned(SLOT_STACKED_TYPE)
+                }
+            } else {
+                typeCollapsed = true
+            }
+            return
+        }
+        typeCollapsed = false
+        if (bridge.owns(SLOT_STACKED_TYPE)) {
+            typeFade.animate(visible = true, apply = publish)
+        } else {
+            // Coming back: take the box transparent and ramp in, so the return is a fade rather
+            // than a pop. The slot is new to the host, so the first paint cannot animate.
+            typeFade.snap(visible = false, apply = publish)
+            typeFade.animate(visible = true, apply = publish)
+        }
         DebugLog.i(TAG, "cellular type published text=${output.text} bitmap=${bitmap.width}x${bitmap.height}")
+    }
+
+    /** Drops the type slot through the fade, so no queued frame can land on a removed holder. */
+    private fun releaseTypeSlot(bridge: HostIconBridge?) {
+        bridge ?: return
+        typeFade.cancel()
+        typeCollapsed = false
+        bridge.removeOwned(SLOT_STACKED_TYPE)
     }
 
     private fun typeSlotVisible(): Boolean {
@@ -1081,10 +1138,7 @@ object StackedSignalHooker : StaticHooker() {
             Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
             false
         ),
-        hideWhenWifiAvailable = Preferences.getBoolean(
-            Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI,
-            false
-        ),
+        hideWhenWifiAvailable = !Preferences.cellularTypeKeepsOnWifi(),
         showSingleBadge = Preferences.getBoolean(
             Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE,
             false

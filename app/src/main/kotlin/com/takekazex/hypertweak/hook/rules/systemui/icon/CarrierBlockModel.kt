@@ -15,7 +15,13 @@ data class CarrierRowModel(
     /** Network type text ("5G", "4G+…") for this row, or null when it should not be drawn. */
     val typeText: String? = null,
     /** Wi-Fi level 0..4; only the first row ever carries it. */
-    val wifiLevel: Int? = null
+    val wifiLevel: Int? = null,
+    /**
+     * Wi-Fi carries the data connection and the type is not wanted. The glyph is still rendered so
+     * its box keeps the row's width budget — the name must not grow and push the trailing glyphs
+     * sideways; only the alpha fades.
+     */
+    val typeSuppressed: Boolean = false
 ) {
     /** A row is drawn only when a subscription actually owns its slot. */
     val visible: Boolean get() = subId != null
@@ -28,7 +34,9 @@ data class CarrierRowModel(
 /** User choices that change only the row mapping, never the host data. */
 data class CarrierBlockConfig(
     /** Switch 4: draw the network type of the SIM that is not the default data line too. */
-    val showNonDataType: Boolean = false
+    val showNonDataType: Boolean = false,
+    /** 连接 WiFi 时依旧显示蜂窝类型: keep the type readable while Wi-Fi carries the data. */
+    val keepTypeOnWifi: Boolean = false
 )
 
 /**
@@ -77,7 +85,10 @@ object CarrierBlockPolicy {
             subId = subId,
             signalLevel = signalLevel,
             typeText = typeText,
-            wifiLevel = rowWifi
+            wifiLevel = rowWifi,
+            // Matches the host's own single type rule (`... && !wifiAvailable`) and the stacked
+            // slot's `hideWhenWifiAvailable`; the row keeps the glyph's width either way.
+            typeSuppressed = typeText != null && state.wifiConnected && !config.keepTypeOnWifi
         )
     }
 

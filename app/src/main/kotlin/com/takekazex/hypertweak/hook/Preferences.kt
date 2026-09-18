@@ -532,6 +532,20 @@ object Preferences {
     const val KEY_ICON_STACKED_PADDING_END = "icon_tuner_stacked_icon_padding_end"
     const val KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT = "icon_tuner_stacked_type_hide_disconnect"
     const val KEY_ICON_STACKED_TYPE_HIDE_WIFI = "icon_tuner_stacked_type_hide_wifi"
+
+    /**
+     * 连接 WiFi 时依旧显示蜂窝类型.
+     *
+     * The cellular type is hidden whenever Wi-Fi carries the data connection — the host's own
+     * `MiuiCellularIconVM.mobileTypeSingleVisible` already does that for the native single type
+     * (`showMobileDataTypeSingle && dataConnected && !wifiAvailable`), and the module's own type
+     * renderers (stacked type slot, two-line control-center carrier block) now follow it. This
+     * switch is the opt-out that keeps the type visible on Wi-Fi.
+     *
+     * [KEY_ICON_STACKED_TYPE_HIDE_WIFI] was the inverse, opt-in switch; it stays only as the
+     * migration source for [cellularTypeKeepsOnWifi].
+     */
+    const val KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI = "icon_tuner_cellular_type_keep_on_wifi"
     const val KEY_ICON_STACKED_TYPE_SHOW_SINGLE = "stacked_s_type_show_single"
     const val KEY_ICON_STACKED_TYPE_SHOW_STACKED = "stacked_s_type_show_stacked"
     const val KEY_ICON_STACKED_TYPE_ROAMING = "stacked_s_type_roaming"
@@ -1029,6 +1043,24 @@ object Preferences {
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+
+    /**
+     * Whether the module-rendered cellular type stays visible while Wi-Fi carries the data
+     * connection. Default off: Wi-Fi connected ⇒ no cellular type, matching the host's own single
+     * type rule.
+     *
+     * The legacy [KEY_ICON_STACKED_TYPE_HIDE_WIFI] switch meant the opposite and defaulted to
+     * showing the type. An explicit `false` there was the user turning the hiding *off*, so it
+     * migrates to "keep showing"; an absent or `true` value stays hidden. The new key always wins
+     * once the user touches the replacement switch.
+     */
+    fun cellularTypeKeepsOnWifi(): Boolean = when {
+        contains(KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI) ->
+            getBoolean(KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false)
+        contains(KEY_ICON_STACKED_TYPE_HIDE_WIFI) ->
+            !getBoolean(KEY_ICON_STACKED_TYPE_HIDE_WIFI, false)
+        else -> false
+    }
 
     fun contextualSearchLongPress(): Boolean = getBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
 

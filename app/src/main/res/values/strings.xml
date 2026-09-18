@@ -464,8 +464,8 @@
     <string name="icon_stacked_signal_style_summary">Stack both SIMs into one icon</string>
     <string name="icon_stacked_type_hide_disconnect">Hide Type When Data Is Disconnected</string>
     <string name="icon_stacked_type_hide_disconnect_summary">Hide the stacked type label while data is disconnected</string>
-    <string name="icon_stacked_type_hide_wifi">Hide Type When WiFi Is Available</string>
-    <string name="icon_stacked_type_hide_wifi_summary">Do not show the stacked type label while WiFi is available</string>
+    <string name="icon_stacked_type_keep_on_wifi">Keep the Cellular Type on WiFi</string>
+    <string name="icon_stacked_type_keep_on_wifi_summary">Show the cellular network type even while WiFi carries the data connection; off by default, and the type fades in and out in place instead of shifting the neighbouring icons</string>
     <string name="icon_stacked_type_single_badge">Show Type Badge on Single Signal</string>
     <string name="icon_stacked_type_single_badge_summary">Draw the network type inside the single-signal icon</string>
     <string name="icon_stacked_type_stacked_badge">Show Type Badge on Stacked Signal</string>

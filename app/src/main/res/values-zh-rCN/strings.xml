@@ -464,8 +464,8 @@
     <string name="icon_stacked_signal_style_summary">将两张 SIM 卡堆叠为一个图标</string>
     <string name="icon_stacked_type_hide_disconnect">断开数据时隐藏类型</string>
     <string name="icon_stacked_type_hide_disconnect_summary">数据断开时不显示堆叠类型文字</string>
-    <string name="icon_stacked_type_hide_wifi">有 WiFi 时隐藏类型</string>
-    <string name="icon_stacked_type_hide_wifi_summary">WiFi 可用时不显示堆叠类型文字</string>
+    <string name="icon_stacked_type_keep_on_wifi">连接 WiFi 时依旧显示蜂窝类型</string>
+    <string name="icon_stacked_type_keep_on_wifi_summary">WiFi 连接（承担数据）时仍然显示蜂窝网络类型；默认关闭，类型会在原位淡入淡出，不会挤动旁边的图标</string>
     <string name="icon_stacked_type_single_badge">单卡信号显示类型角标</string>
     <string name="icon_stacked_type_single_badge_summary">在单卡信号图标内显示网络类型</string>
     <string name="icon_stacked_type_stacked_badge">堆叠信号显示类型角标</string>

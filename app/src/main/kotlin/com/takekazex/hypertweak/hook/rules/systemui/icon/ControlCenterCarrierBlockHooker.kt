@@ -20,6 +20,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -67,6 +68,16 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private const val SIGNAL_ALPHA_ERROR = 0.2f
     private const val SIGNAL_SVG_STYLE_IOS = 1
 
+    /**
+     * Settle ramp for a hand-over the host finished in one step (fling / tap / programmatic open):
+     * ~145 ms of travel, short enough to be over while the panel is still settling.
+     */
+    private const val SETTLE_FRAMES = 6
+    private const val SETTLE_FRAME_MS = 24L
+
+    /** Below this remaining travel the glyph is already at its endpoint; no ramp is started. */
+    private const val SETTLE_MIN_DELTA = 0.05f
+
     private val main = Handler(Looper.getMainLooper())
     private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "HyperTweak-CarrierBlockAssets").apply { isDaemon = true }
@@ -95,6 +106,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
+    @Volatile private var keepTypeOnWifi = false
     private var showBadge = true
     private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
@@ -125,6 +137,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var progress = 0f
     private var panelVisible = false
 
+    /** Fraction the overlay last drew with, so a boundary call can finish the travel from there. */
+    private var handoverProgress = 0f
+    private var settleRamp: Runnable? = null
+
     private class Artwork(val single: IconSvgSnapshot, val wifi: IconSvgSnapshot)
 
     private class ViewState(view: View) {
@@ -143,7 +159,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val signal: ImageView,
         val badge: TextView,
         val wifi: ImageView,
-        val type: ImageView
+        val type: ImageView,
+        /** Fades the type glyph's bitmap so a Wi-Fi suppression keeps its box (see [BitmapAlphaFade]). */
+        val typeFade: BitmapAlphaFade
     ) {
         val rowState = ViewState(row)
         val textState = ViewState(carrierText)
@@ -162,6 +180,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         var model: CarrierRowModel? = null
         var cellularReady = false
         var wifiReady = false
+        var typeSuppressed = false
+
+        /** False until this row has published a type glyph once; the first paint never ramps. */
+        var typePainted = false
+
+        /** True once a suppressed type has faded out and given its box back (no standing gap). */
+        var typeCollapsed = false
     }
 
     private class Block(
@@ -215,6 +240,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false
+        cancelSettleRamp()
         wifiHandles.forEach { it.cancel() }
         wifiHandles.clear()
         wifiScope = null
@@ -254,6 +280,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
             false
         )
+        keepTypeOnWifi = Preferences.cellularTypeKeepsOnWifi()
         showBadge = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true)
         badgeTexts = listOf(
             Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
@@ -598,8 +625,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             rows.forEach { parts ->
                 parts.row.addView(parts.signal, 0)
                 parts.row.addView(parts.badge, 1)
-                parts.row.addView(parts.wifi)
+                // Order is part of the contract: the cellular type leads and Wi-Fi trails, the same
+                // order the status-icon row uses (`mobile` before `wifi`) in every state.
                 parts.row.addView(parts.type)
+                parts.row.addView(parts.wifi)
             }
             configureBlock(block)
             block.attachListener = object : View.OnAttachStateChangeListener {
@@ -640,7 +669,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             visibility = View.GONE
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, glyphView(context), glyphView(context)).also { parts ->
+        }, glyphView(context), glyphView(context), BitmapAlphaFade(main)).also { parts ->
             parts.showHd = readField(row, "showHdIcon") as? Boolean
             parts.hd = (readField(row, "hdText") as? View)?.let(::ViewState)
             parts.plus = (readField(row, "plusText") as? View)?.let(::ViewState)
@@ -732,12 +761,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.showHd?.let { field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, it) }
             (readField(parts.row, "hdText") as? View)?.let { parts.hd?.restore(it) }
             (readField(parts.row, "plusText") as? View)?.let { parts.plus?.restore(it) }
+            parts.typeFade.cancel()
+            parts.typePainted = false
+            parts.typeCollapsed = false
             listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach { it.visibility = View.GONE }
         }
         (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
     }
-
     private fun removeBlock(block: Block) {
+        cancelSettleRamp()
         stopObserving(block)
         block.attachListener?.let(block.layout::removeOnAttachStateChangeListener)
         releaseMask(block)
@@ -746,6 +778,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             rowIndex.remove(parts.row)
             duoTargets.remove(parts.wifi)
             duoTargets.remove(parts.type)
+            parts.typeFade.cancel()
             listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach(parts.row::removeView)
         }
     }
@@ -821,7 +854,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val rows = CarrierBlockPolicy.resolve(
             state = mobileState,
             wifiLevel = wifiLevel,
-            config = CarrierBlockConfig(showNonDataType = showNonDataType),
+            config = CarrierBlockConfig(
+                showNonDataType = showNonDataType,
+                keepTypeOnWifi = keepTypeOnWifi
+            ),
             slotOf = ::slotOf
         )
         blocks.values.toList().forEach { block ->
@@ -842,6 +878,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.signal.visibility = View.GONE
             parts.wifi.visibility = View.GONE
             parts.type.visibility = View.GONE
+            parts.typeFade.cancel()
+            parts.typeSuppressed = false
+            parts.typePainted = false
+            parts.typeCollapsed = false
             parts.wifiBitmap = null
             parts.typeBitmap = null
             return
@@ -895,14 +935,88 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
-        publish(parts.type, typeBitmap, tint)
-        parts.typeBitmap = typeBitmap
+        parts.typeSuppressed = model.typeSuppressed
+        publishType(parts, typeBitmap, tint, model.typeSuppressed)
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")
             append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
-            model.typeText?.let { append(", ").append(it) }
+            // A suppressed type is invisible; announcing it would contradict the glyph on screen.
+            if (!model.typeSuppressed) model.typeText?.let { append(", ").append(it) }
         }
+    }
+
+    /**
+     * Publishes the type glyph and fades it before its box changes.
+     *
+     * A Wi-Fi suppression must leave **no empty gap**, so the box is released once the glyph has
+     * faded out; a returning type takes its box back and fades in. Either way the trailing Wi-Fi
+     * glyph is compensated for the width jump and slides into place, because the row lays its
+     * trailing glyphs out after the name: an instant box change would make Wi-Fi jump sideways.
+     */
+    private fun publishType(parts: RowParts, bitmap: Bitmap?, tint: Int, suppressed: Boolean) {
+        if (bitmap == null || bitmap.isRecycled) {
+            parts.typeFade.cancel()
+            parts.typePainted = false
+            parts.typeCollapsed = false
+            parts.type.visibility = View.GONE
+            parts.typeBitmap = null
+            return
+        }
+        // Faded away and still suppressed: the box stays released, and re-rendering must not take it
+        // back (the box is what leaves the gap).
+        if (suppressed && parts.typeCollapsed) return
+        val wasCollapsed = parts.typeCollapsed
+        publish(parts.type, bitmap, tint)
+        parts.typeBitmap = bitmap
+        val params = parts.type.layoutParams as? LinearLayout.LayoutParams
+        val boxWidth = (params?.width ?: 0) + (params?.marginStart ?: 0)
+        val apply: (Float) -> Unit = { alpha ->
+            val frame = if (alpha >= 1f) bitmap else scaledAlphaBitmap(bitmap, alpha)
+            parts.type.setImageBitmap(frame)
+            parts.type.imageTintList = ColorStateList.valueOf(tint)
+        }
+        // Only a real box change moves the neighbours; a plain fade leaves the row alone.
+        val settle: (Boolean) -> Unit = { collapsed ->
+            parts.type.visibility = if (collapsed) View.GONE else View.VISIBLE
+            if (parts.typeCollapsed != collapsed) {
+                parts.typeCollapsed = collapsed
+                // Collapsing frees `boxWidth` for the trailing glyph (Wi-Fi slides left); taking the
+                // box back consumes it (Wi-Fi slides right). Offset first, then animate to zero.
+                slideTrailing(parts, if (collapsed) boxWidth else -boxWidth)
+            }
+        }
+        when {
+            // The box was given back while the glyph was invisible: take it at alpha 0 and ramp in,
+            // so the neighbours' slide and the glyph's fade are one motion.
+            wasCollapsed && !suppressed -> {
+                parts.typeCollapsed = false
+                parts.typeFade.snap(visible = false, apply = apply)
+                slideTrailing(parts, -boxWidth)
+                parts.typeFade.animate(visible = true, apply = apply)
+            }
+            parts.typePainted -> parts.typeFade.animate(visible = !suppressed, apply = apply) {
+                settle(suppressed)
+            }
+            // First paint of a freshly installed row: straight to the current state, no ramp and no
+            // slide — opening the shade must never flash a type that has to stay hidden.
+            else -> {
+                parts.typePainted = true
+                parts.typeFade.snap(visible = !suppressed, apply = apply)
+                parts.typeCollapsed = suppressed
+                parts.type.visibility = if (suppressed) View.GONE else View.VISIBLE
+            }
+        }
+    }
+
+    /** Offsets the trailing Wi-Fi glyph for a box change and slides it back to its real place. */
+    private fun slideTrailing(parts: RowParts, delta: Int) {
+        if (delta == 0 || parts.wifi.isGone) return
+        parts.wifi.animate().cancel()
+        parts.wifi.translationX = delta.toFloat()
+        parts.wifi.animate().translationX(0f)
+            .setDuration(BitmapAlphaFade.FADE_FRAMES * BitmapAlphaFade.FADE_FRAME_MS)
+            .start()
     }
 
     private fun publish(view: ImageView, bitmap: Bitmap?, tint: Int) {
@@ -999,11 +1113,85 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             return
         }
         val clamped = value.coerceIn(0f, 1f)
-        if (!enabled || clamped <= 0f || clamped >= 1f) {
+        if (!enabled) {
+            cancelSettleRamp()
             releaseHandover()
             return
         }
+        handoverProgress = clamped
+        if (clamped <= 0f || clamped >= 1f) {
+            // A quick open/close never reports an intermediate fraction. Finish a travel that has
+            // already drawn instead of teleporting the glyph between the two rows.
+            if (settleHandover(clamped)) return
+            releaseHandover()
+            return
+        }
+        cancelSettleRamp()
         if (artwork == null) { releaseHandover(); return }
+        drawHandover(clamped)
+    }
+
+    /**
+     * Finishes an interrupted travel on a short time ramp.
+     *
+     * The host's fraction is the only clock while the panel is dragged, but a fling or a tap opens
+     * it in one step: without this, `releaseHandover` runs before the overlay has moved and the
+     * Wi-Fi glyph jumps from the status cluster (by the battery) into the carrier label. Returns
+     * true when a ramp took over.
+     */
+    private fun settleHandover(target: Float): Boolean {
+        cancelSettleRamp()
+        val from = handoverProgress
+        if (abs(target - from) < SETTLE_MIN_DELTA || artwork == null) return false
+        // Only ramp a travel that can actually be drawn; otherwise the glyph has nothing to follow.
+        if (!handoverDrawable()) return false
+        val steps = fadeAlphas(from, target, SETTLE_FRAMES)
+        var index = 0
+        val runnable = object : Runnable {
+            override fun run() {
+                if (settleRamp !== this) return
+                if (!enabled) {
+                    settleRamp = null
+                    releaseHandover()
+                    return
+                }
+                val next = steps[index]
+                handoverProgress = next
+                index++
+                runCatching { drawHandover(next) }
+                    .onFailure { DebugLog.w(TAG, "carrier hand-over settle failed", it) }
+                if (index >= steps.size) {
+                    settleRamp = null
+                    releaseHandover()
+                } else {
+                    main.postDelayed(this, SETTLE_FRAME_MS)
+                }
+            }
+        }
+        settleRamp = runnable
+        main.postDelayed(runnable, SETTLE_FRAME_MS)
+        return true
+    }
+
+    private fun cancelSettleRamp() {
+        settleRamp?.let(main::removeCallbacks)
+        settleRamp = null
+    }
+
+    /** True when some row can draw the travel right now (a ready glyph with a resolvable source). */
+    private fun handoverDrawable(): Boolean = blocks.values.any { block ->
+        block.compact && block.layout.isShown && block.rows.any { parts ->
+            val wifi = parts.wifiReady && parts.wifiBitmap != null &&
+                sourceGlyph(block, wifi = true, subId = null) != null
+            val cellular = parts.model?.let { model ->
+                parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
+                    sourceGlyph(block, wifi = false, subId = model.subId) != null
+            } == true
+            wifi || cellular
+        }
+    }
+
+    private fun drawHandover(clamped: Float) {
         val used = HashSet<View>()
         val sources = HashSet<View>()
         for (block in blocks.values.toList()) {
@@ -1015,7 +1203,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 parts.wifiBitmap?.takeIf { parts.wifiReady }?.let { bitmap ->
                     entries += parts.wifi to (sourceGlyph(block, wifi = true, subId = null) to bitmap)
                 }
-                parts.typeBitmap?.takeIf { parts.cellularReady }?.let { bitmap ->
+                // A suppressed type stays out of the hand-over: its glyph is faded out on purpose,
+                // and the overlay would otherwise draw it at full alpha while the panel opens.
+                parts.typeBitmap?.takeIf { parts.cellularReady && !parts.typeSuppressed }?.let { bitmap ->
                     entries += parts.type to (sourceGlyph(block, wifi = false, subId = model.subId) to bitmap)
                 }
                 for ((target, glyph) in entries) {
@@ -1049,6 +1239,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun releaseHandover() {
+        // Not `cancelSettleRamp`: the ramp's last frame calls this, and clearing the reference is
+        // enough there. External releases call `cancelSettleRamp` before reaching here.
+        settleRamp = null
         motions.values.forEach(CarrierTypeMotion::clear)
         motions.clear()
         restoreEndpoints()
@@ -1068,14 +1261,28 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private fun sourceGlyph(block: Block, wifi: Boolean, subId: Int?): View? {
         if (fakeStatusBarId == 0) return null
         val header = block.layout.parent as? ViewGroup ?: return null
-        val fakeRow = header.findViewById<View>(fakeStatusBarId) as? ViewGroup ?: return null
-        if (!fakeRow.isAttachedToWindow) return null
-        if (com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
-                .hasActiveProxy(fakeRow)) return null
-        if (wifi) {
-            return fakeRow.findViewById<View>(wifiSignalId)?.takeIf(::isUsable)
+        // The fake row is the visible stand-in while the panel is dragged.
+        val fakeRow = header.findViewById<View>(fakeStatusBarId) as? ViewGroup
+        if (fakeRow != null && fakeRow.isAttachedToWindow &&
+            !com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+                .hasActiveProxy(fakeRow)
+        ) {
+            glyphIn(fakeRow, wifi, subId)?.let { return it }
         }
-        val group = mobileGroup(fakeRow, subId ?: return null) ?: return null
+        // At rest the fake row is gone and the real row owns the glyph, so this is the row a settle
+        // ramp has to travel from.
+        val realRow = if (statusBarId != 0) {
+            header.findViewById<View>(statusBarId) as? ViewGroup
+        } else {
+            null
+        }
+        if (realRow == null || !realRow.isAttachedToWindow) return null
+        return glyphIn(realRow, wifi, subId)
+    }
+
+    private fun glyphIn(row: ViewGroup, wifi: Boolean, subId: Int?): View? {
+        if (wifi) return row.findViewById<View>(wifiSignalId)?.takeIf(::isUsable)
+        val group = mobileGroup(row, subId ?: return null) ?: return null
         return group.findViewById<View>(mobileTypeId)?.takeIf(::isUsable)
     }
 
@@ -1094,8 +1301,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         return if (readInt(found, "subId") == subId) found else null
     }
 
+    /**
+     * A hand-over source is a geometric anchor, not something that has to be on screen: at rest the
+     * real control-center row's glyph is already masked (invisible) by the time the settle ramp runs,
+     * and its last frame is exactly where the travel has to start from.
+     */
     private fun isUsable(view: View): Boolean =
-        view.isAttachedToWindow && view.isVisible && view.width > 0 && view.height > 0
+        view.isAttachedToWindow && view.width > 0 && view.height > 0
 
     private fun suppressEndpoint(view: View, ready: Boolean) {
         val entry = endpointStates[view] ?: EndpointState(view).also { endpointStates[view] = it }

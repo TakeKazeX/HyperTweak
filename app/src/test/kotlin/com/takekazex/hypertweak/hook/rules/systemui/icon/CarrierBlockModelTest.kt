@@ -69,11 +69,15 @@ class CarrierBlockModelTest {
     private fun resolve(
         state: MobileSignalState,
         wifiLevel: Int? = null,
-        showNonDataType: Boolean = false
+        showNonDataType: Boolean = false,
+        keepTypeOnWifi: Boolean = false
     ) = CarrierBlockPolicy.resolve(
         state = state,
         wifiLevel = wifiLevel,
-        config = CarrierBlockConfig(showNonDataType = showNonDataType),
+        config = CarrierBlockConfig(
+            showNonDataType = showNonDataType,
+            keepTypeOnWifi = keepTypeOnWifi
+        ),
         slotOf = slotOf
     )
 
@@ -182,7 +186,22 @@ class CarrierBlockModelTest {
         val rows = resolve(state, wifiLevel = 4)
 
         assertEquals(4, rows[0].wifiLevel)
+        // The type keeps its text and its box (so the name's budget and the Wi-Fi glyph never move)
+        // but is suppressed unless 连接 WiFi 时依旧显示蜂窝类型 is on.
         assertEquals("5G", rows[0].typeText)
+        assertTrue(rows[0].typeSuppressed)
+
+        val kept = resolve(state, wifiLevel = 4, keepTypeOnWifi = true)
+        assertEquals("5G", kept[0].typeText)
+        assertFalse(kept[0].typeSuppressed)
+    }
+
+    @Test
+    fun cellularDefaultNeverSuppressesTheType() {
+        val rows = resolve(dualSim(activeData = 101))
+
+        assertEquals("5G", rows[0].typeText)
+        assertFalse(rows[0].typeSuppressed)
     }
 
     @Test

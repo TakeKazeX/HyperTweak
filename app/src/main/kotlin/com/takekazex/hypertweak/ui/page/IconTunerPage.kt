@@ -317,7 +317,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                                 Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
                                 false
                             ),
-                            hideWhenWifi = pref(Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI, false),
+                            keepTypeOnWifi = pref(
+                                Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
+                                false
+                            ),
                             showSingleBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE, false),
                             showStackedBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED, false),
                             showRoaming = pref(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, false),
@@ -451,7 +454,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
 private fun StackedSignalSection(
     enabled: Boolean,
     hideWhenDisconnected: Boolean,
-    hideWhenWifi: Boolean,
+    keepTypeOnWifi: Boolean,
     showSingleBadge: Boolean,
     showStackedBadge: Boolean,
     showRoaming: Boolean,
@@ -468,17 +471,19 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_signal_style),
                 stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
+            // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
+            // control-center carrier block's type glyph, which works without stacked signal.
+            TunerSwitch(
+                keepTypeOnWifi,
+                stringResource(R.string.icon_stacked_type_keep_on_wifi),
+                stringResource(R.string.icon_stacked_type_keep_on_wifi_summary)
+            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             if (enabled) {
                 TunerSwitch(
                     hideWhenDisconnected,
                     stringResource(R.string.icon_stacked_type_hide_disconnect),
                     stringResource(R.string.icon_stacked_type_hide_disconnect_summary)
                 ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
-                TunerSwitch(
-                    hideWhenWifi,
-                    stringResource(R.string.icon_stacked_type_hide_wifi),
-                    stringResource(R.string.icon_stacked_type_hide_wifi_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_HIDE_WIFI, it) }
                 TunerSwitch(
                     showSingleBadge,
                     stringResource(R.string.icon_stacked_type_single_badge),

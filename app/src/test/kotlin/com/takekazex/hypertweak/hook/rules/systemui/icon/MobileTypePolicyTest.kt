@@ -55,8 +55,22 @@ class MobileTypePolicyTest {
             "",
             MobileTypePolicy.resolve(
                 disconnected,
-                MobileTypeConfig(hideWhenWifiAvailable = true)
+                MobileTypeConfig(hideWhenDisconnected = true)
             ).text
+        )
+        // The Wi-Fi rule no longer drops the glyph: it suppresses it, so the renderer can keep the
+        // slot's width and fade the alpha — a collapsing slot shifts its neighbours sideways.
+        val suppressed = MobileTypePolicy.resolve(
+            disconnected,
+            MobileTypeConfig(hideWhenWifiAvailable = true)
+        )
+        assertEquals("LTE", suppressed.text)
+        assertTrue(suppressed.suppressed)
+
+        val wifiOff = state(listOf(1), 1, "LTE", connected = true, wifi = false)
+        assertFalse(
+            MobileTypePolicy.resolve(wifiOff, MobileTypeConfig(hideWhenWifiAvailable = true))
+                .suppressed
         )
     }
 

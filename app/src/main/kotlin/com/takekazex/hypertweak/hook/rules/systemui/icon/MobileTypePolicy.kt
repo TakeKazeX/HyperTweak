@@ -3,6 +3,10 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 /** Settings that affect only the network-type text rendered inside the icon slots. */
 data class MobileTypeConfig(
     val hideWhenDisconnected: Boolean = false,
+    /**
+     * Wi-Fi carries the data connection: the type is reported as [MobileTypeOutput.suppressed]
+     * instead of absent, so the renderer keeps its box and fades the alpha.
+     */
     val hideWhenWifiAvailable: Boolean = false,
     val showSingleBadge: Boolean = false,
     val showStackedBadge: Boolean = false,
@@ -36,7 +40,12 @@ data class MobileTypeConfig(
 data class MobileTypeOutput(
     val text: String,
     val isSingle: Boolean,
-    val isRoaming: Boolean
+    val isRoaming: Boolean,
+    /**
+     * The type exists but must not be *readable* right now (Wi-Fi carries the data connection).
+     * Renderers keep the glyph and its width so the slot does not collapse, and fade the alpha.
+     */
+    val suppressed: Boolean = false
 )
 
 /**
@@ -50,14 +59,17 @@ object MobileTypePolicy {
         val raw = active.networkType?.trim().orEmpty()
         if (raw.isEmpty()) return empty(state)
         if (safe.hideWhenDisconnected && active.dataConnected == false) return empty(state)
-        if (safe.hideWhenWifiAvailable && active.wifiAvailable == true) return empty(state)
+        // Wi-Fi carries the data connection: the type is suppressed rather than dropped, so the
+        // renderer can keep the glyph's box and fade it. `state.wifiConnected` is the same signal
+        // `icon_hide_mobile_on_wifi` uses and mirrors the host's own `!wifiAvailable` rule.
+        val suppressed = safe.hideWhenWifiAvailable && state.wifiConnected
         val roaming = active.roaming == true
         val text = if (safe.showRoamingPrefix && roaming && !raw.startsWith("R")) {
             "R$raw"
         } else {
             raw
         }
-        return MobileTypeOutput(text, state.subscriptionOrder.size == 1, roaming)
+        return MobileTypeOutput(text, state.subscriptionOrder.size == 1, roaming, suppressed)
     }
 
     fun showInternalBadge(state: MobileSignalState, config: MobileTypeConfig): Boolean = when {
