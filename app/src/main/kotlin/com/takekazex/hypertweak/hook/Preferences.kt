@@ -591,6 +591,18 @@ object Preferences {
     const val KEY_ICON_HIDE_LS_CARRIER_ONE = "systemui_ls_hide_carrier_one"
     const val KEY_ICON_HIDE_LS_CARRIER_TWO = "systemui_ls_hide_carrier_two"
 
+    // Control-center header carrier block (see `ControlCenterHeaderHooker` and
+    // `ControlCenterCarrierBlockHooker`):
+    //   KEY_CC_CARRIER_LEFT              — 开关 1: draw the carrier label on the leading edge.
+    //   KEY_CC_HIDE_DATE                 — 开关 2: hide the control center date; also the enabling
+    //                                      switch of 开关 3/4 (a disabled parent greys them out).
+    //   KEY_CC_CARRIER_TWO_LINE          — 开关 3: two rows, [signal] carrier [type/WiFi].
+    //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
+    const val KEY_CC_CARRIER_LEFT = "systemui_cc_carrier_left"
+    const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
+    const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
+    const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"
+
     // Force status-bar region sampling (light-bar samples the region behind the status bar so
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.

@@ -267,7 +267,8 @@ object StackedSignalHooker : StaticHooker() {
         options = IconTunerOptions.snapshot()
         renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
         hideMobileOnWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
-        enabled = renderStacked || DuoSignalHooker.requiresMobileState
+        enabled = renderStacked || DuoSignalHooker.requiresMobileState ||
+            ControlCenterCarrierBlockHooker.requiresMobileState
         typeConfig = readTypeConfig()
         if (!enabled) {
             DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
@@ -802,6 +803,7 @@ object StackedSignalHooker : StaticHooker() {
             state.subscriptionOrder.all { it in factoryViewModelIds } &&
             state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
         DuoSignalHooker.onMobileState(state, complete)
+        ControlCenterCarrierBlockHooker.onMobileState(state, complete)
         if (!renderStacked) {
             restoreNative()
             return

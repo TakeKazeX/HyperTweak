@@ -35,7 +35,8 @@ object IconPositionHooker : StaticHooker() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
     private val containerStates = WeakHashMap<Any, ContainerState>()
-    private val duoContainers = WeakHashMap<Any, Boolean>()
+    private val duoContainers = WeakHashMap<Any, Set<String>>()
+    private val carrierContainers = WeakHashMap<Any, Set<String>>()
     private val duoSlots = setOf("mobile", "stacked_mobile", "wifi", "demo_wifi",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
@@ -45,8 +46,8 @@ object IconPositionHooker : StaticHooker() {
     @Volatile
     private var restoring = false
 
-    private var mobileVisibleState: Method? = null
-    private var mobileViewClass: Class<*>? = null
+    private val networkVisibility = LinkedHashMap<Class<*>, Method>()
+    private val networkSlotFields = HashMap<Class<*>, Field?>()
     private var slotsField: Field? = null
     private var slotNameField: Field? = null
     private var ignoredSlotsField: Field? = null
@@ -62,6 +63,7 @@ object IconPositionHooker : StaticHooker() {
         mainHandler.post {
             restoring = true
             duoContainers.clear()
+            carrierContainers.clear()
             try {
                 pending.forEach { (container, hostIgnored) -> restoreIgnoredSlots(container, hostIgnored) }
             } finally {
@@ -76,17 +78,25 @@ object IconPositionHooker : StaticHooker() {
         options = IconTunerOptions.snapshot()
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
-        val mobileClass = "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView".toClassOrNull()
-        mobileViewClass = mobileClass
-        mobileVisibleState = mobileClass?.declaredMethods?.singleOrNull {
-            it.name == "setVisibleState" && it.parameterTypes.contentEquals(arrayOf(
-                Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
-        }?.apply { isAccessible = true }
-        mobileVisibleState?.let { method ->
+        networkVisibility.clear()
+        networkSlotFields.clear()
+        listOf(
+            "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView",
+            "com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView"
+        ).forEach { name ->
+            val type = name.toClassOrNull() ?: return@forEach
+            val method = type.declaredMethods.singleOrNull {
+                it.name == "setVisibleState" && it.parameterTypes.contentEquals(arrayOf(
+                    Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
+            }?.apply { isAccessible = true } ?: return@forEach
+            networkVisibility[type] = method
+            networkSlotFields[type] = findField(type, "slot")
             deoptimize(method)
             method.hook { before { param ->
                 val view = param.thisObject as? android.view.View ?: return@before
-                if (duoContainers[view.parent] == true) param.args[0] = 2
+                val container = view.parent ?: return@before
+                val slot = runCatching { networkSlotFields[type]?.get(view) as? String }.getOrNull()
+                if (slot != null && slot in maskSlotsFor(container)) param.args[0] = 2
             } }
         }
         DebugLog.i(TAG, "IconPosition hooks installed")
@@ -195,19 +205,25 @@ object IconPositionHooker : StaticHooker() {
         val incomingStrings = stableStrings(incoming)
         synchronized(stateLock) {
             val existing = containerStates[container]
-            val host = IconManagerHooker.pristineFor(incoming)
-                ?: if (existing != null && (existing.lastApplied == incomingStrings ||
-                    (duoContainers[container] == true &&
-                        ((existing.lastApplied.orEmpty() + duoSlots).distinct() == incomingStrings)))) {
-                    existing.hostIgnored
-                } else {
-                    incomingStrings
-                }
+            val host = IconManagerHooker.pristineFor(incoming) ?: run {
+                val masks = maskSlotsFor(container)
+                val echoedOurOwnList = existing != null &&
+                    (existing.lastApplied == incomingStrings ||
+                        (masks.isNotEmpty() &&
+                            (existing.lastApplied.orEmpty() + masks).distinct() == incomingStrings))
+                if (echoedOurOwnList) existing.hostIgnored else incomingStrings
+            }
             return (existing ?: ContainerState(host)).also {
                 it.hostIgnored = host
                 containerStates[container] = it
             }
         }
+    }
+
+    /** Slots currently owned by a module overlay on this container. */
+    private fun maskSlotsFor(container: Any): List<String> = buildList {
+        duoContainers[container]?.let(::addAll)
+        carrierContainers[container]?.let(::addAll)
     }
 
     private fun surfaceFor(container: Any, incoming: List<*>): IconSurface {
@@ -229,20 +245,27 @@ object IconPositionHooker : StaticHooker() {
             val ignored = ignoredSlotsField?.get(container) as? MutableList<Any?> ?: return
             ignored.clear()
             ignored.addAll(values)
-            if (duoContainers[container] == true) {
-                duoSlots.filterNot { it in ignored }.forEach(ignored::add)
-            }
+            maskSlotsFor(container).filterNot { it in ignored }.forEach(ignored::add)
         }.onFailure { DebugLog.w(TAG, "ignoredSlots restore failed", it) }
     }
 
-    /** Container-local overlay; never changes the shared mobile visibility Flow. Main-thread only. */
-    fun setDuoMask(container: Any, active: Boolean): Boolean {
+    /** Independent, container-local owners; no shared visibility Flow is changed. */
+    fun setDuoMask(container: Any, active: Boolean): Boolean =
+        setContainerMask(container, if (active) duoSlots else emptySet(), duoContainers)
+
+    internal fun setCarrierMask(container: Any, mask: CarrierMask): Boolean =
+        setContainerMask(container, mask.slots(), carrierContainers)
+
+    private fun setContainerMask(
+        container: Any,
+        slots: Set<String>,
+        owners: WeakHashMap<Any, Set<String>>
+    ): Boolean {
         if (Looper.myLooper() != Looper.getMainLooper()) return false
         return runCatching {
             val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
-            val wasActive = duoContainers[container] == true
-            if (wasActive == active && (!active || duoSlots.all { it in ignored })) {
-                if (active) hideNativeMobileChildren(container)
+            if (owners[container].orEmpty() == slots && slots.all { it in ignored }) {
+                hideNativeNetworkChildren(container)
                 return true
             }
             val state = synchronized(stateLock) {
@@ -250,29 +273,31 @@ object IconPositionHooker : StaticHooker() {
                     containerStates[container] = it
                 }
             }
-            if (active) duoContainers[container] = true else duoContainers.remove(container)
+            if (slots.isEmpty()) owners.remove(container) else owners[container] = slots
             val base = state.lastApplied ?: IconSlotPolicy.blockedFor(
                 surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy
             )
             restoreIgnoredSlots(container, base)
-            if (active) hideNativeMobileChildren(container)
+            hideNativeNetworkChildren(container)
             (container as? android.view.View)?.requestLayout()
             val result = ignoredSlotsField?.get(container) as? List<*> ?: return false
-            if (active) duoSlots.all { it in result } else result == base
+            result == (base + maskSlotsFor(container)).distinct()
         }.getOrElse {
-            DebugLog.w(TAG, "Duo container mask failed", it)
+            DebugLog.w(TAG, "container slot mask failed", it)
             false
         }
     }
 
-    /** Modern mobile has an independent binder/alpha path; ignoredSlots alone can leave it drawn. */
-    private fun hideNativeMobileChildren(container: Any) {
+    /** Modern mobile/Wi-Fi binders own visibility independently from ignoredSlots. */
+    private fun hideNativeNetworkChildren(container: Any) {
         val group = container as? android.view.ViewGroup ?: return
-        val type = mobileViewClass ?: return
-        val method = mobileVisibleState ?: return
+        val slots = maskSlotsFor(container)
+        if (slots.isEmpty()) return
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
-            if (type.isInstance(child)) method.invoke(child, 2, false)
+            val entry = networkVisibility.entries.firstOrNull { it.key.isInstance(child) } ?: continue
+            val slot = networkSlotFields[entry.key]?.get(child) as? String ?: continue
+            if (slot in slots) entry.value.invoke(child, 2, false)
         }
     }
 

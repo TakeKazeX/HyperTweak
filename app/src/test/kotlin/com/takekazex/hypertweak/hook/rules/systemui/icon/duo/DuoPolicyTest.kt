@@ -94,6 +94,15 @@ class DuoPolicyTest {
         assertFalse(DuoPolicy.replaces(DuoSurface.EXPANDED, DuoExpandedStyle.RESTORE_NATIVE))
     }
 
+    @Test fun carrierOwnershipYieldsOnlyTheExpandedDuoAndIsReversible() {
+        for (style in DuoExpandedStyle.entries) {
+            assertFalse(DuoPolicy.replaces(DuoSurface.EXPANDED, style, carrierOwnsNetwork = true))
+            assertTrue(DuoPolicy.replaces(DuoSurface.HOME, style, carrierOwnsNetwork = true))
+            assertTrue(DuoPolicy.replaces(DuoSurface.COLLAPSED_PROXY, style, carrierOwnsNetwork = true))
+        }
+        assertTrue(DuoPolicy.replaces(DuoSurface.EXPANDED, DuoExpandedStyle.KEEP_DUO, false))
+    }
+
     @Test fun noServiceAndZeroBarsAreDifferent() {
         val zero = mobile().reduce(MobileSignalEvent.SignalModel(11, MobileSignalModel.cellular(0, 5)))
         assertFalse(DuoPolicy.content(battery, zero, cellular)!!.noService)

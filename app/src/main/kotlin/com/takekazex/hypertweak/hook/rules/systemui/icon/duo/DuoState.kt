@@ -37,9 +37,13 @@ data class DuoContent(
 )
 
 object DuoPolicy {
-    fun replaces(surface: DuoSurface, expandedStyle: DuoExpandedStyle): Boolean = when (surface) {
+    fun replaces(
+        surface: DuoSurface,
+        expandedStyle: DuoExpandedStyle,
+        carrierOwnsNetwork: Boolean = false
+    ): Boolean = when (surface) {
         DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
-        DuoSurface.EXPANDED -> expandedStyle == DuoExpandedStyle.KEEP_DUO
+        DuoSurface.EXPANDED -> !carrierOwnsNetwork && expandedStyle == DuoExpandedStyle.KEEP_DUO
         DuoSurface.UNSUPPORTED -> false
     }
 

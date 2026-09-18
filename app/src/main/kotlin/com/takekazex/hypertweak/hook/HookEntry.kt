@@ -43,6 +43,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CompoundIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationMaxNumberHooker
@@ -507,6 +509,7 @@ class HookEntry : XposedModule() {
             ProxyLaunchHooker.register(appContext)
             ExtendUnlockHooker.syncTrustAgent(appContext)
             StackedSignalHooker.onPackageReady(appContext)
+            ControlCenterCarrierBlockHooker.onPackageReady(appContext)
             LeftContainerHooker.onPackageReady(appContext)
         }
         if (packageName == "com.google.android.gms") {
@@ -746,6 +749,8 @@ class HookEntry : XposedModule() {
                 attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CompoundIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ControlCenterHeaderHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ControlCenterCarrierBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationMaxNumberHooker, classLoader, ctx, replacementHandles)

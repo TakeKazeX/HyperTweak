@@ -478,6 +478,15 @@
     <string name="icon_hide_ls_carrier_two">锁屏隐藏第二个运营商</string>
     <string name="icon_hide_ls_carrier_two_summary">在锁屏头部隐藏第二个运营商标签</string>
     <string name="icon_carrier_title">运营商标签</string>
+    <string name="icon_cc_carrier_left">运营商标签靠左</string>
+    <string name="icon_cc_carrier_left_summary">原生单行运营商标签靠左；两行布局始终靠左</string>
+    <string name="icon_cc_hide_date">隐藏控制中心日期</string>
+    <string name="icon_cc_hide_date_summary">隐藏控制中心头部的日期；同时启用两行运营商标签</string>
+    <string name="icon_cc_carrier_two_line">运营商标签两行显示</string>
+    <string name="icon_cc_carrier_two_line_summary">每张卡紧凑排列信号、卡槽标识、运营商和网络指示；电池与首行对齐</string>
+    <string name="icon_cc_carrier_name_priority">两行模式下，紧凑控制中心始终显示双卡名称；此偏好仍适用于其他布局</string>
+    <string name="icon_cc_carrier_show_non_data_type">显示非上网卡类型</string>
+    <string name="icon_cc_carrier_show_non_data_type_summary">同时显示非默认数据卡的网络类型</string>
     <string name="icon_region_sampling">强制区域采样</string>
     <string name="icon_region_sampling_summary">让状态栏图标与背景随后方区域自适应</string>
     <string name="icon_hide_connected_wifi_icon">隐藏已连接 WiFi 图标</string>

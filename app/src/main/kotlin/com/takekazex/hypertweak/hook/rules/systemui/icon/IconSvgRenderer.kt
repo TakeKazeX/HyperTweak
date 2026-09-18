@@ -18,10 +18,11 @@ import kotlin.math.ceil
 import kotlin.math.max
 import org.xmlpull.v1.XmlPullParser
 
-/** SVG families supported by the cellular signal renderers. */
+/** SVG families supported by the cellular/Wi-Fi signal renderers. */
 enum class SvgKind {
     SINGLE_SIGNAL,
-    STACKED_SIGNAL
+    STACKED_SIGNAL,
+    WIFI
 }
 
 /** Rendering inputs that affect bitmap geometry or the white alpha mask. */
@@ -126,6 +127,9 @@ object IconSvgRenderer {
                     (1..4).forEach { level -> requireGraphic(ids, "signal_${row}_$level") }
                 }
             }
+            SvgKind.WIFI -> {
+                (1..3).forEach { segment -> requireGraphic(ids, "wifi_$segment") }
+            }
         }
         ids["type_container"]?.let { require(it == "rect") { "type_container must be a rect" } }
     }
@@ -147,6 +151,13 @@ object IconSvgRenderer {
         lowerLevel: Int,
         config: IconSvgRenderConfig
     ): Bitmap = render(document, SvgKind.STACKED_SIGNAL, listOf(upperLevel, lowerLevel), config)
+
+    /**
+     * Wi-Fi strength mask: the centre mark lights first, then the inner arc, then the outer arc.
+     * The host's normalised 0..4 level maps onto the artwork's three segments.
+     */
+    fun renderWifi(document: Document, level: Int, config: IconSvgRenderConfig): Bitmap =
+        render(document, SvgKind.WIFI, listOf(level), config)
 
     /** Renders a stacked mask and centers [badge] on the SVG's type-container anchor. */
     fun renderStackedWithBadge(
@@ -255,6 +266,9 @@ object IconSvgRenderer {
                 (1..4).forEach { level ->
                     result["signal_${row}_$level"] = segmentOpacity(levels[row - 1], level, config)
                 }
+            }
+            SvgKind.WIFI -> (1..3).forEach { segment ->
+                result["wifi_$segment"] = segmentOpacity(levels[0], segment, config)
             }
         }
         document.metadata.ids["type_container"]?.let { result["type_container"] = 0f }

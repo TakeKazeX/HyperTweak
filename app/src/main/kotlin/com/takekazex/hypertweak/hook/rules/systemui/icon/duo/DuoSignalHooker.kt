@@ -22,6 +22,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
+import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
@@ -345,7 +346,8 @@ object DuoSignalHooker : StaticHooker() {
             val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&
                 read(battery, "mIsAodAnimate") != true
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
-                !DuoPolicy.replaces(surface(battery), expandedStyle)) {
+                !DuoPolicy.replaces(surface(battery), expandedStyle,
+                    ControlCenterCarrierBlockHooker.ownsNetworkContainer(binding.icons))) {
                 restore(binding)
                 return
             }
@@ -458,6 +460,11 @@ object DuoSignalHooker : StaticHooker() {
         return panelPoint[0]
     }
 
+    fun hasActiveProxy(root: View): Boolean = enabled && bindings.values.any {
+        it.active && it.surface == DuoSurface.COLLAPSED_PROXY &&
+            ancestor(it.view, "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons") === root
+    }
+
     private fun updatePanelBinding(binding: Binding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
         fun clear() {
@@ -485,6 +492,9 @@ object DuoSignalHooker : StaticHooker() {
         val content = binding.view.icon.content
         if (expandedStyle == DuoExpandedStyle.KEEP_DUO || content == null || content.airplaneMode ||
             panelProgress <= 0f || panelProgress >= 1f) { clear(); return }
+        // The carrier block owns its own destination. Do not create a second hand-over
+        // toward a native glyph that its container-local mask is suppressing.
+        if (ControlCenterCarrierBlockHooker.ownsNetworkContainer(expanded.icons)) { clear(); return }
         val native = nativeNetworkView(expanded, content.wifiLevel != null)
         val root = proxyRoot.rootView as? ViewGroup
         if (native == null || root == null) { clear(); return }

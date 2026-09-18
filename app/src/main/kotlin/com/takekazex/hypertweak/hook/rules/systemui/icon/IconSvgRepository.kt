@@ -21,7 +21,10 @@ enum class IconSvgAsset(val fileName: String, val kind: SvgKind) {
     SIGNAL_IOS27_SINGLE("Signal-iOS27-Single.svg", SvgKind.SINGLE_SIGNAL),
     SIGNAL_HYPEROS3_STACKED("Signal-HyperOS3-Stacked.svg", SvgKind.STACKED_SIGNAL),
     SIGNAL_IOS26_STACKED("Signal-iOS26-Stacked.svg", SvgKind.STACKED_SIGNAL),
-    SIGNAL_IOS27_STACKED("Signal-iOS27-Stacked.svg", SvgKind.STACKED_SIGNAL)
+    SIGNAL_IOS27_STACKED("Signal-iOS27-Stacked.svg", SvgKind.STACKED_SIGNAL),
+
+    /** Wi-Fi artwork for the two-line control-center carrier block (same HyperOS 3 family). */
+    WIFI_HYPEROS3("Wifi-HyperOS3.svg", SvgKind.WIFI)
 }
 
 /** A validated source and its parsed renderer document. */
@@ -167,6 +170,9 @@ class IconSvgRepository(private val context: Context) {
         hostOpener = hostOpener
     )
 
+    /** The bundled HyperOS 3 Wi-Fi artwork used by the two-line carrier block. */
+    fun loadWifi(): Result<IconSvgSnapshot> = loadBuiltIn(IconSvgAsset.WIFI_HYPEROS3)
+
     private fun loadSignal(
         style: Int,
         kind: SvgKind,
@@ -242,6 +248,7 @@ class IconSvgRepository(private val context: Context) {
         when (snapshot.kind) {
             SvgKind.SINGLE_SIGNAL -> IconSvgRenderer.renderSingle(snapshot.document, levelA, config)
             SvgKind.STACKED_SIGNAL -> IconSvgRenderer.renderStacked(snapshot.document, levelA, levelB, config)
+            SvgKind.WIFI -> IconSvgRenderer.renderWifi(snapshot.document, levelA, config)
         }
     }
 

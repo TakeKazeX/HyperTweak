@@ -1,0 +1,1159 @@
+@file:Suppress("StaticFieldLeak")
+
+package com.takekazex.hypertweak.hook.rules.systemui.icon
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.ViewTreeObserver
+import android.os.Handler
+import android.os.Looper
+import android.telephony.SubscriptionManager
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HotReloadMode
+import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.DebugLog
+import java.lang.reflect.Field
+import java.util.IdentityHashMap
+import java.util.WeakHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+/**
+ * Compact control-center rows. The host still owns carrier names and the shared mobile reducer
+ * owns connectivity; only measurement, presentation and expanded-container masks are replaced.
+ */
+@SuppressLint("StaticFieldLeak")
+object ControlCenterCarrierBlockHooker : StaticHooker() {
+    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+
+    private const val TAG = "IconTuner"
+    private const val LAYOUT_CLASS = "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout"
+    private const val ROW_CLASS = "com.android.systemui.controlcenter.shade.ControlCenterCarrierText"
+    private const val STATUS_ICON_CONTAINER_CLASS =
+        "com.android.systemui.statusbar.views.MiuiStatusIconContainer"
+    private const val WIFI_VM_CLASS =
+        "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
+
+    /**
+     * The host's own expansion fraction, in resolution order. Both carry the same `float` the host
+     * uses to slide its rows, which makes it the hand-over's follow-finger signal.
+     */
+    private val EXPAND_CLASSES = listOf(
+        "com.miui.systemui.controlcenter.container.ControlCenterExpandControllerDelegate",
+        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1"
+    )
+
+    /** Fixed appearance, matching the stacked-signal slot: no user-facing knobs. */
+    private const val SIGNAL_ALPHA_FG = 1f
+    private const val SIGNAL_ALPHA_BG = 0.4f
+    private const val SIGNAL_ALPHA_ERROR = 0.2f
+    private const val SIGNAL_SVG_STYLE_IOS = 1
+
+    private val main = Handler(Looper.getMainLooper())
+    private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "HyperTweak-CarrierBlockAssets").apply { isDaemon = true }
+    }
+    private val generation = AtomicLong(0L)
+    private val installed = AtomicBoolean(false)
+    private val artLock = Any()
+
+    /** The type text bitmap uses the same renderer as the stacked/Duo type, one size smaller. */
+    private val typeConfig = MobileTypeConfig(
+        textSizeSp = 11f,
+        weight = 630,
+        singleWeight = 400,
+        paddingStartSp = 1f,
+        paddingEndSp = 1f
+    )
+
+    private val blocks = WeakHashMap<Any, Block>()
+    private val rowIndex = WeakHashMap<Any, RowParts>()
+    private val motions = IdentityHashMap<View, CarrierTypeMotion>()
+    private val endpointStates = IdentityHashMap<View, EndpointState>()
+    private val maskedContainers = WeakHashMap<Any, CarrierMask>()
+    private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
+    private val fieldCache = HashMap<Pair<Class<*>, String>, Field?>()
+
+    @Volatile private var enabled = false
+    @Volatile private var showNonDataType = false
+    @Volatile private var hostContext: Context? = null
+    @Volatile private var svgRepository: IconSvgRepository? = null
+    @Volatile private var artwork: Artwork? = null
+    @Volatile private var artGeneration = Long.MIN_VALUE
+    @Volatile private var artInFlight = Long.MIN_VALUE
+
+    private var wifiScope: Any? = null
+    private var wifiInteractor: Any? = null
+
+    private var carrierLayoutId = 0
+    private var fakeStatusBarId = 0
+    private var statusBarId = 0
+    private var wifiSignalId = 0
+    private var mobileGroupId = 0
+    private var mobileTypeId = 0
+
+    private var leftTextField: Field? = null
+    private var rightTextField: Field? = null
+    private var carrierTextField: Field? = null
+    private var separatorField: Field? = null
+    private var keyguardSeparatorField: Field? = null
+
+    /** All mutable view state is consumed on the main looper. */
+    private var mobileState = MobileSignalState()
+    private var wifiLevel: Int? = null
+    private var progress = 0f
+    private var panelVisible = false
+
+    private class Artwork(val single: IconSvgSnapshot, val wifi: IconSvgSnapshot)
+
+    private class ViewState(view: View) {
+        val params = (view.layoutParams as? LinearLayout.LayoutParams)?.let { LinearLayout.LayoutParams(it) }
+        val visibility = view.visibility
+        fun restore(view: View) {
+            params?.let { view.layoutParams = LinearLayout.LayoutParams(it) }
+            view.visibility = visibility
+        }
+    }
+
+    private class RowParts(
+        val slot: Int,
+        val row: LinearLayout,
+        val carrierText: TextView,
+        val signal: ImageView,
+        val badge: TextView,
+        val wifi: ImageView,
+        val type: ImageView
+    ) {
+        val rowState = ViewState(row)
+        val textState = ViewState(carrierText)
+        val gravity = row.gravity
+        val baselineAligned = row.isBaselineAligned
+        val textSize = carrierText.textSize
+        val maxWidth = carrierText.maxWidth
+        val ellipsize = carrierText.ellipsize
+        val fontPadding = carrierText.includeFontPadding
+        var showHd: Boolean? = null
+        var hd: ViewState? = null
+        var plus: ViewState? = null
+        var wifiBitmap: Bitmap? = null
+        var typeBitmap: Bitmap? = null
+        var model: CarrierRowModel? = null
+        var cellularReady = false
+        var wifiReady = false
+    }
+
+    private class Block(
+        val layout: LinearLayout,
+        val rows: List<RowParts>,
+        val separator: View?,
+        val keyguardSeparator: View?
+    ) {
+        val orientation = layout.orientation
+        val gravity = layout.gravity
+        val separatorState = separator?.let(::ViewState)
+        val keyguardSeparatorState = keyguardSeparator?.let(::ViewState)
+        var compact = false
+        var observer: ViewTreeObserver? = null
+        var preDraw: ViewTreeObserver.OnPreDrawListener? = null
+        var attachListener: View.OnAttachStateChangeListener? = null
+        var maskContainer: Any? = null
+    }
+
+    private class EndpointState(view: View) {
+        var savedAlpha: Float = view.alpha
+        var appliedAlpha: Float = view.alpha
+    }
+
+    /** Called by HookEntry once SystemUI's application context is available. */
+    fun onPackageReady(context: Context) {
+        hostContext = context
+        resolveIds()
+        val moduleContext = runCatching {
+            context.createPackageContext(
+                HostIconBridge.MODULE_PACKAGE,
+                Context.CONTEXT_IGNORE_SECURITY
+            )
+        }.getOrNull()
+        svgRepository = moduleContext?.let(::IconSvgRepository)
+        if (enabled) scheduleArtworkLoad(generation.get())
+    }
+
+    /**
+     * The shared reducer only needs to run while this feature, Duo or 堆叠 (signal) is on.
+     *
+     * Read straight from the preferences rather than from [enabled]: `HookEntry` attaches the
+     * hookers in registration order and [StackedSignalHooker] decides whether to build the shared
+     * pipeline before this object's `onHook()` has run.
+     */
+    val requiresMobileState: Boolean
+        get() = enabled ||
+            (Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
+                Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false))
+
+    override fun onPrepareHotReload() {
+        val token = generation.incrementAndGet()
+        enabled = false
+        wifiHandles.forEach { it.cancel() }
+        wifiHandles.clear()
+        wifiScope = null
+        wifiInteractor = null
+        wifiLevel = null
+        artwork = null
+        synchronized(artLock) {
+            artGeneration = Long.MIN_VALUE
+            artInFlight = Long.MIN_VALUE
+        }
+        // Finish host restoration before the lifecycle removes this generation's hooks.
+        onMainBlocking {
+            motions.values.forEach(CarrierTypeMotion::clear)
+            motions.clear()
+            restoreEndpoints()
+            maskedContainers.keys.toList().forEach { container ->
+                runCatching { IconPositionHooker.setCarrierMask(container, CarrierMask()) }
+            }
+            maskedContainers.clear()
+            blocks.values.toList().forEach(::removeBlock)
+            blocks.clear()
+            rowIndex.clear()
+            mobileState = MobileSignalState()
+            progress = 0f
+            panelVisible = false
+        }
+        installed.set(false)
+        if (generation.get() == token) artGeneration = Long.MIN_VALUE
+    }
+
+    override fun onHook() {
+        IconTunerFlows.init(classLoader)
+        val hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
+        val twoLine = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+        showNonDataType = Preferences.getBoolean(
+            Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
+            false
+        )
+        // 开关 2 is the enabling switch for 开关 3/4: without the hidden date the second row would
+        // overlap the date, and the settings page disables the dependent rows for the same reason.
+        enabled = hideDate && twoLine
+        if (!enabled) {
+            DebugLog.hookSkippedDebug(TAG, "CarrierBlock", "disabled")
+            return
+        }
+        if (!installed.compareAndSet(false, true)) return
+        generation.incrementAndGet()
+        resolveIds()
+        hookLayout()
+        hookRowMaxWidth()
+        hookExpansion()
+        hookWifi()
+        hostContext?.let { scheduleArtworkLoad(generation.get()) }
+        DebugLog.hookRegistered(TAG, "control-center two-line carrier block")
+    }
+
+    // ---------------------------------------------------------------- settings / ids
+
+    private fun resolveIds() {
+        val context = hostContext ?: return
+        val resources = context.resources
+        carrierLayoutId = id(resources, "normal_control_center_carrier_layout")
+        fakeStatusBarId = id(resources, "normal_fake_control_center_status_bar")
+        statusBarId = id(resources, "normal_control_center_status_bar")
+        wifiSignalId = id(resources, "wifi_signal")
+        mobileGroupId = id(resources, "mobile_group")
+        mobileTypeId = id(resources, "mobile_type")
+    }
+
+    private fun id(resources: android.content.res.Resources, name: String): Int =
+        runCatching { resources.getIdentifier(name, "id", "com.android.systemui") }
+            .getOrDefault(0)
+
+    // ---------------------------------------------------------------- hooks
+
+    private fun hookLayout() {
+        val layoutClass = LAYOUT_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, LAYOUT_CLASS, "class not found")
+            return
+        }
+        val rowClass = ROW_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ROW_CLASS, "class not found")
+            return
+        }
+        leftTextField = hierarchyField(layoutClass, "leftCarrierTextView")
+        rightTextField = hierarchyField(layoutClass, "rightCarrierTextView")
+        separatorField = hierarchyField(layoutClass, "carrierSeparatorView")
+        keyguardSeparatorField = hierarchyField(layoutClass, "carrierSeparatorText")
+        carrierTextField = hierarchyField(rowClass, "carrierTextView")
+        if (leftTextField == null || rightTextField == null || carrierTextField == null) {
+            DebugLog.hookSkipped(TAG, "$LAYOUT_CLASS fields", "carrier fields not found")
+            return
+        }
+        if (layoutClass.findMethodOrNull { name("onMeasure"); paramCount(2) } == null ||
+            layoutClass.findMethodOrNull { name("setCarrierMaxWidth"); paramCount(2) } == null ||
+            rowClass.findMethodOrNull { name("setMaxWidth"); paramCount(1) } == null) {
+            DebugLog.hookSkipped(TAG, "CarrierBlock", "measurement boundary unavailable")
+            return
+        }
+        layoutClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.let { method ->
+            method.hook { after { param ->
+                val layout = param.thisObject as? ViewGroup ?: return@after
+                if (enabled) runCatching { installBlock(layout) }
+                    .onFailure { DebugLog.w(TAG, "carrier attach failed", it) }
+            } }
+        }
+        layoutClass.hookAllConstructors {
+            after { param ->
+                val layout = param.thisObject as? ViewGroup ?: return@after
+                if (!enabled) return@after
+                runCatching { installBlock(layout) }
+                    .onFailure { DebugLog.w(TAG, "carrier block install failed", it) }
+            }
+        }
+        layoutClass.findMethodOrNull { name("onMeasure"); paramCount(2) }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    val block = blocks[param.thisObject] ?: return@before
+                    runCatching {
+                        configureBlock(block)
+                        if (block.compact) {
+                            val width = View.MeasureSpec.getSize(param.args[0] as Int)
+                            measureRows(block, width)
+                        }
+                    }.onFailure { DebugLog.w(TAG, "carrier row measurement failed", it) }
+                }
+                after { param ->
+                    val block = blocks[param.thisObject] ?: return@after
+                    if (block.compact) {
+                        block.separator?.visibility = View.GONE
+                        block.keyguardSeparator?.visibility = View.GONE
+                    }
+                }
+            }
+        }
+        // The horizontal host budget schedules a delayed setMaxWidth. Neither that budget nor
+        // its delayed write may overwrite the full-width vertical budget for an owned row.
+        layoutClass.findMethodOrNull { name("setCarrierMaxWidth"); paramCount(2) }?.let { method ->
+            deoptimize(method)
+            method.hook { before { param ->
+                if (ownsLayout(param.thisObject as? ViewGroup)) param.result = null
+            } }
+        }
+        val callback = "$ROW_CLASS\$mCarrierTextCallback\$1".toClassOrNull()
+        callback?.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                runCatching {
+                    val row = readField(param.thisObject, "this\$0") as? ViewGroup ?: return@runCatching
+                    if (!ownsRow(row)) return@runCatching
+                    rowIndex[row]?.let { parts ->
+                        parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+                    }
+                    scheduleRender()
+                }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }
+            } }
+        }
+        listOf("onMiuiThemeChanged", "onConfigChanged").forEach { methodName ->
+            layoutClass.findMethodOrNull { name(methodName); paramCount(1) }?.let { method ->
+                method.hook { after { param ->
+                    val block = blocks[param.thisObject] ?: return@after
+                    runCatching { configureBlock(block, restyle = true); scheduleRender() }
+                        .onFailure { DebugLog.w(TAG, "carrier configuration update failed", it) }
+                } }
+            }
+        }
+    }
+
+    private fun hookRowMaxWidth() {
+        val rowClass = ROW_CLASS.toClassOrNull() ?: return
+        rowClass.findMethodOrNull { name("setMaxWidth"); paramCount(1) }?.let { method ->
+            deoptimize(method)
+            method.hook { before { param ->
+                if (ownsRow(param.thisObject as? ViewGroup)) param.result = null
+            } }
+        }
+        rowClass.findMethodOrNull { name("onConfigurationChanged"); paramCount(1) }?.let { method ->
+            method.hook { after { param ->
+                val row = param.thisObject as? ViewGroup ?: return@after
+                val block = blocks[row.parent] ?: return@after
+                runCatching { configureBlock(block, restyle = true); scheduleRender() }
+                    .onFailure { DebugLog.w(TAG, "carrier row restyle failed", it) }
+            } }
+        }
+        rowClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
+            method.hook { after { param ->
+                if (ownsRow(param.thisObject as? ViewGroup)) runCatching {
+                    (readField(param.thisObject, "hdText") as? View)?.visibility = View.GONE
+                    (readField(param.thisObject, "plusText") as? View)?.visibility = View.GONE
+                }
+            } }
+        }
+    }
+
+    private fun hookExpansion() {
+        val source = EXPAND_CLASSES.firstNotNullOfOrNull { name ->
+            val type = name.toClassOrNull() ?: return@firstNotNullOfOrNull null
+            type.findMethodOrNull { name("onExpansionChanged"); paramCount(1) }?.let { method ->
+                deoptimize(method)
+                method.hook {
+                    after { param ->
+                        val value = (param.args.getOrNull(0) as? Number)?.toFloat() ?: return@after
+                        if (value < 0f || value > 1f) return@after
+                        onPanelProgress(value)
+                    }
+                }
+                type
+            }
+        } ?: return
+        // Visibility, rather than progress alone, tells us whether the panel was dismissed: the
+        // panel can rest at 0 while the finger is still down.
+        source.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.let { method ->
+            method.hook {
+                after { param ->
+                    val visible = param.args.getOrNull(0) as? Boolean ?: return@after
+                    panelVisible = visible
+                    if (!visible) progress = 0f
+                    applyHandoverGuarded(if (visible) progress else 0f)
+                }
+            }
+        }
+        source.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.let { method ->
+            method.hook {
+                after { param ->
+                    if (param.args.getOrNull(0) == true) panelVisible = true
+                    applyHandoverGuarded(if (panelVisible) progress else 0f)
+                }
+            }
+        }
+    }
+
+    /** Wi-Fi level for 卡一. The host VM constructor carries its own interactor and scope. */
+    private fun hookWifi() {
+        val vm = WIFI_VM_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, WIFI_VM_CLASS, "class not found")
+            return
+        }
+        vm.declaredConstructors.filter { ctor ->
+            ctor.parameterCount == 6 &&
+                ctor.parameterTypes[3].name.endsWith(".WifiInteractorImpl") &&
+                ctor.parameterTypes[4].name ==
+                IconTunerFlows.hostClassName("kotlinx.coroutines", "CoroutineScope")
+        }.forEach { ctor ->
+            ctor.hook {
+                after { param ->
+                    val interactor = param.args.getOrNull(3) ?: return@after
+                    val scope = param.args.getOrNull(4) ?: return@after
+                    val context = param.args.getOrNull(1) as? Context ?: return@after
+                    val token = generation.get()
+                    main.post {
+                        if (enabled && generation.get() == token) {
+                            runCatching { bindWifi(scope, interactor, context) }
+                                .onFailure { DebugLog.w(TAG, "carrier wifi binding failed", it) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- state
+
+    /** Called by [StackedSignalHooker] after every complete reducer emission. */
+    fun onMobileState(state: MobileSignalState, ready: Boolean) {
+        if (!enabled) return
+        val next = if (ready || state.airplaneMode) state else MobileSignalState()
+        if (mobileState == next) return
+        mobileState = next
+        scheduleRender()
+        main.post { applyHandoverGuarded(progress) }
+    }
+
+    private fun bindWifi(scope: Any, interactor: Any, context: Context) {
+        if (wifiInteractor === interactor && wifiHandles.isNotEmpty()) return
+        wifiHandles.forEach { it.cancel() }
+        wifiHandles.clear()
+        wifiScope = scope
+        wifiInteractor = interactor
+        wifiLevel = null
+        val token = generation.get()
+        val wifiMax = runCatching {
+            context.getSystemService(android.net.wifi.WifiManager::class.java)?.maxSignalLevel ?: 4
+        }.getOrDefault(4).coerceAtLeast(1)
+        val flow = readField(interactor, "wifiNetwork") ?: return
+        val handle = HostFlowCollector.collect(
+            scope = scope,
+            flow = flow,
+            consumer = { value -> reduceWifi(value, wifiMax, token) },
+            isCurrent = { enabled && generation.get() == token }
+        ) ?: run {
+            DebugLog.w(TAG, "carrier Wi-Fi level flow not collectable")
+            return
+        }
+        wifiHandles += handle
+        IconTunerFlows.readFlowValue(flow)?.let { initial ->
+            main.post { reduceWifi(initial, wifiMax, token) }
+        }
+    }
+
+    private fun reduceWifi(value: Any?, wifiMax: Int, token: Long) {
+        if (!enabled || generation.get() != token) return
+        val active = value?.javaClass?.name?.endsWith("WifiNetworkModel\$Active") == true
+        val next = if (active) {
+            (readInt(value, "level") ?: -1).takeIf { it in 0..wifiMax }
+                ?.let { (it * 4f / wifiMax).roundToInt().coerceIn(0, 4) }
+        } else {
+            null
+        }
+        if (next == wifiLevel) return
+        wifiLevel = next
+        scheduleRender()
+    }
+
+    // ---------------------------------------------------------------- view installation
+
+    fun ownsLayout(layout: ViewGroup?): Boolean = enabled && blocks[layout]?.compact == true
+
+    fun ownsRow(row: ViewGroup?): Boolean = row != null && rowIndex.containsKey(row) &&
+        ownsLayout(row.parent as? ViewGroup)
+
+    fun firstRowCenter(layout: ViewGroup): Int = blocks[layout]?.rows
+        ?.firstOrNull { it.row.visibility == View.VISIBLE }?.row?.let { it.top + it.measuredHeight / 2 } ?: 0
+
+    /** Duo asks about this exact expanded container, never a global signal preference. */
+    fun ownsNetworkContainer(container: Any): Boolean = maskedContainers[container]?.active == true
+
+    private fun installBlock(layout: ViewGroup) {
+        if (blocks.containsKey(layout)) return
+        if (carrierLayoutId == 0) resolveIds()
+        if (layout.id == 0 || layout.id != carrierLayoutId) return
+        val linear = layout as? LinearLayout ?: return
+        val left = leftTextField?.get(layout) as? LinearLayout ?: return
+        val right = rightTextField?.get(layout) as? LinearLayout ?: return
+        val rows = listOfNotNull(buildRow(left, 0), buildRow(right, 1))
+        if (rows.size != CarrierBlockPolicy.ROW_COUNT) return
+        val block = Block(linear, rows, separatorField?.get(layout) as? View,
+            keyguardSeparatorField?.get(layout) as? View)
+        blocks[layout] = block
+        rows.forEach { rowIndex[it.row] = it }
+        try {
+            rows.forEach { parts ->
+                parts.row.addView(parts.signal, 0)
+                parts.row.addView(parts.badge, 1)
+                parts.row.addView(parts.wifi)
+                parts.row.addView(parts.type)
+            }
+            configureBlock(block)
+            block.attachListener = object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) { observeBlock(block); scheduleRender() }
+                override fun onViewDetachedFromWindow(v: View) {
+                    stopObserving(block)
+                    releaseMask(block)
+                    releaseHandover()
+                    // Do not remove children during the host's detach traversal.
+                    main.post {
+                        if (!layout.isAttachedToWindow && blocks[layout] === block) {
+                            runCatching { removeBlock(block) }
+                                .onFailure { DebugLog.w(TAG, "carrier detach cleanup failed", it) }
+                            blocks.remove(layout)
+                        }
+                    }
+                }
+            }.also(layout::addOnAttachStateChangeListener)
+            if (layout.isAttachedToWindow) observeBlock(block)
+            scheduleRender()
+            DebugLog.i(TAG, "carrier block installed rows=${rows.size}")
+        } catch (error: Throwable) {
+            removeBlock(block)
+            blocks.remove(layout)
+            throw error
+        }
+    }
+
+    private fun buildRow(row: LinearLayout, slot: Int): RowParts? {
+        val text = carrierTextField?.get(row) as? TextView ?: return null
+        val context = row.context
+        return RowParts(slot, row, text, glyphView(context), TextView(context).apply {
+            this.text = (slot + 1).toString()
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            visibility = View.GONE
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, glyphView(context), glyphView(context)).also { parts ->
+            parts.showHd = readField(row, "showHdIcon") as? Boolean
+            parts.hd = (readField(row, "hdText") as? View)?.let(::ViewState)
+            parts.plus = (readField(row, "plusText") as? View)?.let(::ViewState)
+        }
+    }
+
+    private fun glyphView(context: Context): ImageView = ImageView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT)
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        visibility = View.GONE
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    private fun configureBlock(block: Block, restyle: Boolean = false) {
+        val compact = enabled && ControlCenterHeaderHooker.supportsCompactLayout(block.layout)
+        if (block.compact == compact && !restyle) return
+        block.compact = compact
+        if (!compact) {
+            restoreBlockStyle(block)
+            releaseMask(block)
+            releaseHandover()
+            return
+        }
+        block.layout.orientation = LinearLayout.VERTICAL
+        block.layout.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        collapse(block.separator)
+        collapse(block.keyguardSeparator)
+        // Cancel any horizontal budget queued before we acquired this layout.
+        val handler = readField(block.layout, "handler") as? Handler
+        val tasks = readField(block.layout, "pendingTasks") as? MutableMap<*, *>
+        tasks?.values?.filterIsInstance<Runnable>()?.forEach { handler?.removeCallbacks(it) }
+        tasks?.clear()
+        (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
+        block.rows.forEach { parts ->
+            val density = parts.row.resources.displayMetrics.density
+            val gap = (4 * density).roundToInt()
+            val icon = iconHeightPx(parts.row.context)
+            parts.row.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            parts.row.isBaselineAligned = false
+            parts.row.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = if (parts.slot == 0) 0 else (3 * density).roundToInt() }
+            parts.carrierText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            parts.carrierText.includeFontPadding = false
+            parts.carrierText.ellipsize = TextUtils.TruncateAt.END
+            parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+            parts.signal.layoutParams = LinearLayout.LayoutParams(icon, icon).apply { marginEnd = gap }
+            val badgeSize = (11 * density * parts.row.resources.configuration.fontScale).roundToInt()
+            parts.badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8f)
+            parts.badge.layoutParams = LinearLayout.LayoutParams(badgeSize, badgeSize).apply { marginEnd = gap }
+            listOf(parts.wifi, parts.type).forEach { view ->
+                view.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    icon).apply { marginStart = gap }
+            }
+            field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, false)
+            (readField(parts.row, "hdText") as? View)?.visibility = View.GONE
+            (readField(parts.row, "plusText") as? View)?.visibility = View.GONE
+        }
+    }
+
+    private fun collapse(view: View?) {
+        view ?: return
+        view.visibility = View.GONE
+        (view.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+            params.width = 0; params.height = 0
+            params.setMargins(0, 0, 0, 0); params.marginStart = 0; params.marginEnd = 0
+            view.layoutParams = params
+        }
+    }
+
+    private fun restoreBlockStyle(block: Block) {
+        block.layout.orientation = block.orientation
+        block.layout.gravity = block.gravity
+        block.separator?.let { block.separatorState?.restore(it) }
+        block.keyguardSeparator?.let { block.keyguardSeparatorState?.restore(it) }
+        block.rows.forEach { parts ->
+            parts.rowState.restore(parts.row)
+            parts.textState.restore(parts.carrierText)
+            if (Preferences.getBoolean(if (parts.slot == 0) Preferences.KEY_ICON_HIDE_CARRIER_ONE
+                    else Preferences.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
+            parts.row.gravity = parts.gravity
+            parts.row.isBaselineAligned = parts.baselineAligned
+            parts.carrierText.setTextSize(TypedValue.COMPLEX_UNIT_PX, parts.textSize)
+            parts.carrierText.maxWidth = parts.maxWidth
+            parts.carrierText.ellipsize = parts.ellipsize
+            parts.carrierText.includeFontPadding = parts.fontPadding
+            parts.showHd?.let { field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, it) }
+            (readField(parts.row, "hdText") as? View)?.let { parts.hd?.restore(it) }
+            (readField(parts.row, "plusText") as? View)?.let { parts.plus?.restore(it) }
+            listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach { it.visibility = View.GONE }
+        }
+        (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
+    }
+
+    private fun removeBlock(block: Block) {
+        stopObserving(block)
+        block.attachListener?.let(block.layout::removeOnAttachStateChangeListener)
+        releaseMask(block)
+        restoreBlockStyle(block)
+        block.rows.forEach { parts ->
+            rowIndex.remove(parts.row)
+            listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach(parts.row::removeView)
+        }
+    }
+
+    private fun measureRows(block: Block, width: Int) {
+        block.rows.forEach { parts ->
+            val fixed = listOf(parts.signal, parts.badge, parts.wifi, parts.type)
+                .filter { it.visibility != View.GONE }.sumOf { view ->
+                    view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    val lp = view.layoutParams as LinearLayout.LayoutParams
+                    (if (lp.width >= 0) lp.width else view.measuredWidth) + lp.marginStart + lp.marginEnd
+                }
+            val textParams = parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams
+            val padding = block.layout.paddingStart + block.layout.paddingEnd + parts.row.paddingStart +
+                parts.row.paddingEnd + (textParams?.marginStart ?: 0) + (textParams?.marginEnd ?: 0)
+            val max = CarrierBlockPolicy.textWidth(width, fixed + padding)
+            if (parts.carrierText.maxWidth != max) parts.carrierText.maxWidth = max
+        }
+    }
+
+    private fun observeBlock(block: Block) {
+        stopObserving(block)
+        block.observer = block.layout.viewTreeObserver
+        block.preDraw = ViewTreeObserver.OnPreDrawListener {
+            runCatching {
+                ControlCenterHeaderHooker.updateCarrierLayout(block.layout)
+                syncMask(block)
+                if (panelVisible && progress > 0f && progress < 1f) applyHandoverGuarded(progress)
+            }.onFailure { DebugLog.w(TAG, "carrier presentation update failed", it) }
+            true
+        }.also { block.observer?.addOnPreDrawListener(it) }
+    }
+
+    private fun stopObserving(block: Block) {
+        block.preDraw?.let { listener ->
+            block.observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
+        }
+        block.preDraw = null
+        block.observer = null
+    }
+
+    // ---------------------------------------------------------------- rendering
+
+    private fun scheduleRender() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            renderAll()
+        } else {
+            main.post { renderAll() }
+        }
+    }
+
+    private fun renderAll() {
+        if (blocks.isEmpty()) return
+        // A failed SVG read must not pin the block to "no artwork": the next state change retries.
+        if (artwork == null) scheduleArtworkLoad(generation.get())
+        val rows = CarrierBlockPolicy.resolve(
+            state = mobileState,
+            wifiLevel = wifiLevel,
+            config = CarrierBlockConfig(showNonDataType = showNonDataType),
+            slotOf = ::slotOf
+        )
+        blocks.values.toList().forEach { block ->
+            if (block.compact) block.rows.forEach { parts -> renderRow(parts, rows) }
+            else releaseMask(block)
+        }
+    }
+
+    private fun renderRow(parts: RowParts, rows: List<CarrierRowModel>) {
+        val art = artwork
+        val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
+        parts.model = model
+        parts.badge.visibility = if (art == null || model == null) View.GONE else View.VISIBLE
+        if (art == null || model == null) {
+            // Before reducer/artwork readiness the host label remains usable. An actually absent
+            // slot is hidden only when another subscription establishes a known row set.
+            parts.row.visibility = if (model == null && rows.any { it.visible }) View.GONE else parts.rowState.visibility
+            parts.signal.visibility = View.GONE
+            parts.wifi.visibility = View.GONE
+            parts.type.visibility = View.GONE
+            parts.wifiBitmap = null
+            parts.typeBitmap = null
+            return
+        }
+        parts.row.visibility = View.VISIBLE
+        val tint = runCatching { parts.carrierText.currentTextColor }.getOrDefault(0xFFFFFFFF.toInt())
+        parts.badge.setTextColor(tint)
+        val density = parts.row.resources.displayMetrics.density
+        parts.badge.background = GradientDrawable().apply {
+            cornerRadius = 2 * density
+            setStroke(density.roundToInt().coerceAtLeast(1), tint)
+        }
+        val context = parts.row.context
+        val densityDpi = context.resources.displayMetrics.densityDpi
+        val fontScale = context.resources.configuration.fontScale
+        val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+
+        // Signal strength: one single-signal glyph per card, so an enabled stacked icon is split
+        // back into the two rows instead of being merged.
+        val signalLevel = model.signalLevel
+        val signalBitmap = signalLevel?.let { level ->
+            runCatching {
+                IconSvgRenderer.renderSingle(art.single.document, level, renderConfig(context))
+            }.onFailure { DebugLog.w(TAG, "carrier signal render failed", it) }.getOrNull()
+        }
+        publish(parts.signal, signalBitmap, tint)
+
+        // Wi-Fi glyph on 卡一 only; the data type follows the active data SIM (开关 4: both rows).
+        val wifiBitmap = model.wifiLevel?.let { level ->
+            runCatching {
+                IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
+            }.onFailure { DebugLog.w(TAG, "carrier wifi render failed", it) }.getOrNull()
+        }
+        publish(parts.wifi, wifiBitmap, tint)
+        parts.wifiBitmap = wifiBitmap
+
+        val typeBitmap = model.typeText?.takeIf { it.isNotBlank() }?.let { text ->
+            runCatching {
+                MobileTypeRenderer.render(
+                    output = MobileTypeOutput(
+                        text = text,
+                        isSingle = mobileState.subscriptionOrder.size == 1,
+                        isRoaming = mobileState.subscriptions[model.subId]?.roaming == true
+                    ),
+                    config = typeConfig,
+                    iconHeightPx = iconHeightPx(context),
+                    densityDpi = densityDpi,
+                    fontScale = fontScale,
+                    rtl = rtl
+                )
+            }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
+        }
+        publish(parts.type, typeBitmap, tint)
+        parts.typeBitmap = typeBitmap
+        parts.row.contentDescription = buildString {
+            append(parts.slot + 1).append(", ").append(parts.carrierText.text)
+            model.signalLevel?.let { append(", ").append(it).append("/4") }
+            model.typeText?.let { append(", ").append(it) }
+        }
+    }
+
+    private fun publish(view: ImageView, bitmap: Bitmap?, tint: Int) {
+        if (bitmap == null || bitmap.isRecycled) {
+            view.visibility = View.GONE
+            return
+        }
+        view.setImageBitmap(bitmap)
+        // Bitmaps are already rendered in physical pixels. Avoid ImageView's intrinsic-density
+        // scaling enlarging the Wi-Fi/type glyph and consuming the name's width a second time.
+        val params = view.layoutParams
+        if (params.width != bitmap.width || params.height != bitmap.height) {
+            params.width = bitmap.width; params.height = bitmap.height
+            view.layoutParams = params
+        }
+        view.imageTintList = ColorStateList.valueOf(tint)
+        view.visibility = View.VISIBLE
+    }
+
+    private fun renderConfig(context: Context): IconSvgRenderConfig = IconSvgRenderConfig(
+        iconHeightPx = iconHeightPx(context).coerceIn(1, 512),
+        scale = 1f,
+        alphaFg = SIGNAL_ALPHA_FG,
+        alphaBg = SIGNAL_ALPHA_BG,
+        alphaError = SIGNAL_ALPHA_ERROR,
+        paddingStartPx = 0,
+        paddingEndPx = 0,
+        densityDpi = context.resources.displayMetrics.densityDpi,
+        fontScale = context.resources.configuration.fontScale,
+        configVersion = 3
+    )
+
+    private fun iconHeightPx(context: Context): Int =
+        (14f * context.resources.displayMetrics.density * context.resources.configuration.fontScale)
+            .roundToInt().coerceAtLeast(1)
+
+    private fun scheduleArtworkLoad(token: Long) {
+        if (!enabled || artwork != null || svgRepository == null) return
+        synchronized(artLock) {
+            if (artGeneration == token || artInFlight == token) return
+            artInFlight = token
+        }
+        assetExecutor.execute {
+            val loaded = runCatching {
+                val repository = svgRepository ?: return@runCatching null
+                val single = repository.loadSignalSingle(SIGNAL_SVG_STYLE_IOS).getOrNull()
+                    ?: return@runCatching null
+                val wifi = repository.loadWifi().getOrNull() ?: return@runCatching null
+                Artwork(single, wifi)
+            }.onFailure { DebugLog.w(TAG, "carrier artwork load failed", it) }.getOrNull()
+            main.post {
+                synchronized(artLock) {
+                    if (artInFlight == token) artInFlight = Long.MIN_VALUE
+                }
+                if (!enabled || generation.get() != token) return@post
+                if (loaded != null) {
+                    artwork = loaded
+                    artGeneration = token
+                    DebugLog.i(TAG, "carrier artwork ready")
+                    renderAll()
+                    applyHandoverGuarded(progress)
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- hand-over
+
+    private fun onPanelProgress(value: Float) {
+        progress = value.coerceIn(0f, 1f)
+        if (progress > 0f) panelVisible = true
+        applyHandoverGuarded(progress)
+    }
+
+    private fun applyHandoverGuarded(value: Float) {
+        runCatching { applyHandover(value) }
+            .onFailure { DebugLog.w(TAG, "carrier hand-over failed", it) }
+    }
+
+    /**
+     * Carries the trailing network glyph through the same hand-over as Duo's middle Wi-Fi layer:
+     * an overlay follows the host's expansion fraction from the collapsed status row into the label
+     * row, and the label's own glyph fades in during the last quarter. The collapsed copy is
+     * alpha-suppressed only after the overlay has produced a frame.
+     */
+    private fun applyHandover(value: Float) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { applyHandoverGuarded(value) }
+            return
+        }
+        val clamped = value.coerceIn(0f, 1f)
+        if (!enabled || clamped <= 0f || clamped >= 1f) {
+            releaseHandover()
+            return
+        }
+        if (artwork == null) { releaseHandover(); return }
+        val used = HashSet<View>()
+        val sources = HashSet<View>()
+        for (block in blocks.values.toList()) {
+            if (!block.compact || !block.layout.isShown) continue
+            for (parts in block.rows) {
+                val model = parts.model ?: continue
+                val tint = parts.carrierText.currentTextColor
+                val entries = ArrayList<Pair<ImageView, Pair<View?, Bitmap>>>(2)
+                parts.wifiBitmap?.takeIf { parts.wifiReady }?.let { bitmap ->
+                    entries += parts.wifi to (sourceGlyph(block, wifi = true, subId = null) to bitmap)
+                }
+                parts.typeBitmap?.takeIf { parts.cellularReady }?.let { bitmap ->
+                    entries += parts.type to (sourceGlyph(block, wifi = false, subId = model.subId) to bitmap)
+                }
+                for ((target, glyph) in entries) {
+                    val (source, bitmap) = glyph
+                    if (target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
+                    if (source == null) {
+                        motions.remove(target)?.clear()
+                        target.alpha = 1f
+                        continue
+                    }
+                    val root = target.rootView as? ViewGroup ?: continue
+                    val motion = motions[target] ?: CarrierTypeMotion().also { motions[target] = it }
+                    val ready = motion.update(root, source, target, bitmap, tint, clamped)
+                    used += target
+                    sources += source
+                    target.alpha = if (ready) CarrierHandover.destinationAlpha(clamped) else 1f
+                    suppressEndpoint(source, ready)
+                }
+            }
+        }
+        motions.entries.removeIf { (view, motion) ->
+            if (view in used) false else {
+                motion.clear()
+                val parts = rowIndex[view.parent]
+                view.alpha = if (parts != null &&
+                    (if (view === parts.type) parts.cellularReady else parts.wifiReady)) 1f else 0f
+                true
+            }
+        }
+        restoreEndpoints(sources)
+    }
+
+    private fun releaseHandover() {
+        motions.values.forEach(CarrierTypeMotion::clear)
+        motions.clear()
+        restoreEndpoints()
+        blocks.values.forEach { block ->
+            block.rows.forEach { parts ->
+                parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
+                parts.type.alpha = if (parts.cellularReady) 1f else 0f
+            }
+        }
+    }
+
+    /**
+     * The glyph the user is looking at while the panel is still closed: the collapsed mirror of the
+     * status bar inside the shade header (`ControlCenterFakeStatusIcons`), which carries the same
+     * bound icons as the home bar.
+     */
+    private fun sourceGlyph(block: Block, wifi: Boolean, subId: Int?): View? {
+        if (fakeStatusBarId == 0) return null
+        val header = block.layout.parent as? ViewGroup ?: return null
+        val fakeRow = header.findViewById<View>(fakeStatusBarId) as? ViewGroup ?: return null
+        if (!fakeRow.isAttachedToWindow) return null
+        if (com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+                .hasActiveProxy(fakeRow)) return null
+        if (wifi) {
+            return fakeRow.findViewById<View>(wifiSignalId)?.takeIf(::isUsable)
+        }
+        val group = mobileGroup(fakeRow, subId ?: return null) ?: return null
+        return group.findViewById<View>(mobileTypeId)?.takeIf(::isUsable)
+    }
+
+    private fun mobileGroup(root: ViewGroup, subId: Int): ViewGroup? {
+        // The status-icon container holds one holder view per subscription; the mobile holder is
+        // the one carrying that SIM's `subId` (the same boundary DuoSignalHooker reads).
+        val container = findStatusContainer(root) as? ViewGroup
+        if (container != null) {
+            for (index in 0 until container.childCount) {
+                val child = container.getChildAt(index) as? ViewGroup ?: continue
+                if (readInt(child, "subId") == subId) return child
+            }
+        }
+        if (mobileGroupId == 0) return null
+        val found = root.findViewById<View>(mobileGroupId) as? ViewGroup ?: return null
+        return if (readInt(found, "subId") == subId) found else null
+    }
+
+    private fun isUsable(view: View): Boolean =
+        view.isAttachedToWindow && view.isVisible && view.width > 0 && view.height > 0
+
+    private fun suppressEndpoint(view: View, ready: Boolean) {
+        val entry = endpointStates[view] ?: EndpointState(view).also { endpointStates[view] = it }
+        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
+        val alpha = if (ready) 0f else entry.savedAlpha
+        if (view.alpha != alpha) view.alpha = alpha
+        entry.appliedAlpha = alpha
+    }
+
+    private fun restoreEndpoints(retained: Set<View> = emptySet()) {
+        if (endpointStates.isEmpty()) return
+        val iterator = endpointStates.entries.iterator()
+        while (iterator.hasNext()) {
+            val (view, entry) = iterator.next()
+            if (view in retained) continue
+            if (abs(view.alpha - entry.appliedAlpha) < .001f) view.alpha = entry.savedAlpha
+            iterator.remove()
+        }
+    }
+
+    // ---------------------------------------------------------------- status row mask
+
+    private fun syncMask(block: Block) {
+        if (!block.compact || !block.layout.isAttachedToWindow || !block.layout.isShown) {
+            releaseMask(block)
+            return
+        }
+        val header = block.layout.parent as? ViewGroup ?: return
+        val row = header.findViewById<View>(statusBarId) as? ViewGroup ?: return
+        val container = findStatusContainer(row) ?: return
+        if (block.maskContainer !== container) releaseMask(block)
+        val models = block.rows.mapNotNull { it.model }
+        val cellular = CarrierBlockPolicy.replacesStatusSignal(models, mobileState.subscriptionOrder) && block.rows
+            .filter { it.model?.visible == true }.all {
+                it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null &&
+                    it.carrierText.isVisible && it.carrierText.width > 0 && !it.carrierText.text.isNullOrBlank()
+            }
+        val wifi = block.rows.any { it.wifi.isVisible && it.wifi.width > 0 && it.wifiBitmap != null }
+        val mask = CarrierMask(cellular, wifi)
+        val acquired = IconPositionHooker.setCarrierMask(container, mask)
+        if (acquired) {
+            block.maskContainer = container
+            if (mask.active) maskedContainers[container] = mask else maskedContainers.remove(container)
+        }
+        block.rows.forEach { parts ->
+            parts.cellularReady = acquired && cellular
+            parts.wifiReady = acquired && wifi
+            parts.signal.alpha = if (parts.cellularReady) 1f else 0f
+            // An in-flight overlay owns the type/Wi-Fi alpha until it is released.
+            if (parts.type !in motions) parts.type.alpha = if (parts.cellularReady) 1f else 0f
+            if (parts.wifi !in motions) parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
+        }
+    }
+
+    private fun releaseMask(block: Block) {
+        block.rows.forEach { parts ->
+            parts.cellularReady = false; parts.wifiReady = false
+            parts.signal.alpha = 0f; parts.type.alpha = 0f; parts.wifi.alpha = 0f
+        }
+        val container = block.maskContainer ?: return
+        IconPositionHooker.setCarrierMask(container, CarrierMask())
+        maskedContainers.remove(container)
+        block.maskContainer = null
+    }
+
+    private fun findStatusContainer(root: ViewGroup): Any? {
+        val queue = ArrayDeque<View>()
+        queue.add(root)
+        var guard = 0
+        while (queue.isNotEmpty() && guard++ < 512) {
+            val view = queue.removeFirst()
+            if (view.javaClass.name == STATUS_ICON_CONTAINER_CLASS) return view
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
+            }
+        }
+        return null
+    }
+
+    // ---------------------------------------------------------------- shared helpers
+
+    private fun slotOf(subId: Int): Int = runCatching {
+        SubscriptionManager.getSlotIndex(subId)
+    }.getOrDefault(CarrierBlockPolicy.INVALID_SLOT)
+
+    private fun readField(target: Any, name: String): Any? = runCatching {
+        field(target.javaClass, name)?.get(target)
+    }.getOrNull()
+
+    private fun readInt(target: Any?, name: String): Int? = runCatching {
+        val owner = target ?: return@runCatching null
+        val resolved = field(owner.javaClass, name) ?: return@runCatching null
+        val value = if (resolved.type == Int::class.javaPrimitiveType) {
+            resolved.getInt(owner)
+        } else {
+            resolved.get(owner)
+        }
+        (value as? Number)?.toInt()
+    }.getOrNull()
+
+    /** Cached hierarchy lookup: the hand-over path reads a mobile group's `subId` every frame. */
+    private fun field(clazz: Class<*>, name: String): Field? {
+        val key = clazz to name
+        if (fieldCache.containsKey(key)) return fieldCache[key]
+        var current: Class<*>? = clazz
+        var resolved: Field? = null
+        while (current != null && resolved == null) {
+            resolved = runCatching {
+                current.getDeclaredField(name).apply { isAccessible = true }
+            }.getOrNull()
+            current = current.superclass
+        }
+        fieldCache[key] = resolved
+        return resolved
+    }
+
+    private fun hierarchyField(clazz: Class<*>, name: String): Field? = field(clazz, name)
+
+    private fun <T> onMainBlocking(action: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) return action()
+        val latch = CountDownLatch(1)
+        var result: Result<T>? = null
+        main.post {
+            try {
+                result = runCatching(action)
+            } finally {
+                latch.countDown()
+            }
+        }
+        check(latch.await(5, TimeUnit.SECONDS)) { "carrier block main-thread cleanup timed out" }
+        return checkNotNull(result).getOrThrow()
+    }
+}

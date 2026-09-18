@@ -100,13 +100,15 @@ private fun TunerSwitch(
     checked: Boolean,
     title: String,
     summary: String,
+    enabled: Boolean = true,
     onChange: (Boolean) -> Unit
 ) {
     SwitchPreference(
         checked = checked,
         onCheckedChange = onChange,
         title = title,
-        summary = summary
+        summary = summary,
+        enabled = enabled
     )
 }
 
@@ -114,12 +116,14 @@ private fun TunerSwitch(
 private fun TunerSwitch(
     checked: Boolean,
     title: String,
+    enabled: Boolean = true,
     onChange: (Boolean) -> Unit
 ) {
     SwitchPreference(
         checked = checked,
         onCheckedChange = onChange,
-        title = title
+        title = title,
+        enabled = enabled
     )
 }
 
@@ -390,6 +394,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 hideHd = pref(Preferences.KEY_ICON_HIDE_CARRIER_HD, false),
                 hideLsOne = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
                 hideLsTwo = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
+                ccCarrierLeft = pref(Preferences.KEY_CC_CARRIER_LEFT, false),
+                ccHideDate = pref(Preferences.KEY_CC_HIDE_DATE, false),
+                ccTwoLine = pref(Preferences.KEY_CC_CARRIER_TWO_LINE, false),
+                ccShowNonDataType = pref(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false),
                 onChange = { key, value -> changed(key, value) }
                         )
                         SlotsSection(
@@ -986,20 +994,50 @@ private fun CarrierSection(
     hideHd: Boolean,
     hideLsOne: Boolean,
     hideLsTwo: Boolean,
+    ccCarrierLeft: Boolean,
+    ccHideDate: Boolean,
+    ccTwoLine: Boolean,
+    ccShowNonDataType: Boolean,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_carrier_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
+            // 开关 1: control-center carrier label on the leading edge.
+            TunerSwitch(
+                ccCarrierLeft,
+                stringResource(R.string.icon_cc_carrier_left),
+                stringResource(R.string.icon_cc_carrier_left_summary)
+            ) { onChange(Preferences.KEY_CC_CARRIER_LEFT, it) }
+            // 开关 2: hide the control-center date; it is also the enabling switch of 开关 3/4.
+            TunerSwitch(
+                ccHideDate,
+                stringResource(R.string.icon_cc_hide_date),
+                stringResource(R.string.icon_cc_hide_date_summary)
+            ) { onChange(Preferences.KEY_CC_HIDE_DATE, it) }
+            TunerSwitch(
+                ccTwoLine,
+                stringResource(R.string.icon_cc_carrier_two_line),
+                stringResource(R.string.icon_cc_carrier_two_line_summary),
+                enabled = ccHideDate
+            ) { onChange(Preferences.KEY_CC_CARRIER_TWO_LINE, it) }
+            TunerSwitch(
+                ccShowNonDataType,
+                stringResource(R.string.icon_cc_carrier_show_non_data_type),
+                stringResource(R.string.icon_cc_carrier_show_non_data_type_summary),
+                enabled = ccHideDate && ccTwoLine
+            ) { onChange(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, it) }
             TunerSwitch(
                 hideOne,
                 stringResource(R.string.icon_hide_carrier_one),
-                stringResource(R.string.icon_hide_carrier_one_summary)
+                stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
+                    else R.string.icon_hide_carrier_one_summary)
             ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_ONE, it) }
             TunerSwitch(
                 hideTwo,
                 stringResource(R.string.icon_hide_carrier_two),
-                stringResource(R.string.icon_hide_carrier_two_summary)
+                stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
+                    else R.string.icon_hide_carrier_two_summary)
             ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_TWO, it) }
             TunerSwitch(
                 hideHd,

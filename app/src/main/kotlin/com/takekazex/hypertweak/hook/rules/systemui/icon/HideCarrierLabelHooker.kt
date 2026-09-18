@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.view.View
+import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -167,6 +168,8 @@ object HideCarrierLabelHooker : StaticHooker() {
 
     private fun hideCarrierText(row: Any) {
         runCatching {
+            if (CarrierBlockPolicy.preserveCarrierName(
+                    ControlCenterCarrierBlockHooker.ownsRow(row as? ViewGroup), requestedHidden = true)) return
             val view = carrierTextViewField?.get(row) as? View ?: return
             view.visibility = View.GONE
         }.onFailure { t ->
