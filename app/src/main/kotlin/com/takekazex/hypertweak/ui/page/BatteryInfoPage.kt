@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.ui.page
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.SystemClock
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.util.BatteryInfoChannel
 import com.takekazex.hypertweak.util.BatteryInfoReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -64,6 +66,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 private const val REFRESH_MS = 1_000L
 
@@ -73,32 +76,46 @@ fun BatteryInfoPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
 
     var sections by remember { mutableStateOf<List<BatteryInfoReader.Section>>(emptyList()) }
-    var proxyReady by remember { mutableStateOf(true) }
+    var snapshotStatus by remember { mutableStateOf(BatteryInfoChannel.Status.MISSING) }
+    var loading by remember { mutableStateOf(true) }
 
     suspend fun load() {
-        val (result, ready) = withContext(Dispatchers.Default) {
-            val r = runCatching { BatteryInfoReader.read(context) }.getOrDefault(emptyList())
-            val rd = runCatching { BatteryInfoReader.hasPrivilegedSnapshot(context) }.getOrDefault(false)
-            r to rd
+        val result = withContext(Dispatchers.IO) {
+            runCatching { BatteryInfoReader.read(context) }.getOrDefault(
+                BatteryInfoReader.Reading(emptyList(), BatteryInfoChannel.Status.MISSING)
+            )
         }
-        sections = result
-        proxyReady = ready
+        sections = result.sections
+        snapshotStatus = result.status
     }
 
-    // Auto-refresh so live charging values stay current, but only while the page is actually in
-    // front of the user: the loop is both composition-scoped and gated on RESUMED, so a backgrounded
-    // app stops hitting the privileged snapshot instead of polling it once a second forever.
-    // A conflated channel also lets the manual refresh button cut the wait short without ever
-    // cancelling an in-flight read (a plain `LaunchedEffect(tick)` restarts the previous load and
-    // silently starves the page whenever a read takes longer than the interval).
+    // Basic values can update every second. Privileged reads are separately rate-limited and only
+    // requested here, while visible. There is no self-rescheduling producer in Security Center.
     val refreshRequests = remember { Channel<Unit>(Channel.CONFLATED) }
     val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value ==
         Lifecycle.State.RESUMED
-    LaunchedEffect(resumed) {
+    LaunchedEffect(resumed, context) {
         if (!resumed) return@LaunchedEffect
-        while (isActive) {
-            load()
-            withTimeoutOrNull(REFRESH_MS) { refreshRequests.receive() }
+        val session = UUID.randomUUID().toString()
+        val openedAt = SystemClock.elapsedRealtime()
+        var lastRequested: Long? = null
+        var manual = false
+        loading = true
+        try {
+            while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                val previous = lastRequested
+                if (manual || previous == null || now - previous >= BatteryInfoChannel.REQUEST_INTERVAL_MS) {
+                    runCatching { BatteryInfoChannel.request(context, session) }
+                    lastRequested = now
+                }
+                load()
+                loading = snapshotStatus == BatteryInfoChannel.Status.MISSING &&
+                    SystemClock.elapsedRealtime() - openedAt < 2_000
+                manual = withTimeoutOrNull(REFRESH_MS) { refreshRequests.receive() } != null
+            }
+        } finally {
+            runCatching { BatteryInfoChannel.request(context, session, stop = true) }
         }
     }
 
@@ -130,10 +147,14 @@ fun BatteryInfoPage(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            if (!proxyReady) {
+            if (loading || snapshotStatus != BatteryInfoChannel.Status.FRESH) {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     Text(
-                        text = stringResource(R.string.battery_info_proxy_hint),
+                        text = stringResource(when {
+                            loading -> R.string.battery_info_loading
+                            snapshotStatus == BatteryInfoChannel.Status.STALE -> R.string.battery_info_stale
+                            else -> R.string.battery_info_proxy_hint
+                        }),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions

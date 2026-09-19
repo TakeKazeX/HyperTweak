@@ -5,6 +5,10 @@
     <permission
         android:name="com.takekazex.hypertweak.permission.RESTART_SCOPE"
         android:protectionLevel="signature" />
+    <permission
+        android:name="com.takekazex.hypertweak.permission.BATTERY_INFO"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.takekazex.hypertweak.permission.BATTERY_INFO" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!--
       The receivers hooked into other processes register with this as their

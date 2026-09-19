@@ -856,9 +856,8 @@ class HookEntry : XposedModule() {
                 attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
-                // Only the package's main application process owns the battery snapshot
-                // publisher. Auxiliary Security Center processes are short-lived workers and do
-                // not need a second timer or a context retry window.
+                // Only the main application process owns the on-demand battery request receiver.
+                // Auxiliary Security Center processes must not start another sampling worker.
                 if (processName == packageName) {
                     attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
                 }

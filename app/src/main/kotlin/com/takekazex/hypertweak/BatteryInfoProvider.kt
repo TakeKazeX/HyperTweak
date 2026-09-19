@@ -13,9 +13,9 @@ import com.takekazex.hypertweak.util.BatteryInfoChannel
  * Holds the latest battery-info snapshot pushed by the privileged hooker(s).
  *
  * The provider runs in the module's own (main) process, so it keeps the snapshot in memory for as
- * long as the process lives. `com.miui.securitycenter` (system uid) calls [METHOD_SET] with the
- * formatted values; the settings UI queries [METHOD_GET] and renders them. A missing snapshot (the
- * security center never ran, or the process died) just returns an empty bundle and the page falls
+ * long as the process lives. On a foreground page request, `com.miui.securitycenter` (system uid)
+ * publishes formatted values and their actual sample times; the UI reads that immutable snapshot.
+ * A missing snapshot (Security Center never ran, or the process died) returns an empty bundle and falls
  * back to the always-available `BatteryManager`/sysfs tiers.
  *
  * Both directions are caller-checked, because `ContentProvider.call` is NOT covered by the
@@ -29,8 +29,6 @@ class BatteryInfoProvider : ContentProvider() {
 
     @Volatile
     private var snapshot = Bundle()
-    @Volatile
-    private var updatedAt = 0L
 
     override fun onCreate(): Boolean = true
 
@@ -38,15 +36,17 @@ class BatteryInfoProvider : ContentProvider() {
         when (method) {
             BatteryInfoChannel.METHOD_SET -> {
                 if (android.os.Binder.getCallingUid() != Process.SYSTEM_UID || extras == null) return null
+                val updatedAt = extras.getLong(BatteryInfoChannel.KEY_UPDATED_AT, -1)
+                if (updatedAt < 0 || updatedAt > SystemClock.elapsedRealtime() ||
+                    extras.getBundle(BatteryInfoChannel.KEY_SAMPLED_AT) == null ||
+                    extras.getBundle(BatteryInfoChannel.KEY_VALID_UNTIL) == null) return null
+                // One immutable publication: timestamps cannot come from a different sample.
                 snapshot = Bundle(extras)
-                updatedAt = SystemClock.elapsedRealtime()
                 return Bundle().apply { putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt) }
             }
             BatteryInfoChannel.METHOD_GET -> {
                 if (!isTrustedReader()) return null
-                val out = Bundle(snapshot)
-                out.putLong(BatteryInfoChannel.KEY_UPDATED_AT, updatedAt)
-                return out
+                return Bundle(snapshot)
             }
         }
         return null

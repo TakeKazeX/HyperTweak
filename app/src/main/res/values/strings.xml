@@ -253,6 +253,8 @@
     <string name="battery_info_back">Back</string>
     <string name="battery_info_refresh">Refresh</string>
     <string name="battery_info_copy">Copy</string>
+    <string name="battery_info_loading">Reading deep battery parameters…</string>
+    <string name="battery_info_stale">Some deep parameters are cached and may be out of date. Live basic values continue to update.</string>
     <string name="battery_info_proxy_hint">Deep battery parameters are read via the Security Center. Open it once, then refresh</string>
     <!-- battery-info page data labels &amp; values, localized by BatteryInfoReader -->
     <string name="battery_unavailable">Unavailable</string>

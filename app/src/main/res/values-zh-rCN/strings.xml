@@ -253,6 +253,8 @@
     <string name="battery_info_back">返回</string>
     <string name="battery_info_refresh">刷新</string>
     <string name="battery_info_copy">复制</string>
+    <string name="battery_info_loading">正在读取深度电池参数…</string>
+    <string name="battery_info_stale">部分深度参数为已过期缓存；基础实时数据仍正常更新。</string>
     <string name="battery_info_proxy_hint">深度电池参数需经由安全中心读取，请先打开一次安全中心再刷新</string>
     <!-- 电池信息页数据标签与取值，由 BatteryInfoReader 按语言本地化 -->
     <string name="battery_unavailable">不可用</string>

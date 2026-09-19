@@ -5,9 +5,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Bundle
+import android.os.SystemClock
 import com.takekazex.hypertweak.R
 import java.io.File
-import java.lang.reflect.Method
 import java.util.Locale
 
 /**
@@ -31,6 +31,7 @@ object BatteryInfoReader {
 
     data class Row(val label: String, val value: String)
     data class Section(val title: String, val rows: List<Row>)
+    data class Reading(val sections: List<Section>, val status: BatteryInfoChannel.Status)
 
     private const val BATTERY_SYSFS = "/sys/class/power_supply/battery"
     private const val THERMAL_SYSFS = "/sys/class/thermal/thermal_message"
@@ -43,10 +44,11 @@ object BatteryInfoReader {
 
     private fun snap(bundle: Bundle?, key: String): String? = bundle?.getString(key)
 
-    /** True when the privileged snapshot already carries at least one battery value. */
-    fun hasPrivilegedSnapshot(context: Context): Boolean {
-        val snap = readSnapshot(context) ?: return false
-        return snap.keySet().any { it != BatteryInfoChannel.KEY_UPDATED_AT }
+    private fun snapshotStatus(bundle: Bundle?): BatteryInfoChannel.Status {
+        if (bundle == null) return BatteryInfoChannel.Status.MISSING
+        val values = BatteryInfoChannel.slots.filterTo(mutableSetOf()) { !bundle.getString(it).isNullOrBlank() }
+        val until = bundle.getBundle(BatteryInfoChannel.KEY_VALID_UNTIL)
+        return BatteryInfoChannel.status(values, values.associateWith { until?.getLong(it) ?: 0L }, SystemClock.elapsedRealtime())
     }
 
     // ─── BatteryManager / broadcast ──────────────────────────────────────────
@@ -60,8 +62,7 @@ object BatteryInfoReader {
     private fun intProperty(context: Context, type: Int): Int? {
         val bm = batteryManager(context) ?: return null
         return runCatching {
-            val method = BatteryManager::class.java.getMethod("getIntProperty", Int::class.javaPrimitiveType)
-            val v = method.invoke(bm, type) as? Int
+            val v = bm.getIntProperty(type)
             if (v == Int.MIN_VALUE) null else v
         }.getOrNull()
     }
@@ -131,13 +132,10 @@ object BatteryInfoReader {
     // ─── public API ──────────────────────────────────────────────────────────
 
     /** Reads all supported battery parameters, groupable into sections for display. */
-    fun read(context: Context): List<Section> {
+    fun read(context: Context): Reading {
         val intent = sticky(context)
         val snap = readSnapshot(context)
-        val dual = snap(snap, BatteryInfoChannel.SLOT_BATTERY_NUM) == "1" ||
-            snap(snap, BatteryInfoChannel.SLOT_FG2_DESIGN) != null ||
-            snap(snap, BatteryInfoChannel.SLOT_FG2_SOH) != null ||
-            snap(snap, BatteryInfoChannel.SLOT_FG2_SOH_SN) != null
+        val dual = snap(snap, BatteryInfoChannel.SLOT_BATTERY_NUM) == "1"
         val sections = mutableListOf<Section>()
 
         // 基础信息 (always-available)
@@ -218,11 +216,11 @@ object BatteryInfoReader {
         }
         liveChargePower(context, intent, charging)
         charging += Row("${context.getString(R.string.battery_lbl_chg_type)} · charge_type", snap(snap, BatteryInfoChannel.SLOT_CHARGE_TYPE) ?: context.getString(R.string.battery_unavailable))
-        charging += Row("${context.getString(R.string.battery_lbl_ibat)} · ibat", snap(snap, BatteryInfoChannel.SLOT_IBAT) ?: context.getString(R.string.battery_unavailable))
+        charging += Row("${context.getString(R.string.battery_lbl_ibat)} · ibat", BatteryInfoChannel.ma(intProperty(context, BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)) ?: context.getString(R.string.battery_unavailable))
         charging += Row("${context.getString(R.string.battery_lbl_board_temp)} · board_temp", sysfsInt("$THERMAL_SYSFS/board_sensor_temp")?.let { "${it / 1000.0} °C" } ?: context.getString(R.string.battery_unavailable))
         sections += Section(context.getString(R.string.battery_sec_charging), charging)
 
-        return sections.filter { it.rows.isNotEmpty() }
+        return Reading(sections.filter { it.rows.isNotEmpty() }, snapshotStatus(snap))
     }
 
     private fun sysfsRaw(path: String): String? =
