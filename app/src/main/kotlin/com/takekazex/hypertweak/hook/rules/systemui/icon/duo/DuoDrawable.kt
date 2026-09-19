@@ -9,6 +9,7 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
 import kotlin.math.min
 
 /**
@@ -30,6 +31,7 @@ class DuoDrawable : Drawable() {
         typeface = Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), 800, false)
         textAlign = Paint.Align.CENTER
     }
+    private val networkSuffixPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val track = RectF()
     private var opacity = 255
@@ -38,6 +40,8 @@ class DuoDrawable : Drawable() {
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var networkOnly = false
     var hideNetwork = false
+    var small5GaEnabled = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     var content: DuoContent? = null
         set(value) { if (field != value) { field = value; invalidateSelf() } }
 
@@ -182,6 +186,35 @@ class DuoDrawable : Drawable() {
         paint.style = Paint.Style.FILL
         colorOf(foreground)
         paint.textSize = LABEL_TEXT_SIZE
+        val small5Ga = if (small5GaEnabled) {
+            MobileTypeLabelStyle.small5GaParts(label)
+        } else {
+            null
+        }
+        if (small5Ga != null) {
+            paint.textAlign = Paint.Align.LEFT
+            val suffixPaint = networkSuffixPaint.apply {
+                set(paint)
+                textSize = paint.textSize * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE
+            }
+            var baseWidth = paint.measureText(small5Ga.baseText)
+            var suffixWidth = suffixPaint.measureText(small5Ga.suffixText)
+            val width = baseWidth + suffixWidth
+            if (width > LABEL_MAX_WIDTH && width > 0f) {
+                val scale = LABEL_MAX_WIDTH / width
+                paint.textSize *= scale
+                suffixPaint.textSize *= scale
+                baseWidth = paint.measureText(small5Ga.baseText)
+                suffixWidth = suffixPaint.measureText(small5Ga.suffixText)
+            }
+            val metrics = paint.fontMetrics
+            val baseline = LABEL_CENTER_Y - (metrics.ascent + metrics.descent) / 2f
+            val left = CENTER - (baseWidth + suffixWidth) / 2f
+            canvas.drawText(small5Ga.baseText, left, baseline, paint)
+            canvas.drawText(small5Ga.suffixText, left + baseWidth, baseline, suffixPaint)
+            paint.textAlign = Paint.Align.CENTER
+            return
+        }
         val measured = paint.measureText(label)
         if (measured > LABEL_MAX_WIDTH && measured > 0f) {
             paint.textSize *= LABEL_MAX_WIDTH / measured

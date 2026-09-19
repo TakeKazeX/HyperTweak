@@ -537,6 +537,7 @@ object Preferences {
     const val KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL = "icon_tuner_cellular_type_single_size_val"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
+    const val KEY_ICON_CELLULAR_TYPE_SMALL_5GA = "icon_tuner_cellular_type_small_5ga"
     const val KEY_ICON_FONT_MOBILE_TYPE = "sb_font_mobile_type"
     const val KEY_ICON_FONT_MOBILE_TYPE_WEIGHT = "sb_font_mobile_type_weight"
     const val KEY_ICON_FONT_MOBILE_TYPE_SINGLE = "sb_font_mobile_type_single"

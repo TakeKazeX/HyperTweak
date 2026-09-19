@@ -69,7 +69,8 @@ internal data class StatusBarPreviewModel(
      * Whether the network type label (e.g. `5G`) draws left of the signal cluster. The ROM draws
      * the type inside the mobile view, left of the bars; Duo already carries the type in its glyph.
      */
-    val showNetworkType: Boolean
+    val showNetworkType: Boolean,
+    val small5GaEnabled: Boolean = false
 )
 
 /** Raw settings the preview reasons about; all values come from the page's live preference state. */
@@ -85,7 +86,8 @@ internal data class StatusBarPreviewInput(
     val duoSizeDp: Float,
     val hideMobileOnWifi: Boolean,
     val hideWifiConnected: Boolean,
-    val showCellularType: Boolean
+    val showCellularType: Boolean,
+    val small5GaEnabled: Boolean = false
 )
 
 /**
@@ -136,7 +138,8 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         indicatorSlots = indicators,
         coreSlots = core,
         duoSizeDp = DuoLayout.safeSizeDp(input.duoSizeDp),
-        showNetworkType = input.showCellularType && signal.isNotEmpty() && !input.duoEnabled
+        showNetworkType = input.showCellularType && signal.isNotEmpty() && !input.duoEnabled,
+        small5GaEnabled = input.small5GaEnabled
     )
 }
 

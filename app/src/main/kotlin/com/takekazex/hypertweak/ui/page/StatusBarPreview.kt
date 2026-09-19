@@ -26,9 +26,13 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDrawable
@@ -109,8 +113,20 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel) {
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (model.showNetworkType) {
+                val networkLabel = if (model.small5GaEnabled) {
+                    buildAnnotatedString {
+                        append("5G")
+                        withStyle(
+                            SpanStyle(
+                                fontSize = (NETWORK_TYPE_SP * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE).sp
+                            )
+                        ) { append("A") }
+                    }
+                } else {
+                    buildAnnotatedString { append(stringResource(R.string.icon_preview_network_type)) }
+                }
                 Text(
-                    text = stringResource(R.string.icon_preview_network_type),
+                    text = networkLabel,
                     color = MiuixTheme.colorScheme.onSurface,
                     fontSize = NETWORK_TYPE_SP.sp,
                     modifier = Modifier.padding(end = 2.dp)

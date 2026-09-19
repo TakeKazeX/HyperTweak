@@ -23,16 +23,21 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */
 @Composable
-internal fun DuoSignalPreview() {
+internal fun DuoSignalPreview(small5GaEnabled: Boolean = false) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
-    val icons = remember {
+    val icons = remember(small5GaEnabled) {
         listOf(
             DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
             DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false),
             DuoContent(DuoBattery(15, false, false), null, "4G", 2, false, false),
             DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false)
-        ).map { state -> DuoDrawable().apply { content = state } }
+        ).map { state ->
+            DuoDrawable().apply {
+                this.small5GaEnabled = small5GaEnabled
+                content = state
+            }
+        }
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).semantics { contentDescription = description }) {
         icons.forEach { drawable ->

@@ -1150,6 +1150,10 @@ object StackedSignalHooker : StaticHooker() {
         showRoamingPrefix = Preferences.getBoolean(
             Preferences.KEY_ICON_STACKED_TYPE_ROAMING,
             false
+        ),
+        small5GaEnabled = Preferences.getBoolean(
+            Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+            false
         )
     ).safe()
 

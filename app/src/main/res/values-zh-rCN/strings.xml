@@ -433,6 +433,8 @@
     <string name="icon_cellular_type_custom">自定义类型文字</string>
     <string name="icon_cellular_type_custom_summary">自定义 4G/5G 类型文字</string>
     <string name="icon_cellular_type_custom_val">类型文字</string>
+    <string name="icon_cellular_type_small_5ga">5GA 使用小号 A</string>
+    <string name="icon_cellular_type_small_5ga_summary">在原生蜂窝类型、独立类型和 Duo 三合一图标中缩小 5GA 末尾的 A</string>
     <string name="icon_cellular_type_single">始终显示类型</string>
     <string name="icon_cellular_type_single_summary">在信号图标上始终显示网络类型文字</string>
     <string name="icon_cellular_type_title">类型显示</string>

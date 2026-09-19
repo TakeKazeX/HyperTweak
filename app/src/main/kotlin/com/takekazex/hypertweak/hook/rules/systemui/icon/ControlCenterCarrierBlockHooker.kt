@@ -87,7 +87,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val artLock = Any()
 
     /** Use the regular network-type size, not the former compact 11sp variant. */
-    private val typeConfig = MobileTypeConfig(
+    @Volatile private var typeConfig = MobileTypeConfig(
         textSizeSp = 14f,
         weight = 630,
         singleWeight = 400,
@@ -274,6 +274,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
+        typeConfig = typeConfig.copy(
+            small5GaEnabled = Preferences.getBoolean(
+                Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+                false
+            )
+        )
         val hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
         val twoLine = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
         showNonDataType = Preferences.getBoolean(

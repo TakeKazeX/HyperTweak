@@ -433,6 +433,8 @@
     <string name="icon_cellular_type_custom">Custom Type Text</string>
     <string name="icon_cellular_type_custom_summary">Use custom 4G/5G type text</string>
     <string name="icon_cellular_type_custom_val">Type text</string>
+    <string name="icon_cellular_type_small_5ga">Smaller A in 5GA</string>
+    <string name="icon_cellular_type_small_5ga_summary">Render the trailing A smaller in native, independent, and Duo cellular type labels</string>
     <string name="icon_cellular_type_single">Show Single Type</string>
     <string name="icon_cellular_type_single_summary">Always show the network type text on the signal icon</string>
     <string name="icon_cellular_type_title">Type Display</string>

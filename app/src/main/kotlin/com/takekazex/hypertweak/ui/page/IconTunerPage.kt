@@ -236,7 +236,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
             ).toFloat(),
             hideMobileOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
             hideWifiConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
-            showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false)
+            showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false),
+            small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
         )
     )
 
@@ -300,6 +301,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                         DuoSignalSection(
                             enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
+                            small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                             sizeDp = pref(
                                 Preferences.KEY_ICON_DUO_SIZE,
                                 DuoLayout.DEFAULT_ICON_SIZE_DP
@@ -348,6 +350,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 singleSize = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL, 14f),
                 drawableFontEnabled = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE, false),
                 drawableWeight = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_WEIGHT, 660),
+                small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                 singleFontEnabled = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE, false),
                 singleWeight = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT, 400),
                 onChange = { key, value -> changed(key, value) }
@@ -875,6 +878,7 @@ private fun CellularTypeSection(
     singleSize: Float,
     drawableFontEnabled: Boolean,
     drawableWeight: Int,
+    small5GaEnabled: Boolean,
     singleFontEnabled: Boolean,
     singleWeight: Int,
     onChange: (String, Any) -> Unit
@@ -892,6 +896,11 @@ private fun CellularTypeSection(
                 stringResource(R.string.icon_cellular_type_custom),
                 stringResource(R.string.icon_cellular_type_custom_summary)
             ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, it) }
+            TunerSwitch(
+                small5GaEnabled,
+                stringResource(R.string.icon_cellular_type_small_5ga),
+                stringResource(R.string.icon_cellular_type_small_5ga_summary)
+            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, it) }
             if (useCustom) {
                 TextField(
                     value = customValue,
@@ -1195,9 +1204,15 @@ private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: I
 }
 
 @Composable
-private fun DuoSignalSection(enabled: Boolean, expanded: Int, sizeDp: Int, onChange: (String, Any) -> Unit) {
+private fun DuoSignalSection(
+    enabled: Boolean,
+    expanded: Int,
+    sizeDp: Int,
+    small5GaEnabled: Boolean,
+    onChange: (String, Any) -> Unit
+) {
     SmallTitle(stringResource(R.string.icon_duo_title))
-    DuoSignalPreview()
+    DuoSignalPreview(small5GaEnabled)
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),

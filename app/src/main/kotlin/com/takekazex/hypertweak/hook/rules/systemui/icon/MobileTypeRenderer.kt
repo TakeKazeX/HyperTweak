@@ -46,7 +46,8 @@ object MobileTypeRenderer {
             padStart,
             padEnd,
             safe.verticalOffsetSp * density,
-            rtl
+            rtl,
+            safe.small5GaEnabled
         ).joinToString("|")
         synchronized(cache) { cache.get(key)?.let { return it } }
 
@@ -71,20 +72,32 @@ object MobileTypeRenderer {
             textScaleX = textScale
             textAlign = if (rtl) Paint.Align.RIGHT else Paint.Align.LEFT
         }
-        val specialSuffix = if (useCondensed && output.text.length > 2 &&
+        val small5Ga = if (safe.small5GaEnabled) {
+            MobileTypeLabelStyle.small5GaParts(output.text)
+        } else {
+            null
+        }
+        val specialSuffix = if (small5Ga == null && useCondensed && output.text.length > 2 &&
             output.text in setOf("4G+", "5G+", "5GA")
         ) output.text.drop(2) else null
-        val plusPaint = TextPaint(paint).apply { textSize = textSizePx * 0.7f }
-        val hasDoublePlus = specialSuffix == null && output.text.endsWith("++")
+        val suffixPaint = TextPaint(paint).apply {
+            textSize = textSizePx * if (small5Ga != null) {
+                MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE
+            } else {
+                0.7f
+            }
+        }
+        val hasDoublePlus = small5Ga == null && specialSuffix == null && output.text.endsWith("++")
         val baseText = when {
+            small5Ga != null -> small5Ga.baseText
             specialSuffix != null -> output.text.take(2)
             hasDoublePlus -> output.text.dropLast(2)
             else -> output.text
         }
         val baseWidth = paint.measureText(baseText)
-        val suffixText = specialSuffix ?: if (hasDoublePlus) "++" else ""
-        val plusWidth = if (suffixText.isNotEmpty()) plusPaint.measureText(suffixText) else 0f
-        val contentWidth = ceil(baseWidth + plusWidth).toInt().coerceAtLeast(1)
+        val suffixText = small5Ga?.suffixText ?: specialSuffix ?: if (hasDoublePlus) "++" else ""
+        val suffixWidth = if (suffixText.isNotEmpty()) suffixPaint.measureText(suffixText) else 0f
+        val contentWidth = ceil(baseWidth + suffixWidth).toInt().coerceAtLeast(1)
         val width = ceil((padStart + contentWidth + padEnd).toDouble())
             .toInt()
             .coerceIn(1, 2048)
@@ -97,8 +110,8 @@ object MobileTypeRenderer {
         val baseX = if (rtl) width - padEnd else padStart
         canvas.drawText(baseText, baseX, baseline, paint)
         if (suffixText.isNotEmpty()) {
-            val plusX = if (rtl) baseX - baseWidth else baseX + baseWidth
-            canvas.drawText(suffixText, plusX, baseline, plusPaint)
+            val suffixX = if (rtl) baseX - baseWidth else baseX + baseWidth
+            canvas.drawText(suffixText, suffixX, baseline, suffixPaint)
         }
         synchronized(cache) { cache.put(key, bitmap) }
         return bitmap

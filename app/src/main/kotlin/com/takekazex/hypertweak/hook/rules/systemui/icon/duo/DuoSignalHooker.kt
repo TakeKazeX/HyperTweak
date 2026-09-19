@@ -56,6 +56,7 @@ object DuoSignalHooker : StaticHooker() {
     private var panelStretchHeight = 0f
     private var expandedStyle = DuoExpandedStyle.RESTORE_NATIVE
     private var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
+    @Volatile private var small5GaEnabled = false
     private var mobile = MobileSignalState()
     private var network = DuoNetwork()
     private var connectivity: ConnectivityManager? = null
@@ -109,7 +110,9 @@ object DuoSignalHooker : StaticHooker() {
         private var blend = 1f
         private var animator: ValueAnimator? = null
 
-        fun submit(content: DuoContent) {
+        fun submit(content: DuoContent, small5GaEnabled: Boolean) {
+            icon.small5GaEnabled = small5GaEnabled
+            previousIcon.small5GaEnabled = small5GaEnabled
             val old = icon.content
             if (old == content) return
             icon.content = content
@@ -169,6 +172,10 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        small5GaEnabled = Preferences.getBoolean(
+            Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+            false
+        )
         enabled = PlatformLevel.isOs4 && isMainProcess &&
             Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
         if (!enabled) return
@@ -357,7 +364,7 @@ object DuoSignalHooker : StaticHooker() {
                 restore(binding)
                 return
             }
-            binding.view.submit(content)
+            binding.view.submit(content, small5GaEnabled)
             binding.view.icon.foreground = foreground(binding)
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
@@ -584,7 +591,7 @@ object DuoSignalHooker : StaticHooker() {
             binding.carrierTarget = carrierTarget
         }
         val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
-            binding.view.icon.foreground, panelProgress)
+            binding.view.icon.foreground, panelProgress, small5GaEnabled)
         if (binding.view.icon.hideNetwork != hidden) {
             binding.view.icon.hideNetwork = hidden
             binding.view.invalidate()
@@ -848,6 +855,7 @@ object DuoSignalHooker : StaticHooker() {
             callback = null; connectivity = null; currentNetwork = null
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null
+            small5GaEnabled = false
             mobile = MobileSignalState(); network = DuoNetwork()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
         }

@@ -20,7 +20,8 @@ data class MobileTypeConfig(
     val paddingStartSp: Float = 2f,
     val paddingEndSp: Float = 2f,
     val verticalOffsetSp: Float = 0f,
-    val fontMode: Int = 0
+    val fontMode: Int = 0,
+    val small5GaEnabled: Boolean = false
 ) {
     fun safe(): MobileTypeConfig = copy(
         textSizeSp = textSizeSp.takeIf(Float::isFinite)?.coerceIn(1f, 48f) ?: 14f,

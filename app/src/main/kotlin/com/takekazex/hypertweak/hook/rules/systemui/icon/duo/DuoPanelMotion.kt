@@ -51,14 +51,23 @@ internal class DuoPanelMotion {
         @Deprecated("Deprecated in Java") override fun getOpacity() = PixelFormat.TRANSLUCENT
     }
 
-    fun update(root: ViewGroup, source: View, native: View, content: DuoContent, color: Int, progress: Float): Boolean {
+    fun update(
+        root: ViewGroup,
+        source: View,
+        native: View,
+        content: DuoContent,
+        color: Int,
+        progress: Float,
+        small5GaEnabled: Boolean = false
+    ): Boolean {
         if (progress <= 0f || progress >= 1f || !root.isAttachedToWindow ||
             !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
             !native.isAttachedToWindow || native.width <= 0 || native.height <= 0) {
             clear(); return false
         }
         val previousX = x; val previousY = y; val previousSide = side; val previousOpacity = layerAlpha
-        val contentChanged = glyph.content != content || glyph.foreground != color || host !== root || target !== native
+        val contentChanged = glyph.content != content || glyph.foreground != color ||
+            glyph.small5GaEnabled != small5GaEnabled || host !== root || target !== native
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         if (target !== native) {
             restoreTarget(); target = native; savedAlpha = native.alpha; appliedAlpha = native.alpha
@@ -85,6 +94,7 @@ internal class DuoPanelMotion {
         layerAlpha = DuoPanelGeometry.overlayAlpha(progress)
         glyph.content = content
         glyph.foreground = color
+        glyph.small5GaEnabled = small5GaEnabled
         layer.setBounds(0, 0, root.width, root.height)
         if (contentChanged || previousX != x || previousY != y || previousSide != side || previousOpacity != layerAlpha)
             layer.invalidateSelf()
