@@ -102,6 +102,7 @@ fun SystemUIPage(
     onPowerButtonActionChange: (Int) -> Unit,
     contextualSearchLongPress: Boolean,
     onContextualSearchLongPressChange: (Boolean) -> Unit,
+    onNavigateToNotificationHeader: () -> Unit,
     onNavigateToIconTuner: () -> Unit
 ) {
     val context = LocalContext.current
@@ -156,6 +157,11 @@ fun SystemUIPage(
                             onCheckedChange = onNotificationHeaderClockSecondsChange,
                             title = stringResource(R.string.settings_notification_header_clock_seconds_title),
                             summary = stringResource(R.string.settings_notification_header_clock_seconds_summary)
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_notification_header_options_title),
+                            summary = stringResource(R.string.settings_notification_header_options_summary),
+                            onClick = onNavigateToNotificationHeader
                         )
                         SwitchPreference(
                             checked = notificationMonetTextColor,

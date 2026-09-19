@@ -87,6 +87,18 @@ object Preferences {
     /** Adds seconds to the large clock shown when the notification shade is expanded. */
     const val KEY_NOTIFICATION_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
 
+    /** OS4 new-control-center notification header customization. */
+    const val KEY_NOTIFICATION_HEADER_HIDE_CARRIER = "notification_header_hide_carrier"
+    const val KEY_NOTIFICATION_HEADER_HIDE_TIME = "notification_header_hide_time"
+    const val KEY_NOTIFICATION_HEADER_HIDE_DATE = "notification_header_hide_date"
+    const val KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME = "notification_header_date_above_time"
+    const val KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT = "notification_header_date_alignment"
+    const val KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT = "notification_header_time_alignment"
+    const val KEY_NOTIFICATION_HEADER_TIME_SCALE = "notification_header_time_scale"
+    const val KEY_NOTIFICATION_HEADER_WEATHER_ENABLED = "notification_header_weather_enabled"
+    const val KEY_NOTIFICATION_HEADER_WEATHER_REGION = "notification_header_weather_region"
+    const val KEY_NOTIFICATION_HEADER_WEATHER_TYPE = "notification_header_weather_type"
+
     /** Disables Monet-derived colors for framework-generated notification text. */
     const val KEY_NOTIFICATION_MONET_TEXT_COLOR = "notification_monet_text_color"
 
@@ -1662,6 +1674,8 @@ object Preferences {
         memoPut(key, value)
         return value
     }
+
+    fun getNotificationHeaderTimeScale(): Float = getFloat(KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f)
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)

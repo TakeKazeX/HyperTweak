@@ -39,6 +39,7 @@ import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
+import com.takekazex.hypertweak.ui.page.NotificationHeaderPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
@@ -546,9 +547,17 @@ fun HyperTweakNavContainer(
                 onPowerButtonActionChange = onPowerButtonActionChange,
                 contextualSearchLongPress = contextualSearchLongPress,
                 onContextualSearchLongPressChange = onContextualSearchLongPressChange,
+                onNavigateToNotificationHeader = {
+                    backStack.add(Route.NotificationHeader)
+                },
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
                 }
+            )
+        }
+        entry<Route.NotificationHeader> {
+            NotificationHeaderPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.DownloadManager> {
