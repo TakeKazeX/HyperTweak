@@ -23,8 +23,8 @@ import java.lang.reflect.Field
  * and the fake status bar it expands through (`5`). The home status bar (`0`), the lockscreen
  * (`1`) and the notification-shade header (`-1`) are deliberately left alone.
  *
- * Duo's three-in-one glyph replaces the whole status icon cluster while it is active, so these
- * switches have no effect there; the retained battery is `GONE` behind it.
+ * When Duo owns a control-center battery slot, `DuoSignalHooker` mirrors the host's leading
+ * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
  */
 object CcBatteryStyleHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED

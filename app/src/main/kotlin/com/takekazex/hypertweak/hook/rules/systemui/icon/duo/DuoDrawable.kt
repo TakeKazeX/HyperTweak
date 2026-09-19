@@ -40,6 +40,8 @@ class DuoDrawable : Drawable() {
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var networkOnly = false
     var hideNetwork = false
+    var hideSignalDots = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     var small5GaEnabled = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var content: DuoContent? = null
@@ -64,7 +66,7 @@ class DuoDrawable : Drawable() {
                 if (!hideNetwork) {
                     if (state.wifiLevel != null) drawWifi(canvas, state.wifiLevel) else drawNetworkLabel(canvas, state)
                 }
-                if (!networkOnly) drawSignalDots(canvas, state)
+                if (!networkOnly && !hideSignalDots) drawSignalDots(canvas, state)
                 if (!hideNetwork && state.noInternet) drawNoInternet(canvas)
             }
         } finally {

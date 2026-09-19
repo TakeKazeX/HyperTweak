@@ -7,16 +7,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DuoPolicyTest {
-    @Test fun carrierTargetReplacesNativeHandoffEvenWhenKeepDuoWasSelected() {
-        for (style in DuoExpandedStyle.entries) {
-            assertEquals(DuoNetworkDestination.CARRIER, DuoPolicy.networkDestination(style, true, true))
-            // Carrier may own cellular only; Wi-Fi must still hand off to the native Wi-Fi view.
-            assertEquals(DuoNetworkDestination.NATIVE, DuoPolicy.networkDestination(style, true, false))
-        }
+    @Test fun keepDuoOwnsTheExpandedNetworkEvenWhenCarrierRowsAreEnabled() {
         assertEquals(DuoNetworkDestination.NONE,
-            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, false, false))
+            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, true))
+        assertEquals(DuoNetworkDestination.NONE,
+            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, false))
+        assertEquals(DuoNetworkDestination.CARRIER,
+            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, true))
         assertEquals(DuoNetworkDestination.NATIVE,
-            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, false, false))
+            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, false))
     }
 
     private val battery = DuoBattery(60, false, false)
@@ -106,13 +105,13 @@ class DuoPolicyTest {
         assertFalse(DuoPolicy.replaces(DuoSurface.EXPANDED, DuoExpandedStyle.RESTORE_NATIVE))
     }
 
-    @Test fun carrierOwnershipYieldsOnlyTheExpandedDuoAndIsReversible() {
+    @Test fun carrierOwnershipDoesNotOverrideTheExpandedDuoChoice() {
         for (style in DuoExpandedStyle.entries) {
-            assertFalse(DuoPolicy.replaces(DuoSurface.EXPANDED, style, carrierOwnsNetwork = true))
-            assertTrue(DuoPolicy.replaces(DuoSurface.HOME, style, carrierOwnsNetwork = true))
-            assertTrue(DuoPolicy.replaces(DuoSurface.COLLAPSED_PROXY, style, carrierOwnsNetwork = true))
+            assertEquals(style == DuoExpandedStyle.KEEP_DUO,
+                DuoPolicy.replaces(DuoSurface.EXPANDED, style))
+            assertTrue(DuoPolicy.replaces(DuoSurface.HOME, style))
+            assertTrue(DuoPolicy.replaces(DuoSurface.COLLAPSED_PROXY, style))
         }
-        assertTrue(DuoPolicy.replaces(DuoSurface.EXPANDED, DuoExpandedStyle.KEEP_DUO, false))
     }
 
     @Test fun noServiceAndZeroBarsAreDifferent() {

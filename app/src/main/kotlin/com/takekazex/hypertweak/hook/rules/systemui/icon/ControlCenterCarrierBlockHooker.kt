@@ -107,6 +107,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
     @Volatile private var keepTypeOnWifi = false
+    @Volatile private var keepDuoExpanded = false
     private var showBadge = true
     private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
@@ -240,6 +241,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false
+        keepDuoExpanded = false
         cancelSettleRamp()
         wifiHandles.forEach { it.cancel() }
         wifiHandles.clear()
@@ -287,6 +289,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             false
         )
         keepTypeOnWifi = Preferences.cellularTypeKeepsOnWifi()
+        keepDuoExpanded = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false) &&
+            Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0
         showBadge = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true)
         badgeTexts = listOf(
             Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
@@ -700,6 +704,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             releaseHandover()
             return
         }
+        ControlCenterHeaderHooker.ensureCompactCarrierVisible(block.layout)
         block.layout.orientation = LinearLayout.VERTICAL
         block.layout.gravity = Gravity.START or Gravity.CENTER_VERTICAL
         collapse(block.separator)
@@ -905,6 +910,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val fontScale = context.resources.configuration.fontScale
         val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
 
+        // Keep the per-SIM signal at the carrier's leading edge. Duo already carries the network
+        // type and Wi-Fi, so those trailing glyphs would duplicate the kept three-in-one icon.
+        val renderNetworkTypeAndWifi = !keepDuoExpanded
+
         // Signal strength: one single-signal glyph per card, so an enabled stacked icon is split
         // back into the two rows instead of being merged.
         val signalLevel = model.signalLevel
@@ -916,7 +925,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publish(parts.signal, signalBitmap, tint)
 
         // Wi-Fi glyph on 卡一 only; the data type follows the active data SIM (开关 4: both rows).
-        val wifiBitmap = model.wifiLevel?.let { level ->
+        val wifiBitmap = model.wifiLevel?.takeIf { renderNetworkTypeAndWifi }?.let { level ->
             runCatching {
                 IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
             }.onFailure { DebugLog.w(TAG, "carrier wifi render failed", it) }.getOrNull()
@@ -924,7 +933,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publish(parts.wifi, wifiBitmap, tint)
         parts.wifiBitmap = wifiBitmap
 
-        val typeBitmap = model.typeText?.takeIf { it.isNotBlank() }?.let { text ->
+        val typeBitmap = model.typeText?.takeIf { renderNetworkTypeAndWifi && it.isNotBlank() }?.let { text ->
             runCatching {
                 MobileTypeRenderer.render(
                     output = MobileTypeOutput(
@@ -941,14 +950,14 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
-        parts.typeSuppressed = model.typeSuppressed
-        publishType(parts, typeBitmap, tint, model.typeSuppressed)
+        parts.typeSuppressed = keepDuoExpanded || model.typeSuppressed
+        publishType(parts, typeBitmap, tint, parts.typeSuppressed)
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")
             append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
             // A suppressed type is invisible; announcing it would contradict the glyph on screen.
-            if (!model.typeSuppressed) model.typeText?.let { append(", ").append(it) }
+            if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
         }
     }
 
@@ -1187,10 +1196,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     /** True when some row can draw the travel right now (a ready glyph with a resolvable source). */
     private fun handoverDrawable(): Boolean = blocks.values.any { block ->
         block.compact && block.layout.isShown && block.rows.any { parts ->
-            val wifi = parts.wifiReady && parts.wifiBitmap != null &&
+            val wifi = parts.wifi !in duoTargets && parts.wifiReady && parts.wifiBitmap != null &&
                 sourceGlyph(block, wifi = true, subId = null) != null
             val cellular = parts.model?.let { model ->
-                parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
+                parts.type !in duoTargets && parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
                     sourceGlyph(block, wifi = false, subId = model.subId) != null
             } == true
             wifi || cellular

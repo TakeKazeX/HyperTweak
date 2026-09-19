@@ -8,6 +8,7 @@ import androidx.core.view.isVisible
 import android.graphics.Matrix
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.RectF
 import android.net.ConnectivityManager
 import android.net.Network
@@ -17,12 +18,14 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
@@ -31,6 +34,7 @@ import com.takekazex.hypertweak.util.PlatformLevel
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -88,6 +92,8 @@ object DuoSignalHooker : StaticHooker() {
         var proxyRoot: View? = null
         val proxyX = DuoOwnedTranslation()
         val proxyY = DuoOwnedTranslation()
+        var networkMotionProgress = 0f
+        var networkMotionSettle: Runnable? = null
         val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
             battery.resources.getIdentifier(it, "id", battery.context.packageName)
         }
@@ -107,8 +113,102 @@ object DuoSignalHooker : StaticHooker() {
         /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
         var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
         private val previousIcon = DuoDrawable()
+        private val percentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val percentMarkPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var percentText = ""
+        private var percentMark = ""
+        private var percentLetterSpacing = 0f
+        private var percentMarkLetterSpacing = 0f
+        private var percentMarkVerticalOffset = 0f
+        private var percentGapPx = 0f
         private var blend = 1f
         private var animator: ValueAnimator? = null
+
+        /** Mirrors the two host percentage TextViews only on control-center Duo surfaces. */
+        fun setLeadingPercent(
+            enabled: Boolean,
+            container: View?,
+            value: TextView?,
+            mark: TextView?
+        ) {
+            val nextText = value?.text?.toString().orEmpty()
+            val activeValue = value?.takeIf {
+                enabled && container?.visibility == View.VISIBLE &&
+                    it.visibility == View.VISIBLE && nextText.isNotEmpty()
+            }
+            val activeMark = mark?.takeIf { activeValue != null && it.visibility == View.VISIBLE }
+            val nextMark = activeMark?.text?.toString().orEmpty()
+            val nextLetterSpacing = activeValue?.letterSpacing ?: 0f
+            val nextMarkLetterSpacing = activeMark?.letterSpacing ?: 0f
+            val density = resources.displayMetrics.density
+            val oldSlot = leadingPercentSlotWidthPx()
+            val changed = percentText != (if (activeValue != null) nextText else "") ||
+                percentMark != nextMark ||
+                percentLetterSpacing != nextLetterSpacing ||
+                percentMarkLetterSpacing != nextMarkLetterSpacing ||
+                (activeValue != null && (percentPaint.textSize != activeValue.textSize ||
+                    percentPaint.typeface != activeValue.typeface ||
+                    percentPaint.color != activeValue.currentTextColor)) ||
+                (activeMark != null && (percentMarkPaint.textSize != activeMark.textSize ||
+                    percentMarkPaint.typeface != activeMark.typeface ||
+                    percentMarkPaint.color != activeMark.currentTextColor))
+            if (activeValue != null) {
+                percentPaint.set(activeValue.paint)
+                percentPaint.color = activeValue.currentTextColor
+                percentText = nextText
+                percentLetterSpacing = nextLetterSpacing
+            } else {
+                percentText = ""
+                percentLetterSpacing = 0f
+            }
+            if (activeMark != null) {
+                percentMarkPaint.set(activeMark.paint)
+                percentMarkPaint.color = activeMark.currentTextColor
+                percentMark = nextMark
+                percentMarkLetterSpacing = nextMarkLetterSpacing
+                percentMarkVerticalOffset = (activeMark.paddingTop - activeMark.paddingBottom) / 2f
+            } else {
+                percentMark = ""
+                percentMarkLetterSpacing = 0f
+                percentMarkVerticalOffset = 0f
+            }
+            percentGapPx = if (percentText.isNotEmpty()) 2f * density else 0f
+            if (oldSlot != leadingPercentSlotWidthPx()) requestLayout()
+            if (changed || oldSlot != leadingPercentSlotWidthPx()) invalidate()
+        }
+
+        /** Width added before the icon, excluding the view's own start/end padding. */
+        fun leadingPercentSlotWidthPx(): Int {
+            if (percentText.isEmpty()) return 0
+            val width = spacedTextWidth(percentText, percentPaint, percentLetterSpacing) +
+                spacedTextWidth(percentMark, percentMarkPaint, percentMarkLetterSpacing) + percentGapPx
+            return ceil(width.toDouble()).toInt().coerceAtLeast(0)
+        }
+
+        private fun spacedTextWidth(text: String, paint: Paint, letterSpacing: Float): Float =
+            if (text.isEmpty()) 0f else paint.measureText(text) +
+                letterSpacing * paint.textSize * (text.length - 1).coerceAtLeast(0)
+
+        private fun drawSpacedText(canvas: Canvas, text: String, startX: Float, baseline: Float,
+                                   paint: Paint, letterSpacing: Float) {
+            if (text.isEmpty()) return
+            if (letterSpacing == 0f || text.length == 1) {
+                canvas.drawText(text, startX, baseline, paint)
+                return
+            }
+            var x = startX
+            text.forEachIndexed { index, character ->
+                val value = character.toString()
+                canvas.drawText(value, x, baseline, paint)
+                x += paint.measureText(value)
+                if (index < text.lastIndex) x += letterSpacing * paint.textSize
+            }
+        }
+
+        private fun centeredBaseline(paint: Paint, offset: Float = 0f): Float {
+            val metrics = paint.fontMetrics
+            return height / 2f - (metrics.ascent + metrics.descent) / 2f + offset
+        }
 
         fun submit(content: DuoContent, small5GaEnabled: Boolean) {
             icon.small5GaEnabled = small5GaEnabled
@@ -151,15 +251,20 @@ object DuoSignalHooker : StaticHooker() {
             // back into resolveSize() makes an AT_MOST spec consume the parent's whole allowance.
             // position() aligns the box with the current parent's end edge once active.
             setMeasuredDimension(
-                resolveSize(maxOf(desired + paddingStart + paddingEnd, suggestedMinimumWidth), widthMeasureSpec),
+                resolveSize(maxOf(desired + paddingStart + paddingEnd + leadingPercentSlotWidthPx(),
+                    suggestedMinimumWidth), widthMeasureSpec),
                 resolveSize(maxOf(desired, suggestedMinimumHeight), heightMeasureSpec)
             )
         }
         override fun onDraw(canvas: Canvas) {
-            icon.setBounds(paddingLeft, 0, width - paddingRight, height)
+            val iconSide = minOf(height, DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp))
+            val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
+            val iconLeft = if (rtl) paddingLeft else width - paddingRight - iconSide
+            icon.setBounds(iconLeft, 0, iconLeft + iconSide, height)
             runCatching {
                 if (blend < 1f) {
                     previousIcon.hideNetwork = icon.hideNetwork
+                    previousIcon.hideSignalDots = icon.hideSignalDots
                     previousIcon.bounds = icon.bounds
                     previousIcon.foreground = icon.foreground
                     previousIcon.alpha = ((1f - blend) * 255).toInt()
@@ -167,6 +272,15 @@ object DuoSignalHooker : StaticHooker() {
                 }
                 icon.alpha = (blend * 255).toInt()
                 icon.draw(canvas)
+                if (percentText.isNotEmpty()) {
+                    val startX = if (rtl) iconLeft + iconSide + percentGapPx else paddingLeft.toFloat()
+                    drawSpacedText(canvas, percentText, startX, centeredBaseline(percentPaint),
+                        percentPaint, percentLetterSpacing)
+                    val markX = startX + spacedTextWidth(percentText, percentPaint, percentLetterSpacing)
+                    drawSpacedText(canvas, percentMark, markX,
+                        centeredBaseline(percentMarkPaint, percentMarkVerticalOffset),
+                        percentMarkPaint, percentMarkLetterSpacing)
+                }
             }.onFailure { drawFailed?.invoke() }
         }
     }
@@ -332,7 +446,7 @@ object DuoSignalHooker : StaticHooker() {
         val box = DuoLayout.box(parent.width, parent.height, parent.paddingLeft, parent.paddingTop,
             parent.paddingRight, parent.paddingBottom,
             DuoLayout.iconSizePx(view.resources.displayMetrics.density, view.iconSizeDp),
-            view.paddingStart + view.paddingEnd,
+            view.paddingStart + view.paddingEnd + view.leadingPercentSlotWidthPx(),
             parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         view.measure(View.MeasureSpec.makeMeasureSpec(box.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(box.height, View.MeasureSpec.EXACTLY))
@@ -359,11 +473,25 @@ object DuoSignalHooker : StaticHooker() {
             val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&
                 read(battery, "mIsAodAnimate") != true
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
-                !DuoPolicy.replaces(surface(battery), expandedStyle,
-                    ControlCenterCarrierBlockHooker.ownsNetworkContainer(binding.icons))) {
+                !DuoPolicy.replaces(surface(battery), expandedStyle)) {
                 restore(binding)
                 return
             }
+            val showLeadingPercent = binding.surface != DuoSurface.HOME && Preferences.getBoolean(
+                Preferences.KEY_CC_BATTERY_PERCENT_LEFT,
+                false
+            )
+            binding.view.setLeadingPercent(
+                showLeadingPercent,
+                read(battery, "mBatteryPercentContainer") as? View,
+                read(battery, "mBatteryPercentView") as? TextView,
+                read(battery, "mBatteryPercentMarkView") as? TextView
+            )
+            binding.view.icon.hideSignalDots = binding.surface != DuoSurface.HOME &&
+                expandedStyle == DuoExpandedStyle.KEEP_DUO &&
+                ControlCenterHeaderHooker.supportsCompactLayout(battery) &&
+                Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
+                Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
             binding.view.submit(content, small5GaEnabled)
             binding.view.icon.foreground = foreground(binding)
             binding.view.contentDescription = buildString {
@@ -533,6 +661,9 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun clearPanelMotion(binding: Binding) {
+        binding.networkMotionSettle?.let(main::removeCallbacks)
+        binding.networkMotionSettle = null
+        binding.networkMotionProgress = 0f
         binding.panelMotion.clear()
         binding.carrierTarget?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
         binding.carrierTarget = null
@@ -567,13 +698,14 @@ object DuoSignalHooker : StaticHooker() {
             ?: run { clearPosition(); return }
         positionProxy(binding, proxyRoot, home.view, target, expandedRoot)
         val content = binding.view.icon.content
-        if (content == null || content.airplaneMode || panelProgress <= 0f || panelProgress >= 1f) {
+        if (content == null || content.airplaneMode || panelProgress <= 0f) {
             clearPanelMotion(binding); return
         }
         val wifi = content.wifiLevel != null
-        val destination = DuoPolicy.networkDestination(expandedStyle,
-            ControlCenterCarrierBlockHooker.ownsNetworkContainer(expanded.icons),
-            ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi))
+        val destination = DuoPolicy.networkDestination(
+            expandedStyle,
+            ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi)
+        )
         val networkTarget = when (destination) {
             DuoNetworkDestination.NONE -> null
             DuoNetworkDestination.CARRIER -> ControlCenterCarrierBlockHooker.duoHandoverTarget(
@@ -582,6 +714,7 @@ object DuoSignalHooker : StaticHooker() {
         }
         val root = proxyRoot.rootView as? ViewGroup
         if (networkTarget == null || root == null) { clearPanelMotion(binding); return }
+        if (panelProgress >= 1f && binding.networkMotionProgress >= 1f) return
         val carrierTarget = networkTarget.takeIf { destination == DuoNetworkDestination.CARRIER }
         if (binding.carrierTarget !== carrierTarget) clearPanelMotion(binding)
         if (carrierTarget != null) {
@@ -590,12 +723,74 @@ object DuoSignalHooker : StaticHooker() {
             }
             binding.carrierTarget = carrierTarget
         }
+        if (panelProgress >= 1f) {
+            settlePanelMotion(binding, root, home.view, networkTarget, content,
+                binding.view.icon.foreground)
+            return
+        }
+        binding.networkMotionSettle?.let(main::removeCallbacks)
+        binding.networkMotionSettle = null
+        binding.networkMotionProgress = panelProgress
         val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
             binding.view.icon.foreground, panelProgress, small5GaEnabled)
         if (binding.view.icon.hideNetwork != hidden) {
             binding.view.icon.hideNetwork = hidden
             binding.view.invalidate()
         }
+    }
+
+    /** Finish one-step panel opens with the same short travel used while the user drags. */
+    private fun settlePanelMotion(
+        binding: Binding,
+        root: ViewGroup,
+        source: View,
+        target: View,
+        content: DuoContent,
+        color: Int
+    ) {
+        if (binding.networkMotionSettle != null) return
+        val from = binding.networkMotionProgress.coerceIn(0f, 1f)
+        if (from >= 0.95f) {
+            clearPanelMotion(binding)
+            binding.networkMotionProgress = 1f
+            return
+        }
+        val steps = (1..6).map { step -> from + (1f - from) * step / 6f }
+        var index = 0
+        val runnable = object : Runnable {
+            override fun run() {
+                if (binding.networkMotionSettle !== this) return
+                if (!enabled || !panelVisible || bindings[binding.battery] !== binding) {
+                    clearPanelMotion(binding)
+                    return
+                }
+                val next = steps[index++]
+                binding.networkMotionProgress = next
+                val updated = runCatching {
+                    val hidden = binding.panelMotion.update(root, source, target, content, color,
+                        next, small5GaEnabled)
+                    if (binding.view.icon.hideNetwork != hidden) {
+                        binding.view.icon.hideNetwork = hidden
+                        binding.view.invalidate()
+                    }
+                }
+                if (updated.isFailure) {
+                    val error = updated.exceptionOrNull()
+                    DebugLog.w(TAG, "Duo panel hand-over settle failed", error)
+                    clearPanelMotion(binding)
+                    binding.networkMotionProgress = 1f
+                    return
+                }
+                if (index >= steps.size) {
+                    clearPanelMotion(binding)
+                    binding.networkMotionProgress = 1f
+                } else {
+                    main.postDelayed(this, 24L)
+                }
+            }
+        }
+        binding.networkMotionSettle = runnable
+        main.postDelayed(runnable, 24L)
     }
 
     private fun nativeNetworkView(binding: Binding, wifi: Boolean): View? {

@@ -32,6 +32,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private val dates = WeakHashMap<View, DateState>()
     private val layouts = WeakHashMap<View, LayoutState>()
     private val compactHeaders = WeakHashMap<ViewGroup, Pair<View, View?>>()
+    private val compactCarrierVisibility = WeakHashMap<ViewGroup, Int>()
 
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
@@ -54,6 +55,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
             }
             dates.clear()
             layouts.keys.toList().forEach(::restoreLayout)
+            compactCarrierVisibility.toList().forEach { (carrier, visibility) ->
+                runCatching { carrier.visibility = visibility }
+            }
+            compactCarrierVisibility.clear()
             compactHeaders.clear()
             fields.clear()
         }
@@ -70,8 +75,8 @@ object ControlCenterHeaderHooker : StaticHooker() {
         if (!carrierLeft && !hideDate) return
         val controller = CONTROLLER_CLASS.toClassOrNull() ?: return
         // Lifecycle hooks also cover compiled callers that inline the small visibility helpers.
-        listOf("updateConstraint", "updateDateVisibility", "onInit", "onConfigChanged",
-            "onScreenLayoutSizeChanged", "updateDimens").forEach { name ->
+        listOf("updateConstraint", "updateDateVisibility", "updateCarrierAndPrivacyVisible",
+            "onInit", "onConfigChanged", "onScreenLayoutSizeChanged", "updateDimens").forEach { name ->
             controller.declaredMethods.filter { it.name == name }.forEach { method ->
                 deoptimize(method)
                 method.hook { after { param -> guarded {
@@ -82,7 +87,12 @@ object ControlCenterHeaderHooker : StaticHooker() {
                         (read(owner, "fakeStatusBar") as? View)?.let(layouts::remove)
                     }
                     (read(owner, "dateView") as? View)?.let(::hideDateView)
-                    (read(owner, "carrierLayout") as? ViewGroup)?.let(::updateCarrierLayout)
+                    (read(owner, "carrierLayout") as? ViewGroup)?.let { carrier ->
+                        if (name == "updateCarrierAndPrivacyVisible") {
+                            reapplyCompactCarrierVisibility(carrier)
+                        }
+                        updateCarrierLayout(carrier)
+                    }
                 } } }
             }
         }
@@ -145,6 +155,29 @@ object ControlCenterHeaderHooker : StaticHooker() {
         val config = view.resources.configuration
         return config.orientation == Configuration.ORIENTATION_PORTRAIT &&
             config.screenWidthDp in 300..599
+    }
+
+    /** Re-shows the two-line carrier block after SystemUI hides it for a privacy prompt. */
+    fun ensureCompactCarrierVisible(carrier: ViewGroup) {
+        if (!ControlCenterCarrierBlockHooker.ownsLayout(carrier) || !supportsCompactLayout(carrier)) return
+        compactCarrierVisibility.putIfAbsent(carrier, carrier.visibility)
+        if (carrier.visibility != View.VISIBLE) {
+            carrier.visibility = View.VISIBLE
+            carrier.requestLayout()
+        }
+    }
+
+    /** Keep the last host-requested visibility for reversible cleanup across privacy changes. */
+    private fun reapplyCompactCarrierVisibility(carrier: ViewGroup) {
+        if (!ControlCenterCarrierBlockHooker.ownsLayout(carrier) || !supportsCompactLayout(carrier)) {
+            compactCarrierVisibility.remove(carrier)
+            return
+        }
+        compactCarrierVisibility[carrier] = carrier.visibility
+        if (carrier.visibility != View.VISIBLE) {
+            carrier.visibility = View.VISIBLE
+            carrier.requestLayout()
+        }
     }
 
     /** Called after carrier measurement too, so the right cluster tracks the actual first row. */

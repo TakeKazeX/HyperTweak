@@ -38,22 +38,19 @@ data class DuoContent(
 )
 
 object DuoPolicy {
-    fun replaces(
-        surface: DuoSurface,
-        expandedStyle: DuoExpandedStyle,
-        carrierOwnsNetwork: Boolean = false
-    ): Boolean = when (surface) {
+    fun replaces(surface: DuoSurface, expandedStyle: DuoExpandedStyle): Boolean = when (surface) {
         DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
-        DuoSurface.EXPANDED -> !carrierOwnsNetwork && expandedStyle == DuoExpandedStyle.KEEP_DUO
+        // The explicit "keep Duo" choice owns the expanded representation too. A two-line
+        // carrier block may still own labels, but it must yield its duplicate network glyphs.
+        DuoSurface.EXPANDED -> expandedStyle == DuoExpandedStyle.KEEP_DUO
         DuoSurface.UNSUPPORTED -> false
     }
 
     internal fun networkDestination(
         expandedStyle: DuoExpandedStyle,
-        carrierOwnsContainer: Boolean,
         carrierOwnsNetwork: Boolean
     ): DuoNetworkDestination = when {
-        replaces(DuoSurface.EXPANDED, expandedStyle, carrierOwnsContainer) -> DuoNetworkDestination.NONE
+        expandedStyle == DuoExpandedStyle.KEEP_DUO -> DuoNetworkDestination.NONE
         carrierOwnsNetwork -> DuoNetworkDestination.CARRIER
         else -> DuoNetworkDestination.NATIVE
     }

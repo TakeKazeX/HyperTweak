@@ -657,7 +657,8 @@ object Preferences {
     // Control-center battery percentage style (see `CcBatteryStyleHooker`). Both switches target
     // only the control center's own `MiuiBatteryMeterView` instances (the CC header icons and the
     // fake status bar used while the CC expands); the home status bar, lockscreen and notification
-    // shade keep the system `battery_indicator_style`.
+    // shade keep the system `battery_indicator_style`. When Duo replaces a control-center battery,
+    // its left-percent mode draws the same host percentage beside the three-in-one glyph.
     //   KEY_CC_BATTERY_PERCENT_OUTSIDE — 开关 1: solid icon with the percentage outside it,
     //                                    instead of the system's in-glyph number.
     //   KEY_CC_BATTERY_PERCENT_LEFT — 开关 2: put that outside percentage on the leading edge
