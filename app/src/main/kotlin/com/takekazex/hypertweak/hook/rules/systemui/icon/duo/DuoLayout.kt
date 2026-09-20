@@ -5,18 +5,18 @@ import kotlin.math.roundToInt
 
 /** Pixel geometry in the current parent, deliberately independent of the hidden battery bounds. */
 internal object DuoLayout {
-    /** Authored glyph height the host expects, and the sliders' centred default. */
-    const val DEFAULT_ICON_SIZE_DP = 24
+    /** Authored glyph height the host expects, and the sliders' default. */
+    const val DEFAULT_ICON_SIZE_DP = 26
 
     const val MIN_ICON_SIZE_DP = 16
     const val MAX_ICON_SIZE_DP = 32
 
-    /** Drag distance around the default that snaps back to it, so the middle is a detent. */
+    /** Drag distance around the default that snaps back to it, so the default is a detent. */
     private const val SNAP_DP = 0.6f
 
     /**
-     * Slider key points in dp: the range ends plus the centred default. Miuix draws a tick at each
-     * one and magnetises the thumb to it, which is what makes the untouched 24dp size a detent
+     * Slider key points in dp: the range ends plus the default. Miuix draws a tick at each
+     * one and magnetises the thumb to it, which is what makes the untouched 26dp size a detent
      * instead of one position among thirty-two.
      */
     val SLIDER_KEY_POINTS_DP: List<Float> =
@@ -25,7 +25,7 @@ internal object DuoLayout {
     /**
      * Miuix's `magnetThreshold` is a fraction of the slider's value range, not a dp distance, so the
      * dp-wide [SNAP_DP] window is expressed relative to the span. Deriving it keeps the drag detent
-     * and [snapSizeDp] agreeing about where the middle is.
+     * and [snapSizeDp] agreeing about where the default is.
      */
     const val SLIDER_MAGNET_THRESHOLD = SNAP_DP / (MAX_ICON_SIZE_DP - MIN_ICON_SIZE_DP)
 
@@ -37,7 +37,7 @@ internal object DuoLayout {
             ?.coerceIn(MIN_ICON_SIZE_DP.toFloat(), MAX_ICON_SIZE_DP.toFloat())
             ?: DEFAULT_ICON_SIZE_DP.toFloat()
 
-    /** Snaps a dragged value to the default so the middle of the slider is the untouched size. */
+    /** Snaps a dragged value to the default to keep its default detent consistent with the setting. */
     fun snapSizeDp(value: Float): Int {
         val clamped = value.coerceIn(MIN_ICON_SIZE_DP.toFloat(), MAX_ICON_SIZE_DP.toFloat())
         return if (abs(clamped - DEFAULT_ICON_SIZE_DP) <= SNAP_DP) {

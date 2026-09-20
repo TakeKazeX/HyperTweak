@@ -12,6 +12,9 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -26,16 +29,23 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun DuoSignalPreview(small5GaEnabled: Boolean = false) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
-    val icons = remember(small5GaEnabled) {
+    val context = LocalContext.current
+    val artwork = remember(context) {
+        val repository = IconSvgRepository(context)
+        repository.loadSignalSingle(0).getOrNull()?.document to repository.loadSignalStacked(0).getOrNull()?.document
+    }
+    val icons = remember(small5GaEnabled, artwork) {
         listOf(
             DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
-            DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false),
+            DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false, cellularSignalLevels = listOf(3, 2)),
             DuoContent(DuoBattery(15, false, false), null, "4G", 2, false, false),
             DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false)
         ).map { state ->
             DuoDrawable().apply {
                 this.small5GaEnabled = small5GaEnabled
                 content = state
+                val document = if (state.cellularSignalLevels.size > 1) artwork.second else artwork.first
+                cellularSignalPicture = document?.let { IconSvgRenderer.signalPicture(it, state.cellularSignalLevels) }
             }
         }
     }

@@ -11,7 +11,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.graphics.Bitmap
+import android.graphics.Picture
+import android.telephony.SubscriptionManager
 import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Network
@@ -21,7 +22,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
 import android.widget.TextView
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
@@ -29,7 +29,6 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
@@ -70,6 +69,7 @@ object DuoSignalHooker : StaticHooker() {
     private var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
     @Volatile private var small5GaEnabled = false
     private var mobile = MobileSignalState()
+    private var slotIndices: Map<Int, Int> = emptyMap()
     private var network = DuoNetwork()
     private var connectivity: ConnectivityManager? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
@@ -101,6 +101,10 @@ object DuoSignalHooker : StaticHooker() {
         val privacyRect = RectF()
         var privacyInset = 0
         val panelMotion = DuoPanelMotion()
+        val signalMotions = HashMap<Int, SignalRowMotion>()
+        val signalTargets = HashMap<Int, View>()
+        val signalSourceBounds = RectF()
+        val signalPictureCrop = RectF()
         var carrierTarget: View? = null
         var proxyRoot: View? = null
         val proxyX = DuoOwnedTranslation()
@@ -114,6 +118,8 @@ object DuoSignalHooker : StaticHooker() {
         var expiry: Runnable? = null
         var active = false
         var failed = false
+        var batteryGlyph: HostBatteryDrawable? = null
+        var dotsInMotion = false
         var reconciling = false
         // Preserve whether the host/user already ignored the native airplane slot before Duo.
         // Duo may add that slot while active, but must never unhide something the host chose to hide.
@@ -125,7 +131,9 @@ object DuoSignalHooker : StaticHooker() {
         var drawFailed: (() -> Unit)? = null
         /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
         var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
-        private val previousIcon = DuoDrawable()
+        private val transition = DuoNetworkTransition()
+        private val contentLayers = LinkedHashMap<DuoRepresentation, DuoDrawable>()
+        private val ring = DuoDrawable().apply { hideNetwork = true; hiddenSignalRows = setOf(0, 1); hideSignalDots = true }
         private val percentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val percentMarkPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private var percentText = ""
@@ -135,7 +143,6 @@ object DuoSignalHooker : StaticHooker() {
         private var percentMarkVerticalOffset = 0f
         private var percentGapPx = 0f
         private var percentBelow = false
-        private var blend = 1f
         private var animator: ValueAnimator? = null
 
         /** Mirrors the native percent TextViews beside the glyph or below an expanded battery ring. */
@@ -253,42 +260,47 @@ object DuoSignalHooker : StaticHooker() {
             val changed = icon.batteryOnly != enabled || icon.innerBatteryDrawable !== nextDrawable
             icon.batteryOnly = enabled
             icon.innerBatteryDrawable = nextDrawable
-            previousIcon.batteryOnly = enabled
-            previousIcon.innerBatteryDrawable = nextDrawable
             if (changed) invalidate()
         }
 
-        fun submit(content: DuoContent, small5GaEnabled: Boolean, cellularSignal: Bitmap?) {
+        fun submit(content: DuoContent, small5GaEnabled: Boolean, cellularSignal: Picture?) {
+            if (icon.content == content && icon.cellularSignalPicture === cellularSignal &&
+                icon.small5GaEnabled == small5GaEnabled) return
             icon.small5GaEnabled = small5GaEnabled
-            previousIcon.small5GaEnabled = small5GaEnabled
-            val old = icon.content
-            val oldSignal = icon.cellularSignalBitmap
-            if (old == content && oldSignal === cellularSignal) return
             icon.content = content
-            icon.cellularSignalBitmap = cellularSignal
-            // Signal strength and charge updates remain immediate; only a change of network
-            // representation crossfades. No layout or host visibility mutations in the animator.
-            if (old != null && ((old.wifiLevel != null) != (content.wifiLevel != null) ||
-                    old.networkLabel != content.networkLabel || old.airplaneMode != content.airplaneMode)) {
+            icon.cellularSignalPicture = cellularSignal
+            val key = DuoRepresentation.of(content)
+            contentLayers.getOrPut(key) { DuoDrawable() }.apply {
+                this.content = content
+                cellularSignalPicture = cellularSignal
+            }
+            if (transition.submit(key, ValueAnimator.areAnimatorsEnabled())) {
                 animator?.cancel()
-                previousIcon.content = old
-                previousIcon.cellularSignalBitmap = oldSignal
-                blend = if (ValueAnimator.areAnimatorsEnabled()) 0f else 1f
-                if (blend == 0f) animator = ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 160L
+                animator = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 200L
                     interpolator = LinearInterpolator()
-                    addUpdateListener { blend = it.animatedValue as Float; invalidate() }
+                    addUpdateListener {
+                        transition.advance(it.animatedValue as Float)
+                        pruneLayers()
+                        invalidate()
+                    }
                     start()
                 }
             }
+            pruneLayers()
+            invalidate()
+        }
+
+        private fun pruneLayers() {
+            val target = icon.content?.let(DuoRepresentation::of)
+            contentLayers.keys.removeAll { it != target && it !in transition.weights }
         }
 
         fun finishTransition() {
             animator?.cancel()
             animator = null
-            blend = 1f
-            previousIcon.content = null
-            previousIcon.cellularSignalBitmap = null
+            transition.finish()
+            pruneLayers()
         }
 
         override fun onDetachedFromWindow() {
@@ -314,18 +326,26 @@ object DuoSignalHooker : StaticHooker() {
             val iconLeft = if (rtl) paddingLeft else width - paddingRight - iconSide
             icon.setBounds(iconLeft, 0, iconLeft + iconSide, iconSide)
             runCatching {
-                if (blend < 1f) {
-                    previousIcon.hideNetwork = icon.hideNetwork
-                    previousIcon.hideSignalDots = icon.hideSignalDots
-                    previousIcon.batteryOnly = icon.batteryOnly
-                    previousIcon.innerBatteryDrawable = icon.innerBatteryDrawable
-                    previousIcon.bounds = icon.bounds
-                    previousIcon.foreground = icon.foreground
-                    previousIcon.alpha = ((1f - blend) * 255).toInt()
-                    previousIcon.draw(canvas)
+                // The ring is stable; only network representations crossfade.
+                ring.content = icon.content
+                ring.foreground = icon.foreground
+                ring.bounds = icon.bounds
+                ring.draw(canvas)
+                transition.weights.forEach { (key, weight) ->
+                    contentLayers[key]?.apply {
+                        hidePowerTrack = true
+                        hiddenSignalRows = icon.hiddenSignalRows
+                        hideNetwork = icon.hideNetwork
+                        hideSignalDots = icon.hideSignalDots
+                        batteryOnly = icon.batteryOnly
+                        innerBatteryDrawable = icon.innerBatteryDrawable
+                        bounds = icon.bounds
+                        foreground = icon.foreground
+                        small5GaEnabled = icon.small5GaEnabled
+                        alpha = (weight * 255).roundToInt()
+                        draw(canvas)
+                    }
                 }
-                icon.alpha = (blend * 255).toInt()
-                icon.draw(canvas)
                 if (percentBelow && percentText.isNotEmpty()) {
                     drawPercentBelow(canvas, iconLeft, iconSide)
                 } else if (percentText.isNotEmpty()) {
@@ -461,7 +481,11 @@ object DuoSignalHooker : StaticHooker() {
     fun onMobileState(state: MobileSignalState, ready: Boolean) {
         if (!enabled) return
         val next = if (ready || state.airplaneMode) state else MobileSignalState()
-        if (mobile == next) return
+        val nextSlots = next.subscriptionOrder.associateWith {
+            runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
+        }
+        if (mobile == next && slotIndices == nextSlots) return
+        slotIndices = nextSlots
         mobile = next
         refresh()
     }
@@ -482,35 +506,26 @@ object DuoSignalHooker : StaticHooker() {
             .getOrNull()
     }
 
-    private fun renderCellularSignal(context: Context, content: DuoContent): Bitmap? {
+    private fun renderCellularSignal(context: Context, content: DuoContent): Picture? {
         if (content.airplaneMode || content.wifiLevel != null ||
             (content.networkLabel == null && !content.noService)) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
         val assets = loadCellularSignalAssets(context) ?: return null
-        val config = IconSvgRenderConfig(
-            iconHeightPx = 20,
-            alphaFg = 1f,
-            alphaBg = DuoDrawable.SIGNAL_DOT_RESERVE,
-            alphaError = DuoDrawable.SIGNAL_DOT_RESERVE,
-            densityDpi = context.resources.displayMetrics.densityDpi,
-            fontScale = context.resources.configuration.fontScale
-        )
         return runCatching {
-            if (levels.size > 1) {
-                IconSvgRenderer.renderStacked(assets.stacked, levels[0], levels[1], config)
-            } else {
-                IconSvgRenderer.renderSingle(assets.single, levels[0], config)
-            }
-        }.onFailure { DebugLog.w(TAG, "cellular signal artwork render failed", it) }.getOrNull()
+            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels)
+        }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
-    private fun originalBatteryDrawable(battery: View): Drawable? {
-        val style = read(battery, "mBatteryStyle") as? Int
-        val solid = read(battery, "mBatteryIconView") as? ImageView
-        val hollow = read(battery, "mHollowBatteryIconView") as? ImageView
-        val selected = if (style == 1) hollow else solid
-        return selected?.drawable ?: if (style == 1) solid?.drawable else hollow?.drawable
+    private fun originalBatteryDrawable(binding: Binding): Drawable? {
+        val battery = binding.battery
+        val name = if (read(battery, "mBatteryStyle") == 1) "mHollowBatteryIconView" else "mBatteryIconView"
+        val source = read(battery, name) as? View ?: return null
+        if (source.width <= 0 || source.height <= 0) return null
+        return binding.batteryGlyph?.takeIf { it.source === source }
+            ?: HostBatteryDrawable(source, listOfNotNull(
+                read(source, "textPaint") as? Paint, read(source, "hollowTextPaint") as? Paint
+            )).also { binding.batteryGlyph = it }
     }
 
     private fun attach(battery: View) {
@@ -601,7 +616,9 @@ object DuoSignalHooker : StaticHooker() {
             val charging = read(battery, "mCharging") as? Boolean
             val powerSave = read(battery, "mPowerSave") as? Boolean
             val freshContent = if (percent != null && charging != null && powerSave != null)
-                DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) else null
+                DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) { subId ->
+                    slotIndices[subId] ?: -1
+                } else null
             val content = presentationContent(binding, freshContent)
             val privacyState = read(binding.parent, "mPrivacyState")?.toString()
             val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
@@ -622,7 +639,9 @@ object DuoSignalHooker : StaticHooker() {
                 Preferences.KEY_CC_BATTERY_PERCENT_LEFT,
                 false
             )
-            binding.view.setBatteryOnly(batteryOnly, if (batteryOnly) originalBatteryDrawable(battery) else null)
+            val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
+            if (batteryOnly && batteryGlyph == null) { restore(binding); return }
+            binding.view.setBatteryOnly(batteryOnly, batteryGlyph)
             binding.view.setPercent(
                 enabled = showLeadingPercent || batteryOnly,
                 below = batteryOnly,
@@ -631,11 +650,7 @@ object DuoSignalHooker : StaticHooker() {
                 mark = percentMark,
                 fallbackText = percent?.toString()
             )
-            binding.view.icon.hideSignalDots = binding.surface != DuoSurface.HOME &&
-                expandedStyle == DuoExpandedStyle.KEEP_DUO &&
-                ControlCenterHeaderHooker.supportsCompactLayout(battery) &&
-                Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-                Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+            binding.view.icon.hideSignalDots = binding.dotsInMotion || hideExpandedDots(binding)
             binding.view.submit(content, small5GaEnabled, renderCellularSignal(battery.context, content))
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
@@ -807,6 +822,94 @@ object DuoSignalHooker : StaticHooker() {
         root.translationY = binding.proxyY.apply(root.translationY, panelPoint[1])
     }
 
+    private fun hideExpandedDots(binding: Binding): Boolean = binding.surface != DuoSurface.HOME &&
+        expandedStyle == DuoExpandedStyle.KEEP_DUO &&
+        ControlCenterHeaderHooker.supportsCompactLayout(binding.battery) &&
+        Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
+        Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+
+    private fun clearSignalMotions(binding: Binding) {
+        if (binding.dotsInMotion) {
+            binding.dotsInMotion = false
+            binding.view.icon.hideSignalDots = hideExpandedDots(binding)
+            binding.view.invalidate()
+        }
+        binding.signalMotions.values.forEach { it.clear() }
+        binding.signalMotions.clear()
+        binding.signalTargets.values.forEach { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
+        binding.signalTargets.clear()
+        if (binding.view.icon.hiddenSignalRows.isNotEmpty()) {
+            binding.view.icon.hiddenSignalRows = emptySet()
+            binding.view.invalidate()
+        }
+    }
+
+    private fun updateSignalMotions(binding: Binding, home: Binding, expanded: Binding, root: ViewGroup?) {
+        val content = home.view.icon.content
+        val wifi = content?.wifiLevel != null
+        val picture = if (wifi) home.view.icon.signalDotsPicture() else home.view.icon.cellularSignalPicture
+        if (root == null || content == null || picture == null || content.airplaneMode) {
+            clearSignalMotions(binding); return
+        }
+        val used = HashSet<Int>()
+        val hidden = HashSet<Int>()
+        val rows = if (wifi) content.activeDataSubId?.let { id ->
+            listOf(DuoSignalRow(id, slotIndices[id] ?: -1, if (content.noService) -1 else content.mobileLevel))
+        }.orEmpty() else content.cellularSignalRows
+        var dotsReady = false
+        rows.forEachIndexed { index, row ->
+            val carrier = ControlCenterCarrierBlockHooker.signalHandoverTarget(expanded.icons, row.subId)
+            val target = carrier ?: nativeSignalView(expanded, row.subId) ?: return@forEachIndexed
+            val hasBounds = if (wifi) home.view.icon.signalDotsBounds(binding.signalPictureCrop, binding.signalSourceBounds)
+                else home.view.icon.signalRowBounds(index, binding.signalPictureCrop, binding.signalSourceBounds)
+            if (!hasBounds) return@forEachIndexed
+            if (binding.signalTargets[row.subId] !== target) {
+                binding.signalMotions.remove(row.subId)?.clear()
+                binding.signalTargets.remove(row.subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
+                if (carrier != null && !ControlCenterCarrierBlockHooker.acquireDuoTarget(carrier, binding)) return@forEachIndexed
+                binding.signalTargets[row.subId] = target
+            }
+            val motion = binding.signalMotions.getOrPut(row.subId) { SignalRowMotion() }
+            val destinationPicture = if (wifi) loadCellularSignalAssets(binding.battery.context)?.let {
+                IconSvgRenderer.signalPicture(it.single, listOf(row.level))
+            } else null
+            if (motion.update(root, home.view, binding.signalSourceBounds, target, picture,
+                    binding.signalPictureCrop, binding.view.icon.foreground, panelProgress, destinationPicture)) {
+                if (wifi) dotsReady = true else hidden += index
+            }
+            used += row.subId
+        }
+        binding.signalMotions.keys.toList().filter { it !in used }.forEach { subId ->
+            binding.signalMotions.remove(subId)?.clear()
+            binding.signalTargets.remove(subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
+        }
+        if (binding.dotsInMotion != dotsReady) {
+            binding.dotsInMotion = dotsReady
+            binding.view.icon.hideSignalDots = dotsReady || hideExpandedDots(binding)
+            binding.view.invalidate()
+        }
+        if (binding.view.icon.hiddenSignalRows != hidden) {
+            binding.view.icon.hiddenSignalRows = hidden
+            binding.view.invalidate()
+        }
+    }
+
+    private fun nativeSignalView(binding: Binding, subId: Int): View? {
+        val root = binding.icons as? ViewGroup ?: return null
+        val id = binding.networkIds["mobile_signal"]?.takeIf { it != 0 } ?: return null
+        fun find(group: ViewGroup): View? {
+            for (i in 0 until group.childCount) {
+                val child = group.getChildAt(i)
+                if (read(child, "subId") == subId) {
+                    return child.findViewById<View>(id)?.takeIf { it.isVisible && it.width > 0 }
+                }
+                if (child is ViewGroup) find(child)?.let { return it }
+            }
+            return null
+        }
+        return find(root)
+    }
+
     private fun clearPanelMotion(binding: Binding) {
         binding.networkMotionSettle?.let(main::removeCallbacks)
         binding.networkMotionSettle = null
@@ -827,7 +930,7 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun updatePanelBinding(binding: Binding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
-        fun clearPosition() { clearPanelMotion(binding); restoreProxyPosition(binding) }
+        fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
         if (!binding.active || !panelVisible) { clearPosition(); return }
         val proxyRoot = ancestor(binding.view,
             "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
@@ -844,8 +947,9 @@ object DuoSignalHooker : StaticHooker() {
             "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
             ?: run { clearPosition(); return }
         positionProxy(binding, proxyRoot, home.view, target, expandedRoot)
+        updateSignalMotions(binding, home, expanded, proxyRoot.rootView as? ViewGroup)
         val content = binding.view.icon.content
-        if (content == null || content.airplaneMode || panelProgress <= 0f) {
+        if (content == null || content.airplaneMode) {
             clearPanelMotion(binding); return
         }
         val wifi = content.wifiLevel != null
@@ -1044,6 +1148,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun restore(binding: Binding) {
+        clearSignalMotions(binding)
         clearPanelMotion(binding)
         restoreProxyPosition(binding)
         binding.expiry?.let(main::removeCallbacks)
@@ -1054,7 +1159,7 @@ object DuoSignalHooker : StaticHooker() {
         binding.view.translationX = 0f
         binding.view.setBatteryOnly(false, null)
         binding.view.setPercent(false, false, null, null, null)
-        binding.view.icon.cellularSignalBitmap = null
+        binding.view.icon.cellularSignalPicture = null
         IconPositionHooker.setDuoMask(binding.icons, false)
         setNativeAirplaneMasked(binding, false)
         if (!binding.active) return
@@ -1202,6 +1307,7 @@ object DuoSignalHooker : StaticHooker() {
             wifiScope = null; wifiInteractor = null; wifiContext = null
             small5GaEnabled = false
             cellularSignalAssets = null
+            slotIndices = emptyMap()
             mobile = MobileSignalState(); network = DuoNetwork()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
         }

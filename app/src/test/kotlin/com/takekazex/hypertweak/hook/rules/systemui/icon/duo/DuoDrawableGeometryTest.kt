@@ -32,8 +32,8 @@ class DuoDrawableGeometryTest {
     fun `power ring stops at the signal dots`() {
         val lit = render { canvas -> drawTrack(canvas, chargedFraction = 0.0, lit = true) }
         val cx = DuoDrawable.CENTER.toDouble()
-        val cy = DuoDrawable.CENTER.toDouble()
-        val radius = DuoDrawable.TRACK_RADIUS.toDouble()
+        val cy = DuoDrawable.COMPACT_RING_CENTER_Y.toDouble()
+        val radius = (DuoDrawable.TRACK_RADIUS * DuoDrawable.COMPACT_RING_SCALE).toDouble()
         val halfStroke = DuoDrawable.TRACK_STROKE / 2.0
 
         // The bottom of the ring is open; everything else carries the stroke.
@@ -155,21 +155,31 @@ class DuoDrawableGeometryTest {
         return out
     }
 
-    private fun drawTrack(g: Graphics2D, chargedFraction: Double, lit: Boolean) {
+    private fun compact(canvas: Graphics2D): Graphics2D = (canvas.create() as Graphics2D).apply {
+        translate(DuoDrawable.CENTER.toDouble(), DuoDrawable.COMPACT_RING_CENTER_Y.toDouble())
+        scale(DuoDrawable.COMPACT_RING_SCALE.toDouble(), DuoDrawable.COMPACT_RING_SCALE.toDouble())
+        translate(-DuoDrawable.CENTER.toDouble(), -DuoDrawable.CENTER.toDouble())
+    }
+
+    private fun drawTrack(canvas: Graphics2D, chargedFraction: Double, lit: Boolean) {
+        val g = compact(canvas)
         val r = DuoDrawable.TRACK_RADIUS.toDouble()
         val c = DuoDrawable.CENTER.toDouble()
         g.stroke = BasicStroke(DuoDrawable.TRACK_STROKE, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
         g.color = AwtColor(255, 255, 255, (255 * DuoDrawable.TRACK_RESERVE).toInt())
         g.draw(arcPath(c, c, r, DuoDrawable.TRACK_START.toDouble(), DuoDrawable.TRACK_SWEEP.toDouble()))
-        if (!lit) return
+        if (!lit) { g.dispose(); return }
         g.color = AwtColor.WHITE
         g.draw(arcPath(c, c, r, DuoDrawable.TRACK_START.toDouble(), DuoDrawable.TRACK_SWEEP * chargedFraction))
+        g.dispose()
     }
 
-    private fun drawWifi(g: Graphics2D, level: Int) {
+    private fun drawWifi(canvas: Graphics2D, level: Int) {
+        val g = compact(canvas)
         wifiArc(g, DuoDrawable.WIFI_OUTER_START_X, DuoDrawable.WIFI_OUTER_END_X, DuoDrawable.WIFI_OUTER_END_Y, DuoDrawable.WIFI_OUTER_CONTROL_Y, DuoDrawable.WIFI_OUTER_STROKE, level >= 3)
         wifiArc(g, DuoDrawable.WIFI_INNER_START_X, DuoDrawable.WIFI_INNER_END_X, DuoDrawable.WIFI_INNER_END_Y, DuoDrawable.WIFI_INNER_CONTROL_Y, DuoDrawable.WIFI_INNER_STROKE, level >= 2)
         drawMark(g, level >= 1)
+        g.dispose()
     }
 
     private fun wifiArc(g: Graphics2D, startX: Float, endX: Float, endY: Float, controlY: Float, stroke: Float, lit: Boolean) {

@@ -60,7 +60,7 @@ internal class DuoPanelMotion {
         progress: Float,
         small5GaEnabled: Boolean = false
     ): Boolean {
-        if (progress <= 0f || progress >= 1f || !root.isAttachedToWindow ||
+        if (!progress.isFinite() || !root.isAttachedToWindow ||
             !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
             !native.isAttachedToWindow || native.width <= 0 || native.height <= 0) {
             clear(); return false
@@ -83,7 +83,8 @@ internal class DuoPanelMotion {
         val sourceSide = min(source.width, source.height).toFloat()
         val sourceX = location[0] + source.width - source.paddingRight - sourceSide / 2f
         val sourceY = location[1] + if (content.wifiLevel == null && content.networkLabel != null)
-            sourceSide * DuoDrawable.LABEL_CENTER_Y / DuoDrawable.VIEWPORT else source.height / 2f
+            sourceSide * DuoDrawable.LABEL_CENTER_Y / DuoDrawable.VIEWPORT else
+            sourceSide * DuoDrawable.COMPACT_RING_CENTER_Y / DuoDrawable.VIEWPORT
         native.getLocationOnScreen(location)
         val targetX = location[0] + native.width / 2f
         val targetY = location[1] + native.height / 2f
@@ -91,7 +92,8 @@ internal class DuoPanelMotion {
         x = DuoPanelGeometry.mix(sourceX, targetX, progress) - location[0]
         y = DuoPanelGeometry.mix(sourceY, targetY, progress) - location[1]
         // Network artwork occupies roughly half the 32-unit viewport.
-        side = DuoPanelGeometry.mix(min(source.width, source.height).toFloat(),
+        side = DuoPanelGeometry.mix(min(source.width, source.height).toFloat() *
+            (if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE else 1f),
             min(native.width, native.height) * 1.7f, progress)
         layerAlpha = DuoPanelGeometry.overlayAlpha(progress)
         glyph.content = content

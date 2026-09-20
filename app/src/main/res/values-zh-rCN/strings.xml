@@ -1321,7 +1321,7 @@
     <string name="icon_duo_expanded">展开面板样式</string>
     <string name="icon_duo_size">图标大小</string>
     <string name="icon_duo_size_value">%1$d dp</string>
-    <string name="icon_duo_size_summary">三合一图标高度（dp），默认 24；滑块拖到中间会吸附回默认值</string>
+    <string name="icon_duo_size_summary">三合一图标高度（dp），默认 26；滑块在默认值处吸附</string>
     <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">保持三合一</string>
     <string name="icon_duo_native">恢复原本图标</string>

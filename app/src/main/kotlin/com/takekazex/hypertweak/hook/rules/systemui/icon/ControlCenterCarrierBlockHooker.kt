@@ -594,10 +594,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             target?.takeIf { isUsable(it) && it.drawable != null && parts.row.isShown }
         }
 
+    fun signalHandoverTarget(container: Any, subId: Int): View? = blocks.values
+        .firstOrNull { it.maskContainer === container && it.compact && it.layout.isShown }
+        ?.rows?.firstOrNull { it.model?.subId == subId && it.cellularReady }
+        ?.signal?.takeIf { isUsable(it) && it.drawable != null }
+
     /** Alpha has one writer during a Duo hand-over; ordinary masks must not reset it each frame. */
     fun acquireDuoTarget(target: View, owner: Any): Boolean {
         val parts = rowIndex[target.parent] ?: return false
-        val ready = if (target === parts.wifi) parts.wifiReady else target === parts.type && parts.cellularReady
+        val ready = if (target === parts.wifi) parts.wifiReady else (target === parts.type || target === parts.signal) && parts.cellularReady
         if (!ready || !isUsable(target) || (duoTargets[target]?.let { it !== owner } == true)) return false
         if (duoTargets[target] === owner) return true
         motions.remove(target)?.clear()
@@ -783,6 +788,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         restoreBlockStyle(block)
         block.rows.forEach { parts ->
             rowIndex.remove(parts.row)
+            duoTargets.remove(parts.signal)
             duoTargets.remove(parts.wifi)
             duoTargets.remove(parts.type)
             parts.typeFade.cancel()
@@ -1364,7 +1370,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.rows.forEach { parts ->
             parts.cellularReady = acquired && cellular
             parts.wifiReady = acquired && wifi
-            parts.signal.alpha = if (parts.cellularReady) 1f else 0f
+            if (!parts.cellularReady || parts.signal !in duoTargets)
+                parts.signal.alpha = if (parts.cellularReady) 1f else 0f
             // An in-flight overlay owns the type/Wi-Fi alpha until it is released.
             if (!parts.cellularReady || (parts.type !in motions && parts.type !in duoTargets))
                 parts.type.alpha = if (parts.cellularReady) 1f else 0f

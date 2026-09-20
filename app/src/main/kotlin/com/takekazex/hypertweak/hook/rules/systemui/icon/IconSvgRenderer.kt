@@ -4,10 +4,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.PorterDuff
+import android.graphics.Picture
 import android.graphics.RectF
 import android.util.Xml
 import androidx.core.graphics.createBitmap
-import com.caverock.androidsvg.RenderOptions
 import com.caverock.androidsvg.SVG
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.StringReader
@@ -51,7 +51,6 @@ object IconSvgRenderer {
     private const val TAG = "IconTuner"
     const val MAX_SOURCE_BYTES = 128 * 1024
     private const val MAX_NODES = 512
-    private const val MAX_VARIANTS = 32
     private const val MAX_BITMAPS = 48
 
     private val supportedElements = setOf(
@@ -81,12 +80,12 @@ object IconSvgRenderer {
         internal val metadata: Metadata,
         val sourceHash: String
     ) {
-        internal val variants = object : LinkedHashMap<String, SVG>(16, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, SVG>?): Boolean =
-                size > MAX_VARIANTS
-        }
         internal val bitmaps = object : LinkedHashMap<String, Bitmap>(24, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean =
+                size > MAX_BITMAPS
+        }
+        internal val pictures = object : LinkedHashMap<String, Picture>(32, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Picture>?): Boolean =
                 size > MAX_BITMAPS
         }
     }
@@ -136,6 +135,30 @@ object IconSvgRenderer {
 
     fun renderSingle(document: Document, level: Int, config: IconSvgRenderConfig): Bitmap =
         render(document, SvgKind.SINGLE_SIGNAL, listOf(level), config)
+
+    /** Records vector commands once; replay scales paths, never a low-resolution bitmap. */
+    fun signalPicture(document: Document, levels: List<Int>, background: Float = .28f, error: Float = background): Picture =
+        picture(document, if (levels.size > 1) SvgKind.STACKED_SIGNAL else SvgKind.SINGLE_SIGNAL,
+            levels, IconSvgRenderConfig(20, alphaBg = background, alphaError = error))
+
+    private fun picture(document: Document, kind: SvgKind, levels: List<Int>, config: IconSvgRenderConfig): Picture {
+        val safe = config.safe()
+        val key = "$kind|$levels|${safe.alphaFg}|${safe.alphaBg}|${safe.alphaError}"
+        return synchronized(document) {
+            document.pictures[key] ?: run {
+                validate(document, kind).getOrThrow()
+                val variant = SVG.getFromString(withOpacities(document.source, opacityMap(document, kind, levels, safe)))
+                val height = 100
+                val width = (height * document.metadata.viewBox.width() / document.metadata.viewBox.height()).toInt().coerceAtLeast(1)
+                variant.setDocumentWidth(width.toFloat())
+                variant.setDocumentHeight(height.toFloat())
+                Picture().apply {
+                    val canvas = beginRecording(width, height)
+                    try { variant.renderToCanvas(canvas) } finally { endRecording() }
+                }.also { document.pictures[key] = it }
+            }
+        }
+    }
 
     /** Renders a single-signal mask and centers [badge] on the SVG's type-container anchor. */
     fun renderSingleWithBadge(
@@ -196,23 +219,12 @@ object IconSvgRenderer {
         }
         synchronized(document) { document.bitmaps[key]?.let { return it } }
 
-        val opacities = opacityMap(document, kind, levels, safe)
-        val variant = synchronized(document) {
-            document.variants[key] ?: SVG.getFromString(withOpacities(document.source, opacities)).also {
-                // AndroidSVG otherwise honors the source's absolute root width/height (20 or
-                // 24 px) instead of the requested bitmap viewport. Set dimensions on this
-                // geometry-specific variant so the viewBox fills the output bitmap rather than
-                // remaining pinned to its upper-left corner.
-                it.setDocumentWidth(contentWidth.toFloat())
-                it.setDocumentHeight(contentHeight.toFloat())
-                document.variants[key] = it
-            }
-        }
         val bitmap = createBitmap(outputWidth, contentHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        val options = RenderOptions.create().viewPort(start.toFloat(), 0f, contentWidth.toFloat(), contentHeight.toFloat())
-        variant.renderToCanvas(canvas, options)
+        // Both the bitmap bridge and Duo replay the same vector commands at their final size.
+        val commands = picture(document, kind, levels, safe)
+        canvas.drawPicture(commands, RectF(start.toFloat(), 0f, (start + contentWidth).toFloat(), contentHeight.toFloat()))
         synchronized(document) { document.bitmaps[key] = bitmap }
         return bitmap
     }

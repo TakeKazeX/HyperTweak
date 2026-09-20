@@ -30,6 +30,20 @@ class DuoPolicyTest {
         .reduce(MobileSignalEvent.NetworkType(22, "4G"))
         .reduce(MobileSignalEvent.ActiveDataSubId(11))
 
+    @Test fun rowsFollowPhysicalSlotsAcrossSubscriptionAndDataSimReordering() {
+        val reversed = mobile().reduce(MobileSignalEvent.Subscriptions(listOf(22, 11)))
+        val slotOf: (Int) -> Int = { if (it == 11) 0 else 1 }
+        val first = DuoPolicy.content(battery, reversed, cellular, slotOf)!!
+        val switched = DuoPolicy.content(battery, reversed.reduce(MobileSignalEvent.ActiveDataSubId(22)), cellular, slotOf)!!
+        assertEquals(listOf(11, 22), first.cellularSignalRows.map { it.subId })
+        assertEquals(first.cellularSignalRows, switched.cellularSignalRows)
+        assertEquals("4G", switched.networkLabel)
+        val onlySecond = reversed.reduce(MobileSignalEvent.ActiveDataSubId(22))
+            .reduce(MobileSignalEvent.Subscriptions(listOf(22)))
+        val single = DuoPolicy.content(battery, onlySecond, cellular, slotOf)!!
+        assertEquals(listOf(DuoSignalRow(22, 1, 1)), single.cellularSignalRows)
+    }
+
     @Test fun switchingDataSimUpdatesBothDotsAndNetworkLabel() {
         assertEquals(4, DuoPolicy.content(battery, mobile(), cellular)?.mobileLevel)
         val switched = mobile().reduce(MobileSignalEvent.ActiveDataSubId(22))
@@ -57,6 +71,16 @@ class DuoPolicyTest {
         assertNull(result.networkLabel)
         assertTrue(result.noInternet)
         assertEquals(4, result.mobileLevel)
+    }
+
+    @Test fun wifiDotsRetainTheActiveDataSimForTheirHandoff() {
+        val wifi = DuoNetwork(DuoTransport.WIFI, true, 4)
+        val before = DuoPolicy.content(battery, mobile(), wifi)!!
+        val after = DuoPolicy.content(battery, mobile().reduce(MobileSignalEvent.ActiveDataSubId(22)), wifi)!!
+        assertEquals(11, before.activeDataSubId)
+        assertEquals(22, after.activeDataSubId)
+        assertEquals(1, after.mobileLevel)
+        assertEquals(listOf(11, 22), after.cellularSignalRows.map { it.subId })
     }
 
     @Test fun unknownWifiOrDefaultTransportRestoresNativeInsteadOfGuessing() {

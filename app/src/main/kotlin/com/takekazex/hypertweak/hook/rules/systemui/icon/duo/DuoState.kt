@@ -36,7 +36,9 @@ data class DuoContent(
     val noInternet: Boolean,
     val airplaneMode: Boolean = false,
     /** Ordered per-SIM levels for the single or stacked cellular glyph. */
-    val cellularSignalLevels: List<Int> = listOf(mobileLevel)
+    val cellularSignalLevels: List<Int> = listOf(mobileLevel),
+    val cellularSignalRows: List<DuoSignalRow> = emptyList(),
+    val activeDataSubId: Int? = null
 )
 
 object DuoPolicy {
@@ -60,7 +62,8 @@ object DuoPolicy {
      * mode is different: it is a complete state by itself and renders the aircraft inside Duo,
      * even when there is no active subscription to inspect.
      */
-    fun content(battery: DuoBattery?, mobile: MobileSignalState, network: DuoNetwork): DuoContent? {
+    fun content(battery: DuoBattery?, mobile: MobileSignalState, network: DuoNetwork,
+                slotOf: (Int) -> Int = { -1 }): DuoContent? {
         if (battery == null || battery.percent !in 0..100) return null
         if (mobile.airplaneMode) {
             return DuoContent(
@@ -95,15 +98,17 @@ object DuoPolicy {
         // Match the host's single/stacked signal family. Unknown and satellite rows are omitted;
         // more than two rows cannot be represented faithfully by the Duo glyph.
         if (mobile.rows.size > MobileSignalState.MAX_RENDER_ROWS) return null
-        val cellularSignalLevels = mobile.rows.asSequence()
+        val signalRows = DuoSignalRows.ordered(mobile.rows.asSequence()
             .filter { it.originalVisible && it.supportsReplacement }
-            .map { it.renderLevel }
-            .toList()
+            .map { DuoSignalRow(it.subId, slotOf(it.subId), it.renderLevel) }
+            .toList())
         val noInternet = !network.validated && (wifi || cellular)
         return DuoContent(
             battery, wifiLevel, label, sub.normalizedLevel,
             noService, noInternet,
-            cellularSignalLevels = cellularSignalLevels
+            cellularSignalLevels = signalRows.map { it.level },
+            cellularSignalRows = signalRows,
+            activeDataSubId = sub.subId
         )
     }
 }
