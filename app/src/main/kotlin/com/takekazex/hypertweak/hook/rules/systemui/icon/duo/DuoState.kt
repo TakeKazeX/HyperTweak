@@ -34,26 +34,26 @@ data class DuoContent(
     val mobileLevel: Int,
     val noService: Boolean,
     val noInternet: Boolean,
-    val airplaneMode: Boolean = false
+    val airplaneMode: Boolean = false,
+    /** Ordered per-SIM levels for the single or stacked cellular glyph. */
+    val cellularSignalLevels: List<Int> = listOf(mobileLevel)
 )
 
 object DuoPolicy {
     fun replaces(surface: DuoSurface, expandedStyle: DuoExpandedStyle): Boolean = when (surface) {
         DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
-        // The explicit "keep Duo" choice owns the expanded representation too. A two-line
-        // carrier block may still own labels, but it must yield its duplicate network glyphs.
+        // The explicit "keep Duo" choice retains only the expanded battery ring. Network state
+        // returns to the native status row or the carrier block that already owns that container.
         DuoSurface.EXPANDED -> expandedStyle == DuoExpandedStyle.KEEP_DUO
         DuoSurface.UNSUPPORTED -> false
     }
 
+    @Suppress("UNUSED_PARAMETER")
     internal fun networkDestination(
         expandedStyle: DuoExpandedStyle,
         carrierOwnsNetwork: Boolean
-    ): DuoNetworkDestination = when {
-        expandedStyle == DuoExpandedStyle.KEEP_DUO -> DuoNetworkDestination.NONE
-        carrierOwnsNetwork -> DuoNetworkDestination.CARRIER
-        else -> DuoNetworkDestination.NATIVE
-    }
+    ): DuoNetworkDestination = if (carrierOwnsNetwork) DuoNetworkDestination.CARRIER
+        else DuoNetworkDestination.NATIVE
 
     /**
      * Unknown, satellite and unsupported subscription states still fall back to native. Airplane
@@ -92,10 +92,18 @@ object DuoPolicy {
         // NO_SERVICE is a supported model: when there is no default data network, keep Duo and
         // let the drawable render its no-service treatment instead of falling back to native.
         if (!wifi && label == null && !noService) return null
+        // Match the host's single/stacked signal family. Unknown and satellite rows are omitted;
+        // more than two rows cannot be represented faithfully by the Duo glyph.
+        if (mobile.rows.size > MobileSignalState.MAX_RENDER_ROWS) return null
+        val cellularSignalLevels = mobile.rows.asSequence()
+            .filter { it.originalVisible && it.supportsReplacement }
+            .map { it.renderLevel }
+            .toList()
         val noInternet = !network.validated && (wifi || cellular)
         return DuoContent(
             battery, wifiLevel, label, sub.normalizedLevel,
-            noService, noInternet
+            noService, noInternet,
+            cellularSignalLevels = cellularSignalLevels
         )
     }
 }

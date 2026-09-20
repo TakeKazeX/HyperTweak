@@ -107,7 +107,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
     @Volatile private var keepTypeOnWifi = false
-    @Volatile private var keepDuoExpanded = false
     private var showBadge = true
     private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
@@ -241,7 +240,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false
-        keepDuoExpanded = false
         cancelSettleRamp()
         wifiHandles.forEach { it.cancel() }
         wifiHandles.clear()
@@ -289,8 +287,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             false
         )
         keepTypeOnWifi = Preferences.cellularTypeKeepsOnWifi()
-        keepDuoExpanded = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false) &&
-            Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0
         showBadge = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true)
         badgeTexts = listOf(
             Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
@@ -910,10 +906,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val fontScale = context.resources.configuration.fontScale
         val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
 
-        // Keep the per-SIM signal at the carrier's leading edge. Duo already carries the network
-        // type and Wi-Fi, so those trailing glyphs would duplicate the kept three-in-one icon.
-        val renderNetworkTypeAndWifi = !keepDuoExpanded
-
+        // In expanded Duo mode the battery ring stays on its own; the network type and Wi-Fi return
+        // to the carrier row alongside each SIM's signal.
         // Signal strength: one single-signal glyph per card, so an enabled stacked icon is split
         // back into the two rows instead of being merged.
         val signalLevel = model.signalLevel
@@ -925,7 +919,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publish(parts.signal, signalBitmap, tint)
 
         // Wi-Fi glyph on 卡一 only; the data type follows the active data SIM (开关 4: both rows).
-        val wifiBitmap = model.wifiLevel?.takeIf { renderNetworkTypeAndWifi }?.let { level ->
+        val wifiBitmap = model.wifiLevel?.let { level ->
             runCatching {
                 IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
             }.onFailure { DebugLog.w(TAG, "carrier wifi render failed", it) }.getOrNull()
@@ -933,7 +927,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publish(parts.wifi, wifiBitmap, tint)
         parts.wifiBitmap = wifiBitmap
 
-        val typeBitmap = model.typeText?.takeIf { renderNetworkTypeAndWifi && it.isNotBlank() }?.let { text ->
+        val typeBitmap = model.typeText?.takeIf { it.isNotBlank() }?.let { text ->
             runCatching {
                 MobileTypeRenderer.render(
                     output = MobileTypeOutput(
@@ -950,7 +944,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
-        parts.typeSuppressed = keepDuoExpanded || model.typeSuppressed
+        parts.typeSuppressed = model.typeSuppressed
         publishType(parts, typeBitmap, tint, parts.typeSuppressed)
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")

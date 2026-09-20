@@ -10,6 +10,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
+import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -18,12 +21,17 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderConfig
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
@@ -74,6 +82,11 @@ object DuoSignalHooker : StaticHooker() {
     private var darkMethod: Method? = null
     private var wifiScope: Any? = null
     private var wifiInteractor: Any? = null
+    private data class CellularSignalAssets(
+        val single: IconSvgRenderer.Document,
+        val stacked: IconSvgRenderer.Document
+    )
+    private var cellularSignalAssets: CellularSignalAssets? = null
     // Only applicationContext is retained, for restoring the host flow after a reload.
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var wifiContext: Context? = null
@@ -121,34 +134,46 @@ object DuoSignalHooker : StaticHooker() {
         private var percentMarkLetterSpacing = 0f
         private var percentMarkVerticalOffset = 0f
         private var percentGapPx = 0f
+        private var percentBelow = false
         private var blend = 1f
         private var animator: ValueAnimator? = null
 
-        /** Mirrors the two host percentage TextViews only on control-center Duo surfaces. */
-        fun setLeadingPercent(
+        /** Mirrors the native percent TextViews beside the glyph or below an expanded battery ring. */
+        fun setPercent(
             enabled: Boolean,
+            below: Boolean,
             container: View?,
             value: TextView?,
-            mark: TextView?
+            mark: TextView?,
+            fallbackText: String? = null
         ) {
-            val nextText = value?.text?.toString().orEmpty()
+            val rawText = value?.text?.toString().orEmpty()
+            val nextText = rawText.ifBlank { fallbackText.orEmpty() }
+            val sourceReady = nextText.isNotEmpty()
             val activeValue = value?.takeIf {
-                enabled && container?.visibility == View.VISIBLE &&
-                    it.visibility == View.VISIBLE && nextText.isNotEmpty()
+                enabled && sourceReady && (below ||
+                    (container?.isVisible == true && it.isVisible))
             }
-            val activeMark = mark?.takeIf { activeValue != null && it.visibility == View.VISIBLE }
-            val nextMark = activeMark?.text?.toString().orEmpty()
+            val drawValue = enabled && sourceReady && (below || activeValue != null)
+            val activeMark = mark?.takeIf {
+                drawValue && (below || it.isVisible)
+            }
+            val nextMark = if (drawValue) activeMark?.text?.toString().orEmpty().ifBlank {
+                if (below) "%" else ""
+            } else ""
             val nextLetterSpacing = activeValue?.letterSpacing ?: 0f
             val nextMarkLetterSpacing = activeMark?.letterSpacing ?: 0f
             val density = resources.displayMetrics.density
             val oldSlot = leadingPercentSlotWidthPx()
-            val changed = percentText != (if (activeValue != null) nextText else "") ||
+            val changed = percentBelow != (below && drawValue) ||
+                percentText != (if (drawValue) nextText else "") ||
                 percentMark != nextMark ||
                 percentLetterSpacing != nextLetterSpacing ||
                 percentMarkLetterSpacing != nextMarkLetterSpacing ||
                 (activeValue != null && (percentPaint.textSize != activeValue.textSize ||
                     percentPaint.typeface != activeValue.typeface ||
                     percentPaint.color != activeValue.currentTextColor)) ||
+                (below && drawValue && activeValue == null && percentPaint.color != icon.foreground) ||
                 (activeMark != null && (percentMarkPaint.textSize != activeMark.textSize ||
                     percentMarkPaint.typeface != activeMark.typeface ||
                     percentMarkPaint.color != activeMark.currentTextColor))
@@ -157,6 +182,13 @@ object DuoSignalHooker : StaticHooker() {
                 percentPaint.color = activeValue.currentTextColor
                 percentText = nextText
                 percentLetterSpacing = nextLetterSpacing
+            } else if (below && drawValue) {
+                percentPaint.textSize = 12f * resources.displayMetrics.density *
+                    resources.configuration.fontScale
+                percentPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                percentPaint.color = icon.foreground
+                percentText = nextText
+                percentLetterSpacing = 0f
             } else {
                 percentText = ""
                 percentLetterSpacing = 0f
@@ -171,15 +203,21 @@ object DuoSignalHooker : StaticHooker() {
                 percentMark = ""
                 percentMarkLetterSpacing = 0f
                 percentMarkVerticalOffset = 0f
+                if (below && drawValue) {
+                    percentMarkPaint.set(percentPaint)
+                    percentMarkPaint.textSize = percentPaint.textSize * 0.72f
+                    percentMarkLetterSpacing = 0f
+                }
             }
-            percentGapPx = if (percentText.isNotEmpty()) 2f * density else 0f
+            percentBelow = below && drawValue
+            percentGapPx = if (percentText.isNotEmpty() && !percentBelow) 2f * density else 0f
             if (oldSlot != leadingPercentSlotWidthPx()) requestLayout()
             if (changed || oldSlot != leadingPercentSlotWidthPx()) invalidate()
         }
 
         /** Width added before the icon, excluding the view's own start/end padding. */
         fun leadingPercentSlotWidthPx(): Int {
-            if (percentText.isEmpty()) return 0
+            if (percentText.isEmpty() || percentBelow) return 0
             val width = spacedTextWidth(percentText, percentPaint, percentLetterSpacing) +
                 spacedTextWidth(percentMark, percentMarkPaint, percentMarkLetterSpacing) + percentGapPx
             return ceil(width.toDouble()).toInt().coerceAtLeast(0)
@@ -210,18 +248,31 @@ object DuoSignalHooker : StaticHooker() {
             return height / 2f - (metrics.ascent + metrics.descent) / 2f + offset
         }
 
-        fun submit(content: DuoContent, small5GaEnabled: Boolean) {
+        fun setBatteryOnly(enabled: Boolean, drawable: Drawable?) {
+            val nextDrawable = drawable.takeIf { enabled }
+            val changed = icon.batteryOnly != enabled || icon.innerBatteryDrawable !== nextDrawable
+            icon.batteryOnly = enabled
+            icon.innerBatteryDrawable = nextDrawable
+            previousIcon.batteryOnly = enabled
+            previousIcon.innerBatteryDrawable = nextDrawable
+            if (changed) invalidate()
+        }
+
+        fun submit(content: DuoContent, small5GaEnabled: Boolean, cellularSignal: Bitmap?) {
             icon.small5GaEnabled = small5GaEnabled
             previousIcon.small5GaEnabled = small5GaEnabled
             val old = icon.content
-            if (old == content) return
+            val oldSignal = icon.cellularSignalBitmap
+            if (old == content && oldSignal === cellularSignal) return
             icon.content = content
+            icon.cellularSignalBitmap = cellularSignal
             // Signal strength and charge updates remain immediate; only a change of network
             // representation crossfades. No layout or host visibility mutations in the animator.
             if (old != null && ((old.wifiLevel != null) != (content.wifiLevel != null) ||
                     old.networkLabel != content.networkLabel || old.airplaneMode != content.airplaneMode)) {
                 animator?.cancel()
                 previousIcon.content = old
+                previousIcon.cellularSignalBitmap = oldSignal
                 blend = if (ValueAnimator.areAnimatorsEnabled()) 0f else 1f
                 if (blend == 0f) animator = ValueAnimator.ofFloat(0f, 1f).apply {
                     duration = 160L
@@ -237,6 +288,7 @@ object DuoSignalHooker : StaticHooker() {
             animator = null
             blend = 1f
             previousIcon.content = null
+            previousIcon.cellularSignalBitmap = null
         }
 
         override fun onDetachedFromWindow() {
@@ -260,11 +312,13 @@ object DuoSignalHooker : StaticHooker() {
             val iconSide = minOf(height, DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp))
             val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
             val iconLeft = if (rtl) paddingLeft else width - paddingRight - iconSide
-            icon.setBounds(iconLeft, 0, iconLeft + iconSide, height)
+            icon.setBounds(iconLeft, 0, iconLeft + iconSide, iconSide)
             runCatching {
                 if (blend < 1f) {
                     previousIcon.hideNetwork = icon.hideNetwork
                     previousIcon.hideSignalDots = icon.hideSignalDots
+                    previousIcon.batteryOnly = icon.batteryOnly
+                    previousIcon.innerBatteryDrawable = icon.innerBatteryDrawable
                     previousIcon.bounds = icon.bounds
                     previousIcon.foreground = icon.foreground
                     previousIcon.alpha = ((1f - blend) * 255).toInt()
@@ -272,7 +326,9 @@ object DuoSignalHooker : StaticHooker() {
                 }
                 icon.alpha = (blend * 255).toInt()
                 icon.draw(canvas)
-                if (percentText.isNotEmpty()) {
+                if (percentBelow && percentText.isNotEmpty()) {
+                    drawPercentBelow(canvas, iconLeft, iconSide)
+                } else if (percentText.isNotEmpty()) {
                     val startX = if (rtl) iconLeft + iconSide + percentGapPx else paddingLeft.toFloat()
                     drawSpacedText(canvas, percentText, startX, centeredBaseline(percentPaint),
                         percentPaint, percentLetterSpacing)
@@ -282,6 +338,38 @@ object DuoSignalHooker : StaticHooker() {
                         percentMarkPaint, percentMarkLetterSpacing)
                 }
             }.onFailure { drawFailed?.invoke() }
+        }
+
+        private fun drawPercentBelow(canvas: Canvas, iconLeft: Int, iconSide: Int) {
+            val valueWidth = spacedTextWidth(percentText, percentPaint, percentLetterSpacing)
+            val markWidth = spacedTextWidth(percentMark, percentMarkPaint, percentMarkLetterSpacing)
+            val width = valueWidth + markWidth
+            val valueMetrics = percentPaint.fontMetrics
+            val markMetrics = percentMarkPaint.fontMetrics
+            val textHeight = maxOf(valueMetrics.descent - valueMetrics.ascent,
+                markMetrics.descent - markMetrics.ascent)
+            if (width <= 0f || textHeight <= 0f) return
+            val scale = minOf(1f, iconSide * PERCENT_BELOW_MAX_WIDTH_FRACTION / width,
+                iconSide * PERCENT_BELOW_MAX_HEIGHT_FRACTION / textHeight)
+            val save = canvas.save()
+            try {
+                canvas.translate(iconLeft + iconSide / 2f, iconSide * PERCENT_BELOW_CENTER_Y)
+                canvas.scale(scale, scale)
+                val startX = -width / 2f
+                val baseline = -(valueMetrics.ascent + valueMetrics.descent) / 2f
+                drawSpacedText(canvas, percentText, startX, baseline, percentPaint, percentLetterSpacing)
+                val markX = startX + valueWidth
+                drawSpacedText(canvas, percentMark, markX,
+                    baseline + percentMarkVerticalOffset, percentMarkPaint, percentMarkLetterSpacing)
+            } finally {
+                canvas.restoreToCount(save)
+            }
+        }
+
+        private companion object {
+            const val PERCENT_BELOW_MAX_WIDTH_FRACTION = 0.72f
+            const val PERCENT_BELOW_MAX_HEIGHT_FRACTION = 0.42f
+            const val PERCENT_BELOW_CENTER_Y = 0.84f
         }
     }
 
@@ -376,6 +464,53 @@ object DuoSignalHooker : StaticHooker() {
         if (mobile == next) return
         mobile = next
         refresh()
+    }
+
+    private fun loadCellularSignalAssets(context: Context): CellularSignalAssets? {
+        cellularSignalAssets?.let { return it }
+        return runCatching {
+            val moduleContext = context.createPackageContext(
+                HostIconBridge.MODULE_PACKAGE,
+                Context.CONTEXT_IGNORE_SECURITY
+            )
+            val repository = IconSvgRepository(moduleContext)
+            CellularSignalAssets(
+                single = repository.loadSignalSingle(0).getOrThrow().document,
+                stacked = repository.loadSignalStacked(0).getOrThrow().document
+            ).also { cellularSignalAssets = it }
+        }.onFailure { DebugLog.w(TAG, "cellular signal artwork unavailable", it) }
+            .getOrNull()
+    }
+
+    private fun renderCellularSignal(context: Context, content: DuoContent): Bitmap? {
+        if (content.airplaneMode || content.wifiLevel != null ||
+            (content.networkLabel == null && !content.noService)) return null
+        val levels = content.cellularSignalLevels.take(2)
+        if (levels.isEmpty()) return null
+        val assets = loadCellularSignalAssets(context) ?: return null
+        val config = IconSvgRenderConfig(
+            iconHeightPx = 20,
+            alphaFg = 1f,
+            alphaBg = DuoDrawable.SIGNAL_DOT_RESERVE,
+            alphaError = DuoDrawable.SIGNAL_DOT_RESERVE,
+            densityDpi = context.resources.displayMetrics.densityDpi,
+            fontScale = context.resources.configuration.fontScale
+        )
+        return runCatching {
+            if (levels.size > 1) {
+                IconSvgRenderer.renderStacked(assets.stacked, levels[0], levels[1], config)
+            } else {
+                IconSvgRenderer.renderSingle(assets.single, levels[0], config)
+            }
+        }.onFailure { DebugLog.w(TAG, "cellular signal artwork render failed", it) }.getOrNull()
+    }
+
+    private fun originalBatteryDrawable(battery: View): Drawable? {
+        val style = read(battery, "mBatteryStyle") as? Int
+        val solid = read(battery, "mBatteryIconView") as? ImageView
+        val hollow = read(battery, "mHollowBatteryIconView") as? ImageView
+        val selected = if (style == 1) hollow else solid
+        return selected?.drawable ?: if (style == 1) solid?.drawable else hollow?.drawable
     }
 
     private fun attach(battery: View) {
@@ -477,23 +612,31 @@ object DuoSignalHooker : StaticHooker() {
                 restore(binding)
                 return
             }
-            val showLeadingPercent = binding.surface != DuoSurface.HOME && Preferences.getBoolean(
+            binding.view.icon.foreground = foreground(binding)
+            val batteryOnly = binding.surface == DuoSurface.EXPANDED &&
+                expandedStyle == DuoExpandedStyle.KEEP_DUO
+            val percentContainer = read(battery, "mBatteryPercentContainer") as? View
+            val percentView = read(battery, "mBatteryPercentView") as? TextView
+            val percentMark = read(battery, "mBatteryPercentMarkView") as? TextView
+            val showLeadingPercent = !batteryOnly && binding.surface != DuoSurface.HOME && Preferences.getBoolean(
                 Preferences.KEY_CC_BATTERY_PERCENT_LEFT,
                 false
             )
-            binding.view.setLeadingPercent(
-                showLeadingPercent,
-                read(battery, "mBatteryPercentContainer") as? View,
-                read(battery, "mBatteryPercentView") as? TextView,
-                read(battery, "mBatteryPercentMarkView") as? TextView
+            binding.view.setBatteryOnly(batteryOnly, if (batteryOnly) originalBatteryDrawable(battery) else null)
+            binding.view.setPercent(
+                enabled = showLeadingPercent || batteryOnly,
+                below = batteryOnly,
+                container = percentContainer,
+                value = percentView,
+                mark = percentMark,
+                fallbackText = percent?.toString()
             )
             binding.view.icon.hideSignalDots = binding.surface != DuoSurface.HOME &&
                 expandedStyle == DuoExpandedStyle.KEEP_DUO &&
                 ControlCenterHeaderHooker.supportsCompactLayout(battery) &&
                 Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
                 Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
-            binding.view.submit(content, small5GaEnabled)
-            binding.view.icon.foreground = foreground(binding)
+            binding.view.submit(content, small5GaEnabled, renderCellularSignal(battery.context, content))
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
                 if (content.airplaneMode) {
@@ -529,14 +672,18 @@ object DuoSignalHooker : StaticHooker() {
                 privacyState == "COMPLETE_SHOW_PRIVACY") binding.view.width else 0)
             // Geometry is owned by the parent layout pass, not by callbacks/pre-draw.
             if (binding.view.width > 0 && binding.view.height > 0 && binding.view.isAttachedToWindow) {
-                if (!IconPositionHooker.setDuoMask(binding.icons, true)) {
+                // Expanded KEEP_DUO keeps the battery ring, while native/carrier network rows own
+                // their original positions again. Home and the collapsed proxy remain composed.
+                val masksNetwork = !(binding.surface == DuoSurface.EXPANDED &&
+                    expandedStyle == DuoExpandedStyle.KEEP_DUO)
+                if (!IconPositionHooker.setDuoMask(binding.icons, masksNetwork)) {
                     binding.failed = true
                     restore(binding)
                 } else {
                     // Native SystemUI publishes its own `airplane` status-bar slot.  Duo renders
                     // that state inside the battery ring, so keep the native slot ignored while
                     // the replacement owns this cluster; otherwise two planes appear side by side.
-                    setNativeAirplaneMasked(binding, true)
+                    setNativeAirplaneMasked(binding, masksNetwork)
                 }
             }
         } catch (error: Throwable) {
@@ -905,6 +1052,9 @@ object DuoSignalHooker : StaticHooker() {
         binding.view.finishTransition()
         setPrivacyInset(binding, 0)
         binding.view.translationX = 0f
+        binding.view.setBatteryOnly(false, null)
+        binding.view.setPercent(false, false, null, null, null)
+        binding.view.icon.cellularSignalBitmap = null
         IconPositionHooker.setDuoMask(binding.icons, false)
         setNativeAirplaneMasked(binding, false)
         if (!binding.active) return
@@ -1051,6 +1201,7 @@ object DuoSignalHooker : StaticHooker() {
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null
             small5GaEnabled = false
+            cellularSignalAssets = null
             mobile = MobileSignalState(); network = DuoNetwork()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
         }

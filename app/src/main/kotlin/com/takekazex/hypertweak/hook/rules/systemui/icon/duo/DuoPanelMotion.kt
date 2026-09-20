@@ -80,8 +80,10 @@ internal class DuoPanelMotion {
         appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
         native.alpha = appliedAlpha
         source.getLocationOnScreen(location)
-        val sourceX = location[0] + source.paddingLeft + (source.width - source.paddingLeft - source.paddingRight) / 2f
-        val sourceY = location[1] + source.height / 2f
+        val sourceSide = min(source.width, source.height).toFloat()
+        val sourceX = location[0] + source.width - source.paddingRight - sourceSide / 2f
+        val sourceY = location[1] + if (content.wifiLevel == null && content.networkLabel != null)
+            sourceSide * DuoDrawable.LABEL_CENTER_Y / DuoDrawable.VIEWPORT else source.height / 2f
         native.getLocationOnScreen(location)
         val targetX = location[0] + native.width / 2f
         val targetY = location[1] + native.height / 2f

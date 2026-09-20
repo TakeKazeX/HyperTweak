@@ -1,26 +1,32 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import androidx.core.graphics.withSave
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
- * Three-in-one glyph: a power ring, a network step and four signal dots.
+ * Three-in-one glyph: a power ring, cellular/Wi-Fi state and the active SIM signal.
  *
  * Coordinates are authored in a 32-unit viewport and scaled uniformly into the bounds by the
  * smaller side, so the host's non-square battery slot cannot stretch the artwork.
  *
- * Proportions follow the reference artwork in `docs/IPHONE_DUO_SIGNAL/assets/reference`: the ring's
- * gap is centred at the bottom and is closed by the signal dots, Wi-Fi is two shallow arcs plus the
- * centre mark, and the four dots sit on one arc whose outer dots ride higher.
+ * The compact cellular form uses a stacked or single signal in the ring and places its type in the
+ * open bottom arc. Expanded Duo keeps the battery ring and original host battery glyph; native
+ * network icons return to their expanded positions.
  *
  * Host foreground tint drives every layer; battery semantics stay on the charged part of the ring.
  */
@@ -34,24 +40,38 @@ class DuoDrawable : Drawable() {
     private val networkSuffixPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val track = RectF()
+    private val signalBounds = RectF()
+    private val batteryBounds = Rect()
+    private val signalPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private var opacity = 255
+    private var signalFilterColor = Int.MIN_VALUE
+    private var signalColorFilter: PorterDuffColorFilter? = null
 
     var foreground: Int = Color.WHITE
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var networkOnly = false
     var hideNetwork = false
+    var batteryOnly = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     var hideSignalDots = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var small5GaEnabled = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var content: DuoContent? = null
         set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var cellularSignalBitmap: Bitmap? = null
+        set(value) { if (field !== value) { field = value; invalidateSelf() } }
+    var innerBatteryDrawable: Drawable? = null
+        set(value) { if (field !== value) { field = value; invalidateSelf() } }
 
     override fun draw(canvas: Canvas) {
         val state = content ?: return
         if (bounds.isEmpty) return
         val side = min(bounds.width(), bounds.height()).toFloat()
         if (side <= 0f) return
+        val cellular = !networkOnly && !batteryOnly && state.wifiLevel == null &&
+            (state.networkLabel != null || state.noService)
+        val compactRing = batteryOnly || cellular
         val save = canvas.save()
         try {
             canvas.translate(
@@ -59,16 +79,36 @@ class DuoDrawable : Drawable() {
                 bounds.top + (bounds.height() - side) / 2f
             )
             canvas.scale(side / VIEWPORT, side / VIEWPORT)
-            if (!networkOnly) drawPowerTrack(canvas, state)
-            if (state.airplaneMode) {
-                if (!hideNetwork) drawAirplane(canvas)
-            } else {
-                if (!hideNetwork) {
-                    if (state.wifiLevel != null) drawWifi(canvas, state.wifiLevel) else drawNetworkLabel(canvas, state)
+
+            canvas.withSave {
+                if (compactRing) {
+                    translate(CENTER, COMPACT_RING_CENTER_Y)
+                    scale(COMPACT_RING_SCALE, COMPACT_RING_SCALE)
+                    translate(-CENTER, -CENTER)
                 }
-                if (!networkOnly && !hideSignalDots) drawSignalDots(canvas, state)
-                if (!hideNetwork && state.noInternet) drawNoInternet(canvas)
+                if (!networkOnly) drawPowerTrack(this, state)
+                if (batteryOnly) {
+                    drawInnerBattery(this, state)
+                } else if (state.airplaneMode) {
+                    if (!hideNetwork) drawAirplane(this)
+                } else if (!hideNetwork) {
+                    if (state.wifiLevel != null) {
+                        drawWifi(this, state.wifiLevel)
+                    } else if (cellular) {
+                        drawCellularSignal(this, state)
+                    } else if (networkOnly) {
+                        drawNetworkLabel(this, state, CENTER)
+                    }
+                }
             }
+
+            if (cellular && !hideNetwork && state.networkLabel != null) {
+                drawNetworkLabel(canvas, state, LABEL_CENTER_Y)
+            } else if (!cellular && !batteryOnly && !networkOnly &&
+                state.wifiLevel != null && !hideSignalDots) {
+                drawSignalDots(canvas, state)
+            }
+            if (!hideNetwork && !batteryOnly && state.noInternet) drawNoInternet(canvas, cellular)
         } finally {
             canvas.restoreToCount(save)
         }
@@ -178,11 +218,11 @@ class DuoDrawable : Drawable() {
     /**
      * Type text stands in for the Wi-Fi layer while the default network is cellular.
      *
-     * Keep it optically centred in the ring from the active font metrics instead of pinning a
-     * baseline. The host may substitute MiSans/Roboto variants, whose ascent/descent differ enough
-     * that a fixed baseline makes short labels such as "5G" look noticeably low.
+     * Centre the type optically from the active font metrics. The compact cellular caller places it
+     * in the open space below the smaller ring; the hand-off renderer centres it on the native type
+     * target.
      */
-    private fun drawNetworkLabel(canvas: Canvas, state: DuoContent) {
+    private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) {
         val label = state.networkLabel.orEmpty()
         if (label.isEmpty()) return
         paint.style = Paint.Style.FILL
@@ -210,7 +250,7 @@ class DuoDrawable : Drawable() {
                 suffixWidth = suffixPaint.measureText(small5Ga.suffixText)
             }
             val metrics = paint.fontMetrics
-            val baseline = LABEL_CENTER_Y - (metrics.ascent + metrics.descent) / 2f
+            val baseline = centerY - (metrics.ascent + metrics.descent) / 2f
             val left = CENTER - (baseWidth + suffixWidth) / 2f
             canvas.drawText(small5Ga.baseText, left, baseline, paint)
             canvas.drawText(small5Ga.suffixText, left + baseWidth, baseline, suffixPaint)
@@ -222,11 +262,93 @@ class DuoDrawable : Drawable() {
             paint.textSize *= LABEL_MAX_WIDTH / measured
         }
         val metrics = paint.fontMetrics
-        val baseline = LABEL_CENTER_Y - (metrics.ascent + metrics.descent) / 2f
+        val baseline = centerY - (metrics.ascent + metrics.descent) / 2f
         canvas.drawText(label, CENTER, baseline, paint)
     }
 
-    /** Four signal levels; the two outer dots ride higher, so the row reads as an arc. */
+    /** Reuse the module's single/stacked SVG when available; the compact fallback keeps previews useful. */
+    private fun drawCellularSignal(canvas: Canvas, state: DuoContent) {
+        val bitmap = cellularSignalBitmap?.takeUnless { it.isRecycled }
+        if (bitmap != null) {
+            if (signalFilterColor != foreground) {
+                signalFilterColor = foreground
+                signalColorFilter = PorterDuffColorFilter(foreground, PorterDuff.Mode.SRC_IN)
+            }
+            signalPaint.colorFilter = signalColorFilter
+            signalPaint.alpha = opacity
+            signalBounds.set(CENTER - CELL_SIGNAL_SIZE / 2f, CELL_SIGNAL_CENTER_Y - CELL_SIGNAL_SIZE / 2f,
+                CENTER + CELL_SIGNAL_SIZE / 2f, CELL_SIGNAL_CENTER_Y + CELL_SIGNAL_SIZE / 2f)
+            canvas.drawBitmap(bitmap, null, signalBounds, signalPaint)
+            return
+        }
+
+        val levels = state.cellularSignalLevels.take(2)
+        when (levels.size) {
+            0 -> Unit
+            1 -> drawFallbackSignalRow(canvas, levels[0], 21.8f, SINGLE_SIGNAL_HEIGHTS)
+            else -> {
+                drawFallbackSignalRow(canvas, levels[0], 15.0f, STACKED_SIGNAL_TOP_HEIGHTS)
+                drawFallbackSignalRow(canvas, levels[1], 23.0f, STACKED_SIGNAL_BOTTOM_HEIGHTS)
+            }
+        }
+    }
+
+    private fun drawFallbackSignalRow(canvas: Canvas, level: Int, bottom: Float, heights: FloatArray) {
+        paint.style = Paint.Style.FILL
+        for (index in 0 until SIGNAL_DOT_COUNT) {
+            val lit = level >= 0 && index < level
+            colorOf(foreground, if (lit) 1f else SIGNAL_DOT_RESERVE)
+            val left = SIGNAL_BAR_LEFT + index * SIGNAL_BAR_PITCH
+            signalBounds.set(left, bottom - heights[index], left + SIGNAL_BAR_WIDTH, bottom)
+            canvas.drawRoundRect(signalBounds, SIGNAL_BAR_RADIUS, SIGNAL_BAR_RADIUS, paint)
+        }
+    }
+
+    /** Draw the host's current solid/hollow battery glyph without taking its drawable ownership. */
+    private fun drawInnerBattery(canvas: Canvas, state: DuoContent) {
+        val drawable = innerBatteryDrawable
+        if (drawable != null) {
+            val intrinsicWidth = drawable.intrinsicWidth
+            val intrinsicHeight = drawable.intrinsicHeight
+            val ratio = if (intrinsicWidth > 0 && intrinsicHeight > 0)
+                intrinsicWidth.toFloat() / intrinsicHeight else FALLBACK_BATTERY_RATIO
+            val width = min(BATTERY_GLYPH_MAX_WIDTH, BATTERY_GLYPH_MAX_HEIGHT * ratio)
+            val height = width / ratio
+            val left = (CENTER - width / 2f).roundToInt()
+            val top = (CENTER - height / 2f).roundToInt()
+            batteryBounds.set(drawable.bounds)
+            try {
+                drawable.setBounds(left, top, (CENTER + width / 2f).roundToInt(),
+                    (CENTER + height / 2f).roundToInt())
+                drawable.draw(canvas)
+            } finally {
+                drawable.bounds = batteryBounds
+            }
+            return
+        }
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = BATTERY_GLYPH_STROKE
+        colorOf(foreground)
+        signalBounds.set(CENTER - BATTERY_GLYPH_MAX_WIDTH / 2f, CENTER - BATTERY_GLYPH_MAX_HEIGHT / 2f,
+            CENTER + BATTERY_GLYPH_MAX_WIDTH / 2f, CENTER + BATTERY_GLYPH_MAX_HEIGHT / 2f)
+        canvas.drawRoundRect(signalBounds, BATTERY_GLYPH_RADIUS, BATTERY_GLYPH_RADIUS, paint)
+        paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(CENTER + BATTERY_GLYPH_MAX_WIDTH / 2f,
+            CENTER - BATTERY_TERMINAL_HEIGHT / 2f,
+            CENTER + BATTERY_GLYPH_MAX_WIDTH / 2f + BATTERY_TERMINAL_WIDTH,
+            CENTER + BATTERY_TERMINAL_HEIGHT / 2f, BATTERY_GLYPH_RADIUS, BATTERY_GLYPH_RADIUS, paint)
+        val fillWidth = (BATTERY_GLYPH_MAX_WIDTH - 3f) * state.battery.percent.coerceIn(0, 100) / 100f
+        if (fillWidth > 0f) {
+            canvas.drawRoundRect(CENTER - BATTERY_GLYPH_MAX_WIDTH / 2f + 1.5f,
+                CENTER - BATTERY_GLYPH_MAX_HEIGHT / 2f + 1.5f,
+                CENTER - BATTERY_GLYPH_MAX_WIDTH / 2f + 1.5f + fillWidth,
+                CENTER + BATTERY_GLYPH_MAX_HEIGHT / 2f - 1.5f, BATTERY_GLYPH_RADIUS / 2f,
+                BATTERY_GLYPH_RADIUS / 2f, paint)
+        }
+    }
+
+    /** Four Wi-Fi-mode data-SIM levels; the two outer dots ride higher along the ring's lower arc. */
     private fun drawSignalDots(canvas: Canvas, state: DuoContent) {
         paint.style = Paint.Style.FILL
         for (index in 0 until SIGNAL_DOT_COUNT) {
@@ -236,11 +358,12 @@ class DuoDrawable : Drawable() {
         }
     }
 
-    private fun drawNoInternet(canvas: Canvas) {
+    private fun drawNoInternet(canvas: Canvas, cellular: Boolean) {
         paint.style = Paint.Style.FILL
         colorOf(foreground)
         paint.textSize = NO_INTERNET_TEXT_SIZE
-        canvas.drawText("!", 23.6f, 13.8f, paint)
+        canvas.drawText("!", if (cellular) CELLULAR_NO_INTERNET_X else 23.6f,
+            if (cellular) CELLULAR_NO_INTERNET_Y else 13.8f, paint)
     }
 
     private fun colorOf(value: Int, fraction: Float = 1f) {
@@ -290,12 +413,35 @@ class DuoDrawable : Drawable() {
         const val MARK_BOTTOM_Y = 21.05f
         const val MARK_RADIUS = 1.82f
 
-        // Cellular labels should occupy roughly the same visual weight as the Wi-Fi glyph.
-        // 8.5u makes "5G" ~11u wide on the host's medium sans font; the metric-derived baseline
-        // keeps it centred even when MIUI swaps the concrete typeface implementation.
+        // Keep the cellular label in the compact glyph's lower opening. The metric-derived baseline
+        // keeps it optically aligned even when MIUI swaps the concrete typeface implementation.
         const val LABEL_TEXT_SIZE = 10.5f
         const val LABEL_MAX_WIDTH = 17.0f
-        const val LABEL_CENTER_Y = 15.9f
+        /** The type sits in the lower opening; the signal remains centred in the ring. */
+        const val LABEL_CENTER_Y = 27.0f
+
+        const val COMPACT_RING_SCALE = 0.78f
+        const val COMPACT_RING_CENTER_Y = 13.2f
+        const val CELL_SIGNAL_SIZE = 20f
+        const val CELL_SIGNAL_CENTER_Y = 17.2f
+        const val CELLULAR_NO_INTERNET_X = 25.5f
+        const val CELLULAR_NO_INTERNET_Y = 7.5f
+
+        const val SIGNAL_BAR_LEFT = 8.1f
+        const val SIGNAL_BAR_PITCH = 4.0f
+        const val SIGNAL_BAR_WIDTH = 2.45f
+        const val SIGNAL_BAR_RADIUS = 0.85f
+        val SINGLE_SIGNAL_HEIGHTS = floatArrayOf(3.2f, 5.9f, 8.7f, 11.5f)
+        val STACKED_SIGNAL_TOP_HEIGHTS = floatArrayOf(1.5f, 2.8f, 4.5f, 7.4f)
+        val STACKED_SIGNAL_BOTTOM_HEIGHTS = floatArrayOf(1.7f, 1.7f, 1.7f, 1.7f)
+
+        const val BATTERY_GLYPH_MAX_WIDTH = 14.4f
+        const val BATTERY_GLYPH_MAX_HEIGHT = 8.0f
+        const val BATTERY_GLYPH_STROKE = 1.15f
+        const val BATTERY_GLYPH_RADIUS = 1.7f
+        const val BATTERY_TERMINAL_WIDTH = 1.4f
+        const val BATTERY_TERMINAL_HEIGHT = 3.2f
+        const val FALLBACK_BATTERY_RATIO = 1.8f
 
         const val NO_INTERNET_TEXT_SIZE = 6.2f
 

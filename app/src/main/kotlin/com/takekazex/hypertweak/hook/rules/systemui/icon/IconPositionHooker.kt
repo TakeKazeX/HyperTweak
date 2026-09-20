@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -29,7 +31,8 @@ object IconPositionHooker : StaticHooker() {
 
     private data class ContainerState(
         var hostIgnored: List<String>,
-        var lastApplied: List<String>? = null
+        var lastApplied: List<String>? = null,
+        val nativeVisibleStates: WeakHashMap<View, Int> = WeakHashMap()
     )
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -44,6 +47,7 @@ object IconPositionHooker : StaticHooker() {
 
     @Volatile
     private var restoring = false
+    private var applyingNativeVisibility = false
 
     private val networkVisibility = LinkedHashMap<Class<*>, Method>()
     private val networkSlotFields = HashMap<Class<*>, Field?>()
@@ -56,14 +60,15 @@ object IconPositionHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         // The replacement callback runs off the UI thread. Restore only the mutable container
         // lists on the main thread; the host Slot list itself is process-startup state.
-        val pending = synchronized(stateLock) {
-            containerStates.entries.map { (container, state) -> container to state.hostIgnored.toList() }
-        }
+        val pending = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
         mainHandler.post {
             restoring = true
             maskOwners.clear()
             try {
-                pending.forEach { (container, hostIgnored) -> restoreIgnoredSlots(container, hostIgnored) }
+                pending.forEach { (container, state) ->
+                    hideNativeNetworkChildren(container)
+                    restoreIgnoredSlots(container, state.hostIgnored.toList())
+                }
             } finally {
                 restoring = false
                 synchronized(stateLock) { containerStates.clear() }
@@ -94,7 +99,16 @@ object IconPositionHooker : StaticHooker() {
                 val view = param.thisObject as? android.view.View ?: return@before
                 val container = view.parent ?: return@before
                 val slot = runCatching { networkSlotFields[type]?.get(view) as? String }.getOrNull()
-                if (slot != null && slot in maskSlotsFor(container)) param.args[0] = 2
+                if (slot != null && slot in maskSlotsFor(container)) {
+                    // Save host-visible requests before forcing this container's network child
+                    // closed. Calls with state 2 can be the superclass half of a subclass call,
+                    // so keep the last explicit visible state while our mask is active.
+                    if (!applyingNativeVisibility && param.args.getOrNull(0) != 2) {
+                        containerStates[container]?.nativeVisibleStates?.set(view,
+                            param.args[0] as? Int ?: return@before)
+                    }
+                    param.args[0] = 2
+                }
             } }
         }
         DebugLog.i(TAG, "IconPosition hooks installed")
@@ -284,14 +298,46 @@ object IconPositionHooker : StaticHooker() {
 
     /** Modern mobile/Wi-Fi binders own visibility independently from ignoredSlots. */
     private fun hideNativeNetworkChildren(container: Any) {
-        val group = container as? android.view.ViewGroup ?: return
+        val group = container as? ViewGroup ?: return
         val slots = maskSlotsFor(container)
-        if (slots.isEmpty()) return
+        val state = containerStates[container] ?: return
+        val hostBlocked = state.lastApplied ?: IconSlotPolicy.blockedFor(
+            surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy
+        )
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
             val entry = networkVisibility.entries.firstOrNull { it.key.isInstance(child) } ?: continue
             val slot = networkSlotFields[entry.key]?.get(child) as? String ?: continue
-            if (slot in slots) entry.value.invoke(child, 2, false)
+            if (slot in slots) {
+                if (!state.nativeVisibleStates.containsKey(child)) {
+                    readNativeVisibleState(child)?.let { state.nativeVisibleStates[child] = it }
+                }
+                if (state.nativeVisibleStates.containsKey(child)) {
+                    invokeNativeVisibleState(entry.value, child, 2)
+                }
+            } else if (slot in hostBlocked) {
+                state.nativeVisibleStates.remove(child)
+                invokeNativeVisibleState(entry.value, child, 2)
+            } else {
+                val previous = state.nativeVisibleStates.remove(child) ?: continue
+                invokeNativeVisibleState(entry.value, child, previous)
+            }
+        }
+    }
+
+    private fun readNativeVisibleState(view: View): Int? = runCatching {
+        findField(view.javaClass, "iconVisibleState")?.getInt(view)
+    }.getOrNull()
+
+    private fun invokeNativeVisibleState(method: Method, view: View, state: Int) {
+        val previous = applyingNativeVisibility
+        applyingNativeVisibility = true
+        try {
+            method.invoke(view, state, false)
+        } catch (error: Throwable) {
+            DebugLog.w(TAG, "modern network visibility restore failed", error)
+        } finally {
+            applyingNativeVisibility = previous
         }
     }
 

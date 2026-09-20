@@ -7,10 +7,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DuoPolicyTest {
-    @Test fun keepDuoOwnsTheExpandedNetworkEvenWhenCarrierRowsAreEnabled() {
-        assertEquals(DuoNetworkDestination.NONE,
+    @Test fun keepDuoReturnsExpandedNetworkToItsOwner() {
+        assertEquals(DuoNetworkDestination.CARRIER,
             DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, true))
-        assertEquals(DuoNetworkDestination.NONE,
+        assertEquals(DuoNetworkDestination.NATIVE,
             DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, false))
         assertEquals(DuoNetworkDestination.CARRIER,
             DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, true))
