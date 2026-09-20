@@ -107,6 +107,7 @@ fun BatteryInfoPage(onBack: () -> Unit) {
                 val previous = lastRequested
                 if (manual || previous == null || now - previous >= BatteryInfoChannel.REQUEST_INTERVAL_MS) {
                     runCatching { BatteryInfoChannel.request(context, session) }
+                        .onFailure { com.takekazex.hypertweak.util.DebugLog.w("BatteryInfoPage", "request broadcast failed", it) }
                     lastRequested = now
                 }
                 load()

@@ -33,8 +33,10 @@ object BatteryInfoReader {
     data class Section(val title: String, val rows: List<Row>)
     data class Reading(val sections: List<Section>, val status: BatteryInfoChannel.Status)
 
-    private const val BATTERY_SYSFS = "/sys/class/power_supply/battery"
     private const val THERMAL_SYSFS = "/sys/class/thermal/thermal_message"
+
+    @Volatile private var nominalCapacityResolved = false
+    @Volatile private var cachedNominalCapacityMah: Int? = null
 
     // ─── snapshot overlay ────────────────────────────────────────────────────
 
@@ -147,18 +149,20 @@ object BatteryInfoReader {
         basic += Row("${context.getString(R.string.battery_lbl_status)} · status", statusLabel(context, intent?.getIntExtra("status", -1) ?: -1))
         basic += Row("${context.getString(R.string.battery_lbl_plugged)} · plugged", pluggedLabel(context, intent?.getIntExtra("plugged", 0) ?: 0))
         basic += Row("${context.getString(R.string.battery_lbl_health)} · health", healthLabel(context, intent?.getIntExtra("health", -1) ?: -1))
-        val temp = intent?.getIntExtra("temperature", Int.MIN_VALUE) ?: sysfsInt("$BATTERY_SYSFS/temperature")?.let { it * 10 }
+        // Battery supply sysfs is denied to this untrusted-app process on the target ROM. Keep the
+        // one-second UI refresh on the public sticky broadcast instead of retrying blocked paths.
+        val temp = intent?.getIntExtra("temperature", Int.MIN_VALUE) ?: Int.MIN_VALUE
         basic += Row("${context.getString(R.string.battery_lbl_temp)} · temperature", halfCelsius(context, temp))
-        val voltage = intent?.getIntExtra("voltage", Int.MIN_VALUE) ?: sysfsInt("$BATTERY_SYSFS/voltage_now")?.let { it / 1000 }
+        val voltage = intent?.getIntExtra("voltage", Int.MIN_VALUE) ?: Int.MIN_VALUE
         basic += Row("${context.getString(R.string.battery_lbl_voltage)} · voltage", milliVolt(context, voltage))
-        basic += Row("${context.getString(R.string.battery_lbl_tech)} · technology", intent?.getStringExtra("technology") ?: sysfsRaw("$BATTERY_SYSFS/technology") ?: context.getString(R.string.battery_unavailable))
+        basic += Row("${context.getString(R.string.battery_lbl_tech)} · technology", intent?.getStringExtra("technology") ?: context.getString(R.string.battery_unavailable))
         sections += Section(context.getString(R.string.battery_sec_basic), basic)
 
         // 容量 (mix of snapshot + framework)
         val capacity = mutableListOf<Row>()
         capacity += Row("${context.getString(R.string.battery_lbl_nominal)} · PowerProfile", nominalCapacity(context)?.let { "$it mAh" } ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_design)} · charge_full_design", snap(snap, BatteryInfoChannel.SLOT_DESIGN_CAPACITY)
-            ?: sysfsInt("$BATTERY_SYSFS/charge_full_design")?.let { BatteryInfoChannel.mah(it) } ?: context.getString(R.string.battery_unavailable))
+            ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_fg1_design)} · fg1_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG1_DESIGN) ?: context.getString(R.string.battery_unavailable))
         if (dual) {
             capacity += Row("${context.getString(R.string.battery_lbl_fg2_design)} · fg2_design_capacity", snap(snap, BatteryInfoChannel.SLOT_FG2_DESIGN) ?: context.getString(R.string.battery_unavailable))
@@ -166,7 +170,7 @@ object BatteryInfoReader {
         }
         capacity += Row("${context.getString(R.string.battery_lbl_fg1_rm)} · fg1_rm", snap(snap, BatteryInfoChannel.SLOT_FG1_RM) ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_full)} · charge_full", snap(snap, BatteryInfoChannel.SLOT_FCC)
-            ?: sysfsInt("$BATTERY_SYSFS/charge_full")?.let { BatteryInfoChannel.mah(it) } ?: context.getString(R.string.battery_unavailable))
+            ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_charge_counter)} · charge_counter", BatteryInfoChannel.mah(intProperty(context, 1)) ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_current)} · current_now", BatteryInfoChannel.ma(intProperty(context, 2)) ?: context.getString(R.string.battery_unavailable))
         sections += Section(context.getString(R.string.battery_sec_capacity), capacity)
@@ -228,11 +232,18 @@ object BatteryInfoReader {
 
     private fun sysfsInt(path: String): Int? = sysfsRaw(path)?.toIntOrNull()
 
-    /** Device nominal capacity from [com.android.internal.os.PowerProfile#getBatteryCapacity]. */
-    private fun nominalCapacity(context: Context): Int? = runCatching {
-        val profile = Class.forName("com.android.internal.os.PowerProfile")
-            .getConstructor(Context::class.java).newInstance(context)
-        val method = profile.javaClass.getMethod("getBatteryCapacity")
-        (method.invoke(profile) as? Number)?.toInt()
-    }.getOrNull()
+    /** Device nominal capacity from PowerProfile; resolve the static value once per app process. */
+    @Synchronized
+    private fun nominalCapacity(context: Context): Int? {
+        if (!nominalCapacityResolved) {
+            cachedNominalCapacityMah = runCatching {
+                val profile = Class.forName("com.android.internal.os.PowerProfile")
+                    .getConstructor(Context::class.java).newInstance(context)
+                val method = profile.javaClass.getMethod("getBatteryCapacity")
+                (method.invoke(profile) as? Number)?.toInt()
+            }.getOrNull()
+            nominalCapacityResolved = true
+        }
+        return cachedNominalCapacityMah
+    }
 }

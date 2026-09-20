@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -40,15 +39,20 @@ object BatteryInfoHooker : StaticHooker() {
     @Synchronized
     fun onPackageReady(context: Context) {
         if (publisher != null) return
-        val application = context.applicationContext as? Application ?: context as? Application ?: run {
-            DebugLog.hookSkipped(TAG, "battery-info receiver", "no Application context")
+        // PackageReady can hand us a base Context during Application.attach, before its
+        // applicationContext is available. This hook only needs process-scoped Context APIs, so
+        // keep the app context when present and otherwise retain the supplied base Context.
+        val appContext = context.applicationContext ?: context
+        if (appContext.packageName != PACKAGE) {
+            DebugLog.hookSkipped(TAG, "battery-info receiver", "unexpected package=${appContext.packageName}")
             return
         }
-        val next = Publisher(application)
+        val next = Publisher(appContext)
         try {
             next.register()
             publisher = next
-            DebugLog.i(TAG, "battery-info request receiver registered (on-demand; no startup reads)")
+            DebugLog.i(TAG, "battery-info request receiver registered (on-demand; no startup reads) " +
+                "process=${android.app.Application.getProcessName()} context=${appContext.javaClass.name}")
         } catch (failure: Throwable) {
             next.close()
             DebugLog.w(TAG, "battery-info receiver registration failed", failure)
@@ -61,7 +65,7 @@ object BatteryInfoHooker : StaticHooker() {
         publisher = null
     }
 
-    private class Publisher(private val context: Application) {
+    private class Publisher(private val context: Context) {
         // The executor creates its one thread lazily, on the first real foreground request.
         private val worker = Executors.newSingleThreadExecutor { task ->
             Thread(task, "HyperTweak-BatteryInfo").apply { isDaemon = true }
@@ -69,6 +73,8 @@ object BatteryInfoHooker : StaticHooker() {
         private val source = AndroidSource(context)
         private val sampler = BatteryInfoSampler(source, SystemClock::elapsedRealtime)
         private var failureLogged = false
+        private var firstRequestLogged = false
+        private var firstSnapshotLogged = false
         private val requests = BatteryInfoRequests(
             clock = SystemClock::elapsedRealtime,
             executor = worker,
@@ -86,7 +92,13 @@ object BatteryInfoHooker : StaticHooker() {
                     val session = intent.getStringExtra(BatteryInfoChannel.EXTRA_SESSION) ?: return
                     val issuedAt = intent.getLongExtra(BatteryInfoChannel.EXTRA_ISSUED_AT, -1)
                     when (intent.action) {
-                        BatteryInfoChannel.ACTION_REQUEST -> requests.request(session, issuedAt)
+                        BatteryInfoChannel.ACTION_REQUEST -> {
+                            if (!firstRequestLogged) {
+                                firstRequestLogged = true
+                                DebugLog.i(TAG, "received first on-demand battery request")
+                            }
+                            requests.request(session, issuedAt)
+                        }
                         BatteryInfoChannel.ACTION_STOP -> requests.stop(session, issuedAt)
                     }
                 }.onFailure { DebugLog.w(TAG, "invalid battery-info request", it) }
@@ -146,8 +158,14 @@ object BatteryInfoHooker : StaticHooker() {
                 "battery snapshot was not acknowledged"
             }
             failureLogged = false
-            DebugLog.d(TAG, "sampled slots=${sampledAt.size()} reads=${source.reads} " +
-                "hal=${source.halReads} thread=${Thread.currentThread().name}")
+            val summary = "sampled slots=${sampledAt.size()} reads=${source.reads} " +
+                "hal=${source.halReads} thread=${Thread.currentThread().name}"
+            if (!firstSnapshotLogged) {
+                firstSnapshotLogged = true
+                DebugLog.i(TAG, "published first battery snapshot $summary")
+            } else {
+                DebugLog.d(TAG, summary)
+            }
         }
     }
 
@@ -168,7 +186,7 @@ object BatteryInfoHooker : StaticHooker() {
         else -> raw
     }
 
-    private class AndroidSource(private val context: Application) : BatteryInfoSampler.Source {
+    private class AndroidSource(private val context: Context) : BatteryInfoSampler.Source {
         var reads = 0
         var halReads = 0
         private var chargeClass: Class<*>? = null
