@@ -26,42 +26,73 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
     }
 
     private fun hookGmsObserver() {
-        runCatching {
-            val netdExecutorClass = "com.miui.powerkeeper.utils.NetdExecutor".toClassOrNull() ?: return@runCatching
-            val initGmsChainMethod = netdExecutorClass.getDeclaredMethod(
-                "initGmsChain",
-                String::class.java,
-                Int::class.javaPrimitiveType,
-                String::class.java
-            )
-
-            initGmsChainMethod.hook {
-                before { param ->
-                    param.args[2] = "ACCEPT"
-                }
-            }
-
-            val gmsObserverClass = "com.miui.powerkeeper.utils.GmsObserver".toClassOrNull() ?: return@runCatching
-
-            // Hook updateGmsAlarm, updateGmsNetWork, updateGoogleReletivesWakelock
-            listOf(
-                "updateGmsAlarm",
-                "updateGmsNetWork",
-                "updateGoogleReletivesWakelock"
-            ).forEach { methodName ->
-                runCatching {
-                    val method = gmsObserverClass.getDeclaredMethod(methodName, Boolean::class.javaPrimitiveType)
-                    method.hook {
-                        before { param ->
-                            param.args[0] = false
-                        }
+        val netdExecutorClass = "com.miui.powerkeeper.utils.NetdExecutor".toClassOrNull()
+        if (netdExecutorClass == null) {
+            DebugLog.d(hookerName, "NetdExecutor class unavailable on this PowerKeeper build")
+        } else {
+            // Legacy PowerKeeper builds routed this through NetdExecutor. Keep the fallback for
+            // those builds, but its absence must not prevent installing the current GmsObserver hook.
+            hookOptionalTarget("NetdExecutor.initGmsChain(String,int,String)") {
+                val method = netdExecutorClass.getDeclaredMethod(
+                    "initGmsChain",
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    String::class.java
+                )
+                method.hook {
+                    before { param ->
+                        param.args[2] = "ACCEPT"
                     }
                 }
             }
+        }
 
-            DebugLog.i(hookerName, "GmsObserver hooks registered")
-        }.onFailure { t ->
-            DebugLog.e(hookerName, "Failed to hook GmsObserver", t)
+        val gmsObserverClass = "com.miui.powerkeeper.utils.GmsObserver".toClassOrNull()
+        if (gmsObserverClass == null) {
+            DebugLog.d(hookerName, "GmsObserver class unavailable on this PowerKeeper build")
+            return
+        }
+
+        // PowerKeeper 4.2.00 reports Google reachability to Greeze through this method. Its
+        // argument is the network-limit state, so force false before the Binder update.
+        hookOptionalTarget("GmsObserver.updateFrameworkGmsNetStatus(boolean)") {
+            val method = gmsObserverClass.getDeclaredMethod(
+                "updateFrameworkGmsNetStatus",
+                Boolean::class.javaPrimitiveType
+            )
+            method.hook {
+                before { param ->
+                    param.args[0] = false
+                }
+            }
+        }
+
+        // Retain older builds' alarm/network/wakelock controls independently. PowerKeeper 4.2.00
+        // removed these methods; a missing legacy target must not suppress the current network hook.
+        listOf(
+            "updateGmsAlarm",
+            "updateGmsNetWork",
+            "updateGoogleReletivesWakelock"
+        ).forEach { methodName ->
+            hookOptionalTarget("GmsObserver.$methodName(boolean)") {
+                val method = gmsObserverClass.getDeclaredMethod(methodName, Boolean::class.javaPrimitiveType)
+                method.hook {
+                    before { param ->
+                        param.args[0] = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun hookOptionalTarget(target: String, install: () -> Unit) {
+        try {
+            install()
+            DebugLog.i(hookerName, "hook registered target=$target")
+        } catch (t: NoSuchMethodException) {
+            DebugLog.d(hookerName, "target unavailable on this PowerKeeper build: $target")
+        } catch (t: Throwable) {
+            DebugLog.e(hookerName, "failed to hook target=$target", t)
         }
     }
 
