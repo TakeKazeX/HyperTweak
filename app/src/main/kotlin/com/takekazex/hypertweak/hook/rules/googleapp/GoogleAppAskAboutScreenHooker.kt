@@ -33,8 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    below unambiguous.
  * 2. **Hint marker** — the unique 1-arg method using `updateAimCsbHintText should not be called
  *    when enableAimCsbHintText is false.` is the callback that drives the native AIM hint.
- * 3. **Model + hint field** — the marker invokes a 0-arg accessor returning `SearchBoxView`;
- *    the marker also reads a `boolean` field declared in that accessor's class.
+ * 3. **Model + hint field** — the marker invokes a 0-arg accessor returning a reference type;
+ *    the marker also reads a `boolean` field declared by that accessor's owner.
  * 4. **Gate** — that field's 0-arg `void` reader invokes a 0-arg `boolean` method whose body is a
  *    single call. That single call is the path's eligibility test.
  * 5. **OMNI entrypoint** — the eligibility test must resolve to Google's own entrypoint check:
@@ -80,10 +80,6 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     /** Native AIM hint callback; the commit message guard survives R8 renaming. */
     private const val HINT_MARKER =
         "updateAimCsbHintText should not be called when enableAimCsbHintText is false."
-
-    /** Unobfuscated Google library type returned by the hint callback's model accessor. */
-    private const val SEARCH_BOX_VIEW =
-        "com.google.android.libraries.lens.view.searchbox.SearchBoxView"
 
     private const val HOOK_THUMBNAIL = "google_lens_screen_thumbnail_retention"
     private const val HOOK_ELIGIBILITY = "google_lens_aim_eligibility_bridge"
@@ -406,7 +402,11 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val matches = LinkedHashMap<String, Targets>()
 
         for (accessor in marker.invokes) {
-            if (accessor.returnTypeName != SEARCH_BOX_VIEW || accessor.paramCount != 0) continue
+            if (accessor.paramCount != 0) continue
+            val accessorReturnType = runCatching {
+                accessor.getReturnTypeInstance(classLoader)
+            }.getOrNull() ?: continue
+            if (accessorReturnType.isPrimitive || accessorReturnType == Void.TYPE) continue
             accessors++
             for (use in marker.usingFields) {
                 val hint = use.field
@@ -575,11 +575,16 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         if (capabilityData != null && capability == null) {
             DebugLog.w(TAG, "capability source resolved in dex but could not be materialized")
         }
-        val aimBooleanParameterIndices = findAimBooleanParameterIndices(modelConstructor)
+        val aimBooleanParameterIndices =
+            findAimBooleanParameterIndices(modelConstructor.parameterTypes)
         if (aimBooleanParameterIndices.isEmpty()) {
+            val exactExecutorCount = modelConstructor.parameterTypes.count {
+                it.name == Executor::class.java.name
+            }
             DebugLog.w(
                 TAG,
-                "model constructor has no boolean AIM tail before Executor " +
+                "model constructor has no boolean AIM tail before unique Executor " +
+                    "exactExecutorCount=$exactExecutorCount " +
                     "version=${googleAppVersion()} constructor=${modelConstructor.toGenericString()}"
             )
         }
@@ -605,19 +610,20 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
 
     /**
      * The AIM booleans are kept at the end of the generated constructor immediately before its
-     * Executor dependency. The count differs between host builds, so recover the contiguous tail
-     * from the reflected signature instead of binding to an obfuscated index.
+     * exact `java.util.concurrent.Executor` parameter. Other dependencies may implement Executor;
+     * they are not boundary markers. The boolean count can change between host builds, so recover
+     * the contiguous tail instead of binding to fixed argument indices.
      */
-    private fun findAimBooleanParameterIndices(constructor: Constructor<*>): IntArray {
-        val executorIndices = constructor.parameterTypes.mapIndexedNotNull { index, type ->
-            if (Executor::class.java.isAssignableFrom(type)) index else null
+    internal fun findAimBooleanParameterIndices(parameterTypes: Array<Class<*>>): IntArray {
+        val executorIndices = parameterTypes.mapIndexedNotNull { index, type ->
+            if (type.name == Executor::class.java.name) index else null
         }
         val executorIndex = executorIndices.singleOrNull() ?: return IntArray(0)
         val booleanType = Boolean::class.javaPrimitiveType
         if (booleanType == null) return IntArray(0)
         val indices = ArrayList<Int>()
         var index = executorIndex - 1
-        while (index >= 0 && constructor.parameterTypes[index] == booleanType) {
+        while (index >= 0 && parameterTypes[index] == booleanType) {
             indices += index
             index--
         }

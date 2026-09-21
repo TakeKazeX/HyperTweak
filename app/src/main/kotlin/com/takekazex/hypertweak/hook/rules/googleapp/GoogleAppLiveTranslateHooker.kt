@@ -11,51 +11,18 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 /**
- * Shows the full-screen live-translate (屏幕实时翻译 / 滚动并翻译) button inside Circle to Search
- * (即圈即搜) — the Google app's Lens OMNI overlay, whose bottom action bar is built by the
- * `OmniBoxView` constructor `dnrk.<init>`.
+ * Shows the full-screen live-translate button inside Google App's Circle to Search overlay.
  *
- * The button is hidden by default through Google-side gates that only a server flag push or an
- * OMNI entry carrying a MediaProjection token can open. Verified against 17.48.13 (dex anchors are
- * real dex string/number literals, so they survive R8 renaming each build):
+ * The runtime resolver has no obfuscated class or method names and uses no constructor arity or
+ * parameter index. It starts from Google's semantic live-translate action id, then requires one
+ * action class with a cached boolean visibility method, the unique constructor that writes that
+ * field, and a zero-argument boolean capability call on a uniquely stored constructor dependency.
+ * Missing or ambiguous links fail closed. The action id is a product identifier, not a code path.
  *
- * 1. **Master flag** — `wtz.lu()` reads `com.google.android.apps.search.lens.user / 45785436`
- *    (default false), absorbed into `dmkp.T = dmjh.e() && lu()`.
- * 2. **System feature** — `dmkp.f = dmjh.f() /* OMNI */ && 45716363 && (45724135 || system feature
- *    CONTEXTUAL_SEARCH_LIVE_TRANSLATE)`. HyperOS never declares the feature, so we make
- *    `PackageManager.hasSystemFeature` answer true for exactly that name.
- * 3. **Media-projection display gate** — `dmwn.a()` refuses to show the button unless the
- *    invocation intent carries `android.media.projection.extra.EXTRA_MEDIA_PROJECTION` (`dmwm`
- *    predicate).
- *
- * The button's visibility decision is `dmwl.i() = dmkp.T && dmwn.a()`, consumed by `dnrk` for the
- * View path (inflate `lens_omnibox_live_translate_button`) and by `dmhc.j.a()` (= `dmwn.a()`) for
- * the Compose path (`dmit`'s `"live_translate_button"`).
- *
- * **Why gate 3 alone can never work on this device (root cause):** the invocation intent carries
- * no EXTRA_MEDIA_PROJECTION (HyperOS does not inject a projection token), and `cnov` only copies
- * the inbound intent into `"invocation-intent"` when that extra is present, so `dkne.p()`
- * (the `omnientInvocationIntent` Optional) is **empty**. `dmwn.a()` evaluates
- * `Optional<Intent>.map(dmwm).orElse(false)` — an empty Optional short-circuits `dmwm.apply`, it
- * is never invoked, and the gate settles on `false`. The `dmwm` hook is therefore dead code on a
- * stock device; only hooking the decision point itself can open the button.
- *
- * The primary hooks are therefore the two 0-arg boolean decision methods — `dmwl.i()` (View path)
- * and `dmwn.a()` (Compose path, plus it backs `dmwl.i()`). Both are reached through non-inlinable
- * virtual calls (`invoke-interface Ldjxk;->i()` / `invoke-virtual Ldmwn;->a()Z`), so they cannot
- * be sunk by R8 or ART. The bean `dmwl` is resolved via its unique action-id method
- * `int a() { return 271520; }` (the same id its View/Compose consumers reference), and `dmwn` is
- * then taken from the bean's constructor parameter type, so nothing hardcodes an obfuscated name.
- *
- * On tap (`dmwj.startLiveTranslate`) the app still works normally: when the intent has a token it
- * reuses it (direct `enaz` path), otherwise it launches
- * `MediaProjectionPermissionCheckerActivity` and asks the user once for screen-recording — that
- * legitimate system authorization is intentionally left untouched.
- *
- * The Google app is a declared required Xposed scope (see `scope.list` and `ScopeManager`), so
- * the switch flips the preference and queues the app in the Home restart dialog; the hooks then
- * read the preference live, so turning the feature off preserves stock behaviour without leaving
- * a stale hook generation behind.
+ * The remaining compatibility hooks are anchored by stable contracts: Google's named system
+ * feature, the Android media-projection extra, and the Google flag id. String-anchored hooks also
+ * require a unique target with the expected runtime signature. All callbacks read the preference
+ * live, so disabling the feature restores Google's original decisions.
  */
 object GoogleAppLiveTranslateHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -64,7 +31,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
 
     private const val TAG = "FullScreenTranslate"
 
-    /** Master iris-user flag; default false; single reader on 17.48.13 is `wtz.lu()`. */
+    /** Google server-side flag identifier used as an optional, obfuscation-independent anchor. */
     private const val FLAG_LIVE_TRANSLATE = "45785436"
 
     /** System feature that would otherwise keep the capability gate shut on HyperOS. */
@@ -74,18 +41,18 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
     /** Display gate: the omnibox only inflates the button when the intent carries this token. */
     private const val EXTRA_MEDIA_PROJECTION = "android.media.projection.extra.EXTRA_MEDIA_PROJECTION"
 
-    /**
-     * Live-translate action id, hardcoded by the app (not a resource id, so it is stable across
-     * builds): `dmwl.a()` returns it, and the View consumer `dljh` / Compose consumer `dmit` map
-     * the same id back to the bean. The bean's class carries a 0-arg `int a()` and the 0-arg
-     * `boolean i()` that gates the button.
-     */
+    /** Stable Google product action identifier; used only as a semantic DEX anchor. */
     private const val ACTION_LIVE_TRANSLATE = 271520
 
     private const val HOOK_SYSTEM_FEATURE = "google_live_translate_system_feature"
     private const val HOOK_SYSTEM_FEATURE_BASE = "google_live_translate_system_feature_base"
     private const val HOOK_ACTION_VISIBILITY = "google_live_translate_action_visibility"
     private const val HOOK_CAPABILITY = "google_live_translate_capability"
+
+    private data class ActionTargets(
+        val visibility: Method,
+        val capability: Method
+    )
 
     @Volatile
     private var enabledCache = false
@@ -110,13 +77,10 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         bridge: DexKitBridge,
         existingHookIds: Set<String> = emptySet()
     ) {
-        // Display gate: invoked through a Guava Function interface, cannot be inlined.
+        // The host strings identify semantic leaves; each child resolver fails closed on ambiguity.
         hookMediaProjectionGate(bridge)
         // Best-effort master flag leaf (may be sunk into its single call site by R8).
         hookFlagLeaf(bridge, FLAG_LIVE_TRANSLATE)
-        // The on-device decision points the flags feed into. These are the ones that actually
-        // win: `dmwl.i()` (View path) and `dmwn.a()` (Compose path + backs dmwl.i()), both
-        // reached through non-inlinable virtual calls.
         hookActionBeanVisibility(bridge, existingHookIds)
 
         DebugLog.i(TAG, "gate hooks installed")
@@ -170,124 +134,199 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
     // ─── Gate 3: EXTRA_MEDIA_PROJECTION display predicate ─────────────────────────
 
     private fun hookMediaProjectionGate(bridge: DexKitBridge) {
-        methodsUsingString(bridge, EXTRA_MEDIA_PROJECTION).forEach { md ->
-            val method = methodFor(md) ?: return@forEach
-            // The display predicate is a Guava `Function<InvocationIntent, Boolean>` whose JVM
-            // signature erases to `Object apply(Object)` (the boxed Boolean returns through the
-            // erased `Object` slot — `dmwm.apply`, verified in 17.48.13), so it is matched for the
-            // plain `boolean`/`Boolean` forms and the erased `Object` form alike. Methods that
-            // merely move the binder around (the deeplink gateway) are excluded by the
-            // single-`Object`-parameter shape, which none of them has.
+        val candidates = methodsUsingString(bridge, EXTRA_MEDIA_PROJECTION).mapNotNull { md ->
+            val method = methodFor(md) ?: return@mapNotNull null
+            // The host predicate can have an erased Object return type. Match the Android extra,
+            // then validate the reflected Function-like shape without using a host method name.
             if (method.parameterTypes.size != 1 ||
                 method.parameterTypes[0] != Any::class.java ||
                 (method.returnType != Boolean::class.java &&
                     method.returnType != java.lang.Boolean.TYPE &&
                     method.returnType != Any::class.java)
             ) {
-                return@forEach
+                return@mapNotNull null
             }
-            deoptimize(method)
-            method.hook {
-                after { param ->
-                    if (featureEnabled()) param.result = true
-                }
-            }
-            DebugLog.d(TAG, "media-projection display predicate hooked on $method")
+            method
+        }.distinctBy { it.toGenericString() }
+
+        val method = candidates.singleOrNull()
+        if (method == null) {
+            DebugLog.d(TAG, "media-projection predicate matches=${candidates.size}; skipping")
+            return
         }
+        deoptimize(method)
+        method.hook {
+            after { param ->
+                if (featureEnabled()) param.result = true
+            }
+        }
+        DebugLog.d(TAG, "media-projection display predicate hooked on $method")
     }
 
     // ─── Gate 1: master flag leaf ─────────────────────────────────────────────────
 
     private fun hookFlagLeaf(bridge: DexKitBridge, anchor: String) {
-        methodsUsingString(bridge, anchor).forEach { md ->
-            val method = methodFor(md) ?: return@forEach
+        val candidates = methodsUsingString(bridge, anchor).mapNotNull { md ->
+            val method = methodFor(md) ?: return@mapNotNull null
             if (method.parameterCount != 0 || method.returnType != java.lang.Boolean.TYPE) {
-                return@forEach
+                return@mapNotNull null
             }
-            deoptimize(method)
-            method.hook {
-                after { param ->
-                    if (featureEnabled()) param.result = true
-                }
-            }
-            DebugLog.d(TAG, "master flag leaf hooked on $method")
+            method
+        }.distinctBy { it.toGenericString() }
+
+        val method = candidates.singleOrNull()
+        if (method == null) {
+            DebugLog.d(TAG, "master flag leaf matches=${candidates.size}; skipping")
+            return
         }
+        deoptimize(method)
+        method.hook {
+            after { param ->
+                if (featureEnabled()) param.result = true
+            }
+        }
+        DebugLog.d(TAG, "master flag leaf hooked on $method")
     }
 
-    // ─── Primary: action-bean visibility (dmwl.i) + capability gate (dmwn.a) ─────
+    // ─── Primary: semantic action visibility + constructor-linked capability ─────
 
     /**
-     * Hooks the two on-device decision points for the live-translate button:
-     *
-     * - `dmwl.i()` (0-arg boolean) — the View path (`dnrk` inflates
-     *   `lens_omnibox_live_translate_button` only when `djxk.i()` is true). This is the single
-     *   verdict `dmkp.T && dmwn.a()`; forcing it true bypasses the master flag, the caller-type
-     *   gate, and the (on this device dead) media-projection Optional.
-     * - `dmwn.a()` (0-arg boolean), derived from the bean's constructor parameter type — the
-     *   Compose path (`dmit`'s "live_translate_button" is gated on `dmhc.j.a()` = `dmwn.a()`).
-     *
-     * Both are reached through virtual interface calls (`invoke-interface Ldjxk;->i()` /
-     * `invoke-virtual Ldmwn;->a()Z`), so R8/ART cannot inline or sink them.
+     * Hooks the action's cached visibility decision and the capability call that initializes it.
+     * Both targets are recovered from the current DEX field, writer, constructor-parameter and
+     * invoke relationships.
      */
     private fun hookActionBeanVisibility(
         bridge: DexKitBridge,
         existingHookIds: Set<String>
     ) {
-        val beanClass = bridge.findMethod { matcher { usingNumbers(ACTION_LIVE_TRANSLATE) } }
-            .firstOrNull {
-                // `dmwl.a()` is the only 0-arg method that returns the live-translate action
-                // id; its consumers (`dljh`'s render path, `dmit`'s compose lambda) reference
-                // the same id from multi-arg methods, so the shape is already unique.
-                it.paramCount == 0 && it.methodName == "a"
-            }
-            ?.let { materializeClass(it.className) }
-            ?: run {
-            DebugLog.w(TAG, "live-translate action bean (a()==$ACTION_LIVE_TRANSLATE) not resolved")
+        val targets = resolveActionTargets(bridge)
+        if (targets == null) {
+            DebugLog.w(TAG, "live-translate action graph unresolved or ambiguous; failing closed")
             return
         }
 
-        val visibility = beanClass.declaredMethods.firstOrNull {
-            it.name == "i" && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-        }
-        if (visibility != null && !existingHookIds.contains(HOOK_ACTION_VISIBILITY)) {
-            visibility.isAccessible = true
-            deoptimize(visibility)
-            visibility.hook(HOOK_ACTION_VISIBILITY) {
+        if (!existingHookIds.contains(HOOK_ACTION_VISIBILITY)) {
+            targets.visibility.isAccessible = true
+            deoptimize(targets.visibility)
+            targets.visibility.hook(HOOK_ACTION_VISIBILITY) {
                 intercept { chain -> overrideLiveTranslateActionVisibility(chain) }
             }
-            DebugLog.i(TAG, "action bean i() hooked on ${beanClass.name}")
-        } else {
-            DebugLog.w(TAG, "action bean i() not found on ${beanClass.name}")
+            DebugLog.i(TAG, "action visibility hooked on ${targets.visibility}")
         }
 
-        // dmwn is the second constructor parameter of the bean (dmwl(dmkp, dmwn, dmwk)).
-        val capabilityClass = runCatching {
-            beanClass.declaredConstructors.firstOrNull { it.parameterCount == 3 }
-                ?.parameterTypes?.getOrNull(1)
-        }.getOrNull()
-        if (capabilityClass != null) {
-            val capability = capabilityClass.declaredMethods.firstOrNull {
-                it.name == "a" && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
+        if (!existingHookIds.contains(HOOK_CAPABILITY)) {
+            targets.capability.isAccessible = true
+            deoptimize(targets.capability)
+            targets.capability.hook(HOOK_CAPABILITY) {
+                intercept { chain -> overrideLiveTranslateBooleanGate(chain) }
             }
-            if (capability != null && !existingHookIds.contains(HOOK_CAPABILITY)) {
-                capability.isAccessible = true
-                deoptimize(capability)
-                capability.hook(HOOK_CAPABILITY) {
-                    intercept { chain -> overrideLiveTranslateBooleanGate(chain) }
-                }
-                DebugLog.i(TAG, "capability a() hooked on ${capabilityClass.name}")
-            } else {
-                DebugLog.w(TAG, "capability a() not found on ${capabilityClass.name}")
-            }
-        } else {
-            DebugLog.i(TAG, "action bean ${beanClass.name} has no 3-arg constructor; skimming dmwn")
+            DebugLog.i(TAG, "action capability hooked on ${targets.capability}")
         }
+    }
+
+    /**
+     * Recovers the live-translate decision pair without relying on obfuscated symbols or a
+     * constructor layout. The action id identifies the action class; field reads and constructor
+     * writes identify its cached visibility method; the constructor's call/parameter/field graph
+     * identifies the capability method.
+     */
+    private fun resolveActionTargets(bridge: DexKitBridge): ActionTargets? {
+        val actionAnchors = bridge.findMethod {
+            matcher {
+                usingNumbers(ACTION_LIVE_TRANSLATE)
+                paramCount(0)
+                returnType("int")
+            }
+        }.filter { it.isMethod && it.returnTypeName == "int" }
+            .distinctBy { it.descriptor }
+        if (actionAnchors.size != 1) {
+            DebugLog.w(TAG, "live-translate action id matches=${actionAnchors.size}")
+            return null
+        }
+
+        val actionData = actionAnchors.single()
+        val actionClass = runCatching { actionData.getClassInstance(classLoader) }.getOrNull()
+            ?: return null
+        val beanMembers = bridge.findMethod {
+            matcher { declaredClass(actionClass) }
+        }.filter { it.declaredClassName == actionData.declaredClassName }
+        val constructors = beanMembers.filter { it.isConstructor }
+            .distinctBy { it.descriptor }
+
+        val visibilityCandidates = beanMembers.mapNotNull { data ->
+            if (!data.isMethod || data.paramCount != 0 || data.returnTypeName != "boolean" ||
+                data.usingFields.size != 1
+            ) {
+                return@mapNotNull null
+            }
+            val field = data.usingFields.single().field
+            if (field.typeName != "boolean" ||
+                field.declaredClassName != actionData.declaredClassName
+            ) {
+                return@mapNotNull null
+            }
+            val writers = field.writers.filter {
+                it.isConstructor && it.declaredClassName == actionData.declaredClassName
+            }.distinctBy { it.descriptor }
+            val writer = writers.singleOrNull() ?: return@mapNotNull null
+            val method = runCatching { data.getMethodInstance(classLoader) }.getOrNull()
+                ?: return@mapNotNull null
+            if (Modifier.isStatic(method.modifiers) ||
+                method.parameterCount != 0 || method.returnType != java.lang.Boolean.TYPE
+            ) {
+                return@mapNotNull null
+            }
+            Triple(data, method, writer)
+        }
+
+        val matches = LinkedHashMap<String, ActionTargets>()
+        var linkedCapabilities = 0
+        for (constructorData in constructors) {
+            val constructor = runCatching {
+                constructorData.getConstructorInstance(classLoader)
+            }.getOrNull() ?: continue
+            for (call in constructorData.invokes) {
+                if (!call.isMethod || call.paramCount != 0 || call.returnTypeName != "boolean") {
+                    continue
+                }
+                val dependencyClass = runCatching {
+                    call.getClassInstance(classLoader)
+                }.getOrNull() ?: continue
+                val dependencyParameter = constructor.parameterTypes.singleOrNull {
+                    dependencyClass.isAssignableFrom(it)
+                } ?: continue
+                val storedDependencies = actionClass.declaredFields.filter {
+                    !Modifier.isStatic(it.modifiers) && it.type == dependencyParameter
+                }
+                if (storedDependencies.size != 1) continue
+                val capability = runCatching { call.getMethodInstance(classLoader) }.getOrNull()
+                    ?: continue
+                if (Modifier.isStatic(capability.modifiers) || capability.parameterCount != 0 ||
+                    capability.returnType != java.lang.Boolean.TYPE
+                ) {
+                    continue
+                }
+                linkedCapabilities++
+                for ((visibilityData, visibility, writer) in visibilityCandidates) {
+                    if (writer.descriptor != constructorData.descriptor) continue
+                    val key = "${visibilityData.descriptor}|${call.descriptor}"
+                    matches[key] = ActionTargets(visibility, capability)
+                }
+            }
+        }
+
+        DebugLog.i(
+            TAG,
+            "action resolver: action=${actionAnchors.size}, visibility=${visibilityCandidates.size}, " +
+                "constructors=${constructors.size}, capabilityLinks=$linkedCapabilities, targets=${matches.size}"
+        )
+        return matches.values.singleOrNull()
     }
 
     // ─── DexKit method resolution ─────────────────────────────────────────────────
 
     private fun methodsUsingString(bridge: DexKitBridge, anchor: String): List<MethodData> =
-        bridge.findMethod { matcher { usingStrings(anchor) } }
+        bridge.findMethod { matcher { usingEqStrings(anchor) } }
 
     private fun overrideLiveTranslateSystemFeature(chain: XposedInterface.Chain): Any? {
         val result = chain.proceed()
@@ -314,28 +353,9 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         return if (featureEnabled()) true else result
     }
 
-    private fun materializeClass(dexName: String): Class<*>? = runCatching {
-        val normalized = dexName.removePrefix("L").removeSuffix(";").replace('/', '.')
-        Class.forName(normalized, false, classLoader)
-    }.onFailure { t ->
-        DebugLog.w(TAG, "failed to load class $dexName", t)
-    }.getOrNull()
-
     private fun methodFor(md: MethodData): Method? = runCatching {
-        val dexName = md.className.removePrefix("L").removeSuffix(";").replace('/', '.')
-        val clazz = Class.forName(dexName, false, classLoader)
-        val method = if (md.paramCount == 0) {
-            clazz.declaredMethods.firstOrNull {
-                it.name == md.methodName && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-            }
-        } else {
-            clazz.declaredMethods.firstOrNull {
-                it.name == md.methodName && it.parameterTypes.size == 1 &&
-                    it.parameterTypes[0] == Any::class.java
-            }
-        }
-        method?.apply { isAccessible = true }
+        md.getMethodInstance(classLoader).apply { isAccessible = true }
     }.onFailure { t ->
-        DebugLog.w(TAG, "failed to materialize method for ${md.className}#${md.methodName}", t)
+        DebugLog.w(TAG, "failed to materialize method ${md.descriptor}", t)
     }.getOrNull()
 }
