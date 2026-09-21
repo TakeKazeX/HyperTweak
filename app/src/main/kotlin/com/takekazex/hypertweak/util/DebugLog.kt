@@ -153,10 +153,20 @@ object DebugLog {
     }
 
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
-        if (priority < currentThreshold()) return
+        // BaseHooker registers hooks individually, which can produce hundreds of same-form success
+        // records during process startup. Keep target-level details available at DEBUG while
+        // leaving concise feature-level HOOK_OK summaries at INFO.
+        val effectivePriority = if (
+            priority == Log.INFO && message.startsWith("HOOK_OK target=")
+        ) {
+            Log.DEBUG
+        } else {
+            priority
+        }
+        if (effectivePriority < currentThreshold()) return
 
         val fullMessage = "$scope: $message"
-        when (priority) {
+        when (effectivePriority) {
             Log.ERROR -> Log.e(TAG, fullMessage, throwable)
             Log.WARN -> Log.w(TAG, fullMessage, throwable)
             Log.INFO -> Log.i(TAG, fullMessage)
@@ -170,9 +180,12 @@ object DebugLog {
         val recordLogs = runCatching { Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true) }
             .getOrDefault(true)
         if (recordLogs) {
-            enqueueLine(formatLine(priority, scope, message, throwable), priority >= Log.WARN)
+            enqueueLine(
+                formatLine(effectivePriority, scope, message, throwable),
+                effectivePriority >= Log.WARN
+            )
         }
-        forwardToXposed(priority, fullMessage, throwable)
+        forwardToXposed(effectivePriority, fullMessage, throwable)
     }
 
     private fun forwardToXposed(priority: Int, fullMessage: String, throwable: Throwable?) {
