@@ -298,7 +298,10 @@ class HookEntry : XposedModule() {
         isSystemServer = param.isSystemServer
         preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
+        DebugLog.setProcessTag(processName)
+        DebugLog.bindXposed(this)
         initPreferences()
+        DebugLog.ensureSession()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
         val oldHandles = HotReloadHandleStore(param.oldHookHandles)
         val oldHandleIds = oldHandles.ids
@@ -349,37 +352,32 @@ class HookEntry : XposedModule() {
             }
             EzReflect.init(targetClassLoader)
             dispatchSystemServerHookers(targetClassLoader, oldHandles)
-            restoreHookerStates(restoredState.hookerStates)
-            logHotReloadHandleDiff(oldHandleIds, oldHandles)
-            unhookRemainingOldHandles(oldHandles)
-            retryHookersAfterHotReload()
-            return
-        }
-
-        restoredState.packages.forEach { state ->
-            recordPackageState(
-                packageName = state.packageName,
-                classLoader = state.classLoader,
-                appInfo = state.appInfo,
-                isFirstPackage = state.isFirstPackage,
-                isPackageReady = state.isPackageReady,
-                appContext = state.appContext,
-                pluginStates = state.pluginStates
-            )
-            injectedPackages.add(state.packageName)
-            if (state.appContext != null) {
-                pendingAppContextPackages.remove(state.packageName)
-            }
-            EzReflect.init(state.classLoader)
-            dispatchPackageHookers(
-                packageName = state.packageName,
-                classLoader = state.classLoader,
-                appInfo = state.appInfo,
-                isFirstPackage = false,
-                replacementHandles = oldHandles
-            )
-            if (state.isPackageReady) {
-                onRestoredPackageReady(state, oldHandles)
+        } else {
+            restoredState.packages.forEach { state ->
+                recordPackageState(
+                    packageName = state.packageName,
+                    classLoader = state.classLoader,
+                    appInfo = state.appInfo,
+                    isFirstPackage = state.isFirstPackage,
+                    isPackageReady = state.isPackageReady,
+                    appContext = state.appContext,
+                    pluginStates = state.pluginStates
+                )
+                injectedPackages.add(state.packageName)
+                if (state.appContext != null) {
+                    pendingAppContextPackages.remove(state.packageName)
+                }
+                EzReflect.init(state.classLoader)
+                dispatchPackageHookers(
+                    packageName = state.packageName,
+                    classLoader = state.classLoader,
+                    appInfo = state.appInfo,
+                    isFirstPackage = false,
+                    replacementHandles = oldHandles
+                )
+                if (state.isPackageReady) {
+                    onRestoredPackageReady(state, oldHandles)
+                }
             }
         }
 
@@ -388,6 +386,15 @@ class HookEntry : XposedModule() {
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
         retryHookersAfterHotReload()
+        if (!isSystemServer && processName == "com.android.systemui") {
+            val context = restoredState.packages.firstOrNull { it.packageName == processName }?.appContext
+            if (context != null) {
+                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.schedule(context)
+            } else {
+                DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
+            }
+        }
+        DebugLog.i("HookEntry", "hot reload replacement ready process=$processName roots=${rootHookers.size}")
     }
 
     /** Recover a hooker whose in-place replacement failed without restarting the host process. */

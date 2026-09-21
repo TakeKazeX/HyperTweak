@@ -57,6 +57,36 @@ object IconPositionHooker : StaticHooker() {
     private var layoutFromField: Field? = null
     private var slotConstructor: Constructor<*>? = null
 
+    override fun saveHotReloadState(): Any = synchronized(stateLock) {
+        containerStates.entries.map { (container, state) -> listOf(container, ArrayList(state.hostIgnored)) }
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        mainHandler.post {
+            saved.forEach { entry ->
+                val row = entry as? List<*> ?: return@forEach
+                val container = row.getOrNull(0) as? View ?: return@forEach
+                val ignored = (row.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: return@forEach
+                synchronized(stateLock) { containerStates[container] = ContainerState(ignored) }
+                recoverExistingContainers(listOf(container))
+            }
+        }
+    }
+
+    internal fun recoverExistingContainers(views: List<View>) {
+        views.filter { it.javaClass.name == CONTAINER_CLASS }.forEach { container ->
+            runCatching {
+                val state = synchronized(stateLock) { containerStates[container] }
+                    ?: captureContainerState(container, ignoredSlotsField?.get(container) as? List<*> ?: return@runCatching)
+                val merged = IconSlotPolicy.blockedFor(surfaceFor(container, state.hostIgnored), state.hostIgnored, options.policy)
+                state.lastApplied = merged
+                restoreIgnoredSlots(container, merged)
+                container.requestLayout()
+            }.onFailure { DebugLog.w(TAG, "hot reload container recovery failed", it) }
+        }
+    }
+
     override fun onPrepareHotReload() {
         // The replacement callback runs off the UI thread. Restore only the mutable container
         // lists on the main thread; the host Slot list itself is process-startup state.

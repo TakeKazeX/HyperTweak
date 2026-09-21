@@ -36,6 +36,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -72,7 +73,7 @@ private const val CLOCK_REFRESH_MS = 30_000L
  * it - exactly what the module's own view does in the host row.
  */
 @Composable
-internal fun StatusBarPreview(model: StatusBarPreviewModel) {
+internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes = DuoSizes()) {
     val clock = rememberClockText()
     val leftScroll = rememberScrollState()
     val indicatorScroll = rememberScrollState()
@@ -100,7 +101,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel) {
                     fontSize = CLOCK_SP.sp,
                     modifier = Modifier.padding(end = 6.dp)
                 )
-                model.leftSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp) }
+                model.leftSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
             }
         }
         Box(Modifier.weight(1f)) {
@@ -108,7 +109,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel) {
                 Modifier.align(Alignment.CenterEnd).horizontalScroll(indicatorScroll),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                model.indicatorSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp) }
+                model.indicatorSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -132,15 +133,15 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel) {
                     modifier = Modifier.padding(end = 2.dp)
                 )
             }
-            model.coreSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp) }
+            model.coreSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
         }
     }
 }
 
 @Composable
-private fun PreviewGlyph(slot: String, duoSizeDp: Float) {
+private fun PreviewGlyph(slot: String, duoSizeDp: Float, duoSizes: DuoSizes) {
     if (slot == PREVIEW_DUO_SLOT) {
-        DuoPreviewGlyph(duoSizeDp)
+        DuoPreviewGlyph(duoSizeDp, duoSizes)
         return
     }
     StatusBarSlotGlyph(
@@ -151,12 +152,13 @@ private fun PreviewGlyph(slot: String, duoSizeDp: Float) {
 
 /** Uses the production drawable, so the preview cannot drift from the real Duo artwork. */
 @Composable
-private fun DuoPreviewGlyph(duoSizeDp: Float) {
+private fun DuoPreviewGlyph(duoSizeDp: Float, sizes: DuoSizes) {
     val drawable = remember {
         DuoDrawable().apply {
             content = DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false)
         }
     }
+    drawable.sizes = sizes
     drawable.foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     // The hook lays the glyph out at exactly the configured dp, so the mock must too.
     Canvas(Modifier.size(duoSizeDp.dp)) {

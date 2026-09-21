@@ -237,6 +237,41 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             (Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
                 Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false))
 
+    override fun saveHotReloadState(): Any = onMainBlocking {
+        listOf(blocks.keys.filterIsInstance<View>(), wifiScope, wifiInteractor, progress, panelVisible)
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        val token = generation.get()
+        main.post {
+            if (!enabled || generation.get() != token) return@post
+            runCatching {
+                recoverExistingViews((saved.getOrNull(0) as? List<*>)?.filterIsInstance<View>().orEmpty(),
+                    saved.getOrNull(3) as? Float, saved.getOrNull(4) as? Boolean)
+                val scope = saved.getOrNull(1)
+                val interactor = saved.getOrNull(2)
+                val context = hostContext
+                if (scope != null && interactor != null && context != null) bindWifi(scope, interactor, context)
+            }.onFailure { DebugLog.w(TAG, "carrier hot reload restore failed", it) }
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>, savedProgress: Float?, visible: Boolean?) {
+        if (!enabled) return
+        savedProgress?.let { progress = it.coerceIn(0f, 1f) }
+        visible?.let { panelVisible = it }
+        views.filter { it.javaClass.name == LAYOUT_CLASS && it.isAttachedToWindow }
+            .filterIsInstance<ViewGroup>().forEach(::installBlock)
+        scheduleRender()
+        applyHandoverGuarded(progress)
+        DebugLog.i(TAG, "hot reload carrier blocks=${blocks.size}")
+    }
+
+    internal fun recoverWifi(scope: Any, interactor: Any, context: Context) {
+        if (enabled) bindWifi(scope, interactor, context)
+    }
+
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false

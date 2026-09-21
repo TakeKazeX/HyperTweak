@@ -59,10 +59,8 @@ import kotlin.math.abs
  *   missed and drives on/off transitions.
  *
  * **Threading / hot reload**: `onPrepareHotReload` runs on the LSPosed binder thread and must not
- * touch views (the earlier version did and threw `CalledFromWrongThreadException`, which left the
- * relocated icons stuck — root cause of "关掉之后图标不会消失"). It only flags a pending reset;
- * the main-thread ticker performs the teardown (remove clones/container, re-apply the pristine
- * system list) on its next tick. All view mutations happen on the main thread.
+ * mutate views directly. State capture and cleanup finish on the main thread before the old
+ * generation retires; framework view references and panel progress rebind the replacement.
  */
 object LeftContainerHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -139,11 +137,6 @@ object LeftContainerHooker : StaticHooker() {
     @Volatile
     private var leftMode = IconTunerOptions.LEFT_MODE_DISABLED
 
-    /** Set on the LSPosed binder thread; consumed (and cleared) by the main-thread ticker. */
-    @Volatile
-    private var resetPending = false
-
-
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
 
@@ -176,6 +169,7 @@ object LeftContainerHooker : StaticHooker() {
     private var iconViewMIconField: Field? = null
     private var iconPayloadCloneMethod: Method? = null
     private var isIconVisibleMethod: Method? = null
+    private var iconPayloadVisibleField: Field? = null
     private var iconViewSetMethod: Method? = null
     private var iconViewSetResolved = false
     private var darkDispatcherField: Field? = null
@@ -289,14 +283,82 @@ object LeftContainerHooker : StaticHooker() {
         return leftMode >= IconTunerOptions.LEFT_MODE_HOME && !keyguardShowing()
     }
 
+    private fun <T> onMainBlocking(action: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) return action()
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var result: Result<T>? = null
+        mainHandler.post { try { result = runCatching(action) } finally { latch.countDown() } }
+        check(latch.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Left icon cleanup timed out" }
+        return checkNotNull(result).getOrThrow()
+    }
+
+    // Only framework objects and collections cross the module class-loader boundary.
+    override fun saveHotReloadState(): Any = onMainBlocking {
+        listOf(states.values.map { state ->
+            listOf(state.leftHost, state.clock, state.rightContainer, state.manager,
+                state.isKeyguard, state.barRoot, state.anchorEntries.map {
+                    listOf(it.view, it.parent, it.index, it.layoutParams)
+                }, state.islandHandler)
+        }, ccRows.values.mapNotNull { it.get() }, panelProgress, panelVisible)
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        mainHandler.post {
+            panelProgress = saved.getOrNull(2) as? Float ?: 0f
+            panelVisible = saved.getOrNull(3) as? Boolean ?: false
+            (saved.getOrNull(0) as? List<*>)?.forEach { item ->
+                val row = item as? List<*> ?: return@forEach
+                val host = row.getOrNull(0) as? ViewGroup ?: return@forEach
+                val clock = row.getOrNull(1) as? View ?: return@forEach
+                val right = row.getOrNull(2) as? ViewGroup ?: return@forEach
+                val manager = row.getOrNull(3) ?: return@forEach
+                val restored = LeftState(host, clock, right, manager,
+                    row.getOrNull(4) == true, row.getOrNull(5) as? View)
+                (row.getOrNull(6) as? List<*>)?.forEach anchor@{ value ->
+                    val entry = value as? List<*> ?: return@anchor
+                    restored.anchorEntries.add(AnchorEntry(
+                        entry.getOrNull(0) as? View ?: return@anchor,
+                        entry.getOrNull(1) as? ViewGroup ?: return@anchor,
+                        entry.getOrNull(2) as? Int ?: return@anchor,
+                        entry.getOrNull(3) as? ViewGroup.LayoutParams))
+                }
+                restored.islandHandler = row.getOrNull(7)
+                restored.islandShowing = readIslandShowing(restored.islandHandler)
+                states[manager] = restored
+            }
+            (saved.getOrNull(1) as? List<*>)?.filterIsInstance<ViewGroup>()
+                ?.filter { it.isAttachedToWindow }?.forEach(::captureShadeRow)
+            runCatching { reconcileAll() }.onFailure { DebugLog.w(TAG, "restore left icons failed", it) }
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>, progress: Float?, visible: Boolean?) {
+        progress?.let { panelProgress = it.coerceIn(0f, 1f) }
+        visible?.let { panelVisible = it }
+        val managerClass = ICON_MANAGER_BASE_CLASS.toClassOrNull() ?: return
+        val groupField = hierarchyField(managerClass, "mGroup") ?: return
+        views.forEach { view ->
+            when (view.javaClass.name) {
+                STATUS_BAR_VIEW_CLASS -> (view as? ViewGroup)?.let { rebindHomeState(it, groupField) }
+                KEYGUARD_VIEW_CLASS -> (view as? ViewGroup)?.let(::captureKeyguardView)
+                in CC_ROW_CLASSES -> (view as? ViewGroup)?.let(::captureShadeRow)
+            }
+        }
+        reconcileAll()
+        DebugLog.i(TAG, "hot reload left roots=${states.size} rows=${ccRows.size}")
+    }
+
     override fun onPrepareHotReload() {
-        // Binder thread: never touch views here. Flag a full teardown; the main-thread ticker
-        // performs it (and re-applies the pristine system block list).
-        resetPending = true
-        panelVisible = false
-        panelProgress = 0f
         mainHandler.removeCallbacks(reconcileRunnable)
-        mainHandler.post(reconcileRunnable)
+        onMainBlocking {
+            restoreHandover()
+            states.values.forEach(::teardownState)
+            states.clear()
+            ccRows.clear()
+            resetReflectionCaches()
+            publishOwnedChange()
+        }
     }
 
     override fun onHook() {
@@ -389,7 +451,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -399,7 +461,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -409,7 +471,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -818,7 +880,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -827,7 +889,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -836,7 +898,7 @@ object LeftContainerHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
-                    if (!active && !resetPending) return@after
+                    if (!active) return@after
                     syncClonesFor(synchronized(states) { states[param.thisObject] })
                 }
             }
@@ -850,6 +912,10 @@ object LeftContainerHooker : StaticHooker() {
         }
         val view = hierarchyField(controller.javaClass, "mView")?.get(controller) as? ViewGroup
             ?: return
+        captureKeyguardView(view)
+    }
+
+    private fun captureKeyguardView(view: ViewGroup) {
         if (view.javaClass.name != KEYGUARD_VIEW_CLASS) return
         val manager = hierarchyField(view.javaClass, "mTintedIconManager")?.get(view) ?: return
         val right = hierarchyField(manager.javaClass, "mGroup")?.get(manager) as? ViewGroup ?: return
@@ -964,6 +1030,7 @@ object LeftContainerHooker : StaticHooker() {
         iconViewMIconField = null
         iconPayloadCloneMethod = null
         isIconVisibleMethod = null
+        iconPayloadVisibleField = null
         iconViewSetMethod = null
         iconViewSetResolved = false
         darkDispatcherField = null
@@ -981,23 +1048,6 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     private fun reconcileAll() {
-        if (resetPending) {
-            resetPending = false
-            synchronized(states) {
-                states.values.forEach { state ->
-                    teardownState(state)
-                }
-                sweepLegacyLeftContainers()
-                states.clear()
-                resetReflectionCaches()
-            }
-            // Give every slot back to the right cluster: with nothing owned, the merge is just the
-            // slot modes applied to the pristine host list. The hand-over is released as well, or a
-            // hot reload during the shade drag would leave the control-center icons suppressed.
-            restoreHandover()
-            publishOwnedChange()
-            DebugLog.i(TAG, "LeftContainer teardown after hot reload")
-        }
         reloadSnapshot()
         var needsOverlayRefresh = false
         synchronized(states) {
@@ -1007,6 +1057,9 @@ object LeftContainerHooker : StaticHooker() {
                 } else {
                     if (active && !state.isKeyguard && keyguardShowing()) {
                         state.leftContainer?.visibility = View.GONE
+                    } else if (!active && state.leftHost.isShown) {
+                        state.clones.values.forEach { animateCloneVisibility(it, false) }
+                        if (state.clones.values.none { cloneFades[it]?.animator != null }) teardownState(state)
                     } else {
                         teardownState(state)
                     }
@@ -1245,19 +1298,17 @@ object LeftContainerHooker : StaticHooker() {
     private fun syncClones(state: LeftState) {
         val right = state.rightContainer
         val slots = activeSlots
-        if (slots.isEmpty()) {
-            teardownState(state)
-            return
-        }
-
         // 1. Drop clones whose slot is no longer selected or has no live view on the right.
         val it = state.clones.entries.iterator()
         while (it.hasNext()) {
             val (slot, clone) = it.next()
             val child = rightChildForSlot(state, slot)
             if (slot !in slots || child == null) {
+                animateCloneVisibility(clone, false)
+                if (cloneFades[clone]?.animator != null) continue
                 it.remove()
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+                cloneFades.remove(clone)?.animator?.cancel()
                 unregisterDarkReceiver(state, clone)
             }
         }
@@ -1274,6 +1325,7 @@ object LeftContainerHooker : StaticHooker() {
             if (!updateClone(state, clone, child)) {
                 state.clones.remove(slot)
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+                cloneFades.remove(clone)?.animator?.cancel()
                 unregisterDarkReceiver(state, clone)
                 continue
             }
@@ -1352,6 +1404,9 @@ object LeftContainerHooker : StaticHooker() {
             val icon = iconViewMIconField?.get(child)
             val clonedIcon = icon?.let { cloneIconPayload(it) } ?: return@runCatching false
             val setter = iconViewSetMethod ?: return@runCatching false
+            val visibleField = iconPayloadVisibleField ?: hierarchyField(clonedIcon.javaClass, "visible")
+                ?.also { iconPayloadVisibleField = it } ?: return@runCatching false
+            visibleField.setBoolean(clonedIcon, true)
             setter.invoke(clone, clonedIcon)
             true
         }.getOrDefault(false)
@@ -1360,8 +1415,47 @@ object LeftContainerHooker : StaticHooker() {
         val visible = isIconVisibleMethod?.let { m ->
             runCatching { m.invoke(child) as? Boolean }.getOrNull()
         } ?: false
-        clone.visibility = if (visible) View.VISIBLE else View.GONE
+        animateCloneVisibility(clone, visible)
         return true
+    }
+
+    private class CloneFade(var visible: Boolean? = null, var animator: android.animation.ValueAnimator? = null)
+    private val cloneFades = WeakHashMap<View, CloneFade>()
+
+    private fun animateCloneVisibility(clone: View, visible: Boolean) {
+        val image = clone as? android.widget.ImageView ?: run {
+            clone.visibility = if (visible) View.VISIBLE else View.GONE
+            return
+        }
+        val fade = cloneFades.getOrPut(clone) { CloneFade() }
+        if (fade.visible == visible) {
+            if (!visible && fade.animator == null) clone.visibility = View.GONE
+            return
+        }
+        val initial = fade.visible == null
+        fade.animator?.cancel()
+        fade.animator = null
+        fade.visible = visible
+        if (initial) image.imageAlpha = 0
+        clone.visibility = View.VISIBLE
+        val target = if (visible) 255 else 0
+        if (!android.animation.ValueAnimator.areAnimatorsEnabled() || (!visible && initial)) {
+            image.imageAlpha = target
+            clone.visibility = if (visible) View.VISIBLE else View.GONE
+            return
+        }
+        fade.animator = android.animation.ValueAnimator.ofInt(image.imageAlpha, target).apply {
+            duration = 200L
+            addUpdateListener { image.imageAlpha = it.animatedValue as Int }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (fade.animator !== animation) return
+                    fade.animator = null
+                    if (fade.visible == false) clone.visibility = View.GONE
+                }
+            })
+            start()
+        }
     }
 
     /** StatusBarIcon is mutable; use its host clone implementation before StatusBarIconView.set(). */
@@ -1384,6 +1478,7 @@ object LeftContainerHooker : StaticHooker() {
     private fun removeClones(state: LeftState) {
         state.clones.values.forEach { clone ->
             runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+            cloneFades.remove(clone)?.animator?.cancel()
             unregisterDarkReceiver(state, clone)
         }
         state.clones.clear()

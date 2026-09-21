@@ -62,6 +62,7 @@ object DuoSignalHooker : StaticHooker() {
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var enabled = false
     @Volatile private var epoch = 0
+    private var componentSizes = DuoSizes()
     private var panelProgress = 0f
     private var panelVisible = false
     private var panelStretchHeight = 0f
@@ -327,12 +328,14 @@ object DuoSignalHooker : StaticHooker() {
             icon.setBounds(iconLeft, 0, iconLeft + iconSide, iconSide)
             runCatching {
                 // The ring is stable; only network representations crossfade.
+                ring.sizes = icon.sizes
                 ring.content = icon.content
                 ring.foreground = icon.foreground
                 ring.bounds = icon.bounds
                 ring.draw(canvas)
                 transition.weights.forEach { (key, weight) ->
                     contentLayers[key]?.apply {
+                        sizes = icon.sizes
                         hidePowerTrack = true
                         hiddenSignalRows = icon.hiddenSignalRows
                         hideNetwork = icon.hideNetwork
@@ -374,7 +377,7 @@ object DuoSignalHooker : StaticHooker() {
             val save = canvas.save()
             try {
                 canvas.translate(iconLeft + iconSide / 2f, iconSide * PERCENT_BELOW_CENTER_Y)
-                canvas.scale(scale, scale)
+                canvas.scale(scale * icon.sizes.percent, scale * icon.sizes.percent)
                 val startX = -width / 2f
                 val baseline = -(valueMetrics.ascent + valueMetrics.descent) / 2f
                 drawSpacedText(canvas, percentText, startX, baseline, percentPaint, percentLetterSpacing)
@@ -409,6 +412,16 @@ object DuoSignalHooker : StaticHooker() {
                 Preferences.KEY_ICON_DUO_SIZE,
                 DuoLayout.DEFAULT_ICON_SIZE_DP
             ).toFloat()
+        )
+        componentSizes = DuoSizes(
+            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
         IconTunerFlows.init(classLoader)
         val batteryClass = BATTERY.toClassOrNull() ?: run { enabled = false; return }
@@ -629,16 +642,15 @@ object DuoSignalHooker : StaticHooker() {
                 restore(binding)
                 return
             }
+            binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
             val batteryOnly = binding.surface == DuoSurface.EXPANDED &&
                 expandedStyle == DuoExpandedStyle.KEEP_DUO
             val percentContainer = read(battery, "mBatteryPercentContainer") as? View
             val percentView = read(battery, "mBatteryPercentView") as? TextView
             val percentMark = read(battery, "mBatteryPercentMarkView") as? TextView
-            val showLeadingPercent = !batteryOnly && binding.surface != DuoSurface.HOME && Preferences.getBoolean(
-                Preferences.KEY_CC_BATTERY_PERCENT_LEFT,
-                false
-            )
+            val showLeadingPercent = DuoPolicy.leadingPercent(binding.surface, expandedStyle,
+                Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false))
             val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
             if (batteryOnly && batteryGlyph == null) { restore(binding); return }
             binding.view.setBatteryOnly(batteryOnly, batteryGlyph)
@@ -983,7 +995,7 @@ object DuoSignalHooker : StaticHooker() {
         binding.networkMotionSettle = null
         binding.networkMotionProgress = panelProgress
         val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
-            binding.view.icon.foreground, panelProgress, small5GaEnabled)
+            binding.view.icon.foreground, panelProgress, small5GaEnabled, componentSizes)
         if (binding.view.icon.hideNetwork != hidden) {
             binding.view.icon.hideNetwork = hidden
             binding.view.invalidate()
@@ -1019,7 +1031,7 @@ object DuoSignalHooker : StaticHooker() {
                 binding.networkMotionProgress = next
                 val updated = runCatching {
                     val hidden = binding.panelMotion.update(root, source, target, content, color,
-                        next, small5GaEnabled)
+                        next, small5GaEnabled, componentSizes)
                     if (binding.view.icon.hideNetwork != hidden) {
                         binding.view.icon.hideNetwork = hidden
                         binding.view.invalidate()
@@ -1282,17 +1294,37 @@ object DuoSignalHooker : StaticHooker() {
         return checkNotNull(result).getOrThrow()
     }
     override fun saveHotReloadState(): Any? = onMainBlocking {
-        listOf(wifiScope, wifiInteractor, wifiContext, bindings.keys.toList())
+        listOf(wifiScope, wifiInteractor, wifiContext, bindings.keys.toList(),
+            panelProgress, panelVisible, panelStretchHeight)
     }
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
         val token = epoch
         main.post { if (enabled && token == epoch) guarded {
+            panelProgress = saved.getOrNull(4) as? Float ?: 0f
+            panelVisible = saved.getOrNull(5) as? Boolean ?: false
+            panelStretchHeight = saved.getOrNull(6) as? Float ?: 0f
             val scope = saved.getOrNull(0); val interactor = saved.getOrNull(1); val context = saved.getOrNull(2) as? Context
             if (scope != null && interactor != null && context != null) bindWifi(scope, interactor, context)
             (saved.getOrNull(3) as? List<*>)?.filterIsInstance<View>()?.filter { it.isAttachedToWindow }?.forEach(::attach)
         } }
     }
+    internal fun recoverExistingViews(views: List<View>, progress: Float?, visible: Boolean?, stretch: Float?) {
+        if (!enabled) return
+        progress?.let { panelProgress = it.coerceIn(0f, 1f) }
+        visible?.let { panelVisible = it }
+        stretch?.let { panelStretchHeight = it }
+        views.filter { it.javaClass.name == BATTERY && it.isAttachedToWindow }.forEach { battery ->
+            guarded { attach(battery) }
+        }
+        refresh()
+        DebugLog.i(TAG, "hot reload Duo batteries=${bindings.size}")
+    }
+
+    internal fun recoverWifi(scope: Any, interactor: Any, context: Context) {
+        if (enabled) bindWifi(scope, interactor, context)
+    }
+
     override fun onPrepareHotReload() {
         enabled = false
         epoch++

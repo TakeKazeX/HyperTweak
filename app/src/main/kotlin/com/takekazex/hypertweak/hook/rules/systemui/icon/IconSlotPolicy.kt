@@ -268,6 +268,13 @@ object IconSlotPolicy {
         return result.toList()
     }
 
+    /** Apply the same choice after the host unions observer, tuner and manager hide lists. */
+    fun classicBlocked(slot: String, surface: IconSurface, hostBlocked: Boolean,
+        config: IconSlotPolicyConfig, owned: Set<String>, minimalism: Boolean = false): Boolean {
+        if (minimalism) return hostBlocked
+        return slot in owned || slot in blockedFor(surface, if (hostBlocked) listOf(slot) else emptyList(), config)
+    }
+
     /**
      * Normalizes one config list in place conceptually, but returns a fresh list and never mutates
      * the host's Slot objects. Module slots are added only for enabled features.

@@ -42,6 +42,10 @@ data class DuoContent(
 )
 
 object DuoPolicy {
+    fun leadingPercent(surface: DuoSurface, style: DuoExpandedStyle, requested: Boolean): Boolean =
+        requested && style != DuoExpandedStyle.KEEP_DUO &&
+            (surface == DuoSurface.COLLAPSED_PROXY || surface == DuoSurface.EXPANDED)
+
     fun replaces(surface: DuoSurface, expandedStyle: DuoExpandedStyle): Boolean = when (surface) {
         DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
         // The explicit "keep Duo" choice retains only the expanded battery ring. Network state

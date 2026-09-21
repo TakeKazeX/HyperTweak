@@ -552,6 +552,15 @@ object Preferences {
 
     /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
     const val KEY_ICON_DUO_SIZE = "icon_duo_size"
+    const val KEY_ICON_DUO_RING_SCALE = "icon_duo_ring_scale"
+    const val KEY_ICON_DUO_WIFI_SCALE = "icon_duo_wifi_scale"
+    const val KEY_ICON_DUO_CELLULAR_SCALE = "icon_duo_cellular_scale"
+    const val KEY_ICON_DUO_TYPE_SCALE = "icon_duo_type_scale"
+    const val KEY_ICON_DUO_DOTS_SCALE = "icon_duo_dots_scale"
+    const val KEY_ICON_DUO_AIRPLANE_SCALE = "icon_duo_airplane_scale"
+    const val KEY_ICON_DUO_BATTERY_SCALE = "icon_duo_battery_scale"
+    const val KEY_ICON_DUO_PERCENT_SCALE = "icon_duo_percent_scale"
+
 
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"

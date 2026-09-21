@@ -58,7 +58,8 @@ internal class DuoPanelMotion {
         content: DuoContent,
         color: Int,
         progress: Float,
-        small5GaEnabled: Boolean = false
+        small5GaEnabled: Boolean = false,
+        sizes: DuoSizes = DuoSizes()
     ): Boolean {
         if (!progress.isFinite() || !root.isAttachedToWindow ||
             !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
@@ -93,7 +94,8 @@ internal class DuoPanelMotion {
         y = DuoPanelGeometry.mix(sourceY, targetY, progress) - location[1]
         // Network artwork occupies roughly half the 32-unit viewport.
         side = DuoPanelGeometry.mix(min(source.width, source.height).toFloat() *
-            (if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE else 1f),
+            (if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE * sizes.wifi
+                else sizes.type),
             min(native.width, native.height) * 1.7f, progress)
         layerAlpha = DuoPanelGeometry.overlayAlpha(progress)
         glyph.content = content

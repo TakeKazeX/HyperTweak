@@ -43,6 +43,38 @@ object IconManagerHooker : StaticHooker() {
 
     private var setBlockListMethod: java.lang.reflect.Method? = null
 
+    override fun saveHotReloadState(): Any = synchronized(stateLock) {
+        states.entries.map { (manager, state) -> listOf(manager, ArrayList(state.pristine)) }
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        mainHandler.post {
+            synchronized(stateLock) {
+                saved.forEach { entry ->
+                    val row = entry as? List<*> ?: return@forEach
+                    val manager = row.getOrNull(0) ?: return@forEach
+                    val pristine = (row.getOrNull(1) as? List<*>)?.filterIsInstance<String>()
+                        ?: return@forEach
+                    states[manager] = ManagerState(pristine)
+                }
+            }
+            republishMergedLists()
+        }
+    }
+
+    internal fun recoverManagers(managers: List<Any>) {
+        managers.forEach { manager ->
+            val known = synchronized(stateLock) { states.containsKey(manager) }
+            if (!known) {
+                val current = hierarchyField(manager.javaClass, "mBlockList")?.get(manager) as? List<*>
+                    ?: return@forEach
+                synchronized(stateLock) { states[manager] = ManagerState(stableStrings(current)) }
+            }
+        }
+        republishMergedLists()
+    }
+
     override fun onPrepareHotReload() {
         // `setBlockList` asserts the main thread. Preparing a replacement generation runs on the
         // Xposed binder thread, so only request the restore here.
@@ -66,6 +98,67 @@ object IconManagerHooker : StaticHooker() {
         }
     }
 
+    private data class RefreshContext(val manager: Any, val minimalism: Boolean)
+    private val refreshContexts = ThreadLocal.withInitial { ArrayList<RefreshContext>() }
+
+    private fun finalBlocked(manager: Any, slot: String, hostBlocked: Boolean, minimalism: Boolean = false): Boolean {
+        val location = readLocation(manager)
+        return IconSlotPolicy.classicBlocked(slot, IconSlotPolicy.surfaceForHostLocation(location),
+            hostBlocked, options.policy, IconSlotPolicy.ownedSlotsFor(location,
+                LeftContainerHooker.homeOwnedSlots(), LeftContainerHooker.keyguardOwnedSlots()), minimalism)
+    }
+
+    private fun hookFinalVisibility(managerClass: Class<*>) {
+        // addHolder receives tuner blocking before the first observer refresh.
+        managerClass.findMethodOrNull { name("addHolder"); paramCount(4) }?.hook {
+            before { param ->
+                val manager = param.thisObject
+                val slot = param.args.getOrNull(1) as? String ?: return@before
+                val blocked = param.args.getOrNull(2) as? Boolean ?: return@before
+                runCatching { param.args[2] = finalBlocked(manager, slot, blocked) }
+                    .onFailure { DebugLog.w(TAG, "initial icon policy failed", it) }
+            }
+        }
+        val controller = "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl".toClassOrNull() ?: return
+        val minimalismField = hierarchyField(controller, "mMinimalismModeController") ?: return
+        val minimalismMethod = minimalismField.type.methods.singleOrNull {
+            it.name == "isMininalismModeOn" && it.parameterCount == 0
+        } ?: return
+        val icon = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
+        val slotField = hierarchyField(icon, "mSlot") ?: return
+        controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    val manager = param.args[0] ?: return@before
+                    val minimalism = runCatching {
+                        minimalismMethod.invoke(minimalismField.get(param.thisObject)) as? Boolean
+                    }.getOrNull() ?: true
+                    refreshContexts.get()?.add(RefreshContext(manager, minimalism))
+                }
+                after {
+                    refreshContexts.get()?.let { stack ->
+                        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex)
+                        if (stack.isEmpty()) refreshContexts.remove()
+                    }
+                }
+            }
+        }
+        icon.findMethodOrNull { name("setBlocked"); paramCount(1) }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    val context = refreshContexts.get()?.lastOrNull() ?: return@before
+                    runCatching {
+                        val slot = slotField.get(param.thisObject) as? String ?: return@runCatching
+                        val blocked = param.args[0] as? Boolean ?: return@runCatching
+                        param.args[0] = finalBlocked(context.manager, slot, blocked, context.minimalism)
+                    }.onFailure { DebugLog.w(TAG, "final icon policy failed", it) }
+                }
+            }
+        }
+    }
+
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
@@ -84,6 +177,7 @@ object IconManagerHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$ICON_MANAGER_CLASS#setBlockList", "method not found")
             return
         }
+        hookFinalVisibility(managerClass)
         setBlockListMethod = method
         method.hook {
             before { param ->
@@ -206,8 +300,10 @@ object IconManagerHooker : StaticHooker() {
         }
     }
 
+    private val locationFields = HashMap<Class<*>, Field?>()
+
     private fun readLocation(manager: Any): String? = runCatching {
-        hierarchyField(manager.javaClass, "mLocation")?.get(manager)?.toString()
+        locationFields.getOrPut(manager.javaClass) { hierarchyField(manager.javaClass, "mLocation") }?.get(manager)?.toString()
     }.getOrNull()
 
     private fun hierarchyField(type: Class<*>, name: String): Field? {

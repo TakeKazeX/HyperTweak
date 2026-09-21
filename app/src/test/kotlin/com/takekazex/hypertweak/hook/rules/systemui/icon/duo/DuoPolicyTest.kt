@@ -7,6 +7,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DuoPolicyTest {
+    @Test fun keepDuoNeverLeaksLeadingPercentIntoAnyGestureSurface() {
+        DuoSurface.entries.forEach { surface ->
+            assertFalse(DuoPolicy.leadingPercent(surface, DuoExpandedStyle.KEEP_DUO, true))
+        }
+        assertTrue(DuoPolicy.leadingPercent(DuoSurface.COLLAPSED_PROXY, DuoExpandedStyle.RESTORE_NATIVE, true))
+        assertTrue(DuoPolicy.leadingPercent(DuoSurface.EXPANDED, DuoExpandedStyle.RESTORE_NATIVE, true))
+        assertFalse(DuoPolicy.leadingPercent(DuoSurface.HOME, DuoExpandedStyle.RESTORE_NATIVE, true))
+        assertFalse(DuoPolicy.leadingPercent(DuoSurface.COLLAPSED_PROXY, DuoExpandedStyle.RESTORE_NATIVE, false))
+    }
+
     @Test fun keepDuoReturnsExpandedNetworkToItsOwner() {
         assertEquals(DuoNetworkDestination.CARRIER,
             DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, true))

@@ -22,11 +22,12 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */
 @Composable
-internal fun DuoSignalPreview(small5GaEnabled: Boolean = false) {
+internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes()) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
     val context = LocalContext.current
@@ -34,7 +35,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false) {
         val repository = IconSvgRepository(context)
         repository.loadSignalSingle(0).getOrNull()?.document to repository.loadSignalStacked(0).getOrNull()?.document
     }
-    val icons = remember(small5GaEnabled, artwork) {
+    val icons = remember(small5GaEnabled, artwork, sizes) {
         listOf(
             DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
             DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false, cellularSignalLevels = listOf(3, 2)),
@@ -42,6 +43,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false) {
             DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false)
         ).map { state ->
             DuoDrawable().apply {
+                this.sizes = sizes
                 this.small5GaEnabled = small5GaEnabled
                 content = state
                 val document = if (state.cellularSignalLevels.size > 1) artwork.second else artwork.first

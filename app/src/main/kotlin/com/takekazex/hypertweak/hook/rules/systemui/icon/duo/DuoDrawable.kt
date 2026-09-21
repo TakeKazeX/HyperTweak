@@ -44,10 +44,13 @@ class DuoDrawable : Drawable() {
     private val batteryBounds = Rect()
     private val signalPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var opacity = 255
-    private var dotsKey: Pair<Int, Boolean>? = null
+    private var dotsKey: Triple<Int, Boolean, Float>? = null
     private var dotsPicture: Picture? = null
     private var signalFilterColor = Int.MIN_VALUE
     private var signalColorFilter: PorterDuffColorFilter? = null
+
+    var sizes = DuoSizes()
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
 
     var foreground: Int = Color.WHITE
         set(value) { if (field != value) { field = value; invalidateSelf() } }
@@ -119,7 +122,12 @@ class DuoDrawable : Drawable() {
     }
 
     /** Reserve ring first, then the charged portion of the same arc on top. */
-    private fun drawPowerTrack(canvas: Canvas, state: DuoContent) {
+    private fun drawPowerTrack(canvas: Canvas, state: DuoContent) = canvas.withSave {
+        scale(sizes.ring, sizes.ring, CENTER, CENTER)
+        drawPowerTrackUnscaled(this, state)
+    }
+
+    private fun drawPowerTrackUnscaled(canvas: Canvas, state: DuoContent) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = TRACK_STROKE
         track.set(CENTER - TRACK_RADIUS, CENTER - TRACK_RADIUS, CENTER + TRACK_RADIUS, CENTER + TRACK_RADIUS)
@@ -140,7 +148,12 @@ class DuoDrawable : Drawable() {
      * Wi-Fi strength climbs from the centre mark outward: level 0 keeps the reserve outline,
      * 1 lights the centre mark, 2 adds the inner arc, and 3 or more adds the outer arc.
      */
-    private fun drawWifi(canvas: Canvas, rawLevel: Int) {
+    private fun drawWifi(canvas: Canvas, rawLevel: Int) = canvas.withSave {
+        scale(sizes.wifi, sizes.wifi, CENTER, CENTER)
+        drawWifiUnscaled(this, rawLevel)
+    }
+
+    private fun drawWifiUnscaled(canvas: Canvas, rawLevel: Int) {
         val level = rawLevel.coerceAtLeast(0)
         wifiArc(
             canvas,
@@ -193,7 +206,12 @@ class DuoDrawable : Drawable() {
      * a compact tail and a rounded nose.  Keeping it as one contiguous path avoids the seams and
      * odd double-fin look of the previous three-piece approximation at status-bar scale.
      */
-    private fun drawAirplane(canvas: Canvas) {
+    private fun drawAirplane(canvas: Canvas) = canvas.withSave {
+        scale(sizes.airplane, sizes.airplane, CENTER, CENTER)
+        drawAirplaneUnscaled(this)
+    }
+
+    private fun drawAirplaneUnscaled(canvas: Canvas) {
         paint.style = Paint.Style.FILL
         colorOf(foreground)
         path.reset()
@@ -226,7 +244,12 @@ class DuoDrawable : Drawable() {
      * in the open space below the smaller ring; the hand-off renderer centres it on the native type
      * target.
      */
-    private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) {
+    private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) = canvas.withSave {
+        scale(sizes.type, sizes.type, CENTER, centerY)
+        drawNetworkLabelUnscaled(this, state, centerY)
+    }
+
+    private fun drawNetworkLabelUnscaled(canvas: Canvas, state: DuoContent, centerY: Float) {
         val label = state.networkLabel.orEmpty()
         if (label.isEmpty()) return
         paint.style = Paint.Style.FILL
@@ -274,7 +297,7 @@ class DuoDrawable : Drawable() {
 
     fun signalDotsPicture(): Picture? {
         val state = content?.takeIf { it.wifiLevel != null } ?: return null
-        val key = state.mobileLevel to state.noService
+        val key = Triple(state.mobileLevel, state.noService, sizes.dots)
         if (dotsKey != key || dotsPicture == null) {
             val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
             dotsPicture = Picture().apply {
@@ -282,7 +305,7 @@ class DuoDrawable : Drawable() {
                 try {
                     for (index in 0 until SIGNAL_DOT_COUNT) {
                         dotPaint.alpha = if (!state.noService && index < state.mobileLevel) 255 else (255 * SIGNAL_DOT_RESERVE).toInt()
-                        canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS, dotPaint)
+                        canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS * sizes.dots, dotPaint)
                     }
                 } finally { endRecording() }
             }
@@ -293,9 +316,9 @@ class DuoDrawable : Drawable() {
 
     fun signalDotsBounds(pictureCrop: RectF, localBounds: RectF): Boolean {
         if (bounds.isEmpty || content?.wifiLevel == null) return false
-        pictureCrop.set(SIGNAL_DOT_X.first() - SIGNAL_DOT_RADIUS,
-            SIGNAL_DOT_Y.minOrNull()!! - SIGNAL_DOT_RADIUS,
-            SIGNAL_DOT_X.last() + SIGNAL_DOT_RADIUS, SIGNAL_DOT_Y.maxOrNull()!! + SIGNAL_DOT_RADIUS)
+        pictureCrop.set(SIGNAL_DOT_X.first() - SIGNAL_DOT_RADIUS * sizes.dots,
+            SIGNAL_DOT_Y.minOrNull()!! - SIGNAL_DOT_RADIUS * sizes.dots,
+            SIGNAL_DOT_X.last() + SIGNAL_DOT_RADIUS * sizes.dots, SIGNAL_DOT_Y.maxOrNull()!! + SIGNAL_DOT_RADIUS * sizes.dots)
         val side = min(bounds.width(), bounds.height()).toFloat()
         val scale = side / VIEWPORT
         localBounds.set(pictureCrop.left * scale, pictureCrop.top * scale,
@@ -316,17 +339,23 @@ class DuoDrawable : Drawable() {
         val scale = side / VIEWPORT
         val left = bounds.left + (bounds.width() - side) / 2f
         val y = bounds.top + (bounds.height() - side) / 2f
-        val signalTop = CELL_SIGNAL_CENTER_Y - CELL_SIGNAL_SIZE / 2f
+        val signalSize = CELL_SIGNAL_SIZE * sizes.cellular
+        val signalTop = CELL_SIGNAL_CENTER_Y - signalSize / 2f
         localBounds.set(
-            left + (CENTER - CELL_SIGNAL_SIZE / 2f * COMPACT_RING_SCALE) * scale,
-            y + (COMPACT_RING_CENTER_Y + (signalTop + CELL_SIGNAL_SIZE * top - CENTER) * COMPACT_RING_SCALE) * scale,
-            left + (CENTER + CELL_SIGNAL_SIZE / 2f * COMPACT_RING_SCALE) * scale,
-            y + (COMPACT_RING_CENTER_Y + (signalTop + CELL_SIGNAL_SIZE * bottom - CENTER) * COMPACT_RING_SCALE) * scale)
+            left + (CENTER - signalSize / 2f * COMPACT_RING_SCALE) * scale,
+            y + (COMPACT_RING_CENTER_Y + (signalTop + signalSize * top - CENTER) * COMPACT_RING_SCALE) * scale,
+            left + (CENTER + signalSize / 2f * COMPACT_RING_SCALE) * scale,
+            y + (COMPACT_RING_CENTER_Y + (signalTop + signalSize * bottom - CENTER) * COMPACT_RING_SCALE) * scale)
         return true
     }
 
     /** Reuse the module's single/stacked SVG when available; the compact fallback keeps previews useful. */
-    private fun drawCellularSignal(canvas: Canvas, state: DuoContent) {
+    private fun drawCellularSignal(canvas: Canvas, state: DuoContent) = canvas.withSave {
+        scale(sizes.cellular, sizes.cellular, CENTER, CELL_SIGNAL_CENTER_Y)
+        drawCellularSignalUnscaled(this, state)
+    }
+
+    private fun drawCellularSignalUnscaled(canvas: Canvas, state: DuoContent) {
         val picture = cellularSignalPicture
         if (picture != null) {
             if (signalFilterColor != foreground) {
@@ -378,7 +407,12 @@ class DuoDrawable : Drawable() {
     }
 
     /** Draw the host's current solid/hollow battery glyph without taking its drawable ownership. */
-    private fun drawInnerBattery(canvas: Canvas) {
+    private fun drawInnerBattery(canvas: Canvas) = canvas.withSave {
+        scale(sizes.battery, sizes.battery, CENTER, CENTER)
+        drawInnerBatteryUnscaled(this)
+    }
+
+    private fun drawInnerBatteryUnscaled(canvas: Canvas) {
         val drawable = innerBatteryDrawable
         if (drawable != null) {
             val intrinsicWidth = drawable.intrinsicWidth
@@ -410,7 +444,7 @@ class DuoDrawable : Drawable() {
         for (index in 0 until SIGNAL_DOT_COUNT) {
             val lit = !state.noService && index < state.mobileLevel
             colorOf(foreground, if (lit) 1f else SIGNAL_DOT_RESERVE)
-            canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS, paint)
+            canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS * sizes.dots, paint)
         }
     }
 

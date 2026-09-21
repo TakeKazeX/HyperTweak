@@ -39,6 +39,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
 import kotlinx.coroutines.launch
@@ -211,6 +212,16 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
     // The preview and the 布局 tab read the same left-placement toggles, so the map is built once
     // here instead of inside the section.
     val leftSelected = IconTunerOptions.leftPreferenceKeys.associateWith { key -> pref(key, false) }
+    val duoComponentPercents = listOf(
+        pref(Preferences.KEY_ICON_DUO_RING_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100),
+        pref(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100)
+    )
     val previewModel = buildStatusBarPreview(
         StatusBarPreviewInput(
             position = pref(IconTunerOptions.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
@@ -266,7 +277,16 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
-            StatusBarPreview(model = previewModel)
+            StatusBarPreview(model = previewModel, duoSizes = DuoSizes(
+                ring = DuoSizes.ratio(duoComponentPercents[0]),
+                wifi = DuoSizes.ratio(duoComponentPercents[1]),
+                cellular = DuoSizes.ratio(duoComponentPercents[2]),
+                type = DuoSizes.ratio(duoComponentPercents[3]),
+                dots = DuoSizes.ratio(duoComponentPercents[4]),
+                airplane = DuoSizes.ratio(duoComponentPercents[5]),
+                battery = DuoSizes.ratio(duoComponentPercents[6]),
+                percent = DuoSizes.ratio(duoComponentPercents[7])
+            ))
             TabRowWithContour(
                 tabs = categories,
                 selectedTabIndex = selectedCategory.coerceIn(0, categories.lastIndex),
@@ -299,6 +319,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                     }
                     1 -> {
                         DuoSignalSection(
+                            componentPercents = duoComponentPercents,
                             enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
                             small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
@@ -1205,6 +1226,7 @@ private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: I
 
 @Composable
 private fun DuoSignalSection(
+    componentPercents: List<Int>,
     enabled: Boolean,
     expanded: Int,
     sizeDp: Int,
@@ -1212,7 +1234,17 @@ private fun DuoSignalSection(
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_duo_title))
-    DuoSignalPreview(small5GaEnabled)
+    val sizes = DuoSizes(
+        ring = DuoSizes.ratio(componentPercents[0]),
+        wifi = DuoSizes.ratio(componentPercents[1]),
+        cellular = DuoSizes.ratio(componentPercents[2]),
+        type = DuoSizes.ratio(componentPercents[3]),
+        dots = DuoSizes.ratio(componentPercents[4]),
+        airplane = DuoSizes.ratio(componentPercents[5]),
+        battery = DuoSizes.ratio(componentPercents[6]),
+        percent = DuoSizes.ratio(componentPercents[7])
+    )
+    DuoSignalPreview(small5GaEnabled, sizes)
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),
@@ -1225,6 +1257,26 @@ private fun DuoSignalSection(
                     onSelectedIndexChange = { onChange(Preferences.KEY_ICON_DUO_EXPANDED, it) }
                 )
                 DuoSizeRow(sizeDp) { onChange(Preferences.KEY_ICON_DUO_SIZE, it) }
+                var advanced by rememberSaveable { mutableStateOf(false) }
+                TunerSwitch(advanced, stringResource(R.string.icon_duo_advanced)) { advanced = it }
+                if (advanced) {
+                    val components = listOf(
+                        Preferences.KEY_ICON_DUO_RING_SCALE to R.string.icon_duo_ring_scale,
+                        Preferences.KEY_ICON_DUO_WIFI_SCALE to R.string.icon_duo_wifi_scale,
+                        Preferences.KEY_ICON_DUO_CELLULAR_SCALE to R.string.icon_duo_cellular_scale,
+                        Preferences.KEY_ICON_DUO_TYPE_SCALE to R.string.icon_duo_type_scale,
+                        Preferences.KEY_ICON_DUO_DOTS_SCALE to R.string.icon_duo_dots_scale,
+                        Preferences.KEY_ICON_DUO_AIRPLANE_SCALE to R.string.icon_duo_airplane_scale,
+                        Preferences.KEY_ICON_DUO_BATTERY_SCALE to R.string.icon_duo_battery_scale,
+                        Preferences.KEY_ICON_DUO_PERCENT_SCALE to R.string.icon_duo_percent_scale
+                    )
+                    components.forEachIndexed { index, (key, title) ->
+                        IntSliderRow("${stringResource(title)} · ${componentPercents[index]}",
+                            componentPercents[index], 50, 150) {
+                            onChange(key, it)
+                        }
+                    }
+                }
             }
         }
     }

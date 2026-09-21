@@ -108,6 +108,18 @@ object ControlCenterHeaderHooker : StaticHooker() {
         DebugLog.hookRegistered(TAG, "control-center header left=$carrierLeft hideDate=$hideDate")
     }
 
+    internal fun recoverExistingViews(views: List<View>) {
+        if (!carrierLeft && !hideDate) return
+        views.forEach { view ->
+            guarded {
+                if (isDate(view)) hideDateView(view)
+                if (view.javaClass.name == "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout") {
+                    (view as? ViewGroup)?.let(::updateCarrierLayout)
+                }
+            }
+        }
+    }
+
     private fun hookClockPolicy() {
         val clock = CLOCK_CLASS.toClassOrNull() ?: return
         listOf("onAttachedToWindow", "updateClockVisibility").forEach { name ->

@@ -1332,4 +1332,13 @@
     <string name="icon_duo_keep">Keep three-in-one</string>
     <string name="icon_duo_native">Restore original icons</string>
     <string name="icon_duo_preview">Preview: normal Wi-Fi, charging 5G, low battery 4G, battery saver 5G-A</string>
+    <string name="icon_duo_advanced">Advanced customization</string>
+    <string name="icon_duo_ring_scale">Power ring (%)</string>
+    <string name="icon_duo_wifi_scale">Wi-Fi (%)</string>
+    <string name="icon_duo_cellular_scale">Cellular signal (%)</string>
+    <string name="icon_duo_type_scale">Network type (%)</string>
+    <string name="icon_duo_dots_scale">Signal dots (%)</string>
+    <string name="icon_duo_airplane_scale">Airplane (%)</string>
+    <string name="icon_duo_battery_scale">Inner battery (%)</string>
+    <string name="icon_duo_percent_scale">Battery percentage (%)</string>
 </resources>

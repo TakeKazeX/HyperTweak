@@ -1326,4 +1326,13 @@
     <string name="icon_duo_keep">保持三合一</string>
     <string name="icon_duo_native">恢复原本图标</string>
     <string name="icon_duo_preview">样式预览：普通 Wi-Fi、充电 5G、低电量 4G、省电 5G-A</string>
+    <string name="icon_duo_advanced">高级自定义</string>
+    <string name="icon_duo_ring_scale">电量环 (%)</string>
+    <string name="icon_duo_wifi_scale">Wi-Fi (%)</string>
+    <string name="icon_duo_cellular_scale">蜂窝信号 (%)</string>
+    <string name="icon_duo_type_scale">网络类型 (%)</string>
+    <string name="icon_duo_dots_scale">信号点 (%)</string>
+    <string name="icon_duo_airplane_scale">飞行模式 (%)</string>
+    <string name="icon_duo_battery_scale">内嵌电池 (%)</string>
+    <string name="icon_duo_percent_scale">电量百分比 (%)</string>
 </resources>

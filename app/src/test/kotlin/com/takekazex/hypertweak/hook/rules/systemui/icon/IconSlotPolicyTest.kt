@@ -6,6 +6,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @org.junit.Test fun headsetExplicitVisibilitySurvivesObserverRefresh() {
+        for (slot in listOf("headset", "wireless_headset")) {
+            val config = IconSlotPolicyConfig(slotModes = mapOf(slot to IconSlotMode.STATUS_BAR_ONLY.value))
+            org.junit.Assert.assertFalse(IconSlotPolicy.classicBlocked(slot, IconSurface.STATUS_BAR, true, config, emptySet()))
+            org.junit.Assert.assertTrue(IconSlotPolicy.classicBlocked(slot, IconSurface.CONTROL_CENTER, false, config, emptySet()))
+            org.junit.Assert.assertTrue(IconSlotPolicy.classicBlocked(slot, IconSurface.STATUS_BAR, true, IconSlotPolicyConfig(), emptySet()))
+            org.junit.Assert.assertTrue(IconSlotPolicy.classicBlocked(slot, IconSurface.STATUS_BAR, false, config, setOf(slot)))
+            org.junit.Assert.assertTrue(IconSlotPolicy.classicBlocked(slot, IconSurface.STATUS_BAR, true, config, emptySet(), minimalism = true))
+        }
+    }
+
     @Test fun releasingOneNetworkOwnerKeepsTheOtherOwnerAndUserBlocks() {
         val masks = IconMaskOwners()
         val container = Any()
