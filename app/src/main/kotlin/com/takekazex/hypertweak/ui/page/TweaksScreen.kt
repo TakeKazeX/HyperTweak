@@ -87,6 +87,9 @@ fun TweaksScreenContent(
     backdrop: LayerBackdrop
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
+    var aicrCopyDirectDefaultBrowser by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
+    }
     val topBarBackdrop = rememberLayerBackdrop {
         drawRect(surfaceColor)
         drawContent()
@@ -209,6 +212,19 @@ fun TweaksScreenContent(
                         onClick = onNavigateToCameraWatermark
                     )
                 }
+            }
+
+            SmallTitle(text = stringResource(R.string.tweaks_aicr_section))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = aicrCopyDirectDefaultBrowser,
+                    onCheckedChange = { enabled ->
+                        aicrCopyDirectDefaultBrowser = enabled
+                        Preferences.putBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
+                    },
+                    title = stringResource(R.string.tweaks_aicr_default_browser_title),
+                    summary = stringResource(R.string.tweaks_aicr_default_browser_summary)
+                )
             }
 
             SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))

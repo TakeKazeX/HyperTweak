@@ -161,6 +161,7 @@ data class RestartScopeSelection(
         const val PACKAGE_DOWNLOADS_UI = "com.android.providers.downloads.ui"
         const val PACKAGE_PHONE = "com.android.phone"
         const val PACKAGE_XIAOMI_PHONE = "com.xiaomi.phone"
+        const val PACKAGE_AICR = "com.xiaomi.aicr"
         const val PACKAGE_LBE_SECURITY = "com.lbe.security.miui"
         const val PACKAGE_TRUST_SERVICE = "com.xiaomi.trustservice"
         const val PACKAGE_GUARD_PROVIDER = "com.miui.guardprovider"

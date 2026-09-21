@@ -25,6 +25,7 @@
         <item>com.xiaomi.scanner</item>
         <item>com.milink.service</item>
         <item>com.xiaomi.bluetooth</item>
+        <item>com.xiaomi.aicr</item>
         <item>com.google.android.gms</item>
         <item>com.google.android.googlequicksearchbox</item>
         <item>com.miui.mediaeditor</item>

@@ -185,7 +185,9 @@
     <string name="credits_hiddenapibypass_desc">Bypass restrictions on non-SDK interfaces in Android 9+</string>
     <string name="credits_highlighticons_desc">App shortcut icons by @GotohHitoriBocchi0221</string>
     <string name="credits_hydtrust_desc">Extend Unlock trust state repair by StevenWin818 · GPL-3.0</string>
-    <string name="credits_hyperceiler_desc">All-in-one system enhancement references</string>
+    <string name="credits_hyperceiler_desc">AICR browser hook and DexKit obfuscation fix reference · AGPL-3.0</string>
+    <string name="credits_meowceiler_desc">AICR browser preference and hook reference · AGPL-3.0</string>
+    <string name="credits_fxxk_mibrowser_desc">HyperOS 4 Copy Direct intentUri and bubble model research · MIT</string>
     <string name="credits_hyperorch_desc">Base logic for fingerprint icon drawing bypass</string>
     <string name="credits_hyperpasskey_desc">Unlock Google Passkey / Credential Manager by howard20181</string>
     <string name="credits_installerx_desc">Inspiration for theme configuration and UI/UX layout design</string>
@@ -750,6 +752,7 @@
     <string name="restart_cancel">Cancel</string>
     <string name="restart_detected_tweaks_note">Detected modified tweaks and preselected the related scopes.</string>
     <string name="restart_scope_aod">Always-On Display</string>
+    <string name="restart_scope_aicr">Xiaomi AI Engine</string>
     <string name="restart_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="restart_scope_gms">Google Play Services</string>
     <string name="restart_scope_guard_provider">GuardProvider</string>
@@ -982,6 +985,9 @@
     <string name="download_manager_xl_delete_failed">Could not delete .xlDownload</string>
     <string name="tweaks_features">Features</string>
     <string name="tweaks_system_components_title">System components</string>
+    <string name="tweaks_aicr_section">Xiaomi AI Engine</string>
+    <string name="tweaks_aicr_default_browser_title">Copy Direct: use the system default browser</string>
+    <string name="tweaks_aicr_default_browser_summary">Route Copy Direct web actions to the current default browser. If none is selected, Android shows its chooser. Changes apply live once the AI Engine scope is loaded.</string>
     <string name="tweaks_personal_assistant_title">Smart Assistant</string>
     <string name="tweaks_display_title">Display</string>
     <string name="tweaks_phone_title">Phone</string>

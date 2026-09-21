@@ -185,7 +185,9 @@
     <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制</string>
     <string name="credits_highlighticons_desc">@GotohHitoriBocchi0221 的应用快捷方式图标</string>
     <string name="credits_hydtrust_desc">StevenWin818 的扩展解锁信任状态修复 · GPL-3.0</string>
-    <string name="credits_hyperceiler_desc">一体化系统增强参考</string>
+    <string name="credits_hyperceiler_desc">AI 引擎浏览器 Hook 与 DexKit 混淆修复参考 · AGPL-3.0</string>
+    <string name="credits_meowceiler_desc">AI 引擎浏览器偏好与 Hook 参考 · AGPL-3.0</string>
+    <string name="credits_fxxk_mibrowser_desc">HyperOS 4 复制直达 intentUri 与气泡模型研究 · MIT</string>
     <string name="credits_hyperorch_desc">指纹图标绘制绕过的基础逻辑</string>
     <string name="credits_hyperpasskey_desc">howard20181 的 Google 通行密钥 / 凭据管理器解锁</string>
     <string name="credits_installerx_desc">主题配置与 UI/UX 布局设计的灵感来源</string>
@@ -748,6 +750,7 @@
     <string name="restart_cancel">取消</string>
     <string name="restart_detected_tweaks_note">检测到已修改的微调项，并已预选相关作用域。</string>
     <string name="restart_scope_aod">息屏显示</string>
+    <string name="restart_scope_aicr">小米澎湃 AI 引擎</string>
     <string name="restart_scope_bluetooth">小米蓝牙</string>
     <string name="restart_scope_gms">Google Play 服务</string>
     <string name="restart_scope_guard_provider">安全组件</string>
@@ -979,6 +982,9 @@
     <string name="download_manager_xl_delete_failed">无法删除 .xlDownload 文件夹</string>
     <string name="tweaks_features">功能</string>
     <string name="tweaks_system_components_title">系统组件</string>
+    <string name="tweaks_aicr_section">小米澎湃 AI 引擎</string>
+    <string name="tweaks_aicr_default_browser_title">复制直达：使用系统默认浏览器</string>
+    <string name="tweaks_aicr_default_browser_summary">复制直达的网页动作将使用当前默认浏览器；未设置默认浏览器时显示系统选择器。AI 引擎作用域加载后，开关实时生效。</string>
     <string name="tweaks_personal_assistant_title">智能助理</string>
     <string name="tweaks_display_title">显示</string>
     <string name="tweaks_phone_title">电话</string>

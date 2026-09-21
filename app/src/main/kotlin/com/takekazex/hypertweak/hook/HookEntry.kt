@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
 import com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
+import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
@@ -961,6 +962,9 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.xiaomi.aicr" -> {
+                attachHooker(AicrDefaultBrowserHooker, classLoader, ctx, replacementHandles)
             }
             "com.takekazex.hypertweak" -> {
                 attachHooker(ModuleStatusHooker, classLoader, ctx, replacementHandles)

@@ -179,6 +179,9 @@ object Preferences {
     /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
     const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
 
+    /** Routes Xiaomi AI Engine Copy Direct web actions through the current system browser. */
+    const val KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER = "aicr_copy_direct_default_browser"
+
     /** Disables MiTrustService's MRM risk-monitoring initialization gate. */
     const val KEY_MITRUST_DISABLE_RISK_MONITORING = "mitrust_disable_risk_monitoring"
 

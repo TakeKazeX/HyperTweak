@@ -111,6 +111,16 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/ReChronoRain/HyperCeiler") }
                     )
                     ArrowPreference(
+                        title = "MeowCeiler",
+                        summary = stringResource(R.string.credits_meowceiler_desc),
+                        onClick = { uriHandler.openUri("https://github.com/lingqiqi5211/MeowCeiler") }
+                    )
+                    ArrowPreference(
+                        title = "Fxxk-MiBrowser",
+                        summary = stringResource(R.string.credits_fxxk_mibrowser_desc),
+                        onClick = { uriHandler.openUri("https://github.com/DuhMatt/Fxxk-MiBrowser") }
+                    )
+                    ArrowPreference(
                         title = "HyperPasskey",
                         summary = stringResource(R.string.credits_hyperpasskey_desc),
                         onClick = { uriHandler.openUri("https://github.com/howard20181/HyperPasskey") }
