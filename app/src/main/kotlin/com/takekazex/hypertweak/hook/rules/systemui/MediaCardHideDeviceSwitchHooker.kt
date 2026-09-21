@@ -163,7 +163,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
                 FALLBACK_MEDIA_SEAMLESS_BUTTON_ID,
                 FALLBACK_MEDIA_SEAMLESS_IMAGE_ID
             ).also {
-                DebugLog.w(TAG, "$SYSTEMUI_IDS unavailable; using verified device resource IDs")
+                DebugLog.d(TAG, "$SYSTEMUI_IDS unavailable; IDs are runtime-name validated")
             }
         mediaSwitchVisibilityIds = ids
 
