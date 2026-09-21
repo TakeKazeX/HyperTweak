@@ -94,18 +94,7 @@ object DetailedPowerDataHooker : StaticHooker() {
                 .orEmpty()
             if (splitGate == null) null else ResolvedTargets(splitGate, companionGates)
         }
-        if (dexTargets != null) return dexTargets
-
-        // The current 13.2.7 baseline is `legacypowerrank.f`; retain a narrow fallback when the
-        // native resolver is unavailable, but still require the exact method signatures.
-        val holder = "com.miui.powercenter.legacypowerrank.f".toClassOrNull() ?: return null
-        val splitGate = holder.declaredMethods.singleOrNull {
-            it.name == "o" && isStaticBooleanGate(it)
-        } ?: return null
-        return ResolvedTargets(
-            screenPowerSplitGate = splitGate,
-            companionGates = holder.declaredMethods.filter(::isStaticBooleanGate)
-        )
+        return dexTargets
     }
 
     private fun materializeUnique(candidates: List<org.luckypray.dexkit.result.MethodData>): Method? {

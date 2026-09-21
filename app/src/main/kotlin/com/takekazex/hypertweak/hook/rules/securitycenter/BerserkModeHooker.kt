@@ -79,13 +79,7 @@ object BerserkModeHooker : StaticHooker() {
             }.toList()
             (wild + legacy).mapNotNull(::materialize).filter(::isStaticBooleanGate)
         }
-        if (!resolved.isNullOrEmpty()) return resolved
-
-        // Current 13.2.7 fallback: dk.j.F()/G() are the V2/legacy Wild support gates.
-        val supportClass = "dk.j".toClassOrNull() ?: return emptyList()
-        return supportClass.declaredMethods.filter {
-            it.name == "F" || it.name == "G"
-        }.filter(::isStaticBooleanGate)
+        return resolved.orEmpty()
     }
 
     private fun materialize(data: MethodData): Method? = runCatching {

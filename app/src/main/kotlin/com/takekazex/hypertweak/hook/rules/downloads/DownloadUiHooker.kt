@@ -6,20 +6,26 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.os.Parcelable
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.AttributeSet
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageView
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.io.File
 import kotlin.math.roundToInt
 
 /** Hooks the Download Manager UI features that live next to the provider-side .xlDownload hook. */
@@ -27,16 +33,9 @@ object DownloadUiHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "DownloadUi"
-    private const val HOME_FRAGMENT = "J0.h"
-    private const val DETAIL_FRAGMENT = "J0.k"
-    private const val DOWNLOAD_INFO = "K0.b"
-    private const val HOME_ACTION_BAR_INIT = "e0"
-    private const val DETAIL_BIND_TASK = "o0"
-    // These are the actual dex names. JADX displays them as f1170n/f1448y/f1438o to disambiguate
-    // collisions in its generated Java source.
-    private const val HOME_ICON_FIELD = "n"
-    private const val DOWNLOAD_DESCRIPTION_FIELD = "y"
-    private const val DOWNLOAD_URL_FIELD = "o"
+    private const val HOME_CACHE_KEY = "download_ui_home_fragment"
+    private const val DETAIL_CACHE_KEY = "download_ui_detail_fragment"
+    private const val DETAIL_MARKER = "from_browser"
     private const val NEW_DOWNLOAD_ACTIVITY =
         "com.android.providers.downloads.ui.activity.NewDownloadTaskActivity"
     private const val NEW_DOWNLOAD_STRING = "new_add"
@@ -78,49 +77,25 @@ object DownloadUiHooker : StaticHooker() {
     }
 
     /**
-     * `J0.k.o0(K0.b)` is the final detail renderer on the installed 126.07 UI. Clearing the
-     * description before it runs selects the same URL/copy branch used for URL-only tasks.
+     * DexKit resolves the final parcelable detail renderer from the browser-origin marker and
+     * renderer prototype. The hook then restores the source URL and copy views after rendering.
      */
     private fun installAlwaysShowFullLink(): Int {
-        val detailClass = DETAIL_FRAGMENT.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, "$DETAIL_FRAGMENT#$DETAIL_BIND_TASK", "class not found")
+        val apkPath = hookParam.appInfo?.sourceDir ?: run {
+            DebugLog.hookSkipped(TAG, "download detail renderer", "source APK unavailable")
             return 0
         }
-        val infoClass = DOWNLOAD_INFO.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, DOWNLOAD_INFO, "class not found")
+        val detailClass = resolveDetailClass(apkPath) ?: run {
+            DebugLog.hookSkipped(TAG, "download detail renderer", "unique DexKit target not found")
             return 0
         }
-        val renderMethod = detailClass.declaredMethods.firstOrNull { method ->
-            method.name == DETAIL_BIND_TASK &&
-                method.parameterTypes.size == 1 &&
-                method.parameterTypes[0] == infoClass &&
-                method.returnType == Void.TYPE
-        }?.apply { isAccessible = true } ?: run {
-            DebugLog.hookSkipped(TAG, "$DETAIL_FRAGMENT#$DETAIL_BIND_TASK(K0.b)", "method not found")
-            return 0
-        }
-        val descriptionField = findFieldInHierarchy(infoClass) {
-            it.type == String::class.java &&
-                it.name in setOf(DOWNLOAD_DESCRIPTION_FIELD, "f1448y")
-        } ?: run {
-            DebugLog.hookSkipped(TAG, "$DOWNLOAD_INFO#$DOWNLOAD_DESCRIPTION_FIELD", "field not found")
+        val renderMethod = resolveDetailRenderer(detailClass) ?: run {
+            DebugLog.hookSkipped(TAG, detailClass.name, "unique parcelable renderer not found")
             return 0
         }
 
         deoptimize(renderMethod)
         renderMethod.hook("download_ui_full_link") {
-            before { param ->
-                runCatching {
-                    val info = param.args.getOrNull(0) ?: return@runCatching
-                    val url = readField(info, DOWNLOAD_URL_FIELD) as? String
-                    descriptionField.set(info, "")
-                    if (!url.isNullOrEmpty()) {
-                        DebugLog.d(TAG, "detail description cleared for url=${url.take(160)}")
-                    }
-                }.onFailure {
-                    DebugLog.w(TAG, "failed to clear download description", it)
-                }
-            }
             after { param ->
                 runCatching {
                     forceFullLinkViews(
@@ -132,7 +107,7 @@ object DownloadUiHooker : StaticHooker() {
                 }
             }
         }
-        DebugLog.hookRegistered(TAG, "$DETAIL_FRAGMENT#$DETAIL_BIND_TASK(K0.b)")
+        DebugLog.hookRegistered(TAG, "DexKit detail renderer ${renderMethod.toGenericString()}")
         return 1
     }
 
@@ -148,20 +123,24 @@ object DownloadUiHooker : StaticHooker() {
     }
 
     private fun installCurrentHomeActionBarHook(hideXl: Boolean, addNewButton: Boolean): Int {
-        val homeClass = HOME_FRAGMENT.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, HOME_FRAGMENT, "class not found")
+        val apkPath = hookParam.appInfo?.sourceDir ?: run {
+            DebugLog.hookSkipped(TAG, "download home actions", "source APK unavailable")
             return 0
         }
-        val iconField = findFieldInHierarchy(homeClass) {
-            ImageView::class.java.isAssignableFrom(it.type) &&
-                it.name in setOf(HOME_ICON_FIELD, "f1170n")
-        } ?: findFieldInHierarchy(homeClass) { ImageView::class.java.isAssignableFrom(it.type) }
+        val homeClass = resolveHomeClass(apkPath) ?: run {
+            DebugLog.hookSkipped(TAG, "download home actions", "unique DexKit target not found")
+            return 0
+        }
+        val iconField = homeClass.declaredFields.singleOrNull {
+            ImageView::class.java.isAssignableFrom(it.type)
+        }?.apply { isAccessible = true }
 
         var installed = 0
         val actionBarMethod = homeClass.declaredMethods.firstOrNull { method ->
-            method.name == HOME_ACTION_BAR_INIT &&
-                method.parameterTypes.size == 1 &&
-                method.parameterTypes[0].name == "miuix.appcompat.app.ActionBar"
+            method.parameterTypes.size == 1 &&
+                method.parameterTypes[0].name == "miuix.appcompat.app.ActionBar" &&
+                method.returnType == Void.TYPE &&
+                !Modifier.isStatic(method.modifiers)
         }?.apply { isAccessible = true }
         if (actionBarMethod != null) {
             deoptimize(actionBarMethod)
@@ -184,7 +163,7 @@ object DownloadUiHooker : StaticHooker() {
                     }
                 }
             }
-            DebugLog.hookRegistered(TAG, "$HOME_FRAGMENT#$HOME_ACTION_BAR_INIT(ActionBar)")
+            DebugLog.hookRegistered(TAG, "DexKit home action-bar initializer")
             installed++
         }
 
@@ -218,7 +197,7 @@ object DownloadUiHooker : StaticHooker() {
                     }
                 }
             }
-            DebugLog.hookRegistered(TAG, "$HOME_FRAGMENT#onViewInflated(View,Bundle)")
+            DebugLog.hookRegistered(TAG, "download home onViewInflated(View,Bundle)")
             installed++
 
             val onResumeMethod = homeClass.declaredMethods.firstOrNull { method ->
@@ -246,16 +225,107 @@ object DownloadUiHooker : StaticHooker() {
                         }
                     }
                 }
-                DebugLog.hookRegistered(TAG, "$HOME_FRAGMENT#onResume()")
+                DebugLog.hookRegistered(TAG, "${homeClass.name}#onResume()")
                 installed++
             }
         }
 
         if (installed == 0) {
-            DebugLog.hookSkipped(TAG, "$HOME_FRAGMENT#$HOME_ACTION_BAR_INIT(ActionBar)", "method not found")
+            DebugLog.hookSkipped(TAG, homeClass.name, "action-bar and lifecycle methods not found")
         }
         return installed
     }
+
+    private fun resolveHomeClass(apkPath: String): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        return DexKitManager.resolveClasses(
+            cacheDir = File(baseDir, "cache"),
+            apkPath = apkPath,
+            classLoader = classLoader,
+            queries = mapOf(
+                HOME_CACHE_KEY to { bridge ->
+                    val candidates = bridge.findMethod {
+                        matcher {
+                            name("onInflateView")
+                            paramTypes(LayoutInflater::class.java, ViewGroup::class.java, Bundle::class.java)
+                            returnType(View::class.java)
+                        }
+                    }.toList()
+                    candidates.asSequence()
+                        .map { it.className }
+                        .distinct()
+                        .filter { name -> runCatching { isHomeClass(classLoader.loadClass(name)) }.getOrDefault(false) }
+                        .singleOrNull()
+                }
+            ),
+            validators = mapOf(HOME_CACHE_KEY to ::isHomeClass)
+        )[HOME_CACHE_KEY]
+    }
+
+    private fun resolveDetailClass(apkPath: String): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        return DexKitManager.resolveClasses(
+            cacheDir = File(baseDir, "cache"),
+            apkPath = apkPath,
+            classLoader = classLoader,
+            queries = mapOf(
+                DETAIL_CACHE_KEY to { bridge ->
+                    val candidates = bridge.findMethod {
+                        matcher {
+                            paramCount(1)
+                            returnType(Void.TYPE)
+                            addUsingString(DETAIL_MARKER, StringMatchType.Equals)
+                        }
+                    }.toList()
+                    candidates.asSequence()
+                        .filter { data ->
+                            val method = runCatching { data.getMethodInstance(classLoader) }.getOrNull()
+                                ?: return@filter false
+                            !Modifier.isStatic(method.modifiers) &&
+                                method.parameterCount == 1 &&
+                                method.returnType == Void.TYPE &&
+                                Parcelable::class.java.isAssignableFrom(method.parameterTypes[0]) &&
+                                isFragmentClass(method.declaringClass)
+                        }
+                        .map { it.className }
+                        .distinct()
+                        .singleOrNull()
+                }
+            ),
+            validators = mapOf(DETAIL_CACHE_KEY to ::isDetailClass)
+        )[DETAIL_CACHE_KEY]
+    }
+
+    private fun isHomeClass(type: Class<*>): Boolean =
+        isFragmentClass(type) &&
+            View.OnClickListener::class.java.isAssignableFrom(type) &&
+            type.declaredFields.count { ImageView::class.java.isAssignableFrom(it.type) } == 1 &&
+            type.declaredFields.any { it.type.name == "miuix.viewpager.widget.ViewPager" } &&
+            type.declaredMethods.any { method ->
+                method.name == "onOptionsItemSelected" &&
+                    method.parameterTypes.contentEquals(arrayOf(android.view.MenuItem::class.java)) &&
+                    method.returnType == Boolean::class.javaPrimitiveType
+            }
+
+    private fun isDetailClass(type: Class<*>): Boolean =
+        isFragmentClass(type) && type.declaredMethods.count(::isDetailRenderer) == 1
+
+    private fun isFragmentClass(type: Class<*>): Boolean = runCatching {
+        val fragment = classLoader.loadClass("miuix.appcompat.app.Fragment")
+        fragment.isAssignableFrom(type)
+    }.getOrDefault(false)
+
+    private fun isDetailRenderer(method: Method): Boolean =
+        !Modifier.isStatic(method.modifiers) &&
+            method.parameterCount == 1 &&
+            method.returnType == Void.TYPE &&
+            Parcelable::class.java.isAssignableFrom(method.parameterTypes[0])
+
+    private fun resolveDetailRenderer(detailClass: Class<*>): Method? =
+        detailClass.declaredMethods.singleOrNull(::isDetailRenderer)
+            ?.apply { isAccessible = true }
 
     private fun installLegacyActionBarHook(hideXl: Boolean, addNewButton: Boolean): Int {
         val delegateClass =
@@ -624,8 +694,7 @@ object DownloadUiHooker : StaticHooker() {
 
     private fun forceFullLinkViews(owner: Any?, info: Any) {
         owner ?: return
-        val url = readField(info, DOWNLOAD_URL_FIELD) as? String ?: return
-        if (TextUtils.isEmpty(url)) return
+        val url = findUrlValue(info) ?: return
         val root = findMethodInHierarchy(owner.javaClass) {
             it.name == "getView" && it.parameterTypes.isEmpty()
         }?.let { runCatching { it.invoke(owner) as? View }.getOrNull() } ?: return
@@ -656,6 +725,16 @@ object DownloadUiHooker : StaticHooker() {
         }
         source.requestLayout()
         DebugLog.d(TAG, "forced full download source text length=${url.length}")
+    }
+
+    private fun findUrlValue(info: Any): String? {
+        val values = fieldsInHierarchy(info.javaClass)
+            .filter { it.type == String::class.java && !Modifier.isStatic(it.modifiers) }
+            .mapNotNull { field -> runCatching { field.get(info) as? String }.getOrNull() }
+            .map(String::trim)
+            .filter { URL_PATTERN.matches(it) }
+            .distinct()
+        return values.singleOrNull()
     }
 
     private fun activityOf(value: Any?): Activity? {
@@ -694,7 +773,16 @@ object DownloadUiHooker : StaticHooker() {
         return null
     }
 
-    private fun readField(target: Any, name: String): Any? = runCatching {
-        findFieldInHierarchy(target.javaClass) { it.name == name }?.get(target)
-    }.getOrNull()
+    private fun fieldsInHierarchy(type: Class<*>): List<Field> {
+        val fields = mutableListOf<Field>()
+        var current: Class<*>? = type
+        while (current != null) {
+            fields += current.declaredFields
+            current = current.superclass
+        }
+        fields.forEach { it.isAccessible = true }
+        return fields
+    }
+
+    private val URL_PATTERN = Regex("^[A-Za-z][A-Za-z0-9+.-]*://\\S+$")
 }

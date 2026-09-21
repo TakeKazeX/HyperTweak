@@ -33,9 +33,9 @@ import java.util.Locale
  * design/full-charge capacity rows.
  *
  * The current Security Center 13.2.7 handler is
- * `ChargeProtectFragment$c`; older references used `$d`, so the handler is resolved explicitly
- * from the current class shape and the four battery readers are resolved by their stable string
- * keys with a narrow current-build fallback.
+ * `ChargeProtectFragment$c`; the handler is resolved from its current class shape and the four
+ * battery readers are resolved only from their stable DEX string keys. Cycle count uses the
+ * sysfs and IMiCharge interfaces instead of version-specific obfuscated reader names.
  */
 @SuppressLint("StaticFieldLeak")
 object MoreBatteryInfoHooker : StaticHooker() {
@@ -430,8 +430,6 @@ object MoreBatteryInfoHooker : StaticHooker() {
             .mapNotNull(::readFirstLine)
             .mapNotNull(String::toIntOrNull)
             .firstOrNull { it >= 0 }
-            ?: readMethods.fg1Cycle?.let(::invokeStaticInt)?.takeIf { it >= 0 }
-            ?: readMethods.fg2Cycle?.let(::invokeStaticInt)?.takeIf { it >= 0 }
             ?: resolveMiChargeCycleCount()
             ?: return null
         return if (Locale.getDefault().language == "zh") "$cycle 次" else "$cycle cycles"
@@ -442,14 +440,6 @@ object MoreBatteryInfoHooker : StaticHooker() {
         val instance = miChargeClass.getMethod("getInstance").invoke(null) ?: return@runCatching null
         miChargeClass.getMethod("getBatteryCycleCount").invoke(instance)?.toString()?.toIntOrNull()
     }.getOrNull()?.takeIf { it >= 0 }
-
-    private fun invokeStaticInt(method: Method): Int? = runCatching {
-        when (val value = invokeStatic(method)) {
-            is Number -> value.toInt()
-            is String -> value.toIntOrNull()
-            else -> null
-        }
-    }.getOrNull()
 
     private fun localizedTitle(chinese: String, english: String): String =
         if (Locale.getDefault().language == "zh") chinese else english
@@ -470,22 +460,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
                 )
             }
         }
-        val direct = BatteryReadMethods(
-            manufacturingDate = directMethod("nh.o", "e", String::class.java),
-            firstUsageDate = directMethod("nh.o", "m", String::class.java),
-            fullCapacity = directMethod("nh.i", "i", Int::class.javaPrimitiveType!!),
-            designCapacity = directMethod("nh.i", "j", Int::class.javaPrimitiveType!!),
-            fg1Cycle = directMethod("nh.o", "z", Int::class.javaPrimitiveType!!),
-            fg2Cycle = directMethod("nh.o", "A", Int::class.javaPrimitiveType!!)
-        )
-        return BatteryReadMethods(
-            manufacturingDate = dexResolved?.manufacturingDate ?: direct.manufacturingDate,
-            firstUsageDate = dexResolved?.firstUsageDate ?: direct.firstUsageDate,
-            fullCapacity = dexResolved?.fullCapacity ?: direct.fullCapacity,
-            designCapacity = dexResolved?.designCapacity ?: direct.designCapacity,
-            fg1Cycle = direct.fg1Cycle,
-            fg2Cycle = direct.fg2Cycle
-        )
+        return dexResolved ?: BatteryReadMethods()
     }
 
     private fun findDexMethod(
@@ -514,14 +489,6 @@ object MoreBatteryInfoHooker : StaticHooker() {
         DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
     }.getOrNull()
 
-    private fun directMethod(className: String, name: String, returnType: Class<*>): Method? =
-        className.toClassOrNull()?.declaredMethods?.singleOrNull { method ->
-            method.name == name &&
-                Modifier.isStatic(method.modifiers) &&
-                method.parameterCount == 0 &&
-                method.returnType == returnType
-        }?.apply { isAccessible = true }
-
     private fun clearCapturedPreferences() {
         batteryInfoCategory = null
         currentTemperaturePreference = null
@@ -537,8 +504,6 @@ object MoreBatteryInfoHooker : StaticHooker() {
         val manufacturingDate: Method? = null,
         val firstUsageDate: Method? = null,
         val fullCapacity: Method? = null,
-        val designCapacity: Method? = null,
-        val fg1Cycle: Method? = null,
-        val fg2Cycle: Method? = null
+        val designCapacity: Method? = null
     )
 }

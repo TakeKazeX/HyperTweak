@@ -2,9 +2,12 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.query.enums.StringMatchType
+import java.io.File
 import java.lang.reflect.Field
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
@@ -26,8 +29,10 @@ object WifiIconHooker : StaticHooker() {
     private const val HIDDEN_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiIcon\$Hidden"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
     private const val BINDER_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.binder.MiuiWifiViewBinder"
-    private const val STANDARD_TRANSFORM_CLASS =
-        "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModelInject\$special\$\$inlined\$combine\$2\$3"
+    private const val STANDARD_TRANSFORM_CACHE_KEY = "wifiStandardTransform"
+    private const val STANDARD_TRANSFORM_OWNER_MARKER = "WifiViewModelInject"
+    private const val WIFI_ACTIVE_CLASS =
+        "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel\$Active"
 
     /** Reflective field lookups, cached per (declaring class, field name); see [resolveField]. */
     private val fieldCache = ConcurrentHashMap<Pair<Class<*>, String>, Field>()
@@ -109,7 +114,14 @@ object WifiIconHooker : StaticHooker() {
         // 2. These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
         // lost because the factory assigns the flows after construction.
         if (hideActivity || hideType || standardMode == 1) hookVisibilityGetters()
-        if (standardMode in 2..3) hookStandardTransform()
+        if (standardMode in 2..3) {
+            val activeClass = ACTIVE_CLASS.toClassOrNull()
+            if (activeClass == null) {
+                DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "active model class not found")
+            } else {
+                hookStandardTransform(activeClass)
+            }
+        }
         if (paddingEnabled) hookPadding()
         if (activityRight && !hideActivity) hookActivityDirection()
         DebugLog.hookRegistered(
@@ -135,13 +147,15 @@ object WifiIconHooker : StaticHooker() {
     }
 
     /** Changes only the integer emitted by the host's combine transform; the concrete Flow stays. */
-    private fun hookStandardTransform() {
-        val transformClass = STANDARD_TRANSFORM_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, STANDARD_TRANSFORM_CLASS, "class not found")
+    private fun hookStandardTransform(activeClass: Class<*>) {
+        val transformClass = resolveStandardTransformClass() ?: run {
+            DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "unique DexKit target not found")
             return
         }
-        val invoke = transformClass.findMethodOrNull { name("invoke"); paramCount(3) } ?: run {
-            DebugLog.hookSkipped(TAG, "$STANDARD_TRANSFORM_CLASS#invoke", "method not found")
+        val invoke = transformClass.declaredMethods.singleOrNull {
+            it.name == "invoke" && it.returnType == Any::class.java
+        }?.apply { isAccessible = true } ?: run {
+            DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "unique invoke method not found")
             return
         }
         deoptimize(invoke)
@@ -149,17 +163,61 @@ object WifiIconHooker : StaticHooker() {
             after { param ->
                 runCatching {
                     val original = (param.result as? Number)?.toInt() ?: return@runCatching
-                    val raw = rawStandard(param.args.getOrNull(1))
+                    val raw = rawStandard(param.args, activeClass)
                     param.result = WifiStandardPolicy.resolve(standardMode, raw, original, standardMap)
                 }.onFailure { DebugLog.w(TAG, "Wi-Fi standard mapping failed", it) }
             }
         }
     }
 
-    /** The combine array's fourth item is WifiNetworkModel.Active on the verified OS4 target. */
-    private fun rawStandard(value: Any?): Int? {
-        val values = value as? Array<*> ?: return null
-        val network = values.getOrNull(3) ?: return null
+    private fun resolveStandardTransformClass(): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return null
+        val apkPath = appInfo.sourceDir ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        return DexKitManager.resolveClasses(
+            cacheDir = File(baseDir, "cache"),
+            apkPath = apkPath,
+            classLoader = classLoader,
+            queries = mapOf(
+                STANDARD_TRANSFORM_CACHE_KEY to { bridge ->
+                    val matches = bridge.findMethod {
+                        matcher {
+                            declaredClass {
+                                className(STANDARD_TRANSFORM_OWNER_MARKER, StringMatchType.Contains)
+                            }
+                            name("invokeSuspend")
+                            returnType(Any::class.java)
+                            usingFields {
+                                add {
+                                    declaredClass(WIFI_ACTIVE_CLASS)
+                                    name("ext")
+                                }
+                            }
+                        }
+                    }.toList()
+                    matches.map { it.className }.distinct().singleOrNull()
+                }
+            ),
+            validators = mapOf(
+                STANDARD_TRANSFORM_CACHE_KEY to { type ->
+                    type.name.contains(STANDARD_TRANSFORM_OWNER_MARKER) &&
+                        type.declaredMethods.any { it.name == "invokeSuspend" && it.returnType == Any::class.java } &&
+                        type.declaredMethods.count { it.name == "invoke" && it.returnType == Any::class.java } == 1
+                }
+            )
+        )[STANDARD_TRANSFORM_CACHE_KEY]
+    }
+
+    /** Input ordering and FunctionN arity vary; select the network model by its host type. */
+    private fun rawStandard(args: Array<Any?>, activeClass: Class<*>): Int? {
+        val network = sequence {
+            args.forEach { value ->
+                if (activeClass.isInstance(value)) yield(value)
+                (value as? Array<*>)?.forEach { nested ->
+                    if (activeClass.isInstance(nested)) yield(nested)
+                }
+            }
+        }.singleOrNull() ?: return null
         val ext = readField(network, "ext")
         readInt(ext, "wifiStandard")?.let { return it }
         return readInt(network, "wifiStandard")

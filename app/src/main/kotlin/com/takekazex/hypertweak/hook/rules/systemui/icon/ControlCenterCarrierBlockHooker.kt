@@ -23,10 +23,16 @@ import android.widget.TextView
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
+import java.io.File
 import java.lang.reflect.Field
+import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
@@ -52,16 +58,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         "com.android.systemui.statusbar.views.MiuiStatusIconContainer"
     private const val WIFI_VM_CLASS =
         "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
+    private const val ROW_CALLBACK_OWNER_MARKER = "$ROW_CLASS\$mCarrierTextCallback"
+    private const val PANEL_MOTION_CACHE_KEY = "carrierBlockPanelMotionOwner"
+    private const val PANEL_MOTION_OWNER_MARKER =
+        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
 
     /**
      * The host's own expansion fraction, in resolution order. Both carry the same `float` the host
      * uses to slide its rows, which makes it the hand-over's follow-finger signal.
      */
-    private val EXPAND_CLASSES = listOf(
-        "com.miui.systemui.controlcenter.container.ControlCenterExpandControllerDelegate",
-        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1"
-    )
-
     /** Fixed appearance, matching the stacked-signal slot: no user-facing knobs. */
     private const val SIGNAL_ALPHA_FG = 1f
     private const val SIGNAL_ALPHA_BG = 0.4f
@@ -433,12 +438,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 if (ownsLayout(param.thisObject as? ViewGroup)) param.result = null
             } }
         }
-        val callback = "$ROW_CLASS\$mCarrierTextCallback\$1".toClassOrNull()
-        callback?.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
+        val callbackMethod = resolveCarrierTextCallback()
+        callbackMethod?.let { method ->
             deoptimize(method)
             method.hook { after { param ->
                 runCatching {
-                    val row = readField(param.thisObject, "this\$0") as? ViewGroup ?: return@runCatching
+                    val row = readOuter(param.thisObject, ROW_CLASS) as? ViewGroup ?: return@runCatching
                     if (!ownsRow(row)) return@runCatching
                     rowIndex[row]?.let { parts ->
                         parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -446,7 +451,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     scheduleRender()
                 }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }
             } }
-        }
+        } ?: DebugLog.hookSkipped(TAG, "carrier text callback", "unique DexKit target not found")
         listOf("onMiuiThemeChanged", "onConfigChanged").forEach { methodName ->
             layoutClass.findMethodOrNull { name(methodName); paramCount(1) }?.let { method ->
                 method.hook { after { param ->
@@ -485,23 +490,23 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun hookExpansion() {
-        val source = EXPAND_CLASSES.firstNotNullOfOrNull { name ->
-            val type = name.toClassOrNull() ?: return@firstNotNullOfOrNull null
-            type.findMethodOrNull { name("onExpansionChanged"); paramCount(1) }?.let { method ->
-                deoptimize(method)
-                method.hook {
-                    after { param ->
-                        val value = (param.args.getOrNull(0) as? Number)?.toFloat() ?: return@after
-                        if (value < 0f || value > 1f) return@after
-                        onPanelProgress(value)
-                    }
+        val source = resolvePanelMotionClass() ?: run {
+            DebugLog.hookSkipped(TAG, "control-center panel motion", "unique DexKit owner not found")
+            return
+        }
+        source.declaredMethods.singleOrNull(::isExpansionChangedMethod)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                after { param ->
+                    val value = (param.args.getOrNull(0) as? Number)?.toFloat() ?: return@after
+                    if (value < 0f || value > 1f) return@after
+                    onPanelProgress(value)
                 }
-                type
             }
-        } ?: return
+        }
         // Visibility, rather than progress alone, tells us whether the panel was dismissed: the
         // panel can rest at 0 while the finger is still down.
-        source.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.let { method ->
+        source.declaredMethods.singleOrNull(::isVisibilityChangedMethod)?.let { method ->
             method.hook {
                 after { param ->
                     val visible = param.args.getOrNull(0) as? Boolean ?: return@after
@@ -511,7 +516,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 }
             }
         }
-        source.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.let { method ->
+        source.declaredMethods.singleOrNull(::isAppearanceChangedMethod)?.let { method ->
             method.hook {
                 after { param ->
                     if (param.args.getOrNull(0) == true) panelVisible = true
@@ -520,6 +525,56 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             }
         }
     }
+
+    private fun resolvePanelMotionClass(): Class<*>? {
+        val appInfo = hookParam.appInfo ?: return null
+        val apkPath = appInfo.sourceDir ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        return DexKitManager.resolveClasses(
+            cacheDir = File(baseDir, "cache"),
+            apkPath = apkPath,
+            classLoader = classLoader,
+            queries = mapOf(
+                PANEL_MOTION_CACHE_KEY to { bridge ->
+                    bridge.findMethod {
+                        matcher {
+                            declaredClass(PANEL_MOTION_OWNER_MARKER, StringMatchType.Contains)
+                            name("onExpansionChanged")
+                            paramCount(1)
+                            returnType(Void.TYPE)
+                        }
+                    }.toList().asSequence()
+                        .map { it.className }
+                        .distinct()
+                        .filter { name ->
+                            runCatching { isPanelMotionClass(classLoader.loadClass(name)) }
+                                .getOrDefault(false)
+                        }
+                        .singleOrNull()
+                }
+            ),
+            validators = mapOf(PANEL_MOTION_CACHE_KEY to ::isPanelMotionClass)
+        )[PANEL_MOTION_CACHE_KEY]
+    }
+
+    private fun isPanelMotionClass(type: Class<*>): Boolean =
+        type.name.contains(PANEL_MOTION_OWNER_MARKER) &&
+            type.declaredMethods.any(::isExpansionChangedMethod) &&
+            type.declaredMethods.any(::isVisibilityChangedMethod) &&
+            type.declaredMethods.any(::isAppearanceChangedMethod)
+
+    private fun isExpansionChangedMethod(method: Method): Boolean =
+        method.name == "onExpansionChanged" &&
+            method.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType)) &&
+            method.returnType == Void.TYPE
+
+    private fun isVisibilityChangedMethod(method: Method): Boolean =
+        method.name == "onVisibleChanged" &&
+            method.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType)) &&
+            method.returnType == Void.TYPE
+
+    private fun isAppearanceChangedMethod(method: Method): Boolean =
+        method.name == "onAppearanceChanged" && method.parameterCount == 2
 
     /** Wi-Fi level for 卡一. The host VM constructor carries its own interactor and scope. */
     private fun hookWifi() {
@@ -1445,6 +1500,41 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private fun slotOf(subId: Int): Int = runCatching {
         SubscriptionManager.getSlotIndex(subId)
     }.getOrDefault(CarrierBlockPolicy.INVALID_SLOT)
+
+    private fun resolveCarrierTextCallback(): Method? {
+        val apkPath = hookParam.appInfo?.sourceDir ?: return null
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            bridge.findMethod {
+                matcher {
+                    declaredClass {
+                        className(ROW_CALLBACK_OWNER_MARKER, StringMatchType.Contains)
+                    }
+                    name("onCarrierTextChanged")
+                    paramCount(3)
+                    returnType(Void.TYPE)
+                }
+            }.toList().filter { data ->
+                data.className.contains(ROW_CALLBACK_OWNER_MARKER) &&
+                    data.methodName == "onCarrierTextChanged" &&
+                    data.paramCount == 3 && data.returnTypeName == Void.TYPE.name
+            }.mapNotNull { data ->
+                runCatching { data.getMethodInstance(classLoader) }
+                    .onFailure { DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it) }
+                    .getOrNull()
+            }.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }.singleOrNull()
+        }
+    }
+
+    private fun readOuter(target: Any, ownerClassName: String): Any? = runCatching {
+        val ownerClass = classLoader.loadClass(ownerClassName)
+        val fields = mutableListOf<Field>()
+        var current: Class<*>? = target.javaClass
+        while (current != null) {
+            fields += current.declaredFields.filter { ownerClass.isAssignableFrom(it.type) }
+            current = current.superclass
+        }
+        fields.singleOrNull()?.apply { isAccessible = true }?.get(target)
+    }.getOrNull()
 
     private fun readField(target: Any, name: String): Any? = runCatching {
         field(target.javaClass, name)?.get(target)

@@ -4,6 +4,10 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.MatchType
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
 import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -16,32 +20,20 @@ import java.util.concurrent.atomic.AtomicBoolean
  * reverse-engineering notes and the full gating map live in the reverse workspace at
  * `cache/mediaeditor-292ff5db343e5f13/WATERMARK_UNLOCK_PLAN.md`.
  *
- * Watermark visibility is gated in three layers, each with its own hooks:
+ * Watermark visibility and resource availability are handled by four hook paths:
  *
- * 1. **Device checks** — R8-obfuscated static helpers `wn.a` / `zn.a` (classes2.dex) decide
- *    which brand/theme groups this device may see. Every check is a parameterless `boolean`
- *    that inspects `Build.DEVICE` / `Build.BRAND` / `ro.boot.product.theme_customize`. They are
- *    shared by the local template menu (`vy.i.d`) and the cloud config filter (`vy.i0.a`), so a
- *    single hook per method unlocks both sides of one category. Each category has its own
- *    preference switch:
- *    - `wn.a.b()` = leica_devices (徕卡)         → [Preferences.KEY_WM_LEICA]
- *    - `wn.a.i()` = xiaomi_devices (小米)        → [Preferences.KEY_WM_XIAOMI]
- *    - `wn.a.e()` = redmi_devices (红米)         → [Preferences.KEY_WM_REDMI]
- *    - `wn.a.c()` = poco_devices (POCO)          → [Preferences.KEY_WM_POCO]
- *    - `wn.a.g()` = victoria_devices (维多利亚)  → [Preferences.KEY_WM_VICTORIA]
- *    - `wn.a.h()` = west_coast_3_devices (迪士尼3) → [Preferences.KEY_WM_DISNEY3]
- *    - `zn.a.g()` = lcc_devices (LCC)            → [Preferences.KEY_WM_LCC]
- *    - `zn.a.h()` = west_coast_1_devices (迪士尼1) → [Preferences.KEY_WM_DISNEY1]
- *    - `zn.a.i()` = west_coast_2_devices (迪士尼2) → [Preferences.KEY_WM_DISNEY2]
- *    `zn.a.b()` must **never** be hooked: the local watermark menu is wrapped in
- *    `if (!zn.a.b() || zn.a$q.b(null))`, so forcing it true would hide the whole menu.
+ * 1. **Device checks** — DexKit locates the two gate owners by class shape, then resolves their
+ *    parameterless Boolean methods by field-use profiles. Theme gates are mapped by decoding
+ *    embedded values through the string decoder they invoke. These checks are shared by the local
+ *    template menu and cloud config filter, so each preference controls both paths. Ambiguous or
+ *    changed shapes fail closed. The separate global menu-suppression gate is excluded.
  *
  * 2. **Cloud config fields** — `CloudWatermarkData` (Kotlin data class, business name kept)
  *    carries per-watermark restriction fields parsed from the `watermark_config_v2` cloud
  *    config: `supportDeviceList`/`unSupportDeviceList` (device-group tags), `supportRegions`/
  *    `unSupportRegions` (country codes), `validFrom`/`validTo` (festival time windows),
- *    `name_length_limitation`, `minWmVer` and `supportDisplayApp`. The filter itself lives in
- *    the obfuscated `vy.i0.a(CloudWatermarkConfigData, List)`. The constructor after-hook
+ *    `name_length_limitation`, `minWmVer` and `supportDisplayApp`. DexKit resolves the cloud
+ *    filter by its configuration/list signature and device-group markers. The constructor after-hook
  *    rewrites the restriction fields while the master switch is on, before the filter runs:
  *    validFrom = 0 / validTo = Long.MAX_VALUE (smali-verified check is
  *    `now <= validTo && validFrom <= now`), supportRegions = ["*"] / unSupportRegions = [],
@@ -55,18 +47,15 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    regardless of `ro.product.mod_device`.
  *
  * 3. **Downloaded-resource filter** — after a cloud watermark zip lands in
- *    `files/watermarks/`, `tb0.o0` (PhotoWmManager) re-scans the folder and applies a second
- *    filter chain (id whitelist / validity / device_type / region / theme / system properties /
- *    name length). The whole chain is skipped when the system property
- *    `camera.cloud.watermark.debug` is true, which is read by the obfuscated `tb0.v$b.invoke()`.
- *    Hooking that to true while the master switch is on keeps every downloaded resource usable.
+ *    `files/watermarks/`, the resource manager re-scans the folder and applies a second filter
+ *    chain (id whitelist / validity / device_type / region / theme / system properties / name
+ *    length). The chain is skipped when `camera.cloud.watermark.debug` is true. DexKit resolves
+ *    the Boolean property reader by its marker and return shape.
  *
- * 4. **Bulk download** — cloud watermark zips are normally fetched on demand when a menu item
- *    is tapped (`yy.h` CloudWatermarkResourceFetcher, dispatched by `yy.m`). With
- *    [Preferences.KEY_WM_DOWNLOAD_ALL] on, the `vy.i.b(List, boolean)` after-hook walks the
- *    freshly built cloud menu and dispatches every `CloudWatermarkItem` through the same
- *    `yy.m.a(WatermarkItem, WatermarkCategory, ee.e.a)` path (listener supplied via a dynamic
- *    proxy), so the resources land locally without tapping each entry.
+ * 4. **Bulk download** — cloud watermark zips are normally fetched on demand when a menu item is
+ *    tapped. With [Preferences.KEY_WM_DOWNLOAD_ALL] on, the DexKit-resolved cloud menu loader
+ *    after-hook walks the freshly built menu and dispatches every `CloudWatermarkItem` through the
+ *    resolved resource dispatcher (listener supplied via a dynamic proxy).
  *
  * All preference switches are read live inside the callbacks (with the 100 ms Preferences
  * memo), so toggling a category takes effect the next time the watermark menu is built without
@@ -84,9 +73,27 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     private const val WM_CATEGORY = "com.miui.mediaeditor.photo.watermark.model.menu.WatermarkCategory"
     private const val CLOUD_WM_ITEM = "com.miui.mediaeditor.photo.watermark.model.menu.CloudWatermarkItem"
 
+    private const val WN_GATE_CACHE_KEY = "wmDeviceGateOwner"
+    private const val ZN_GATE_CACHE_KEY = "wmThemeGateOwner"
+    private const val CLOUD_FILTER_CACHE_KEY = "wmCloudFilterOwner"
+    private const val CLOUD_LOADER_CACHE_KEY = "wmCloudLoaderOwner"
+    private const val FETCHER_CACHE_KEY = "wmResourceFetcherOwner"
+    private const val DEBUG_GATE_CACHE_KEY = "wmDebugGateOwner"
+
+    private val DEVICE_GROUP_MARKERS = listOf(
+        "leica_devices",
+        "xiaomi_devices",
+        "redmi_devices",
+        "poco_devices",
+        "victoria_devices",
+        "west_coast_3_devices",
+        "lcc_devices",
+        "west_coast_1_devices",
+        "west_coast_2_devices"
+    )
+
     private class ResolvedClasses(
-        val wnA: Class<*>,
-        val znA: Class<*>,
+        val deviceGateMethods: Map<String, Method>,
         val vyI0Filter: Method,
         val cloudWmData: Class<*>,
         val tb0VBInvoke: Method,
@@ -122,36 +129,40 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val apkPath = appInfo.sourceDir ?: return null
         val cacheDir = File(baseDir, "cache")
 
-        // Literal R8 class names of the verified baseline take precedence; DexKit string
-        // signatures are the fallback for a build where the names changed. The queries are
-        // still registered up front so the DexKit scan (and its properties cache) covers them
-        // in the same bridge pass.
-        val wnA = "wn.a".toClassOrNull() ?: DexKitManager.resolveClasses(
+        val resolved = DexKitManager.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
             queries = mapOf(
-                "wnA" to { bridge ->
-                    bridge.findClass { matcher { usingStrings("ro.boot.product.theme_customize") } }
-                        .firstOrNull { it.name.endsWith(".a") }?.name
-                }
+                WN_GATE_CACHE_KEY to { bridge -> resolveWnGateOwner(bridge) },
+                ZN_GATE_CACHE_KEY to { bridge -> resolveZnGateOwner(bridge) },
+                CLOUD_FILTER_CACHE_KEY to { bridge -> resolveCloudFilterOwner(bridge) },
+                CLOUD_LOADER_CACHE_KEY to { bridge -> resolveCloudLoaderOwner(bridge) },
+                FETCHER_CACHE_KEY to { bridge -> resolveResourceFetcherOwner(bridge) },
+                DEBUG_GATE_CACHE_KEY to { bridge -> resolveDebugGateOwner(bridge) }
+            ),
+            validators = mapOf(
+                WN_GATE_CACHE_KEY to ::isWnGateClass,
+                ZN_GATE_CACHE_KEY to ::isZnGateClass,
+                CLOUD_FILTER_CACHE_KEY to ::isCloudFilterClass,
+                CLOUD_LOADER_CACHE_KEY to ::isCloudLoaderClass,
+                FETCHER_CACHE_KEY to ::isResourceFetcherClass,
+                DEBUG_GATE_CACHE_KEY to ::isDebugGateClass
             )
-        )["wnA"] ?: run {
-            DebugLog.e(TAG, "wn.a not resolved")
+        )
+        val wnA = resolved[WN_GATE_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit device-gate class is ambiguous or missing")
             return null
         }
-        val znA = "zn.a".toClassOrNull() ?: DexKitManager.resolveClasses(
-            cacheDir = cacheDir,
-            apkPath = apkPath,
-            classLoader = classLoader,
-            queries = mapOf(
-                "znA" to { bridge ->
-                    bridge.findClass { matcher { usingStrings("ro.theme_customize") } }
-                        .firstOrNull { it.name.endsWith(".a") }?.name
-                }
-            )
-        )["znA"] ?: run {
-            DebugLog.e(TAG, "zn.a not resolved")
+        val znA = resolved[ZN_GATE_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit theme-gate class is ambiguous or missing")
+            return null
+        }
+
+        val deviceGateMethods = DexKitManager.withBridge(apkPath) { bridge ->
+            resolveDeviceGateMethods(bridge, wnA, znA)
+        } ?: run {
+            DebugLog.e(TAG, "DexKit device/theme gate methods could not be resolved")
             return null
         }
 
@@ -161,58 +172,49 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val wmCategory = WM_CATEGORY.toClass()
         val cloudWmItem = CLOUD_WM_ITEM.toClass()
 
-        // vy.i0.a(CloudWatermarkConfigData, List): the cloud filter. Resolved by signature.
-        val vyI0Filter = "vy.i0".toClassOrNull()
-            ?.declaredMethods
-            ?.firstOrNull {
-                Modifier.isStatic(it.modifiers) &&
-                    it.parameterTypes.size == 2 &&
-                    it.parameterTypes[0] == cloudWmConfig &&
-                    it.parameterTypes[1] == List::class.java
-            } ?: run {
-            DebugLog.e(TAG, "vy.i0.a filter not resolved")
+        val cloudFilterClass = resolved[CLOUD_FILTER_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit cloud-filter class is ambiguous or missing")
             return null
         }
-
-        // vy.i.b(List, boolean): cloud menu loader (after-hook drives bulk download).
-        val vyILoad = "vy.i".toClassOrNull()
-            ?.declaredMethods
-            ?.firstOrNull {
-                Modifier.isStatic(it.modifiers) &&
-                    it.parameterTypes.size == 2 &&
-                    it.parameterTypes[0] == List::class.java &&
-                    it.parameterTypes[1] == Boolean::class.javaPrimitiveType
-            } ?: run {
-            DebugLog.e(TAG, "vy.i.b loader not resolved")
-            return null
-        }
-
-        // yy.m.a(WatermarkItem, WatermarkCategory, ee.e.a): resource-fetch dispatcher.
-        val yyM = "yy.m".toClassOrNull() ?: run {
-            DebugLog.e(TAG, "yy.m dispatcher not resolved")
-            return null
-        }
-        val yyMDispatcher = yyM.declaredMethods.firstOrNull {
-            it.parameterTypes.size == 3 && it.parameterTypes[0] == wmItem &&
-                it.parameterTypes[1] == wmCategory && it.parameterTypes[2].isInterface
+        val vyI0Filter = cloudFilterClass.declaredMethods.singleOrNull {
+            isCloudFilterMethod(it, cloudWmConfig)
         } ?: run {
-            DebugLog.e(TAG, "yy.m.a dispatcher method not resolved")
+            DebugLog.e(TAG, "DexKit cloud-filter method shape changed or is ambiguous")
+            return null
+        }
+
+        val cloudLoaderClass = resolved[CLOUD_LOADER_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit cloud-loader class is ambiguous or missing")
+            return null
+        }
+        val vyILoad = cloudLoaderClass.declaredMethods.singleOrNull(::isCloudLoaderMethod) ?: run {
+            DebugLog.e(TAG, "DexKit cloud-loader method shape changed or is ambiguous")
+            return null
+        }
+
+        val yyM = resolved[FETCHER_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit resource-fetcher class is ambiguous or missing")
+            return null
+        }
+        val yyMDispatcher = yyM.declaredMethods.singleOrNull {
+            isResourceDispatcher(it, wmItem, wmCategory)
+        } ?: run {
+            DebugLog.e(TAG, "DexKit resource dispatcher method shape changed or is ambiguous")
             return null
         }
         val listenerIface = yyMDispatcher.parameterTypes[2]
 
-        // tb0.v$b.invoke(): reads `camera.cloud.watermark.debug`; true skips the whole
-        // downloaded-resource filter chain.
-        val tb0VBInvoke = "tb0.v\$b".toClassOrNull()
-            ?.declaredMethods
-            ?.firstOrNull { it.parameterTypes.isEmpty() } ?: run {
-            DebugLog.e(TAG, "tb0.v\$b debug flag not resolved")
+        val debugGateClass = resolved[DEBUG_GATE_CACHE_KEY] ?: run {
+            DebugLog.e(TAG, "DexKit debug-gate class is ambiguous or missing")
+            return null
+        }
+        val tb0VBInvoke = debugGateClass.declaredMethods.singleOrNull(::isDebugGateMethod) ?: run {
+            DebugLog.e(TAG, "DexKit debug-gate method shape changed or is ambiguous")
             return null
         }
 
         return ResolvedClasses(
-            wnA = wnA,
-            znA = znA,
+            deviceGateMethods = deviceGateMethods,
             vyI0Filter = vyI0Filter,
             cloudWmData = cloudWmData,
             tb0VBInvoke = tb0VBInvoke,
@@ -224,19 +226,326 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         )
     }
 
+    /** Resolve category gates from their DEX usage and decoded theme markers, never method names. */
+    private fun resolveDeviceGateMethods(
+        bridge: DexKitBridge,
+        wnOwner: Class<*>,
+        znOwner: Class<*>
+    ): Map<String, Method>? {
+        val wnMethods = findStaticBooleanNoArgMethods(bridge, wnOwner)
+        val znMethods = findStaticBooleanNoArgMethods(bridge, znOwner)
+        val result = linkedMapOf<String, Method>()
+
+        fun resolveUnique(
+            ownerName: String,
+            candidates: List<MethodData>,
+            preference: String,
+            predicate: (MethodData) -> Boolean
+        ): Boolean {
+            val method = candidates.asSequence()
+                .filter(predicate)
+                .mapNotNull(::materializeGateMethod)
+                .singleOrNull()
+            if (method == null) {
+                DebugLog.e(TAG, "DexKit $ownerName gate for $preference is ambiguous or missing")
+                return false
+            }
+            result[preference] = method
+            return true
+        }
+
+        fun ownFields(data: MethodData, owner: Class<*>): List<org.luckypray.dexkit.result.FieldData> =
+            data.usingFields.asSequence()
+                .map { it.field }
+                .filter { it.declaredClassName == owner.name && Modifier.isStatic(it.modifiers) }
+                .distinctBy { it.descriptor }
+                .toList()
+
+        fun listFieldCount(data: MethodData, owner: Class<*>): Int =
+            ownFields(data, owner).count { it.typeName == List::class.java.name }
+
+        fun invokesOwner(data: MethodData, owner: Class<*>): Boolean =
+            data.invokes.any { it.className == owner.name }
+
+        fun referencesOwner(data: MethodData, owner: Class<*>): Boolean =
+            data.usingFields.any { it.field.declaredClassName == owner.name }
+
+        // The six device gates have distinct DEX profiles: 3 and 4 list fields, one list with
+        // and without a same-owner call, one lazy value, and one reference to the theme-gate owner.
+        val wnResolved = listOf(
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_LEICA) {
+                listFieldCount(it, wnOwner) == 3
+            },
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_XIAOMI) {
+                listFieldCount(it, wnOwner) == 1 && invokesOwner(it, wnOwner)
+            },
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_REDMI) {
+                listFieldCount(it, wnOwner) == 4
+            },
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_POCO) {
+                listFieldCount(it, wnOwner) == 1 && !invokesOwner(it, wnOwner)
+            },
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_VICTORIA) {
+                ownFields(it, wnOwner).size == 1 && listFieldCount(it, wnOwner) == 0
+            },
+            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_DISNEY3) {
+                listFieldCount(it, wnOwner) == 0 && referencesOwner(it, znOwner)
+            }
+        ).all { it }
+        if (!wnResolved) return null
+
+        val markerPreferences = mutableMapOf<String, Method>()
+        znMethods.forEach { data ->
+            val referencedOwnerFields = ownFields(data, znOwner)
+            if (referencedOwnerFields.size != 1) return@forEach
+            val helperType = runCatching {
+                classLoader.loadClass(referencedOwnerFields.single().typeName)
+            }.getOrNull() ?: return@forEach
+            val helperBody = bridge.findMethod {
+                matcher {
+                    declaredClass(helperType)
+                    paramCount(1)
+                    returnType(Any::class.java)
+                }
+            }.toList().singleOrNull { helperData ->
+                helperData.className == helperType.name &&
+                    helperData.paramTypeNames == listOf(Any::class.java.name) &&
+                    helperData.returnTypeName == Any::class.java.name
+            } ?: return@forEach
+
+            val decoded = decodeGateStrings(bridge, helperBody)
+            val preference = when {
+                decoded.any { it.equals("LCC", ignoreCase = true) } -> Preferences.KEY_WM_LCC
+                decoded.any { it.equals("WestCoast-II", ignoreCase = true) } -> Preferences.KEY_WM_DISNEY2
+                decoded.any { it.equals("WestCoast", ignoreCase = true) } -> Preferences.KEY_WM_DISNEY1
+                else -> null
+            } ?: return@forEach
+            val method = materializeGateMethod(data) ?: return@forEach
+            if (markerPreferences.putIfAbsent(preference, method) != null) {
+                DebugLog.e(TAG, "multiple DexKit theme gates match $preference")
+                return null
+            }
+        }
+
+        listOf(
+            Preferences.KEY_WM_LCC,
+            Preferences.KEY_WM_DISNEY1,
+            Preferences.KEY_WM_DISNEY2
+        ).forEach { preference ->
+            val method = markerPreferences[preference]
+            if (method == null) {
+                DebugLog.e(TAG, "DexKit decoded theme gate for $preference is missing")
+                return null
+            }
+            result[preference] = method
+        }
+
+        return result.takeIf { it.size == 9 }
+    }
+
+    private fun findStaticBooleanNoArgMethods(
+        bridge: DexKitBridge,
+        owner: Class<*>
+    ): List<MethodData> = bridge.findMethod {
+        matcher {
+            declaredClass(owner)
+            modifiers(Modifier.STATIC, MatchType.Contains)
+            paramCount(0)
+            returnType(Boolean::class.javaPrimitiveType!!)
+        }
+    }.toList().filter { data ->
+        data.className == owner.name &&
+            data.paramCount == 0 &&
+            data.returnTypeName == Boolean::class.javaPrimitiveType!!.name &&
+            Modifier.isStatic(data.modifiers)
+    }
+
+    private fun decodeGateStrings(bridge: DexKitBridge, method: MethodData): Set<String> {
+        val encodedStrings = method.usingStrings
+        if (encodedStrings.isEmpty()) return emptySet()
+        val decoders = method.invokes.toList().filter { data ->
+            Modifier.isStatic(data.modifiers) &&
+                data.paramTypeNames == listOf(String::class.java.name) &&
+                data.returnTypeName == String::class.java.name
+        }.mapNotNull(::materializeGateMethod)
+        if (decoders.isEmpty()) return emptySet()
+        return decoders.flatMap { decoder ->
+            encodedStrings.mapNotNull { encoded ->
+                runCatching { decoder.invoke(null, encoded) as? String }.getOrNull()
+            }
+        }.toSet()
+    }
+
+    private fun materializeGateMethod(data: MethodData): Method? = runCatching {
+        data.getMethodInstance(classLoader).apply { isAccessible = true }
+    }.onFailure {
+        DebugLog.w(TAG, "failed to materialize DexKit gate ${data.className}#${data.methodName}", it)
+    }.getOrNull()
+
+    private fun resolveWnGateOwner(bridge: DexKitBridge): String? =
+        bridge.findClass {
+            matcher {
+                fields {
+                    matchType(MatchType.Contains)
+                    countMin(6)
+                    addForType(List::class.java)
+                }
+                methods {
+                    matchType(MatchType.Contains)
+                    countMin(6)
+                    add {
+                        modifiers(Modifier.STATIC, MatchType.Contains)
+                        paramCount(0)
+                        returnType(Boolean::class.javaPrimitiveType!!)
+                    }
+                }
+            }
+        }.toList().asSequence()
+            .mapNotNull { data -> runCatching { data.getInstance(classLoader) }.getOrNull() }
+            .filter(::isWnGateClass)
+            .map { it.name }
+            .singleOrNull()
+
+    private fun resolveZnGateOwner(bridge: DexKitBridge): String? =
+        bridge.findClass {
+            matcher {
+                fields {
+                    matchType(MatchType.Contains)
+                    countMin(5)
+                    addForType("java.util.HashSet")
+                }
+                methods {
+                    matchType(MatchType.Contains)
+                    countMin(8)
+                    add {
+                        modifiers(Modifier.STATIC, MatchType.Contains)
+                        paramCount(0)
+                        returnType(Boolean::class.javaPrimitiveType!!)
+                    }
+                }
+            }
+        }.toList().asSequence()
+            .mapNotNull { data -> runCatching { data.getInstance(classLoader) }.getOrNull() }
+            .filter(::isZnGateClass)
+            .map { it.name }
+            .singleOrNull()
+
+    private fun resolveCloudFilterOwner(bridge: DexKitBridge): String? {
+        val cloudConfig = CLOUD_WM_CONFIG.toClassOrNull() ?: return null
+        return bridge.findMethod {
+            matcher {
+                modifiers(Modifier.STATIC, MatchType.Contains)
+                paramTypes(cloudConfig, List::class.java)
+                returnType(cloudConfig)
+                DEVICE_GROUP_MARKERS.forEach { marker ->
+                    addUsingString(marker, StringMatchType.Equals)
+                }
+            }
+        }.toList().filter { data ->
+            val method = runCatching { data.getMethodInstance(classLoader) }.getOrNull()
+            method != null && isCloudFilterMethod(method, cloudConfig)
+        }.map { it.className }.distinct().singleOrNull()
+    }
+
+    private fun resolveCloudLoaderOwner(bridge: DexKitBridge): String? =
+        bridge.findClass {
+            matcher { usingStrings("leica_1") }
+        }.toList().asSequence()
+            .mapNotNull { data -> runCatching { data.getInstance(classLoader) }.getOrNull() }
+            .filter(::isCloudLoaderClass)
+            .map { it.name }
+            .distinct()
+            .singleOrNull()
+
+    private fun resolveResourceFetcherOwner(bridge: DexKitBridge): String? {
+        val itemName = WM_ITEM
+        val categoryName = WM_CATEGORY
+        return bridge.findMethod {
+            matcher {
+                paramCount(3)
+                returnType(Void.TYPE)
+                addParamType(itemName)
+                addParamType(categoryName)
+            }
+        }.toList().filter { data ->
+            val types = data.paramTypeNames
+            types.size == 3 && types[0] == itemName && types[1] == categoryName &&
+                runCatching { classLoader.loadClass(types[2]).isInterface }.getOrDefault(false)
+        }.map { it.className }.distinct().singleOrNull()
+    }
+
+    private fun resolveDebugGateOwner(bridge: DexKitBridge): String? =
+        bridge.findMethod {
+            matcher {
+                paramCount(0)
+                returnType(Boolean::class.javaObjectType)
+                addUsingString("camera.cloud.watermark.debug", StringMatchType.Equals)
+            }
+        }.toList().filter { data ->
+            data.paramCount == 0 && data.returnTypeName == Boolean::class.javaObjectType.name
+        }.map { it.className }.distinct().singleOrNull()
+
+    private fun isWnGateClass(type: Class<*>): Boolean =
+        type.declaredFields.count {
+            Modifier.isStatic(it.modifiers) && List::class.java.isAssignableFrom(it.type)
+        } >= 6 && type.declaredMethods.count {
+            Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                it.returnType == Boolean::class.javaPrimitiveType
+        } >= 6
+
+    private fun isZnGateClass(type: Class<*>): Boolean =
+        type.declaredFields.count {
+            Modifier.isStatic(it.modifiers) && it.type.name == "java.util.HashSet"
+        } >= 5 && type.declaredMethods.count {
+            Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                it.returnType == Boolean::class.javaPrimitiveType
+        } >= 8
+
+    private fun isCloudFilterClass(type: Class<*>): Boolean {
+        val cloudConfig = CLOUD_WM_CONFIG.toClassOrNull() ?: return false
+        return type.declaredMethods.count { isCloudFilterMethod(it, cloudConfig) } == 1
+    }
+
+    private fun isCloudFilterMethod(method: Method, cloudConfig: Class<*>?): Boolean =
+        cloudConfig != null && Modifier.isStatic(method.modifiers) &&
+            method.parameterTypes.contentEquals(arrayOf(cloudConfig, List::class.java)) &&
+            method.returnType == cloudConfig
+
+    private fun isCloudLoaderClass(type: Class<*>): Boolean =
+        type.declaredMethods.count(::isCloudLoaderMethod) == 1
+
+    private fun isCloudLoaderMethod(method: Method): Boolean =
+        Modifier.isStatic(method.modifiers) &&
+            method.parameterTypes.contentEquals(arrayOf(List::class.java, Boolean::class.javaPrimitiveType)) &&
+            method.returnType == java.util.LinkedHashMap::class.java
+
+    private fun isResourceFetcherClass(type: Class<*>): Boolean =
+        type.declaredMethods.count { method ->
+            val parameters = method.parameterTypes
+            !Modifier.isStatic(method.modifiers) && method.returnType == Void.TYPE &&
+                parameters.size == 3 && parameters[0].name == WM_ITEM &&
+                parameters[1].name == WM_CATEGORY && parameters[2].isInterface
+        } == 1
+
+    private fun isResourceDispatcher(method: Method, item: Class<*>, category: Class<*>): Boolean {
+        val parameters = method.parameterTypes
+        return !Modifier.isStatic(method.modifiers) && method.returnType == Void.TYPE &&
+            parameters.size == 3 && parameters[0] == item && parameters[1] == category &&
+            parameters[2].isInterface
+    }
+
+    private fun isDebugGateClass(type: Class<*>): Boolean =
+        type.declaredMethods.count(::isDebugGateMethod) == 1
+
+    private fun isDebugGateMethod(method: Method): Boolean =
+        !Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
+            method.returnType == Boolean::class.javaObjectType
+
     // ─── Hook installation ─────────────────────────────────────────────────────
 
     private fun installHooks(c: ResolvedClasses) {
-        // 1. Per-category device checks (shared by local menu + cloud filter).
-        hookDeviceCheck(c.wnA, "b", Preferences.KEY_WM_LEICA)
-        hookDeviceCheck(c.wnA, "i", Preferences.KEY_WM_XIAOMI)
-        hookDeviceCheck(c.wnA, "e", Preferences.KEY_WM_REDMI)
-        hookDeviceCheck(c.wnA, "c", Preferences.KEY_WM_POCO)
-        hookDeviceCheck(c.wnA, "g", Preferences.KEY_WM_VICTORIA)
-        hookDeviceCheck(c.wnA, "h", Preferences.KEY_WM_DISNEY3)
-        hookDeviceCheck(c.znA, "g", Preferences.KEY_WM_LCC)
-        hookDeviceCheck(c.znA, "h", Preferences.KEY_WM_DISNEY1)
-        hookDeviceCheck(c.znA, "i", Preferences.KEY_WM_DISNEY2)
+        // 1. Per-category device checks (shared by local menu + cloud filter), resolved by DEX.
+        c.deviceGateMethods.forEach { (prefKey, method) -> hookDeviceCheck(method, prefKey) }
 
         // 2. Cloud restriction fields: rewrite in the CloudWatermarkData constructor.
         hookCloudDataConstructor(c)
@@ -254,19 +563,14 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         hookBulkDownload(c)
     }
 
-    private fun hookDeviceCheck(clazz: Class<*>, methodName: String, prefKey: String) {
-        val method = runCatching { clazz.getDeclaredMethod(methodName).apply { isAccessible = true } }
-            .getOrNull() ?: run {
-            DebugLog.w(TAG, "device check $methodName not found on ${clazz.name}")
-            return
-        }
+    private fun hookDeviceCheck(method: Method, prefKey: String) {
         deoptimize(method)
-        method.hook("wm_dev_$methodName") {
+        method.hook("wm_dev_$prefKey") {
             after { param ->
                 if (masterAnd(prefKey)) param.result = true
             }
         }
-        DebugLog.d(TAG, "device check hooked ${clazz.name}#$methodName -> $prefKey")
+        DebugLog.d(TAG, "device check hooked ${method.declaringClass.name}#${method.name} -> $prefKey")
     }
 
     /**
@@ -365,14 +669,14 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     }
 
     private fun hookBulkDownload(c: ResolvedClasses) {
-        // yy.m is an object (singleton); its instance is the static field of its own type.
+        // The resolved dispatcher is a singleton; its instance is the static field of its own type.
         val dispatcherInstance = runCatching {
             val field = c.yyM.declaredFields.firstOrNull {
                 Modifier.isStatic(it.modifiers) && it.type == c.yyM
             } ?: return
             field.isAccessible = true
             field.get(null)
-        }.onFailure { DebugLog.e(TAG, "yy.m singleton not found", it) }.getOrNull() ?: return
+        }.onFailure { DebugLog.e(TAG, "resource-dispatcher singleton not found", it) }.getOrNull() ?: return
 
         c.vyILoad.hook("wm_bulk_download") {
             after { param ->

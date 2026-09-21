@@ -7,9 +7,13 @@ import android.provider.Settings
 import android.util.SparseArray
 import android.util.SparseIntArray
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -18,10 +22,9 @@ import java.util.concurrent.Executor
 object ImmediateMonetRefreshHooker : StaticHooker() {
     private const val SCOPE = "ImmediateMonetRefresh"
     private const val CONTROLLER_CLASS = "com.android.systemui.theme.ThemeOverlayController"
-    private const val LISTENER_CLASS = "com.android.systemui.theme.ThemeOverlayController\$2"
     private const val MIUI_HELPER_CLASS = "com.miui.keyguard.utils.ThemeOverlayControllerHelper"
-    private const val MIUI_WALLPAPER_CALLBACK_CLASS =
-        "com.android.keyguard.wallpaper.MiuiKeyguardWallPaperManager\$4"
+    private const val MIUI_WALLPAPER_MANAGER_CLASS =
+        "com.android.keyguard.wallpaper.MiuiKeyguardWallPaperManager"
     private const val CONTROLLER_DELEGATE_CLASS =
         "com.miui.systemui.theme.ThemeOverlayControllerDelegate"
     private const val INTERFACES_MANAGER_CLASS =
@@ -53,6 +56,8 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     private var getImplementationMethod: Method? = null
     private var delegateLazyField: Field? = null
     private var lazyGetMethod: Method? = null
+    private var themeOverlayCallback: Method? = null
+    private var miuiWallpaperCallback: Method? = null
 
     override fun saveHotReloadState(): Any? = controllerReference?.get()
 
@@ -73,6 +78,9 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
             return
         }
         controllerClass = controllerType
+        val callbacks = hookParam.appInfo?.sourceDir?.let(::resolveGeneratedCallbacks)
+        themeOverlayCallback = callbacks?.themeOverlay
+        miuiWallpaperCallback = callbacks?.miuiWallpaper
         handleWallpaperColorsMethod = controllerType.declaredMethods.firstOrNull {
             it.name == "handleWallpaperColors" && it.parameterTypes.contentEquals(
                 arrayOf(
@@ -118,21 +126,8 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     }
 
     private fun hookThemeOverlayListener(controllerType: Class<*>): Boolean {
-        val listenerType = LISTENER_CLASS.toClassOrNull()
-            ?: controllerType.declaredFields.firstOrNull {
-                it.name == "mOnColorsChangedListener"
-            }?.type
-            ?: controllerType.declaredClasses.firstOrNull { nested ->
-                nested.declaredMethods.any(::isWallpaperColorsCallback)
-            }
-            ?: return false
-        val callback = listenerType.declaredMethods.firstOrNull(::isWallpaperColorsCallback)
-            ?.apply { isAccessible = true }
-            ?: return false
-
-        listenerControllerField = listenerType.declaredFields.firstOrNull {
-            controllerType.isAssignableFrom(it.type)
-        }?.apply { isAccessible = true }
+        val callback = themeOverlayCallback ?: return false
+        listenerControllerField = uniqueFieldByType(callback.declaringClass, controllerType)
 
         callback.hook {
             after { param ->
@@ -173,16 +168,7 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     }
 
     private fun hookMiuiWallpaperCallback(): Boolean {
-        val callbackType = MIUI_WALLPAPER_CALLBACK_CLASS.toClassOrNull() ?: return false
-        val callback = callbackType.declaredMethods.firstOrNull {
-            it.name == "onWallpaperChanged" && it.parameterTypes.contentEquals(
-                arrayOf(
-                    WallpaperColors::class.java,
-                    String::class.java,
-                    Int::class.javaPrimitiveType
-                )
-            )
-        }?.apply { isAccessible = true } ?: return false
+        val callback = miuiWallpaperCallback ?: return false
 
         callback.hook {
             after { param ->
@@ -218,14 +204,67 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         return true
     }
 
-    private fun isWallpaperColorsCallback(method: Method): Boolean {
-        return method.name == "onColorsChanged" && method.parameterTypes.contentEquals(
-            arrayOf(
-                WallpaperColors::class.java,
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType
+    private data class GeneratedCallbacks(
+        val themeOverlay: Method?,
+        val miuiWallpaper: Method?
+    )
+
+    private fun resolveGeneratedCallbacks(apkPath: String): GeneratedCallbacks? =
+        DexKitManager.withBridge(apkPath) { bridge ->
+            GeneratedCallbacks(
+                themeOverlay = resolveCallback(
+                    bridge,
+                    CONTROLLER_CLASS,
+                    "onColorsChanged",
+                    arrayOf(
+                        WallpaperColors::class.java,
+                        Int::class.javaPrimitiveType!!,
+                        Int::class.javaPrimitiveType!!
+                    )
+                ),
+                miuiWallpaper = resolveCallback(
+                    bridge,
+                    MIUI_WALLPAPER_MANAGER_CLASS,
+                    "onWallpaperChanged",
+                    arrayOf(
+                        WallpaperColors::class.java,
+                        String::class.java,
+                        Int::class.javaPrimitiveType!!
+                    )
+                )
             )
-        )
+        }
+
+    private fun resolveCallback(
+        bridge: DexKitBridge,
+        ownerMarker: String,
+        methodName: String,
+        parameterTypes: Array<Class<*>>
+    ): Method? = bridge.findMethod {
+        matcher {
+            declaredClass { className(ownerMarker, StringMatchType.Contains) }
+            name(methodName)
+            paramTypes(*parameterTypes)
+            returnType(Void.TYPE)
+        }
+    }.toList().filter { data ->
+        data.className.contains(ownerMarker) && data.methodName == methodName &&
+            data.paramTypeNames == parameterTypes.map { it.name } &&
+            data.returnTypeName == Void.TYPE.name
+    }.mapNotNull { data ->
+        runCatching { data.getMethodInstance(classLoader) }
+            .onFailure { DebugLog.w(SCOPE, "failed to inspect ${data.className}#${data.methodName}", it) }
+            .getOrNull()
+    }.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }.singleOrNull()
+
+    private fun uniqueFieldByType(callbackClass: Class<*>, ownerClass: Class<*>): Field? {
+        val fields = mutableListOf<Field>()
+        var current: Class<*>? = callbackClass
+        while (current != null) {
+            fields += current.declaredFields.filter { ownerClass.isAssignableFrom(it.type) }
+            current = current.superclass
+        }
+        return fields.singleOrNull()?.apply { isAccessible = true }
     }
 
     private fun isEnabled(): Boolean = Preferences.getBoolean(
@@ -350,6 +389,8 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     private fun clearResolvedMembers() {
         controllerClass = null
         controllerReference = null
+        themeOverlayCallback = null
+        miuiWallpaperCallback = null
         listenerControllerField = null
         handleWallpaperColorsMethod = null
         currentColorsField = null

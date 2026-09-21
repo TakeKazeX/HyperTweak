@@ -13,9 +13,13 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -38,6 +42,8 @@ import java.util.concurrent.TimeUnit
  */
 @SuppressLint("StaticFieldLeak")
 object StackedSignalHooker : StaticHooker() {
+    private const val PANEL_CALLBACK_OWNER_MARKER =
+        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -320,11 +326,12 @@ object StackedSignalHooker : StaticHooker() {
             slotIndices[it.subId] ?: -1, it.renderLevel) })
 
     private fun hookPanelMotion() {
-        val type = "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1".toClassOrNull() ?: return
-        type.declaredMethods.filter { method ->
-            (method.name == "onExpansionChanged" && method.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType))) ||
-                (method.name == "onVisibleChanged" && method.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType)))
-        }.forEach { method ->
+        val methods = resolvePanelMotionMethods()
+        if (methods.isEmpty()) {
+            DebugLog.hookSkipped(TAG, "stacked signal panel-motion callbacks", "unique DexKit targets not found")
+            return
+        }
+        methods.forEach { method ->
             deoptimize(method)
             method.hook { after { param ->
                 val owner = param.thisObject
@@ -339,6 +346,47 @@ object StackedSignalHooker : StaticHooker() {
             } }
         }
     }
+
+    private fun resolvePanelMotionMethods(): List<Method> {
+        val apkPath = hookParam.appInfo?.sourceDir ?: return emptyList()
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            val expansion = resolvePanelMotionMethod(
+                bridge,
+                "onExpansionChanged",
+                Float::class.javaPrimitiveType!!
+            )
+            val visibility = resolvePanelMotionMethod(
+                bridge,
+                "onVisibleChanged",
+                Boolean::class.javaPrimitiveType!!
+            )
+            listOfNotNull(expansion, visibility)
+        }.orEmpty()
+    }
+
+    private fun resolvePanelMotionMethod(
+        bridge: DexKitBridge,
+        methodName: String,
+        parameterType: Class<*>
+    ): Method? = bridge.findMethod {
+        matcher {
+            declaredClass { className(PANEL_CALLBACK_OWNER_MARKER, StringMatchType.Contains) }
+            name(methodName)
+            paramTypes(parameterType)
+            returnType(Void.TYPE)
+        }
+    }.toList().filter { data ->
+        data.className.contains(PANEL_CALLBACK_OWNER_MARKER) &&
+            data.methodName == methodName &&
+            data.paramTypeNames == listOf(parameterType.name) &&
+            data.returnTypeName == Void.TYPE.name
+    }.mapNotNull(::materializeMethod).singleOrNull()
+
+    private fun materializeMethod(data: MethodData): Method? = runCatching {
+        data.getMethodInstance(classLoader)
+    }.onFailure {
+        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
+    }.getOrNull()
 
     private fun hookCreateViewModel() {
         val vmClass = ICONS_VM_CLASS.toClassOrNull() ?: run {

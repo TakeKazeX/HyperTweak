@@ -5,10 +5,16 @@ import android.content.Intent
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
 import java.util.concurrent.atomic.AtomicBoolean
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 /**
  * Unlocks Nearby Share (Quick Share) on CN (domestic) Google Play services.
@@ -16,11 +22,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * CN GMS disables Quick Share through two independent gates, both driven by the CN marker
  * features `com.google.android.feature.services_updater` + `cn.google.services`:
  *
- * 1. **Init gate** — `com.google.android.gms.nearby.sharing.ModuleInitializer.e(Context)`
- *    returns `jnjl.az()` (`sharing_supports_latchsky`, flag package `com.google.android.gms.nearby`)
+ * 1. **Init gate** — the stable
+ *    `com.google.android.gms.nearby.sharing.ModuleInitializer(Context) -> boolean` method
+ *    returns the `sharing_supports_latchsky` flag (`com.google.android.gms.nearby`)
  *    when the CN features are present, and the flag ships `false` on CN builds, so the runtime
  *    initialization logs `UNSUPPORTED_DEVICE_TYPE_LATCHSKY` and never starts sharing.
- * 2. **Device-type gate** — `defpackage.bmwx.i(Context)` classifies a CN GMS device as
+ * 2. **Device-type gate** — a GMS method keyed by the CN feature markers classifies a device as
  *    "latchsky", which makes `dqvq.f()` mark it as a blacklisted device type; the discovery
  *    service and UI (`imck.d/e`) then refuse to scan, and `egph.a()` (used by
  *    `GAccountUtils#getSupportedAccounts`) reports the latchsky account failure.
@@ -44,12 +51,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    override with GMS's own account semantics and rebuilds the shared `.pb` snapshots, then
  *    broadcasts `com.google.android.gms.phenotype.COMMITTED`, which re-runs `ModuleInitializer`.
  *    Sent only when the DB state actually changed.
- * 3. Hook `ModuleInitializer.e(Context)` → true (stable, non-obfuscated class name; this is the
- *    exact gate the flag feeds), so the runtime initializes even if a future GMS version changes
- *    the flag delivery.
- * 4. Hook `bmwx.i(Context)` → false (best-effort; the class name is R8-obfuscated, so this
- *    silently no-ops on a GMS build where it does not resolve) to open the discovery
- *    device-type gate and the account-metadata path.
+ * 3. Resolve the initializer gate by its stable owner and method prototype, then return true so
+ *    sharing initializes even if a future GMS version changes flag delivery.
+ * 4. Resolve the optional CN device-type gate from its feature strings and method prototype, then
+ *    return false to open discovery and account metadata on builds with a unique match.
  *
  * Schema facts verified in `com.google.android.gms-OS4-device.apk` (26.31.31): current schema
  * `flag_overrides(config_package_name, account_id, active, name, value, type, source)` +
@@ -73,8 +78,8 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     /** Stable (non-obfuscated) latchsky module initializer; the gate the flag feeds. */
     private const val MODULE_INITIALIZER_CLASS = "com.google.android.gms.nearby.sharing.ModuleInitializer"
 
-    /** Obfuscated CN-device classifier (`hasSystemFeature(services_updater) && cn.google.services`). */
-    private const val CN_DEVICE_CHECK_CLASS = "defpackage.bmwx"
+    private const val CN_DEVICE_FEATURE = "services_updater"
+    private const val CN_SERVICES_FEATURE = "cn.google.services"
 
     /** GMS's official override-commit entry point; protected by its own signature permission. */
     private const val FLAG_OVERRIDE_ACTION = "com.google.android.gms.phenotype.FLAG_OVERRIDE"
@@ -142,37 +147,99 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     private fun installGateHooks() {
         if (!hooksInstalled.compareAndSet(false, true)) return
 
-        // Stable layer: the module-initializer gate. `e` is small and private static, so
-        // deoptimize it and its caller `a` in case ART inlined the call site.
+        val apkPath = hookParam.appInfo?.sourceDir ?: run {
+            hooksInstalled.set(false)
+            DebugLog.hookSkipped(TAG, "Quick Share gate", "GMS source APK unavailable")
+            return
+        }
+        val targets = resolveGateTargets(apkPath) ?: run {
+            hooksInstalled.set(false)
+            DebugLog.hookSkipped(TAG, "Quick Share gate", "unique DexKit initializer not found")
+            return
+        }
+
+        // The class name is a stable GMS API anchor. DexKit resolves its Context -> boolean gate
+        // by prototype; method names are not carried across GMS releases.
         runCatching {
-            val clz = MODULE_INITIALIZER_CLASS.toClass()
-            val eMethod = clz.getDeclaredMethod("e", Context::class.java).apply { isAccessible = true }
+            val eMethod = targets.initializer.apply { isAccessible = true }
             deoptimize(eMethod)
-            runCatching { clz.getDeclaredMethod("a", Context::class.java).apply { isAccessible = true } }
-                .getOrNull()?.let(::deoptimize)
+            targets.initializerCallers.forEach(::deoptimize)
             eMethod.hook {
                 after { param ->
                     if (quickShareEnabled()) param.result = true
                 }
             }
-            DebugLog.d(TAG, "ModuleInitializer.e gate hooked")
+            DebugLog.d(TAG, "ModuleInitializer gate hooked via DexKit: ${eMethod.toGenericString()}")
         }.onFailure { DebugLog.e(TAG, "ModuleInitializer gate hook failed", it) }
 
         // Best-effort layer: the CN device-type classifier (opens discovery and the account
-        // metadata path). The class name is obfuscated and version-fragile; skip silently when
-        // it does not resolve.
+        // metadata path). A missing or ambiguous marker skips this optional path.
         runCatching {
-            val clz = CN_DEVICE_CHECK_CLASS.toClassOrNull() ?: return@runCatching
-            val iMethod = clz.getDeclaredMethod("i", Context::class.java).apply { isAccessible = true }
+            val iMethod = targets.cnDeviceCheck ?: return@runCatching
+            iMethod.isAccessible = true
             deoptimize(iMethod)
             iMethod.hook {
                 after { param ->
                     if (quickShareEnabled()) param.result = false
                 }
             }
-            DebugLog.d(TAG, "CN device check (bmwx.i) hooked")
+            DebugLog.d(TAG, "CN device check hooked via DexKit: ${iMethod.toGenericString()}")
         }.onFailure { DebugLog.e(TAG, "CN device check hook failed", it) }
     }
+
+    private data class GateTargets(
+        val initializer: Method,
+        val initializerCallers: List<Method>,
+        val cnDeviceCheck: Method?
+    )
+
+    private fun resolveGateTargets(apkPath: String): GateTargets? =
+        DexKitManager.withBridge(apkPath) { bridge ->
+            val initializerData = bridge.findMethod {
+                matcher {
+                    declaredClass(MODULE_INITIALIZER_CLASS)
+                    paramTypes(Context::class.java)
+                    returnType(Boolean::class.javaPrimitiveType!!)
+                    addUsingString("android.hardware.bluetooth", StringMatchType.Equals)
+                    addUsingString("android.hardware.bluetooth_le", StringMatchType.Equals)
+                }
+            }.toList().singleOrNull() ?: run {
+                DebugLog.w(TAG, "ModuleInitializer Bluetooth capability gate is ambiguous or missing")
+                return@withBridge null
+            }
+            val initializer = materialize(initializerData) ?: return@withBridge null
+            val callers = initializerData.callers.toList()
+                .filter { data ->
+                    data.className == MODULE_INITIALIZER_CLASS &&
+                        data.paramTypeNames == listOf(Intent::class.java.name) &&
+                        data.returnTypeName == Void.TYPE.name
+                }
+                .mapNotNull(::materialize)
+            val cnCandidates = bridge.findMethod {
+                matcher {
+                    paramTypes(Context::class.java)
+                    returnType(Boolean::class.javaPrimitiveType!!)
+                    addUsingString(CN_DEVICE_FEATURE, StringMatchType.Equals)
+                    addUsingString(CN_SERVICES_FEATURE, StringMatchType.Equals)
+                }
+            }.toList().mapNotNull(::materialize)
+                .filter(::isBooleanContextGate)
+            GateTargets(
+                initializer = initializer,
+                initializerCallers = callers,
+                cnDeviceCheck = cnCandidates.singleOrNull()
+            )
+        }
+
+    private fun isBooleanContextGate(method: Method): Boolean =
+        method.parameterTypes.contentEquals(arrayOf(Context::class.java)) &&
+            method.returnType == Boolean::class.javaPrimitiveType
+
+    private fun materialize(data: MethodData): Method? = runCatching {
+        data.getMethodInstance(classLoader)
+    }.onFailure {
+        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
+    }.getOrNull()
 
     // ─── Package-ready flow: DB row + official override commit ────────────────────
 

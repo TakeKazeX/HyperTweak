@@ -3,11 +3,17 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.query.enums.MatchType
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
+import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.util.Collections
 import java.util.WeakHashMap
 
@@ -22,9 +28,8 @@ import java.util.WeakHashMap
  *
  * Hook targets, all verified on OS4.0.0.15.XPMCNXM:
  * - `MiuiPhoneStatusBarPolicy.updateVolumeZen()` — mute / zen state (deoptimized);
- * - `MiuiPhoneStatusBarPolicy.onLocationActiveChanged$1()` — location state (R8-renamed, deoptimized);
- * - `PhoneStatusBarPolicy$$ExternalSyntheticLambda3.accept` — zen lambda (classId 0 branch);
- * - `PhoneStatusBarPolicy$4.onAlarmChanged(boolean)` — alarm state;
+ * - the policy's location-change callback — resolved from the controller and slot fields;
+ * - the generated Zen Consumer callback and alarm callback — resolved by their state fields;
  * - `MiuiPrivacyControllerImpl` constructor — mirrors the CTA-required location state.
  *
  * The merged state engine mirrors upstream's `KEY_MERGED_ICON_STATE` weak cache:
@@ -39,8 +44,8 @@ object CompoundIconHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val POLICY_CLASS = "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarPolicy"
     private const val ICON_CONTROLLER_CLASS = "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl"
-    private const val LAMBDA3_CLASS = "com.android.systemui.statusbar.phone.PhoneStatusBarPolicy\$\$ExternalSyntheticLambda3"
-    private const val ALARM_CALLBACK_CLASS = "com.android.systemui.statusbar.phone.PhoneStatusBarPolicy\$4"
+    private const val BASE_POLICY_CLASS = "com.android.systemui.statusbar.phone.PhoneStatusBarPolicy"
+    private const val ZEN_MODE_INFO_CLASS = "com.android.systemui.statusbar.policy.domain.model.ZenModeInfo"
     private const val PRIVACY_CLASS = "com.android.systemui.statusbar.privacy.MiuiPrivacyControllerImpl"
     private const val LOCATION_CONTROLLER_CLASS = "com.android.systemui.statusbar.policy.LocationControllerImpl"
 
@@ -76,7 +81,6 @@ object CompoundIconHooker : StaticHooker() {
     private var locationControllerField: Field? = null
     private var activeLocationRequestsField: Field? = null
     private var hasAlarmField: Field? = null
-    private var lambdaClassIdField: Field? = null
     private var lambdaOwnerField: Field? = null
     private var alarmCallbackOwnerField: Field? = null
     private var setIconMethod: Method? = null
@@ -224,8 +228,18 @@ object CompoundIconHooker : StaticHooker() {
             }
         } ?: DebugLog.hookSkipped(TAG, "$POLICY_CLASS#updateVolumeZen", "method not found")
 
-        // 2. onLocationActiveChanged$1 — location state (R8-renamed on OS4).
-        policyClass.findMethodOrNull { name("onLocationActiveChanged\$1"); noParams() }?.let { method ->
+        // 2. Location callback — resolved by its controller, slot, and icon-controller fields.
+        val basePolicyClass = BASE_POLICY_CLASS.toClassOrNull()
+        val generatedMethods = hookParam.appInfo?.sourceDir?.let { apkPath ->
+            basePolicyClass?.let { base ->
+                resolveGeneratedMethods(apkPath, base, policyClass, locationControllerClass)
+            }
+        }
+        val locationCallback = generatedMethods?.locationActiveChanged
+        if (locationCallback == null) {
+            DebugLog.hookSkipped(TAG, "location state callback", "unique DexKit target not found")
+        } else {
+            val method = locationCallback
             deoptimize(method)
             method.hook {
                 after { param ->
@@ -241,23 +255,23 @@ object CompoundIconHooker : StaticHooker() {
                     apply(controller, state)
                 }
             }
-        } ?: DebugLog.hookSkipped(TAG, "$POLICY_CLASS#onLocationActiveChanged\$1", "method not found")
+        }
 
         // 3. Zen lambda — keeps compound_zen in sync when the ZenModeInfo flow drives the slot
         //    directly instead of updateVolumeZen.
-        val lambda3Class = LAMBDA3_CLASS.toClassOrNull()
-        if (lambda3Class == null) {
-            DebugLog.hookSkipped(TAG, LAMBDA3_CLASS, "class not found")
+        val zenConsumer = generatedMethods?.zenConsumer
+        val zenModeInfoClass = runCatching { classLoader.loadClass(ZEN_MODE_INFO_CLASS) }.getOrNull()
+        if (zenConsumer == null || zenModeInfoClass == null) {
+            DebugLog.hookSkipped(TAG, "ZenModeInfo flow callback", "unique DexKit target not found")
         } else {
-            lambdaClassIdField = hierarchyField(lambda3Class, "\$r8\$classId")
-            lambdaOwnerField = hierarchyField(lambda3Class, "f\$0")
-            lambda3Class.findMethodOrNull { name("accept"); paramCount(1) }?.let { method ->
-                method.hook {
+            lambdaOwnerField = hierarchyFieldByType(zenConsumer.declaringClass, basePolicyClass)
+            if (lambdaOwnerField == null) {
+                DebugLog.hookSkipped(TAG, "ZenModeInfo flow callback", "policy owner field not found")
+            } else {
+                zenConsumer.hook {
                     after { param ->
-                        val lambda = param.thisObject
-                        val classId = readInt(lambdaClassIdField, lambda)
-                        if (classId != 0) return@after // classId 0 = the zen branch
-                        val policy = readField(lambdaOwnerField, lambda) ?: return@after
+                        if (!zenModeInfoClass.isInstance(param.args.getOrNull(0))) return@after
+                        val policy = readField(lambdaOwnerField, param.thisObject) ?: return@after
                         val controller = readField(iconControllerField, policy) ?: return@after
                         val zen = readBool(zenVisibleField, policy)
                         val state = mergedState(controller)
@@ -265,21 +279,22 @@ object CompoundIconHooker : StaticHooker() {
                         apply(controller, state)
                     }
                 }
-            } ?: DebugLog.hookSkipped(TAG, "$LAMBDA3_CLASS#accept", "method not found")
+            }
         }
 
         // 4. Alarm callback — alarm state.
-        val alarmCallbackClass = ALARM_CALLBACK_CLASS.toClassOrNull()
-        if (alarmCallbackClass == null) {
-            DebugLog.hookSkipped(TAG, ALARM_CALLBACK_CLASS, "class not found")
+        val alarmChanged = generatedMethods?.alarmChanged
+        if (alarmChanged == null) {
+            DebugLog.hookSkipped(TAG, "NextAlarmController callback", "unique DexKit target not found")
         } else {
-            alarmCallbackOwnerField = hierarchyField(alarmCallbackClass, "this\$0")
-            hasAlarmField = policyClass.let { hierarchyField(it, "mHasAlarm") }
-            alarmCallbackClass.findMethodOrNull { name("onAlarmChanged"); paramCount(1) }?.let { method ->
-                method.hook {
+            alarmCallbackOwnerField = hierarchyFieldByType(alarmChanged.declaringClass, basePolicyClass)
+            hasAlarmField = hierarchyField(policyClass, "mHasAlarm")
+            if (alarmCallbackOwnerField == null || hasAlarmField == null) {
+                DebugLog.hookSkipped(TAG, "NextAlarmController callback", "owner or alarm state field not found")
+            } else {
+                alarmChanged.hook {
                     after { param ->
-                        val callback = param.thisObject
-                        val policy = readField(alarmCallbackOwnerField, callback) ?: return@after
+                        val policy = readField(alarmCallbackOwnerField, param.thisObject) ?: return@after
                         val controller = readField(iconControllerField, policy) ?: return@after
                         val hasAlarm = readBool(hasAlarmField, policy)
                         val state = mergedState(controller)
@@ -287,7 +302,7 @@ object CompoundIconHooker : StaticHooker() {
                         apply(controller, state)
                     }
                 }
-            } ?: DebugLog.hookSkipped(TAG, "$ALARM_CALLBACK_CLASS#onAlarmChanged", "method not found")
+            }
         }
 
         // 5. Privacy controller — mirrors the CTA-required location state into compound_location
@@ -373,6 +388,119 @@ object CompoundIconHooker : StaticHooker() {
         state.shown = winner
     }
 
+    private data class GeneratedMethods(
+        val zenConsumer: Method?,
+        val alarmChanged: Method?,
+        val locationActiveChanged: Method?
+    )
+
+    private fun resolveGeneratedMethods(
+        apkPath: String,
+        basePolicyClass: Class<*>,
+        policyClass: Class<*>,
+        locationControllerClass: Class<*>?
+    ): GeneratedMethods? = DexKitManager.withBridge(apkPath) { bridge ->
+        val zenCandidates = bridge.findMethod {
+            matcher {
+                name("accept")
+                paramCount(1)
+                returnType(Void.TYPE)
+                usingFields {
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mZenVisible")
+                    }
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mIconController")
+                    }
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mSlotZen")
+                    }
+                }
+            }
+        }.toList().mapNotNull(::materialize)
+            .filter { method ->
+                !Modifier.isStatic(method.modifiers) &&
+                    method.parameterTypes.contentEquals(arrayOf(Any::class.java)) &&
+                    method.returnType == Void.TYPE
+            }
+        val alarmCandidates = bridge.findMethod {
+            matcher {
+                name("onAlarmChanged")
+                paramCount(1)
+                addParamType(Boolean::class.javaPrimitiveType!!)
+                returnType(Void.TYPE)
+                usingFields {
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mHasAlarm")
+                    }
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mIconController")
+                    }
+                    add {
+                        declaredClass(basePolicyClass)
+                        name("mSlotAlarmClock")
+                    }
+                }
+            }
+        }.toList().mapNotNull(::materialize)
+            .filter { method ->
+                !Modifier.isStatic(method.modifiers) &&
+                    method.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType)) &&
+                    method.returnType == Void.TYPE
+            }
+        val locationCandidates = locationControllerClass?.let { locationOwner ->
+            bridge.findMethod {
+                matcher {
+                    declaredClass(policyClass)
+                    paramCount(0)
+                    returnType(Void.TYPE)
+                    usingFields {
+                        add {
+                            declaredClass(basePolicyClass)
+                            name("mIconController")
+                        }
+                        add {
+                            declaredClass(basePolicyClass)
+                            name("mSlotLocation")
+                        }
+                        add {
+                            declaredClass(locationOwner)
+                            name("mAreActiveLocationRequests")
+                        }
+                    }
+                }
+            }.toList().mapNotNull(::materialize)
+                .filter { method ->
+                    !Modifier.isStatic(method.modifiers) &&
+                        method.declaringClass == policyClass &&
+                        method.parameterCount == 0 &&
+                        method.returnType == Void.TYPE
+                }
+        }.orEmpty()
+        val zen = zenCandidates.singleOrNull()
+        val alarm = alarmCandidates.singleOrNull()
+        val location = locationCandidates.singleOrNull()
+        if (zen == null || alarm == null || location == null) {
+            DebugLog.w(
+                TAG,
+                "generated callback resolution incomplete zen=${zenCandidates.size} " +
+                    "alarm=${alarmCandidates.size} location=${locationCandidates.size}"
+            )
+        }
+        GeneratedMethods(zen, alarm, location)
+    }
+
+    private fun materialize(data: MethodData): Method? = runCatching {
+        data.getMethodInstance(classLoader)
+    }.onFailure {
+        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
+    }.getOrNull()
+
     // ─── Reflection helpers ─────────────────────────────────────────────────────
 
     private fun hierarchyField(clazz: Class<*>, name: String): Field? {
@@ -384,6 +512,17 @@ object CompoundIconHooker : StaticHooker() {
             c = c.superclass
         }
         return null
+    }
+
+    private fun hierarchyFieldByType(clazz: Class<*>, expectedType: Class<*>?): Field? {
+        expectedType ?: return null
+        val fields = mutableListOf<Field>()
+        var current: Class<*>? = clazz
+        while (current != null) {
+            fields += current.declaredFields.filter { it.type == expectedType }
+            current = current.superclass
+        }
+        return fields.singleOrNull()?.apply { isAccessible = true }
     }
 
     private fun readField(field: Field?, target: Any): Any? =

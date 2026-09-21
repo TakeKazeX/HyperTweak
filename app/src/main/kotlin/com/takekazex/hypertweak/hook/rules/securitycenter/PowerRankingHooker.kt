@@ -19,8 +19,8 @@ import java.util.ArrayList
  * 1% display threshold filtered every app.
  *
  * The card helper is R8-obfuscated outside the stable `legacypowerrank` model package. Resolve it
- * by its static `(Context, int, boolean, boolean) -> List` shape and require one unique result;
- * the old `ih.b`/current `oh.b` names below are compatibility locators only, never active hooks.
+ * by its static `(Context, int, boolean, boolean) -> List` shape and call graph, and require one
+ * unique result. If DexKit cannot identify that target, the hook is skipped.
  *
  * **DexKit lifetime rule.** A `MethodData` is only readable while its bridge is open:
  * [DexKitManager.withBridge] wraps `DexKitBridge.create(...).use(block)`, so the bridge is closed
@@ -35,14 +35,9 @@ object PowerRankingHooker : StaticHooker() {
     private const val TAG = "PowerRanking"
     private const val PACKAGE = "com.miui.securitycenter"
 
-    /** Versioned locators retained only when DexKit is unavailable. */
-    private val CARD_HELPER_LOCATORS = listOf("ih.b", "oh.b")
-    private val CARD_ROW_LOCATORS = listOf("ih.a", "oh.a")
-
     private const val POWER_RANK_HELPER = "com.miui.powercenter.legacypowerrank.f"
     private const val BATTERY_DATA = "com.miui.powercenter.legacypowerrank.BatteryData"
     private const val LABEL_HELPER = "com.miui.powercenter.legacypowerrank.a"
-    private val SYSTEM_PACKAGE_HELPER_LOCATORS = listOf("th.a", "nh.a")
 
     @Volatile
     private var fallbackBuilder: FallbackBuilder? = null
@@ -96,28 +91,12 @@ object PowerRankingHooker : StaticHooker() {
         }
     }
 
-    /**
-     * Resolves the card method, preferring the structural DexKit lookup and falling back to the
-     * versioned class-name locators. Everything that reads DexKit data is done inside the bridge
-     * block; see the lifetime rule in the class comment.
-     */
+    /** Resolve only through the structural DexKit query; ambiguity fails closed. */
     private fun resolveCard(): CardResolution? {
-        val apkPath = hookParam.appInfo?.sourceDir
-        val dexResolved = apkPath?.let { path ->
-            DexKitManager.withBridge(path) { bridge -> resolveCardWithBridge(bridge) }
-        }
-        if (dexResolved != null) {
-            DebugLog.i(TAG, "card method resolved structurally target=${dexResolved.method}")
-            return dexResolved
-        }
-
-        val namedCandidates = CARD_HELPER_LOCATORS.flatMap { className ->
-            className.toClassOrNull()?.declaredMethods?.filter(::isCardMethod).orEmpty()
-        }
-        return namedCandidates.singleOrNull()?.let { method ->
-            DebugLog.i(TAG, "card method resolved via compatibility locator target=$method")
-            CardResolution(method, emptyList(), null)
-        }
+        val apkPath = hookParam.appInfo?.sourceDir ?: return null
+        val dexResolved = DexKitManager.withBridge(apkPath) { bridge -> resolveCardWithBridge(bridge) }
+        if (dexResolved != null) DebugLog.i(TAG, "card method resolved structurally target=${dexResolved.method}")
+        return dexResolved
     }
 
     /** Runs with the bridge open: every `MethodData` read in this function is legal here only. */
@@ -253,14 +232,7 @@ object PowerRankingHooker : StaticHooker() {
             Modifier.isStatic(it.modifiers) &&
                 it.parameterTypes.contentEquals(arrayOf(Context::class.java, String::class.java)) &&
                 it.returnType == Boolean::class.javaPrimitiveType
-        } ?: SYSTEM_PACKAGE_HELPER_LOCATORS.asSequence()
-            .mapNotNull { it.toClassOrNull() }
-            .flatMap { it.declaredMethods.asSequence() }
-            .firstOrNull {
-                Modifier.isStatic(it.modifiers) &&
-                    it.parameterTypes.contentEquals(arrayOf(Context::class.java, String::class.java)) &&
-                    it.returnType == Boolean::class.javaPrimitiveType
-            }
+        }
 
         val constructor = rowClass.declaredConstructors.singleOrNull { it.parameterCount == 0 }
             ?: return missing("no-arg row constructor on ${rowClass.name}")
@@ -313,16 +285,7 @@ object PowerRankingHooker : StaticHooker() {
     }
 
     private fun resolveRowClass(resolution: CardResolution): Class<*>? {
-        resolution.rowClass?.let { return it }
-
-        val derived = resolution.method.declaringClass.name.substringBeforeLast('.', "")
-            .takeIf { it.isNotBlank() }
-            ?.let { "$it.a" }
-        return (listOfNotNull(derived) + CARD_ROW_LOCATORS)
-            .distinct()
-            .asSequence()
-            .mapNotNull { it.toClassOrNull() }
-            .firstOrNull(::looksLikeCardRow)
+        return resolution.rowClass?.takeIf(::looksLikeCardRow)
     }
 
     private fun looksLikeCardRow(clazz: Class<*>): Boolean {
