@@ -1,16 +1,22 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import android.content.ComponentName
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Size
 import android.util.SparseArray
 import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.StaticFieldWriter
+import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,6 +41,11 @@ import java.util.concurrent.atomic.AtomicReference
 object CameraImpersonationHooker : StaticHooker() {
     private const val TAG = "CamImpersonate"
     private const val PACKAGE = "com.android.camera"
+    private const val TINT_COLOR_PREFERENCE_KEY = "pref_tint_color"
+    private const val CUSTOMIZATION_CATEGORY_KEY = "category_customization"
+    private const val MIUI_WIDGET_METADATA_KEY = "miuiWidget"
+    private const val DEFAULT_WIDGET_LAYOUT_METADATA_KEY = "defaultLayoutInPA"
+    private const val APP_WIDGET_PROVIDER_METADATA_KEY = "android.appwidget.provider"
 
     /**
      * Name candidates for each hooked class, newest builds first, accumulated across verified
@@ -110,6 +121,8 @@ object CameraImpersonationHooker : StaticHooker() {
     private val originalInstance = AtomicReference<Any?>(null)
     private val originalThirdSlot = AtomicReference<String?>(null)
     private val deviceIsNezhaCache = AtomicReference<Boolean?>()
+    private val disabledWidgetReceiverNames = AtomicReference<Set<String>?>(null)
+    private val disabledWidgetReceiverNamesLock = Any()
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -123,6 +136,7 @@ object CameraImpersonationHooker : StaticHooker() {
         hookWatermarkBrandText()
         hookLccTheme()
         hookLccCustomizationProvider()
+        hookDisabledWidgetReceiverMetadataLookup()
         // 兼容模式街拍 must install unconditionally: it opens the entry through the module's
         // own `StreetModuleEntry.support()`, independent of every other hook.
         hookCompatStreetSupport()
@@ -671,33 +685,32 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 7. Keep the 相机配色 (tint color) settings entry visible under the fake LCC theme ─
 
     /**
-     * `CameraCommonPreferenceFragment.addCustomizationPreferences` gates the 相机配色 entry on
-     * `p493o9.a.f48088a.d().j()` in 540 (the obfuscator changed the provider interface and method
-     * name). The holder picks the provider from `Je/b.V()`: 540's providers are `Gw.g#j()`
-     * (LCC branch) and `p637sd.A#j()` (ordinary branch). On 6.6.000460.0 the equivalent was
-     * `Ox.g#i()`, and on 6.6.000510.0 it was `Gt.a#s()`. Keep all names in the candidate chain,
-     * but require a zero-argument boolean method so a reused obfuscated name can only degrade to
-     * a logged skip, never a wrong hook. Forcing the gate true whenever the fake-LCC-theme switch
-     * is on restores the entry; a genuinely-LCC device without the switch keeps stock behaviour.
+     * Resolve the 相机配色 gate from the preference code's call graph. Both preference keys are
+     * stable host data, while the provider holder, accessor, interface, implementation class,
+     * and method names are all allowed to change between camera APKs. The resolver follows the
+     * zero-arg boolean call through the zero-arg provider accessor and the static holder field,
+     * then hooks the concrete method on the currently selected provider object.
      */
     private fun hookLccCustomizationProvider() {
-        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "lcc_provider", ctx = ctx,
-            // 540 providers: Gw.g (LCC) / p637sd.A (ordinary), both #j(). Older builds used
-            // Gt.a#s() or Ox.g#i(); keep them for cross-version compatibility.
-            candidates = listOf("Gw.g", "p637sd.A", "Gt.a", "Ox.g"),
-            validate = { CameraResolver.hasBooleanMethod(it, listOf("j", "s", "i")) },
-        ) ?: run {
-            DebugLog.w(TAG, "LCC customization provider not resolved; tint-color restore skipped")
+        if (!Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+            DebugLog.d(TAG, "adaptive tint-color gate skipped; fake LCC theme is disabled")
             return
         }
-        val gateMethod = CameraResolver.resolveMethod(
-            scope = TAG, key = "lcc_provider_gate", clazz = clazz,
-            names = listOf("j", "s", "i"),
-            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
-        ) ?: run {
-            DebugLog.w(TAG, "${clazz.name} tint-color gate method not found; restore skipped")
+
+        val apkPath = hookParam.appInfo?.sourceDir?.takeIf { it.isNotBlank() } ?: run {
+            DebugLog.w(TAG, "camera APK path unavailable; adaptive tint-color gate skipped")
+            return
+        }
+        val gateMethod = DexKitManager.withBridge(apkPath) { bridge ->
+            resolveTintColorProviderGate(bridge)
+        } ?: run {
+            DebugLog.w(TAG, "adaptive tint-color gate not resolved; tint-color restore skipped")
+            return
+        }
+        if (gateMethod.parameterCount != 0 || gateMethod.returnType != java.lang.Boolean.TYPE ||
+            Modifier.isStatic(gateMethod.modifiers)
+        ) {
+            DebugLog.w(TAG, "adaptive tint-color gate has an unexpected shape; restore skipped")
             return
         }
         deoptimize(gateMethod)
@@ -708,7 +721,144 @@ object CameraImpersonationHooker : StaticHooker() {
                 }
             }
         }
-        DebugLog.d(TAG, "tint-color restore hooked on ${clazz.name}#${gateMethod.name}()")
+        DebugLog.d(TAG, "adaptive tint-color gate hooked on ${gateMethod.declaringClass.name}#${gateMethod.name}()")
+    }
+
+    private fun resolveTintColorProviderGate(bridge: DexKitBridge): Method? {
+        val entryCandidates = runCatching {
+            bridge.findMethod { matcher { usingStrings(TINT_COLOR_PREFERENCE_KEY) } }
+                .filter { method -> CUSTOMIZATION_CATEGORY_KEY in method.usingStrings }
+        }.onFailure { t ->
+            DebugLog.d(TAG, "tint-color preference call-site query failed: ${t.javaClass.simpleName}")
+        }.getOrNull().orEmpty()
+
+        val entry = entryCandidates.singleOrNull() ?: run {
+            DebugLog.d(TAG, "tint-color preference call-site matches=${entryCandidates.size}")
+            return null
+        }
+        val invokes = entry.invokes.filter { it.isMethod }
+        val gateInvokes = invokes.filter { it.paramCount == 0 && it.returnTypeName == "boolean" }
+        val holderFields = entry.usingFields.map { it.field }
+            .filter { Modifier.isStatic(it.modifiers) }
+
+        val resolved = LinkedHashMap<String, Method>()
+        for (gateData in gateInvokes) {
+            val gate = runCatching { gateData.getMethodInstance(classLoader) }.getOrNull() ?: continue
+            if (gate.parameterCount != 0 || gate.returnType != java.lang.Boolean.TYPE ||
+                Modifier.isStatic(gate.modifiers)
+            ) {
+                continue
+            }
+            runCatching { gate.isAccessible = true }
+
+            for (accessorData in invokes) {
+                if (accessorData.paramCount != 0) continue
+                val accessor = runCatching { accessorData.getMethodInstance(classLoader) }.getOrNull()
+                    ?: continue
+                if (accessor.returnType != gate.declaringClass || Modifier.isStatic(accessor.modifiers)) {
+                    continue
+                }
+                runCatching { accessor.isAccessible = true }
+
+                for (fieldData in holderFields) {
+                    val field = runCatching { fieldData.getFieldInstance(classLoader) }.getOrNull()
+                        ?: continue
+                    if (!Modifier.isStatic(field.modifiers)) continue
+                    if (!accessor.declaringClass.isAssignableFrom(field.type) &&
+                        !field.type.isAssignableFrom(accessor.declaringClass)
+                    ) {
+                        continue
+                    }
+                    runCatching { field.isAccessible = true }
+                    val holder = runCatching { field.get(null) }.getOrNull() ?: continue
+                    if (!accessor.declaringClass.isInstance(holder)) continue
+                    val provider = runCatching { accessor.invoke(holder) }.getOrNull() ?: continue
+                    val implementation = CameraResolver.findConcreteImplementation(provider, gate) ?: continue
+                    resolved.putIfAbsent(implementation.toGenericString(), implementation)
+                }
+            }
+        }
+
+        if (resolved.size != 1) {
+            DebugLog.d(TAG, "tint-color provider path matches=${resolved.size}; refusing ambiguous gate")
+            return null
+        }
+        return resolved.values.single()
+    }
+
+    /**
+     * Camera's own updater reads metadata from disabled widget receivers with GET_META_DATA only.
+     * Discover such receivers from the installed package metadata and add MATCH_DISABLED_COMPONENTS
+     * only to those metadata lookups. This follows manifest role/metadata instead of receiver names.
+     */
+    private fun hookDisabledWidgetReceiverMetadataLookup() {
+        if (!isMainProcess) return
+        val applicationPackageManager = runCatching {
+            Class.forName("android.app.ApplicationPackageManager", false, classLoader)
+        }.getOrNull() ?: return
+        val getReceiverInfo = applicationPackageManager.declaredMethods.singleOrNull { method ->
+            method.name == "getReceiverInfo" &&
+                method.parameterTypes.size == 2 &&
+                method.parameterTypes[0] == ComponentName::class.java &&
+                method.parameterTypes[1] == Integer.TYPE &&
+                method.returnType == ActivityInfo::class.java &&
+                !Modifier.isAbstract(method.modifiers)
+        } ?: run {
+            DebugLog.d(TAG, "PackageManager receiver-info implementation unavailable")
+            return
+        }
+
+        deoptimize(getReceiverInfo)
+        getReceiverInfo.hook("cam_disabled_widget_metadata") {
+            before { param ->
+                runCatching {
+                    val component = param.args.getOrNull(0) as? ComponentName ?: return@runCatching
+                    if (component.packageName != PACKAGE) return@runCatching
+                    val flags = param.args.getOrNull(1) as? Int ?: return@runCatching
+                    if ((flags and PackageManager.GET_META_DATA) == 0 ||
+                        (flags and PackageManager.MATCH_DISABLED_COMPONENTS) != 0
+                    ) {
+                        return@runCatching
+                    }
+                    val packageManager = param.thisObject as? PackageManager ?: return@runCatching
+                    if (!isDisabledCameraWidgetReceiver(packageManager, component.className)) {
+                        return@runCatching
+                    }
+                    param.args[1] = flags or PackageManager.MATCH_DISABLED_COMPONENTS
+                    DebugLog.d(TAG, "including metadata for disabled camera widget ${component.className}")
+                }.onFailure { t ->
+                    DebugLog.d(TAG, "disabled widget metadata probe skipped: ${t.javaClass.simpleName}")
+                }
+            }
+        }
+        DebugLog.d(TAG, "disabled camera widget metadata lookup compatibility hook installed")
+    }
+
+    private fun isDisabledCameraWidgetReceiver(packageManager: PackageManager, className: String): Boolean {
+        val cached = disabledWidgetReceiverNames.get()
+        if (cached != null) return className in cached
+
+        val names = synchronized(disabledWidgetReceiverNamesLock) {
+            disabledWidgetReceiverNames.get() ?: runCatching {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(
+                    PACKAGE,
+                    PackageManager.GET_RECEIVERS or
+                        PackageManager.GET_META_DATA or
+                        PackageManager.MATCH_DISABLED_COMPONENTS,
+                ).receivers.orEmpty()
+                    .asSequence()
+                    .filter { receiver ->
+                        !receiver.enabled &&
+                            receiver.metaData?.getBoolean(MIUI_WIDGET_METADATA_KEY, false) == true &&
+                            receiver.metaData?.containsKey(DEFAULT_WIDGET_LAYOUT_METADATA_KEY) == true &&
+                            receiver.metaData?.containsKey(APP_WIDGET_PROVIDER_METADATA_KEY) == true
+                    }
+                    .map { it.name }
+                    .toSet()
+            }.getOrDefault(emptySet()).also(disabledWidgetReceiverNames::set)
+        }
+        return className in names
     }
 
     /**

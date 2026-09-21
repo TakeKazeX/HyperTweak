@@ -89,11 +89,38 @@ class CameraResolverTest {
         assertTrue(CameraResolver.hasStaticZeroArgMethod(CameraFixtures.Factory460::class.java, listOf("q")))
     }
 
+    @Test
+    fun `provider implementation resolves through interface and inherited method without a class name`() {
+        val contract = TintColorGate::class.java.getDeclaredMethod("isAvailable")
+        val method = CameraResolver.findConcreteImplementation(VersionedTintProvider(), contract)
+
+        assertNotNull(method)
+        assertEquals(SharedTintProvider::class.java, method!!.declaringClass)
+        assertEquals("isAvailable", method.name)
+    }
+
+    @Test
+    fun `provider implementation rejects an unrelated receiver`() {
+        val contract = TintColorGate::class.java.getDeclaredMethod("isAvailable")
+
+        assertNull(CameraResolver.findConcreteImplementation(Any(), contract))
+    }
+
     /** Provider-gate fixture mirroring the LCC tint-color gate (boolean zero-arg `s` vs int `i`). */
     class BooleanHolder {
         fun s(): Boolean = true
         fun t(): Int = 1
     }
+
+    private interface TintColorGate {
+        fun isAvailable(): Boolean
+    }
+
+    private open class SharedTintProvider : TintColorGate {
+        override fun isAvailable(): Boolean = false
+    }
+
+    private class VersionedTintProvider : SharedTintProvider()
 
     @Test
     fun `adaptive lens resolver prefers the new h5 and j5 pair`() {

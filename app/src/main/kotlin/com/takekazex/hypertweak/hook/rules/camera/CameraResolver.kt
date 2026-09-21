@@ -63,7 +63,9 @@ object CameraResolver {
         for (name in candidates) {
             val clazz = ctx.loadOrNull(name) ?: continue
             if (!validate(clazz)) {
-                DebugLog.w(scope, "$key: candidate $name exists but failed semantic check; skipped")
+                // A stale name is an expected version-fallback condition. Report it only at
+                // debug level; the terminal resolver result below is the actionable warning.
+                DebugLog.d(scope, "$key: candidate $name failed semantic check; trying fallback")
                 continue
             }
             DebugLog.d(scope, "$key resolved by candidate name $name")
@@ -143,6 +145,37 @@ object CameraResolver {
         return clazz.declaredMethods.any {
             it.name in names && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
         }
+    }
+
+    /**
+     * Resolve the concrete implementation of an instance method from the provider object reached
+     * at runtime. This keeps hooks tied to the call graph instead of a class name that the camera
+     * obfuscator can change or reuse on the next APK.
+     */
+    fun findConcreteImplementation(receiver: Any, contract: Method): Method? {
+        if (Modifier.isStatic(contract.modifiers) || !contract.declaringClass.isInstance(receiver)) {
+            return null
+        }
+
+        var type: Class<*>? = receiver.javaClass
+        while (type != null && type != Any::class.java) {
+            val matches = type.declaredMethods.filter { method ->
+                method.name == contract.name &&
+                    method.parameterTypes.contentEquals(contract.parameterTypes) &&
+                    method.returnType == contract.returnType &&
+                    !Modifier.isStatic(method.modifiers) &&
+                    !Modifier.isAbstract(method.modifiers) &&
+                    !method.isBridge &&
+                    !method.isSynthetic
+            }
+            if (matches.size > 1) return null
+            matches.singleOrNull()?.let { return it.apply { isAccessible = true } }
+            type = type.superclass
+        }
+
+        // A concrete interface default method is executable without a class override.
+        return contract.takeIf { !Modifier.isAbstract(it.modifiers) }
+            ?.apply { isAccessible = true }
     }
 
     /**
