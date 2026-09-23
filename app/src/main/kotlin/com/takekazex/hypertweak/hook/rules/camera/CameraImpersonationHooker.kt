@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Size
 import android.util.SparseArray
 import androidx.core.util.isNotEmpty
+import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
@@ -14,29 +15,20 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.StaticFieldWriter
 import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.ArrayDeque
 import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * Camera-app unlock hooks (`com.android.camera`, MiuiCamera). The flagship config-swap
- * impersonation was REMOVED at the user's request (2026-08-30): the camera always runs its
- * own real device config, and every remaining unlock hooks the REAL config's base Methods
- * (C1143/C1199) or config-independent camera classes directly:
+/** Camera feature hooks resolved from semantic DEX anchors and runtime ABI contracts.
  *
- *  - watermark stays on the device's own brand/model, with an optional custom brand/model;
- *  - 实况运镜 (MasterLive), 街拍 (street), 徕卡风格 (Leica style), 徕卡一瞬, 智能构图, 内容凭证,
- *    自适应镜头, 超高图片质量 unlock via their own switches, independent of any impersonation;
- *  - the fake Leica LCC theme gate (`KEY_CAMERA_IMPERSONATE_THEME_LCC`) is independent too:
- *    `Je/c#V()` is raised directly on the facade, with no config swap behind it;
- *  - MasterLive effect table / focal strip / video-size fixes reuse the REAL device config
- *    (`com.mi.device.<device>`, built through the app's `Uf.c.a` source-name resolver) and
- *    borrow the REDMI K100 Pro Max effect table (`q0()`) only when the real config has none.
- *
- * Requires a camera app restart after changing most switches (the hooks are installed by
- * `HookEntry` on attach; the callbacks re-read `Preferences` live on every call).
+ * Device-config class, config field, and singleton are discovered as one validated object
+ * graph by [CameraHostProfile]. Other obfuscated owners are resolved by stable feature strings,
+ * call-site signatures, or value/return contracts. Ambiguous targets skip that sub-feature.
+ * This keeps a factory/class rename from disabling unrelated camera hooks.
  */
 object CameraImpersonationHooker : StaticHooker() {
     private const val TAG = "CamImpersonate"
@@ -47,35 +39,12 @@ object CameraImpersonationHooker : StaticHooker() {
     private const val DEFAULT_WIDGET_LAYOUT_METADATA_KEY = "defaultLayoutInPA"
     private const val APP_WIDGET_PROVIDER_METADATA_KEY = "android.appwidget.provider"
 
-    /**
-     * Name candidates for each hooked class, newest builds first, accumulated across verified
-     * versions. Camera releases re-obfuscate a per-build subset of class names and can also
-     * REUSE a surviving name for an unrelated class (`Ox.g` was the LCC provider on 460, a
-     * state-list helper on 510; `i5.d` was the watermark entry holder on 460, a font-menu
-     * ViewModel on 510), so every candidate is validated by method shape before use.
-     */
+    /** Reflection names below are feature contracts only; target owner names come from DexKit. */
 
-    /** Device-config facade (540 renamed `Je.c` -> `Je.b`; x/y/w/v/V/M remain the API). */
-    private val CONFIG_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
-
-    /** Device-config factory (540 renamed `Je.e` -> `Ag.f`; both expose static cache field `b`). */
-    private val CONFIG_FACTORY_CLASS_CANDIDATES = listOf("Ag.f", "Je.e")
-
-    /**
-     * Dex class names of the REDMI K100 Pro Max / POCO F9 Ultra config, newest first
-     * (full mapping: `camera-8f41d7b82453cdeb/OLD_TO_NEW_MAPPING.md`):
-     *  - 6.6.000510.0: `쌴쌸쌺썹쌺쌾썹쌳쌲쌡쌾쌴쌲썹쌄쌸쌹쌰쌮쌢쌶쌹` (jadx C1200)
-     *  - 6.6.000460.0: `峡峭峯岬峯峫岬峦峧峴峫峡峧岬峑峭峬峥峻峷峣峬` (jadx `defpackage/C1151`)
-     * The app's own resolver `Uf.c.a` maps `com.mi.device.*` source names onto the per-build
-     * obfuscated dex names and is the version-independent channel — the K100 config's SOURCE
-     * name `com.mi.device.Songyuan` resolves on both verified builds
-     * ([K100_SOURCE_NAME_CANDIDATES], validated by imaging identity against the REAL device
-     * config so a wrong pick can never reach the MasterLive effect table).
-     */
-    private val DEVICE_K100PROMAX_CANDIDATES = listOf(
-        "쌴쌸쌺썹쌺쌾썹쌳쌲쌡쌾쌴쌲썹쌄쌸쌹쌰쌮쌢쌶쌹",
-        "峡峭峯岬峯峫岬峦峧峴峫峡峧岬峑峭峬峥峻峷峣峬",
-    )
+    private val hostProfile by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        CameraHostProfile.resolve(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG)
+    }
+    private val shutterSoundLoadScope = ThreadLocal<ArrayDeque<Boolean>>()
 
     /**
      * Watermark entry holder class used by `S8.d`'s brand/model cache (the value of `zi.b`'s
@@ -84,8 +53,6 @@ object CameraImpersonationHooker : StaticHooker() {
      *    `(String,String)`; jadx misrendered the type as `a`/`zi.a`)
      *  - 6.6.000460.0: `i5.d` (jadx `p288i5.d`, imported type in `zi/b.java`)
      */
-    private val WATERMARK_ENTRY_CANDIDATES = listOf("Ft.a", "i5.d", "p288i5.d")
-
     /**
      * Method/field names in the camera dex are NOT obfuscated per build — the class names are
      * (jadx renders those as `p####` packages plus `f#####` field aliases when they collide
@@ -118,7 +85,6 @@ object CameraImpersonationHooker : StaticHooker() {
         return null
     }
 
-    private val originalInstance = AtomicReference<Any?>(null)
     private val originalThirdSlot = AtomicReference<String?>(null)
     private val deviceIsNezhaCache = AtomicReference<Boolean?>()
     private val disabledWidgetReceiverNames = AtomicReference<Set<String>?>(null)
@@ -126,7 +92,11 @@ object CameraImpersonationHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        installHooks()
+        // Config-dependent hooks read the active profile. Wait until its provider initializes it,
+        // while still installing these gates before Application.onCreate builds camera modes.
+        CameraApplicationInit.afterConfigProviderCreate(this) {
+            installHooks()
+        }
     }
 
     private fun installHooks() {
@@ -140,13 +110,15 @@ object CameraImpersonationHooker : StaticHooker() {
         // 兼容模式街拍 must install unconditionally: it opens the entry through the module's
         // own `StreetModuleEntry.support()`, independent of every other hook.
         hookCompatStreetSupport()
-        // 新街拍 forces the street-support gate `a3()` on the REAL config's base Method —
+        // 新街拍 forces the street-support gate `a3()` on the active config's base Method —
         // master-independent by design, so it installs directly (no mode-guard wrapper).
         hookStreetEnable()
         // 快捷抢拍走街拍 (lock-screen fast-camera quick-capture → street) — independent of
         // `a3()`, complements both street modes.
         hookStreetQuickLaunch()
         hookLeicaStyle()
+        hookShutterSoundPlaybackRoute()
+        hookLegendaryProfileGate()
         hookLegendarySupport()
         hookLegendaryRegistry()
         hookSmartComposition()
@@ -167,40 +139,15 @@ object CameraImpersonationHooker : StaticHooker() {
         hookShutterSoundBoundary()
     }
 
-    // ─── 1. Resolve the REDMI K100 Pro Max config for the MasterLive effect table ───
+    // ─── Legacy K100 effect table, validated against the real device's imaging identity ───
 
-    /**
-     * Version-generic resolution of the REDMI K100 Pro Max / POCO F9 Ultra config.
-     *
-     * Two channels, both validated against the REAL device config so a wrong pick (a renamed
-     * or repurposed class) can never reach the MasterLive effect table:
-     *  - L1: known dex names ([DEVICE_K100PROMAX_CANDIDATES], newest first) loaded directly;
-     *  - L2: the app's own source-name resolver `Uf.c.a("com.mi.device.<name>")` — the same
-     *    channel `Je.e` uses, which maps obfuscated dex names per build (version-independent);
-     *    only names that survive the [K100_SOURCE_NAME_CANDIDATES] validation are accepted.
-     *
-     * Validation: the candidate must (a) expose the flagship getter surface (a3/y4/F3/X2/B1/…),
-     * (b) NOT be the device's own config class, and (c) when the real device config is
-     * resolvable, share its imaging identity (O1/D/q1/r1) — the exact invariant the original
-     * K100 pick was verified on (correct CCM/WB, no purple). Returns null when nothing
-     * matches; the caller ([borrowK100EffectTable]) then leaves the table un-borrowed rather
-     * than falling back to the 17-Ultra table (whose 12.9x tele endpoint crashes myron).
+    /** Resolve the legacy K100 logical profile through the host source resolver and identity gate.
+     * Owner class names never participate in selection. Modern config ABIs are rejected before
+     * this path because their reused boolean getters are not the validated legacy identity.
      */
     private fun resolveK100Config(loader: ClassLoader, resolver: Method): Any? {
-        // Snapshot the original ONCE, before any candidate work: every candidate is validated
-        // against the SAME original instance, and the nested `originalInstance` monitor is not
-        // acquired inside the flagship lock mid-loop (host newInstance() runs in between).
-        val original = originalConfigInstance().get()
-        for (name in DEVICE_K100PROMAX_CANDIDATES) {
-            val instance = runCatching { loader.loadClass(name).getDeclaredConstructor().newInstance() }
-                .getOrNull() ?: continue
-            val shaped = isK100Shaped(instance)
-            if (shaped && isK100Candidate(instance, original)) {
-                DebugLog.i(TAG, "K100 config resolved by dex name $name")
-                return instance
-            }
-            DebugLog.d(TAG, "K100 candidate $name rejected (shaped=$shaped)")
-        }
+        // Snapshot once so every source-profile candidate uses the same identity baseline.
+        val original = activeConfigInstance()
         for (sourceName in K100_SOURCE_NAME_CANDIDATES) {
             val instance = buildFrom(loader, resolver, sourceName) ?: continue
             val shaped = isK100Shaped(instance)
@@ -210,21 +157,20 @@ object CameraImpersonationHooker : StaticHooker() {
             }
             DebugLog.d(TAG, "K100 source probe $sourceName -> ${instance.javaClass.name} rejected (shaped=$shaped)")
         }
-        DebugLog.w(TAG, "K100 config not resolved by candidates or source-name probes; using built-in fallback")
+        DebugLog.w(TAG, "K100 config not resolved by semantic source profile; effect table unavailable")
         return null
     }
 
     /**
-     * Source names probed through the app's own resolver (`Uf.c.a`) when no newer dex name is
-     * known. `com.mi.device.Songyuan` is the K100 Pro Max / POCO F9 Ultra source name — the
-     * ONLY K100-role key in the 510 resolver table (all 88 entries decoded: the guessed
-     * `K100ProMax`/`K100`/`PocoF9Ultra`/... spellings are guaranteed ClassNotFoundException,
-     * so they are not probed). A source name the resolver maps onto SOME config must still
-     * pass [isK100Candidate].
+     * The source-family identifier is semantic (device profile), while the class and factory
+     * names are resolved from the DEX call graph. A mapped source must still pass
+     * [isK100Candidate].
      */
     private val K100_SOURCE_NAME_CANDIDATES = listOf(
         "com.mi.device.Songyuan",
     )
+
+    private val legendaryEntryClass = AtomicReference<Class<*>?>(null)
 
     /** Shape + identity validation for a K100-role config candidate. */
     private fun isK100Candidate(instance: Any, original: Any?): Boolean {
@@ -235,13 +181,14 @@ object CameraImpersonationHooker : StaticHooker() {
         return CameraIdentity.sharesImagingIdentity(instance, original)
     }
 
-    /** Flagship getter surface (`a3/y4/F3/X2`, all public zero-arg on every verified build). */
+    /** Require the currently selected config ABI, including the effect-table return shape. */
     private fun isK100Shaped(instance: Any): Boolean = runCatching {
+        val profile = hostProfile ?: return@runCatching false
         val clazz = instance.javaClass
-        clazz.getMethod("a3").parameterCount == 0 &&
-            clazz.getMethod("y4").parameterCount == 0 &&
-            clazz.getMethod("F3").parameterCount == 0 &&
-            clazz.getMethod("X2").parameterCount == 0
+        profile.configType.isAssignableFrom(clazz) &&
+            profile.configMethod(clazz, profile.streetGate, java.lang.Boolean.TYPE) != null &&
+            profile.configMethod(clazz, profile.masterLiveGate, java.lang.Boolean.TYPE) != null &&
+            profile.configMethod(clazz, profile.effectTable, Map::class.java) != null
     }.getOrDefault(false)
 
     private fun buildFrom(
@@ -253,62 +200,15 @@ object CameraImpersonationHooker : StaticHooker() {
         cls.getDeclaredConstructor().newInstance()
     }.getOrNull()
 
-    /**
-     * Class-name candidates for the app's own source-name resolver — the version-independent
-     * channel every `com.mi.device.*` config resolves through (`Uf.c.a(String) -> Class<*>`,
-     * the same call the config factory `Je.e.G0()` makes).
-     */
-    private val SOURCE_RESOLVER_CANDIDATES = listOf("Uf.d", "Uf.c")
-
-    /**
-     * Resolve + validate the source-name resolver: a STATIC single-`String` method returning
-     * `Class`. Shape-only validation (no dex string survives for `Uf.c` to probe), but the
-     * shape is narrow and every downstream consumer re-checks the produced instance (the K100
-     * identity invariant, or the known flagship source names), so a repurposed `Uf.c` degrades
-     * to a logged skip instead of a wrong hook. Without this channel BOTH the impersonation
-     * target build AND the original-config rebuild are dead, so the failure is logged loudly.
-     */
-    private fun resolveSourceNameResolver(loader: ClassLoader): java.lang.reflect.Method? {
-        for (name in SOURCE_RESOLVER_CANDIDATES) {
-            val clazz = runCatching { loader.loadClass(name) }.getOrNull() ?: continue
-            val method = clazz.declaredMethods.firstOrNull {
-                java.lang.reflect.Modifier.isStatic(it.modifiers) &&
-                    it.parameterTypes.size == 1 &&
-                    it.parameterTypes[0] == String::class.java &&
-                    it.returnType == Class::class.java
-            } ?: continue
-            method.isAccessible = true
-            DebugLog.d(TAG, "source-name resolver resolved on $name#${method.name}")
-            return method
-        }
-        DebugLog.w(
-            TAG,
-            "source-name resolver not resolved (candidates $SOURCE_RESOLVER_CANDIDATES); " +
-                "impersonation target + original-config rebuild unavailable"
-        )
-        return null
-    }
-
     // ─── 2. Keep this device's brand + model on the watermark (or a user custom one) ─
 
     private fun hookWatermarkKeep() {
         captureOriginalThirdSlot()
-        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "wm_keep_facade", ctx = ctx,
-            candidates = CONFIG_FACADE_CANDIDATES,
-            validate = { c ->
-                c.declaredMethods.any {
-                    it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
-                }
-            },
-        ) ?: run {
-            DebugLog.w(TAG, "Je.c not resolved; watermark keep skipped")
-            return
-        }
+        val profile = hostProfile ?: return
+        val clazz = profile.facade
         val xMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "wm_keep_x", clazz = clazz,
-            names = listOf("x"),
+            names = listOf(profile.brandGetter),
             shape = { it.parameterTypes.isEmpty() && it.returnType == String::class.java },
         ) ?: run {
             DebugLog.w(TAG, "${clazz.name}#x() not found; watermark keep skipped")
@@ -324,8 +224,8 @@ object CameraImpersonationHooker : StaticHooker() {
 
         val vMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "wm_keep_v", clazz = clazz,
-            names = listOf("v"),
-            shape = { it.parameterTypes.isEmpty() && it.returnType.isArray },
+            names = listOf(profile.modelArrayGetter),
+            shape = { it.parameterTypes.isEmpty() && it.returnType == Array<String>::class.java },
         ) ?: run {
             DebugLog.w(TAG, "${clazz.name}#v() not found; watermark keep skipped")
             return
@@ -358,7 +258,9 @@ object CameraImpersonationHooker : StaticHooker() {
      * on `length>2`) and matches a stock non-flagship's empty third element.
      */
     private fun captureOriginalThirdSlot() {
-        val original = originalConfigInstance().get() ?: return
+        val original = CameraLegendaryProfileState.nativeConfigSnapshot()
+            ?: activeConfigInstance()
+            ?: return
         runCatching {
             val v = original.javaClass.getMethod("v")
             val arr = v.invoke(original) as? Array<*> ?: return@runCatching
@@ -389,11 +291,16 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "wm_config_singleton", ctx = ctx,
-            candidates = listOf("S8.d"),
+            candidates = emptyList(),
             // `CloudWatermark` survives as a plaintext dex string (classes.dex).
             probe = { bridge ->
                 bridge.findClass { matcher { usingStrings("CloudWatermark") } }
-                    .firstOrNull { it.name == "S8.d" || it.name.contains("S8") }?.name
+                    .firstOrNull { cd ->
+                        ctx.loadOrNull(cd.name)?.declaredMethods?.any {
+                            it.name == "a" && it.parameterCount == 0 &&
+                                Modifier.isStatic(it.modifiers) && it.returnType == it.declaringClass
+                        } == true
+                    }?.name
             },
             validate = { c ->
                 c.declaredMethods.any {
@@ -456,20 +363,9 @@ object CameraImpersonationHooker : StaticHooker() {
                 curBrand == brand && curModel == model
             }.getOrDefault(false)
             if (same) return
-            val entryClass = WATERMARK_ENTRY_CANDIDATES.asSequence()
-                .mapNotNull { ctxLoadOrNull(it) }
-                .firstOrNull { c ->
-                    // The holder's ctor is `(String,String)` — require BOTH params to be String
-                    // so a repurposed 2-arg candidate (non-String) can never be picked.
-                    c.declaredConstructors.any {
-                        it.parameterTypes.size == 2 &&
-                            it.parameterTypes[0] == String::class.java &&
-                            it.parameterTypes[1] == String::class.java
-                    }
-                } ?: run {
-                DebugLog.w(TAG, "watermark entry holder not resolved (candidates $WATERMARK_ENTRY_CANDIDATES)")
-                return
-            }
+            // The cache field declares the exact entry type on this APK (`zi.c` on 6.8,
+            // `Ft.a` on 6.6). Deriving it avoids a second independently obfuscated name.
+            val entryClass = cacheField.type
             // Use the (String,String) ctor by ITS OWN parameter types: looking it up as
             // `(Object,Object)` exact-match reflection would silently no-op the refresh.
             val ctor = entryClass.declaredConstructors.firstOrNull {
@@ -483,9 +379,6 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "watermark config cache refresh failed (defensive)", t)
         }
     }
-
-    private fun ctxLoadOrNull(name: String): Class<*>? =
-        runCatching { classLoader.loadClass(name) }.getOrNull()
 
     // ─── 4. Force this device's brand/model into every watermark render ───────────
 
@@ -508,7 +401,19 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "wm_renderer", ctx = ctx,
-            candidates = listOf("com.xiaomi.cam.watermark.a"),
+            candidates = emptyList(),
+            probe = { bridge ->
+                bridge.findMethod { matcher { usingStrings("deviceLogo") } }
+                    .mapNotNull { data -> runCatching { data.getMethodInstance(classLoader) }.getOrNull() }
+                    .filter { method ->
+                        method.parameterTypes.contentEquals(
+                            arrayOf(String::class.java, String::class.java, java.lang.Boolean.TYPE)
+                        ) && method.returnType == Void.TYPE && !Modifier.isStatic(method.modifiers)
+                    }
+                    .map { it.declaringClass }
+                    .distinctBy { it.name }
+                    .singleOrNull()?.name
+            },
             validate = { c ->
                 c.declaredMethods.any {
                     it.name == "J0" && it.parameterTypes.size == 3 &&
@@ -521,17 +426,14 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "watermark renderer not resolved; render keep skipped")
             return
         }
-        val j0 = CameraResolver.resolveMethod(
-            scope = TAG, key = "wm_renderer_j0", clazz = clazz,
-            names = listOf("J0"),
-            shape = { m ->
+        val j0 = clazz.declaredMethods.singleOrNull { m ->
+            !m.isSynthetic && !Modifier.isStatic(m.modifiers) &&
                 m.parameterTypes.size == 3 &&
                     m.parameterTypes[0] == String::class.java &&
                     m.parameterTypes[1] == String::class.java &&
                     m.parameterTypes[2] == java.lang.Boolean.TYPE
-            },
-        ) ?: run {
-            DebugLog.w(TAG, "${clazz.name}#J0 not found; render keep skipped")
+        }?.apply { isAccessible = true } ?: run {
+            DebugLog.w(TAG, "unique watermark render method not found; render keep skipped")
             return
         }
         deoptimize(j0)
@@ -580,7 +482,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "wm_model_view", ctx = ctx,
-            candidates = listOf("fs.m", "p203fs.m"),
+            candidates = emptyList(),
             // `WmModelView` survives as a plaintext dex string (classes10.dex).
             probe = { bridge ->
                 bridge.findClass { matcher { usingStrings("WmModelView") } }
@@ -588,7 +490,7 @@ object CameraImpersonationHooker : StaticHooker() {
             },
             validate = { c ->
                 c.declaredMethods.any {
-                    it.name == "o" && it.parameterTypes.size == 4 &&
+                    it.name in listOf("p", "o") && it.parameterTypes.size == 4 &&
                         it.parameterTypes[0] == String::class.java &&
                         it.parameterTypes[1] == String::class.java &&
                         it.parameterTypes[2] == java.lang.Boolean.TYPE &&
@@ -603,23 +505,21 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "WmModelView (fs.m) not resolved; brand logo-line skipped")
             return
         }
-        val formatField = resolvePublicField(clazz, "B", "f40617B")?.apply { isAccessible = true }
+        val formatField = resolvePublicField(clazz, "B", "f67437B", "f40617B")
+            ?.apply { isAccessible = true }
             ?: run {
                 DebugLog.w(TAG, "${clazz.name} model format field not found; brand logo-line skipped")
                 return
             }
-        val oMethod = CameraResolver.resolveMethod(
-            scope = TAG, key = "wm_model_view_o", clazz = clazz,
-            names = listOf("o"),
-            shape = { m ->
+        val oMethod = clazz.declaredMethods.singleOrNull { m ->
+            !m.isSynthetic && !Modifier.isStatic(m.modifiers) &&
                 m.parameterTypes.size == 4 &&
                     m.parameterTypes[0] == String::class.java &&
                     m.parameterTypes[1] == String::class.java &&
                     m.parameterTypes[2] == java.lang.Boolean.TYPE &&
                     m.parameterTypes[3] == java.lang.Boolean.TYPE
-            },
-        ) ?: run {
-            DebugLog.w(TAG, "${clazz.name}#o not found; brand logo-line skipped")
+        }?.apply { isAccessible = true } ?: run {
+            DebugLog.w(TAG, "unique model-view method not found; brand logo-line skipped")
             return
         }
         deoptimize(oMethod)
@@ -654,19 +554,15 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 6. Fake the LCC theme so LCC-gated branches open (independent of any config swap) ──
 
     private fun hookLccTheme() {
-        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "lcc_theme_facade", ctx = ctx,
-            candidates = CONFIG_FACADE_CANDIDATES,
-            validate = { CameraResolver.hasBooleanMethod(it, listOf("V")) },
-        ) ?: run {
-            DebugLog.w(TAG, "Je.c not resolved; LCC theme gate skipped")
-            return
-        }
+        val profile = hostProfile ?: return
+        val clazz = profile.facade
         val vMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "lcc_theme_v", clazz = clazz,
-            names = listOf("V"),
-            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Boolean.TYPE },
+            names = listOf(profile.lccGate),
+            shape = {
+                Modifier.isStatic(it.modifiers) && it.parameterTypes.isEmpty() &&
+                    it.returnType == java.lang.Boolean.TYPE
+            },
         ) ?: run {
             DebugLog.w(TAG, "${clazz.name}#V() LCC gate not found; theme gate skipped")
             return
@@ -679,7 +575,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 }
             }
         }
-        DebugLog.d(TAG, "LCC theme gate hooked on ${clazz.name}#V()")
+        DebugLog.d(TAG, "LCC theme gate hooked on ${clazz.name}#${vMethod.name}()")
     }
 
     // ─── 7. Keep the 相机配色 (tint color) settings entry visible under the fake LCC theme ─
@@ -863,7 +759,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * 新街拍 (street unlock mode `"new"`, [Preferences.KEY_CAMERA_STREET_MODE]): force the
-     * street-support gate `a3()` true on the REAL device config's Method. No REDMI
+     * street-support gate `a3()` true on the active device config's Method. No REDMI
      * config ships `a3=true` (510: `a3()` = `instanceof C1172`, declared ONCE on the base
      * C1143), so street is invisible until this hook turns it on. The mode then opens the REAL
      * HAL role-0 main camera (myron role 0 = camera 2): `StreetModule` has no camera-id
@@ -885,14 +781,11 @@ object CameraImpersonationHooker : StaticHooker() {
      * its own entry).
      */
     private fun hookStreetEnable() {
+        val profile = hostProfile ?: return
         val methods = LinkedHashSet<Method>()
         for (clazz in configDispatchClasses()) {
-            val method = runCatching {
-                clazz.getMethod("a3").takeIf {
-                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-                }
-            }.getOrNull() ?: run {
-                DebugLog.d(TAG, "street-enable getter ${clazz.name}#a3() not found; skipped")
+            val method = profile.configMethod(clazz, profile.streetGate, java.lang.Boolean.TYPE) ?: run {
+                DebugLog.d(TAG, "street-enable getter ${clazz.name}#${profile.streetGate}() not found; skipped")
                 continue
             }
             methods.add(method)
@@ -915,14 +808,14 @@ object CameraImpersonationHooker : StaticHooker() {
                         return@before
                     }
                     param.result = true
-                    logStreetApplyOnce("new(a3)")
+                    logStreetApplyOnce("new(${profile.streetGate})")
                 }
             }
             hooked++
         }
         DebugLog.i(
             TAG,
-            "street-enable hooked on $hooked a3() dispatch method(s): " +
+            "street-enable hooked on $hooked ${profile.streetGate}() dispatch method(s): " +
                 methods.joinToString { "${it.declaringClass.name}#${it.name}" } + " (mode=new)"
         )
     }
@@ -951,7 +844,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "street_module_entry", ctx = ctx,
-            candidates = listOf("com.android.camera.features.mode.street.StreetModuleEntry"),
+            candidates = emptyList(),
             // `getEntryName()` returns the class name constant — plaintext in classes.dex on
             // both verified builds; filter to the shape below so a mere REFERENCE to the name
             // (the registry class) can never match.
@@ -1043,7 +936,7 @@ object CameraImpersonationHooker : StaticHooker() {
             scope = TAG, key = "camera_intent_manager", ctx = ctx,
             // Real dex names, newest build first; jadx renames these to p757vr.C4751m/C4755l
             // only for display.
-            candidates = listOf("vr.m", "vr.l"),
+            candidates = emptyList(),
             // The launch-source extra constant is plaintext in the dex; combined with the
             // shape check this pins vr.m/vr.l version-generically.
             probe = { bridge ->
@@ -1097,7 +990,17 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun hookStreetQuickLaunchGuideGate(ctx: CameraResolver.Ctx) {
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "camera_guide_manager", ctx = ctx,
-            candidates = listOf("Q5.J"),
+            candidates = emptyList(),
+            probe = { bridge ->
+                bridge.findClass {
+                    matcher { usingStrings("pref_camera_global_guide_shown_key") }
+                }.firstOrNull { descriptor ->
+                    descriptor.methods.any {
+                        it.name == "f" && it.paramCount == 0 && it.returnTypeName == "boolean" &&
+                            java.lang.reflect.Modifier.isStatic(it.modifiers)
+                    }
+                }?.name
+            },
             validate = { c ->
                 c.declaredMethods.any {
                     it.name == "f" && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
@@ -1164,22 +1067,43 @@ object CameraImpersonationHooker : StaticHooker() {
      * `C1199#F3()=instanceof C1156=false`, `C1143#X2()=false`), so the stock REDMI config
      * drops the switcher.
      *
-     * Gated only on `KEY_CAMERA_LEICA_STYLE` (default off). The hooks install on the REAL
-     * device config class ([configDispatchClasses]) — myron C1209 inherits the same
+     * `F3()` can also be opened independently by `KEY_CAMERA_ALL_SHUTTER_SOUNDS`; `X2()` stays
+     * gated by `KEY_CAMERA_LEICA_STYLE`. The hooks install on the active
+     * config class ([configDispatchClasses]) — myron C1209 inherits the same
      * C1199#F3 / C1143#X2 getters, so forcing them `true` brings the switcher back. The
      * callback is RAISE-ONLY — it never lowers a native value: with the user switch ON it
      * forces `true`; with the switch OFF it returns without touching the result, so a
      * natively-true gate stays native (the CommonFlagship/nezha branch declares its own true
-     * `F3()/X2()` overrides and never reaches this hook's Methods). Legendary stays closed by
-     * default (native `W0()`; only [Preferences.KEY_CAMERA_LEGENDARY_MOMENT] opens it) and
-     * the 231 LCC-RAW stream is not touched, so no purple/RAW regression. Side effect:
+     * `F3()/X2()` overrides and never reaches this hook's Methods). Leica Moment opens the
+     * existing mode entry on the native config; Legendary Moment selects Madrid only when that
+     * profile exists in the camera package. The 231 LCC-RAW stream is not touched,
+     * so no purple/RAW regression. Side effect:
      * `f2.c.b()` adds the four Leica shutter sounds when `F3()` is true — benign (the 8-entry
      * list also removes the IOOBE that the legacy `key_shutter_sound=4` used to hit) and
      * bounded by the resident [hookShutterSoundBoundary] clamp.
      */
     private fun hookLeicaStyle() {
+        val profile = hostProfile ?: return
+        profile.leicaStyleGate?.let { gateName ->
+            val method = CameraResolver.resolveMethod(
+                scope = TAG, key = "leica_style_facade", clazz = profile.facade,
+                names = listOf(gateName),
+                shape = {
+                    !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                        it.returnType == java.lang.Boolean.TYPE
+                },
+            ) ?: return
+            deoptimize(method)
+            method.hook("cam_leica_style_facade") {
+                after { param ->
+                    if (leicaStyle()) param.result = true
+                }
+            }
+            DebugLog.i(TAG, "leica-style gate hooked on ${method.declaringClass.name}#${method.name}()")
+            return
+        }
         val dispatchClasses = configDispatchClasses()
-        // Resolve F3/X2 from the dispatch classes (the real device config class), deduplicated
+        // Resolve F3/X2 from the active dispatch classes, deduplicated
         // by Method identity: `getMethod` on base-derived classes can return the same Method
         // (e.g. C1199#F3 inherited unchanged), which must be hooked exactly once.
         val seen = IdentityHashMap<Method, Boolean>()
@@ -1203,12 +1127,22 @@ object CameraImpersonationHooker : StaticHooker() {
             deoptimize(method)
             method.hook("cam_leica_style_$name") {
                 before { param ->
-                    // RAISE-ONLY: with the user switch on force the gate open; with it off
+                    // The sound-list gate is independent; the capture-style gate remains tied
+                    // to the Leica style switch.
+                    val enabled = if (name == "F3") {
+                        leicaStyle() || Preferences.getBoolean(
+                            Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS,
+                            false,
+                        )
+                    } else {
+                        leicaStyle()
+                    }
+                    // RAISE-ONLY: with the relevant user switch on force the gate open; with it off
                     // leave the native result untouched (never lower a native true). The
-                    // `if (!leicaStyle()) return@before; param.result = true` shape always
+                    // `if (!enabled) return@before; param.result = true` shape always
                     // either returns or sets the result, so `proceed` is never re-entered
                     // (SOE-safe, same pattern as hookStreetEnable).
-                    if (!leicaStyle()) return@before
+                    if (!enabled) return@before
                     param.result = true
                 }
             }
@@ -1222,30 +1156,154 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
-     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx `LegendaryEnter` — older builds
-     * mislabelled it 传奇人像; the zh-CN string resource for its mode item is 徕卡一瞬):
-     * raise [Preferences.KEY_CAMERA_LEGENDARY_MOMENT]'s `support()` to true (default OFF) so
-     * the entry registry (`p666t3.a.d()`, support()-filtered and cached per process)
-     * registers mode 256 into the 更多 overflow grid. The stock gate is
-     * `Je.c.W0() && Je.c.V()` = config-is-Nezha && LCC theme (`ro.theme_customize`),
-     * false on every non-flagship non-LCC device, which is exactly what this switch
-     * overrides. Needs a camera restart after toggling (the registry caches).
+     * Leica sound labels are backed by packaged raw resources, while ordinary sounds load from
+     * `assets/sounds/<name>/...`. The no-Madrid device config takes the asset branch, but this
+     * camera APK has no `leica_*` asset folders, so selecting one is silent. Make only the
+     * sound loader's style query use its existing raw-resource branch; keep the shared Leica
+     * theme gate untouched for watermarks, tint colors, and other camera UI.
+     */
+    private fun hookShutterSoundPlaybackRoute() {
+        val profile = hostProfile ?: return
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val loadMethod = CameraResolver.resolveMethodByStrings(
+            scope = TAG,
+            key = "camera_shutter_sound_resource_loader",
+            ctx = ctx,
+            anchors = listOf("loadSound failed: audioData is null for sound"),
+            shape = {
+                !Modifier.isStatic(it.modifiers) && it.parameterTypes.contentEquals(arrayOf(Integer.TYPE)) &&
+                    it.returnType == Integer.TYPE
+            },
+        ) ?: return
+
+        val apkPath = ctx.appInfo?.sourceDir ?: return
+        val styleGate = runCatching {
+            DexKitManager.withBridge(apkPath) { bridge ->
+                bridge.findMethod {
+                    matcher { usingStrings("loadSound failed: audioData is null for sound") }
+                }.asSequence()
+                    .filter { data ->
+                        runCatching { data.getMethodInstance(ctx.classLoader).toGenericString() == loadMethod.toGenericString() }
+                            .getOrDefault(false)
+                    }
+                    .flatMap { it.invokes.asSequence() }
+                    .filter { call ->
+                        call.isMethod && call.declaredClassName == profile.facade.name &&
+                            call.paramCount == 0 && call.returnTypeName == java.lang.Boolean.TYPE.name
+                    }
+                    .mapNotNull { call ->
+                        profile.facade.declaredMethods.singleOrNull {
+                            it.name == call.methodName && it.parameterCount == 0 &&
+                                it.returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(it.modifiers)
+                        }?.apply { isAccessible = true }
+                    }
+                    .distinctBy { it.toGenericString() }
+                    .singleOrNull()
+            }
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "shutter-sound Leica resource branch was not uniquely resolved")
+            return
+        }
+
+        deoptimize(loadMethod)
+        loadMethod.hook("cam_shutter_sound_load_scope") {
+            before {
+                currentShutterSoundLoadScope().addLast(
+                    Preferences.getBoolean(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false),
+                )
+            }
+            after {
+                val scopes = shutterSoundLoadScope.get() ?: return@after
+                if (!scopes.isEmpty()) scopes.removeLast()
+                if (scopes.isEmpty()) shutterSoundLoadScope.remove()
+            }
+        }
+
+        deoptimize(styleGate)
+        styleGate.hook("cam_shutter_sound_leica_resources") {
+            after { param ->
+                val scopes = shutterSoundLoadScope.get() ?: return@after
+                if (scopes.peekLast() == true) param.result = true
+                if (scopes.isEmpty()) shutterSoundLoadScope.remove()
+            }
+        }
+        DebugLog.i(
+            TAG,
+            "Leica shutter previews use the packaged raw samples only inside ${loadMethod.declaringClass.name}#${loadMethod.name}()",
+        )
+    }
+
+    private fun currentShutterSoundLoadScope(): ArrayDeque<Boolean> {
+        return shutterSoundLoadScope.get() ?: ArrayDeque<Boolean>().also(shutterSoundLoadScope::set)
+    }
+
+    /**
+     * The selector opens the shared mode entry on Leica's theme gate or uses the Madrid profile
+     * for Legendary Moment. Leica selection itself keeps the active device config unchanged.
+     */
+    private fun hookLegendaryProfileGate() {
+        val profile = hostProfile ?: return
+        val method = CameraResolver.resolveMethod(
+            scope = TAG,
+            key = "legendary_profile_lcc_gate",
+            clazz = profile.facade,
+            names = listOf(profile.lccGate),
+            shape = {
+                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Boolean.TYPE
+            },
+        ) ?: return
+        deoptimize(method)
+        method.hook("cam_legendary_profile_gate") {
+            after { param ->
+                val mode = Preferences.cameraLegendaryMomentMode()
+                if (!CameraLegendaryProfileState.isApplied(mode)) return@after
+                when (mode) {
+                    CameraLegendaryMomentMode.MODE_LEICA -> param.result = true
+                    CameraLegendaryMomentMode.MODE_LEGENDARY -> param.result = false
+                }
+            }
+        }
+        DebugLog.d(TAG, "Legendary mode profile gate hooked on ${method.declaringClass.name}#${method.name}()")
+    }
+
+    /**
+     * Leica Moment and Legendary Moment share the camera's one LegendaryEnter entry (mode id
+     * 256). Leica only raises its LCC entry gate; Legendary raises it only when the Madrid
+     * profile was actually installed. Otherwise keep native behavior.
+     * The entry registry (`p666t3.a.d()`, support-filtered and cached per process) then registers
+     * mode 256 into the 更多 overflow grid. Needs a camera restart after changing the profile.
      */
     private fun hookLegendarySupport() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "legendary_enter", ctx = ctx,
-            candidates = listOf("com.android.camera.features.mode.legendary.LegendaryEnter"),
-            // `isSupportLegendaryMode` survives as a plaintext dex string (classes.dex).
+            candidates = emptyList(),
             probe = { bridge ->
-                bridge.findClass { matcher { usingStrings("isSupportLegendaryMode") } }
-                    .firstOrNull()?.name
+                bridge.findMethod {
+                    matcher {
+                        name("getModuleId", StringMatchType.Equals)
+                        paramCount(0)
+                        returnType(Integer.TYPE)
+                    }
+                }
+                    .asSequence()
+                    .filter {
+                        it.name == "getModuleId" && it.paramCount == 0 &&
+                            it.returnTypeName == Integer.TYPE.name
+                    }
+                    .mapNotNull { data ->
+                        ctx.loadOrNull(data.className)?.takeIf(::isLegendaryEntryClass)?.name
+                    }
+                    .distinct()
+                    .singleOrNull()
             },
-            validate = { CameraResolver.hasBooleanMethod(it, listOf("support")) },
+            validate = ::isLegendaryEntryClass,
         ) ?: run {
             DebugLog.w(TAG, "LegendaryEnter not resolved; legendary guard skipped")
             return
         }
+        legendaryEntryClass.set(clazz)
         val support = CameraResolver.resolveMethod(
             scope = TAG, key = "legendary_support", clazz = clazz,
             names = listOf("support"),
@@ -1263,15 +1321,25 @@ object CameraImpersonationHooker : StaticHooker() {
         DebugLog.d(TAG, "legendary unlock hooked on ${clazz.name}#support()")
     }
 
+    private fun isLegendaryEntryClass(type: Class<*>): Boolean {
+        val methods = type.declaredMethods
+        return type.simpleName.contains("Legendary", ignoreCase = true) &&
+            methods.count {
+                it.name == "getModuleId" && it.parameterCount == 0 && it.returnType == Integer.TYPE
+            } == 1 &&
+            methods.count {
+                it.name == "support" && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Boolean.TYPE
+            } == 1 &&
+            methods.any { it.name == "getModeItem" && it.parameterCount == 0 && it.returnType != Void.TYPE }
+    }
+
     /**
-     * FeatureLoader registry defense for 徕卡一瞬 (mode 256).
-     *
-     * The camera builds its support-filtered SparseArray once and then reuses it from [b].
-     * Depending on startup order that build can happen before the entry's support hook is
-     * dispatched, leaving 256 absent for the rest of the process.  The registry class was
-     * renamed between verified releases (p665t3/p666t3/p662t3), so resolve it by candidates
-     * plus its stable d()/b() -> SparseArray shape.  Both the cold-build and cached-return paths
-     * are repaired; all reflection is isolated so a failed adaptation cannot break camera boot.
+     * FeatureLoader registry defense for Leica/Legendary Moment, Pixel, and Cinematic entries.
+     * The camera caches a support-filtered SparseArray and may build it before these support hooks
+     * run. Resolve its current class by semantic strings and the stable SparseArray method shape,
+     * then repair both cold-build and cached-return paths. Isolate reflection so a miss cannot
+     * break camera startup.
      */
     private fun hookLegendaryRegistry() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
@@ -1281,11 +1349,26 @@ object CameraImpersonationHooker : StaticHooker() {
             ctx = ctx,
             // JADX prefixes collision packages with `p###`; the dex names are `t3.a` on
             // current builds, while the prefixed aliases are retained for older loaders.
-            candidates = listOf("t3.a", "p662t3.a", "p665t3.a", "p666t3.a"),
+            candidates = emptyList(),
             probe = { bridge ->
                 bridge.findClass {
                     matcher { usingStrings("FeatureLoader", "Build In Entries is NOT ready.") }
-                }.firstOrNull()?.name
+                }.asSequence()
+                    .mapNotNull { descriptor ->
+                        ctx.loadOrNull(descriptor.name)?.takeIf { candidate ->
+                            candidate.declaredMethods.any {
+                                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                                    SparseArray::class.java.isAssignableFrom(it.returnType) &&
+                                    (it.name == "b" || it.name == "d")
+                            } && candidate.declaredFields.any {
+                                Modifier.isStatic(it.modifiers) &&
+                                    SparseArray::class.java.isAssignableFrom(it.type)
+                            }
+                        }
+                    }
+                    .distinctBy { it.name }
+                    .singleOrNull()
+                    ?.name
             },
             validate = { c ->
                 c.declaredMethods.any {
@@ -1322,40 +1405,69 @@ object CameraImpersonationHooker : StaticHooker() {
             deoptimize(method)
             method.hook("cam_unlock_legendary_registry_${method.name}") {
                 after { param ->
-                    if (!legendaryMomentUnlock()) return@after
+                    val unlockLegendary = legendaryMomentUnlock()
+                    val unlockExtras = Preferences.getBoolean(
+                        Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES,
+                        false,
+                    )
+                    if (!unlockLegendary && !unlockExtras) return@after
                     @Suppress("UNCHECKED_CAST")
                     val registry = param.result as? SparseArray<Any?> ?: return@after
-                    ensureLegendaryRegistry(registry)
+                    ensureCameraModeRegistry(registry, unlockLegendary, unlockExtras)
                 }
             }
         }
-        DebugLog.d(TAG, "legendary registry repair hooked on ${clazz.name}#${methods.joinToString { it.name }}()")
+        DebugLog.d(TAG, "camera mode registry repair hooked on ${clazz.name}#${methods.joinToString { it.name }}()")
     }
 
-    /** Add the real LegendaryEnter instance to a support-filtered registry when missing. */
-    private fun ensureLegendaryRegistry(registry: SparseArray<Any?>) {
-        if (registry.indexOfKey(CameraIdentity.LEGENDARY_MOMENT_MODE_ID) >= 0) return
-        val entry = runCatching {
-            val entryClass = classLoader.loadClass("com.android.camera.features.mode.legendary.LegendaryEnter")
-            val globalClass = classLoader.loadClass("com.xiaomi.camera.basic.Global")
-            val context = globalClass.getMethod("getContext").invoke(null) ?: return@runCatching null
-            entryClass.constructors.asSequence()
-                .filter { it.parameterCount == 1 }
-                .mapNotNull { ctor -> runCatching { ctor.newInstance(context) }.getOrNull() }
-                .firstOrNull { candidate ->
-                    runCatching {
-                        candidate.javaClass.getMethod("getModuleId").invoke(candidate) ==
-                            CameraIdentity.LEGENDARY_MOMENT_MODE_ID
-                    }.getOrDefault(false)
-                }
+    /** Restore optional entries if the camera cached its support-filtered registry too early. */
+    private fun ensureCameraModeRegistry(
+        registry: SparseArray<Any?>,
+        unlockLegendary: Boolean,
+        unlockExtras: Boolean,
+    ) {
+        val context = runCatching {
+            classLoader.loadClass("com.xiaomi.camera.basic.Global").getMethod("getContext").invoke(null)
         }.getOrNull() ?: return
-        registry.put(CameraIdentity.LEGENDARY_MOMENT_MODE_ID, entry)
-        if (legendaryRegistryLogged.getAndSet(true) == false) {
-            DebugLog.i(TAG, "legendary registry repaired: inserted mode ${CameraIdentity.LEGENDARY_MOMENT_MODE_ID}")
+        if (unlockLegendary) {
+            ensureModeEntry(
+                registry,
+                legendaryEntryClass.get(),
+                context,
+                CameraIdentity.LEGENDARY_MOMENT_MODE_ID,
+            )
+        }
+        if (unlockExtras) {
+            ensureModeEntry(registry, CameraLegendaryProfileState.pixelEntry(), context)
+            ensureModeEntry(registry, CameraLegendaryProfileState.cinematicEntry(), context)
         }
     }
 
-    private val legendaryRegistryLogged = AtomicReference(false)
+    private fun ensureModeEntry(
+        registry: SparseArray<Any?>,
+        entryClass: Class<*>?,
+        context: Any,
+        expectedModuleId: Int? = null,
+    ) {
+        if (entryClass == null) return
+        val registeredEntry = runCatching {
+            entryClass.declaredConstructors.asSequence()
+                .filter { it.parameterCount == 1 && it.parameterTypes[0].isInstance(context) }
+                .mapNotNull { ctor -> runCatching { ctor.apply { isAccessible = true }.newInstance(context) }.getOrNull() }
+                .mapNotNull { candidate ->
+                    val moduleId = runCatching {
+                        candidate.javaClass.getMethod("getModuleId").invoke(candidate) as? Int
+                    }.getOrNull() ?: return@mapNotNull null
+                    if (expectedModuleId != null && moduleId != expectedModuleId) return@mapNotNull null
+                    moduleId to candidate
+                }
+                .firstOrNull()
+        }.getOrNull() ?: return
+        val (moduleId, entry) = registeredEntry
+        if (registry.indexOfKey(moduleId) >= 0) return
+        registry.put(moduleId, entry)
+        DebugLog.i(TAG, "camera mode registry repaired: inserted module $moduleId (${entryClass.name})")
+    }
 
     /**
      * 智能构图 setting unlock ([Preferences.KEY_CAMERA_SMART_COMPOSITION], default OFF).
@@ -1370,20 +1482,14 @@ object CameraImpersonationHooker : StaticHooker() {
      * settings page) and consistently enables the capture-time consumers of the same gate.
      */
     private fun hookSmartComposition() {
+        if (hostProfile?.family != CameraHostProfile.Family.CAMERA_66) return
         val classes = LinkedHashSet<Class<*>>()
         classes.addAll(configDispatchClasses())
         // Always include the config BASE class: the factory's static cache field is typed to
         // it (the same invariant the config factory's structural fallback relies on), and
         // `getMethod` from it resolves the base declaration every non-overriding subclass
         // dispatches to — even when neither instance could be built.
-        runCatching {
-            resolveClass(*CONFIG_FACTORY_CLASS_CANDIDATES.toTypedArray())
-                ?.getDeclaredField("b")
-                ?.takeIf { java.lang.reflect.Modifier.isStatic(it.modifiers) }
-                ?.type?.let { classes.add(it) }
-        }.onFailure { t ->
-            DebugLog.w(TAG, "config base class unavailable for smart-composition union", t)
-        }
+        hostProfile?.configType?.let(classes::add)
         if (classes.isEmpty()) {
             DebugLog.w(TAG, "no dispatch class resolved; smart-composition unlock skipped")
             return
@@ -1415,12 +1521,12 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /** 智能构图 settings-preference key and its string resource names (obfuscated-but-stable). */
     private const val SMART_COMPOSITION_PREF_KEY = "pref_camera_crop_preferred_key"
-    private const val SMART_COMPOSITION_TITLE_RES = "h24"
-    private const val SMART_COMPOSITION_SUMMARY_RES = "h23"
-
-    /** Plaintext class name of the capture-settings fragment (stable across verified builds). */
-    private const val SETTINGS_CAPTURE_FRAGMENT =
-        "com.android.camera.fragment.settings.CameraCapturePreferenceFragment"
+    private val smartCompositionResources: Pair<String, String>
+        get() = if (hostProfile?.family == CameraHostProfile.Family.CAMERA_68) {
+            "h_i" to "hut"
+        } else {
+            "h24" to "h23"
+        }
 
     /**
      * 智能构图 top-level row injection: the camera's own photo-settings page folds the whole
@@ -1438,15 +1544,10 @@ object CameraImpersonationHooker : StaticHooker() {
      * next page build; the row and the sub-page row share the one pref key.
      */
     private fun hookSmartCompositionTopRow() {
-        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "settings_capture_fragment", ctx = ctx,
-            candidates = listOf(SETTINGS_CAPTURE_FRAGMENT),
-            validate = { c ->
-                c.declaredMethods.any { it.name == "addPhotoPreferences" && it.parameterCount == 0 }
-            },
+        val clazz = CameraFeatureResolver.captureSettings(
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
         ) ?: run {
-            DebugLog.w(TAG, "$SETTINGS_CAPTURE_FRAGMENT not resolved; top-row smart composition skipped")
+            DebugLog.w(TAG, "capture settings fragment not resolved; top-row smart composition skipped")
             return
         }
         val add = CameraResolver.resolveMethod(
@@ -1494,11 +1595,12 @@ object CameraImpersonationHooker : StaticHooker() {
             val category = find.invoke(screen, "category_photo_setting") ?: return
             if (find.invoke(screen, SMART_COMPOSITION_PREF_KEY) != null) return
             val res = fragClass.getMethod("getResources").invoke(fragment) as android.content.res.Resources
-            val titleRes = res.getIdentifier(SMART_COMPOSITION_TITLE_RES, "string", PACKAGE)
-            val summaryRes = res.getIdentifier(SMART_COMPOSITION_SUMMARY_RES, "string", PACKAGE)
+            val (titleName, summaryName) = smartCompositionResources
+            val titleRes = res.getIdentifier(titleName, "string", PACKAGE)
+            val summaryRes = res.getIdentifier(summaryName, "string", PACKAGE)
             if (titleRes == 0 || summaryRes == 0) {
                 DebugLog.w(TAG, "smart-composition string resources unresolved " +
-                    "($SMART_COMPOSITION_TITLE_RES=$titleRes, $SMART_COMPOSITION_SUMMARY_RES=$summaryRes); top row skipped")
+                    "($titleName=$titleRes, $summaryName=$summaryRes); top row skipped")
                 return
             }
             val helper = fragClass.getMethod(
@@ -1517,10 +1619,11 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /**
      * Field-name candidates of the static boolean flag inside the property-holder class:
-     * 540 uses the real field `x` (JADX alias `f11706x`); older 510 builds used `u`
-     * (`f13393u`). Validated as a static boolean before use.
+     * In 6.6.000570.5 the property-backed field is `x` (JADX alias `f11708x`); older 510
+     * builds used `u` (`f13393u`). Do not include nearby boolean fields such as `s`: they
+     * belong to unrelated camera/debug properties and can make the log claim a false unlock.
      */
-    private val CAI_FLAG_FIELD_CANDIDATES = listOf("x", "f11706x", "u", "f13393u")
+    private val CAI_FLAG_FIELD_CANDIDATES = listOf("x", "f11708x", "u", "f13393u")
 
     private fun caiFlagField(clazz: Class<*>): Field? =
         CAI_FLAG_FIELD_CANDIDATES.firstNotNullOfOrNull { name ->
@@ -1547,7 +1650,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "cai_flag_holder", ctx = ctx,
-            candidates = listOf("Qa.b"),
+            candidates = emptyList(),
             validate = { caiFlagField(it) != null },
             probe = { bridge ->
                 bridge.findClass { matcher { usingStrings(CAI_SUPPORT_PROPERTY) } }
@@ -1596,6 +1699,9 @@ object CameraImpersonationHooker : StaticHooker() {
 
     /** Newer camera builds renamed the adaptive-lens pair from g5/i5 to h5/j5. */
     private val ADAPTIVE_LENS_GATE_PAIRS = listOf(
+        // 6.8.001960.0's capture settings call these near-range and tele support gates.
+        "p5" to "r5",
+        "o5" to "q5",
         "h5" to "j5",
         "g5" to "i5",
     )
@@ -1689,6 +1795,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * (D3) stays useful for the mode-175 capture metadata path.
      */
     private fun hookSmartCompositionFeatureBar() {
+        if (hostProfile?.family != CameraHostProfile.Family.CAMERA_66) return
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = resolveCapabilitiesUtil(ctx, "capabilities_util_m3") {
             uniqueCapabilityMethod(it, "M3") != null
@@ -1708,7 +1815,7 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     /**
-     * Front-load 实况运镜 (MasterLive, mode id 231) into the impersonated config's mode
+     * Front-load 实况运镜 (MasterLive, mode id 231) into the active config's mode
      * ordering array `M()[I` under the k100promax target.
      *
      * REGRESSION (2026-08-21, "没有实况运镜了"): the per-device config's `M()` array is the
@@ -1735,39 +1842,37 @@ object CameraImpersonationHooker : StaticHooker() {
      * `KEY_CAMERA_MASTERLIVE_ENABLE` only. Inert on a native nezha device and when the array
      * already contains 231.
      *
-     * (2026-08-26, "没打开伪装旗舰相机配置时没有能用的实况运镜"): the real device config (C1209
-     * myron) INHERITS the base C1143#M() ({167,175,232,233,234,254} — no 231), so the running
-     * camera dispatches to that base Method and it must be fronted. The hook is therefore
-     * installed on [configDispatchClasses] (the real config's `M()`, deduplicated by Method
-     * identity so the same Method is never hooked twice). Base-class hooks are safe: ONLY
-     * classes that do NOT override `M()` dispatch to the base Method, so a real flagship's own
-     * `M()` override is never touched.
+     * In the native myron profile (when no Legendary profile is selected), config C1209
+     * inherits the base C1143#M() ({167,175,232,233,234,254} — no 231), so the running camera
+     * dispatches to that base Method and it must be fronted. The hook is installed on
+     * [configDispatchClasses] (the active config's `M()`, deduplicated by Method identity so the
+     * same Method is never hooked twice). Base-class hooks are safe: only classes that do NOT
+     * override `M()` dispatch to the base Method, so a target profile's own override is untouched.
      */
     private fun hookMasterLiveModePlacement() {
+        val profile = hostProfile ?: return
         // CameraIdentity.frontMasterLiveMode is a no-op for arrays that already contain 231,
-        // so this is inert on devices with native 231 — it only fronts the base C1143 `M()`
-        // the real config inherits (no 231).
+        // so this is inert on configs with native 231 — it only fronts the base C1143 `M()`
+        // the active config inherits (no 231).
         val methods = LinkedHashSet<Method>()
         for (target in configDispatchClasses()) {
-            runCatching { target.getMethod("M") }
-                .getOrNull()
-                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType == IntArray::class.java }
-                ?.let { methods.add(it) }
+            profile.configMethod(target, profile.modeOrder, IntArray::class.java)
+                ?.let(methods::add)
         }
         if (methods.isEmpty()) {
-            DebugLog.w(TAG, "config M()[I not found on dispatch classes; masterlive placement skipped")
+            DebugLog.w(TAG, "config ${profile.modeOrder}()[I not found; masterlive placement skipped")
             return
         }
         for (method in methods) {
             deoptimize(method)
             method.hook("cam_masterlive_mode_front_${method.declaringClass.name}") {
                 after { param ->
-                    if (!masterliveEnabled()) return@after
+                    if (!masterliveEnabled() || !masterLiveHasEffectTable()) return@after
                     val fronted = CameraIdentity.frontMasterLiveMode(param.result as? IntArray)
                     if (fronted != null) param.result = fronted
                 }
             }
-            DebugLog.d(TAG, "masterlive placement hooked on ${method.declaringClass.name}#M()")
+            DebugLog.d(TAG, "masterlive placement hooked on ${method.declaringClass.name}#${method.name}()")
         }
     }
 
@@ -1775,14 +1880,14 @@ object CameraImpersonationHooker : StaticHooker() {
      * MasterLive (实况运镜) REGISTRY gate: force the config's `y4()` true while
      * [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE] is on.
      *
-     * WHY THIS EXISTS (2026-08-22, "没开 k100 配置时实况运镜依旧用不了"): the real device config
-     * (C1209 myron) INHERITS the base C1143#y4 (`instanceof C1214` → false), so
+     * WHY THIS EXISTS (2026-08-22, "没开 k100 配置时实况运镜依旧用不了"): the native myron config
+     * (when no Legendary profile is selected) INHERITS the base C1143#y4 (`instanceof C1214` → false), so
      * `MasterLiveModuleEntry.support()` stays false and mode 231 never registers, no matter
      * what the ordering hooks do. This hook actively pins the gate true.
      *
-     * The hook installs the RAISE-ONLY callback on the real config's `y4()` Method
+     * The hook installs the RAISE-ONLY callback on the active config's `y4()` Method
      * ([configDispatchClasses]). Base-class hooks are safe: ONLY classes that do NOT override
-     * `y4()` dispatch to the base Method, so a real flagship's own override is never touched.
+     * `y4()` dispatch to the base Method, so a target profile's own override is never touched.
      * The gate is `masterliveEnabled()` ONLY: when the switch is off nothing is raised (the
      * native false on myron is left untouched; a genuinely-capable device's native true is
      * never lowered). `y4()` has seven consumers on 510 (module entry, first-run guide,
@@ -1790,30 +1895,29 @@ object CameraImpersonationHooker : StaticHooker() {
      * flagship capability the user wants to unlock, so one forced gate keeps them all coherent.
      */
     private fun hookMasterLiveSupportGate() {
+        val profile = hostProfile ?: return
         val methods = LinkedHashSet<Method>()
-        originalConfigInstance().get()?.javaClass?.let { target ->
-            runCatching { target.getMethod("y4") }
-                .getOrNull()
-                ?.takeIf { it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE }
-                ?.let { methods.add(it) }
+        activeConfigInstance()?.javaClass?.let { target ->
+            profile.configMethod(target, profile.masterLiveGate, java.lang.Boolean.TYPE)
+                ?.let(methods::add)
         }
         if (methods.isEmpty()) {
-            DebugLog.w(TAG, "masterlive registry getter y4() not found on dispatch classes; support gate skipped")
+            DebugLog.w(TAG, "masterlive registry getter ${profile.masterLiveGate}() not found; support gate skipped")
             return
         }
         for (method in methods) {
             deoptimize(method)
             method.hook("cam_masterlive_support_gate_${method.declaringClass.name}") {
                 after { param ->
-                    if (!masterliveEnabled()) return@after
+                    if (!masterliveEnabled() || !masterLiveHasEffectTable()) return@after
                     if ((param.result as? Boolean) == true) return@after
                     param.result = true
                     if (mlGateLogged.getAndSet(true) == false) {
-                        DebugLog.i(TAG, "masterlive registry gate y4() forced true on ${method.declaringClass.name}")
+                        DebugLog.i(TAG, "masterlive registry gate ${method.name}() forced true on ${method.declaringClass.name}")
                     }
                 }
             }
-            DebugLog.i(TAG, "masterlive support gate hooked on ${method.declaringClass.name}#y4()")
+            DebugLog.i(TAG, "masterlive support gate hooked on ${method.declaringClass.name}#${method.name}()")
         }
     }
 
@@ -1830,7 +1934,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * device config INHERITS the base `q0()` which returns **null** — no effect list — so
      * MasterLive has no usable effect list natively.
      *
-     * The hook installs on the `q0()` Method of every dispatch class ([configDispatchClasses],
+     * The hook installs on the `q0()` Method of every active dispatch class ([configDispatchClasses],
      * deduplicated by Method identity), and the after-callback (a) borrows the K100 table when
      * the original returned null (through [resolveK100Config] ONLY — never the
      * Nezha/CommonFlagship fallback, whose 12.9x tele table crashes myron), then (b) merges a
@@ -1842,6 +1946,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * Gated on [Preferences.KEY_CAMERA_MASTERLIVE_ENABLE].
      */
     private fun hookMasterLiveRealEffectTable() {
+        val profile = hostProfile ?: return
         if (configDispatchClasses().isEmpty()) {
             DebugLog.w(TAG, "no config dispatch classes; masterlive effect table hook skipped")
             return
@@ -1849,10 +1954,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val seen = HashSet<Method>()
         var hooked = 0
         for (clazz in configDispatchClasses()) {
-            val method = runCatching { clazz.getMethod("q0") }
-                .getOrNull()
-                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE }
-                ?: continue
+            val method = profile.configMethod(clazz, profile.effectTable, Map::class.java) ?: continue
             if (!seen.add(method)) continue
             deoptimize(method)
             method.hook("cam_masterlive_effect_table_${method.declaringClass.name}") {
@@ -1863,7 +1965,7 @@ object CameraImpersonationHooker : StaticHooker() {
                         table = borrowK100EffectTable() ?: return@after
                         param.result = table
                         if (mlTableBorrowLogged.getAndSet(true) == false) {
-                            DebugLog.i(TAG, "masterlive effect table borrowed from K100 config (real config q0() is null)")
+                            DebugLog.i(TAG, "masterlive effect table borrowed from K100 config (active config ${method.name}() is null)")
                         }
                     }
                     if (!redCarpetEnabled()) return@after
@@ -1877,7 +1979,7 @@ object CameraImpersonationHooker : StaticHooker() {
             hooked++
         }
         if (hooked == 0) {
-            DebugLog.w(TAG, "no q0() Method resolved on any dispatch class; masterlive effect table hook skipped")
+            DebugLog.w(TAG, "no ${profile.effectTable}() Method resolved; masterlive effect table hook skipped")
         } else {
             DebugLog.i(TAG, "masterlive effect table hook installed on $hooked q0() Method(s)")
         }
@@ -1896,8 +1998,9 @@ object CameraImpersonationHooker : StaticHooker() {
         if (!CameraMasterLiveRedCarpet.needsSlowMotionFallback(Build.DEVICE, Build.HARDWARE)) {
             return
         }
-        val clazz = runCatching { classLoader.loadClass("com.android.camera.data.data.i") }
-            .getOrNull() ?: run {
+        val clazz = CameraFeatureResolver.qualitySettings(
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
+        ) ?: run {
                 DebugLog.w(TAG, "camera data component class not resolved; red-carpet fallback skipped")
                 return
             }
@@ -2023,10 +2126,22 @@ object CameraImpersonationHooker : StaticHooker() {
     /** Cached K100 config instance + its `q0()` Method for the master-off effect-table borrow. */
     private val k100EffectTableInstance = AtomicReference<Any?>(null)
     private val k100EffectTableMethod = AtomicReference<Method?>(null)
+    private val k100EffectTableProbeFinished = AtomicReference(false)
 
     /** Logs the effect-table borrow / unavailability ONCE per process, not per dispatch. */
     private val mlTableBorrowLogged = AtomicReference(false)
     private val mlTableUnavailableLogged = AtomicReference(false)
+
+    /** Keep mode 231 hidden when the selected config has no usable effect definitions. */
+    private fun masterLiveHasEffectTable(): Boolean {
+        val profile = hostProfile ?: return false
+        val config = activeConfigInstance() ?: return false
+        val method = profile.configMethod(config.javaClass, profile.effectTable, Map::class.java)
+            ?: return false
+        val native = runCatching { method.invoke(config) as? Map<*, *> }.getOrNull()
+        return native?.isNotEmpty() == true ||
+            (borrowK100EffectTable() as? Map<*, *>)?.isNotEmpty() == true
+    }
 
     /**
      * Resolve + cache the K100 (REDMI) config instance and its `q0()` Method — via
@@ -2034,32 +2149,45 @@ object CameraImpersonationHooker : StaticHooker() {
      * 12.9x and crashes myron's camera) — then invoke `q0()` for the borrowed effect table.
      */
     private fun borrowK100EffectTable(): Any? {
+        // The K100 table's sensor comparison is only validated for the legacy config ABI.
+        // Newer config bases reused several old getter names for boolean capabilities; never
+        // interpret that surface as sensor identity.
+        if (hostProfile?.family != CameraHostProfile.Family.CAMERA_66) {
+            logEffectTableUnavailableOnce("sensor identity contract not verified for this config ABI")
+            return null
+        }
         k100EffectTableInstance.get()?.let { instance ->
             k100EffectTableMethod.get()?.let { method ->
                 return runCatching { method.invoke(instance) }.getOrNull()
             }
         }
+        if (k100EffectTableProbeFinished.get()) return null
         synchronized(k100EffectTableInstance) {
             k100EffectTableInstance.get()?.let { instance ->
                 k100EffectTableMethod.get()?.let { method ->
                     return runCatching { method.invoke(instance) }.getOrNull()
                 }
             }
+            if (k100EffectTableProbeFinished.get()) return null
+            k100EffectTableProbeFinished.set(true)
             val loader = classLoader
-            val resolver = resolveSourceNameResolver(loader) ?: run {
+            val resolver = CameraResolver.resolveSourceNameResolver(
+                CameraResolver.Ctx(loader, hookParam.appInfo), TAG,
+            ) ?: run {
                 logEffectTableUnavailableOnce("source-name resolver unavailable")
                 return null
             }
             val k100 = resolveK100Config(loader, resolver) ?: run {
-                logEffectTableUnavailableOnce("K100 config not resolved by candidates or source probes")
+                logEffectTableUnavailableOnce("K100 config not resolved by semantic source profile")
                 return null
             }
+            val effectName = hostProfile?.effectTable ?: return null
             val q0Method = runCatching {
-                k100.javaClass.getMethod("q0").takeIf {
-                    it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE
+                k100.javaClass.getMethod(effectName).takeIf {
+                    it.parameterTypes.isEmpty() && Map::class.java.isAssignableFrom(it.returnType)
                 }
             }.getOrNull() ?: run {
-                logEffectTableUnavailableOnce("${k100.javaClass.name}#q0() not found")
+                logEffectTableUnavailableOnce("${k100.javaClass.name}#$effectName() not found")
                 return null
             }
             k100EffectTableInstance.set(k100)
@@ -2083,7 +2211,7 @@ object CameraImpersonationHooker : StaticHooker() {
      *
      * The 焦段 strip inside 实况运镜 (`FragmentZoomToggle`'s `ZoomRatioToggleView` row) reads
      * the config's per-mode zoom stops `v1()` keyed by mode id — `j.U(231,false)` → `j.S` →
-     * `j.R` → `p723ur.i#q(231,…)` → `v1().get(231)`. The real myron config has NO 231 key, so
+     * `j.R` → `p723ur.i#q(231,…)` → `v1().get(231)`. The native myron config has NO 231 key, so
      * the camera falls back to the hardcoded `{1.0x, 2.0x}` pair and 超清实况 shows only 1x/2x
      * where a full unlock shows the whole line-up. This hook appends
      * `231 → [CameraIdentity.MASTER_LIVE_FOCAL_STOPS]` (the K100 Pro Max stops {0.7, 1, 2, 5,
@@ -2094,6 +2222,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * switch.
      */
     private fun hookMasterLiveFullFocal() {
+        val profile = hostProfile ?: return
         if (configDispatchClasses().isEmpty()) {
             DebugLog.w(TAG, "no config dispatch classes; masterlive full focal hook skipped")
             return
@@ -2101,10 +2230,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val seen = HashSet<Method>()
         var hooked = 0
         for (clazz in configDispatchClasses()) {
-            val method = runCatching { clazz.getMethod("v1") }
-                .getOrNull()
-                ?.takeIf { it.parameterTypes.isEmpty() && it.returnType != java.lang.Void.TYPE }
-                ?: continue
+            val method = profile.configMethod(clazz, profile.focalStops, SparseArray::class.java) ?: continue
             if (!seen.add(method)) continue
             deoptimize(method)
             method.hook("cam_masterlive_full_focal_${method.declaringClass.name}") {
@@ -2129,14 +2255,14 @@ object CameraImpersonationHooker : StaticHooker() {
                     )
                     param.result = copy
                     if (fullFocalLogged.getAndSet(true) == false) {
-                        DebugLog.i(TAG, "masterlive full focal: v1()[231] = ${CameraIdentity.MASTER_LIVE_FOCAL_STOPS.contentToString()}")
+                        DebugLog.i(TAG, "masterlive full focal: ${method.name}()[231] = ${CameraIdentity.MASTER_LIVE_FOCAL_STOPS.contentToString()}")
                     }
                 }
             }
             hooked++
         }
         if (hooked == 0) {
-            DebugLog.w(TAG, "no v1() Method resolved on any dispatch class; masterlive full focal hook skipped")
+            DebugLog.w(TAG, "no ${profile.focalStops}() Method resolved; masterlive full focal hook skipped")
         } else {
             DebugLog.i(TAG, "masterlive full focal hook installed on $hooked v1() Method(s)")
         }
@@ -2168,7 +2294,7 @@ object CameraImpersonationHooker : StaticHooker() {
             val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
             val resolved = CameraResolver.resolveClass(
                 scope = TAG, key = "component_module_list", ctx = ctx,
-                candidates = listOf("u2.S", "u2.P", "u2.U"),
+                candidates = emptyList(),
                 probe = { bridge ->
                     // Both strings are CONTAINS-matched; the pair pins exactly one class.
                     bridge.findClass {
@@ -2223,7 +2349,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * NOT covered here and deliberately skipped: `E(int)` prefers the persisted
      * `all_support_mode_list` over `x()` (`P.java:511-550`) — see
      * [hookMasterLiveSupportEntry]. Gated on `KEY_CAMERA_MASTERLIVE_ENABLE` only: this class is
-     * config-independent, so the funnel correction applies to the real config's mode list too.
+     * config-independent, so the funnel correction applies to the active config's mode list too.
      */
     private fun hookMasterLiveOrderFunnel() {
         val clazz = resolveComponentModuleList() ?: run {
@@ -2241,7 +2367,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(yMethod)
         yMethod.hook("cam_masterlive_order_funnel") {
             after { param ->
-                if (!masterliveEnabled()) return@after
+                if (!masterliveEnabled() || !masterLiveHasEffectTable()) return@after
                 val placed = CameraIdentity.placeMasterLiveModeBeforeMarker(param.result as? IntArray)
                 if (placed != null) param.result = placed
             }
@@ -2289,7 +2415,7 @@ object CameraImpersonationHooker : StaticHooker() {
                     if ((param.result as? Boolean) == false) param.result = true
                     return@after
                 }
-                if (!masterliveEnabled()) return@after
+                if (!masterliveEnabled() || !masterLiveHasEffectTable()) return@after
                 if ((param.result as? Boolean) != false) return@after
                 if (modeId != CameraIdentity.MASTER_LIVE_MODE_ID) return@after
                 param.result = true
@@ -2308,7 +2434,7 @@ object CameraImpersonationHooker : StaticHooker() {
      * (RESEARCH_MYRON_02 §6.2); on a device that really has role 23 (myron: role 23 <-> camera 4
      * and no role 20) it is a no-op.
      *
-     * The role adapter is config-independent, so the fallback applies to the real config's
+     * The role adapter is config-independent, so the fallback applies to the active config's
      * MasterLive session; the gate is the user's own `KEY_CAMERA_MASTERLIVE_TELE_FALLBACK`
      * switch (default off) alone.
      *
@@ -2320,53 +2446,43 @@ object CameraImpersonationHooker : StaticHooker() {
      * unchanged.
      */
     private fun hookMasterLiveTeleFallback() {
+        // This optional path needs two DEX scans. It is installed only when the switch was
+        // already enabled at camera attach; after hooking, the callback still reads it live.
+        if (!masterliveTeleFallback()) return
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "role_adapter", ctx = ctx,
-            candidates = listOf("u6.e", "p703u6.e"),
-            // `MCAM_Camera2CompatAdapterRole` is the class's plaintext log-tag constant in the
-            // dex (verified on-device; the bare `Camera2CompatAdapterRole` probe never matched,
-            // see RESEARCH_MYRON_ONDEVICE_EVIDENCE §5.1).
-            probe = { bridge ->
-                bridge.findClass { matcher { usingStrings("MCAM_Camera2CompatAdapterRole") } }
-                    .firstOrNull()?.name
+        val role23 = CameraResolver.resolveMethodByStrings(
+            scope = TAG, key = "role_23_camera_id", ctx = ctx,
+            anchors = listOf("roleId=23"),
+            shape = {
+                !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Integer.TYPE
             },
-            validate = { c -> c.declaredMethods.any { it.name == "M" && it.returnType == java.lang.Integer.TYPE } },
         ) ?: run {
-            DebugLog.w(TAG, "Camera2CompatAdapterRole (u6.e) not resolved; masterlive tele fallback skipped")
+            DebugLog.w(TAG, "role-23 camera-id getter not uniquely resolved; tele fallback skipped")
             return
         }
-        val mMethod = CameraResolver.resolveMethod(
-            scope = TAG, key = "role_adapter_m", clazz = clazz,
-            names = listOf("M"),
-            shape = { it.parameterTypes.isEmpty() && it.returnType == java.lang.Integer.TYPE },
+        val role20 = CameraResolver.resolveMethodByStrings(
+            scope = TAG, key = "role_20_camera_id", ctx = ctx,
+            anchors = listOf("roleId=20"),
+            shape = {
+                !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Integer.TYPE
+            },
         ) ?: run {
-            DebugLog.w(TAG, "${clazz.name}#M() not found; masterlive tele fallback skipped")
+            DebugLog.w(TAG, "role-20 camera-id getter not uniquely resolved; tele fallback skipped")
             return
         }
-        deoptimize(mMethod)
-        mMethod.hook("cam_masterlive_tele_fallback") {
+        deoptimize(role23)
+        role23.hook("cam_masterlive_tele_fallback") {
             after { param ->
                 if (!masterliveTeleFallback() || deviceIsNezha()) return@after
                 if ((param.result as? Int) != -1) return@after
-                val receiver = param.thisObject
-                teleCameraId(receiver)?.let { param.result = it }
+                val teleId = runCatching { role20.invoke(param.thisObject) as? Int }
+                    .getOrNull()?.takeIf { it != -1 } ?: return@after
+                param.result = teleId
             }
         }
-        DebugLog.d(TAG, "masterlive tele fallback hooked on ${clazz.name}#M()")
-    }
-
-    /** Cached `r()` (role-20 tele) method on the role adapter (`u6.e`, jadx `p703u6/e`). */
-    private val teleCameraIdMethod = AtomicReference<Method?>()
-
-    private fun teleCameraId(receiver: Any): Int? {
-        val method = teleCameraIdMethod.get() ?: synchronized(teleCameraIdMethod) {
-            teleCameraIdMethod.get() ?: runCatching {
-                receiver.javaClass.getMethod("r").takeIf { it.parameterCount == 0 }
-            }.getOrNull()?.also { teleCameraIdMethod.set(it) }
-        } ?: return null
-        return runCatching { (method.invoke(receiver) as? Int)?.takeIf { it != -1 } }
-            .getOrNull()
+        DebugLog.d(TAG, "masterlive tele fallback hooked on semantic role-23 getter ${role23.declaringClass.name}#${role23.name}()")
     }
 
     /**
@@ -2398,10 +2514,14 @@ object CameraImpersonationHooker : StaticHooker() {
         // concatenation), so candidates are the primary path.
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "livephoto_size_base", ctx = ctx,
-            candidates = listOf("l6.n", "l6.q", "l6.p", "l6.o"),
+            candidates = emptyList(),
             probe = { bridge ->
                 bridge.findClass { matcher { usingStrings("getLivePhotoVideoSize") } }
-                    .firstOrNull()?.name
+                    .firstOrNull { descriptor ->
+                        ctx.loadOrNull(descriptor.name)?.let {
+                            resolveLivePhotoVideoSizeMethod(it, quiet = true) != null
+                        } == true
+                    }?.name
             },
             validate = { c -> resolveLivePhotoVideoSizeMethod(c, quiet = true) != null },
         ) ?: run {
@@ -2451,17 +2571,27 @@ object CameraImpersonationHooker : StaticHooker() {
         if (!masterLiveTypeResolved.get() || masterLiveTypeMethod.get() == null) {
             synchronized(masterLiveTypeMethod) {
                 if (!masterLiveTypeResolved.get() || masterLiveTypeMethod.get() == null) {
-                    val resolved = runCatching {
-                        loader.loadClass("com.android.camera.data.data.j")
-                    }.getOrNull()?.declaredMethods?.firstOrNull {
-                        !it.isSynthetic && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
-                            it.name == "A" && it.parameterCount == 1 &&
-                            it.parameterTypes[0] == Integer.TYPE && it.returnType == String::class.java
+                    val ctx = CameraResolver.Ctx(loader, hookParam.appInfo)
+                    val owner = CameraResolver.resolveClassByStrings(
+                        scope = TAG,
+                        key = "masterlive_type_provider",
+                        ctx = ctx,
+                        anchors = listOf("pref_master_live_key"),
+                    ) { type ->
+                        type.declaredMethods.any {
+                            Modifier.isStatic(it.modifiers) && it.parameterCount == 1 &&
+                                it.parameterTypes[0] == Integer.TYPE && it.returnType == String::class.java
+                        }
+                    }
+                    val resolved = owner?.declaredMethods?.singleOrNull {
+                        !it.isSynthetic && Modifier.isStatic(it.modifiers) &&
+                            it.parameterCount == 1 && it.parameterTypes[0] == Integer.TYPE &&
+                            it.returnType == String::class.java
                     }?.apply { isAccessible = true }
                     masterLiveTypeMethod.set(resolved)
-                    // Resolution is attempted exactly once per process: a miss stays a miss
-                    // (the class/method shape is build-stable), so hot paths never re-scan.
-                    masterLiveTypeResolved.set(resolved != null)
+                    // The APK is immutable for this process; cache misses as well, so a disabled
+                    // optional hook cannot cause repeated DEX scans on its callback path.
+                    masterLiveTypeResolved.set(true)
                 }
             }
         }
@@ -2533,36 +2663,31 @@ object CameraImpersonationHooker : StaticHooker() {
      * when it equals 231, and never when the chain is unreadable.
      */
     private fun hookMasterLiveVideoSurfaceSize() {
+        if (!videoSizeProbeEnabled()) return
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG, key = "liveshot_video_surface", ctx = ctx,
-            candidates = listOf("Kj.C", "Kj.D"),
-            validate = { c ->
-                c.declaredMethods.any {
-                    !it.isSynthetic && it.name == "c" && it.parameterCount == 0 &&
-                        it.returnType == Size::class.java
-                }
+        val method = CameraResolver.resolveMethodByNumbers(
+            scope = TAG,
+            key = "masterlive_surface_size_fallback",
+            ctx = ctx,
+            numbers = listOf(2304, 1296),
+            shape = {
+                !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == Size::class.java
             },
-        ) ?: run {
-            DebugLog.w(TAG, "Kj.C/Kj.D (liveshot video surface) not resolved; masterlive video surface size skipped")
-            return
-        }
-        val method = runCatching { clazz.getMethod("c") }
-            .getOrNull()
-            ?.takeIf { it.parameterCount == 0 && it.returnType == Size::class.java }
+        )
             ?: run {
-                DebugLog.w(TAG, "${clazz.name}#c() not found; masterlive video surface size skipped")
+                DebugLog.w(TAG, "surface-size fallback was not uniquely resolved; size probe skipped")
                 return
             }
         deoptimize(method)
         method.hook("cam_masterlive_video_surface_size") {
             after { param ->
-                if (!videoSizeProbeEnabled()) return@after
                 val original = param.result as? Size ?: return@after
                 val receiver = param.thisObject
                 // Mode gate: only rewrite inside MasterLive (the same consumer also serves the
-                // normal live-photo modes' 4:3 geometry).
-                if (readSurfaceReceiverModule(receiver) != CameraIdentity.MASTER_LIVE_MODE_ID) {
+                // normal live-photo modes' 4:3 geometry). Inspect the bounded object graph by
+                // value so owner/field names can move between camera builds.
+                if (!receiverContainsUniqueModeId(receiver, CameraIdentity.MASTER_LIVE_MODE_ID)) {
                     return@after
                 }
                 val pinned = CameraMasterLiveSizeBinding.boundSize(
@@ -2572,32 +2697,54 @@ object CameraImpersonationHooker : StaticHooker() {
                 if (videoSurfaceProbeLogged.getAndSet(true) == false) {
                     DebugLog.i(
                         TAG,
-                        "masterlive video surface size: ${clazz.name}#c() $original " +
+                        "masterlive video surface size: ${method.declaringClass.name}#${method.name}() $original " +
                             "(type ${currentMasterLiveType() ?: "?"}) -> ${pinned.first}x${pinned.second}"
                     )
                 }
             }
         }
-        DebugLog.i(TAG, "masterlive video surface size hooked on ${clazz.name}#c()")
+        DebugLog.i(TAG, "masterlive video surface size hooked on ${method.declaringClass.name}#${method.name}()")
     }
 
     /** Logs the first surface-size substitution ONCE per process. */
     private val videoSurfaceProbeLogged = AtomicReference(false)
 
-    /**
-     * The active module id carried by [receiver]'s camera-manager handle: real dex fields
-     * `D.a` (`Zg.a`, jadx alias `f9165a`) → `Zg.a#g` (int, jadx alias `f21563g`; the same
-     * chain `Kj/F.java:125` reads). null when any step fails — callers then skip instead of
-     * guessing.
-     */
-    private fun readSurfaceReceiverModule(receiver: Any): Int? {
-        val managerField = resolveField(receiver.javaClass, "a", "f9165a")?.apply { isAccessible = true }
-            ?: return null
-        val manager = runCatching { managerField.get(receiver) }.getOrNull() ?: return null
-        val modeField = resolveField(manager.javaClass, "g", "f21563g")?.apply { isAccessible = true }
-            ?: return null
-        if (modeField.type != Integer.TYPE) return null
-        return runCatching { modeField.getInt(manager) }.getOrNull()
+    /** Find exactly one matching module id in a small graph of host objects. */
+    private fun receiverContainsUniqueModeId(receiver: Any, expected: Int): Boolean {
+        val pending = ArrayDeque<Pair<Any, Int>>()
+        val visited = IdentityHashMap<Any, Boolean>()
+        pending.add(receiver to 0)
+        var matches = 0
+        var visitedCount = 0
+        while (pending.isNotEmpty() && visitedCount < 40) {
+            val (owner, depth) = pending.removeFirst()
+            if (visited.put(owner, true) != null) continue
+            visitedCount++
+            var type: Class<*>? = owner.javaClass
+            while (type != null && type != Any::class.java) {
+                for (field in type.declaredFields) {
+                    if (Modifier.isStatic(field.modifiers)) continue
+                    if (field.type == Integer.TYPE) {
+                        val value = runCatching {
+                            field.isAccessible = true
+                            field.getInt(owner)
+                        }.getOrNull()
+                        if (value == expected && ++matches > 1) return false
+                    } else if (depth < 4 && !field.type.isPrimitive && !field.type.isArray &&
+                        !field.type.name.startsWith("java.") &&
+                        !field.type.name.startsWith("android.") &&
+                        !field.type.name.startsWith("kotlin.")
+                    ) {
+                        runCatching {
+                            field.isAccessible = true
+                            field.get(owner)
+                        }.getOrNull()?.let { pending.add(it to depth + 1) }
+                    }
+                }
+                type = type.superclass
+            }
+        }
+        return matches == 1
     }
 
     /**
@@ -2624,7 +2771,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val clazz = CameraResolver.resolveClass(
             scope = TAG, key = "shutter_cfg", ctx = ctx,
-            candidates = listOf("f2.c", "p180f2.c"),
+            candidates = emptyList(),
             // `key_shutter_sound` survives as a plaintext dex string on both verified builds,
             // so a renamed shutter-config class can still be found by it; the method-shape
             // filter (int-returning zero-arg `a()`) disambiguates any other string user.
@@ -2683,102 +2830,25 @@ object CameraImpersonationHooker : StaticHooker() {
         deviceIsNezhaCache.get()?.let { return it }
         synchronized(deviceIsNezhaCache) {
             deviceIsNezhaCache.get()?.let { return it }
-            val isNezha = readDeviceBaseName()?.equals("nezha", ignoreCase = true) == true
+            val isNezha = Build.DEVICE.equals("nezha", ignoreCase = true)
             deviceIsNezhaCache.set(isNezha)
             return isNezha
         }
     }
 
-    /**
-     * The REAL device config instance (e.g. `com.mi.device.Myron`), built exactly the way the
-     * factory does — NOT read from the `Je.e.b` cache. Used as the source of the original
-     * watermark third slot and the dispatch classes the running camera uses.
-     */
-    private fun originalConfigInstance(): AtomicReference<Any?> {
-        originalInstance.get()?.let { return originalInstance }
-        synchronized(originalInstance) {
-            originalInstance.get()?.let { return originalInstance }
-            val built = buildOriginalConfigInstance()
-            if (built != null) originalInstance.set(built)
-            return originalInstance
-        }
-    }
+    /** Active config selected by the profile hook (native when the selector is Off). */
+    private fun activeConfigInstance(): Any? =
+        runCatching { hostProfile?.configInstance() }.getOrNull()
 
     /**
-     * The config classes the running camera may dispatch capability getters to: the REAL device
-     * config class. Unlocks hook the Methods this class resolves — for getters the real config
-     * inherits without overriding (F3/X2/a3/M/q0/y4 on C1143/C1199). Callers deduplicate by
-     * Method identity and only ever RAISE gates: when the user switch is off they leave the
-     * native value untouched (never lower a native true).
+     * Config classes the running camera dispatches capability getters to. This is the validated
+     * Madrid profile only for Legendary Moment; Leica Moment keeps the native config. Only the
+     * active config is hooked.
      */
     private fun configDispatchClasses(): List<Class<*>> {
         val classes = LinkedHashSet<Class<*>>()
-        originalConfigInstance().get()?.javaClass?.let { classes.add(it) }
+        activeConfigInstance()?.javaClass?.let { classes.add(it) }
         return classes.toList()
-    }
-
-    /**
-     * Replays `Je/e.q()`'s full fallback chain (jadx `Je/e.java:47-72`) with the REAL device
-     * base name, so the ORIGINAL config instance resolves exactly as the factory would —
-     * including devices whose per-device class is not shipped in the APK (then it falls back
-     * to `com.mi.device.others.<Manufacturer>` and finally the weak default `Ne.a`, mirroring
-     * the factory's own catch branches):
-     * 1. `com.mi.device.<Capitalize(Build.DEVICE | Je/a.c)>` — e.g. Myron
-     * 2. `com.mi.device.others.<Capitalize(Build.MANUFACTURER)>`
-     * 3. `new Ne.a()` — the low-spec weak default used by non-flagship Redmis
-     *
-     * Returns null (watermark third-slot capture and the dispatch-class unlocks are skipped)
-     * only if even `Ne.a` is unexpectedly unavailable.
-     */
-    private fun buildOriginalConfigInstance(): Any? {
-        val loader = classLoader
-        return runCatching {
-            val resolver = resolveSourceNameResolver(loader)
-                ?: return@runCatching null
-            val deviceBase = readDeviceBaseName() ?: Build.DEVICE
-            buildFrom(loader, resolver, "com.mi.device.${capitalize(deviceBase)}")
-                ?: buildFrom(
-                    loader, resolver,
-                    "com.mi.device.others.${capitalize(Build.MANUFACTURER)}"
-                )
-                ?: runCatching {
-                    loader.loadClass("Ne.a").getDeclaredConstructor().newInstance()
-                }.getOrNull()
-        }.getOrNull()?.also {
-            DebugLog.d(TAG, "original device config instance created: ${it.javaClass.name}")
-        } ?: run {
-            DebugLog.w(TAG, "original device config could not be instantiated; config unlocks unavailable")
-            null
-        }
-    }
-
-    /** Capitalise the first ASCII letter (mirrors `Je/e.f(String)`). */
-    private fun capitalize(name: String): String {
-        if (name.isEmpty()) return name
-        val first = name[0]
-        return if (first in 'a'..'z') first.uppercaseChar() + name.substring(1) else name
-    }
-
-    /**
-     * Device base name used to resolve the ORIGINAL (non-impersonated) config class. The app's own
-     * factory `Je/e.q()` reads it from the `Je/a` static lazy field `c` (a `Pu.n` lazy whose value
-     * is keyed off `Build.DEVICE`, `Je/d.a`); the jadx alias `f8410c` does not exist in the dex and
-     * previously threw `NoSuchFieldException: No field f8410c in class LJe/a`. `Build.DEVICE` is
-     * the same value (verified on the device: myron == ro.product.device), so it is used directly;
-     * the reflective lazy read is kept only as a silent best-effort fallback for builds where
-     * `Build.DEVICE` is blank.
-     */
-    private fun readDeviceBaseName(): String? {
-        val fromBuild = Build.DEVICE.takeIf { it.isNotBlank() }
-        val fromLazy = runCatching {
-            val jeA = "Je.a".toClassOrNull() ?: return@runCatching null
-            val field = resolveField(jeA, "c", "f8410c")?.apply { isAccessible = true }
-                ?: return@runCatching null
-            val lazy = field.get(null) ?: return@runCatching null
-            val getValue = lazy.javaClass.getMethod("getValue")
-            (getValue.invoke(lazy) as? String)?.takeIf { it.isNotEmpty() }
-        }.getOrNull()
-        return fromBuild ?: fromLazy
     }
 
     // ─── gate helpers ─────────────────────────────────────────────────────────────
@@ -2796,9 +2866,11 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun leicaStyle(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false)
 
-    /** 徕卡一瞬 (mode 256) unlock; default off on every device. */
-    private fun legendaryMomentUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false)
+    /** Whether the selected mode entry should be exposed, after its config requirement passed. */
+    private fun legendaryMomentUnlock(): Boolean {
+        val mode = Preferences.cameraLegendaryMomentMode()
+        return mode != CameraLegendaryMomentMode.MODE_OFF && CameraLegendaryProfileState.isApplied(mode)
+    }
 
     /** 智能构图 setting unlock. */
     private fun smartCompositionUnlock(): Boolean =

@@ -18,10 +18,9 @@ import java.nio.file.Path
  * notes live in the reverse workspace at `cache/camera-5cd70925b1646cdf/` and
  * `cache/camera-8f41d7b82453cdeb/`.
  *
- * The camera keeps its watermark resources under `files/watermarks/` (downloaded by its
- * cloud sync — the sync itself receives the full set, including festival editions such as
- * `2026_parents_day`). The gallery screen (`WmGalleryFragment` → `WmGalleryPreference`)
- * reads the scanned groups through `Gg.P` (the `WmBaseManager`), whose `d(boolean)`
+ * The camera keeps downloaded watermark resources under `files/watermarks/`. Cloud metadata is
+ * first passed through `WmNativeFilter` with device capability flags, then the gallery's
+ * `Gg.P` manager scans local groups and `d(boolean)`
  * (`filterData`) applies a filter chain — id whitelist, validity time window,
  * device-type whitelist, system-properties match, theme, region, name length — that hides
  * entries whose `config.json` `limitation` does not match this device. On the verified
@@ -30,12 +29,11 @@ import java.nio.file.Path
  * non-Leica device like myron. The latter must be hydrated locally before the scan; filtering
  * alone cannot expose files that are absent from `files/watermarks/leica/`.
  *
- * The whole chain is wrapped in `if (!C1686u.f6071a.getValue()) { ... }`, where
- * `C1686u$b.invoke()` reads the system property `camera.cloud.watermark.debug` — the same
- * debug gate the media editor uses (`tb0.v$b` there). Hooking that read to true while
- * [Preferences.KEY_WM_CAMERA] is on skips the filter chain; the final `Gg.P#d(boolean)`
- * funnel is also bypassed to cover a cached lazy value. Bundled ordinary Leica files are
- * copied by the scan hook before this filter stage.
+ * The cloud native filter and local folder filter are separate stages. While
+ * [Preferences.KEY_WM_CAMERA] is on, the native query receives permissive watermark capability
+ * flags, the system property `camera.cloud.watermark.debug` skips local limitation filtering,
+ * and `Gg.P#d(boolean)` is bypassed to cover a cached lazy value. Bundled ordinary Leica files
+ * are copied by the scan hook before the folder scan.
  *
  * The property read runs per watermark-group scan (menu open), so the switch takes effect
  * the next time the watermark gallery is opened without restarting the camera.
@@ -44,24 +42,9 @@ object CameraWatermarkHooker : StaticHooker() {
     private const val TAG = "CamWmUnlock"
     private const val PACKAGE = "com.android.camera"
 
-    /**
-     * Class-name candidates for the watermark debug-gate holder, newest builds first. The
-     * holder is the `$b` inner class of a `Gg` lazy property that reads
-     * `camera.cloud.watermark.debug`:
-     *  - 6.6.000510.0 (OS4.0.0.19): `Gg.u$b`
-     *  - 6.6.000460.0 (OS4.0.0.15): `Gg.C1686u$b`
-     * `camera.cloud.watermark.debug` stays a plaintext dex string across builds, so the
-     * DexKit probe in [installHooks] is the durable layer.
-     */
-    private val DEBUG_FLAG_CANDIDATES = listOf("Gg.u\$b", "Gg.C1686u\$b")
-
-    /** Watermark group manager (the 6.6.000550.0 build still exposes `Gg.P`). */
-    private val FILTER_MANAGER_CANDIDATES = listOf("Gg.P")
     private val FILTER_DATA_ANCHORS = listOf("filterData: E", "filterData: delete")
 
     /** Device-config facade candidates (540 renamed `Je.c` -> `Je.b`). */
-    private val DEVICE_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
-
     private const val LEICA_ASSET_ROOT = "watermarks/leica"
 
     override fun onHook() {
@@ -77,6 +60,7 @@ object CameraWatermarkHooker : StaticHooker() {
         // Keep these independent: a renamed debug lazy must not prevent the final filter
         // funnel, bundled Leica-resource hydration, or the classic-logo repair from loading.
         hookDebugFlag(ctx)
+        hookCloudCatalogFilter(ctx)
         hookFilterData(ctx)
         hookLeicaResourceHydration(ctx)
         hookDeviceLogo(ctx)
@@ -88,7 +72,7 @@ object CameraWatermarkHooker : StaticHooker() {
             scope = TAG,
             key = "wm_debug_flag",
             ctx = ctx,
-            candidates = DEBUG_FLAG_CANDIDATES,
+            candidates = emptyList(),
             probe = { bridge ->
                 bridge.findClass { matcher { usingStrings("camera.cloud.watermark.debug") } }
                     .firstOrNull { it.name.endsWith("\$b") }?.name
@@ -123,6 +107,80 @@ object CameraWatermarkHooker : StaticHooker() {
     }
 
     /**
+     * Cloud watermark manifests are filtered before Java parses them. The native bridge takes
+     * the device name plus Leica and general capability booleans; the local `filterData` hook
+     * cannot recover entries already removed here. When the explicit unlock is enabled, raise
+     * only those two capability flags and keep the physical model, region, time, and focal data
+     * intact so the server data remains attributable to this device.
+     */
+    private fun hookCloudCatalogFilter(ctx: CameraResolver.Ctx) {
+        fun hasNativeFilter(type: Class<*>): Boolean = type.declaredMethods.any { method ->
+            Modifier.isStatic(method.modifiers) && Modifier.isNative(method.modifiers) &&
+                method.returnType == String::class.java && method.parameterTypes.contentEquals(
+                    arrayOf(
+                        String::class.java, String::class.java,
+                        java.lang.Boolean.TYPE, java.lang.Boolean.TYPE,
+                        java.lang.Float.TYPE, java.lang.Double.TYPE,
+                        java.lang.Long.TYPE, Integer.TYPE,
+                    ),
+                )
+        }
+
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG,
+            key = "wm_cloud_catalog_filter",
+            ctx = ctx,
+            candidates = emptyList(),
+            probe = { bridge ->
+                bridge.findMethod {
+                    matcher {
+                        returnType(String::class.java)
+                        paramCount(8)
+                    }
+                }.asSequence()
+                    .filter { data ->
+                        Modifier.isNative(data.modifiers) && data.returnTypeName == String::class.java.name &&
+                            data.paramTypeNames == listOf(
+                                String::class.java.name, String::class.java.name,
+                                "boolean", "boolean", "float", "double", "long", "int",
+                            )
+                    }
+                    .map { it.className }
+                    .distinct()
+                    .singleOrNull()
+            },
+            validate = ::hasNativeFilter,
+        ) ?: run {
+            DebugLog.w(TAG, "cloud watermark native filter not resolved; catalog stays stock")
+            return
+        }
+
+        val wrapper = clazz.declaredMethods.singleOrNull { method ->
+            Modifier.isStatic(method.modifiers) && !Modifier.isNative(method.modifiers) &&
+                method.returnType == String::class.java && method.parameterTypes.contentEquals(
+                    arrayOf(
+                        String::class.java, String::class.java,
+                        java.lang.Boolean.TYPE, java.lang.Boolean.TYPE,
+                        java.lang.Float.TYPE, java.lang.Long.TYPE, Integer.TYPE,
+                    ),
+                )
+        }?.apply { isAccessible = true } ?: run {
+            DebugLog.w(TAG, "cloud watermark native-filter wrapper is not unique; catalog stays stock")
+            return
+        }
+
+        deoptimize(wrapper)
+        wrapper.hook("wm_cloud_catalog_capabilities") {
+            before { param ->
+                if (!Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) return@before
+                param.args[2] = true
+                param.args[3] = true
+            }
+        }
+        DebugLog.i(TAG, "cloud watermark catalog capability filter hooked on ${clazz.name}#${wrapper.name}()")
+    }
+
+    /**
      * Skip the final `Gg.P#d(boolean)` filter funnel while the switch is enabled. This is
      * required in addition to the debug lazy hook: the lazy may already have cached `false`
      * before our hook runs, while this method is the last point that removes the Leica folders
@@ -134,7 +192,7 @@ object CameraWatermarkHooker : StaticHooker() {
             scope = TAG,
             key = "wm_filter_manager",
             ctx = ctx,
-            candidates = FILTER_MANAGER_CANDIDATES,
+            candidates = emptyList(),
             probe = { bridge ->
                 FILTER_DATA_ANCHORS.asSequence()
                     .mapNotNull { anchor ->
@@ -186,7 +244,18 @@ object CameraWatermarkHooker : StaticHooker() {
             scope = TAG,
             key = "wm_resource_manager",
             ctx = ctx,
-            candidates = FILTER_MANAGER_CANDIDATES,
+            candidates = emptyList(),
+            probe = { bridge ->
+                FILTER_DATA_ANCHORS.asSequence()
+                    .mapNotNull { anchor ->
+                        bridge.findClass { matcher { usingStrings(anchor) } }
+                            .firstOrNull { descriptor ->
+                                ctx.loadOrNull(descriptor.name)?.let(::isFilterManagerClass) == true
+                            }?.name
+                    }
+                    .distinct()
+                    .singleOrNull()
+            },
             validate = ::isFilterManagerClass,
         ) ?: run {
             DebugLog.w(TAG, "watermark resource manager not resolved; bundled Leica hydration skipped")
@@ -308,23 +377,11 @@ object CameraWatermarkHooker : StaticHooker() {
      * replaced by the brand of the device family.
      */
     private fun hookDeviceLogo(ctx: CameraResolver.Ctx) {
-        val clazz = CameraResolver.resolveClass(
-            scope = TAG,
-            key = "wm_device_facade",
-            ctx = ctx,
-            candidates = DEVICE_FACADE_CANDIDATES,
-            validate = { c ->
-                c.declaredMethods.any {
-                    it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
-                }
-            },
-        ) ?: run {
-            DebugLog.w(TAG, "Je.c device config not resolved; logo repair skipped")
-            return
-        }
+        val profile = CameraHostProfile.resolve(ctx, TAG) ?: return
+        val clazz = profile.facade
         val xMethod = CameraResolver.resolveMethod(
             scope = TAG, key = "wm_device_logo_x", clazz = clazz,
-            names = listOf("x"),
+            names = listOf(profile.brandGetter),
             shape = { it.parameterTypes.isEmpty() && it.returnType == String::class.java },
         ) ?: run {
             DebugLog.w(TAG, "${clazz.name}#x() not found; logo repair skipped")

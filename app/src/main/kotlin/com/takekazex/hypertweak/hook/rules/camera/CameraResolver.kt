@@ -4,33 +4,18 @@ import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-/**
- * Version-generic class/method resolution for the Xiaomi camera (`com.android.camera`).
+/** Version-agnostic resolver for camera classes and methods.
  *
- * The camera APK is re-obfuscated on every release (6.6.000460.0 -> 6.6.000510.0 renamed a
- * non-deterministic subset of class names), and the obfuscator also **reuses** names for
- * unrelated classes (`Ox.g` was the LCC customization provider on 460, a state-list helper on
- * 510; `i5.d` was the watermark entry holder on 460, a font-menu ViewModel on 510). Method
- * names can be renamed as well (`Je.e#q` -> `Je.e#G0`, LCC provider `i() ` -> `s()`), and most
- * dex string constants are encrypted except a handful of survivors
- * (`camera.cloud.watermark.debug`, `key_shutter_sound`, ...).
- *
- * Every target therefore resolves through three layers, in order:
- *  1. [candidates] - known dex names accumulated across verified versions (newest first);
- *     each candidate is validated so a *repurposed* name (the `Ox.g` trap) is rejected.
- *  2. [probe]     - a DexKit query (plaintext-string or structural matcher) when the APK
- *     carries a stable discriminator; results are cached by [DexKitManager] and automatically
- *     re-run when the camera APK fingerprint changes or a cached class fails validation.
- *  3. fall back to the target-specific behavioural chain in the hooker (e.g. the
- *     `Uf.c.a(sourceName)` resolver for `com.mi.device.*` configs, or semantic getter
- *     comparison for the flagship config role).
- *
- * A failure at every layer must skip only the affected sub-feature with a clear log line,
- * never throw, and never disturb the other hooks (see AGENTS.md).
+ * Obfuscated owners are discovered from semantic DEX strings, signatures, and numeric behavior;
+ * every result is loaded, checked again against its runtime shape, and cached against the target
+ * APK fingerprint. Unique-match helpers fail closed when a new build introduces ambiguity.
+ * A miss disables only the affected feature, while a false match can break the camera process
+ * or route a capture through the wrong hardware path.
  */
 object CameraResolver {
 
@@ -109,6 +94,76 @@ object CameraResolver {
         return null
     }
 
+    /** Resolve a semantic anchor without a class-name candidate list. Ambiguity fails closed. */
+    fun resolveClassByStrings(
+        scope: String,
+        key: String,
+        ctx: Ctx,
+        anchors: List<String>,
+        validate: (Class<*>) -> Boolean,
+    ): Class<*>? = resolveClass(
+        scope = scope,
+        key = key,
+        ctx = ctx,
+        candidates = emptyList(),
+        probe = { bridge ->
+            bridge.findClass { matcher { usingStrings(*anchors.toTypedArray()) } }
+                .mapNotNull { data -> runCatching { data.getInstance(ctx.classLoader) }.getOrNull() }
+                .filter { clazz -> runCatching { validate(clazz) }.getOrDefault(false) }
+                .distinctBy { it.name }
+                .singleOrNull()?.name
+        },
+        validate = validate,
+    )
+
+    /** Resolve one method from its semantic DEX strings plus a strict runtime signature. */
+    fun resolveMethodByStrings(
+        scope: String,
+        key: String,
+        ctx: Ctx,
+        anchors: List<String>,
+        shape: (Method) -> Boolean,
+    ): Method? {
+        val apkPath = ctx.appInfo?.sourceDir ?: return null
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            val matches = runCatching {
+                bridge.findMethod { matcher { usingStrings(*anchors.toTypedArray()) } }
+                    .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
+                    .filter { method -> !method.isSynthetic && runCatching { shape(method) }.getOrDefault(false) }
+                    .distinctBy { it.toGenericString() }
+            }.getOrElse { emptyList() }
+            matches.singleOrNull()?.apply { isAccessible = true }
+                ?: run {
+                    DebugLog.w(scope, "$key did not resolve to one method by semantic anchor")
+                    null
+                }
+        }
+    }
+
+    /** Resolve a method from stable numeric behavior and a strict runtime signature. */
+    fun resolveMethodByNumbers(
+        scope: String,
+        key: String,
+        ctx: Ctx,
+        numbers: List<Number>,
+        shape: (Method) -> Boolean,
+    ): Method? {
+        val apkPath = ctx.appInfo?.sourceDir ?: return null
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            val matches = runCatching {
+                bridge.findMethod { matcher { usingNumbers(*numbers.toTypedArray()) } }
+                    .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
+                    .filter { method -> !method.isSynthetic && runCatching { shape(method) }.getOrDefault(false) }
+                    .distinctBy { it.toGenericString() }
+            }.getOrElse { emptyList() }
+            matches.singleOrNull()?.apply { isAccessible = true }
+                ?: run {
+                    DebugLog.w(scope, "$key did not resolve to one method by numeric behavior")
+                    null
+                }
+        }
+    }
+
     /**
      * Resolve a method by name candidates + signature shape. Method names are renamed between
      * builds too (`q` -> `G0`, `i` -> `s`), so each call site supplies the names observed on
@@ -121,10 +176,10 @@ object CameraResolver {
         names: List<String>,
         shape: (Method) -> Boolean = { true },
     ): Method? {
-        val method = clazz.declaredMethods.firstOrNull { m ->
+        val method = clazz.declaredMethods.filter { m ->
             m.name in names && shape(m) && !m.isSynthetic
-        } ?: run {
-            DebugLog.w(scope, "$key: no method named $names (matching shape) on ${clazz.name}")
+        }.singleOrNull() ?: run {
+            DebugLog.w(scope, "$key: method names $names plus signature did not identify one target on ${clazz.name}")
             return null
         }
         method.isAccessible = true
@@ -210,20 +265,101 @@ object CameraResolver {
     }
 
     /**
-     * Generic structural fallback for the device-config factory method: on every verified build
-     * the factory holds `public static <T> b` (the cached config instance) and a single static
-     * zero-arg method whose return type is exactly that field's type (the factory itself).
-     * This survives method renames (`q` -> `G0`) without knowing any name.
+     * Resolve the legacy model-mismatch gate when the host reuses its old method names for
+     * unrelated flags. The real gate is the static boolean facade method that asks the host's
+     * config factory for a config instance and returns that factory's fallback/mismatch state.
      */
-    fun findFactoryMethod(clazz: Class<*>): Method? {
-        val cacheField = runCatching {
-            clazz.getDeclaredField("b").takeIf { Modifier.isStatic(it.modifiers) }
-        }.getOrNull() ?: return null
-        return clazz.declaredMethods.firstOrNull { m ->
-            !m.isSynthetic &&
-                Modifier.isStatic(m.modifiers) &&
-                m.parameterTypes.isEmpty() &&
-                m.returnType == cacheField.type
-        }?.apply { isAccessible = true }
+    fun resolveConfigFallbackGate(
+        ctx: Ctx,
+        facade: Class<*>,
+        configType: Class<*>,
+        scope: String,
+    ): Method? {
+        val apkPath = ctx.appInfo?.sourceDir ?: return null
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            val methods = runCatching {
+                bridge.findMethod {
+                    matcher {
+                        declaredClass(facade.name, StringMatchType.Equals)
+                        paramCount(0)
+                        returnType(java.lang.Boolean.TYPE)
+                    }
+                }.filter { data ->
+                    data.className == facade.name && Modifier.isStatic(data.modifiers) &&
+                        data.paramCount == 0 && data.returnTypeName == "boolean" &&
+                        data.invokes.any { invoked ->
+                            invoked.isMethod && invoked.paramCount == 0 &&
+                                invoked.returnTypeName == configType.name
+                        }
+                }.mapNotNull { runCatching { it.getMethodInstance(ctx.classLoader) }.getOrNull() }
+                    .filter { method ->
+                        Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
+                            method.returnType == java.lang.Boolean.TYPE && facade == method.declaringClass
+                    }
+                    .distinctBy { it.toGenericString() }
+            }.getOrElse { emptyList() }
+            methods.singleOrNull()?.apply { isAccessible = true }
+                ?: run {
+                    DebugLog.w(scope, "config-fallback gate was not uniquely identified on ${facade.name}")
+                    null
+                }
+        }
+    }
+
+    /** Locate the camera's model-source resolver by its cache/decode/Class.forName call graph. */
+    fun resolveSourceNameResolver(ctx: Ctx, scope: String): Method? {
+        val info = ctx.appInfo ?: return null
+        val apkPath = info.sourceDir ?: return null
+        return DexKitManager.withBridge(apkPath) { bridge ->
+            val methods = runCatching {
+                bridge.findMethod {
+                    matcher {
+                        returnType(Class::class.java)
+                        paramTypes(String::class.java)
+                    }
+                }.filter { data ->
+                    Modifier.isStatic(data.modifiers) && data.paramCount == 1 &&
+                        data.paramTypeNames == listOf(String::class.java.name) &&
+                        data.returnTypeName == Class::class.java.name &&
+                        data.invokes.any { invoked ->
+                            invoked.declaredClassName == Class::class.java.name &&
+                                invoked.methodName == "forName" &&
+                                invoked.paramTypeNames == listOf(String::class.java.name) &&
+                                invoked.returnTypeName == Class::class.java.name
+                        } &&
+                        data.invokes.any { invoked ->
+                            invoked.declaredClassName == String::class.java.name &&
+                                invoked.methodName == "hashCode" && invoked.paramCount == 0 &&
+                                invoked.returnTypeName == Integer.TYPE.name
+                        } &&
+                        data.invokes.any { invoked ->
+                            invoked.declaredClassName in setOf("java.util.Map", "java.util.HashMap") &&
+                                invoked.methodName == "get" &&
+                                invoked.paramTypeNames == listOf(Any::class.java.name)
+                        } &&
+                        data.invokes.any { invoked ->
+                            invoked.declaredClassName == "java.lang.Integer" &&
+                                invoked.methodName == "valueOf" &&
+                                invoked.paramTypeNames == listOf(Integer.TYPE.name)
+                        } &&
+                        data.invokes.any { invoked ->
+                            invoked.isMethod && Modifier.isStatic(invoked.modifiers) &&
+                                invoked.paramTypeNames == listOf(Integer.TYPE.name, String::class.java.name) &&
+                                invoked.returnTypeName == String::class.java.name
+                        }
+                }.mapNotNull { runCatching { it.getMethodInstance(ctx.classLoader) }.getOrNull() }
+                    .filter { method ->
+                        Modifier.isStatic(method.modifiers) && method.parameterTypes.contentEquals(
+                            arrayOf(String::class.java)
+                        ) && method.returnType == Class::class.java
+                    }
+                    .distinctBy { it.toGenericString() }
+                }.getOrElse { emptyList() }
+            methods.singleOrNull()?.apply { isAccessible = true }
+                ?: run {
+                    DebugLog.w(scope, "source-name resolver was not uniquely identified by its cache/decode call graph (matches=${methods.size})")
+                    null
+                }
+        }
     }
 }

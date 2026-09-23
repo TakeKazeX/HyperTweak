@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -53,12 +54,9 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /**
  * Camera app (`com.android.camera`) feature unlocks.
  *
- * The flagship config-swap impersonation was removed at the user's request (2026-08-30):
- * the camera always runs its own real device config and every switch below unlocks
- * functionality directly on it — MasterLive / street / Leica style / legendary moment /
- * smart composition / content credentials / adaptive lens / ultra-HD quality, plus the
- * independent fake-LCC-theme switch and the custom-watermark editor. The on-picture
- * watermark and EXIF always carry this device's own brand + model.
+ * The camera normally runs its native device config. Leica Moment only opens its mode entry;
+ * Legendary Moment may select the camera's Madrid config when packaged. Extra mode switches
+ * target their own entries. The on-picture watermark and EXIF keep this device's own brand + model.
  *
  * Most switches need a camera app restart (the hooks are installed on attach); toggling
  * them afterwards is live unless a summary says otherwise.
@@ -112,11 +110,17 @@ fun CameraUnlockContent(
     var streetMode by remember {
         mutableStateOf(Preferences.cameraStreetMode())
     }
+    var ignoreDeviceMismatch by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
+    }
     var streetQuickLaunch by remember {
         mutableStateOf(Preferences.cameraStreetQuickLaunch())
     }
     var leicaStyle by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false))
+    }
+    var allShutterSounds by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
     }
     var ultraHdQuality by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false))
@@ -124,8 +128,11 @@ fun CameraUnlockContent(
     var selfieSettings by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false))
     }
-    var legendaryMoment by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, false))
+    var legendaryMomentMode by remember {
+        mutableStateOf(Preferences.cameraLegendaryMomentMode())
+    }
+    var legendaryExtraModes by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
     }
     var smartComposition by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false))
@@ -180,6 +187,15 @@ fun CameraUnlockContent(
         SmallTitle(stringResource(R.string.camera_unlock_features))
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             Column(Modifier.fillMaxWidth()) {
+                SwitchPreference(
+                    checked = ignoreDeviceMismatch,
+                    onCheckedChange = { enabled ->
+                        ignoreDeviceMismatch = enabled
+                        set(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
+                    summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
+                )
                 // 街拍 (mode 225) unlock selector: 新街拍 forces the street-support gate on
                 // the real config; 兼容模式街拍 opens the entry via its own module entry.
                 // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
@@ -213,19 +229,28 @@ fun CameraUnlockContent(
                     onCheckedChange = { enabled ->
                         leicaStyle = enabled
                         set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_leica_style_title),
-                        summary = stringResource(R.string.camera_unlock_leica_style_summary)
-                    )
-                    SwitchPreference(
-                        checked = ultraHdQuality,
-                        onCheckedChange = { enabled ->
-                            ultraHdQuality = enabled
-                            set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
-                        },
-                        title = stringResource(R.string.camera_unlock_ultra_hd_title),
-                        summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
-                    )
+                    },
+                    title = stringResource(R.string.camera_unlock_leica_style_title),
+                    summary = stringResource(R.string.camera_unlock_leica_style_summary)
+                )
+                SwitchPreference(
+                    checked = allShutterSounds,
+                    onCheckedChange = { enabled ->
+                        allShutterSounds = enabled
+                        set(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_all_shutter_sounds_title),
+                    summary = stringResource(R.string.camera_unlock_all_shutter_sounds_summary)
+                )
+                SwitchPreference(
+                    checked = ultraHdQuality,
+                    onCheckedChange = { enabled ->
+                        ultraHdQuality = enabled
+                        set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_ultra_hd_title),
+                    summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
+                )
                 SwitchPreference(
                     checked = selfieSettings,
                     onCheckedChange = { enabled ->
@@ -235,14 +260,30 @@ fun CameraUnlockContent(
                     title = stringResource(R.string.camera_unlock_selfie_settings_title),
                     summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
                 )
-                SwitchPreference(
-                    checked = legendaryMoment,
-                    onCheckedChange = { enabled ->
-                        legendaryMoment = enabled
-                        set(Preferences.KEY_CAMERA_LEGENDARY_MOMENT, enabled, needsRestart = true)
-                    },
+                OverlayDropdownPreference(
                     title = stringResource(R.string.camera_unlock_legendary_moment_title),
-                    summary = stringResource(R.string.camera_unlock_legendary_moment_summary)
+                    summary = stringResource(R.string.camera_unlock_legendary_moment_summary),
+                    items = listOf(
+                        stringResource(R.string.camera_unlock_legendary_moment_off),
+                        stringResource(R.string.camera_unlock_legendary_moment_leica),
+                        stringResource(R.string.camera_unlock_legendary_moment_legendary)
+                    ),
+                    selectedIndex = CameraLegendaryMomentMode.index(legendaryMomentMode),
+                    onSelectedIndexChange = { index ->
+                        val mode = CameraLegendaryMomentMode.fromIndex(index)
+                        legendaryMomentMode = mode
+                        requestCameraRestart()
+                        Preferences.setCameraLegendaryMomentMode(mode)
+                    },
+                )
+                SwitchPreference(
+                    checked = legendaryExtraModes,
+                    onCheckedChange = { enabled ->
+                        legendaryExtraModes = enabled
+                        set(Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled, needsRestart = true)
+                    },
+                    title = stringResource(R.string.camera_unlock_legendary_extra_modes_title),
+                    summary = stringResource(R.string.camera_unlock_legendary_extra_modes_summary)
                 )
                 SwitchPreference(
                     checked = smartComposition,

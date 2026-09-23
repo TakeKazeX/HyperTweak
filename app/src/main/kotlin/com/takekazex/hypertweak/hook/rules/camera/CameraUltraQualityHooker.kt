@@ -1,145 +1,137 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import android.content.res.Resources
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Pin-unlocks the camera's 超高 (SUPER) image-quality option (`com.android.camera`,
- * MiuiCamera). Verified against 6.6.000460.0 and 6.6.000510.0 (the gate is byte-identical on
- * both); reverse-engineering notes live in the reverse workspace at
- * `cache/camera-8f41d7b82453cdeb/`.
- *
- * 设置 → 图片质量 (`SettingImageQuality`, pref key `pref_camera_jpegquality_key`) only offers
- * the 超高 entry while the per-device capability config reports `l7() == true`. Three call
- * sites read that single gate:
- *  - the capture-mode option list (`features/mode/capture/Y`, "SettingImageQuality" case,
- *    ~L3489) and the settings-page entry (`fragment/settings/e`, same key, ~L1665) prepend
- *    超高 (`R.string.h72` / value list `R.string.h77`) at index 0 only when
- *    `Je.c.b.f8427a.f8420e.l7()`;
- *  - the quality clamp `com.android.camera.data.data.j#t()` (~L4417) caps the effective
- *    selection at `F1.g3.SUPER` when `l7()` is true, else at `HIGH` — so a stored 超高 value
- *    silently degrades to 高 without the gate.
- *
- * The quality enum `F1.g3` is plain JPEG-quality pairs: LOW(67,81) NORMAL(87,89) HIGH(96,95)
- * SUPER(100,100) persisted under `pref_camera_jpegquality_key`. There is no HAL dependency in
- * the gate, so forcing it true only widens the settings UI and raises the clamp.
- *
- * `l7()` is declared ONCE on the config base class (jadx `C1174` on 510, `C1143` on 460) as
- * `return this instanceof C1148` — a flagship-only marker check — and is NOT overridden by the
- * configs that matter here: this device's own `com.mi.device.Myron` (C1196) and the K100
- * Pro Max impersonation target `com.mi.device.Songyuan` (C1200) both inherit it -> false ->
- * 超高 hidden. Only the Nezha flagship family (C1160/C1204/C1209) overrides it final-true.
- * Hooking the base's declared Method therefore intercepts every subclass instance that does
- * not override it — one hook covers both the native and the K100-impersonated path. With the
- * legacy `nezha` impersonation target the config class overrides `l7()` as final-true, so the
- * hook does not fire there and 超高 stays visible regardless of this switch (native flagship
- * behaviour; the default `k100promax` target IS covered).
- *
- * Read live from [Preferences.KEY_CAMERA_ULTRA_HD_QUALITY] (default OFF = 固定解锁). When off,
- * the hook forces false — exactly the stock value on this device — which also re-clamps a
- * stale stored 超高 selection back to 高 through `j#t()`. Toggling takes effect the next time
- * the quality option list is built or the clamp runs (no camera restart once hooks are
- * installed; the first enable needs one, like every hooker installed on attach).
+/** Unlocks 超高图片质量 and selfie settings through feature keys, config ABI, and resource
+ * content. Camera releases move these owners and generated resource IDs, so this hook resolves
+ * the quality provider from its preference key, the selfie gates from the mirror preference,
+ * and translated mirror labels from resource text. Each target must satisfy its full signature.
  */
 object CameraUltraQualityHooker : StaticHooker() {
     private const val TAG = "CamUltraQuality"
     private const val PACKAGE = "com.android.camera"
+    private val mirrorTextIds = ConcurrentHashMap<String, Int>()
 
-    /**
-     * Device-config facade `Je.c` — identical dex name on 6.6.000460.0 and 6.6.000510.0
-     * (same candidates as CameraImpersonationHooker.CONFIG_FACADE_CANDIDATES; kept local so
-     * this hooker stays independent of that class's private constants).
-     */
-    private val CONFIG_FACADE_CANDIDATES = listOf("Je.b", "Je.c")
+    private val hostProfile by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        CameraHostProfile.resolve(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG)
+    }
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        installHooks()
+        CameraApplicationInit.afterConfigProviderCreate(this) {
+            installHooks()
+        }
     }
 
     private fun installHooks() {
-        val gate = resolveSuperQualityGate() ?: run {
-            DebugLog.w(TAG, "config l7 gate not resolved; ultra image-quality unlock skipped")
-            return
-        }
-        deoptimize(gate)
-        gate.hook("cam_ultra_hd_quality") {
-            before { param ->
-                // Always short-circuit (set result, never proceed): forcing false while the
-                // switch is off equals the stock value on this device (inherited l7()=false),
-                // so always setting changes nothing when off and additionally clamps a stale
-                // stored 超高 selection back to 高 via j#t().
-                param.result = cameraUltraHdQuality()
+        if (hostProfile?.family == CameraHostProfile.Family.CAMERA_66) {
+            val gate = resolveSuperQualityGate()
+            if (gate != null) {
+                deoptimize(gate)
+                gate.hook("cam_ultra_hd_quality") {
+                    before { param -> param.result = cameraUltraHdQuality() }
+                }
+                DebugLog.d(TAG, "ultra image-quality gate hooked on ${gate.declaringClass.name}#${gate.name}()")
+            } else {
+                DebugLog.w(TAG, "legacy config l7 gate not resolved; ultra image-quality unlock skipped")
             }
+        } else if (hostProfile?.family == CameraHostProfile.Family.CAMERA_68) {
+            hookModernImageQuality()
         }
-        DebugLog.d(
-            TAG,
-            "ultra image-quality gate hooked on ${gate.declaringClass.name}#${gate.name}()"
-        )
+        // Selfie settings have independent host targets and must survive a quality-gate rename.
         hookSelfieCapabilityGates()
         hookSelfieMirrorPreference()
         hookCommonMirrorPreference()
     }
 
     /**
-     * Resolve the `l7()` Method on the config hierarchy through the `Je.c` facade.
-     *
-     * Channel A (static; touches no instance, so nothing is initialized prematurely): the
-     * facade's config field `e` (jadx alias `f8420e`) is declared with the config base type;
-     * `type.getMethod("l7")` walks the hierarchy and returns the Method of the class that
-     * actually DECLARES it — exactly the Method inherited dispatch executes for subclasses
-     * without an override.
-     *
-     * Channel B (runtime fallback for a renamed facade field): read the live singleton
-     * `Je.c$b.a` -> its config field -> the concrete config class -> the same declaring
-     * Method. Reached only when channel A fails; by then the impersonation factory hook
-     * (attached before this hooker in HookEntry) already owns the singleton, so reading it
-     * cannot race the impersonation.
+     * Camera 6.8 inlined the old `l7()` gate: its quality lists are fixed 3-entry resources
+     * and `data.data.i#t()` always clamps SUPER back to HIGH. Extend the two specific host
+     * arrays and the final clamp while the switch is on. The resource values and enum shape
+     * are checked before each replacement, so an updated APK with reused IDs passes through.
      */
+    private fun hookModernImageQuality() {
+        val arrayIds = runCatching {
+            val owner = classLoader.loadClass("com.android.camera.R\$array")
+            owner.getField("di").getInt(null) to owner.getField("dj").getInt(null)
+        }.getOrNull() ?: run {
+            DebugLog.w(TAG, "6.8 image-quality resource IDs not resolved")
+            return
+        }
+        val (labelsId, valuesId) = arrayIds
+        val arrays = Resources::class.java.getMethod("getStringArray", Int::class.javaPrimitiveType)
+        deoptimize(arrays)
+        arrays.hook("cam_ultra_quality_lists") {
+            after { param ->
+                if (!cameraUltraHdQuality()) return@after
+                val id = param.args.getOrNull(0) as? Int ?: return@after
+                val values = param.result as? Array<*> ?: return@after
+                if (values.any { it !is String }) return@after
+                @Suppress("UNCHECKED_CAST")
+                val strings = values as Array<String>
+                when (id) {
+                    valuesId -> if (strings.contentEquals(arrayOf("high", "normal", "low"))) {
+                        param.result = arrayOf("super", *strings)
+                    }
+                    labelsId -> if (strings.size == 3) {
+                        val resources = param.thisObject as? Resources ?: return@after
+                        val language = resources.configuration.locales[0].language
+                        param.result = arrayOf(if (language == "zh") "超高" else "Ultra", *strings)
+                    }
+                }
+            }
+        }
+
+        val settings = CameraFeatureResolver.qualitySettings(
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
+        ) ?: return
+        val selectedQuality = runCatching {
+            settings.getDeclaredMethod("R", String::class.java, String::class.java).takeIf {
+                Modifier.isStatic(it.modifiers) && it.returnType == String::class.java
+            }
+        }.getOrNull() ?: return
+        val effectiveQuality = runCatching {
+            settings.getDeclaredMethod("t").takeIf {
+                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && it.returnType.isEnum
+            }
+        }.getOrNull() ?: return
+        deoptimize(effectiveQuality)
+        effectiveQuality.hook("cam_ultra_quality_clamp") {
+            after { param ->
+                if (!cameraUltraHdQuality()) return@after
+                val stored = runCatching {
+                    selectedQuality.invoke(null, "pref_camera_jpegquality_key", "high") as? String
+                }.getOrNull() ?: return@after
+                if (!stored.equals("super", ignoreCase = true)) return@after
+                val superQuality = effectiveQuality.returnType.enumConstants?.firstOrNull {
+                    (it as? Enum<*>)?.name == "SUPER"
+                } ?: return@after
+                param.result = superQuality
+            }
+        }
+        DebugLog.i(TAG, "6.8 ultra image-quality lists and clamp hooked")
+    }
+
+    /** Resolve the legacy gate through the structurally selected device-config field type. */
     private fun resolveSuperQualityGate(): Method? {
-        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val facade = CameraResolver.resolveClass(
-            scope = TAG, key = "ultra_hd_facade", ctx = ctx,
-            candidates = CONFIG_FACADE_CANDIDATES,
-            validate = { c ->
-                c.declaredMethods.any {
-                    it.name == "x" && it.parameterTypes.isEmpty() && it.returnType == String::class.java
-                }
-            },
-        ) ?: run {
-            DebugLog.w(TAG, "Je.c facade not resolved; cannot derive config class")
-            return null
-        }
-        // Channel A: declared config-field type -> declaring Method of l7().
-        resolveField(facade, "e", "f8420e")?.let { configField ->
-            runCatching { configField.type.getMethod("l7") }.getOrNull()
-                ?.takeIf(::isSuperQualityGate)
-                ?.let {
-                    DebugLog.d(TAG, "config gate resolved via facade field type ${configField.type.name}")
-                    return it
-                }
-        }
-        // Channel B: live singleton's concrete config class -> same declaring Method. The holder
-        // was `Je.c$b` on 460/510 and `Je.b$C0165b` on 540, so discover it by its static field
-        // type instead of baking another R8-generated nested-class name.
-        runCatching {
-            val singleton = facade.declaredClasses.asSequence()
-                .flatMap { it.declaredFields.asSequence() }
-                .firstOrNull {
-                    Modifier.isStatic(it.modifiers) && it.type == facade
-                }?.apply { isAccessible = true }?.get(null) ?: return@runCatching
-            val config = resolveField(singleton.javaClass, "e", "f8420e")
-                ?.apply { isAccessible = true }?.get(singleton) ?: return@runCatching
-            config.javaClass.getMethod("l7").takeIf(::isSuperQualityGate)?.let {
-                DebugLog.d(TAG, "config gate resolved via live config ${config.javaClass.name}")
+        val profile = hostProfile ?: return null
+        runCatching { profile.configType.getMethod("l7") }
+            .getOrNull()?.takeIf(::isSuperQualityGate)?.let {
+                DebugLog.d(TAG, "legacy config gate resolved via ${profile.configType.name}")
                 return it
             }
-        }.onFailure { t ->
-            DebugLog.w(TAG, "live config instance fallback failed (defensive)", t)
+        profile.configInstance()?.javaClass?.let { concrete ->
+            runCatching { concrete.getMethod("l7") }
+                .getOrNull()?.takeIf(::isSuperQualityGate)?.let {
+                    DebugLog.d(TAG, "legacy config gate resolved via ${concrete.name}")
+                    return it
+                }
         }
         DebugLog.w(TAG, "no zero-arg boolean l7() found on the config hierarchy")
         return null
@@ -151,14 +143,6 @@ object CameraUltraQualityHooker : StaticHooker() {
             method.returnType == java.lang.Boolean.TYPE &&
             !Modifier.isStatic(method.modifiers)
 
-    /** Resolve a field by its real dex name, falling back to the jadx alias. */
-    private fun resolveField(clazz: Class<*>, vararg names: String): Field? {
-        for (name in names) {
-            runCatching { clazz.getDeclaredField(name) }.getOrNull()?.let { return it }
-        }
-        return null
-    }
-
     /**
      * Live read of the 超高图片质量 pin switch (same accessor pattern as the impersonation
      * hookers' `streetEnable()` / `masterliveTeleFallback()`; served from the 100 ms
@@ -168,9 +152,9 @@ object CameraUltraQualityHooker : StaticHooker() {
         Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false)
 
     private fun hookSelfieMirrorPreference() {
-        val clazz = runCatching {
-            classLoader.loadClass("com.android.camera.fragment.settings.capture.SelfieSettingFragment")
-        }.getOrNull() ?: return
+        val clazz = CameraFeatureResolver.selfieSettings(
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
+        ) ?: return
         val method = clazz.declaredMethods.firstOrNull {
             it.name == "addCurrentPreferences" && it.parameterCount == 0
         } ?: return
@@ -179,21 +163,23 @@ object CameraUltraQualityHooker : StaticHooker() {
             before { param ->
                 if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
                 runCatching {
-                    val base = clazz.superclass
-                    val groupField = generateSequence(base) { it.superclass }
+                    val resources = clazz.getMethod("getResources").invoke(param.thisObject) as Resources
+                    val titleId = hostStringId(resources, title = true) ?: return@runCatching
+                    val summaryId = hostStringId(resources, title = false) ?: return@runCatching
+                    val base: Class<*> = clazz.superclass ?: return@runCatching
+                    val groupField = generateSequence<Class<*>>(base) { it.superclass }
                         .flatMap { it.declaredFields.asSequence() }
                         .first { it.name == "mPreferenceGroup" }
                         .apply { isAccessible = true }
                     val group = groupField.get(param.thisObject) ?: return@runCatching
-                    val add = generateSequence(base) { it.superclass }
+                    val add = generateSequence<Class<*>>(base) { it.superclass }
                         .flatMap { it.declaredMethods.asSequence() }
                         .first {
                             it.name == "addCheckBoxPreference" && it.parameterTypes.size == 5 &&
                                 it.parameterTypes[0].isAssignableFrom(group.javaClass)
                         }
                         .apply { isAccessible = true }
-                    // Resource IDs are from the exact 6.6.000550.0 camera APK under test.
-                    add.invoke(param.thisObject, group, "pref_front_mirror_boolean_key", true, 0x7f141056, 0x7f14104f)
+                    add.invoke(param.thisObject, group, "pref_front_mirror_boolean_key", true, titleId, summaryId)
                 }.onFailure {
                     DebugLog.w(TAG, "native selfie mirror preference creation skipped", it)
                 }
@@ -201,10 +187,28 @@ object CameraUltraQualityHooker : StaticHooker() {
         }
     }
 
+    /** Find host string resources by their localized content so resource IDs/names may move. */
+    private fun hostStringId(resources: Resources, title: Boolean): Int? {
+        val language = runCatching { resources.configuration.locales[0].language }.getOrDefault("en")
+        val titleValue = if (language == "zh") "自拍镜像" else "Mirror front camera"
+        val summaryValue = if (language == "zh") "自拍场景下，成片与预览画面完全一致" else "Selfies will match the preview"
+        val value = if (title) titleValue else summaryValue
+        return mirrorTextIds[value] ?: runCatching {
+            val strings = classLoader.loadClass("com.android.camera.R\$string")
+            val matchingIds = strings.declaredFields.asSequence()
+                .filter { Modifier.isStatic(it.modifiers) && it.type == Integer.TYPE }
+                .mapNotNull { field -> runCatching { field.getInt(null) }.getOrNull() }
+                .distinct()
+                .filter { id -> runCatching { resources.getString(id) == value }.getOrDefault(false) }
+                .toList()
+            matchingIds.singleOrNull()?.also { mirrorTextIds[value] = it }
+        }.getOrNull()
+    }
+
     private fun hookCommonMirrorPreference() {
-        val clazz = runCatching {
-            classLoader.loadClass("com.android.camera.fragment.settings.CameraCommonPreferenceFragment")
-        }.getOrNull() ?: return
+        val clazz = CameraFeatureResolver.commonSettings(
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
+        ) ?: return
         val method = clazz.declaredMethods.firstOrNull {
             it.name == "addCommonPreferences1" && it.parameterCount == 0
         } ?: return
@@ -241,14 +245,36 @@ object CameraUltraQualityHooker : StaticHooker() {
      * unconditionally here, which unlocked the selfie capabilities even with the switch off.
      */
     private fun hookSelfieCapabilityGates() {
-        val clazz = runCatching { classLoader.loadClass("com.android.camera.data.data.v") }.getOrNull()
+        val modern = hostProfile?.family == CameraHostProfile.Family.CAMERA_68
+        val names = if (modern) listOf("E", "e0", "a0", "R0") else listOf("F", "c0", "Y", "O0")
+        val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
+        val clazz = CameraResolver.resolveClass(
+            scope = TAG,
+            key = "selfie_capability_owner",
+            ctx = ctx,
+            candidates = emptyList(),
+            probe = { bridge ->
+                bridge.findClass { matcher { usingStrings("pref_front_mirror_boolean_key") } }
+                    .mapNotNull { runCatching { it.getInstance(classLoader) }.getOrNull() }
+                    .filter { owner -> hasSelfieGateSurface(owner, names) }
+                    .distinctBy { it.name }
+                    .singleOrNull()?.name
+            },
+            validate = { hasSelfieGateSurface(it, names) },
+        )
             ?: return
-        var hooked = 0
-        listOf("F", "Y", "c0", "O0").forEach { name ->
-            val method = clazz.declaredMethods.firstOrNull {
+        val gates = names.map { name ->
+            clazz.declaredMethods.filter {
                 it.name == name && Modifier.isStatic(it.modifiers) &&
-                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-            } ?: return@forEach
+                    it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE && !it.isSynthetic
+            }.singleOrNull()
+        }
+        if (gates.any { it == null }) {
+            DebugLog.w(TAG, "selfie capability gates incomplete on ${clazz.name}; skipped")
+            return
+        }
+        gates.filterNotNull().forEach { method ->
+            val name = method.name
             deoptimize(method)
             method.hook("cam_selfie_unlock_$name") {
                 before { param ->
@@ -256,8 +282,15 @@ object CameraUltraQualityHooker : StaticHooker() {
                     param.result = true
                 }
             }
-            hooked++
         }
-        DebugLog.i(TAG, "selfie capability gates hooked=$hooked (raise-only, selfie switch gated)")
+        DebugLog.i(TAG, "selfie capability gates hooked=${gates.size} on ${clazz.name}")
     }
+
+    private fun hasSelfieGateSurface(clazz: Class<*>, names: List<String>): Boolean =
+        names.all { name ->
+            clazz.declaredMethods.count {
+                it.name == name && Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Boolean.TYPE && !it.isSynthetic
+            } == 1
+        }
 }

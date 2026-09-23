@@ -68,18 +68,30 @@ class CameraResolverTest {
     }
 
     @Test
-    fun `structural factory recognition is name independent`() {
-        // 510 renamed q -> G0; the shape rule (static zero-arg returning the field-b type) finds it.
-        val newFactory = CameraResolver.findFactoryMethod(CameraFixtures.Factory510::class.java)
+    fun `method resolver checks the return type along with static factory shape`() {
+        val newFactory = CameraResolver.resolveMethod(
+            scope = "test", key = "factory",
+            clazz = CameraFixtures.Factory510::class.java,
+            names = listOf("G0"),
+            shape = {
+                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == CameraFixtures.Factory510::class.java
+            },
+        )
         assertNotNull(newFactory)
         assertEquals("G0", newFactory!!.name)
 
-        val oldFactory = CameraResolver.findFactoryMethod(CameraFixtures.Factory460::class.java)
-        assertNotNull(oldFactory)
-        assertEquals("q", oldFactory!!.name)
-
-        // A class whose factory method vanished is NOT matched by the structural rule.
-        assertNull(CameraResolver.findFactoryMethod(CameraFixtures.FactoryBroken::class.java))
+        // A same-name method with the wrong return type must not satisfy the host contract.
+        val wrongReturn = CameraResolver.resolveMethod(
+            scope = "test", key = "factory",
+            clazz = CameraFixtures.FactoryBroken::class.java,
+            names = listOf("q"),
+            shape = {
+                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                    it.returnType == CameraFixtures.Factory510::class.java
+            },
+        )
+        assertNull(wrongReturn)
     }
 
     @Test

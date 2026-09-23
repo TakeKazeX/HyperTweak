@@ -109,6 +109,8 @@ import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraDeviceMismatchHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraLegendaryProfileHooker
 import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
@@ -911,13 +913,16 @@ class HookEntry : XposedModule() {
                 attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.camera" -> {
+                // Runs before Camera.onCreate; the after-hook preserves model-config initialization
+                // while suppressing only the APK/device mismatch exit guard when opted in.
+                attachHooker(CameraDeviceMismatchHooker, classLoader, ctx, replacementHandles)
+                // Register profile selection after the camera config provider initializes it.
+                attachHooker(CameraLegendaryProfileHooker, classLoader, ctx, replacementHandles)
                 attachHooker(CameraWatermarkHooker, classLoader, ctx, replacementHandles)
-                // Must attach after CameraWatermarkHooker: both touch Je.c#x(), and the
-                // impersonation override needs to win (later callback) when both are on.
+                // Must attach after CameraWatermarkHooker so its device-logo hook and the
+                // camera feature hooks share the structurally resolved config facade.
                 attachHooker(CameraImpersonationHooker, classLoader, ctx, replacementHandles)
-                // Must attach after CameraImpersonationHooker: the ultra-quality gate is
-                // resolved through the same Je.c facade, and its live-singleton fallback only
-                // reads the config after the impersonation factory hook owns it.
+                // Queue config-dependent hooks behind provider initialization and profile selection.
                 attachHooker(CameraUltraQualityHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.providers.downloads" -> {

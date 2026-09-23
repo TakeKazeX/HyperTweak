@@ -789,6 +789,35 @@ object Preferences {
         }
     }
 
+    /**
+     * Current Leica/Legendary Moment selector. Leica Moment opens its entry on the native
+     * config; Legendary Moment uses Madrid only when the camera package contains that config.
+     * A missing new key migrates the old Boolean (true → Leica Moment).
+     */
+    fun cameraLegendaryMomentMode(): String {
+        val stored = if (contains(KEY_CAMERA_LEGENDARY_MOMENT_MODE)) {
+            getString(KEY_CAMERA_LEGENDARY_MOMENT_MODE, "")
+        } else {
+            null
+        }
+        val legacy = if (stored == null && contains(KEY_CAMERA_LEGENDARY_MOMENT)) {
+            getBoolean(KEY_CAMERA_LEGENDARY_MOMENT, false)
+        } else {
+            null
+        }
+        return CameraLegendaryMomentMode.resolve(stored, legacy)
+    }
+
+    /** Persists the selected name and drops the superseded Boolean. */
+    fun setCameraLegendaryMomentMode(mode: String) {
+        memoInvalidate(KEY_CAMERA_LEGENDARY_MOMENT_MODE)
+        memoInvalidate(KEY_CAMERA_LEGENDARY_MOMENT)
+        write {
+            putString(KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
+            remove(KEY_CAMERA_LEGENDARY_MOMENT)
+        }
+    }
+
     /** True when [key] exists in the authoritative remote store (memo bypassed). */
     private fun containsKey(key: String): Boolean =
         isInitialized && runCatching { remotePrefs.contains(key) }.getOrDefault(false)
@@ -812,6 +841,14 @@ object Preferences {
     const val KEY_WM_CAMERA = "wm_camera"
 
     /**
+     * Continue past the camera APK's device-configuration mismatch guard; see
+     * [com.takekazex.hypertweak.hook.rules.camera.CameraDeviceMismatchHooker]. Default off.
+     * Selecting the Nezha/Madrid Legendary profile also bypasses the guard after the target ABI
+     * has been verified.
+     */
+    const val KEY_CAMERA_IGNORE_DEVICE_MISMATCH = "camera_ignore_device_mismatch"
+
+    /**
      * Fake the Leica LCC theme gate (`Je.c#V()`) for the camera app; see
      * `CameraImpersonationHooker`. Unlocks features gated on the LCC theme (e.g. 徕卡一瞬)
      * and keeps the 相机配色 settings entry visible, WITHOUT the flagship config swap and
@@ -833,6 +870,9 @@ object Preferences {
      * from crashing the list). Default off.
      */
     const val KEY_CAMERA_LEICA_STYLE = "camera_impersonate_leica_style"
+
+    /** Adds the Leica shutter-sound choices without requiring a flagship camera profile. */
+    const val KEY_CAMERA_ALL_SHUTTER_SOUNDS = "camera_all_shutter_sounds"
 
     /**
      * MasterLive (实况运镜) role-23 (`Standalone`) -> role-20 (`tele`) fallback on the role
@@ -920,20 +960,13 @@ object Preferences {
     /** Put 自拍镜像 inside the camera's 自拍设置 page instead of 通用设置. */
     const val KEY_CAMERA_SELFIE_SETTINGS = "camera_selfie_settings"
 
-    /**
-     * 徕卡一瞬 (Leica Moment, camera mode id 256, jadx class `LegendaryEnter`) unlock; enabled
-     * manual on every device, off by default. The entry registry (`p666t3.a.d()`) keeps a module entry only while its
-     * `support()` is true, and `LegendaryEnter.support()` is
-     * `Je.c.W0() && Je.c.V()`: W0() demands the 17-Ultra Nezha config class
-     * (`instanceof com.mi.device.Nezha`, jadx C1209 on 6.6.000510.0) and V() the LCC
-     * theme customisation (`ro.theme_customize == "lcc"`), so every non-flagship,
-     * non-LCC device ships the mode closed. With this switch on,
-     * [com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker] raises
-     * `LegendaryEnter.support()` to true, which registers mode 256 into the 更多 overflow
-     * grid — no verified config `M()` order array carries 256. Needs a camera app restart
-     * (the registry caches per process). The RAW/re-processing pipeline behind the mode is
-     * NOT validated on non-flagship HALs; turn it off if colours misbehave.
-     */
+    /** Current Leica/Legendary Moment target-profile selector. */
+    const val KEY_CAMERA_LEGENDARY_MOMENT_MODE = "camera_legendary_moment_mode"
+
+    /** Optional 200MP Pixel item and Cinematic mode entry. */
+    const val KEY_CAMERA_LEGENDARY_EXTRA_MODES = "camera_legendary_extra_modes"
+
+    /** Legacy single-switch value, migrated by [cameraLegendaryMomentMode]. */
     const val KEY_CAMERA_LEGENDARY_MOMENT = "camera_legendary_moment"
 
     /**
