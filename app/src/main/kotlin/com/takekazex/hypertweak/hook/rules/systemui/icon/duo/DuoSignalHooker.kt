@@ -66,6 +66,8 @@ object DuoSignalHooker : StaticHooker() {
     private var panelProgress = 0f
     private var panelVisible = false
     private var panelStretchHeight = 0f
+    private var shadeSwitchSuspended = false
+    private var shadeSwitchSettledToControlCenter = false
     private var expandedStyle = DuoExpandedStyle.RESTORE_NATIVE
     private var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
     @Volatile private var small5GaEnabled = false
@@ -748,10 +750,18 @@ object DuoSignalHooker : StaticHooker() {
         } ?: return
         deoptimize(method)
         method.hook {
-            before { guarded { bindings.values.toList().forEach(::restoreProxyPosition) } }
+            before { guarded {
+                if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+                    clearShadeSwitchMotion()
+                } else {
+                    bindings.values.toList().forEach(::restoreProxyPosition)
+                }
+            } }
             after { param -> guarded {
+                if (ControlCenterCarrierBlockHooker.isShadeSwitching()) return@guarded
                 val progress = param.args.getOrNull(0) as? Float ?: return@guarded
                 if (progress !in 0f..1f) return@guarded
+                if (progress < 0.999f) shadeSwitchSettledToControlCenter = false
                 panelProgress = progress
                 if (progress > 0f) panelVisible = true
                 bindings.values.toList().forEach(::updatePanelBinding)
@@ -764,17 +774,64 @@ object DuoSignalHooker : StaticHooker() {
         }
         type.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.hook {
             after { param -> guarded {
+                if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+                    clearShadeSwitchMotion()
+                    return@guarded
+                }
                 panelVisible = param.args.getOrNull(0) == true
-                if (!panelVisible) { panelProgress = 0f; panelStretchHeight = 0f }
+                if (!panelVisible) {
+                    panelProgress = 0f
+                    panelStretchHeight = 0f
+                    shadeSwitchSettledToControlCenter = false
+                }
                 bindings.values.toList().forEach(::updatePanelBinding)
             } }
         }
         type.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.hook {
             after { param -> guarded {
+                if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+                    clearShadeSwitchMotion()
+                    return@guarded
+                }
                 if (param.args.getOrNull(0) == true) panelVisible = true
                 // Appearance can swap rows before the finger is released. Keep the actual fraction.
                 bindings.values.toList().forEach(::updatePanelBinding)
             } }
+        }
+    }
+
+    /** The shade switch owns this motion; never replay the proxy/Wi-Fi hand-over on that path. */
+    private fun clearShadeSwitchMotion() {
+        if (shadeSwitchSuspended) return
+        shadeSwitchSuspended = true
+        shadeSwitchSettledToControlCenter = false
+        panelProgress = 0f
+        panelVisible = false
+        panelStretchHeight = 0f
+        bindings.values.toList().forEach { binding ->
+            clearPanelMotion(binding)
+            clearSignalMotions(binding)
+            restoreProxyPosition(binding)
+        }
+    }
+
+    internal fun onShadeSwitchStarted() {
+        if (enabled) guarded { clearShadeSwitchMotion() }
+    }
+
+    internal fun onShadeSwitchFinished(controlCenterVisible: Boolean) {
+        if (!enabled) return
+        guarded {
+            shadeSwitchSuspended = false
+            shadeSwitchSettledToControlCenter = controlCenterVisible
+            panelVisible = controlCenterVisible
+            panelProgress = if (controlCenterVisible) 1f else 0f
+            panelStretchHeight = 0f
+            bindings.values.toList().forEach { binding ->
+                clearPanelMotion(binding)
+                clearSignalMotions(binding)
+                restoreProxyPosition(binding)
+            }
         }
     }
 
@@ -943,6 +1000,13 @@ object DuoSignalHooker : StaticHooker() {
     private fun updatePanelBinding(binding: Binding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
         fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
+        if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+            clearPosition()
+            return
+        }
+        // The host just switched between full shade pages. A later expansion=1 callback must not
+        // start the six-frame home-to-carrier settle from the cleared proxy's progress=0.
+        if (shadeSwitchSettledToControlCenter && panelProgress >= 0.999f) return
         if (!binding.active || !panelVisible) { clearPosition(); return }
         val proxyRoot = ancestor(binding.view,
             "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
@@ -1295,7 +1359,7 @@ object DuoSignalHooker : StaticHooker() {
     }
     override fun saveHotReloadState(): Any? = onMainBlocking {
         listOf(wifiScope, wifiInteractor, wifiContext, bindings.keys.toList(),
-            panelProgress, panelVisible, panelStretchHeight)
+            panelProgress, panelVisible, panelStretchHeight, shadeSwitchSettledToControlCenter)
     }
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
@@ -1304,6 +1368,7 @@ object DuoSignalHooker : StaticHooker() {
             panelProgress = saved.getOrNull(4) as? Float ?: 0f
             panelVisible = saved.getOrNull(5) as? Boolean ?: false
             panelStretchHeight = saved.getOrNull(6) as? Float ?: 0f
+            shadeSwitchSettledToControlCenter = saved.getOrNull(7) as? Boolean ?: false
             val scope = saved.getOrNull(0); val interactor = saved.getOrNull(1); val context = saved.getOrNull(2) as? Context
             if (scope != null && interactor != null && context != null) bindWifi(scope, interactor, context)
             (saved.getOrNull(3) as? List<*>)?.filterIsInstance<View>()?.filter { it.isAttachedToWindow }?.forEach(::attach)
@@ -1342,6 +1407,7 @@ object DuoSignalHooker : StaticHooker() {
             slotIndices = emptyMap()
             mobile = MobileSignalState(); network = DuoNetwork()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
+            shadeSwitchSuspended = false; shadeSwitchSettledToControlCenter = false
         }
     }
 }

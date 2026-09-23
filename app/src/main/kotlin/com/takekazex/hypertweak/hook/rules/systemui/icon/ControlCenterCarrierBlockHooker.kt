@@ -26,6 +26,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -54,6 +55,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val LAYOUT_CLASS = "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout"
     private const val ROW_CLASS = "com.android.systemui.controlcenter.shade.ControlCenterCarrierText"
+    private const val COMBINED_HEADER_CLASS =
+        "com.android.systemui.controlcenter.shade.CombinedHeaderController"
     private const val STATUS_ICON_CONTAINER_CLASS =
         "com.android.systemui.statusbar.views.MiuiStatusIconContainer"
     private const val WIFI_VM_CLASS =
@@ -72,16 +75,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private const val SIGNAL_ALPHA_BG = 0.4f
     private const val SIGNAL_ALPHA_ERROR = 0.2f
     private const val SIGNAL_SVG_STYLE_IOS = 1
-
-    /**
-     * Settle ramp for a hand-over the host finished in one step (fling / tap / programmatic open):
-     * ~145 ms of travel, short enough to be over while the panel is still settling.
-     */
-    private const val SETTLE_FRAMES = 6
-    private const val SETTLE_FRAME_MS = 24L
-
-    /** Below this remaining travel the glyph is already at its endpoint; no ramp is started. */
-    private const val SETTLE_MIN_DELTA = 0.05f
 
     private val main = Handler(Looper.getMainLooper())
     private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
@@ -112,6 +105,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
     @Volatile private var keepTypeOnWifi = false
+    @Volatile private var shadeSwitching = false
+    @Volatile private var hostShadeSwitching = false
+    @Volatile private var shadeSwitchProgress = 0f
+
+    internal fun isShadeSwitching(): Boolean = shadeSwitching
     private var showBadge = true
     private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
@@ -141,10 +139,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var wifiLevel: Int? = null
     private var progress = 0f
     private var panelVisible = false
-
-    /** Fraction the overlay last drew with, so a boundary call can finish the travel from there. */
-    private var handoverProgress = 0f
-    private var settleRamp: Runnable? = null
 
     private class Artwork(val single: IconSvgSnapshot, val wifi: IconSvgSnapshot)
 
@@ -280,7 +274,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false
-        cancelSettleRamp()
+        shadeSwitching = false
+        hostShadeSwitching = false
+        shadeSwitchProgress = 0f
         wifiHandles.forEach { it.cancel() }
         wifiHandles.clear()
         wifiScope = null
@@ -345,6 +341,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         hookLayout()
         hookRowMaxWidth()
         hookExpansion()
+        hookShadeSwitching()
         hookWifi()
         hostContext?.let { scheduleArtworkLoad(generation.get()) }
         DebugLog.hookRegistered(TAG, "control-center two-line carrier block")
@@ -498,6 +495,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param ->
+                    if (shadeSwitching) return@after
                     val value = (param.args.getOrNull(0) as? Number)?.toFloat() ?: return@after
                     if (value < 0f || value > 1f) return@after
                     onPanelProgress(value)
@@ -509,6 +507,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         source.declaredMethods.singleOrNull(::isVisibilityChangedMethod)?.let { method ->
             method.hook {
                 after { param ->
+                    if (shadeSwitching) return@after
                     val visible = param.args.getOrNull(0) as? Boolean ?: return@after
                     panelVisible = visible
                     if (!visible) progress = 0f
@@ -519,10 +518,58 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         source.declaredMethods.singleOrNull(::isAppearanceChangedMethod)?.let { method ->
             method.hook {
                 after { param ->
+                    if (shadeSwitching) return@after
                     if (param.args.getOrNull(0) == true) panelVisible = true
                     applyHandoverGuarded(if (panelVisible) progress else 0f)
                 }
             }
+        }
+    }
+
+    /** Shade switching owns the header motion; a carrier hand-over must not run on that path. */
+    private fun hookShadeSwitching() {
+        val combined = COMBINED_HEADER_CLASS.toClassOrNull() ?: return
+        combined.findMethodOrNull { name("onSwitchingChanged"); paramCount(1) }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                after { param ->
+                    hostShadeSwitching = param.args.getOrNull(0) as? Boolean ?: false
+                    runCatching { refreshShadeSwitchState() }
+                        .onFailure { DebugLog.w(TAG, "shade-switch state update failed", it) }
+                }
+            }
+        }
+        combined.findMethodOrNull { name("onSwitchProgressChanged"); paramCount(1) }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                after { param ->
+                    shadeSwitchProgress = (param.args.getOrNull(0) as? Number)?.toFloat()
+                        ?.coerceIn(0f, 1f) ?: return@after
+                    runCatching { refreshShadeSwitchState() }
+                        .onFailure { DebugLog.w(TAG, "shade-switch progress update failed", it) }
+                }
+            }
+        }
+    }
+
+    private fun refreshShadeSwitchState() {
+        val next = ShadeSwitchMotionPolicy.isActive(hostShadeSwitching, shadeSwitchProgress)
+        if (next == shadeSwitching) return
+        shadeSwitching = next
+        if (next) {
+            runCatching { releaseHandover() }
+                .onFailure { DebugLog.w(TAG, "shade-switch carrier release failed", it) }
+            val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
+            runCatching { LeftContainerHooker.onShadeSwitchStarted(controlCenterVisible) }
+                .onFailure { DebugLog.w(TAG, "shade-switch left handover failed", it) }
+            runCatching { DuoSignalHooker.onShadeSwitchStarted() }
+                .onFailure { DebugLog.w(TAG, "shade-switch Duo handover failed", it) }
+        } else {
+            val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
+            runCatching { LeftContainerHooker.onShadeSwitchFinished(controlCenterVisible) }
+                .onFailure { DebugLog.w(TAG, "shade-switch left settle failed", it) }
+            runCatching { DuoSignalHooker.onShadeSwitchFinished(controlCenterVisible) }
+                .onFailure { DebugLog.w(TAG, "shade-switch Duo settle failed", it) }
         }
     }
 
@@ -871,7 +918,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
     }
     private fun removeBlock(block: Block) {
-        cancelSettleRamp()
         stopObserving(block)
         block.attachListener?.let(block.layout::removeOnAttachStateChangeListener)
         releaseMask(block)
@@ -926,7 +972,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             runCatching {
                 ControlCenterHeaderHooker.updateCarrierLayout(block.layout)
                 syncMask(block)
-                if (panelVisible && progress > 0f && progress < 1f) applyHandoverGuarded(progress)
+                if (!shadeSwitching && panelVisible && progress > 0f && progress < 1f) {
+                    applyHandoverGuarded(progress)
+                }
             }.onFailure { DebugLog.w(TAG, "carrier presentation update failed", it) }
             true
         }.also { block.observer?.addOnPreDrawListener(it) }
@@ -1219,81 +1267,17 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         val clamped = value.coerceIn(0f, 1f)
         if (!enabled) {
-            cancelSettleRamp()
             releaseHandover()
             return
         }
-        handoverProgress = clamped
         if (clamped <= 0f || clamped >= 1f) {
-            // A quick open/close never reports an intermediate fraction. Finish a travel that has
-            // already drawn instead of teleporting the glyph between the two rows.
-            if (settleHandover(clamped)) return
+            // Shade switching can report only an endpoint. Do not start a second module-owned
+            // animation there: the host is already animating the header and native status row.
             releaseHandover()
             return
         }
-        cancelSettleRamp()
         if (artwork == null) { releaseHandover(); return }
         drawHandover(clamped)
-    }
-
-    /**
-     * Finishes an interrupted travel on a short time ramp.
-     *
-     * The host's fraction is the only clock while the panel is dragged, but a fling or a tap opens
-     * it in one step: without this, `releaseHandover` runs before the overlay has moved and the
-     * Wi-Fi glyph jumps from the status cluster (by the battery) into the carrier label. Returns
-     * true when a ramp took over.
-     */
-    private fun settleHandover(target: Float): Boolean {
-        cancelSettleRamp()
-        val from = handoverProgress
-        if (abs(target - from) < SETTLE_MIN_DELTA || artwork == null) return false
-        // Only ramp a travel that can actually be drawn; otherwise the glyph has nothing to follow.
-        if (!handoverDrawable()) return false
-        val steps = fadeAlphas(from, target, SETTLE_FRAMES)
-        var index = 0
-        val runnable = object : Runnable {
-            override fun run() {
-                if (settleRamp !== this) return
-                if (!enabled) {
-                    settleRamp = null
-                    releaseHandover()
-                    return
-                }
-                val next = steps[index]
-                handoverProgress = next
-                index++
-                runCatching { drawHandover(next) }
-                    .onFailure { DebugLog.w(TAG, "carrier hand-over settle failed", it) }
-                if (index >= steps.size) {
-                    settleRamp = null
-                    releaseHandover()
-                } else {
-                    main.postDelayed(this, SETTLE_FRAME_MS)
-                }
-            }
-        }
-        settleRamp = runnable
-        main.postDelayed(runnable, SETTLE_FRAME_MS)
-        return true
-    }
-
-    private fun cancelSettleRamp() {
-        settleRamp?.let(main::removeCallbacks)
-        settleRamp = null
-    }
-
-    /** True when some row can draw the travel right now (a ready glyph with a resolvable source). */
-    private fun handoverDrawable(): Boolean = blocks.values.any { block ->
-        block.compact && block.layout.isShown && block.rows.any { parts ->
-            val wifi = parts.wifi !in duoTargets && parts.wifiReady && parts.wifiBitmap != null &&
-                sourceGlyph(block, wifi = true, subId = null) != null
-            val cellular = parts.model?.let { model ->
-                parts.type !in duoTargets && parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
-                    sourceGlyph(block, wifi = false, subId = model.subId) != null
-            } == true
-            wifi || cellular
-        }
     }
 
     private fun drawHandover(clamped: Float) {
@@ -1344,9 +1328,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun releaseHandover() {
-        // Not `cancelSettleRamp`: the ramp's last frame calls this, and clearing the reference is
-        // enough there. External releases call `cancelSettleRamp` before reaching here.
-        settleRamp = null
         motions.values.forEach(CarrierTypeMotion::clear)
         motions.clear()
         restoreEndpoints()

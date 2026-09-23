@@ -74,6 +74,27 @@ object IconSlotPolicy {
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
 
+    /**
+     * The compact two-line control-center header keeps these three status icons in its first row.
+     * The network type is rendered by the carrier block and is therefore not a status-bar slot.
+     */
+    val CONTROL_CENTER_FIRST_ROW_SLOTS: Set<String> = linkedSetOf(
+        "hotspot", "network_speed", "alarm_clock"
+    )
+
+    /** Only a host one-row capacity decision may be overridden by the two-row layout. */
+    fun shouldRestoreTwoLineOverflow(
+        visibleState: Int,
+        hiddenBySpace: Boolean,
+        inIslandState: Int,
+        iconVisible: Boolean,
+        iconBlocked: Boolean,
+        ignored: Boolean,
+        removing: Boolean,
+        gone: Boolean
+    ): Boolean = visibleState == 2 && hiddenBySpace && inIslandState == 20 &&
+        iconVisible && !iconBlocked && !ignored && !removing && !gone
+
     val SIGNAL_SLOTS: List<String> = listOf(
         "stacked_mobile_icon",
         "stacked_mobile_type",
@@ -266,6 +287,37 @@ object IconSlotPolicy {
             }
         }
         return result.toList()
+    }
+
+    /**
+     * Returns the block list for the compact two-line control-center header.
+     *
+     * MIUI's CONTROL_CENTER_BLOCK_LIST is the list for its single top status row and contains
+     * device slots such as wireless_headset. Once the header has a real second row, those defaults
+     * must no longer be treated as user visibility choices: the host list is replaced by the
+     * module's explicit per-slot policy, which still respects every configured hide/one-surface
+     * mode. The first-row exceptions remain visible in the native row and are moved vertically by
+     * IconPositionHooker.
+     */
+    fun blockedForTwoLineControlCenter(
+        config: IconSlotPolicyConfig
+    ): List<String> = blockedFor(
+        IconSurface.CONTROL_CENTER,
+        emptyList(),
+        config
+    )
+
+    /** Final visibility decision for a control-center slot in the two-line layout. */
+    fun classicBlockedForTwoLineControlCenter(
+        slot: String,
+        hostBlocked: Boolean,
+        config: IconSlotPolicyConfig,
+        owned: Set<String>,
+        minimalism: Boolean = false
+    ): Boolean {
+        if (minimalism) return hostBlocked
+        if (slot in owned) return true
+        return slot in blockedFor(IconSurface.CONTROL_CENTER, emptyList(), config)
     }
 
     /** Apply the same choice after the host unions observer, tuner and manager hide lists. */

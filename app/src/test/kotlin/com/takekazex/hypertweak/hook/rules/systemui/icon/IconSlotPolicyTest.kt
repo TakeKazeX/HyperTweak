@@ -6,6 +6,72 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test
+    fun twoLineOnlyRestoresIconsHiddenByHostOneRowCapacity() {
+        fun allowed(
+            visibleState: Int = 2,
+            hiddenBySpace: Boolean = true,
+            inIslandState: Int = 20,
+            iconVisible: Boolean = true,
+            iconBlocked: Boolean = false,
+            ignored: Boolean = false,
+            removing: Boolean = false,
+            gone: Boolean = false
+        ) = IconSlotPolicy.shouldRestoreTwoLineOverflow(
+            visibleState, hiddenBySpace, inIslandState, iconVisible, iconBlocked,
+            ignored, removing, gone
+        )
+
+        assertTrue(allowed())
+        assertTrue(!allowed(hiddenBySpace = false))
+        assertTrue(!allowed(inIslandState = 10))
+        assertTrue(!allowed(iconVisible = false))
+        assertTrue(!allowed(iconBlocked = true))
+        assertTrue(!allowed(ignored = true))
+        assertTrue(!allowed(removing = true))
+        assertTrue(!allowed(gone = true))
+        assertTrue(!allowed(visibleState = 0))
+    }
+
+    @Test
+    fun twoLineControlCenterDoesNotInheritHostHeadsetBlockList() {
+        val config = IconSlotPolicyConfig(
+            slotModes = mapOf(
+                "bluetooth" to IconSlotMode.HIDE_EVERYWHERE.value,
+                "wireless_headset" to IconSlotMode.FOLLOW_SYSTEM.value,
+                "wifi" to IconSlotMode.STATUS_BAR_ONLY.value
+            )
+        )
+        val blocked = IconSlotPolicy.blockedForTwoLineControlCenter(config)
+
+        assertTrue("bluetooth" in blocked)
+        assertTrue("wifi" in blocked)
+        assertTrue("hotspot" !in blocked)
+        assertTrue("network_speed" !in blocked)
+        assertTrue("alarm_clock" !in blocked)
+        assertTrue("wireless_headset" !in blocked)
+    }
+
+    @Test
+    fun twoLineControlCenterFinalVisibilityKeepsExplicitHides() {
+        val config = IconSlotPolicyConfig(
+            slotModes = mapOf("wireless_headset" to IconSlotMode.HIDE_EVERYWHERE.value)
+        )
+        assertTrue(
+            IconSlotPolicy.classicBlockedForTwoLineControlCenter(
+                "wireless_headset", hostBlocked = true, config = config, owned = emptySet()
+            )
+        )
+        assertTrue(
+            !IconSlotPolicy.classicBlockedForTwoLineControlCenter(
+                "wireless_headset",
+                hostBlocked = true,
+                config = IconSlotPolicyConfig(),
+                owned = emptySet()
+            )
+        )
+    }
+
     @org.junit.Test fun headsetExplicitVisibilitySurvivesObserverRefresh() {
         for (slot in listOf("headset", "wireless_headset")) {
             val config = IconSlotPolicyConfig(slotModes = mapOf(slot to IconSlotMode.STATUS_BAR_ONLY.value))

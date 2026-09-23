@@ -37,6 +37,11 @@ object ControlCenterHeaderHooker : StaticHooker() {
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
 
+    /** True when the compact carrier feature owns the two-line control-center header. */
+    fun secondRowStatusIconsEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
+            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+
     private class DateState(var policy: Int, val visibility: Int)
     private class LayoutState(view: View) {
         val params = LinkedHashMap<String, Int>()
@@ -200,9 +205,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
             val status = parent.findViewById<View>(statusId) ?: return@guarded
             val fake = parent.findViewById<View>(id(carrier, "normal_fake_control_center_status_bar"))
             compactHeaders[carrier] = status to fake
-            val firstCenter = ControlCenterCarrierBlockHooker.firstRowCenter(carrier)
-            // Break carrier -> status -> date: the block ends above the cards, while the
-            // battery/status cluster is anchored to the block's top (its first text row).
+            // Keep the status/battery root at the first row: the battery belongs to the header's
+            // first-row anchor. IconPositionHooker splits only the statusIcons children against
+            // the carrier block's two measured row centers, so ordinary icons can return to row 2
+            // without dragging the battery or its MiuiStatusBatteryContainer with them.
             change(carrier, mapOf(
                 "width" to 0, "height" to ViewGroup.LayoutParams.WRAP_CONTENT,
                 "startToStart" to PARENT_ID, "startToEnd" to UNSET,
@@ -217,7 +223,8 @@ object ControlCenterHeaderHooker : StaticHooker() {
                 "endToStart" to UNSET, "endToEnd" to PARENT_ID,
                 "topToTop" to carrier.id, "topToBottom" to UNSET,
                 "bottomToTop" to UNSET, "bottomToBottom" to UNSET,
-                "topMargin" to (firstCenter - status.measuredHeight / 2),
+                "topMargin" to (ControlCenterCarrierBlockHooker.firstRowCenter(carrier) -
+                    status.measuredHeight / 2),
                 "bottomMargin" to 0
             ))
             // The host applies the SAME Y translation to real and fake rows. Keeping the fake

@@ -103,9 +103,22 @@ object IconManagerHooker : StaticHooker() {
 
     private fun finalBlocked(manager: Any, slot: String, hostBlocked: Boolean, minimalism: Boolean = false): Boolean {
         val location = readLocation(manager)
-        return IconSlotPolicy.classicBlocked(slot, IconSlotPolicy.surfaceForHostLocation(location),
-            hostBlocked, options.policy, IconSlotPolicy.ownedSlotsFor(location,
-                LeftContainerHooker.homeOwnedSlots(), LeftContainerHooker.keyguardOwnedSlots()), minimalism)
+        val surface = IconSlotPolicy.surfaceForHostLocation(location)
+        val owned = IconSlotPolicy.ownedSlotsFor(
+            location,
+            LeftContainerHooker.homeOwnedSlots(),
+            LeftContainerHooker.keyguardOwnedSlots()
+        )
+        if (surface == IconSurface.CONTROL_CENTER &&
+            ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
+        ) {
+            return IconSlotPolicy.classicBlockedForTwoLineControlCenter(
+                slot, hostBlocked, options.policy, owned, minimalism
+            )
+        }
+        return IconSlotPolicy.classicBlocked(
+            slot, surface, hostBlocked, options.policy, owned, minimalism
+        )
     }
 
     private fun hookFinalVisibility(managerClass: Class<*>) {
@@ -259,8 +272,15 @@ object IconManagerHooker : StaticHooker() {
         // for the one row that would otherwise draw the same icon a second time. Everything else —
         // including a host re-emission that would otherwise drop the overlay — goes through here,
         // because this is the single place a host block-list emission is merged.
+        val blocked = if (surface == IconSurface.CONTROL_CENTER &&
+            ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
+        ) {
+            IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)
+        } else {
+            IconSlotPolicy.blockedFor(surface, hostPristine, options.policy)
+        }
         val merged = IconSlotPolicy.withOwnedSlots(
-            IconSlotPolicy.blockedFor(surface, hostPristine, options.policy),
+            blocked,
             IconSlotPolicy.ownedSlotsFor(
                 location,
                 LeftContainerHooker.homeOwnedSlots(),

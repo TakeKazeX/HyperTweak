@@ -230,6 +230,9 @@ object LeftContainerHooker : StaticHooker() {
     @Volatile
     private var panelVisible = false
 
+    /** At this endpoint the host copies are ready; no home-to-QS overlay should replay. */
+    private var shadeSwitchSettledToControlCenter = false
+
     /** True once the host expansion callback is hooked; only then the hand-over is authoritative. */
     @Volatile
     private var panelProgressHooked = false
@@ -299,7 +302,8 @@ object LeftContainerHooker : StaticHooker() {
                 state.isKeyguard, state.barRoot, state.anchorEntries.map {
                     listOf(it.view, it.parent, it.index, it.layoutParams)
                 }, state.islandHandler)
-        }, ccRows.values.mapNotNull { it.get() }, panelProgress, panelVisible)
+        }, ccRows.values.mapNotNull { it.get() }, panelProgress, panelVisible,
+            shadeSwitchSettledToControlCenter)
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -307,6 +311,7 @@ object LeftContainerHooker : StaticHooker() {
         mainHandler.post {
             panelProgress = saved.getOrNull(2) as? Float ?: 0f
             panelVisible = saved.getOrNull(3) as? Boolean ?: false
+            shadeSwitchSettledToControlCenter = saved.getOrNull(4) as? Boolean ?: false
             (saved.getOrNull(0) as? List<*>)?.forEach { item ->
                 val row = item as? List<*> ?: return@forEach
                 val host = row.getOrNull(0) as? ViewGroup ?: return@forEach
@@ -353,6 +358,7 @@ object LeftContainerHooker : StaticHooker() {
         mainHandler.removeCallbacks(reconcileRunnable)
         onMainBlocking {
             restoreHandover()
+            shadeSwitchSettledToControlCenter = false
             states.values.forEach(::teardownState)
             states.clear()
             ccRows.clear()
@@ -637,7 +643,10 @@ object LeftContainerHooker : StaticHooker() {
                 after { param ->
                     val visible = param.args.getOrNull(0) as? Boolean ?: return@after
                     panelVisible = visible
-                    if (!visible) panelProgress = 0f
+                    if (!visible) {
+                        panelProgress = 0f
+                        shadeSwitchSettledToControlCenter = false
+                    }
                     applyHandoverGuarded(if (visible) panelProgress else 0f)
                 }
             }
@@ -676,6 +685,7 @@ object LeftContainerHooker : StaticHooker() {
 
     private fun onPanelProgress(progress: Float) {
         panelProgress = progress.coerceIn(0f, 1f)
+        if (panelProgress < 0.999f) shadeSwitchSettledToControlCenter = false
         if (panelProgress > 0f && !panelVisible) {
             // The first expansion callback can arrive after the fake row has already been made
             // visible. Park its copies before creating the overlay so that frame cannot flash the
@@ -701,7 +711,15 @@ object LeftContainerHooker : StaticHooker() {
             mainHandler.post { applyHandoverGuarded(progress) }
             return
         }
+        if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+            suspendHandoverForShadeSwitch()
+            return
+        }
         val clamped = progress.coerceIn(0f, 1f)
+        if (shadeSwitchSettledToControlCenter && clamped >= 0.999f) {
+            settleNativeControlCenterEndpoint()
+            return
+        }
         if (clamped <= 0f) {
             if (panelVisible) parkHandover() else restoreHandover()
             return
@@ -769,6 +787,51 @@ object LeftContainerHooker : StaticHooker() {
     private fun applyHandoverGuarded(progress: Float) {
         runCatching { applyHandover(progress) }
             .onFailure { DebugLog.w(TAG, "LeftContainer hand-over failed", it) }
+    }
+
+    /** Keep native QS/QS_FAKE copies as the only moving glyphs during a shade switch. */
+    internal fun onShadeSwitchStarted(controlCenterVisible: Boolean) {
+        if (!active) return
+        runCatching {
+            shadeSwitchSettledToControlCenter = false
+            suspendHandoverForShadeSwitch()
+            val sourceAlpha = if (controlCenterVisible) 0f else 1f
+            synchronized(states) {
+                states.values.forEach { state ->
+                    if (state.isKeyguard) return@forEach
+                    state.clones.values.forEach { clone -> clone.alpha = sourceAlpha }
+                }
+            }
+        }
+            .onFailure { DebugLog.w(TAG, "LeftContainer shade-switch suspend failed", it) }
+    }
+
+    internal fun onShadeSwitchFinished(controlCenterVisible: Boolean) {
+        if (!active) return
+        panelVisible = controlCenterVisible
+        panelProgress = if (controlCenterVisible) 1f else 0f
+        shadeSwitchSettledToControlCenter = controlCenterVisible
+        applyHandoverGuarded(panelProgress)
+    }
+
+    private fun suspendHandoverForShadeSwitch() {
+        if (panelMotions.isNotEmpty()) {
+            panelMotions.values.forEach(LeftPanelMotion::clear)
+            panelMotions.clear()
+        }
+        releaseEndpointStates(emptySet())
+    }
+
+    private fun settleNativeControlCenterEndpoint() {
+        suspendHandoverForShadeSwitch()
+        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } } ?: return
+        if (!active) return
+        val rows = liveControlCenterRows()
+        state.clones.forEach { (slot, clone) ->
+            val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true }
+            val alpha = if (ready) 0f else 1f
+            if (clone.alpha != alpha) clone.alpha = alpha
+        }
     }
 
     /** Candidate endpoint must be attached, visible, and measured. */
