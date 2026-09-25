@@ -297,6 +297,18 @@ object Preferences {
      */
     const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
 
+    /**
+     * Number of volume-index steps from minimum to maximum for hardware volume-key adjustments.
+     * Applied in system_server when the AudioService process starts; a device reboot is
+     * needed after changing either this value or [KEY_VOLUME_KEY_STEP_SCOPE].
+     */
+    const val KEY_VOLUME_KEY_STEP_COUNT = "volume_key_step_count"
+    const val KEY_VOLUME_KEY_STEP_SCOPE = "volume_key_step_scope"
+
+    const val DEFAULT_VOLUME_KEY_STEP_COUNT = 15
+    const val VOLUME_KEY_SCOPE_MEDIA_ONLY = 0
+    const val VOLUME_KEY_SCOPE_ACTIVE_STREAM = 1
+
     /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
     const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
 

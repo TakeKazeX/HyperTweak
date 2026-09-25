@@ -67,6 +67,17 @@
     <string name="aosp_volume_panel_summary">使用 AOSP 音量面板</string>
     <string name="aosp_volume_haptic_miui">HyperOS 音量震动</string>
     <string name="aosp_volume_haptic_miui_summary">AOSP 音量面板使用 HyperOS 的震动反馈</string>
+    <string name="volume_key_section">音量键</string>
+    <string name="volume_key_scope_title">作用范围</string>
+    <string name="volume_key_scope_summary">选择只调整媒体音量，或让音量键当前控制的音量流都使用此档位数</string>
+    <string name="volume_key_scope_media">仅媒体音量</string>
+    <string name="volume_key_scope_active_stream">音量键当前控制的音量流</string>
+    <string name="volume_key_step_title">音量键档位数</string>
+    <string name="volume_key_step_summary">从最小到最大按 %1$d 次（约 %2$d%%/次；5 档=20%%，100 档=1%%）</string>
+    <string name="volume_key_step_value">%1$d 档</string>
+    <string name="volume_key_step_dialog_summary">设置从最小音量升到最大音量所需的按键步数，范围为 5–100</string>
+    <string name="volume_key_step_suffix">档</string>
+    <string name="volume_key_reboot_required">此设置需重启设备后生效</string>
     <string name="aosp_volume_dnd">勿扰模式</string>
     <string name="appearance_accent_color">强调色</string>
     <string name="appearance_back">返回</string>

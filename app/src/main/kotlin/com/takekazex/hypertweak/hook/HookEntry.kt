@@ -82,6 +82,7 @@ import com.takekazex.hypertweak.hook.rules.system.PowerButtonCtsHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
 import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
 import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
+import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepsHooker
 import com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker
 import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
 import com.takekazex.hypertweak.hook.rules.system.ForceDarkAppListHooker
@@ -695,6 +696,7 @@ class HookEntry : XposedModule() {
         // AON visual-perception runtime gates (感知锁屏/靠近亮屏/非注视感知) are resource bools read by
         // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
         attachHooker(AonRuntimeGateHooker, classLoader, ctx, replacementHandles)
+        attachHooker(VolumeKeyStepsHooker, classLoader, ctx, replacementHandles)
         // Experimental: let the AON air-gesture controller honour left/right + double-press, which
         // the stock ROM always zeroes for AON (it only enables up/down).
         attachHooker(AonGestureFeatureHooker, classLoader, ctx, replacementHandles)

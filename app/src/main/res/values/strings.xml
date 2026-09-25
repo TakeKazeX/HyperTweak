@@ -67,6 +67,17 @@
     <string name="aosp_volume_panel_summary">Use the AOSP volume panel</string>
     <string name="aosp_volume_haptic_miui">HyperOS Volume Haptic</string>
     <string name="aosp_volume_haptic_miui_summary">Use HyperOS vibration on the AOSP volume panel</string>
+    <string name="volume_key_section">Volume Keys</string>
+    <string name="volume_key_scope_title">Apply to</string>
+    <string name="volume_key_scope_summary">Use this step count for media only or for whichever volume stream the keys currently control</string>
+    <string name="volume_key_scope_media">Media volume only</string>
+    <string name="volume_key_scope_active_stream">Volume stream currently controlled by the keys</string>
+    <string name="volume_key_step_title">Volume key steps</string>
+    <string name="volume_key_step_summary">%1$d presses from minimum to maximum (about %2$d%% each; 5 steps = 20%%, 100 steps = 1%%)</string>
+    <string name="volume_key_step_value">%1$d steps</string>
+    <string name="volume_key_step_dialog_summary">Set the number of key presses from minimum to maximum, from 5 to 100</string>
+    <string name="volume_key_step_suffix">steps</string>
+    <string name="volume_key_reboot_required">Changes take effect after a device restart.</string>
     <string name="aosp_volume_dnd">Do Not Disturb</string>
     <string name="appearance_accent_color">Accent Color</string>
     <string name="appearance_back">Back</string>
