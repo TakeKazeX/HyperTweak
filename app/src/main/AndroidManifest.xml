@@ -31,6 +31,8 @@
 
     <queries>
         <package android:name="com.android.systemui" />
+        <!-- Read the stock MIUI glass/color tokens for the native preview surface. -->
+        <package android:name="miui.systemui.plugin" />
         <package android:name="com.lbe.security.miui" />
         <package android:name="com.miui.screenshot" />
         <package android:name="com.android.settings" />
