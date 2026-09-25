@@ -64,9 +64,6 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     }
     // Saveable so the pending prompt survives navigating away (Nav3 disposes the entry).
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    var multiline by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, false))
-    }
     var intervalMs by remember {
         mutableIntStateOf(
             Preferences.getInt(
@@ -130,21 +127,6 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                             }
                         )
                     }
-                }
-            }
-
-            SmallTitle(stringResource(R.string.charging_section_layout))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = multiline,
-                        onCheckedChange = { enabled ->
-                            multiline = enabled
-                            Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, enabled)
-                        },
-                        title = stringResource(R.string.charging_multiline_title),
-                        summary = stringResource(R.string.charging_multiline_summary)
-                    )
                 }
             }
 

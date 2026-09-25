@@ -31,14 +31,12 @@ import java.util.WeakHashMap
  * `KeyguardIndicationController.updateDeviceEntryIndication(boolean)` and rendered through
  * `KeyguardIndicationRotateTextViewController.showIndication(int)` under the battery/charging
  * role `3` (the same role the lockscreen's reverse-charging hint uses; role 13 is the
- * dismissible swipe hint). When it renders, this hooker appends live values. The layout is
- * configurable live:
- * - multi-line (default off): the detail sits on its own, slightly smaller line below the
- *   charging text, so the single-line marquee never scrolls; `KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE`;
+ * dismissible swipe hint). When it renders, this hooker appends live values on a separate,
+ * slightly smaller line below the charging text, so the single-line marquee never scrolls:
  * - fields: any of wattage / voltage / current / temperature, bitmask
  *   `KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS`;
  * - refresh interval: `KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS`.
- * The main switch gates hook installation and still needs a SystemUI restart; the three
+ * The main switch gates hook installation and still needs a SystemUI restart; the two
  * sub-options are re-read on every render (Preferences memo TTL is 100 ms), so they apply live.
  *
  * Data sources (all available to SystemUI, which runs with BATTERY_STATS):
@@ -177,9 +175,6 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         Preferences.getInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, DEFAULT_INTERVAL_MS)
             .coerceIn(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
 
-    private fun multiline(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_MULTILINE, false)
-
     private fun attachDetail(controller: Any?) {
         if (!enabled || controller == null) return
         val typeField = currIndicationTypeField ?: return
@@ -201,26 +196,19 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val base = currentBaseMessage(view) ?: return
         val detail = buildDetail() ?: return
         val current = view.text?.toString().orEmpty()
-        if (multiline()) {
-            applyMultilineStyle(view)
-            val combined = "$base\n$detail"
-            if (current == combined) return
-            val spannable = SpannableStringBuilder()
-            spannable.append(base)
-            spannable.append('\n')
-            val detailStart = spannable.length
-            spannable.append(detail)
-            spannable.setSpan(
-                RelativeSizeSpan(0.8f), detailStart, spannable.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            view.text = spannable
-            baseMessageByView[view] = base
-        } else {
-            val combined = "$base · $detail"
-            if (current == combined) return
-            view.text = combined
-            baseMessageByView[view] = base
-        }
+        applyMultilineStyle(view)
+        val combined = "$base\n$detail"
+        if (current == combined) return
+        val spannable = SpannableStringBuilder()
+        spannable.append(base)
+        spannable.append('\n')
+        val detailStart = spannable.length
+        spannable.append(detail)
+        spannable.setSpan(
+            RelativeSizeSpan(0.8f), detailStart, spannable.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        view.text = spannable
+        baseMessageByView[view] = base
         if (!reportedFirstAppend) {
             reportedFirstAppend = true
             DebugLog.d(TAG, "appended live charge detail: $detail")

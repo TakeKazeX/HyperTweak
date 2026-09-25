@@ -124,12 +124,9 @@
     <string name="charging_interval_5s">5 秒</string>
     <string name="charging_interval_summary">充电数据的更新频率</string>
     <string name="charging_interval_title">刷新间隔</string>
-    <string name="charging_multiline_summary">充电数据单独占一行显示</string>
-    <string name="charging_multiline_title">多行布局</string>
     <string name="charging_restart_summary">应用主开关的更改</string>
     <string name="charging_restart_title">重启 SystemUI</string>
     <string name="charging_section_fields">字段</string>
-    <string name="charging_section_layout">布局</string>
     <string name="charging_section_main">锁屏充电详情</string>
     <string name="charging_section_refresh">刷新</string>
     <string name="charging_title">充电详情</string>
@@ -798,7 +795,7 @@
     <string name="settings_appearance">外观</string>
     <string name="settings_cancel">取消</string>
     <string name="settings_charging_detail_options">充电详情选项</string>
-    <string name="settings_charging_detail_options_summary">配置锁屏充电详情的布局与字段</string>
+    <string name="settings_charging_detail_options_summary">配置锁屏充电详情的显示字段</string>
     <string name="settings_lockscreen_bottom_text_options">锁屏底部文字</string>
     <string name="settings_lockscreen_bottom_text_options_summary">选择锁屏底部显示的状态文字</string>
     <string name="settings_clear">清除</string>

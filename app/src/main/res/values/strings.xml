@@ -124,12 +124,9 @@
     <string name="charging_interval_5s">5 seconds</string>
     <string name="charging_interval_summary">How often the telemetry values update</string>
     <string name="charging_interval_title">Refresh Interval</string>
-    <string name="charging_multiline_summary">Show the charging data on its own line</string>
-    <string name="charging_multiline_title">Multi-line Layout</string>
     <string name="charging_restart_summary">Apply the master switch change</string>
     <string name="charging_restart_title">Restart SystemUI</string>
     <string name="charging_section_fields">Fields</string>
-    <string name="charging_section_layout">Layout</string>
     <string name="charging_section_main">Charging Detail on Lockscreen</string>
     <string name="charging_section_refresh">Refresh</string>
     <string name="charging_title">Charging Detail</string>
@@ -800,7 +797,7 @@
     <string name="settings_appearance">Appearance</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_charging_detail_options">Charging Detail Options</string>
-    <string name="settings_charging_detail_options_summary">Configure the lockscreen charging detail layout and fields</string>
+    <string name="settings_charging_detail_options_summary">Configure the lockscreen charging detail fields</string>
     <string name="settings_lockscreen_bottom_text_options">Lockscreen Bottom Text</string>
     <string name="settings_lockscreen_bottom_text_options_summary">Choose the status text shown at the bottom of the lockscreen</string>
     <string name="settings_clear">Clear</string>
