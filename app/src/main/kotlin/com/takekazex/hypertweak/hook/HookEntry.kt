@@ -8,6 +8,8 @@ import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
+import com.takekazex.hypertweak.hook.rules.systemui.AodWallpaperHandoffHooker
+import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeHapticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeExtrasHooker
@@ -738,6 +740,7 @@ class HookEntry : XposedModule() {
             "com.android.systemui" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AodWallpaperHandoffHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
                 attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationHeaderClockSecondsHooker, classLoader, ctx, replacementHandles)
@@ -816,6 +819,7 @@ class HookEntry : XposedModule() {
             "com.miui.aod" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AodStatusIconHooker(), classLoader, ctx, replacementHandles)
             }
             "com.android.settings" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

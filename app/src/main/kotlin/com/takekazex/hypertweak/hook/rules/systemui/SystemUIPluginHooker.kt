@@ -8,6 +8,7 @@ import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
 import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
 import com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardResizeHooker
@@ -27,10 +28,17 @@ object SystemUIPluginHooker : StaticHooker() {
         val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker?
     )
 
+    private data class AodPluginSession(
+        val state: HotReloadPluginState,
+        val hooker: AodStatusIconHooker
+    )
+
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
+    private val activeAodSessions = ConcurrentHashMap<Any, AodPluginSession>()
 
     override fun onPrepareHotReload() {
         activeSessions.clear()
+        activeAodSessions.clear()
     }
 
     override fun onHook() {
@@ -57,7 +65,8 @@ object SystemUIPluginHooker : StaticHooker() {
                         val componentName = readPluginField(pluginInstance, "mComponentName", "componentName") as? ComponentName
 
                         Log.i("HyperTweak", "SystemUIPluginHooker: loadPlugin component=$componentName")
-                        if (componentName != null && isControlCenterPlugin(componentName)) {
+                        if (componentName != null &&
+                            (isControlCenterPlugin(componentName) || isAodPlugin(componentName))) {
                             attachPluginHooker(pluginInstance, componentName)
                         }
                     }
@@ -74,6 +83,10 @@ object SystemUIPluginHooker : StaticHooker() {
                 before { param ->
                     HookFailurePolicy.open("SystemUIPlugin", "unloadPlugin", Unit) {
                         val pluginInstance = param.thisObject
+                        activeAodSessions.remove(pluginInstance)?.let { session ->
+                            runCatching { session.hooker.prepareForHotReload() }
+                            detach(session.hooker)
+                        }
                         val session = activeSessions.remove(pluginInstance)
                         if (session != null) {
                             runCatching { session.sliderPercentHooker.prepareForHotReload() }
@@ -107,13 +120,17 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     fun snapshotHotReloadPlugins(): List<HotReloadPluginState> {
-        return activeSessions.values.map { it.state }
+        return activeSessions.values.map { it.state } + activeAodSessions.values.map { it.state }
     }
 
     fun restoreHotReloadPlugins(states: List<HotReloadPluginState>) {
         states.forEach { state ->
             runCatching {
-                attachPluginHooker(state)
+                if (isAodPlugin(state.componentPackage, state.componentClass)) {
+                    attachAodPluginHooker(state)
+                } else {
+                    attachPluginHooker(state)
+                }
             }.onFailure { t ->
                 DebugLog.e("SystemUIPlugin", "failed to restore plugin hook ${state.componentPackage}/${state.componentClass}", t)
             }
@@ -144,25 +161,27 @@ object SystemUIPluginHooker : StaticHooker() {
             Log.e("HyperTweak", "SystemUIPluginHooker: failed to extract loaded plugin ClassLoader")
             return
         }
-        runCatching {
-            classLoader.loadClass("miui.systemui.controlcenter.panel.main.recyclerview.MainPanelAdapter")
-            Log.i("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter resolved")
-        }.onFailure { t ->
-            Log.w("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter unresolved", t)
+        if (isControlCenterPlugin(componentName)) {
+            runCatching {
+                classLoader.loadClass("miui.systemui.controlcenter.panel.main.recyclerview.MainPanelAdapter")
+                Log.i("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter resolved")
+            }.onFailure { t ->
+                Log.w("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter unresolved", t)
+            }
         }
 
         val pluginFactory = readPluginField(pluginInstance, "mPluginFactory", "pluginFactory")
         val mAppInfo = pluginFactory?.let { readPluginField(it, "mAppInfo", "pluginAppInfo") as? ApplicationInfo }
-        attachPluginHooker(
-            HotReloadPluginState(
-                pluginInstance = pluginInstance,
-                componentPackage = componentName.packageName,
-                componentClass = componentName.className,
-                classLoader = classLoader,
-                appContext = appContext,
-                pluginApkPath = mAppInfo?.sourceDir ?: ""
-            )
+        val state = HotReloadPluginState(
+            pluginInstance = pluginInstance,
+            componentPackage = componentName.packageName,
+            componentClass = componentName.className,
+            classLoader = classLoader,
+            appContext = appContext,
+            pluginApkPath = mAppInfo?.sourceDir ?: ""
         )
+        if (isAodPlugin(componentName)) attachAodPluginHooker(state)
+        else attachPluginHooker(state)
     }
 
     /** Reads the first non-null field value among the candidate names, tolerating renamed fields across plugin generations. */
@@ -268,8 +287,28 @@ object SystemUIPluginHooker : StaticHooker() {
         DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")
     }
 
+    private fun attachAodPluginHooker(state: HotReloadPluginState) {
+        if (activeAodSessions.containsKey(state.pluginInstance)) return
+        val hooker = AodStatusIconHooker()
+        runCatching { attach(hooker, state.classLoader) }
+            .onSuccess {
+                activeAodSessions[state.pluginInstance] = AodPluginSession(state, hooker)
+                DebugLog.i("SystemUIPlugin", "attached AOD plugin ${state.componentClass}")
+            }
+            .onFailure { error ->
+                detach(hooker)
+                DebugLog.e("SystemUIPlugin", "failed to attach AOD plugin ${state.componentClass}", error)
+            }
+    }
+
     private fun isControlCenterPlugin(componentName: ComponentName): Boolean {
         return componentName.packageName == "miui.systemui.plugin" ||
             componentName.className == "miui.systemui.controlcenter.MiuiControlCenter"
     }
+
+    private fun isAodPlugin(componentName: ComponentName): Boolean =
+        isAodPlugin(componentName.packageName, componentName.className)
+
+    private fun isAodPlugin(packageName: String?, className: String?): Boolean =
+        packageName == "com.miui.aod" && className == "com.miui.aod.doze.DozeServicePluginImpl"
 }

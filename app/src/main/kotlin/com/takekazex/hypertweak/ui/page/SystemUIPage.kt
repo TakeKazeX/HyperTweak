@@ -103,7 +103,8 @@ fun SystemUIPage(
     contextualSearchLongPress: Boolean,
     onContextualSearchLongPressChange: (Boolean) -> Unit,
     onNavigateToNotificationHeader: () -> Unit,
-    onNavigateToIconTuner: () -> Unit
+    onNavigateToIconTuner: () -> Unit,
+    onNavigateToAodIcons: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
@@ -196,6 +197,11 @@ fun SystemUIPage(
                         onCheckedChange = onAodFullscreenChange,
                         title = stringResource(R.string.tweaks_aod_fullscreen_title),
                         summary = stringResource(R.string.tweaks_aod_fullscreen_summary)
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_aod_icons_title),
+                        summary = stringResource(R.string.settings_aod_icons_summary),
+                        onClick = onNavigateToAodIcons
                     )
                     SwitchPreference(
                         checked = hideFingerprintLockscreen,

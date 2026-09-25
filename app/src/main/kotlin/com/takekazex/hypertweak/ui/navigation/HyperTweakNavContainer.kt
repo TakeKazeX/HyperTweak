@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.ui.page.AppShortcutsPage
 import com.takekazex.hypertweak.ui.page.AospRestorePage
 import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
+import com.takekazex.hypertweak.ui.page.AodIconsPage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.NotificationHeaderPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
@@ -552,8 +553,12 @@ fun HyperTweakNavContainer(
                 },
                 onNavigateToIconTuner = {
                     backStack.add(Route.IconTuner)
-                }
+                },
+                onNavigateToAodIcons = { backStack.add(Route.AodIcons) }
             )
+        }
+        entry<Route.AodIcons> {
+            AodIconsPage(onBack = { if (backStack.size > 1) backStack.removeLast() })
         }
         entry<Route.NotificationHeader> {
             NotificationHeaderPage(

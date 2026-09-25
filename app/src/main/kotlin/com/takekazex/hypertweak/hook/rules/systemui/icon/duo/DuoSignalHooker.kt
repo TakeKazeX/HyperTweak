@@ -20,11 +20,13 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
@@ -61,6 +63,7 @@ object DuoSignalHooker : StaticHooker() {
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var enabled = false
+    @Volatile private var standardEnabled = false
     @Volatile private var epoch = 0
     private var componentSizes = DuoSizes()
     private var panelProgress = 0f
@@ -90,11 +93,13 @@ object DuoSignalHooker : StaticHooker() {
         val stacked: IconSvgRenderer.Document
     )
     private var cellularSignalAssets: CellularSignalAssets? = null
+    private val aodCellularPictures = LinkedHashMap<List<Int>, Picture>()
     // Only applicationContext is retained, for restoring the host flow after a reload.
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var wifiContext: Context? = null
 
-    private class Binding(val battery: View, val parent: ViewGroup, val icons: View, val surface: DuoSurface) {
+    private class Binding(val battery: View, val parent: ViewGroup, val icons: View,
+                          val surface: DuoSurface, val keyguardRoot: View?) {
         val view = DuoView(battery.context)
         var observer: ViewTreeObserver? = null
         var preDraw: ViewTreeObserver.OnPreDrawListener? = null
@@ -122,6 +127,9 @@ object DuoSignalHooker : StaticHooker() {
         var active = false
         var failed = false
         var batteryGlyph: HostBatteryDrawable? = null
+        var aodPercent: TextView? = null
+        var aodNativeSuppressed = false
+        var fullAodNativeState: FullAodNativeState? = null
         var dotsInMotion = false
         var reconciling = false
         // Preserve whether the host/user already ignored the native airplane slot before Duo.
@@ -129,9 +137,19 @@ object DuoSignalHooker : StaticHooker() {
         var hostIgnoredAirplane: Boolean? = null
     }
 
+    private data class FullAodNativeState(
+        val iconContainer: View,
+        val percentContainer: View,
+        val chargingView: View?,
+        val iconVisibility: Int,
+        val percentVisibility: Int,
+        val chargingVisibility: Int?
+    )
+
     private class DuoView(context: Context) : View(context) {
         val icon = DuoDrawable().also { it.callback = this }
-        var drawFailed: (() -> Unit)? = null
+        var drawFailed: ((Throwable) -> Unit)? = null
+        private var reportedDrawFailure = false
         /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
         var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
         private val transition = DuoNetworkTransition()
@@ -362,7 +380,13 @@ object DuoSignalHooker : StaticHooker() {
                         centeredBaseline(percentMarkPaint, percentMarkVerticalOffset),
                         percentMarkPaint, percentMarkLetterSpacing)
                 }
-            }.onFailure { drawFailed?.invoke() }
+            }.onFailure { error ->
+                if (!reportedDrawFailure) {
+                    reportedDrawFailure = true
+                    DebugLog.w(TAG, "Duo view draw failed", error)
+                }
+                drawFailed?.invoke(error)
+            }
         }
 
         private fun drawPercentBelow(canvas: Canvas, iconLeft: Int, iconSide: Int) {
@@ -403,8 +427,9 @@ object DuoSignalHooker : StaticHooker() {
             Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
+        standardEnabled = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
         enabled = PlatformLevel.isOs4 && isMainProcess &&
-            Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
+            (standardEnabled || AodIconSettings.current().customized)
         if (!enabled) return
         epoch++
         expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
@@ -448,7 +473,11 @@ object DuoSignalHooker : StaticHooker() {
         batteryClass.findMethodOrNull { name("onAttachedToWindow"); paramCount(0) }?.hook {
             after { param -> (param.thisObject as? View)?.let { battery ->
                 val token = epoch
-                main.post { if (enabled && epoch == token && battery.isAttachedToWindow) guarded { attach(battery) } }
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                    if (enabled && epoch == token && battery.isAttachedToWindow) guarded { attach(battery) }
+                } else {
+                    main.post { if (enabled && epoch == token && battery.isAttachedToWindow) guarded { attach(battery) } }
+                }
             } }
         }
         batteryClass.findMethodOrNull { name("onDetachedFromWindow"); paramCount(0) }?.hook {
@@ -458,6 +487,36 @@ object DuoSignalHooker : StaticHooker() {
             after { param -> (param.thisObject as? View)?.let { battery -> guarded {
                 bindings[battery]?.let { reconcile(it) }
             } } }
+        }
+        batteryClass.declaredMethods.singleOrNull {
+            it.name == "onMeasure" && it.parameterCount == 2
+        }?.let { method ->
+            deoptimize(method)
+            method.hook { before { param ->
+                (param.thisObject as? View)?.let { battery -> guarded {
+                    bindings[battery]?.let(::applyFullAodNativeChildren)
+                } }
+            } }
+        }
+        batteryClass.declaredMethods.singleOrNull {
+            it.name == "updateChargeAndText" && it.parameterCount == 0
+        }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                (param.thisObject as? View)?.let { battery -> guarded {
+                    bindings[battery]?.let(::applyFullAodNativeChildren)
+                } }
+            } }
+        }
+        batteryClass.declaredMethods.singleOrNull {
+            it.name == "onLayout" && it.parameterCount == 5
+        }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                (param.thisObject as? View)?.let { battery -> guarded {
+                    bindings[battery]?.let(::positionNativeFullAod)
+                } }
+            } }
         }
         for (name in listOf("onBatteryLevelChanged", "onPowerSaveChanged", "onChargeStateChanged", "updateLightDarkTint", "updateAll")) {
             batteryClass.declaredMethods.filter { it.name == name }.forEach { method ->
@@ -485,12 +544,99 @@ object DuoSignalHooker : StaticHooker() {
                 if (binding.active) param.args[0] = false
             }
         }
+        // The host changes mToLockScreen at the start of this callback, before it animates
+        // the battery. Reconcile against that target state in the same frame.
+        "com.android.systemui.statusbar.phone.KeyguardStatusBarViewControllerInject".toClassOrNull()
+            ?.findMethodOrNull {
+                name("animateFullAod")
+                parameterTypes(Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)
+            }?.let { method ->
+                deoptimize(method)
+                method.hook { after { guarded { refresh() } } }
+            }
         hookProxyCompensation()
         hookWifi()
         DebugLog.hookRegistered(TAG, "OS4 battery container, expanded=$expandedStyle")
     }
 
-    val requiresMobileState: Boolean get() = enabled
+    val requiresMobileState: Boolean get() = enabled && (standardEnabled ||
+        AodIconSettings.current().let { it.duo && it.centerSignal })
+
+    /** Reuses the SystemUI Duo renderer inside MIUI AOD's own process and battery container. */
+    internal fun createAodDuoView(context: Context): View = DuoView(context).apply {
+        iconSizeDp = DuoLayout.safeSizeDp(
+            Preferences.getInt(Preferences.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
+        )
+        icon.sizes = DuoSizes(
+            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+        )
+    }
+
+    /** Reuses Duo's single/stacked SVG, Wi-Fi routing, battery ring, and centered-percent layout. */
+    internal fun updateAodDuoView(
+        context: Context,
+        target: View,
+        content: DuoContent,
+        centerBattery: Boolean,
+        batteryDrawable: Drawable?,
+        percentVisible: Boolean,
+        percentBelow: Boolean,
+        percentOnRight: Boolean,
+        percentContainer: View?,
+        percentValue: TextView?,
+        percentFallback: String?,
+        foreground: Int
+    ) {
+        val duoView = target as? DuoView ?: return
+        duoView.icon.foreground = foreground
+        duoView.icon.sizes = DuoSizes(
+            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+        )
+        duoView.layoutDirection = if (percentOnRight) View.LAYOUT_DIRECTION_RTL
+            else View.LAYOUT_DIRECTION_LTR
+        duoView.setBatteryOnly(centerBattery, batteryDrawable)
+        duoView.setPercent(
+            enabled = percentVisible,
+            below = percentBelow,
+            container = percentContainer,
+            value = percentValue,
+            mark = null,
+            fallbackText = percentFallback
+        )
+        duoView.submit(
+            content,
+            Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+            renderAodCellularSignal(context, content)
+        )
+    }
+
+    private fun renderAodCellularSignal(context: Context, content: DuoContent): Picture? {
+        if (content.airplaneMode || content.wifiLevel != null ||
+            (content.networkLabel == null && !content.noService)) return null
+        val levels = content.cellularSignalLevels.take(2)
+        if (levels.isEmpty()) return null
+        synchronized(aodCellularPictures) {
+            aodCellularPictures[levels]?.let { return it }
+            val picture = renderCellularSignal(context, content) ?: return null
+            if (aodCellularPictures.size >= 32) aodCellularPictures.remove(aodCellularPictures.keys.first())
+            aodCellularPictures[levels] = picture
+            return picture
+        }
+    }
 
     /** Reuses the existing mobile reducer; collector-only mode never masks native mobile flows. */
     fun onMobileState(state: MobileSignalState, ready: Boolean) {
@@ -536,11 +682,39 @@ object DuoSignalHooker : StaticHooker() {
         val battery = binding.battery
         val name = if (read(battery, "mBatteryStyle") == 1) "mHollowBatteryIconView" else "mBatteryIconView"
         val source = read(battery, name) as? View ?: return null
+        if (binding.surface == DuoSurface.KEYGUARD &&
+            binding.keyguardRoot?.let { read(it, "mToLockScreen") } == false &&
+            (source.width <= 0 || source.height <= 0)) {
+            prepareFullAodBatterySource(source)
+        }
         if (source.width <= 0 || source.height <= 0) return null
         return binding.batteryGlyph?.takeIf { it.source === source }
             ?: HostBatteryDrawable(source, listOfNotNull(
                 read(source, "textPaint") as? Paint, read(source, "hollowTextPaint") as? Paint
             )).also { binding.batteryGlyph = it }
+    }
+
+    private fun prepareFullAodBatterySource(source: View) {
+        if (!source.isAttachedToWindow) return
+        val resources = source.resources
+        val packageName = source.context.packageName
+        val heightId = resources.getIdentifier("battery_meter_height", "dimen", packageName)
+        val widthId = resources.getIdentifier("battery_meter_width", "dimen", packageName)
+        if (heightId == 0 || widthId == 0) return
+        runCatching {
+            val width = resources.getDimensionPixelSize(widthId)
+            val height = resources.getDimensionPixelSize(heightId)
+            if (width <= 0 || height <= 0) return
+            // The native keyguard battery is GONE from the first full-AOD frame, so Android
+            // never measures its icon. Only this child is laid out for the borrowed drawable;
+            // the parent remains hidden and the host will lay it out normally on wake.
+            source.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
+            )
+            source.layout(0, 0, source.measuredWidth, source.measuredHeight)
+            DebugLog.i(TAG, "prepared full-AOD battery source: ${source.width}x${source.height}")
+        }.onFailure { DebugLog.w(TAG, "full-AOD battery source layout failed", it) }
     }
 
     private fun attach(battery: View) {
@@ -551,15 +725,18 @@ object DuoSignalHooker : StaticHooker() {
         // Keep dormant expanded bindings too: switching from native to Duo must not require
         // that the already-attached control-center header happens to be reinflated.
         if (surface == DuoSurface.UNSUPPORTED) return
+        if (!standardEnabled && surface != DuoSurface.KEYGUARD) return
         val icons = statusIconsField?.get(parent) as? View ?: return
         ensureConnectivity(battery.context)
-        val binding = Binding(battery, parent, icons, surface)
+        val binding = Binding(battery, parent, icons, surface,
+            if (surface == DuoSurface.KEYGUARD)
+                ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
         binding.view.iconSizeDp = iconSizeDp
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
         bindings[battery] = binding
-        binding.view.drawFailed = {
+        binding.view.drawFailed = { _ ->
             binding.failed = true
             main.post { guarded { reconcile(binding) } }
         }
@@ -594,6 +771,7 @@ object DuoSignalHooker : StaticHooker() {
             val current = node as? View ?: return DuoSurface.UNSUPPORTED
             when (current.javaClass.name) {
                 "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView" -> return DuoSurface.HOME
+                "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView" -> return DuoSurface.KEYGUARD
                 "com.android.systemui.qs.MiuiQSHeaderView",
                 "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon" -> return DuoSurface.EXPANDED
                 "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons" -> return DuoSurface.COLLAPSED_PROXY
@@ -627,6 +805,18 @@ object DuoSignalHooker : StaticHooker() {
                 DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
+            val aod = binding.keyguardRoot?.takeIf { read(it, "mToLockScreen") == false }
+                ?.let { AodIconSettings.current() }
+            if (aod != null && !aod.duo) {
+                if (Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) {
+                    showNativeFullAod(binding, aod)
+                } else {
+                    // Legacy AOD draws its own battery row while the keyguard header fades.
+                    holdHiddenAod(binding)
+                }
+                return
+            }
+            restoreNativeFullAod(binding)
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
             val charging = read(battery, "mCharging") as? Boolean
             val powerSave = read(battery, "mPowerSave") as? Boolean
@@ -634,11 +824,31 @@ object DuoSignalHooker : StaticHooker() {
                 DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) { subId ->
                     slotIndices[subId] ?: -1
                 } else null
-            val content = presentationContent(binding, freshContent)
+            val content = when {
+                aod?.centerBattery == true -> percent?.let { value ->
+                    DuoContent(DuoBattery(value, charging == true, powerSave == true), null, null,
+                        0, false, false)
+                } ?: binding.view.icon.content
+                aod != null -> freshContent ?: binding.view.icon.content
+                else -> presentationContent(binding, freshContent)
+            }
             val privacyState = read(binding.parent, "mPrivacyState")?.toString()
             val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
             val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&
-                read(battery, "mIsAodAnimate") != true
+                (binding.surface == DuoSurface.KEYGUARD || read(battery, "mIsAodAnimate") != true) &&
+                (aod != null || standardEnabled)
+            if (aod != null && binding.failed) {
+                battery.visibility = View.GONE
+                binding.view.visibility = View.INVISIBLE
+                return
+            }
+            if (aod != null && content == null) {
+                // The AOD target has already been selected. Never expose the stock row while
+                // battery and network callbacks are still being delivered.
+                battery.visibility = View.GONE
+                binding.view.visibility = View.INVISIBLE
+                return
+            }
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
                 !DuoPolicy.replaces(surface(battery), expandedStyle)) {
                 restore(binding)
@@ -646,7 +856,7 @@ object DuoSignalHooker : StaticHooker() {
             }
             binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
-            val batteryOnly = binding.surface == DuoSurface.EXPANDED &&
+            val batteryOnly = aod?.centerBattery == true || binding.surface == DuoSurface.EXPANDED &&
                 expandedStyle == DuoExpandedStyle.KEEP_DUO
             val percentContainer = read(battery, "mBatteryPercentContainer") as? View
             val percentView = read(battery, "mBatteryPercentView") as? TextView
@@ -654,18 +864,28 @@ object DuoSignalHooker : StaticHooker() {
             val showLeadingPercent = DuoPolicy.leadingPercent(binding.surface, expandedStyle,
                 Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false))
             val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
-            if (batteryOnly && batteryGlyph == null) { restore(binding); return }
-            binding.view.setBatteryOnly(batteryOnly, batteryGlyph)
-            binding.view.setPercent(
-                enabled = showLeadingPercent || batteryOnly,
-                below = batteryOnly,
-                container = percentContainer,
-                value = percentView,
-                mark = percentMark,
-                fallbackText = percent?.toString()
-            )
+            if (batteryOnly && batteryGlyph == null) {
+                if (aod != null) { battery.visibility = View.GONE; binding.view.visibility = View.INVISIBLE }
+                else restore(binding)
+                return
+            }
+            if (aod != null) {
+                renderAodKeyguard(binding, content, aod, batteryGlyph, percentView)
+            } else {
+                binding.view.layoutDirection = binding.parent.layoutDirection
+                binding.view.setBatteryOnly(batteryOnly, batteryGlyph)
+                binding.view.setPercent(
+                    enabled = showLeadingPercent || batteryOnly,
+                    below = batteryOnly,
+                    container = percentContainer,
+                    value = percentView,
+                    mark = percentMark,
+                    fallbackText = percent?.toString()
+                )
+            }
             binding.view.icon.hideSignalDots = binding.dotsInMotion || hideExpandedDots(binding)
-            binding.view.submit(content, small5GaEnabled, renderCellularSignal(battery.context, content))
+            if (aod == null) binding.view.submit(content, small5GaEnabled,
+                renderCellularSignal(battery.context, content))
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
                 if (content.airplaneMode) {
@@ -694,7 +914,9 @@ object DuoSignalHooker : StaticHooker() {
                 battery.visibility = View.GONE
                 binding.parent.requestLayout()
             }
+            binding.view.visibility = View.VISIBLE
             battery.visibility = View.GONE
+            binding.aodNativeSuppressed = false
             // During the full capsule the host reserves its width instead of the battery width.
             // Reserve the extra Duo box too, so neighbouring native icons cannot occupy it.
             setPrivacyInset(binding, if (privacyState == "START_SHOW_PRIVACY" ||
@@ -718,8 +940,135 @@ object DuoSignalHooker : StaticHooker() {
         } catch (error: Throwable) {
             binding.failed = true
             restore(binding)
-            DebugLog.w(TAG, "container failed; restored native", error)
+            if (binding.keyguardRoot?.let { read(it, "mToLockScreen") } == false) {
+                binding.battery.visibility = View.GONE
+                binding.view.visibility = View.INVISIBLE
+            }
+            DebugLog.w(TAG, "container failed", error)
         } finally { binding.reconciling = false }
+    }
+
+    /** Keep the keyguard icon lease through AOD so the host's fade never exposes stock icons. */
+    private fun holdHiddenAod(binding: Binding) {
+        binding.view.visibility = View.INVISIBLE
+        binding.battery.visibility = View.GONE
+        binding.aodNativeSuppressed = true
+        // Restoring the lease here exposes the original stacked/mobile row while the host's
+        // mStatusIconContainer alpha is still above zero.
+        IconPositionHooker.setDuoMask(binding.icons, true)
+        setNativeAirplaneMasked(binding, true)
+    }
+
+    private fun showNativeFullAod(binding: Binding, settings: AodIconSettings) {
+        val battery = binding.battery as? ViewGroup ?: return
+        val icon = read(battery, "mBatteryDigitalView") as? View ?: return
+        val percent = read(battery, "mBatteryPercentContainer") as? View ?: return
+        if (binding.fullAodNativeState == null) {
+            val charging = read(battery, "mBatteryChargingView") as? View
+            binding.fullAodNativeState = FullAodNativeState(icon, percent,
+                charging, icon.visibility, percent.visibility, charging?.visibility)
+        }
+        if (binding.active) {
+            if (batteryLayoutField?.get(binding.parent) === binding.view) {
+                batteryLayoutField?.set(binding.parent, battery)
+            }
+            binding.active = false
+            binding.parent.requestLayout()
+        }
+        binding.view.visibility = View.INVISIBLE
+        setPrivacyInset(binding, 0)
+        field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
+        IconPositionHooker.setDuoMask(binding.icons, true)
+        setNativeAirplaneMasked(binding, true)
+        applyFullAodNativeChildren(binding)
+        val rowVisibility = if (settings.showRow) View.VISIBLE else View.GONE
+        if (battery.visibility != rowVisibility) battery.visibility = rowVisibility
+        positionNativeFullAod(binding)
+        binding.aodNativeSuppressed = true
+    }
+
+    private fun applyFullAodNativeChildren(binding: Binding) {
+        val state = binding.fullAodNativeState ?: return
+        if (binding.keyguardRoot?.let { read(it, "mToLockScreen") } != false) return
+        val settings = AodIconSettings.current()
+        if (settings.duo) return
+        val iconVisibility = if (settings.batteryIcon) View.VISIBLE else View.GONE
+        val percentVisibility = if (settings.percent) View.VISIBLE else View.GONE
+        if (state.iconContainer.visibility != iconVisibility)
+            state.iconContainer.visibility = iconVisibility
+        if (state.percentContainer.visibility != percentVisibility)
+            state.percentContainer.visibility = percentVisibility
+        if (!settings.batteryIcon) {
+            state.chargingView?.visibility = View.GONE
+        }
+    }
+
+    private fun positionNativeFullAod(binding: Binding) {
+        val state = binding.fullAodNativeState ?: return
+        val battery = binding.battery
+        val icon = state.iconContainer.takeIf { it.visibility == View.VISIBLE }
+        val percent = state.percentContainer.takeIf { it.visibility == View.VISIBLE }
+        if (icon == null || percent == null || battery.width <= 0) return
+        val charging = (read(battery, "mBatteryChargingView") as? View)
+            ?.takeIf { it.visibility == View.VISIBLE }
+        val left = battery.paddingLeft
+        val percentLeft = if (AodIconSettings.current().percentPosition ==
+            Preferences.AOD_PERCENT_POSITION_LEFT) left else
+            left + icon.measuredWidth + (charging?.measuredWidth ?: 0)
+        val iconLeft = if (percentLeft == left) left + percent.measuredWidth else left
+        icon.layout(iconLeft, icon.top, iconLeft + icon.measuredWidth, icon.bottom)
+        charging?.layout(iconLeft + icon.measuredWidth, charging.top,
+            iconLeft + icon.measuredWidth + charging.measuredWidth, charging.bottom)
+        percent.layout(percentLeft, percent.top,
+            percentLeft + percent.measuredWidth, percent.bottom)
+    }
+
+    private fun restoreNativeFullAod(binding: Binding) {
+        val state = binding.fullAodNativeState ?: return
+        binding.fullAodNativeState = null
+        val battery = binding.battery as? ViewGroup ?: return
+        state.iconContainer.visibility = state.iconVisibility
+        state.percentContainer.visibility = state.percentVisibility
+        state.chargingVisibility?.let { state.chargingView?.visibility = it }
+        visibilityMethod?.invoke(battery)
+        binding.aodNativeSuppressed = false
+    }
+
+    private fun renderAodKeyguard(
+        binding: Binding,
+        content: DuoContent,
+        settings: AodIconSettings,
+        batteryGlyph: Drawable?,
+        hostPercent: TextView?
+    ) {
+        val proxy = binding.aodPercent ?: TextView(binding.battery.context).also {
+            it.includeFontPadding = false
+            binding.aodPercent = it
+        }
+        proxy.text = if (settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER)
+            content.battery.percent.toString() else "${content.battery.percent}%"
+        hostPercent?.let {
+            proxy.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize)
+            proxy.typeface = it.typeface
+            proxy.letterSpacing = it.letterSpacing
+        }
+        proxy.setTextColor(hostPercent?.currentTextColor ?: binding.view.icon.foreground)
+        proxy.visibility = View.VISIBLE
+        val centerPercent = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER
+        updateAodDuoView(
+            context = binding.battery.context,
+            target = binding.view,
+            content = content,
+            centerBattery = settings.centerBattery,
+            batteryDrawable = batteryGlyph,
+            percentVisible = settings.percent,
+            percentBelow = centerPercent,
+            percentOnRight = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_RIGHT,
+            percentContainer = binding.parent,
+            percentValue = proxy,
+            percentFallback = content.battery.percent.toString(),
+            foreground = binding.view.icon.foreground
+        )
     }
 
     /** Keep a valid picture briefly while independent host flows finish a handover. */
@@ -891,7 +1240,8 @@ object DuoSignalHooker : StaticHooker() {
         root.translationY = binding.proxyY.apply(root.translationY, panelPoint[1])
     }
 
-    private fun hideExpandedDots(binding: Binding): Boolean = binding.surface != DuoSurface.HOME &&
+    private fun hideExpandedDots(binding: Binding): Boolean =
+        binding.surface != DuoSurface.HOME && binding.surface != DuoSurface.KEYGUARD &&
         expandedStyle == DuoExpandedStyle.KEEP_DUO &&
         ControlCenterHeaderHooker.supportsCompactLayout(binding.battery) &&
         Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
@@ -1224,6 +1574,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun restore(binding: Binding) {
+        restoreNativeFullAod(binding)
         clearSignalMotions(binding)
         clearPanelMotion(binding)
         restoreProxyPosition(binding)
@@ -1238,8 +1589,13 @@ object DuoSignalHooker : StaticHooker() {
         binding.view.icon.cellularSignalPicture = null
         IconPositionHooker.setDuoMask(binding.icons, false)
         setNativeAirplaneMasked(binding, false)
-        if (!binding.active) return
+        if (!binding.active) {
+            if (binding.aodNativeSuppressed) visibilityMethod?.invoke(binding.battery)
+            binding.aodNativeSuppressed = false
+            return
+        }
         binding.active = false
+        binding.aodNativeSuppressed = false
         runCatching {
             if (batteryLayoutField?.get(binding.parent) === binding.view) batteryLayoutField?.set(binding.parent, binding.battery)
             field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, binding.hostHideBattery)

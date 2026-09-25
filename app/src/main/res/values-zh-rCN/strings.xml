@@ -1350,4 +1350,27 @@
     <string name="icon_duo_airplane_scale">飞行模式 (%)</string>
     <string name="icon_duo_battery_scale">内嵌电池 (%)</string>
     <string name="icon_duo_percent_scale">电量百分比 (%)</string>
+    <string name="settings_aod_icons_title">AOD 图标</string>
+    <string name="settings_aod_icons_summary">设置 AOD 的电量、三合一图标和百分比</string>
+    <string name="settings_aod_icons_back">返回系统界面</string>
+    <string name="aod_icons_section_display">显示内容</string>
+    <string name="aod_icons_battery_title">电量图标</string>
+    <string name="aod_icons_battery_summary">独立显示 AOD 电量图标。开启三合一后，三合一会接管此位置。</string>
+    <string name="aod_icons_duo_title">三合一图标</string>
+    <string name="aod_icons_duo_summary">在电量环中显示选定的中心内容。</string>
+    <string name="aod_icons_duo_center_title">圆环中间显示</string>
+    <string name="aod_icons_duo_center_summary">选择圆环中显示电池图标或网络信号。</string>
+    <string name="aod_icons_duo_center_battery">电池</string>
+    <string name="aod_icons_duo_center_signal">信号</string>
+    <string name="aod_icons_section_percent">电量百分比</string>
+    <string name="aod_icons_percent_visible_title">显示百分比</string>
+    <string name="aod_icons_percent_visible_summary">电量图标和三合一都隐藏时，也可以单独显示百分比。</string>
+    <string name="aod_icons_percent_position_title">百分比位置</string>
+    <string name="aod_icons_percent_position_summary">选择百分比相对图标的位置；电池中心内容支持圆环下方居中。</string>
+    <string name="aod_icons_percent_left">左侧</string>
+    <string name="aod_icons_percent_right">右侧</string>
+    <string name="aod_icons_percent_duo_center">圆环下方居中</string>
+    <string name="aod_icons_section_apply">应用更改</string>
+    <string name="aod_icons_restart_title">重启 SystemUI</string>
+    <string name="aod_icons_restart_summary">重启 SystemUI 以应用 AOD 图标设置。</string>
 </resources>

@@ -1356,4 +1356,27 @@
     <string name="icon_duo_airplane_scale">Airplane (%)</string>
     <string name="icon_duo_battery_scale">Inner battery (%)</string>
     <string name="icon_duo_percent_scale">Battery percentage (%)</string>
+    <string name="settings_aod_icons_title">AOD icons</string>
+    <string name="settings_aod_icons_summary">Battery, three-in-one icon, and percentage</string>
+    <string name="settings_aod_icons_back">Back to System UI</string>
+    <string name="aod_icons_section_display">Display</string>
+    <string name="aod_icons_battery_title">Battery icon</string>
+    <string name="aod_icons_battery_summary">The standalone AOD battery icon. The three-in-one icon takes over this position when enabled.</string>
+    <string name="aod_icons_duo_title">Three-in-one icon</string>
+    <string name="aod_icons_duo_summary">Combines the battery ring with the selected center content.</string>
+    <string name="aod_icons_duo_center_title">Center content</string>
+    <string name="aod_icons_duo_center_summary">Choose the battery glyph or network signal inside the ring.</string>
+    <string name="aod_icons_duo_center_battery">Battery</string>
+    <string name="aod_icons_duo_center_signal">Signal</string>
+    <string name="aod_icons_section_percent">Battery percentage</string>
+    <string name="aod_icons_percent_visible_title">Show percentage</string>
+    <string name="aod_icons_percent_visible_summary">Can be shown by itself when both icons are hidden.</string>
+    <string name="aod_icons_percent_position_title">Percentage position</string>
+    <string name="aod_icons_percent_position_summary">Center-below-ring placement is available with battery center content.</string>
+    <string name="aod_icons_percent_left">Left</string>
+    <string name="aod_icons_percent_right">Right</string>
+    <string name="aod_icons_percent_duo_center">Centered below the ring</string>
+    <string name="aod_icons_section_apply">Apply changes</string>
+    <string name="aod_icons_restart_title">Restart SystemUI</string>
+    <string name="aod_icons_restart_summary">Restart SystemUI to apply AOD icon settings.</string>
 </resources>

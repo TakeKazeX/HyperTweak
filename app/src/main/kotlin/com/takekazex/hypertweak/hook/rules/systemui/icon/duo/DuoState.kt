@@ -16,7 +16,7 @@ data class DuoBattery(val percent: Int, val charging: Boolean, val powerSave: Bo
 
 enum class BatteryTone { NORMAL, CHARGING, LOW, POWER_SAVE }
 enum class DuoTransport { UNKNOWN, NONE, WIFI, CELLULAR, VPN, OTHER }
-enum class DuoSurface { HOME, COLLAPSED_PROXY, EXPANDED, UNSUPPORTED }
+enum class DuoSurface { HOME, KEYGUARD, COLLAPSED_PROXY, EXPANDED, UNSUPPORTED }
 enum class DuoExpandedStyle { KEEP_DUO, RESTORE_NATIVE }
 internal enum class DuoNetworkDestination { NONE, NATIVE, CARRIER }
 
@@ -47,7 +47,7 @@ object DuoPolicy {
             (surface == DuoSurface.COLLAPSED_PROXY || surface == DuoSurface.EXPANDED)
 
     fun replaces(surface: DuoSurface, expandedStyle: DuoExpandedStyle): Boolean = when (surface) {
-        DuoSurface.HOME, DuoSurface.COLLAPSED_PROXY -> true
+        DuoSurface.HOME, DuoSurface.KEYGUARD, DuoSurface.COLLAPSED_PROXY -> true
         // The explicit "keep Duo" choice retains only the expanded battery ring. Network state
         // returns to the native status row or the carrier block that already owns that container.
         DuoSurface.EXPANDED -> expandedStyle == DuoExpandedStyle.KEEP_DUO
