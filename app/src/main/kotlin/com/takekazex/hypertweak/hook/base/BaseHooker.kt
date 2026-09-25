@@ -322,8 +322,8 @@ sealed class BaseHooker {
      * Resolved reflectively because `deoptimize` is not on the [XposedModule] type this module
      * compiles against on every API level.
      */
-    fun deoptimize(executable: Executable) {
-        runCatching {
+    fun deoptimize(executable: Executable): Boolean {
+        return runCatching {
             var clazz: Class<*>? = module.javaClass
             var deoptimizeMethod: Method? = null
             while (clazz != null) {
@@ -336,11 +336,10 @@ sealed class BaseHooker {
             }
             deoptimizeMethod?.apply {
                 isAccessible = true
-                invoke(module, executable)
-            }
+            }?.invoke(module, executable) as? Boolean ?: false
         }.onFailure { t ->
             DebugLog.w(hookerName, "failed to deoptimize ${formatExecutable(executable)}", t)
-        }
+        }.getOrDefault(false)
     }
 
     private fun registerHandle(

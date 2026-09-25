@@ -35,10 +35,11 @@ import java.util.concurrent.ConcurrentHashMap
  * `SparseBooleanArray` write from a getter reachable off the main thread is a race AOSP explicitly
  * asserts against.
  *
- * `getUserHasTrust` is a one-expression method its hot callers may AOT-inline, so it is deoptimized
- * before hooking. It is recomputed in bursts from the fingerprint listening state, so the derived
- * value is cached per user for [TRUST_CACHE_TTL_MS]. The cache is only ever seeded while the keyguard
- * is showing — an unlocked device never seeds a `true` that could be served across a later lock
+ * `getUserHasTrust` is a one-expression method that the bouncer caller may AOT-inline. The bouncer
+ * caller is deoptimized before hooking; deoptimizing only the callee cannot restore an inlined call.
+ * The getter is recomputed in bursts from the fingerprint listening state, so the derived value is
+ * cached per user for [TRUST_CACHE_TTL_MS]. The cache is only ever seeded while the keyguard is
+ * showing — an unlocked device never seeds a `true` that could be served across a later lock
  * transition — and is dropped from a `before` hook on `onTrustChanged`, ahead of the platform's own
  * notification loop, so a trust revocation can never read back a stale `true`.
  */
@@ -46,6 +47,9 @@ object ExtendUnlockHooker : StaticHooker() {
     private const val TAG = "ExtendUnlock"
 
     private const val KEYGUARD_UPDATE_MONITOR = "com.android.keyguard.KeyguardUpdateMonitor"
+    private const val KEYGUARD_SECURITY_CONTAINER_CONTROLLER =
+        "com.android.keyguard.KeyguardSecurityContainerController"
+    private const val KEYGUARD_SECURITY_MODE = "com.android.keyguard.KeyguardSecurityModel\$SecurityMode"
     private const val TRUST_CACHE_TTL_MS = 200L
 
     private const val GMS_PACKAGE = "com.google.android.gms"
@@ -184,9 +188,20 @@ object ExtendUnlockHooker : StaticHooker() {
             return
         }
 
+        val bouncerCaller = resolveBouncerTrustCaller(monitor.classLoader)
+        if (bouncerCaller == null) {
+            DebugLog.hookSkipped(
+                TAG,
+                "$KEYGUARD_SECURITY_CONTAINER_CONTROLLER#showNextSecurityScreenOrFinish",
+                "method not found"
+            )
+        } else if (deoptimize(bouncerCaller)) {
+            DebugLog.i(TAG, "deoptimized bouncer trust caller")
+        } else {
+            DebugLog.w(TAG, "failed to deoptimize bouncer trust caller; hook may be bypassed by AOT inline")
+        }
+
         runCatching {
-            // One-expression method; hot callers may AOT-inline it, silently making the hook dead.
-            deoptimize(method)
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "getUserHasTrust", Unit) {
@@ -200,9 +215,38 @@ object ExtendUnlockHooker : StaticHooker() {
                     }
                 }
             }
+            DebugLog.i(TAG, "hook installed for $KEYGUARD_UPDATE_MONITOR#getUserHasTrust(int)")
         }.onFailure {
             DebugLog.hookFailed(TAG, "$KEYGUARD_UPDATE_MONITOR#getUserHasTrust(int)", it)
         }
+    }
+
+    /**
+     * The security bouncer is the path used after the user swipes up from the lock screen. Its
+     * `showNextSecurityScreenOrFinish` method directly calls `getUserHasTrust`; deoptimizing this
+     * caller makes ART dispatch through the hook instead of a previously inlined copy.
+     */
+    private fun resolveBouncerTrustCaller(classLoader: ClassLoader?): Method? {
+        classLoader ?: return null
+        return runCatching {
+            val controller = Class.forName(
+                KEYGUARD_SECURITY_CONTAINER_CONTROLLER,
+                false,
+                classLoader
+            )
+            val securityMode = Class.forName(KEYGUARD_SECURITY_MODE, false, classLoader)
+            CompatibleMethodResolver.find(
+                controller,
+                "showNextSecurityScreenOrFinish",
+                returnType = Boolean::class.javaPrimitiveType,
+                parameterTypes = listOf(
+                    Boolean::class.javaPrimitiveType!!,
+                    Int::class.javaPrimitiveType!!,
+                    Boolean::class.javaPrimitiveType!!,
+                    securityMode
+                )
+            )
+        }.getOrNull()
     }
 
     /**
