@@ -26,9 +26,10 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
+import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
@@ -808,7 +809,9 @@ object DuoSignalHooker : StaticHooker() {
             val aod = binding.keyguardRoot?.takeIf { read(it, "mToLockScreen") == false }
                 ?.let { AodIconSettings.current() }
             if (aod != null && !aod.duo) {
-                if (Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) {
+                // The opt-in only forces support on unsupported ROMs. Native full-screen AOD
+                // devices also need the SystemUI battery row, even when that opt-in is off.
+                if (AODHooker.isFullscreenSupported()) {
                     showNativeFullAod(binding, aod)
                 } else {
                     // Legacy AOD draws its own battery row while the keyguard header fades.
