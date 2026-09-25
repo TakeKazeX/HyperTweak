@@ -58,6 +58,8 @@ fun TweaksScreenContent(
     onNavigateToAospRestore: () -> Unit,
     onNavigateToGoogleServices: () -> Unit,
     onNavigateToCameraWatermark: () -> Unit,
+    settingsGlobalInterface: Boolean,
+    onSettingsGlobalInterfaceChange: (Boolean) -> Unit,
     paModelSpoofEnabled: Boolean,
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
     unlockThirdPartyDarkMode: Boolean,
@@ -146,6 +148,12 @@ fun TweaksScreenContent(
                             )
                         },
                         onClick = onNavigateToAospRestore
+                    )
+                    SwitchPreference(
+                        checked = settingsGlobalInterface,
+                        onCheckedChange = onSettingsGlobalInterfaceChange,
+                        title = stringResource(R.string.settings_global_interface_title),
+                        summary = stringResource(R.string.settings_global_interface_summary)
                     )
                     ArrowPreference(
                         title = stringResource(R.string.settings_system_ui),

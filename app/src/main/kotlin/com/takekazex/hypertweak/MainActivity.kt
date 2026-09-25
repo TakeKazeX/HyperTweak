@@ -107,6 +107,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
     Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS to RestartScopeSelection(settings = true),
+    Preferences.KEY_SETTINGS_GLOBAL_INTERFACE to RestartScopeSelection(settings = true),
     Preferences.KEY_DISABLE_VIDEO_RINGBACK to RestartScopeSelection(
         additionalPackages = setOf(
             RestartScopeSelection.PACKAGE_PHONE,
@@ -415,6 +416,9 @@ class MainActivity : ComponentActivity() {
                     )
                 )
             }
+            var settingsGlobalInterface by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_SETTINGS_GLOBAL_INTERFACE, false))
+            }
             var disableVideoRingback by remember {
                 mutableStateOf(
                     Preferences.getBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, false)
@@ -526,6 +530,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
                     Preferences.KEY_SHOW_IN_SETTINGS -> showInSettings
                     Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS -> showGoogleServicesInSettings
+                    Preferences.KEY_SETTINGS_GLOBAL_INTERFACE -> settingsGlobalInterface
                     Preferences.KEY_DISABLE_VIDEO_RINGBACK -> disableVideoRingback
                     Preferences.KEY_UNLOCK_PASSKEY -> unlockPasskey
                     Preferences.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
@@ -841,6 +846,10 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
                         false
                     )
+                    settingsGlobalInterface = Preferences.getBoolean(
+                        Preferences.KEY_SETTINGS_GLOBAL_INTERFACE,
+                        false
+                    )
                     disableVideoRingback = Preferences.getBoolean(
                         Preferences.KEY_DISABLE_VIDEO_RINGBACK,
                         false
@@ -1059,6 +1068,12 @@ class MainActivity : ComponentActivity() {
                             Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
                             checked
                         )
+                    },
+                    settingsGlobalInterface = settingsGlobalInterface,
+                    onSettingsGlobalInterfaceChange = { checked ->
+                        markTweaked(Preferences.KEY_SETTINGS_GLOBAL_INTERFACE, checked)
+                        settingsGlobalInterface = checked
+                        Preferences.putBoolean(Preferences.KEY_SETTINGS_GLOBAL_INTERFACE, checked)
                     },
                     unlockPasskey = unlockPasskey,
                     onUnlockPasskeyChange = { checked ->

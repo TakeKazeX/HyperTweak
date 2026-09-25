@@ -782,6 +782,8 @@
     <string name="settings_allow_landscape_summary">Allow rotation to landscape</string>
     <string name="settings_aosp_restore">AOSP Restore</string>
     <string name="settings_aosp_restore_summary">Restore HyperOS components to their AOSP versions</string>
+    <string name="settings_global_interface_title">Use the international Settings interface</string>
+    <string name="settings_global_interface_summary">Enable the international menu and page branches in the system Settings app; restart Settings to apply</string>
     <string name="settings_app_shortcuts">App Shortcuts</string>
     <string name="settings_app_shortcuts_summary">Choose the shortcuts in the long-press app icon menu</string>
     <string name="settings_appearance">Appearance</string>

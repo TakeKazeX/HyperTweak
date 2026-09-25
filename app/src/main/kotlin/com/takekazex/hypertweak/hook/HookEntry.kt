@@ -92,6 +92,7 @@ import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHook
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
+import com.takekazex.hypertweak.hook.rules.settings.GlobalSettingsInterfaceHooker
 import com.takekazex.hypertweak.hook.rules.settings.NotificationMoreSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.NotificationBadgeSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
@@ -822,6 +823,8 @@ class HookEntry : XposedModule() {
                 attachHooker(AodStatusIconHooker(), classLoader, ctx, replacementHandles)
             }
             "com.android.settings" -> {
+                // Flip Settings' process-local MIUI build flags before its own classes initialize.
+                attachHooker(GlobalSettingsInterfaceHooker, classLoader, ctx, replacementHandles)
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AODHooker, classLoader, ctx, replacementHandles)

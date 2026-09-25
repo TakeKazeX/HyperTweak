@@ -184,6 +184,8 @@ object Preferences {
     const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     /** Restores Settings' native Google services home-page entry on domestic builds. */
     const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
+    /** Makes Settings follow its own international-build UI branches in this process. */
+    const val KEY_SETTINGS_GLOBAL_INTERFACE = "settings_global_interface"
     /** Forces the Phone service to keep video ringback disabled and exposes its native switch. */
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
     /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */

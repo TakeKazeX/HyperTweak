@@ -780,6 +780,8 @@
     <string name="settings_allow_landscape_summary">允许界面旋转为横屏</string>
     <string name="settings_aosp_restore">AOSP 还原</string>
     <string name="settings_aosp_restore_summary">将 HyperOS 组件还原为 AOSP 实现</string>
+    <string name="settings_global_interface_title">启用国际版设置界面</string>
+    <string name="settings_global_interface_summary">启用系统设置的国际版菜单和页面分支，更改后需重启设置</string>
     <string name="settings_app_shortcuts">应用快捷方式</string>
     <string name="settings_app_shortcuts_summary">选择长按应用图标显示的快捷方式</string>
     <string name="settings_appearance">外观</string>
