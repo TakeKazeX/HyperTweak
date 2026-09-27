@@ -6,25 +6,16 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Regression tests for [CameraIdentity], the sensor-identity invariant that validates camera
- * impersonation candidates.
- *
- * REGRESSION HISTORY: the original implementation compared getter results with plain `==`.
- * On camera 6.6.000510.0 both the K100 Pro Max config (`Songyuan`) and this device's own
- * config (`Myron`) mint a fresh `new int[]{17}` on every `q1()` call, so reference equality
- * never held, EVERY K100 candidate was rejected, and the impersonation silently fell back to
- * Nezha (wrong focal/imaging surface until the user switched targets by hand).
- */
+
 class CameraIdentityTest {
 
-    /** Mirrors a config pair whose getters allocate new arrays per call (the 510 shape). */
+
     @Suppress("unused", "RedundantSuppression")
     open class Config(val sensorParam: String, val sensorId: Int, val lensIds: IntArray, val lensCount: Int) {
-        fun O1(): String = sensorParam
-        fun D(): Int = sensorId
-        fun q1(): IntArray = lensIds.copyOf()
-        fun r1(): Int = lensCount
+        open fun sensorSignature(): String = sensorParam
+        fun sensorIdentifier(): Int = sensorId
+        fun lensIdentifiers(): IntArray = lensIds.copyOf()
+        fun lensTotal(): Int = lensCount
     }
 
     @Test
@@ -64,27 +55,24 @@ class CameraIdentityTest {
         // Same values as C1200 (Songyuan) vs C1196 (Myron) on 510: O1="...", D=..., q1=[17].
         val candidate = Config("0x0102", 17, intArrayOf(17), 3)
         val original = Config("0x0102", 17, intArrayOf(17), 3)
-        assertTrue(CameraIdentity.sharesImagingIdentity(candidate, original))
+        assertTrue(CameraIdentity.sharesImagingIdentity(candidate, original, Config::class.java.declaredMethods.toList()))
     }
 
     @Test
     fun `identity invariant rejects a different sensor`() {
         val candidate = Config("0x9999", 17, intArrayOf(17), 3)
         val original = Config("0x0102", 17, intArrayOf(17), 3)
-        assertFalse(CameraIdentity.sharesImagingIdentity(candidate, original))
+        assertFalse(CameraIdentity.sharesImagingIdentity(candidate, original, Config::class.java.declaredMethods.toList()))
     }
 
     @Test
     fun `identity invariant rejects when a getter throws on either side`() {
-        val broken = object : Any() {
-            fun O1(): String = throw IllegalStateException("host blew up")
-            fun D(): Int = 17
-            fun q1(): IntArray = intArrayOf(17)
-            fun r1(): Int = 3
+        val broken = object : Config("0x0102", 17, intArrayOf(17), 3) {
+            override fun sensorSignature(): String = throw IllegalStateException("host blew up")
         }
         val healthy = Config("0x0102", 17, intArrayOf(17), 3)
-        assertFalse(CameraIdentity.sharesImagingIdentity(broken, healthy))
-        assertFalse(CameraIdentity.sharesImagingIdentity(healthy, broken))
+        assertFalse(CameraIdentity.sharesImagingIdentity(broken, healthy, Config::class.java.declaredMethods.toList()))
+        assertFalse(CameraIdentity.sharesImagingIdentity(healthy, broken, Config::class.java.declaredMethods.toList()))
     }
 
     // ── MasterLive (mode 231) carousel placement ─────────────────────────────────

@@ -88,7 +88,6 @@ import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
 import com.takekazex.hypertweak.hook.rules.system.ForceDarkAppListHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
-import com.takekazex.hypertweak.hook.rules.settings.FastCameraSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
@@ -110,6 +109,7 @@ import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
+import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
@@ -835,7 +835,6 @@ class HookEntry : XposedModule() {
                 // attached in this process as well as the Bluetooth service process.
                 attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
-                attachHooker(FastCameraSettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(VisualPerceptionSettingsHooker, classLoader, ctx, replacementHandles)
                 // Experimental: link the orphaned 左右挥手 / 隔空暂停或播放 pages into the AON
                 // 隔空手势 landing list (stock ROM never references those fragments).
@@ -921,7 +920,7 @@ class HookEntry : XposedModule() {
                 // so Xiaomi's server delivers the 澎湃G1-gated "智能测算" MAML suit (精准电量).
                 attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
             }
-            "com.android.camera" -> {
+            "com.android.camera" -> CameraDexIndex.withSession(appInfo?.sourceDir) {
                 // Runs before Camera.onCreate; the after-hook preserves model-config initialization
                 // while suppressing only the APK/device mismatch exit guard when opted in.
                 attachHooker(CameraDeviceMismatchHooker, classLoader, ctx, replacementHandles)

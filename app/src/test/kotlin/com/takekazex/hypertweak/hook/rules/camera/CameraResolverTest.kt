@@ -1,185 +1,41 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
-import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
-import java.lang.reflect.Modifier
 
-/**
- * Unit tests for the version-generic resolution layers of [CameraResolver].
- *
- * These verify the pure-resolution mechanics (candidate ordering, semantic validation,
- * name-candidate method lookup, structural factory recognition) against the Java fixtures in
- * [CameraFixtures]. The per-build camera class names themselves can only be verified
- * on-device / against dex tables, not in JVM tests.
- */
 class CameraResolverTest {
-
-    private val loader = CameraResolverTest::class.java.classLoader!!
-
-    private val ctx = CameraResolver.Ctx(loader, null)
-
-    @Test
-    fun `candidates resolve in order and skip repurposed names`() {
-        val resolved = CameraResolver.resolveClass(
-            scope = "test", key = "fixture", ctx = ctx,
-            candidates = listOf(
-                CameraFixtures.Repurposed::class.java.name,
-                CameraFixtures.Factory460::class.java.name,
-            ),
-            validate = { c -> c.declaredMethods.any { it.name == "q" } },
-        )
-        // Repurposed exists but fails the shape check; the next candidate is used.
-        assertEquals(CameraFixtures.Factory460::class.java.name, resolved?.name)
+    interface Capability { fun enabled(): Boolean }
+    open class Provider : Capability { override fun enabled() = true }
+    class Child : Provider()
+    class Overloaded {
+        fun read(): String = ""
+        fun read(value: Int): Int = value
     }
 
-    @Test
-    fun `a repurposed name alone is rejected`() {
-        val resolved = CameraResolver.resolveClass(
-            scope = "test", key = "fixture", ctx = ctx,
-            candidates = listOf(CameraFixtures.Repurposed::class.java.name),
-            validate = { c -> c.declaredMethods.any { it.name == "q" } },
-        )
-        assertNull(resolved)
-    }
-
-    @Test
-    fun `method resolution falls back across renamed method candidates`() {
-        val newShape = CameraResolver.resolveMethod(
-            scope = "test", key = "factory",
-            clazz = CameraFixtures.Factory510::class.java,
-            names = listOf("G0", "q"),
-            shape = { it.parameterTypes.isEmpty() && Modifier.isStatic(it.modifiers) },
-        )
-        assertNotNull(newShape)
-        assertEquals("G0", newShape!!.name)
-
-        val oldShape = CameraResolver.resolveMethod(
-            scope = "test", key = "factory",
-            clazz = CameraFixtures.Factory460::class.java,
-            names = listOf("G0", "q"),
-            shape = { it.parameterTypes.isEmpty() && Modifier.isStatic(it.modifiers) },
-        )
-        assertNotNull(oldShape)
-        assertEquals("q", oldShape!!.name)
-    }
-
-    @Test
-    fun `method resolver checks the return type along with static factory shape`() {
-        val newFactory = CameraResolver.resolveMethod(
-            scope = "test", key = "factory",
-            clazz = CameraFixtures.Factory510::class.java,
-            names = listOf("G0"),
-            shape = {
-                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
-                    it.returnType == CameraFixtures.Factory510::class.java
-            },
-        )
-        assertNotNull(newFactory)
-        assertEquals("G0", newFactory!!.name)
-
-        // A same-name method with the wrong return type must not satisfy the host contract.
-        val wrongReturn = CameraResolver.resolveMethod(
-            scope = "test", key = "factory",
-            clazz = CameraFixtures.FactoryBroken::class.java,
-            names = listOf("q"),
-            shape = {
-                Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
-                    it.returnType == CameraFixtures.Factory510::class.java
-            },
-        )
-        assertNull(wrongReturn)
-    }
-
-    @Test
-    fun `shape helpers detect boolean getters and static zero-arg methods`() {
-        assertTrue(CameraResolver.hasBooleanMethod(BooleanHolder::class.java, listOf("s")))
-        assertTrue(!CameraResolver.hasBooleanMethod(BooleanHolder::class.java, listOf("t")))
-        assertTrue(CameraResolver.hasStaticZeroArgMethod(CameraFixtures.Factory460::class.java, listOf("q")))
-    }
-
-    @Test
-    fun `provider implementation resolves through interface and inherited method without a class name`() {
-        val contract = TintColorGate::class.java.getDeclaredMethod("isAvailable")
-        val method = CameraResolver.findConcreteImplementation(VersionedTintProvider(), contract)
-
-        assertNotNull(method)
-        assertEquals(SharedTintProvider::class.java, method!!.declaringClass)
-        assertEquals("isAvailable", method.name)
-    }
-
-    @Test
-    fun `provider implementation rejects an unrelated receiver`() {
-        val contract = TintColorGate::class.java.getDeclaredMethod("isAvailable")
-
+    @Test fun `provider dispatch follows the live object hierarchy`() {
+        val contract = Capability::class.java.getDeclaredMethod("enabled")
+        val method = CameraResolver.findConcreteImplementation(Child(), contract)
+        assertEquals(Provider::class.java, method?.declaringClass)
         assertNull(CameraResolver.findConcreteImplementation(Any(), contract))
     }
 
-    /** Provider-gate fixture mirroring the LCC tint-color gate (boolean zero-arg `s` vs int `i`). */
-    class BooleanHolder {
-        fun s(): Boolean = true
-        fun t(): Int = 1
+    @Test fun `an exact contract rejects a reused name with the wrong signature`() {
+        assertNull(CameraResolver.resolveMethod("test", "contract", Overloaded::class.java, "read") {
+            it.parameterCount == 0 && it.returnType == Integer.TYPE
+        })
+        assertNotNull(CameraResolver.resolveMethod("test", "contract", Overloaded::class.java, "read") {
+            it.parameterCount == 0 && it.returnType == String::class.java
+        })
     }
 
-    private interface TintColorGate {
-        fun isAvailable(): Boolean
+    @Test fun `a method name alone cannot choose between overloads`() {
+        assertNull(CameraResolver.resolveMethod("test", "ambiguous", Overloaded::class.java, "read"))
     }
-
-    private open class SharedTintProvider : TintColorGate {
-        override fun isAvailable(): Boolean = false
-    }
-
-    private class VersionedTintProvider : SharedTintProvider()
-
-    @Test
-    fun `adaptive lens resolver prefers the new h5 and j5 pair`() {
-        val pair = CameraResolver.findUniqueStaticBooleanPair(
-            CameraFixtures.AdaptiveLensNew::class.java,
-            listOf("h5" to "j5", "g5" to "i5"),
+    @Test fun `compatible method lookup still selects the typed overload`() {
+        val method = com.takekazex.hypertweak.hook.base.CompatibleMethodResolver.find(
+            Overloaded::class.java, "read", parameterTypes = listOf(Integer.TYPE),
         )
-        assertNotNull(pair)
-        assertEquals("h5", pair!!.first.name)
-        assertEquals("j5", pair.second.name)
-    }
-
-    @Test
-    fun `adaptive lens resolver falls back to the old g5 and i5 pair`() {
-        val pair = CameraResolver.findUniqueStaticBooleanPair(
-            CameraFixtures.AdaptiveLensOld::class.java,
-            listOf("h5" to "j5", "g5" to "i5"),
-        )
-        assertNotNull(pair)
-        assertEquals("g5", pair!!.first.name)
-        assertEquals("i5", pair.second.name)
-    }
-
-    @Test
-    fun `adaptive lens resolver rejects mismatched argument types`() {
-        val pair = CameraResolver.findUniqueStaticBooleanPair(
-            CameraFixtures.AdaptiveLensMismatched::class.java,
-            listOf("h5" to "j5", "g5" to "i5"),
-        )
-        assertNull(pair)
-    }
-
-    @Test
-    fun `adaptive lens resolver rejects overloaded gate names`() {
-        val pair = CameraResolver.findUniqueStaticBooleanPair(
-            CameraFixtures.AdaptiveLensOverloaded::class.java,
-            listOf("h5" to "j5", "g5" to "i5"),
-        )
-        assertNull(pair)
-    }
-
-    @Test
-    fun `CompatibleMethodResolver still matches typed overloads uniquely`() {
-        val method = CompatibleMethodResolver.find(
-            CameraFixtures.Factory460::class.java, "q",
-            parameterTypes = emptyList(),
-        )
-        assertNotNull(method)
+        assertEquals(Integer.TYPE, method?.returnType)
+        assertEquals(1, method?.parameterCount)
     }
 }

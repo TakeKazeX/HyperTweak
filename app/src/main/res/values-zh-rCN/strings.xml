@@ -188,6 +188,7 @@
     <string name="credits_back">返回</string>
     <string name="credits_backgesture_desc">wxxsfxyzm 的 MiuiHome 原生桌面钩子框架 · Apache-2.0</string>
     <string name="credits_dexkit_desc">强大的 Dex 分析工具，用于动态查找 Hook 点 · v2.2.0</string>
+    <string name="credits_dexlib2_desc">DEX 指令与控制流分析 · v2.5.2 · BSD-3-Clause</string>
     <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v1.2.1</string>
     <string name="credits_fcm_desc">howard20181 的 Google 推送 / FCM Live 实现</string>
     <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制</string>
@@ -1207,13 +1208,6 @@
 
     <string name="camera_unlock_back">返回</string>
     <string name="camera_unlock_features">功能开关</string>
-    <string name="camera_unlock_street_title">街拍模式</string>
-    <string name="camera_unlock_street_summary">解锁街拍模式</string>
-    <string name="camera_unlock_street_off">关闭</string>
-    <string name="camera_unlock_street_new">新街拍</string>
-    <string name="camera_unlock_street_compat">兼容模式街拍</string>
-    <string name="camera_unlock_street_quick_launch_title">快捷抢拍走街拍</string>
-    <string name="camera_unlock_street_quick_launch_summary">锁屏急速相机直接进入街拍</string>
     <string name="camera_unlock_leica_style_title">徕卡经典/生动风格</string>
     <string name="camera_unlock_leica_style_summary">解锁「徕卡经典」与「徕卡生动」风格</string>
     <string name="camera_unlock_all_shutter_sounds_title">解锁全部徕卡快门音效</string>

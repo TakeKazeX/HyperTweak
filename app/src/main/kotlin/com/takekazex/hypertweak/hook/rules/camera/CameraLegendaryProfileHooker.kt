@@ -17,12 +17,19 @@ internal object CameraLegendaryProfileState {
     private val appliedMode = AtomicReference<String?>(null)
     private val nativeConfig = AtomicReference<Any?>(null)
     private val activeConfig = AtomicReference<Any?>(null)
+    private val nativeWatermark = AtomicReference<Array<String?>?>(null)
     private val pixelEntry = AtomicReference<Class<*>?>(null)
     private val cinematicEntry = AtomicReference<Class<*>?>(null)
 
     fun captureNativeConfigIfMissing(config: Any) {
         nativeConfig.compareAndSet(null, config)
     }
+
+    fun captureNativeWatermarkIfMissing(value: Array<*>) {
+        nativeWatermark.compareAndSet(null, value.map { it as? String }.toTypedArray())
+    }
+
+    fun nativeWatermarkSnapshot(): Array<String?>? = nativeWatermark.get()?.copyOf()
 
     fun nativeConfigSnapshot(): Any? = nativeConfig.get()
 
@@ -105,6 +112,12 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             return
         }
         CameraLegendaryProfileState.setActiveConfig(native)
+        runCatching {
+            val getter = binding.modelArrayGetter ?: return@runCatching
+            val facade = binding.facadeInstance() ?: return@runCatching
+            val values = binding.facade.getMethod(getter).invoke(facade) as? Array<*> ?: return@runCatching
+            CameraLegendaryProfileState.captureNativeWatermarkIfMissing(values)
+        }.onFailure { DebugLog.w(TAG, "native watermark snapshot could not be captured", it) }
 
         when (mode) {
             CameraLegendaryMomentMode.MODE_OFF -> {
@@ -150,7 +163,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
                 return
             }
         if (!binding.configType.isAssignableFrom(targetClass)) {
-            reject(mode, "${targetClass.name} does not implement the active ${binding.family} config ABI")
+            reject(mode, "${targetClass.name} does not implement the active ${binding.configType.name} config ABI")
             return
         }
         val target = runCatching {
@@ -182,7 +195,6 @@ object CameraLegendaryProfileHooker : StaticHooker() {
         binding: CameraHostProfile.Binding,
         activeConfig: Any,
     ) {
-        if (binding.family != CameraHostProfile.Family.CAMERA_66) return
         hookPixelMode(ctx, binding, activeConfig)
         hookCinematicMode(ctx)
     }
@@ -196,7 +208,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             scope = TAG,
             key = "pixel_module_entry",
             ctx = ctx,
-            candidates = listOf(PIXEL_ENTRY),
+            className = PIXEL_ENTRY,
             validate = { type ->
                 type.declaredMethods.any {
                     it.name == "support" && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
@@ -216,10 +228,12 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             scope = TAG,
             key = "pixel_module_item_name",
             clazz = entry,
-            names = listOf("getModeItem"),
+            name = "getModeItem",
             shape = { it.parameterCount == 0 },
         ) ?: return
-        val e4 = binding.configMethod(activeConfig.javaClass, "E4", java.lang.Boolean.TYPE)
+        val semantics = CameraSemantics.create(ctx, TAG) ?: return
+        val labelGate = semantics.entryConfigGetter("pixel.PixelModuleEntry", binding.configType, "getModeItem")
+        val e4 = binding.configMethod(activeConfig.javaClass, labelGate?.name, java.lang.Boolean.TYPE)
         if (e4 == null) {
             DebugLog.w(TAG, "Pixel 200MP display gate was not found on ${activeConfig.javaClass.name}")
         } else {
@@ -252,7 +266,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             scope = TAG,
             key = "pixel_module_ui_provider",
             clazz = entry,
-            names = listOf("getModeUI"),
+            name = "getModeUI",
             shape = { it.parameterCount == 0 && !it.returnType.isPrimitive },
         ) ?: return
         val itemFactory = CameraResolver.resolveMethodByNumbers(
@@ -331,7 +345,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             scope = TAG,
             key = "cinematic_module_entry",
             ctx = ctx,
-            candidates = listOf(CINEMATIC_ENTRY),
+            className = CINEMATIC_ENTRY,
             validate = { type ->
                 type.declaredMethods.any {
                     it.name == "getModuleId" && it.parameterCount == 0 && it.returnType == Integer.TYPE
@@ -348,7 +362,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
             scope = TAG,
             key = "cinematic_module_support",
             clazz = entry,
-            names = listOf("support"),
+            name = "support",
             shape = { it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE },
         ) ?: return
         deoptimize(support)

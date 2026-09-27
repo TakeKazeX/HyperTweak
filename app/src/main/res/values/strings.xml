@@ -188,6 +188,7 @@
     <string name="credits_back">Back</string>
     <string name="credits_backgesture_desc">MiuiHome native launcher hook framework by wxxsfxyzm · Apache-2.0</string>
     <string name="credits_dexkit_desc">Powerful Dex analysis tool for finding hook points dynamically · v2.2.0</string>
+    <string name="credits_dexlib2_desc">DEX instruction and control-flow analysis · v2.5.2 · BSD-3-Clause</string>
     <string name="credits_ezhook_desc">Kotlin Xposed helper library by lingqiqi5211 · v1.2.1</string>
     <string name="credits_fcm_desc">Google Push / FCM Live implementation by howard20181</string>
     <string name="credits_hiddenapibypass_desc">Bypass restrictions on non-SDK interfaces in Android 9+</string>
@@ -1210,13 +1211,6 @@
 
     <string name="camera_unlock_back">Back</string>
     <string name="camera_unlock_features">Camera features</string>
-    <string name="camera_unlock_street_title">Street snap mode</string>
-    <string name="camera_unlock_street_summary">Unlock Street mode</string>
-    <string name="camera_unlock_street_off">Off</string>
-    <string name="camera_unlock_street_new">New street snap</string>
-    <string name="camera_unlock_street_compat">Compatible street snap</string>
-    <string name="camera_unlock_street_quick_launch_title">Street snap for the quick camera</string>
-    <string name="camera_unlock_street_quick_launch_summary">Open Street mode from the lock-screen quick camera</string>
     <string name="camera_unlock_leica_style_title">Leica classic/vivid style</string>
     <string name="camera_unlock_leica_style_summary">Unlock the Leica Classic and Leica Vibrant styles</string>
     <string name="camera_unlock_all_shutter_sounds_title">Unlock all Leica shutter sounds</string>

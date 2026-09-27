@@ -786,31 +786,6 @@ object Preferences {
     }
 
     /**
-     * The current street-snap unlock mode (a [CameraStreetMode] constant). Reads
-     * [KEY_CAMERA_STREET_MODE]; when that key was never written it migrates the legacy
-     * [LEGACY_KEY_CAMERA_STREET_ENABLE] boolean in memory (true → `"new"`, false → `"off"`),
-     * so existing users keep their stored street behaviour without a data rewrite. An
-     * unparsable stored value falls back to [CameraStreetMode.DEFAULT]. Read live by the
-     * camera hooks (100 ms memo), so switching modes applies without a restart once the hooks
-     * are installed — except entry VISIBILITY, which the camera caches per process.
-     */
-    fun cameraStreetMode(): String {
-        val stored = if (containsKey(KEY_CAMERA_STREET_MODE)) getString(KEY_CAMERA_STREET_MODE, "") else null
-        val legacy = if (stored == null) getBoolean(LEGACY_KEY_CAMERA_STREET_ENABLE, false) else null
-        return CameraStreetMode.resolve(stored, legacy)
-    }
-
-    /** Persists the street mode and drops the superseded legacy boolean. */
-    fun setCameraStreetMode(mode: String) {
-        memoInvalidate(KEY_CAMERA_STREET_MODE)
-        memoInvalidate(LEGACY_KEY_CAMERA_STREET_ENABLE)
-        write {
-            putString(KEY_CAMERA_STREET_MODE, mode)
-            remove(LEGACY_KEY_CAMERA_STREET_ENABLE)
-        }
-    }
-
-    /**
      * Current Leica/Legendary Moment selector. Leica Moment opens its entry on the native
      * config; Legendary Moment uses Madrid only when the camera package contains that config.
      * A missing new key migrates the old Boolean (true → Leica Moment).
@@ -1048,53 +1023,6 @@ object Preferences {
      */
     const val KEY_CAMERA_ADAPTIVE_LENS = "camera_adaptive_lens"
 
-    /**
-     * 街拍 (Street snap, camera mode id 225) unlock mode. One of [CameraStreetMode.MODES]:
-     *  - `"off"` — street stays stock (hidden on myron and every other REDMI config);
-     *  - `"new"` (新街拍) — force the street-support gate (`a3()`) true on the real device
-     *    config (no REDMI config ships `a3=true` natively). The mode then registers
-     *    (`StreetModuleEntry.support()`) and the quick-launch photo route re-classifies
-     *    consistently with a working street;
-     *  - `"compat"` (兼容模式街拍) — force `StreetModuleEntry.support()` itself true on the
-     *    REAL device config, touching nothing else (`a3()` stays native so quick-launch keeps
-     *    its stock classification), and still opens the HAL role-0 main camera.
-     *
-     * In both non-off modes the entry lands in the camera's 更多 overflow grid (no verified
-     * config `M()` order array carries 225), which is exactly where natively street-capable
-     * devices show it; visibility changes need a camera app restart because `p666t3.a`
-     * caches its support()-filtered entry registry for the process lifetime. 装备街拍 (229)
-     * depends on 17-Ultra modular-lens cameras (13/7) and stays closed in every mode.
-     *
-     * Supersedes the legacy boolean [LEGACY_KEY_CAMERA_STREET_ENABLE]; read through
-     * [cameraStreetMode], written through [setCameraStreetMode]. Default `"off"`.
-     */
-    const val KEY_CAMERA_STREET_MODE = "camera_street_mode"
-
-    /** Legacy single-switch street enable; superseded by [KEY_CAMERA_STREET_MODE]. */
-    const val LEGACY_KEY_CAMERA_STREET_ENABLE = "camera_street_enable"
-
-    /**
-     * 快捷抢拍走街拍 (street quick-launch completion, default OFF): makes the lock-screen fast
-     * camera route (设置→锁屏→其他→急速相机「打开相机并拍照」, `Settings.System.volumekey_launch_camera`
-     * = 2 → system_server double-tap volume-down → `STILL_IMAGE_CAMERA` intent with
-     * `camera_launch_source=launch_camera_and_take_photo`) classify as 街拍 (module 225) instead
-     * of stock CAPTURE. Stock classification is
-     * `CameraIntentManager.e()` = `a3() && v()` (`vr.l`/`vr.m`, jadx p757vr.C4755l/C4751m); the
-     * compat street mode keeps `a3()` native, so the quick-launch route stays CAPTURE there.
-     * This hook forces `e()` → "STREET" when the launch source is exactly
-     * `launch_camera_and_take_photo`, and forces the guide gate (`Q5.J#f()`) true so
-     * `StreetModule.setParameter` actually consumes the launch source. Read live (100 ms memo),
-     * so it complements [KEY_CAMERA_STREET_MODE] without a restart; needs a camera app restart
-     * for the hooks to install.
-     *
-     * Settings side ([rules.settings.FastCameraSettingsHooker]): the same switch forces
-     * `LockscreenOthersHelper.supportCameraStreetMode()` true in the Settings process, so
-     * 设置→锁屏→其他→急速相机 shows the「打开相机并拍照」 dropdown option instead of only the
-     * plain switch — without it that option is `removePreference`d away on devices whose
-     * `persist.vendor.camera.IsVariableApertureSupported`/`IsStreetModeSupported` are unset.
-     */
-    const val KEY_CAMERA_STREET_QUICK_LAUNCH = "camera_street_quick_launch"
-
     const val KEY_UNLOCK_MORE_VISUAL_PERCEPTION = "unlock_more_visual_perception"
     const val KEY_UNLOCK_MORE_AON_GESTURES = "unlock_more_aon_gestures"
 
@@ -1180,10 +1108,6 @@ object Preferences {
     fun notificationBlockFold(): Boolean = getBoolean(KEY_NOTIFICATION_BLOCK_FOLD, false)
 
     fun freeformBlurTransition(): Boolean = getBoolean(KEY_FREEFORM_BLUR_TRANSITION, false)
-
-    /** True when the lock-screen quick-capture route should classify as street. */
-    fun cameraStreetQuickLaunch(): Boolean =
-        getBoolean(KEY_CAMERA_STREET_QUICK_LAUNCH, false)
 
     /**
      * 实况运镜 (MasterLive, camera mode id 231) unlock master; default off. While on, the

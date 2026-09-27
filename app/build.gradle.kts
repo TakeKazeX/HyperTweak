@@ -235,6 +235,8 @@ dependencies {
 
     // DexKit
     implementation("org.luckypray:dexkit:2.2.0")
+    // Read operands/control flow at semantic camera call sites; DexKit exposes opcodes only.
+    implementation("org.smali:dexlib2:2.5.2")
 
     // LSPlt backs the native payload's MADV_DONTNEED page guard. This is the
     // 16 KB page-size standalone rebuild; the AAR is vendored in app/libs so CI

@@ -81,6 +81,11 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/LuckyPray/DexKit") }
                     )
                     ArrowPreference(
+                        title = "dexlib2",
+                        summary = stringResource(R.string.credits_dexlib2_desc),
+                        onClick = { uriHandler.openUri("https://github.com/JesusFreke/smali/tree/master/dexlib2") }
+                    )
+                    ArrowPreference(
                         title = "HiddenApiBypass",
                         summary = stringResource(R.string.credits_hiddenapibypass_desc),
                         onClick = { uriHandler.openUri("https://github.com/LSPosed/AndroidHiddenApiBypass") }

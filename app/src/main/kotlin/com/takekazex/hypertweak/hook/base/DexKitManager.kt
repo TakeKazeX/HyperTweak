@@ -10,9 +10,6 @@ import kotlin.concurrent.withLock
 import java.util.concurrent.ConcurrentHashMap
 
 object DexKitManager {
-    private const val KEY_LAST_MODIFIED = "apk_last_modified"
-    private const val KEY_FILE_SIZE = "apk_file_size"
-    private const val KEY_SHA256 = "apk_sha256"
     private val bridgeLock = ReentrantLock()
     private val bridgeDrained = bridgeLock.newCondition()
     private val resolutionLocks = ConcurrentHashMap<String, ReentrantLock>()
@@ -162,20 +159,9 @@ object DexKitManager {
 
         val apkFile = File(apkPath)
         val fingerprint = fingerprint(apkFile)
-        val currentLastModified = fingerprint?.lastModified ?: 0L
-        val currentFileSize = fingerprint?.size ?: 0L
-        val currentSha256 = fingerprint?.sha256
-        val cachedLastModified = properties.getProperty(KEY_LAST_MODIFIED)?.toLongOrNull() ?: 0L
-        val cachedFileSize = properties.getProperty(KEY_FILE_SIZE)?.toLongOrNull() ?: 0L
-        val cachedSha256 = properties.getProperty(KEY_SHA256)
-
-        // mtime alone is not a content identity: package managers and backup/restore tools can
-        // preserve it while replacing classes.dex. Old caches without a digest intentionally
-        // fail closed and are rebuilt once.
-        val isCacheValid = fingerprint != null &&
-            currentLastModified == cachedLastModified &&
-            currentFileSize == cachedFileSize &&
-            currentSha256 != null && currentSha256 == cachedSha256
+        val identity = fingerprint?.let { DexKitCacheIdentity(it.lastModified, it.size, it.sha256) }
+        val isCacheValid = identity?.prepare(properties) ?: false
+        if (identity == null) properties.clear()
         val resolvedMap = mutableMapOf<String, Class<*>>()
         val missingQueries = mutableMapOf<String, (DexKitBridge) -> String?>()
 
@@ -197,6 +183,7 @@ object DexKitManager {
                         }
                     }.onFailure {
                         DebugLog.w("DexKit", "failed to load cached class $cachedName for key $key")
+                        properties.remove(key)
                         missingQueries[key] = queries[key]!!
                     }
                 } else {
@@ -208,7 +195,7 @@ object DexKitManager {
             // Do not carry a previous build's class names into a newly fingerprinted cache. If a
             // scan cannot resolve an optional key, leaving the old name here would make it look
             // valid again on the next process start.
-            queries.keys.forEach(properties::remove)
+            properties.clear()
             missingQueries.putAll(queries)
         }
 
@@ -217,7 +204,6 @@ object DexKitManager {
             DebugLog.d("DexKit", "performing scan for ${missingQueries.size} classes")
             val startTime = System.currentTimeMillis()
             withBridge(apkPath) { bridge ->
-                var cacheUpdated = false
                 for ((key, queryFunc) in missingQueries) {
                     val className = queryFunc(bridge)
                     if (className != null) {
@@ -230,7 +216,6 @@ object DexKitManager {
                             } else {
                                 resolvedMap[key] = clazz
                                 properties.setProperty(key, className)
-                                cacheUpdated = true
                                 DebugLog.d("DexKit", "resolved $key -> $className")
                             }
                         }.onFailure { t ->
@@ -244,10 +229,8 @@ object DexKitManager {
                         }
                     }
                 }
-                if (cacheUpdated && cacheFile != null && cacheDir != null) {
-                    properties.setProperty(KEY_LAST_MODIFIED, currentLastModified.toString())
-                    properties.setProperty(KEY_FILE_SIZE, currentFileSize.toString())
-                    currentSha256?.let { properties.setProperty(KEY_SHA256, it) }
+                if (fingerprint != null && cacheFile != null && cacheDir != null) {
+                    identity?.stamp(properties)
                     runCatching {
                         if (!cacheDir.exists()) cacheDir.mkdirs()
                         cacheFile.outputStream().use { properties.store(it, "HyperTweak DexKit Cache") }

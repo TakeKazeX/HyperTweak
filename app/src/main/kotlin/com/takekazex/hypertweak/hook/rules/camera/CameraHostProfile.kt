@@ -1,249 +1,118 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
-import android.util.SparseArray
 import com.takekazex.hypertweak.util.DebugLog
-import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
 
-/**
- * Resolves the camera device-config surface from its behavior and object graph.
- *
- * Xiaomi changes the obfuscated facade, factory, and config base independently. The old
- * implementation treated those names and the concrete base type as one version tuple, so a
- * factory move from `Gu.b` to `p905ze.b` made every dependent hook disappear. This resolver
- * anchors on the facade's semantic `LCC` branch, validates its exposed API, finds the config
- * object field by the capability surface it implements, and reads the facade singleton without
- * knowing the factory class or config-field name.
- */
+/** The live host object graph plus independently resolved feature contracts. No version families. */
 internal object CameraHostProfile {
-    enum class Family { CAMERA_68, CAMERA_66 }
-
+    private val bindings = WeakHashMap<ClassLoader, WeakReference<Binding>>()
     data class Binding(
-        val family: Family,
         val facade: Class<*>,
         val configField: Field,
         val configType: Class<*>,
-        val mismatchGate: String?,
-        val modelArrayGetter: String,
-        val brandGetter: String,
-        val lccGate: String,
-        val streetGate: String,
-        val masterLiveGate: String,
-        val modeOrder: String,
-        val effectTable: String,
-        val focalStops: String,
-        val leicaStyleGate: String?,
+        val modelArrayGetter: String?,
+        val brandGetter: String?,
+        val lccGate: String?,
+        val masterLiveGate: String?,
+        val modeOrders: List<String>,
+        val effectTable: String?,
+        val focalStops: String?,
         private val singletonField: Field,
     ) {
-        fun configMethod(receiver: Class<*>, name: String, returnType: Class<*>): Method? =
-            runCatching {
-                receiver.getMethod(name).takeIf {
-                    !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
-                        returnType.isAssignableFrom(it.returnType)
+        fun configMethod(receiver: Class<*>, name: String?, returnType: Class<*>): Method? =
+            name?.let { runCatching {
+                receiver.getMethod(it).takeIf { method ->
+                    !Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
+                        returnType.isAssignableFrom(method.returnType)
                 }?.apply { isAccessible = true }
-            }.getOrNull()
+            }.getOrNull() }
 
-        /** A selected target must implement the same full camera-config ABI as the live host. */
-        fun acceptsConfig(candidate: Any): Boolean {
-            val type = candidate.javaClass
-            return configType.isInstance(candidate) &&
-                configMethod(type, streetGate, java.lang.Boolean.TYPE) != null &&
-                configMethod(type, masterLiveGate, java.lang.Boolean.TYPE) != null &&
-                configMethod(type, modeOrder, IntArray::class.java) != null &&
-                configMethod(type, effectTable, Map::class.java) != null &&
-                configMethod(type, focalStops, SparseArray::class.java) != null
-        }
-
-        /** Read the config instance through the host's facade singleton, not its factory path. */
+        fun facadeInstance(): Any? = runCatching { singletonField.get(null) }.getOrNull()
         fun configInstance(): Any? = runCatching {
-            val owner = singletonField.get(null) ?: return@runCatching null
-            configField.get(owner)?.takeIf(configType::isInstance)
+            facadeInstance()?.let(configField::get)?.takeIf(configType::isInstance)
         }.getOrNull()
 
-        /** Replace the facade's active config only after a complete target ABI check. */
+        /** The actual host base type defines the ABI; feature misses never invalidate it. */
+        fun acceptsConfig(candidate: Any): Boolean = configType.isInstance(candidate) &&
+            configType.methods.filter { !Modifier.isStatic(it.modifiers) && !it.isSynthetic }.all { expected ->
+                runCatching { candidate.javaClass.getMethod(expected.name, *expected.parameterTypes) }
+                    .getOrNull()?.returnType == expected.returnType
+            }
         fun replaceConfigInstance(target: Any): Boolean = runCatching {
-            if (!acceptsConfig(target) || !configField.type.isInstance(target)) return@runCatching false
-            val owner = singletonField.get(null) ?: return@runCatching false
+            if (!acceptsConfig(target)) return@runCatching false
+            val owner = facadeInstance() ?: return@runCatching false
             configField.set(owner, target)
             configField.get(owner) === target
         }.getOrDefault(false)
     }
 
-    private data class Surface(
-        val family: Family,
-        val streetGate: String,
-        val masterLiveGate: String,
-        val modeOrder: String,
-        val effectTable: String,
-        val focalStops: String,
-        val leicaStyleGate: String?,
-    )
-
-    fun resolve(ctx: CameraResolver.Ctx, scope: String): Binding? {
-        val facade = CameraResolver.resolveClass(
-            scope = scope,
-            key = "camera_device_config_facade",
-            ctx = ctx,
-            candidates = emptyList(),
-            // LCC is a semantic branch in the device-config facade, not a class/package name.
-            // The method and class shapes below reject unrelated uses of the same literal.
-            probe = { bridge -> findFacade(bridge, ctx.classLoader)?.name },
-            validate = ::isFacade,
-        ) ?: return null
-
-        val configField = facade.declaredFields
-            .filter { !Modifier.isStatic(it.modifiers) && isConfigType(it.type) }
-            .singleOrNull()
-            ?.apply { isAccessible = true }
-            ?: run {
-                DebugLog.w(scope, "config field not uniquely identified by capability surface on ${facade.name}")
-                return null
-            }
-        val singletonField = findSingletonField(facade) ?: run {
-            DebugLog.w(scope, "facade singleton not uniquely identified on ${facade.name}")
-            return null
-        }
-        val surface = resolveConfigSurface(configField.type) ?: run {
-            DebugLog.w(scope, "config ABI not recognized on ${configField.type.name}")
-            return null
-        }
-        val modelGetter = facade.methods.singleOrNull {
-            !Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                it.returnType == Array<String>::class.java
-        } ?: run {
-            DebugLog.w(scope, "device model-array getter is not unique on ${facade.name}")
-            return null
-        }
-        val brandGetter = facade.methods.singleOrNull {
-            !Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                it.returnType == String::class.java && it.name in setOf("z", "x")
-        } ?: run {
-            DebugLog.w(scope, "device-brand getter is not unique on ${facade.name}")
-            return null
-        }
-        val lccGate = facade.methods.singleOrNull {
-            Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                it.returnType == java.lang.Boolean.TYPE && it.name in setOf("Y", "V")
-        } ?: run {
-            DebugLog.w(scope, "LCC capability gate is not unique on ${facade.name}")
-            return null
-        }
-        val mismatchGates = facade.methods.filter {
-            Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                it.returnType == java.lang.Boolean.TYPE && it.name in setOf("O", "K")
-        }
-        val mismatchGate = mismatchGates.singleOrNull()?.name
-        if (mismatchGate == null) {
-            // Model-mismatch bypass is optional. New releases may reuse the old O/K signatures
-            // for unrelated flags; that ambiguity must not disable the entire camera profile.
-            DebugLog.w(scope, "model-mismatch gate is ambiguous on ${facade.name}; profile resolution continues")
-        }
-        if (configField.type.getMethod(surface.streetGate).returnType != java.lang.Boolean.TYPE ||
-            configField.type.getMethod(surface.masterLiveGate).returnType != java.lang.Boolean.TYPE ||
-            configField.type.getMethod(surface.modeOrder).returnType != IntArray::class.java ||
-            !Map::class.java.isAssignableFrom(configField.type.getMethod(surface.effectTable).returnType) ||
-            !SparseArray::class.java.isAssignableFrom(configField.type.getMethod(surface.focalStops).returnType)
-        ) {
-            DebugLog.w(scope, "config ABI failed final signature validation on ${configField.type.name}")
-            return null
-        }
-
-        val binding = Binding(
-            surface.family, facade, configField, configField.type, mismatchGate, modelGetter.name,
-            brandGetter.name, lccGate.name, surface.streetGate, surface.masterLiveGate,
-            surface.modeOrder, surface.effectTable, surface.focalStops, surface.leicaStyleGate,
-            singletonField,
-        )
-        // Do not read the static singleton while resolving metadata. On Camera 6.8 the nested
-        // holder initializes Pe.b, whose initializer depends on CameraAppImpl state and crashes
-        // if touched from Xposed's package-loaded callback. Callers that need the live object
-        // must wait until the host's config Provider has completed initialization.
-        DebugLog.i(
-            scope,
-            "camera config surface resolved structurally: facade=${facade.name}, " +
-                "config=${configField.type.name}, gates=${surface.streetGate}/${surface.masterLiveGate}",
-        )
-        return binding
+    @Synchronized fun resolve(ctx: CameraResolver.Ctx, scope: String): Binding? {
+        bindings[ctx.classLoader]?.get()?.let { return it }
+        return resolveUncached(ctx, scope)?.also { bindings[ctx.classLoader] = WeakReference(it) }
     }
 
-    private fun findFacade(bridge: DexKitBridge, loader: ClassLoader): Class<*>? {
-        val candidates = runCatching {
-            bridge.findClass { matcher { usingStrings("LCC") } }
-                .mapNotNull { data -> runCatching { data.getInstance(loader) }.getOrNull() }
-                .filter(::isFacade)
-                .distinctBy { it.name }
-        }.getOrNull().orEmpty()
-        return candidates.singleOrNull()
-    }
-
-    private fun isFacade(type: Class<*>): Boolean {
-        if (type.isInterface || type.isEnum || type.isArray) return false
-        val modelGetterCount = type.methods.count {
-            !Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                it.returnType == Array<String>::class.java
+    private fun resolveUncached(ctx: CameraResolver.Ctx, scope: String): Binding? = runCatching {
+        val semantics = CameraSemantics.create(ctx, scope) ?: return null
+        val dex = semantics.dex
+        val facade = dex.ownerStrings("LCC").mapNotNull {
+            runCatching { CameraDexIndex.type(it, ctx.classLoader) }.getOrNull()
+        }.filter { type -> configFields(type).size == 1 && singleton(type) != null
+        }.singleOrNull() ?: run { DebugLog.w(scope, "camera config object graph is not unique"); return null }
+        val field = configFields(facade).single().apply { isAccessible = true }
+        val config = field.type
+        val owner = CameraDexIndex.descriptor(facade)
+        val model = facade.declaredMethods.singleOrNull { it.returnType == Array<String>::class.java &&
+            it.parameterCount == 0 && !Modifier.isStatic(it.modifiers) }
+        val modelReference = model?.let(semantics::reference)
+        val brand = if (modelReference == null) null else semantics.unique("watermark brand slot", dex.declared(owner).filter { method ->
+            method.returnType == "Ljava/lang/String;" && method.parameterTypes.isEmpty() &&
+                dex.code(method).arrays.any { read ->
+                    (read.producer as? CameraDexIndex.Value.Call)?.method?.let(CameraDexIndex::descriptor) ==
+                        CameraDexIndex.descriptor(modelReference) && read.index == CameraDexIndex.Value.Number(0)
+                }
+        })
+        val lcc = semantics.unique("LCC", dex.strings("LCC").filter {
+            it.definingClass == owner && CameraSemantics.booleanGetter(it) && Modifier.isStatic(it.accessFlags)
+        })
+        val master = semantics.entryConfigGetter("masterlive.MasterLiveModuleEntry", config)
+        val orders = (
+            dex.strings("pref_camera_sort_modes_key").filter { it.returnType == "[I" }
+                .flatMap { dex.localCalls(it) }.filter {
+                    CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "[I")
+                }).distinctBy(CameraDexIndex::descriptor).mapNotNull(semantics::reflect)
+        val effects = semantics.unique("MasterLive immutable effect definitions",
+            dex.ownerStrings("ComponentRunningMasterLive", "pref_master_live_key").flatMap(dex::declared)
+                .flatMap { dex.code(it).calls }.filter {
+                    it.method.definingClass == "Ljava/util/Collections;" && it.method.name == "unmodifiableMap"
+                }.flatMap { it.arguments }.filterIsInstance<CameraDexIndex.Value.Call>()
+                .map { it.method }.filter { CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "Ljava/util/Map;") })
+        val zoomOwners = dex.ownerStrings("ZoomUtil")
+        val zoom = semantics.unique("per-mode zoom stops", zoomOwners.flatMap(dex::declared)
+            .filter { it.returnType == "[Ljava/lang/Float;" &&
+                it.parameterTypes.map(CharSequence::toString) == listOf("I", "Z", "Z", "[Ljava/lang/Float;") }
+            .flatMap { dex.code(it).calls }.map { it.method }.filter {
+                CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "Landroid/util/SparseArray;") &&
+                    semantics.reflect(it)?.genericReturnType?.typeName == "android.util.SparseArray<java.lang.Float[]>"
+            })
+        Binding(facade, field, config, model?.name, brand?.name, lcc?.name, master?.name,
+            orders.map { it.name }, effects?.name, zoom?.name, singleton(facade)!!).also {
+            DebugLog.i(scope, "camera semantic profile: facade=${facade.name}, config=${config.name}, " +
+                "master=${master?.name}, orders=${orders.map { it.name }}, effects=${effects?.name}, zoom=${zoom?.name}")
         }
-        if (modelGetterCount != 1) return false
-        if (type.methods.none {
-                Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                    it.returnType == java.lang.Boolean.TYPE && it.name in setOf("Y", "V")
-            }
-        ) return false
-        if (type.methods.none {
-                Modifier.isStatic(it.modifiers) && !it.isSynthetic && it.parameterCount == 0 &&
-                    it.returnType == java.lang.Boolean.TYPE && it.name in setOf("O", "K")
-            }
-        ) return false
-        return type.declaredFields.count { !Modifier.isStatic(it.modifiers) && isConfigType(it.type) } == 1 &&
-            findSingletonField(type) != null
+    }.onFailure { DebugLog.w(scope, "camera config graph resolution failed", it) }.getOrNull()
+
+    private fun configFields(type: Class<*>): List<Field> = type.declaredFields.filter { field ->
+        !Modifier.isStatic(field.modifiers) && !field.type.isPrimitive &&
+            field.type.methods.count { it.returnType == java.lang.Boolean.TYPE && it.parameterCount == 0 } > 20 &&
+            field.type.methods.any { Map::class.java.isAssignableFrom(it.returnType) } &&
+            field.type.methods.any { it.returnType == IntArray::class.java }
     }
-
-    private fun findSingletonField(facade: Class<*>): Field? {
-        val fields = buildList {
-            facade.declaredFields.forEach(::add)
-            facade.declaredClasses.forEach { nested -> nested.declaredFields.forEach(::add) }
-        }.filter {
-            Modifier.isStatic(it.modifiers) && facade.isAssignableFrom(it.type)
-        }
-        return fields.singleOrNull()?.apply { isAccessible = true }
-    }
-
-    private fun isConfigType(type: Class<*>): Boolean {
-        if (type.isPrimitive || type.isArray || type.isInterface || type.isEnum) return false
-        val methods = type.methods.filter { !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 }
-        val hasModeArray = methods.any { it.returnType == IntArray::class.java }
-        val hasEffectMap = methods.any { Map::class.java.isAssignableFrom(it.returnType) }
-        val hasZoomTable = methods.any { SparseArray::class.java.isAssignableFrom(it.returnType) }
-        val hasCapabilityGates = methods.count { it.returnType == java.lang.Boolean.TYPE } >= 4
-        return hasModeArray && hasEffectMap && hasZoomTable && hasCapabilityGates
-    }
-
-    private fun resolveConfigSurface(configType: Class<*>): Surface? {
-        val candidates = listOf(
-            Surface(Family.CAMERA_68, "c2", "l3", "G", "c0", "X0", "D2"),
-            Surface(Family.CAMERA_66, "a3", "y4", "M", "q0", "v1", null),
-        )
-        return candidates.filter { matchesConfigSurface(configType, it) }.singleOrNull()
-    }
-
-    /** Method names can be reused across config families; classify by the full getter ABI. */
-    private fun matchesConfigSurface(configType: Class<*>, surface: Surface): Boolean {
-        fun getter(name: String): Method? = configType.methods.singleOrNull {
-            it.name == name && !Modifier.isStatic(it.modifiers) &&
-                !it.isSynthetic && it.parameterCount == 0
-        }
-
-        fun returns(name: String, expected: Class<*>): Boolean =
-            getter(name)?.returnType == expected
-
-        val effectTable = getter(surface.effectTable)?.returnType
-        val focalStops = getter(surface.focalStops)?.returnType
-        return returns(surface.streetGate, java.lang.Boolean.TYPE) &&
-            returns(surface.masterLiveGate, java.lang.Boolean.TYPE) &&
-            returns(surface.modeOrder, IntArray::class.java) &&
-            effectTable != null && Map::class.java.isAssignableFrom(effectTable) &&
-            focalStops != null && SparseArray::class.java.isAssignableFrom(focalStops) &&
-            (surface.leicaStyleGate == null || returns(surface.leicaStyleGate, java.lang.Boolean.TYPE))
-    }
+    private fun singleton(type: Class<*>): Field? = (type.declaredFields.toList() +
+        type.declaredClasses.flatMap { it.declaredFields.toList() }).filter {
+        Modifier.isStatic(it.modifiers) && it.type == type
+    }.singleOrNull()?.apply { isAccessible = true }
 }

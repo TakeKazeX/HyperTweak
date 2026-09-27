@@ -54,7 +54,9 @@ internal object CameraApplicationInit {
                                 pendingByLoader.remove(loader)?.actions?.toList().orEmpty()
                             }
                             DebugLog.i("CamAppInit", "config-ready boundary returned; running deferred hooks=${actions.size}")
-                            actions.forEach { (owner, queued) -> runAction(owner, queued) }
+                            CameraDexIndex.withSession(hooker.hookParam.appInfo?.sourceDir) {
+                                actions.forEach { (owner, queued) -> runAction(owner, queued) }
+                            }
                         }
                     }
                 }
@@ -120,6 +122,8 @@ internal object CameraApplicationInit {
     }
 
     private fun postAction(hooker: BaseHooker, action: () -> Unit) {
-        Handler(Looper.getMainLooper()).post { runAction(hooker, action) }
+        Handler(Looper.getMainLooper()).post {
+            CameraDexIndex.withSession(hooker.hookParam.appInfo?.sourceDir) { runAction(hooker, action) }
+        }
     }
 }

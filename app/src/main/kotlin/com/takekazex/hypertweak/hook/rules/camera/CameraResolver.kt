@@ -9,17 +9,8 @@ import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-/** Version-agnostic resolver for camera classes and methods.
- *
- * Obfuscated owners are discovered from semantic DEX strings, signatures, and numeric behavior;
- * every result is loaded, checked again against its runtime shape, and cached against the target
- * APK fingerprint. Unique-match helpers fail closed when a new build introduces ambiguity.
- * A miss disables only the affected feature, while a false match can break the camera process
- * or route a capture through the wrong hardware path.
- */
 object CameraResolver {
 
-    /** Minimal context needed for resolution (the camera process's loader + app info). */
     class Ctx(
         val classLoader: ClassLoader,
         val appInfo: ApplicationInfo?,
@@ -29,35 +20,19 @@ object CameraResolver {
         }
     }
 
-    /**
-     * Resolve a host class through candidate names (L1) and DexKit probes (L2).
-     *
-     * [validate] is deliberately REQUIRED with no default: an un-validated name match is the
-     * exact repurposed-name failure mode this resolver exists to prevent (`Ox.g` / `i5.d`).
-     */
     fun resolveClass(
         scope: String,
         key: String,
         ctx: Ctx,
-        candidates: List<String>,
+        className: String? = null,
         probe: ((DexKitBridge) -> String?)? = null,
         validate: (Class<*>) -> Boolean,
     ): Class<*>? {
-        // L1: known dex names, newest first. Each candidate must pass the semantic check:
-        // a surviving name may now belong to an unrelated class (Ox.g / i5.d traps).
-        for (name in candidates) {
-            val clazz = ctx.loadOrNull(name) ?: continue
-            if (!validate(clazz)) {
-                // A stale name is an expected version-fallback condition. Report it only at
-                // debug level; the terminal resolver result below is the actionable warning.
-                DebugLog.d(scope, "$key: candidate $name failed semantic check; trying fallback")
-                continue
-            }
-            DebugLog.d(scope, "$key resolved by candidate name $name")
-            return clazz
+        // Explicit names are reserved for semantic public classes such as module entries.
+        if (className != null) {
+            val clazz = ctx.loadOrNull(className)
+            if (clazz != null && runCatching { validate(clazz) }.getOrDefault(false)) return clazz
         }
-        // L2: DexKit probes (content-fingerprint cache; re-scanned after updates or validation
-        // failures).
         if (probe != null) {
             val info = ctx.appInfo ?: run {
                 DebugLog.w(scope, "$key: appInfo unavailable, cannot run DexKit probe")
@@ -90,11 +65,10 @@ object CameraResolver {
             DebugLog.w(scope, "$key: DexKit probe found nothing usable")
             return null
         }
-        DebugLog.w(scope, "$key: L1 candidates exhausted (no probe configured)")
+        DebugLog.w(scope, "$key: semantic class not found (no probe configured)")
         return null
     }
 
-    /** Resolve a semantic anchor without a class-name candidate list. Ambiguity fails closed. */
     fun resolveClassByStrings(
         scope: String,
         key: String,
@@ -105,7 +79,7 @@ object CameraResolver {
         scope = scope,
         key = key,
         ctx = ctx,
-        candidates = emptyList(),
+
         probe = { bridge ->
             bridge.findClass { matcher { usingStrings(*anchors.toTypedArray()) } }
                 .mapNotNull { data -> runCatching { data.getInstance(ctx.classLoader) }.getOrNull() }
@@ -116,7 +90,6 @@ object CameraResolver {
         validate = validate,
     )
 
-    /** Resolve one method from its semantic DEX strings plus a strict runtime signature. */
     fun resolveMethodByStrings(
         scope: String,
         key: String,
@@ -140,7 +113,6 @@ object CameraResolver {
         }
     }
 
-    /** Resolve a method from stable numeric behavior and a strict runtime signature. */
     fun resolveMethodByNumbers(
         scope: String,
         key: String,
@@ -164,22 +136,17 @@ object CameraResolver {
         }
     }
 
-    /**
-     * Resolve a method by name candidates + signature shape. Method names are renamed between
-     * builds too (`q` -> `G0`, `i` -> `s`), so each call site supplies the names observed on
-     * every verified build and a shape predicate.
-     */
     fun resolveMethod(
         scope: String,
         key: String,
         clazz: Class<*>,
-        names: List<String>,
+        name: String,
         shape: (Method) -> Boolean = { true },
     ): Method? {
         val method = clazz.declaredMethods.filter { m ->
-            m.name in names && shape(m) && !m.isSynthetic
+            m.name == name && shape(m) && !m.isSynthetic
         }.singleOrNull() ?: run {
-            DebugLog.w(scope, "$key: method names $names plus signature did not identify one target on ${clazz.name}")
+            DebugLog.w(scope, "$key: method $name plus signature did not identify one target on ${clazz.name}")
             return null
         }
         method.isAccessible = true
@@ -187,26 +154,6 @@ object CameraResolver {
         return method
     }
 
-    /** True when [names] contains a static, zero-arg method returning [returnType]-compatible value. */
-    fun hasStaticZeroArgMethod(clazz: Class<*>, names: Collection<String>, returnType: Class<*>? = null): Boolean {
-        return clazz.declaredMethods.any { m ->
-            m.name in names && Modifier.isStatic(m.modifiers) && m.parameterTypes.isEmpty() &&
-                (returnType == null || returnType.isAssignableFrom(m.returnType))
-        }
-    }
-
-    /** True when [names] contains a zero-arg method returning primitives/values of [returnType]. */
-    fun hasBooleanMethod(clazz: Class<*>, names: Collection<String>): Boolean {
-        return clazz.declaredMethods.any {
-            it.name in names && it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE
-        }
-    }
-
-    /**
-     * Resolve the concrete implementation of an instance method from the provider object reached
-     * at runtime. This keeps hooks tied to the call graph instead of a class name that the camera
-     * obfuscator can change or reuse on the next APK.
-     */
     fun findConcreteImplementation(receiver: Any, contract: Method): Method? {
         if (Modifier.isStatic(contract.modifiers) || !contract.declaringClass.isInstance(receiver)) {
             return null
@@ -233,42 +180,6 @@ object CameraResolver {
             ?.apply { isAccessible = true }
     }
 
-    /**
-     * Find the first uniquely resolvable pair of static boolean capability gates.
-     *
-     * Capability helpers contain many one-argument boolean methods, so a name-only lookup is
-     * unsafe after an APK update: a renamed/overloaded method can silently target another gate.
-     * Each pair must resolve exactly once, both methods must take the same argument type, and
-     * synthetic bridge methods are ignored. Pairs are tried in the caller's priority order.
-     */
-    fun findUniqueStaticBooleanPair(
-        clazz: Class<*>,
-        pairs: List<Pair<String, String>>,
-    ): Pair<Method, Method>? {
-        for ((firstName, secondName) in pairs) {
-            val first = clazz.declaredMethods.filter {
-                it.name == firstName && Modifier.isStatic(it.modifiers) &&
-                    it.parameterCount == 1 && it.returnType == java.lang.Boolean.TYPE &&
-                    !it.isSynthetic
-            }.singleOrNull() ?: continue
-            val second = clazz.declaredMethods.filter {
-                it.name == secondName && Modifier.isStatic(it.modifiers) &&
-                    it.parameterCount == 1 && it.returnType == java.lang.Boolean.TYPE &&
-                    !it.isSynthetic
-            }.singleOrNull() ?: continue
-            if (!first.parameterTypes.contentEquals(second.parameterTypes)) continue
-            first.isAccessible = true
-            second.isAccessible = true
-            return first to second
-        }
-        return null
-    }
-
-    /**
-     * Resolve the legacy model-mismatch gate when the host reuses its old method names for
-     * unrelated flags. The real gate is the static boolean facade method that asks the host's
-     * config factory for a config instance and returns that factory's fallback/mismatch state.
-     */
     fun resolveConfigFallbackGate(
         ctx: Ctx,
         facade: Class<*>,
@@ -306,7 +217,6 @@ object CameraResolver {
         }
     }
 
-    /** Locate the camera's model-source resolver by its cache/decode/Class.forName call graph. */
     fun resolveSourceNameResolver(ctx: Ctx, scope: String): Method? {
         val info = ctx.appInfo ?: return null
         val apkPath = info.sourceDir ?: return null

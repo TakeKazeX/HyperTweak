@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.camera
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import java.lang.reflect.Modifier
 
 /** Suppresses only the host's device-config mismatch exit when the user enabled compatibility. */
 object CameraDeviceMismatchHooker : StaticHooker() {
@@ -16,18 +15,7 @@ object CameraDeviceMismatchHooker : StaticHooker() {
             CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
         ) ?: return
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
-        val gate = profile.mismatchGate?.let { name ->
-            CameraResolver.resolveMethod(
-                scope = TAG,
-                key = "camera_device_mismatch_gate",
-                clazz = profile.facade,
-                names = listOf(name),
-                shape = {
-                    Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
-                        it.returnType == java.lang.Boolean.TYPE
-                },
-            )
-        } ?: CameraResolver.resolveConfigFallbackGate(ctx, profile.facade, profile.configType, TAG)
+        val gate = CameraResolver.resolveConfigFallbackGate(ctx, profile.facade, profile.configType, TAG)
         if (gate == null) return
 
         deoptimize(gate)

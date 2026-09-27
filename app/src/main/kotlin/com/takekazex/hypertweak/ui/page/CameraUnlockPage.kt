@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
-import com.takekazex.hypertweak.hook.CameraStreetMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -107,14 +106,8 @@ fun CameraUnlockContent(
         )
     }
 
-    var streetMode by remember {
-        mutableStateOf(Preferences.cameraStreetMode())
-    }
     var ignoreDeviceMismatch by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
-    }
-    var streetQuickLaunch by remember {
-        mutableStateOf(Preferences.cameraStreetQuickLaunch())
     }
     var leicaStyle by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false))
@@ -195,34 +188,6 @@ fun CameraUnlockContent(
                     },
                     title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
                     summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
-                )
-                // 街拍 (mode 225) unlock selector: 新街拍 forces the street-support gate on
-                // the real config; 兼容模式街拍 opens the entry via its own module entry.
-                // Same dropdown pattern as SettingsScreen's fingerprint-avoidance selector.
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.camera_unlock_street_title),
-                    summary = stringResource(R.string.camera_unlock_street_summary),
-                    items = listOf(
-                        stringResource(R.string.camera_unlock_street_off),
-                        stringResource(R.string.camera_unlock_street_new),
-                        stringResource(R.string.camera_unlock_street_compat)
-                    ),
-                    selectedIndex = CameraStreetMode.index(streetMode),
-                    onSelectedIndexChange = { index ->
-                        val mode = CameraStreetMode.fromIndex(index)
-                        streetMode = mode
-                        requestCameraRestart()
-                        Preferences.setCameraStreetMode(mode)
-                    }
-                )
-                SwitchPreference(
-                    checked = streetQuickLaunch,
-                    onCheckedChange = { enabled ->
-                        streetQuickLaunch = enabled
-                        set(Preferences.KEY_CAMERA_STREET_QUICK_LAUNCH, enabled, needsRestart = true)
-                    },
-                    title = stringResource(R.string.camera_unlock_street_quick_launch_title),
-                    summary = stringResource(R.string.camera_unlock_street_quick_launch_summary)
                 )
                 SwitchPreference(
                     checked = leicaStyle,
