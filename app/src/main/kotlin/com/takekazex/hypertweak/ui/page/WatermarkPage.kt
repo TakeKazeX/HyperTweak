@@ -239,4 +239,3 @@ fun WatermarkUnlockContent(
         Spacer(Modifier.height(bottomPadding + 24.dp))
     }
 }
-
