@@ -83,21 +83,6 @@ fun ExperimentalFeaturesPage(
     var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
     var launcherRestartPending by rememberSaveable { mutableStateOf(false) }
 
-    // Notification switches. 恢复更多通知设置 repairs a shell in each of the two processes that own
-    // notification settings (the channel page in com.android.settings, the status-bar silent-notification
-    // filter in com.android.systemui); the other two are single-process. Each affected process gets
-    // its own restart prompt.
-    var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
-    var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
-    var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
-    var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
-    var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-
-    // 多任务过渡模糊. The WM Shell multitasking classes live in SystemUI's process, and the hooker
-    // reads the switch when it installs, so this one also asks for a SystemUI restart.
-    var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
-    var freeformBlurRestartPending by rememberSaveable { mutableStateOf(false) }
-
     fun requestLauncherRestart() {
         launcherRestartPending = true
         requestRestartScopes(RestartScopeSelection(miuiHome = true))
@@ -169,9 +154,69 @@ fun ExperimentalFeaturesPage(
                     }
                 }
 
-                SmallTitle(stringResource(R.string.settings_opened_folder_section))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
+            }
+
+            // AON visual-perception / air-gesture unlocks: reveal Settings entries that the device
+            // hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
+            // These act on the next Settings UI refresh in the same process; the toggles force the
+            // Settings-side capability checks only — runtime sensor gates in system_server are
+            // separate (see docs/FEATURE_DETAIL.md).
+            SmallTitle(stringResource(R.string.settings_unlock_visual_perception_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = unlockVisual,
+                        onCheckedChange = {
+                            unlockVisual = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_visual_perception_title),
+                        summary = stringResource(R.string.settings_unlock_visual_perception_summary)
+                    )
+                    SwitchPreference(
+                        checked = unlockGestures,
+                        onCheckedChange = {
+                            unlockGestures = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_AON_GESTURES, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_aon_gestures_title),
+                        summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
+                    )
+                    // 自适应刷新率Pro (Mimotion PWM): reveal the 显示与亮度 row that HyperOS removes
+                    // when `ro.display.enable_pwm_switch` is unset, and let system_server re-apply
+                    // the saved mode at boot. Settings-side reveal needs a fresh Settings process;
+                    // the runtime re-apply needs a reboot; extra gears still depend on panel/DF support.
+                    SwitchPreference(
+                        checked = unlockAdaptiveRefresh,
+                        onCheckedChange = {
+                            unlockAdaptiveRefresh = it
+                            Preferences.putBoolean(Preferences.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
+                        },
+                        title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
+                        summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
+                    )
+                }
+            }
+
+            // Both controls affect Xiaomi System Launcher, so keep their native payload settings
+            // together. Opened-folder columns are available only on OS4; recents clearing exists on
+            // every supported launcher build.
+            SmallTitle(stringResource(R.string.settings_launcher_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = hideRecentsClearButton,
+                        onCheckedChange = {
+                            hideRecentsClearButton = it
+                            Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
+                            // The launcher-side payload cannot read this process's preferences, so
+                            // publish both native settings to the shared config file.
+                            NativeRuleConfig.publish(context, it, openedFolderColumns)
+                        },
+                        title = stringResource(R.string.settings_recents_clear_button_title),
+                        summary = stringResource(R.string.settings_recents_clear_button_summary)
+                    )
+                    if (PlatformLevel.isOs4) {
                         OverlayDropdownPreference(
                             title = stringResource(R.string.settings_opened_folder_columns_title),
                             summary = stringResource(R.string.settings_opened_folder_columns_summary),
@@ -219,219 +264,6 @@ fun ExperimentalFeaturesPage(
                                 }
                             )
                         }
-                    }
-                }
-            }
-
-            // AON visual-perception / air-gesture unlocks: reveal Settings entries that the device
-            // hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
-            // These act on the next Settings UI refresh in the same process; the toggles force the
-            // Settings-side capability checks only — runtime sensor gates in system_server are
-            // separate (see docs/FEATURE_DETAIL.md).
-            SmallTitle(stringResource(R.string.settings_unlock_visual_perception_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = unlockVisual,
-                        onCheckedChange = {
-                            unlockVisual = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_visual_perception_title),
-                        summary = stringResource(R.string.settings_unlock_visual_perception_summary)
-                    )
-                    SwitchPreference(
-                        checked = unlockGestures,
-                        onCheckedChange = {
-                            unlockGestures = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_AON_GESTURES, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_aon_gestures_title),
-                        summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
-                    )
-                    // 自适应刷新率Pro (Mimotion PWM): reveal the 显示与亮度 row that HyperOS removes
-                    // when `ro.display.enable_pwm_switch` is unset, and let system_server re-apply
-                    // the saved mode at boot. Settings-side reveal needs a fresh Settings process;
-                    // the runtime re-apply needs a reboot; extra gears still depend on panel/DF support.
-                    SwitchPreference(
-                        checked = unlockAdaptiveRefresh,
-                        onCheckedChange = {
-                            unlockAdaptiveRefresh = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
-                        },
-                        title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
-                        summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
-                    )
-                }
-            }
-
-            // Recents clean-up button. MiuiHome draws its multitasking UI in Flutter, so this one is
-            // not an ART hook: the module's native payload patches the Dart AOT function that
-            // inserts the button's overlay. The launcher is a separate process that reads the
-            // preference when it loads the module, hence the restart requirement.
-            SmallTitle(stringResource(R.string.settings_recents_clear_button_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = hideRecentsClearButton,
-                        onCheckedChange = {
-                            hideRecentsClearButton = it
-                            Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
-                            // The launcher-side payload cannot read this process's preferences, so
-                            // publish both native settings to the shared config file.
-                            NativeRuleConfig.publish(context, it, openedFolderColumns)
-                        },
-                        title = stringResource(R.string.settings_recents_clear_button_title),
-                        summary = stringResource(R.string.settings_recents_clear_button_summary)
-                    )
-                }
-            }
-
-            // Notification behavior: repairs to the notification settings HyperOS ships as shells.
-            // The first one spans both processes that own them, so the whole group is listed here
-            // rather than behind the platform gate above (none of it needs OS4-only resources).
-            SmallTitle(stringResource(R.string.experimental_features_section_notification))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    // 1) 恢复更多通知设置 — a code repair in two processes: the channel page's
-                    //    「重要性」 dropdown (com.android.settings) and the status-bar silent-notification
-                    //    filter (com.android.systemui). The latter has no switch of its own: it only
-                    //    makes the stock 「隐藏状态栏中的静音通知」 switch work, and whether silent
-                    //    icons are hidden stays whatever the user sets there.
-                    SwitchPreference(
-                        checked = notifMoreSettings,
-                        onCheckedChange = { value ->
-                            notifMoreSettings = value
-                            Preferences.putBoolean(
-                                Preferences.KEY_NOTIFICATION_MORE_SETTINGS,
-                                value
-                            )
-                            Preferences.flush()
-                            notifSettingsRestartPending = true
-                            notifSystemUiRestartPending = true
-                            requestRestartScopes(
-                                RestartScopeSelection(settings = true, systemUi = true)
-                            )
-                        },
-                        title = stringResource(
-                            R.string.experimental_notification_more_settings_title
-                        ),
-                        summary = stringResource(
-                            R.string.experimental_notification_more_settings_summary
-                        )
-                    )
-                    // 2) 通知角标 — the same defect and the same fix, for 「显示角标」.
-                    SwitchPreference(
-                        checked = notifBadge,
-                        onCheckedChange = { value ->
-                            notifBadge = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BADGE, value)
-                            Preferences.flush()
-                            notifSettingsRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(settings = true))
-                        },
-                        title = stringResource(R.string.experimental_notification_badge_title),
-                        summary = stringResource(R.string.experimental_notification_badge_summary)
-                    )
-                    // 3) 禁止折叠通知 — reuse the ROM's own international-build master switch.
-                    SwitchPreference(
-                        checked = notifBlockFold,
-                        onCheckedChange = { value ->
-                            notifBlockFold = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BLOCK_FOLD, value)
-                            Preferences.flush()
-                            notifSystemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
-                        },
-                        title = stringResource(
-                            R.string.experimental_notification_block_fold_title
-                        ),
-                        summary = stringResource(
-                            R.string.experimental_notification_block_fold_summary
-                        )
-                    )
-                    // 4) 隐藏状态栏中的静音通知 has no switch here on purpose: repairing `isSilent`
-                    //    (part of 恢复更多通知设置) only makes the stock switch functional, and that
-                    //    switch already has a value the user controls in the stock notification
-                    //    settings page (隐藏功能 → 通知设置). The module never forces that value.
-                    if (notifSettingsRestartPending) {
-                        val restartSelection = RestartScopeSelection(settings = true)
-                        ArrowPreference(
-                            title = stringResource(
-                                R.string.experimental_notification_restart_settings_title
-                            ),
-                            summary = stringResource(
-                                R.string.experimental_notification_restart_settings_summary
-                            ),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection
-                                )
-                                handleRestartedScopes(restartSelection)
-                                notifSettingsRestartPending = false
-                            }
-                        )
-                    }
-                    if (notifSystemUiRestartPending) {
-                        val restartSelection = RestartScopeSelection(systemUi = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_system_ui),
-                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection
-                                )
-                                handleRestartedScopes(restartSelection)
-                                notifSystemUiRestartPending = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Multitasking transitions: the blur cross-fade HyperOS uses when a freeform,
-            // split-screen or sidebar window is swapped, plus removal of the opaque bottom board
-            // that hides it. Everything runs in com.android.systemui.
-            SmallTitle(stringResource(R.string.experimental_features_section_multitasking))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = freeformBlur,
-                        onCheckedChange = { value ->
-                            freeformBlur = value
-                            Preferences.putBoolean(
-                                Preferences.KEY_FREEFORM_BLUR_TRANSITION,
-                                value
-                            )
-                            Preferences.flush()
-                            freeformBlurRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
-                        },
-                        title = stringResource(R.string.experimental_freeform_blur_title),
-                        summary = stringResource(R.string.experimental_freeform_blur_summary)
-                    )
-                    if (freeformBlurRestartPending) {
-                        val restartSelection = RestartScopeSelection(systemUi = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_system_ui),
-                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection
-                                )
-                                handleRestartedScopes(restartSelection)
-                                freeformBlurRestartPending = false
-                            }
-                        )
                     }
                 }
             }

@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,10 +25,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.ExtendUnlockLauncher
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
@@ -39,27 +35,28 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Toggles that hand a HyperOS component back to its AOSP implementation.
  *
- * State is kept locally rather than hoisted into `MainActivity`, but changes report their affected
- * process to the shared Home restart dialog; the page also keeps its local restart affordances.
+ * Most state is kept locally; the Settings-interface switch stays hoisted in `MainActivity` so its
+ * existing restart tracking is preserved. Other changes report their process to the shared restart
+ * dialog, and this page keeps local restart affordances for SystemUI and Security Center.
  */
 @Composable
-fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
+fun AospRestorePage(
+    onBack: () -> Unit,
+    onNavigateToAospIme: () -> Unit,
+    settingsGlobalInterface: Boolean,
+    onSettingsGlobalInterfaceChange: (Boolean) -> Unit
+) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -78,50 +75,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
     var volumePanelHapticMiui by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, false))
     }
-    var volumeKeyStepCount by remember {
-        mutableIntStateOf(
-            Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_COUNT,
-                Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT
-            ).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
-        )
-    }
-    var volumeKeyStepScope by remember {
-        mutableIntStateOf(
-            Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_SCOPE,
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY
-            ).coerceIn(
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-                Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
-            )
-        )
-    }
-    var volumeKeySliderExpanded by remember { mutableStateOf(false) }
-    var volumeKeySliderValue by remember(volumeKeyStepCount) {
-        mutableFloatStateOf(volumeKeyStepCount.toFloat())
-    }
-    val displayedVolumeKeyStepCount = volumeKeySliderValue.roundToInt().coerceIn(
-        VolumeKeyStepPolicy.MIN_STEPS,
-        VolumeKeyStepPolicy.MAX_STEPS
-    )
-    fun setVolumeKeyStepCount(value: Int) {
-        val resolved = value.coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
-        volumeKeyStepCount = resolved
-        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, resolved)
-        Preferences.flush()
-    }
-
-    fun setVolumeKeyStepScope(value: Int) {
-        val resolved = value.coerceIn(
-            Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-            Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
-        )
-        volumeKeyStepScope = resolved
-        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
-        Preferences.flush()
-    }
-
     var clipboardEditor by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false))
     }
@@ -155,72 +108,6 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-            SmallTitle(stringResource(R.string.volume_key_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.volume_key_scope_title),
-                        summary = stringResource(R.string.volume_key_scope_summary),
-                        items = listOf(
-                            stringResource(R.string.volume_key_scope_media),
-                            stringResource(R.string.volume_key_scope_active_stream)
-                        ),
-                        selectedIndex = volumeKeyStepScope,
-                        onSelectedIndexChange = ::setVolumeKeyStepScope
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.volume_key_step_title),
-                        summary = stringResource(
-                            R.string.volume_key_step_summary,
-                            displayedVolumeKeyStepCount,
-                            (100f / displayedVolumeKeyStepCount).roundToInt()
-                        ),
-                        endActions = {
-                            Text(
-                                text = stringResource(R.string.volume_key_step_value, displayedVolumeKeyStepCount),
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                            )
-                        },
-                        onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
-                        holdDownState = volumeKeySliderExpanded,
-                        bottomAction = {
-                            Slider(
-                                value = volumeKeySliderValue.coerceIn(
-                                    VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
-                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat()
-                                ),
-                                onValueChange = { volumeKeySliderValue = it },
-                                onValueChangeFinished = {
-                                    setVolumeKeyStepCount(volumeKeySliderValue.roundToInt())
-                                },
-                                valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
-                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
-                                steps = VolumeKeyStepPolicy.MAX_STEPS - VolumeKeyStepPolicy.MIN_STEPS - 1,
-                                showKeyPoints = true,
-                                keyPoints = listOf(5f, 15f, 100f),
-                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
-                            )
-                        }
-                    )
-                    Text(
-                        text = stringResource(R.string.volume_key_reboot_required),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                }
-            }
-            IntValueDialog(
-                show = volumeKeySliderExpanded,
-                title = stringResource(R.string.volume_key_step_title),
-                summary = stringResource(R.string.volume_key_step_dialog_summary),
-                suffix = stringResource(R.string.volume_key_step_suffix),
-                range = VolumeKeyStepPolicy.MIN_STEPS..VolumeKeyStepPolicy.MAX_STEPS,
-                currentValue = { volumeKeyStepCount },
-                emptyValue = volumeKeyStepCount,
-                onValueConfirmed = ::setVolumeKeyStepCount,
-                onDismissRequest = { volumeKeySliderExpanded = false }
-            )
-
             SmallTitle(stringResource(R.string.aosp_section_system))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
@@ -234,6 +121,16 @@ fun AospRestorePage(onBack: () -> Unit, onNavigateToAospIme: () -> Unit) {
                         summary = stringResource(R.string.aosp_package_installer_summary)
                     )
                 }
+            }
+
+            SmallTitle(stringResource(R.string.aosp_section_international))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = settingsGlobalInterface,
+                    onCheckedChange = onSettingsGlobalInterfaceChange,
+                    title = stringResource(R.string.settings_global_interface_title),
+                    summary = stringResource(R.string.settings_global_interface_summary)
+                )
             }
 
             SmallTitle(stringResource(R.string.aosp_section_system_ui))

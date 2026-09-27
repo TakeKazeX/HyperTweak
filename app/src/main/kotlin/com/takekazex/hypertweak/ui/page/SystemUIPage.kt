@@ -21,40 +21,49 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
- * System UI tweaks (Features tab → System UI). Second-level page consolidating the SystemUI-scoped
- * options: wallpaper-color refresh, lockscreen & display (AOD fullscreen, independent fingerprint
- * visibility for AOD, lockscreen, and app authentication, lockscreen status bar), lockscreen fingerprint avoidance, charging detail, the
- * lockscreen notification gates, the media-card switches, the control-center sliders and the
- * navigation-bar gesture/power-button settings. Most state stays hoisted in [MainActivity], so
- * those toggles still flow through `markTweaked`.
+ * System UI tweaks (Features tab → System UI). This second-level page groups notification fixes,
+ * multitasking transitions, volume-key steps, lockscreen and display options, media-card switches,
+ * control-center sliders, and navigation-bar settings. Existing tracked switches stay hoisted in
+ * [MainActivity]; self-contained groups read their saved preferences here and offer local restarts.
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -108,6 +117,61 @@ fun SystemUIPage(
 ) {
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
+    val coroutineScope = rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
+
+    var volumeKeyStepCount by remember {
+        mutableIntStateOf(
+            Preferences.getInt(
+                Preferences.KEY_VOLUME_KEY_STEP_COUNT,
+                Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT
+            ).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
+        )
+    }
+    var volumeKeyStepScope by remember {
+        mutableIntStateOf(
+            Preferences.getInt(
+                Preferences.KEY_VOLUME_KEY_STEP_SCOPE,
+                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY
+            ).coerceIn(
+                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+                Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
+            )
+        )
+    }
+    var volumeKeySliderExpanded by remember { mutableStateOf(false) }
+    var volumeKeySliderValue by remember(volumeKeyStepCount) {
+        mutableFloatStateOf(volumeKeyStepCount.toFloat())
+    }
+    val displayedVolumeKeyStepCount = volumeKeySliderValue.roundToInt().coerceIn(
+        VolumeKeyStepPolicy.MIN_STEPS,
+        VolumeKeyStepPolicy.MAX_STEPS
+    )
+    fun setVolumeKeyStepCount(value: Int) {
+        val resolved = value.coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
+        volumeKeyStepCount = resolved
+        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, resolved)
+        Preferences.flush()
+    }
+    fun setVolumeKeyStepScope(value: Int) {
+        val resolved = value.coerceIn(
+            Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+            Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
+        )
+        volumeKeyStepScope = resolved
+        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
+        Preferences.flush()
+    }
+
+    var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
+    var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
+    var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
+    var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
+    var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
+    var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
+    var freeformBlurRestartPending by rememberSaveable { mutableStateOf(false) }
+
     val powerButtonActionOptions = remember {
         listOf(
             Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
@@ -149,6 +213,150 @@ fun SystemUIPage(
                 }
             }
 
+            SmallTitle(stringResource(R.string.volume_key_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.volume_key_scope_title),
+                        summary = stringResource(R.string.volume_key_scope_summary),
+                        items = listOf(
+                            stringResource(R.string.volume_key_scope_media),
+                            stringResource(R.string.volume_key_scope_active_stream)
+                        ),
+                        selectedIndex = volumeKeyStepScope,
+                        onSelectedIndexChange = ::setVolumeKeyStepScope
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.volume_key_step_title),
+                        summary = stringResource(
+                            R.string.volume_key_step_summary,
+                            displayedVolumeKeyStepCount,
+                            (100f / displayedVolumeKeyStepCount).roundToInt()
+                        ),
+                        endActions = {
+                            Text(
+                                text = stringResource(
+                                    R.string.volume_key_step_value,
+                                    displayedVolumeKeyStepCount
+                                ),
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        },
+                        onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
+                        holdDownState = volumeKeySliderExpanded,
+                        bottomAction = {
+                            Slider(
+                                value = volumeKeySliderValue.coerceIn(
+                                    VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
+                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat()
+                                ),
+                                onValueChange = { volumeKeySliderValue = it },
+                                onValueChangeFinished = {
+                                    setVolumeKeyStepCount(volumeKeySliderValue.roundToInt())
+                                },
+                                valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
+                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
+                                steps = VolumeKeyStepPolicy.MAX_STEPS -
+                                    VolumeKeyStepPolicy.MIN_STEPS - 1,
+                                showKeyPoints = true,
+                                keyPoints = listOf(5f, 15f, 100f),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    )
+                }
+            }
+            IntValueDialog(
+                show = volumeKeySliderExpanded,
+                title = stringResource(R.string.volume_key_step_title),
+                summary = stringResource(R.string.volume_key_step_dialog_summary),
+                suffix = stringResource(R.string.volume_key_step_suffix),
+                range = VolumeKeyStepPolicy.MIN_STEPS..VolumeKeyStepPolicy.MAX_STEPS,
+                currentValue = { volumeKeyStepCount },
+                emptyValue = volumeKeyStepCount,
+                onValueConfirmed = ::setVolumeKeyStepCount,
+                onDismissRequest = { volumeKeySliderExpanded = false }
+            )
+
+            SmallTitle(stringResource(R.string.settings_system_ui_section_notifications))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = notifMoreSettings,
+                        onCheckedChange = { value ->
+                            notifMoreSettings = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MORE_SETTINGS, value)
+                            Preferences.flush()
+                            notifSettingsRestartPending = true
+                            notifSystemUiRestartPending = true
+                            requestRestartScopes(
+                                RestartScopeSelection(settings = true, systemUi = true)
+                            )
+                        },
+                        title = stringResource(R.string.settings_notification_more_settings_title),
+                        summary = stringResource(R.string.settings_notification_more_settings_summary)
+                    )
+                    SwitchPreference(
+                        checked = notifBadge,
+                        onCheckedChange = { value ->
+                            notifBadge = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BADGE, value)
+                            Preferences.flush()
+                            notifSettingsRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(settings = true))
+                        },
+                        title = stringResource(R.string.settings_notification_badge_title),
+                        summary = stringResource(R.string.settings_notification_badge_summary)
+                    )
+                    SwitchPreference(
+                        checked = notifBlockFold,
+                        onCheckedChange = { value ->
+                            notifBlockFold = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BLOCK_FOLD, value)
+                            Preferences.flush()
+                            notifSystemUiRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                        },
+                        title = stringResource(R.string.settings_notification_block_fold_title),
+                        summary = stringResource(R.string.settings_notification_block_fold_summary)
+                    )
+                    if (notifSettingsRestartPending) {
+                        val restartSelection = RestartScopeSelection(settings = true)
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_notification_restart_settings_title),
+                            summary = stringResource(R.string.settings_notification_restart_settings_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                notifSettingsRestartPending = false
+                            }
+                        )
+                    }
+                    if (notifSystemUiRestartPending) {
+                        val restartSelection = RestartScopeSelection(systemUi = true)
+                        ArrowPreference(
+                            title = stringResource(R.string.aosp_restart_system_ui),
+                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                notifSystemUiRestartPending = false
+                            }
+                        )
+                    }
+                }
+            }
+
             if (PlatformLevel.isOs4) {
                 SmallTitle(stringResource(R.string.settings_system_ui_section_notification_shade))
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -175,6 +383,41 @@ fun SystemUIPage(
                             onCheckedChange = onNotificationFontWeightChange,
                             title = stringResource(R.string.settings_notification_font_weight_title),
                             summary = stringResource(R.string.settings_notification_font_weight_summary)
+                        )
+                    }
+                }
+            }
+
+            SmallTitle(stringResource(R.string.settings_system_ui_section_multitasking))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = freeformBlur,
+                        onCheckedChange = { value ->
+                            freeformBlur = value
+                            Preferences.putBoolean(Preferences.KEY_FREEFORM_BLUR_TRANSITION, value)
+                            Preferences.flush()
+                            freeformBlurRestartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                        },
+                        title = stringResource(R.string.settings_freeform_blur_title),
+                        summary = stringResource(R.string.settings_freeform_blur_summary)
+                    )
+                    if (freeformBlurRestartPending) {
+                        val restartSelection = RestartScopeSelection(systemUi = true)
+                        ArrowPreference(
+                            title = stringResource(R.string.aosp_restart_system_ui),
+                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = restartSelection
+                                )
+                                handleRestartedScopes(restartSelection)
+                                freeformBlurRestartPending = false
+                            }
                         )
                     }
                 }

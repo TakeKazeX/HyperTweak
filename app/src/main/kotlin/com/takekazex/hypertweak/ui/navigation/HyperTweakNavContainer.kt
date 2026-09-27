@@ -292,8 +292,6 @@ fun HyperTweakNavContainer(
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
-                settingsGlobalInterface = settingsGlobalInterface,
-                onSettingsGlobalInterfaceChange = onSettingsGlobalInterfaceChange,
                 disableVideoRingback = disableVideoRingback,
                 onDisableVideoRingbackChange = onDisableVideoRingbackChange,
                 hideLauncherIcon = hideLauncherIcon,
@@ -479,7 +477,9 @@ fun HyperTweakNavContainer(
         entry<Route.AospRestore> {
             AospRestorePage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToAospIme = { backStack.add(Route.AospIme) }
+                onNavigateToAospIme = { backStack.add(Route.AospIme) },
+                settingsGlobalInterface = settingsGlobalInterface,
+                onSettingsGlobalInterfaceChange = onSettingsGlobalInterfaceChange
             )
         }
         entry<Route.SecurityCenter> {
