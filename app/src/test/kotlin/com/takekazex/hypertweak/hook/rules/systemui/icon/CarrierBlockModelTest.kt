@@ -180,6 +180,47 @@ class CarrierBlockModelTest {
     }
 
     @Test
+    fun connectingWifiKeepsCellularInTheSingleSlotUntilTheDefaultRouteChanges() {
+        val connecting = resolve(dualSim(activeData = 101), wifiLevel = 3)[0]
+        assertNull(connecting.wifiLevel)
+        assertEquals(CarrierNetworkMode.CELLULAR, CarrierNetworkChoice.select(
+            cellular = connecting.hasType, wifiDefaultAndRendered = connecting.hasWifi,
+            keepCellularType = false
+        ))
+        val defaultWifi = resolve(
+            dualSim(activeData = 101).reduce(MobileSignalEvent.WifiAvailable(101, true)),
+            wifiLevel = 3
+        )[0]
+        assertEquals(CarrierNetworkMode.WIFI, CarrierNetworkChoice.select(
+            cellular = defaultWifi.hasType, wifiDefaultAndRendered = defaultWifi.hasWifi,
+            keepCellularType = false
+        ))
+        assertEquals(CarrierNetworkMode.BOTH, CarrierNetworkChoice.select(
+            cellular = defaultWifi.hasType, wifiDefaultAndRendered = defaultWifi.hasWifi,
+            keepCellularType = true
+        ))
+        val waitingForLevel = resolve(
+            dualSim(activeData = 101).reduce(MobileSignalEvent.WifiAvailable(101, true)),
+            wifiLevel = null
+        )[0]
+        assertFalse(waitingForLevel.typeSuppressed)
+        assertEquals(CarrierNetworkMode.CELLULAR, CarrierNetworkChoice.select(
+            cellular = waitingForLevel.hasType, wifiDefaultAndRendered = waitingForLevel.hasWifi,
+            keepCellularType = false
+        ))
+    }
+
+    @Test
+    fun networkSlotReservesWifiWidthBeforeConnectionAndDualModeReservesItsRightSide() {
+        val single = CarrierNetworkChoice.requiredWidth(60, 42, 0, false, 12, 0)
+        assertEquals(60, single)
+        assertEquals(single, CarrierNetworkChoice.requiredWidth(60, 42, 60, false, 12, single))
+        val dual = CarrierNetworkChoice.requiredWidth(60, 42, 0, true, 12, 0)
+        assertEquals(114, dual)
+        assertEquals(dual, CarrierNetworkChoice.requiredWidth(60, 42, 60, true, 12, dual))
+    }
+
+    @Test
     fun wifiAndDataTypeCanShareTheFirstRow() {
         val state = dualSim(activeData = 101).reduce(MobileSignalEvent.WifiAvailable(101, true))
 

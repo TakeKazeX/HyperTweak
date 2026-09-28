@@ -3,9 +3,8 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 /**
  * One row of the two-line control-center carrier block.
  *
- * The row keeps the cellular strength and the trailing indicators independent on purpose: the
- * Wi-Fi glyph is additive on the first row (the host shows it beside the cellular type in the
- * status bar too), while the type text belongs to the SIM that actually carries data.
+ * Cellular strength stays at the row's start. Cellular type and Wi-Fi share one trailing measured
+ * position by default; the explicit keep-type choice reserves room for both within that position.
  */
 data class CarrierRowModel(
     val slot: Int,
@@ -16,11 +15,7 @@ data class CarrierRowModel(
     val typeText: String? = null,
     /** Wi-Fi level 0..4; only the first row ever carries it. */
     val wifiLevel: Int? = null,
-    /**
-     * Wi-Fi carries the data connection and the type is not wanted. The glyph is still rendered so
-     * its box keeps the row's width budget — the name must not grow and push the trailing glyphs
-     * sideways; only the alpha fades.
-     */
+    /** Wi-Fi is default and its artwork is available, so the shared slot may fade out the type. */
     val typeSuppressed: Boolean = false
 ) {
     /** A row is drawn only when a subscription actually owns its slot. */
@@ -76,7 +71,7 @@ object CarrierBlockPolicy {
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?.takeIf { subId == state.activeDataSubId || config.showNonDataType }
-        // Wi-Fi is an extra indicator on 卡一 only; a missing level must not invent bars.
+        // Wi-Fi takes the shared trailing slot on 卡一 only after it is the default data route.
         val rowWifi = wifiLevel
             ?.coerceIn(0, 4)
             ?.takeIf { slot == 0 && state.wifiConnected }
@@ -86,9 +81,9 @@ object CarrierBlockPolicy {
             signalLevel = signalLevel,
             typeText = typeText,
             wifiLevel = rowWifi,
-            // Matches the host's own single type rule (`... && !wifiAvailable`) and the stacked
-            // slot's `hideWhenWifiAvailable`; the row keeps the glyph's width either way.
-            typeSuppressed = typeText != null && state.wifiConnected && !config.keepTypeOnWifi
+            // A default-route change without a renderable level keeps cellular until Wi-Fi can
+            // enter the same measured position. There is no interim empty/new slot.
+            typeSuppressed = typeText != null && rowWifi != null && !config.keepTypeOnWifi
         )
     }
 

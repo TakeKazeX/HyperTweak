@@ -18,9 +18,9 @@ import android.telephony.SubscriptionManager
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
@@ -157,11 +157,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val carrierText: TextView,
         val signal: ImageView,
         val badge: TextView,
+        val networkSlot: FrameLayout,
         val wifi: ImageView,
-        val type: ImageView,
-        /** Fades the type glyph's bitmap so a Wi-Fi suppression keeps its box (see [BitmapAlphaFade]). */
-        val typeFade: BitmapAlphaFade
+        val type: ImageView
     ) {
+        val networkFade = CarrierNetworkCrossfade(type, wifi) { visible ->
+            networkSlot.visibility = if (visible) View.VISIBLE else View.GONE
+        }
         val rowState = ViewState(row)
         val textState = ViewState(carrierText)
         val gravity = row.gravity
@@ -180,12 +182,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         var cellularReady = false
         var wifiReady = false
         var typeSuppressed = false
-
-        /** False until this row has published a type glyph once; the first paint never ramps. */
-        var typePainted = false
-
-        /** True once a suppressed type has faded out and given its box back (no standing gap). */
-        var typeCollapsed = false
+        var networkWidth = 0
     }
 
     private class Block(
@@ -657,7 +654,14 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     /** Called by [StackedSignalHooker] after every complete reducer emission. */
     fun onMobileState(state: MobileSignalState, ready: Boolean) {
         if (!enabled) return
-        val next = if (ready || state.airplaneMode) state else MobileSignalState()
+        // The host briefly rebinds its subscription flows while connectivity changes. Keep a
+        // previously verified row until that rebind completes, as the stacked signal does.
+        val next = when {
+            ready || state.airplaneMode -> state
+            state.subscriptionOrder.isNotEmpty() &&
+                state.subscriptionOrder.toSet() == mobileState.subscriptionOrder.toSet() -> return
+            else -> MobileSignalState()
+        }
         if (mobileState == next) return
         mobileState = next
         scheduleRender()
@@ -727,7 +731,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         .firstOrNull { it.maskContainer === container && it.compact && it.layout.isShown }
         ?.rows?.firstNotNullOfOrNull { parts ->
             val target = if (wifi && parts.wifiReady) parts.wifi else if (!wifi &&
-                parts.cellularReady && subId != null && parts.model?.subId == subId) parts.type else null
+                parts.cellularReady && !parts.typeSuppressed && subId != null &&
+                parts.model?.subId == subId) parts.type else null
             target?.takeIf { isUsable(it) && it.drawable != null && parts.row.isShown }
         }
 
@@ -739,10 +744,18 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     /** Alpha has one writer during a Duo hand-over; ordinary masks must not reset it each frame. */
     fun acquireDuoTarget(target: View, owner: Any): Boolean {
         val parts = rowIndex[target.parent] ?: return false
-        val ready = if (target === parts.wifi) parts.wifiReady else (target === parts.type || target === parts.signal) && parts.cellularReady
+        val ready = when (target) {
+            parts.wifi -> parts.wifiReady
+            parts.type -> parts.cellularReady && !parts.typeSuppressed
+            parts.signal -> parts.cellularReady
+            else -> false
+        }
         if (!ready || !isUsable(target) || (duoTargets[target]?.let { it !== owner } == true)) return false
         if (duoTargets[target] === owner) return true
         motions.remove(target)?.clear()
+        if (target === parts.type || target === parts.wifi) {
+            parts.networkFade.lease(target, true)
+        }
         target.alpha = 1f
         duoTargets[target] = owner
         return true
@@ -752,8 +765,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         if (duoTargets[target] !== owner) return
         duoTargets.remove(target)
         val parts = rowIndex[target.parent]
-        target.alpha = if (parts != null &&
-            (if (target === parts.wifi) parts.wifiReady else parts.cellularReady)) 1f else 0f
+        if (parts != null && (target === parts.wifi || target === parts.type)) {
+            parts.networkFade.lease(target, false)
+        } else {
+            target.alpha = if (parts?.cellularReady == true) 1f else 0f
+        }
     }
 
     private fun installBlock(layout: ViewGroup) {
@@ -768,15 +784,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val block = Block(linear, rows, separatorField?.get(layout) as? View,
             keyguardSeparatorField?.get(layout) as? View)
         blocks[layout] = block
-        rows.forEach { rowIndex[it.row] = it }
+        rows.forEach { rowIndex[it.row] = it; rowIndex[it.networkSlot] = it }
         try {
             rows.forEach { parts ->
                 parts.row.addView(parts.signal, 0)
                 parts.row.addView(parts.badge, 1)
-                // Order is part of the contract: the cellular type leads and Wi-Fi trails, the same
-                // order the status-icon row uses (`mobile` before `wifi`) in every state.
-                parts.row.addView(parts.type)
-                parts.row.addView(parts.wifi)
+                // Type and Wi-Fi share one measured row position; connecting cannot add a new box.
+                parts.row.addView(parts.networkSlot)
             }
             configureBlock(block)
             block.attachListener = object : View.OnAttachStateChangeListener {
@@ -808,6 +822,19 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private fun buildRow(row: LinearLayout, slot: Int): RowParts? {
         val text = carrierTextField?.get(row) as? TextView ?: return null
         val context = row.context
+        val networkSlot = FrameLayout(context).apply {
+            visibility = View.GONE
+            alpha = 0f
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val type = glyphView(context)
+        val wifi = glyphView(context)
+        networkSlot.addView(type, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER
+        ))
+        networkSlot.addView(wifi, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER
+        ))
         return RowParts(slot, row, text, glyphView(context), TextView(context).apply {
             this.text = badgeTexts[slot]
             setSingleLine()
@@ -817,7 +844,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             visibility = View.GONE
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, glyphView(context), glyphView(context), BitmapAlphaFade(main)).also { parts ->
+        }, networkSlot, wifi, type).also { parts ->
             parts.showHd = readField(row, "showHdIcon") as? Boolean
             parts.hd = (readField(row, "hdText") as? View)?.let(::ViewState)
             parts.plus = (readField(row, "plusText") as? View)?.let(::ViewState)
@@ -866,14 +893,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.carrierText.ellipsize = TextUtils.TruncateAt.END
             parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
             parts.signal.layoutParams = LinearLayout.LayoutParams(icon, icon).apply { marginEnd = gap }
+            parts.networkWidth = icon
+            parts.networkSlot.layoutParams = LinearLayout.LayoutParams(icon,
+                CarrierBlockPolicy.typeHeight(icon, density, parts.row.resources.configuration.fontScale)).apply {
+                marginStart = gap
+            }
             parts.badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
             parts.badge.setPaddingRelative((2 * density).roundToInt(), 0, (2 * density).roundToInt(), 0)
             parts.badge.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 (13 * density * parts.row.resources.configuration.fontScale).roundToInt()).apply { marginEnd = gap }
-            listOf(parts.wifi, parts.type).forEach { view ->
-                view.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                    icon).apply { marginStart = gap }
-            }
             field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, false)
             (readField(parts.row, "hdText") as? View)?.visibility = View.GONE
             (readField(parts.row, "plusText") as? View)?.visibility = View.GONE
@@ -910,10 +938,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.showHd?.let { field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, it) }
             (readField(parts.row, "hdText") as? View)?.let { parts.hd?.restore(it) }
             (readField(parts.row, "plusText") as? View)?.let { parts.plus?.restore(it) }
-            parts.typeFade.cancel()
-            parts.typePainted = false
-            parts.typeCollapsed = false
-            listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach { it.visibility = View.GONE }
+            parts.networkFade.clear()
+            listOf(parts.signal, parts.badge, parts.networkSlot, parts.wifi, parts.type)
+                .forEach { it.visibility = View.GONE }
         }
         (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
     }
@@ -924,17 +951,18 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         restoreBlockStyle(block)
         block.rows.forEach { parts ->
             rowIndex.remove(parts.row)
+            rowIndex.remove(parts.networkSlot)
             duoTargets.remove(parts.signal)
             duoTargets.remove(parts.wifi)
             duoTargets.remove(parts.type)
-            parts.typeFade.cancel()
-            listOf(parts.signal, parts.badge, parts.wifi, parts.type).forEach(parts.row::removeView)
+            parts.networkFade.clear()
+            listOf(parts.signal, parts.badge, parts.networkSlot).forEach(parts.row::removeView)
         }
     }
 
     private fun measureRows(block: Block, width: Int) {
         block.rows.forEach { parts ->
-            val fixed = listOf(parts.signal, parts.wifi, parts.type)
+            val fixed = listOf(parts.signal, parts.networkSlot)
                 .filter { it.visibility != View.GONE }.sumOf { view ->
                     view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
                         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
@@ -1027,12 +1055,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             // slot is hidden only when another subscription establishes a known row set.
             parts.row.visibility = if (model == null && rows.any { it.visible }) View.GONE else parts.rowState.visibility
             parts.signal.visibility = View.GONE
+            parts.networkSlot.visibility = View.GONE
             parts.wifi.visibility = View.GONE
             parts.type.visibility = View.GONE
-            parts.typeFade.cancel()
+            parts.networkFade.clear()
             parts.typeSuppressed = false
-            parts.typePainted = false
-            parts.typeCollapsed = false
             parts.wifiBitmap = null
             parts.typeBitmap = null
             return
@@ -1068,9 +1095,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
             }.onFailure { DebugLog.w(TAG, "carrier wifi render failed", it) }.getOrNull()
         }
-        publish(parts.wifi, wifiBitmap, tint)
-        parts.wifiBitmap = wifiBitmap
-
         val typeBitmap = model.typeText?.takeIf { it.isNotBlank() }?.let { text ->
             runCatching {
                 MobileTypeRenderer.render(
@@ -1088,88 +1112,59 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
-        parts.typeSuppressed = model.typeSuppressed
-        publishType(parts, typeBitmap, tint, parts.typeSuppressed)
+        publishNetwork(parts, typeBitmap, wifiBitmap, tint)
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")
             append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
-            // A suppressed type is invisible; announcing it would contradict the glyph on screen.
             if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
+            if (wifiBitmap != null) append(", Wi-Fi")
         }
     }
 
-    /**
-     * Publishes the type glyph and fades it before its box changes.
-     *
-     * A Wi-Fi suppression must leave **no empty gap**, so the box is released once the glyph has
-     * faded out; a returning type takes its box back and fades in. Either way the trailing Wi-Fi
-     * glyph is compensated for the width jump and slides into place, because the row lays its
-     * trailing glyphs out after the name: an instant box change would make Wi-Fi jump sideways.
-     */
-    private fun publishType(parts: RowParts, bitmap: Bitmap?, tint: Int, suppressed: Boolean) {
-        if (bitmap == null || bitmap.isRecycled) {
-            parts.typeFade.cancel()
-            parts.typePainted = false
-            parts.typeCollapsed = false
-            parts.type.visibility = View.GONE
-            parts.typeBitmap = null
-            return
+    /** One measured trailing position for cellular type and Wi-Fi, including the dual-display option. */
+    private fun publishNetwork(parts: RowParts, type: Bitmap?, wifi: Bitmap?, tint: Int) {
+        // Keep the previous drawable in the same box while its alpha exits. The model bitmap
+        // below still becomes null immediately, so a stale Wi-Fi glyph cannot claim the mask.
+        if (type != null || parts.type.drawable == null) publish(parts.type, type, tint)
+        if (wifi != null || parts.wifi.drawable == null) publish(parts.wifi, wifi, tint)
+        parts.typeBitmap = type
+        parts.wifiBitmap = wifi
+        val mode = CarrierNetworkChoice.select(
+            cellular = type != null,
+            wifiDefaultAndRendered = wifi != null,
+            keepCellularType = keepTypeOnWifi
+        )
+        parts.typeSuppressed = mode == CarrierNetworkMode.WIFI
+        val icon = iconHeightPx(parts.row.context)
+        val gap = (4 * parts.row.resources.displayMetrics.density).roundToInt()
+        val width = CarrierNetworkChoice.requiredWidth(
+            minimum = icon,
+            cellularWidth = type?.width ?: 0,
+            wifiWidth = wifi?.width ?: 0,
+            keepBoth = keepTypeOnWifi && type != null,
+            gap = gap,
+            previousWidth = parts.networkWidth
+        )
+        if (width != parts.networkWidth) {
+            parts.networkWidth = width
+            val params = parts.networkSlot.layoutParams
+            if (params.width != width) { params.width = width; parts.networkSlot.layoutParams = params }
         }
-        // Faded away and still suppressed: the box stays released, and re-rendering must not take it
-        // back (the box is what leaves the gap).
-        if (suppressed && parts.typeCollapsed) return
-        val wasCollapsed = parts.typeCollapsed
-        publish(parts.type, bitmap, tint)
-        parts.typeBitmap = bitmap
-        val params = parts.type.layoutParams as? LinearLayout.LayoutParams
-        val boxWidth = (params?.width ?: 0) + (params?.marginStart ?: 0)
-        val apply: (Float) -> Unit = { alpha ->
-            val frame = if (alpha >= 1f) bitmap else scaledAlphaBitmap(bitmap, alpha)
-            parts.type.setImageBitmap(frame)
-            parts.type.imageTintList = ColorStateList.valueOf(tint)
+        val height = maxOf(icon, type?.height ?: 0, wifi?.height ?: 0)
+        val slotParams = parts.networkSlot.layoutParams
+        if (slotParams.height != height) {
+            slotParams.height = height
+            parts.networkSlot.layoutParams = slotParams
         }
-        // Only a real box change moves the neighbours; a plain fade leaves the row alone.
-        val settle: (Boolean) -> Unit = { collapsed ->
-            parts.type.visibility = if (collapsed) View.GONE else View.VISIBLE
-            if (parts.typeCollapsed != collapsed) {
-                parts.typeCollapsed = collapsed
-                // Collapsing frees `boxWidth` for the trailing glyph (Wi-Fi slides left); taking the
-                // box back consumes it (Wi-Fi slides right). Offset first, then animate to zero.
-                slideTrailing(parts, if (collapsed) boxWidth else -boxWidth)
-            }
+        val both = keepTypeOnWifi && type != null
+        val typeGravity = if (both) Gravity.START or Gravity.CENTER_VERTICAL else Gravity.CENTER
+        val wifiGravity = if (both) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER
+        listOf(parts.type to typeGravity, parts.wifi to wifiGravity).forEach { (view, gravity) ->
+            val params = view.layoutParams as? FrameLayout.LayoutParams ?: return@forEach
+            if (params.gravity != gravity) { params.gravity = gravity; view.layoutParams = params }
         }
-        when {
-            // The box was given back while the glyph was invisible: take it at alpha 0 and ramp in,
-            // so the neighbours' slide and the glyph's fade are one motion.
-            wasCollapsed && !suppressed -> {
-                parts.typeCollapsed = false
-                parts.typeFade.snap(visible = false, apply = apply)
-                slideTrailing(parts, -boxWidth)
-                parts.typeFade.animate(visible = true, apply = apply)
-            }
-            parts.typePainted -> parts.typeFade.animate(visible = !suppressed, apply = apply) {
-                settle(suppressed)
-            }
-            // First paint of a freshly installed row: straight to the current state, no ramp and no
-            // slide — opening the shade must never flash a type that has to stay hidden.
-            else -> {
-                parts.typePainted = true
-                parts.typeFade.snap(visible = !suppressed, apply = apply)
-                parts.typeCollapsed = suppressed
-                parts.type.visibility = if (suppressed) View.GONE else View.VISIBLE
-            }
-        }
-    }
-
-    /** Offsets the trailing Wi-Fi glyph for a box change and slides it back to its real place. */
-    private fun slideTrailing(parts: RowParts, delta: Int) {
-        if (delta == 0 || parts.wifi.isGone) return
-        parts.wifi.animate().cancel()
-        parts.wifi.translationX = delta.toFloat()
-        parts.wifi.animate().translationX(0f)
-            .setDuration(BitmapAlphaFade.FADE_FRAMES * BitmapAlphaFade.FADE_FRAME_MS)
-            .start()
+        parts.networkFade.select(mode)
     }
 
     private fun publish(view: ImageView, bitmap: Bitmap?, tint: Int) {
@@ -1302,11 +1297,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     if (target in duoTargets || target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
                     if (source == null) {
                         motions.remove(target)?.clear()
-                        target.alpha = 1f
+                        parts.networkFade.lease(target, false)
                         continue
                     }
                     val root = target.rootView as? ViewGroup ?: continue
                     val motion = motions[target] ?: CarrierTypeMotion().also { motions[target] = it }
+                    parts.networkFade.lease(target, true)
                     val ready = motion.update(root, source, target, bitmap, tint, clamped)
                     used += target
                     sources += source
@@ -1319,8 +1315,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             if (view in used) false else {
                 motion.clear()
                 val parts = rowIndex[view.parent]
-                if (view !in duoTargets) view.alpha = if (parts != null &&
-                    (if (view === parts.type) parts.cellularReady else parts.wifiReady)) 1f else 0f
+                if (view !in duoTargets) {
+                    if (parts != null) parts.networkFade.lease(view as ImageView, false)
+                    else view.alpha = 0f
+                }
                 true
             }
         }
@@ -1328,13 +1326,17 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun releaseHandover() {
-        motions.values.forEach(CarrierTypeMotion::clear)
+        motions.forEach { (view, motion) ->
+            motion.clear()
+            rowIndex[view.parent]?.networkFade?.lease(view as ImageView, false)
+        }
         motions.clear()
         restoreEndpoints()
         blocks.values.forEach { block ->
             block.rows.forEach { parts ->
-                if (parts.wifi !in duoTargets) parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
-                if (parts.type !in duoTargets) parts.type.alpha = if (parts.cellularReady) 1f else 0f
+                if (parts.wifi !in duoTargets && parts.type !in duoTargets) {
+                    parts.networkFade.applyAlphas()
+                }
             }
         }
     }
@@ -1428,11 +1430,14 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val models = block.rows.mapNotNull { it.model }
         val cellular = CarrierBlockPolicy.replacesStatusSignal(models, mobileState.subscriptionOrder) && block.rows
             .filter { it.model?.visible == true }.all {
-                it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null &&
-                    it.carrierText.isVisible && it.carrierText.width > 0 && !it.carrierText.text.isNullOrBlank()
+                it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null
             }
-        val wifi = block.rows.any { it.wifi.isVisible && it.wifi.width > 0 && it.wifiBitmap != null }
-        val mask = CarrierMask(cellular, wifi)
+        val wifiReplacement = block.rows.any {
+            it.wifi.isVisible && it.wifi.width > 0 && it.wifiBitmap != null
+        }
+        // Once the cellular fallback is drawn, a connecting but non-default native Wi-Fi icon
+        // must not appear at the right edge. The fixed network slot still shows cellular there.
+        val mask = CarrierMask(cellular, cellular || wifiReplacement)
         val acquired = IconPositionHooker.setCarrierMask(container, mask)
         if (acquired) {
             block.maskContainer = container
@@ -1440,21 +1445,17 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         block.rows.forEach { parts ->
             parts.cellularReady = acquired && cellular
-            parts.wifiReady = acquired && wifi
+            parts.wifiReady = acquired && wifiReplacement && parts.wifiBitmap != null
             if (!parts.cellularReady || parts.signal !in duoTargets)
                 parts.signal.alpha = if (parts.cellularReady) 1f else 0f
-            // An in-flight overlay owns the type/Wi-Fi alpha until it is released.
-            if (!parts.cellularReady || (parts.type !in motions && parts.type !in duoTargets))
-                parts.type.alpha = if (parts.cellularReady) 1f else 0f
-            if (!parts.wifiReady || (parts.wifi !in motions && parts.wifi !in duoTargets))
-                parts.wifi.alpha = if (parts.wifiReady) 1f else 0f
+            parts.networkSlot.alpha = if (parts.cellularReady || parts.wifiReady) 1f else 0f
         }
     }
 
     private fun releaseMask(block: Block) {
         block.rows.forEach { parts ->
             parts.cellularReady = false; parts.wifiReady = false
-            parts.signal.alpha = 0f; parts.type.alpha = 0f; parts.wifi.alpha = 0f
+            parts.signal.alpha = 0f; parts.networkSlot.alpha = 0f
         }
         val container = block.maskContainer ?: return
         IconPositionHooker.setCarrierMask(container, CarrierMask())

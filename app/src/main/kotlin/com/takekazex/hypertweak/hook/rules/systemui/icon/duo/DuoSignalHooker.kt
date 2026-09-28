@@ -100,7 +100,8 @@ object DuoSignalHooker : StaticHooker() {
     private var wifiContext: Context? = null
 
     private class Binding(val battery: View, val parent: ViewGroup, val icons: View,
-                          val surface: DuoSurface, val keyguardRoot: View?) {
+                          val surface: DuoSurface, val keyguardRoot: View?,
+                          panelInitiallySettled: Boolean) {
         val view = DuoView(battery.context)
         var observer: ViewTreeObserver? = null
         var preDraw: ViewTreeObserver.OnPreDrawListener? = null
@@ -119,6 +120,7 @@ object DuoSignalHooker : StaticHooker() {
         val proxyX = DuoOwnedTranslation()
         val proxyY = DuoOwnedTranslation()
         var networkMotionProgress = 0f
+        val panelArrival = DuoPanelArrival(panelInitiallySettled)
         var networkMotionSettle: Runnable? = null
         val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
             battery.resources.getIdentifier(it, "id", battery.context.packageName)
@@ -731,7 +733,8 @@ object DuoSignalHooker : StaticHooker() {
         ensureConnectivity(battery.context)
         val binding = Binding(battery, parent, icons, surface,
             if (surface == DuoSurface.KEYGUARD)
-                ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null)
+                ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null,
+            panelVisible && panelProgress >= 0.999f)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
         binding.view.iconSizeDp = iconSizeDp
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
@@ -1180,6 +1183,7 @@ object DuoSignalHooker : StaticHooker() {
             panelProgress = if (controlCenterVisible) 1f else 0f
             panelStretchHeight = 0f
             bindings.values.toList().forEach { binding ->
+                binding.panelArrival.shadeFinished(controlCenterVisible)
                 clearPanelMotion(binding)
                 clearSignalMotions(binding)
                 restoreProxyPosition(binding)
@@ -1225,13 +1229,14 @@ object DuoSignalHooker : StaticHooker() {
         binding.proxyRoot = null
     }
 
-    private fun positionProxy(binding: Binding, root: View, home: View, target: View, expandedRoot: View) {
+    private fun positionProxy(binding: Binding, root: View, home: View, target: View,
+                              expandedRoot: View, progress: Float) {
         if (binding.proxyRoot !== root) restoreProxyPosition(binding)
         val translated = screenAnchor(target)
         val translation = screenVector(expandedRoot, expandedRoot.translationX, expandedRoot.translationY)
         val endpoint = DuoPanelPoint(translated.x - translation.x, translated.y - translation.y)
-        val stretch = screenVector(expandedRoot, 0f, -panelStretchHeight * (1f - panelProgress))
-        val desired = DuoPanelGeometry.position(screenAnchor(home), endpoint, panelProgress, stretch)
+        val stretch = screenVector(expandedRoot, 0f, -panelStretchHeight * (1f - progress))
+        val desired = DuoPanelGeometry.position(screenAnchor(home), endpoint, progress, stretch)
         val actual = screenAnchor(binding.view)
         panelMatrix.reset()
         (root.parent as? View)?.transformMatrixToGlobal(panelMatrix)
@@ -1352,6 +1357,7 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun updatePanelBinding(binding: Binding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
+        binding.panelArrival.observe(panelProgress, panelVisible)
         fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
         if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
             clearPosition()
@@ -1375,7 +1381,15 @@ object DuoSignalHooker : StaticHooker() {
         val expandedRoot = ancestor(target,
             "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
             ?: run { clearPosition(); return }
-        positionProxy(binding, proxyRoot, home.view, target, expandedRoot)
+        if (binding.panelArrival.settled) {
+            // A temporary header endpoint (for example while brightness hides the backdrop)
+            // must neither move the proxy home nor replay its Wi-Fi/signal overlays.
+            positionProxy(binding, proxyRoot, home.view, target, expandedRoot, 1f)
+            clearSignalMotions(binding)
+            clearPanelMotion(binding)
+            return
+        }
+        positionProxy(binding, proxyRoot, home.view, target, expandedRoot, panelProgress)
         updateSignalMotions(binding, home, expanded, proxyRoot.rootView as? ViewGroup)
         val content = binding.view.icon.content
         if (content == null || content.airplaneMode) {
@@ -1433,6 +1447,7 @@ object DuoSignalHooker : StaticHooker() {
         if (from >= 0.95f) {
             clearPanelMotion(binding)
             binding.networkMotionProgress = 1f
+            binding.panelArrival.arrive()
             return
         }
         val steps = (1..6).map { step -> from + (1f - from) * step / 6f }
@@ -1459,11 +1474,13 @@ object DuoSignalHooker : StaticHooker() {
                     DebugLog.w(TAG, "Duo panel hand-over settle failed", error)
                     clearPanelMotion(binding)
                     binding.networkMotionProgress = 1f
+                    binding.panelArrival.arrive()
                     return
                 }
                 if (index >= steps.size) {
                     clearPanelMotion(binding)
                     binding.networkMotionProgress = 1f
+                    binding.panelArrival.arrive()
                 } else {
                     main.postDelayed(this, 24L)
                 }
