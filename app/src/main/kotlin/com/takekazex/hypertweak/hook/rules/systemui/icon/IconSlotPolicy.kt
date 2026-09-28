@@ -82,6 +82,12 @@ object IconSlotPolicy {
         "hotspot", "network_speed", "alarm_clock"
     )
 
+    /** The fake QS row follows the collapsed status bar and must retain its native single row. */
+    fun ownsTwoLineControlCenterRow(location: String?): Boolean = location == "QS"
+
+    /** OS4 uses layoutFrom 6 for QS and 5 for its collapsed QS_FAKE mirror. */
+    fun ownsTwoLineControlCenterRow(layoutFrom: Int?): Boolean = layoutFrom == 6
+
     /** Only a host one-row capacity decision may be overridden by the two-row layout. */
     fun shouldRestoreTwoLineOverflow(
         visibleState: Int,

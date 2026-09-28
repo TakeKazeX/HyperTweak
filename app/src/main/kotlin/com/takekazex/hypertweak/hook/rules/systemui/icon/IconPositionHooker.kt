@@ -125,7 +125,7 @@ object IconPositionHooker : StaticHooker() {
             runCatching {
                 val state = synchronized(stateLock) { containerStates[container] }
                     ?: captureContainerState(container, ignoredSlotsField?.get(container) as? List<*> ?: return@runCatching)
-                val merged = blockedFor(surfaceFor(container, state.hostIgnored), state.hostIgnored)
+                val merged = blockedFor(container, surfaceFor(container, state.hostIgnored), state.hostIgnored)
                 state.lastApplied = merged
                 restoreIgnoredSlots(container, merged)
                 container.requestLayout()
@@ -344,7 +344,8 @@ object IconPositionHooker : StaticHooker() {
             !ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
         ) return false
         val layoutFrom = runCatching { layoutFromField?.getInt(container) }.getOrNull()
-        return (layoutFrom == 5 || layoutFrom == 6) && isControlCenterContainer(container)
+        return IconSlotPolicy.ownsTwoLineControlCenterRow(layoutFrom) &&
+            isControlCenterContainer(container)
     }
 
     private fun restoreTwoLineOverflowStates(container: ViewGroup, access: HostRowStateAccess) {
@@ -409,7 +410,7 @@ object IconPositionHooker : StaticHooker() {
                 val incoming = param.args.getOrNull(0) as? List<*> ?: return@before
                 val state = captureContainerState(param.thisObject, incoming)
                 val surface = surfaceFor(param.thisObject, incoming)
-                val merged = blockedFor(surface, state.hostIgnored)
+                val merged = blockedFor(param.thisObject, surface, state.hostIgnored)
                 state.lastApplied = merged
                 param.args[0] = ArrayList(merged)
             }
@@ -456,8 +457,11 @@ object IconPositionHooker : StaticHooker() {
         }
     }
 
-    private fun blockedFor(surface: IconSurface, systemSlots: List<String>): List<String> =
+    private fun blockedFor(container: Any, surface: IconSurface, systemSlots: List<String>): List<String> =
         if (surface == IconSurface.CONTROL_CENTER &&
+            IconSlotPolicy.ownsTwoLineControlCenterRow(
+                runCatching { layoutFromField?.getInt(container) }.getOrNull()
+            ) &&
             ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
         ) {
             IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)
@@ -503,7 +507,7 @@ object IconPositionHooker : StaticHooker() {
             }
             maskOwners.set(container, owner, slots)
             val base = state.lastApplied ?: blockedFor(
-                surfaceFor(container, state.hostIgnored), state.hostIgnored
+                container, surfaceFor(container, state.hostIgnored), state.hostIgnored
             )
             restoreIgnoredSlots(container, base)
             hideNativeNetworkChildren(container)
@@ -522,7 +526,7 @@ object IconPositionHooker : StaticHooker() {
         val slots = maskSlotsFor(container)
         val state = containerStates[container] ?: return
         val hostBlocked = state.lastApplied ?: blockedFor(
-            surfaceFor(container, state.hostIgnored), state.hostIgnored
+            container, surfaceFor(container, state.hostIgnored), state.hostIgnored
         )
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
@@ -614,6 +618,11 @@ object IconPositionHooker : StaticHooker() {
         // During a shade switch a host row can be detached/re-attached or temporarily move out of
         // the control-center header. Keep the last module placement until the host has settled;
         // restoring here makes the next frame start a second animation from the top row.
+        val layoutFrom = runCatching { layoutFromField?.getInt(container) }.getOrNull()
+        if (!IconSlotPolicy.ownsTwoLineControlCenterRow(layoutFrom)) {
+            restoreRowTranslations(container)
+            return
+        }
         if (!isControlCenterContainer(container) || container.height <= 0) return
         container.clipChildren = false
         container.clipToPadding = false

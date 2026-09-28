@@ -109,7 +109,7 @@ object IconManagerHooker : StaticHooker() {
             LeftContainerHooker.homeOwnedSlots(),
             LeftContainerHooker.keyguardOwnedSlots()
         )
-        if (surface == IconSurface.CONTROL_CENTER &&
+        if (IconSlotPolicy.ownsTwoLineControlCenterRow(location) &&
             ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
         ) {
             return IconSlotPolicy.classicBlockedForTwoLineControlCenter(
@@ -272,7 +272,7 @@ object IconManagerHooker : StaticHooker() {
         // for the one row that would otherwise draw the same icon a second time. Everything else —
         // including a host re-emission that would otherwise drop the overlay — goes through here,
         // because this is the single place a host block-list emission is merged.
-        val blocked = if (surface == IconSurface.CONTROL_CENTER &&
+        val blocked = if (IconSlotPolicy.ownsTwoLineControlCenterRow(location) &&
             ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
         ) {
             IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)

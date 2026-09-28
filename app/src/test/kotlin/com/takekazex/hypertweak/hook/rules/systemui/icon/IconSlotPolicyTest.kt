@@ -7,6 +7,22 @@ import org.junit.Test
 
 class IconSlotPolicyTest {
     @Test
+    fun twoLinePlacementAndHostBlockOverrideBelongOnlyToRealQsRow() {
+        assertTrue(IconSlotPolicy.ownsTwoLineControlCenterRow("QS"))
+        assertTrue(IconSlotPolicy.ownsTwoLineControlCenterRow(6))
+        for (location in listOf("QS_FAKE", "SHADE_CARRIER_GROUP", "HOME", "KEYGUARD")) {
+            assertTrue(!IconSlotPolicy.ownsTwoLineControlCenterRow(location))
+        }
+        assertTrue(!IconSlotPolicy.ownsTwoLineControlCenterRow(5))
+
+        val nativeFakeBlocks = listOf("wifi", "wireless_headset")
+        assertEquals(nativeFakeBlocks, IconSlotPolicy.blockedFor(
+            IconSurface.CONTROL_CENTER, nativeFakeBlocks, IconSlotPolicyConfig()
+        ))
+        assertTrue(IconSlotPolicy.blockedForTwoLineControlCenter(IconSlotPolicyConfig()).isEmpty())
+    }
+
+    @Test
     fun twoLineOnlyRestoresIconsHiddenByHostOneRowCapacity() {
         fun allowed(
             visibleState: Int = 2,

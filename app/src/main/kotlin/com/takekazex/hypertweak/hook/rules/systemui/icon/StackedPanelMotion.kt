@@ -20,6 +20,9 @@ internal class StackedPanelMotion(private val callback: Any) {
     private val getters = HashMap<Class<*>, Method?>()
     private var expandedRow: View? = null
     private var fakeRow: View? = null
+    private var sourceView: ImageView? = null
+    private var statusContainer: View? = null
+    private var signalId = 0
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val motions = HashMap<Int, SignalRowMotion>()
     private val targets = HashMap<Int, View>()
@@ -52,6 +55,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         val nextRoot = expanded.rootView as? ViewGroup ?: return
         if (root !== nextRoot || observer?.isAlive != true) {
             clearLayers(); observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
+            sourceView = null; statusContainer = null; signalId = 0
             root = nextRoot; observer = nextRoot.viewTreeObserver.also { it.addOnPreDrawListener(listener) }
         }
         expandedRow = expanded
@@ -65,14 +69,20 @@ internal class StackedPanelMotion(private val callback: Any) {
         if (!host.isAttachedToWindow) { clear(); return }
         val owner = read(callback, "this\$0") ?: return
         val real = read(owner, "realSystemIcons") as? View ?: return
-        val source = find(real) { read(it, "mSlot") == "stacked_mobile_icon" } as? ImageView
-            ?: run { clearLayers(); return }
+        val source = sourceView?.takeIf { it.isAttachedToWindow && isUnder(it, real) }
+            ?: (find(real) { read(it, "mSlot") == "stacked_mobile_icon" } as? ImageView)
+                ?.also { sourceView = it }
+            ?: run { sourceView = null; clearLayers(); return }
         if (source.width <= 0 || source.height <= 0 || !source.isVisible) { clearLayers(); return }
         val expanded = expandedRow?.takeIf { it.isAttachedToWindow }
             ?: run { clearLayers(); return }
-        val container = find(expanded) { it.javaClass.name.endsWith(".MiuiStatusIconContainer") }
-            ?: run { clearLayers(); return }
-        val signalId = host.resources.getIdentifier("mobile_signal", "id", host.context.packageName)
+        val container = statusContainer?.takeIf { it.isAttachedToWindow && isUnder(it, expanded) }
+            ?: find(expanded) { it.javaClass.name.endsWith(".MiuiStatusIconContainer") }
+                ?.also { statusContainer = it }
+            ?: run { statusContainer = null; clearLayers(); return }
+        if (signalId == 0) signalId = host.resources.getIdentifier(
+            "mobile_signal", "id", host.context.packageName
+        )
         val endpoints = rows.map { row ->
             ControlCenterCarrierBlockHooker.signalHandoverTarget(container, row.subId)
                 ?: find(container) { read(it, "subId") == row.subId }
@@ -141,6 +151,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         clearLayers()
         observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
         observer = null; root = null; expandedRow = null; fakeRow = null
+        sourceView = null; statusContainer = null; signalId = 0
     }
     private fun read(owner: Any, name: String): Any? {
         val key = owner.javaClass to name
@@ -152,6 +163,14 @@ internal class StackedPanelMotion(private val callback: Any) {
         if (predicate(view)) return view
         if (view is ViewGroup) for (i in 0 until view.childCount) find(view.getChildAt(i), predicate)?.let { return it }
         return null
+    }
+    private fun isUnder(view: View, ancestor: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current === ancestor) return true
+            current = current.parent as? View
+        }
+        return false
     }
     private fun collect(view: View, predicate: (View) -> Boolean): List<View> = buildList {
         if (predicate(view)) add(view)

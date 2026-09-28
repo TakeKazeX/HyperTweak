@@ -19,9 +19,9 @@ import java.lang.reflect.Field
  * - 开关 2 (`KEY_CC_BATTERY_PERCENT_LEFT`) re-lays that outside percentage on the leading edge
  *   after `onLayout(boolean,int,int,int,int)`, which the host positions on the trailing edge.
  *
- * Both surfaces of the control center are covered: the CC header status icons (`layoutFromTag` 6)
- * and the fake status bar it expands through (`5`). The home status bar (`0`), the lockscreen
- * (`1`) and the notification-shade header (`-1`) are deliberately left alone.
+ * Only the expanded QS battery (`layoutFromTag` 6) uses the chosen style. The collapsed
+ * QS_FAKE mirror (`5`) keeps the HOME battery style; SystemUI crossfades those two prepared
+ * views with its own Folme alpha animation during expansion and collapse.
  *
  * When Duo owns a control-center battery slot, `DuoSignalHooker` mirrors the host's leading
  * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
@@ -32,10 +32,8 @@ object CcBatteryStyleHooker : StaticHooker() {
     private const val TAG = "CcBatteryStyle"
     private const val BATTERY = "com.android.systemui.statusbar.views.MiuiBatteryMeterView"
 
-    /** `setLayoutFromTag` values owned by the control center (see `ControlCenterStatusBarIcon`
-     * and `ControlCenterFakeStatusIcons`); every other surface keeps its own tag. */
+    /** The real control-center row; QS_FAKE follows the native HOME battery. */
     private const val TAG_CC_STATUS_BAR = 6
-    private const val TAG_CC_FAKE_STATUS_BAR = 5
 
     /** `MiuiBatteryMeterView.mBatteryStyle`: battery icon plus the outside percentage container. */
     private const val STYLE_ICON_AND_PERCENT = 3
@@ -90,10 +88,10 @@ object CcBatteryStyleHooker : StaticHooker() {
         DebugLog.hookRegistered(TAG, "control-center battery outside=$outside leading=$leadingPercent")
     }
 
-    /** The control center owns status-bar-shaped battery views with its own layout tag. */
+    /** Apply the expanded style only to the real QS row. */
     private fun isControlCenter(view: View): Boolean {
         val tag = tagField?.getInt(view) ?: return false
-        return tag == TAG_CC_STATUS_BAR || tag == TAG_CC_FAKE_STATUS_BAR
+        return tag == TAG_CC_STATUS_BAR
     }
 
     private fun placeLeading(view: View) {

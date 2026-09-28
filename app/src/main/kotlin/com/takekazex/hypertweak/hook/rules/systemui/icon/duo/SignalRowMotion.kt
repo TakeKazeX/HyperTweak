@@ -108,7 +108,9 @@ internal class SignalRowMotion {
         rootMatrix.reset(); root.transformMatrixToGlobal(rootMatrix)
         if (!rootMatrix.invert(inverseRoot)) { clear(); return false }
         inverseRoot.mapRect(nextDestination)
-        val nextAlpha = DuoPanelGeometry.overlayAlpha(p)
+        // Publish the first vector draw before hiding any native copy. The preceding frame still
+        // contains the fake/real status icon; drawing the overlay at full alpha here duplicates it.
+        val nextAlpha = if (ready) DuoPanelGeometry.overlayAlpha(p) else 0
         val nextShape = if (targetCommands != null) p else 0f
         val needsDraw = changed || destination != nextDestination || layerAlpha != nextAlpha || shapeFraction != nextShape || !ready
         destination.set(nextDestination)
