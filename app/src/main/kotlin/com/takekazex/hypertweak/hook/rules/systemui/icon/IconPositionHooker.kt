@@ -659,10 +659,10 @@ object IconPositionHooker : StaticHooker() {
             val slot = placement.slot
             val state = placement.state
             val baseCenter = containerLocation[1] + child.top + child.height / 2f + state.originalY
-            val targetCenter = if (slot in IconSlotPolicy.CONTROL_CENTER_FIRST_ROW_SLOTS) {
-                rowCenters.first
-            } else {
+            val targetCenter = if (IconSlotPolicy.isTwoLineNetworkSlot(slot)) {
                 rowCenters.second
+            } else {
+                rowCenters.first
             }
             val desiredY = state.originalY + targetCenter - baseCenter
             val desiredX = rowX[child] ?: state.appliedX
@@ -774,8 +774,8 @@ object IconPositionHooker : StaticHooker() {
         battery ?: return emptyMap()
         val visible = placements.filter { isHostLayoutVisible(it.view, it.slot, container) }
         if (visible.isEmpty()) return emptyMap()
-        val firstRow = visible.filter { it.slot in IconSlotPolicy.CONTROL_CENTER_FIRST_ROW_SLOTS }
-        val secondRow = visible.filter { it.slot !in IconSlotPolicy.CONTROL_CENTER_FIRST_ROW_SLOTS }
+        val firstRow = visible.filterNot { IconSlotPolicy.isTwoLineNetworkSlot(it.slot) }
+        val secondRow = visible.filter { IconSlotPolicy.isTwoLineNetworkSlot(it.slot) }
         val containerLocation = IntArray(2)
         val batteryLocation = IntArray(2)
         container.getLocationOnScreen(containerLocation)

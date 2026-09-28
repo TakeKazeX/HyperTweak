@@ -1,11 +1,28 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.page.IconSlotCatalog
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test
+    fun twoLineKeepsEveryNonNetworkIndicatorBesideTheBattery() {
+        val networkSlots = IconSlotCatalog.slots
+            .filter(IconSlotPolicy::isTwoLineNetworkSlot)
+            .toSet()
+        assertEquals(setOf(
+            "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2",
+            "mobile", "demo_mobile", "wifi", "demo_wifi"
+        ), networkSlots)
+        for (slot in listOf("zen", "quiet", "mute", "volume", "alarm_clock", "hotspot",
+                "network_speed", "bluetooth", "nfc", "vpn", "compound_icon", "future_indicator")) {
+            assertFalse("$slot belongs beside the battery", IconSlotPolicy.isTwoLineNetworkSlot(slot))
+        }
+    }
+
     @Test
     fun twoLinePlacementAndHostBlockOverrideBelongOnlyToRealQsRow() {
         assertTrue(IconSlotPolicy.ownsTwoLineControlCenterRow("QS"))

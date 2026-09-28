@@ -74,14 +74,6 @@ object IconSlotPolicy {
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
 
-    /**
-     * The compact two-line control-center header keeps these three status icons in its first row.
-     * The network type is rendered by the carrier block and is therefore not a status-bar slot.
-     */
-    val CONTROL_CENTER_FIRST_ROW_SLOTS: Set<String> = linkedSetOf(
-        "hotspot", "network_speed", "alarm_clock"
-    )
-
     /** The fake QS row follows the collapsed status bar and must retain its native single row. */
     fun ownsTwoLineControlCenterRow(location: String?): Boolean = location == "QS"
 
@@ -107,6 +99,14 @@ object IconSlotPolicy {
         "single_mobile_sim1",
         "single_mobile_sim2"
     )
+
+    /** Native network fallbacks alone use the carrier-height row; status indicators stay by the battery. */
+    val CONTROL_CENTER_NETWORK_ROW_SLOTS: Set<String> = linkedSetOf(
+        "mobile", "demo_mobile", "stacked_mobile", SLOT_WIFI, SLOT_DEMO_WIFI,
+        *SIGNAL_SLOTS.toTypedArray()
+    )
+
+    fun isTwoLineNetworkSlot(slot: String): Boolean = slot in CONTROL_CENTER_NETWORK_ROW_SLOTS
 
     val MODULE_SLOTS: List<String> = SIGNAL_SLOTS
 
