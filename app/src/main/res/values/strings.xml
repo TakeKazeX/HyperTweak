@@ -1456,4 +1456,6 @@
     <string name="aod_icons_section_apply">Apply changes</string>
     <string name="aod_icons_restart_title">Restart SystemUI</string>
     <string name="aod_icons_restart_summary">Restart SystemUI to apply AOD icon settings.</string>
+    <string name="icon_mirror_airplane">Mirror airplane mode icon</string>
+    <string name="icon_mirror_airplane_summary">Point the native airplane icon to the right, including Duo icons</string>
 </resources>

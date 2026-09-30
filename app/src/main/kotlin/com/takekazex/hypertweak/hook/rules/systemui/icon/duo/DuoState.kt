@@ -72,7 +72,7 @@ object DuoPolicy {
         if (mobile.airplaneMode) {
             return DuoContent(
                 battery = battery,
-                wifiLevel = null,
+                wifiLevel = network.wifiLevel?.takeIf { it in 0..4 },
                 networkLabel = null,
                 mobileLevel = 0,
                 noService = false,

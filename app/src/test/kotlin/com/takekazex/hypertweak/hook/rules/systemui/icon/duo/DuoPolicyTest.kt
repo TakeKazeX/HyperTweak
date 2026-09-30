@@ -155,6 +155,16 @@ class DuoPolicyTest {
         assertTrue(DuoPolicy.content(battery, disconnected, DuoNetwork(DuoTransport.WIFI, true, 4))!!.noService)
     }
 
+    @Test fun airplaneKeepsConnectedWifiWithoutAnySubscription() {
+        val state = DuoPolicy.content(battery, MobileSignalState(airplaneMode = true),
+            DuoNetwork(transport = DuoTransport.WIFI, wifiLevel = 3, validated = true))!!
+        assertTrue(state.airplaneMode)
+        assertEquals(3, state.wifiLevel)
+        assertEquals(0, state.mobileLevel)
+        assertFalse(state.noInternet)
+        assertNull(state.networkLabel)
+    }
+
     @Test fun airplaneKeepsDuoWhileSatelliteAndUnknownBatteryFallBack() {
         // Airplane mode is a supported Duo state: the glyph degrades to "no bars, no internet"
         // instead of dropping back to the native icons.

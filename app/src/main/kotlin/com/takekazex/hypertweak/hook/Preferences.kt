@@ -668,6 +668,7 @@ object Preferences {
     const val KEY_ICON_LEFT_BLUETOOTH = "icon_left_bluetooth"
     const val KEY_ICON_LEFT_NFC = "icon_left_nfc"
     const val KEY_ICON_LEFT_VPN = "icon_left_vpn"
+    const val KEY_ICON_MIRROR_AIRPLANE = "icon_mirror_airplane"
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
     const val KEY_ICON_LEFT_COMPOUND = "icon_tuner_left_compound_icon"

@@ -301,9 +301,22 @@ class CarrierBlockModelTest {
     fun airplaneModeDoesNotKeepStaleCellularBarsOrTypes() {
         val airplane = dualSim().reduce(MobileSignalEvent.AirplaneMode(true))
         val rows = resolve(airplane, showNonDataType = true)
-        assertTrue(rows.all { it.visible })
-        assertTrue(rows.all { it.signalLevel == null && it.typeText == null })
+        assertTrue(rows[0].visible)
+        assertTrue(rows[0].airplane)
+        assertFalse(rows[1].visible)
+        assertTrue(rows.all { it.subId == null && it.signalLevel == null && it.typeText == null })
         assertFalse(CarrierBlockPolicy.replacesStatusSignal(rows))
+    }
+
+    @Test
+    fun airplaneWithoutSubscriptionsStillOwnsFirstRowAndWifi() {
+        val rows = CarrierBlockPolicy.resolve(MobileSignalState(airplaneMode = true), 3,
+            CarrierBlockConfig()) { CarrierBlockPolicy.INVALID_SLOT }
+        assertTrue(rows[0].airplane)
+        assertEquals(3, rows[0].wifiLevel)
+        assertFalse(rows[1].visible)
+        assertEquals(setOf("airplane"), CarrierMask(airplane = true).slots())
+        assertTrue(CarrierMask(airplane = true).active)
     }
 
     @Test

@@ -56,7 +56,7 @@ object IconPositionHooker : StaticHooker() {
     private val stateLock = Any()
     private val containerStates = WeakHashMap<Any, ContainerState>()
     private val maskOwners = IconMaskOwners()
-    private val duoSlots = setOf("mobile", "stacked_mobile", "wifi", "demo_wifi",
+    private val duoSlots = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
     @Volatile
@@ -68,6 +68,7 @@ object IconPositionHooker : StaticHooker() {
 
     private val networkVisibility = LinkedHashMap<Class<*>, Method>()
     private val networkSlotFields = HashMap<Class<*>, Field?>()
+    private val networkVisibleStateFields = HashMap<Class<*>, Field?>()
     private val rowTranslations = WeakHashMap<View, TranslationState>()
     private val lastRestoredOverflow = WeakHashMap<ViewGroup, Set<String>>()
     private val iconVisibleGetters = HashMap<Class<*>, Method?>()
@@ -163,6 +164,7 @@ object IconPositionHooker : StaticHooker() {
         hookIgnoredSlots()
         networkVisibility.clear()
         networkSlotFields.clear()
+        networkVisibleStateFields.clear()
         iconVisibleGetters.clear()
         iconBlockedGetters.clear()
         removeFlagGetters.clear()
@@ -485,6 +487,9 @@ object IconPositionHooker : StaticHooker() {
     fun setDuoMask(container: Any, active: Boolean): Boolean =
         setContainerMask(container, if (active) duoSlots else emptySet(), IconMaskOwners.Owner.DUO)
 
+    internal fun duoOwnsAirplane(container: Any): Boolean =
+        "airplane" in maskOwners.owned(container, IconMaskOwners.Owner.DUO)
+
     internal fun setCarrierMask(container: Any, mask: CarrierMask): Boolean =
         setContainerMask(container, mask.slots(), IconMaskOwners.Owner.CARRIER)
 
@@ -550,10 +555,17 @@ object IconPositionHooker : StaticHooker() {
     }
 
     private fun readNativeVisibleState(view: View): Int? = runCatching {
-        findField(view.javaClass, "iconVisibleState")?.getInt(view)
+        val field = if (networkVisibleStateFields.containsKey(view.javaClass)) {
+            networkVisibleStateFields[view.javaClass]
+        } else {
+            findField(view.javaClass, "iconVisibleState").also { networkVisibleStateFields[view.javaClass] = it }
+        }
+        field?.getInt(view)
     }.getOrNull()
 
     private fun invokeNativeVisibleState(method: Method, view: View, state: Int) {
+        // The host setter may schedule binding/layout work even when asked for the same state.
+        if (readNativeVisibleState(view) == state) return
         val previous = applyingNativeVisibility
         applyingNativeVisibility = true
         try {

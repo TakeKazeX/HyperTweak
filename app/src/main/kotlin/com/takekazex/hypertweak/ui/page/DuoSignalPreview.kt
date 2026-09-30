@@ -27,7 +27,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */
 @Composable
-internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes()) {
+internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes(), mirrorAirplane: Boolean = false) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
     val context = LocalContext.current
@@ -35,14 +35,16 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
         val repository = IconSvgRepository(context)
         repository.loadSignalSingle(0).getOrNull()?.document to repository.loadSignalStacked(0).getOrNull()?.document
     }
-    val icons = remember(small5GaEnabled, artwork, sizes) {
+    val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane) {
         listOf(
             DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
             DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false, cellularSignalLevels = listOf(3, 2)),
             DuoContent(DuoBattery(15, false, false), null, "4G", 2, false, false),
-            DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false)
+            DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false),
+            DuoContent(DuoBattery(75, false, false), 3, null, 0, false, false, airplaneMode = true)
         ).map { state ->
-            DuoDrawable().apply {
+            DuoDrawable(context).apply {
+                this.mirrorAirplane = mirrorAirplane
                 this.sizes = sizes
                 this.small5GaEnabled = small5GaEnabled
                 content = state

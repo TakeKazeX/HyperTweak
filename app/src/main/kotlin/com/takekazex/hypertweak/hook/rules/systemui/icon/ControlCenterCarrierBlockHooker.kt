@@ -161,6 +161,17 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val wifi: ImageView,
         val type: ImageView
     ) {
+        val airplaneText = TextView(row.context).apply {
+            val id = resources.getIdentifier("airplane_mode", "string", "com.android.systemui")
+            text = if (id != 0) context.getString(id) else carrierText.text
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            includeFontPadding = false
+            setSingleLine()
+            ellipsize = TextUtils.TruncateAt.END
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
         val networkFade = CarrierNetworkCrossfade(type, wifi) { visible ->
             networkSlot.visibility = if (visible) View.VISIBLE else View.GONE
         }
@@ -790,6 +801,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 parts.row.addView(parts.signal, 0)
                 parts.row.addView(parts.badge, 1)
                 // Type and Wi-Fi share one measured row position; connecting cannot add a new box.
+                parts.row.addView(parts.airplaneText)
                 parts.row.addView(parts.networkSlot)
             }
             configureBlock(block)
@@ -939,7 +951,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             (readField(parts.row, "hdText") as? View)?.let { parts.hd?.restore(it) }
             (readField(parts.row, "plusText") as? View)?.let { parts.plus?.restore(it) }
             parts.networkFade.clear()
-            listOf(parts.signal, parts.badge, parts.networkSlot, parts.wifi, parts.type)
+            listOf(parts.signal, parts.badge, parts.airplaneText, parts.networkSlot, parts.wifi, parts.type)
                 .forEach { it.visibility = View.GONE }
         }
         (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
@@ -956,7 +968,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             duoTargets.remove(parts.wifi)
             duoTargets.remove(parts.type)
             parts.networkFade.clear()
-            listOf(parts.signal, parts.badge, parts.networkSlot).forEach(parts.row::removeView)
+            listOf(parts.signal, parts.badge, parts.airplaneText, parts.networkSlot).forEach(parts.row::removeView)
         }
     }
 
@@ -990,6 +1002,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             }
             val max = CarrierBlockPolicy.textWidth(available, badgeWidth + badgeGap)
             if (parts.carrierText.maxWidth != max) parts.carrierText.maxWidth = max
+            if (parts.airplaneText.maxWidth != max) parts.airplaneText.maxWidth = max
         }
     }
 
@@ -1049,11 +1062,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val art = artwork
         val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
         parts.model = model
-        parts.badge.visibility = if (!showBadge || art == null || model == null) View.GONE else View.VISIBLE
+        parts.carrierText.visibility = if (mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+        parts.airplaneText.visibility = if (model?.airplane == true && art != null) View.VISIBLE else View.GONE
+        parts.badge.visibility = if (mobileState.airplaneMode || !showBadge || art == null || model == null) View.GONE else View.VISIBLE
         if (art == null || model == null) {
             // Before reducer/artwork readiness the host label remains usable. An actually absent
             // slot is hidden only when another subscription establishes a known row set.
-            parts.row.visibility = if (model == null && rows.any { it.visible }) View.GONE else parts.rowState.visibility
+            parts.row.visibility = if (mobileState.airplaneMode || (model == null && rows.any { it.visible })) View.GONE else parts.rowState.visibility
             parts.signal.visibility = View.GONE
             parts.networkSlot.visibility = View.GONE
             parts.wifi.visibility = View.GONE
@@ -1067,6 +1082,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         parts.row.visibility = View.VISIBLE
         val tint = runCatching { parts.carrierText.currentTextColor }.getOrDefault(0xFFFFFFFF.toInt())
         parts.badge.setTextColor(tint)
+        parts.airplaneText.setTextColor(tint)
         val density = parts.row.resources.displayMetrics.density
         parts.badge.background = GradientDrawable().apply {
             cornerRadius = 2 * density
@@ -1115,7 +1131,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         publishNetwork(parts, typeBitmap, wifiBitmap, tint)
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")
-            append(parts.carrierText.text)
+            if (model.airplane) append("Airplane mode") else append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
             if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
             if (wifiBitmap != null) append(", Wi-Fi")
@@ -1446,8 +1462,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.rows.forEach { parts ->
             parts.cellularReady = acquired && cellular
             parts.wifiReady = acquired && wifiReplacement && parts.wifiBitmap != null
-            if (!parts.cellularReady || parts.signal !in duoTargets)
-                parts.signal.alpha = if (parts.cellularReady) 1f else 0f
+            val signalReady = parts.cellularReady
+            if (!signalReady || parts.signal !in duoTargets)
+                parts.signal.alpha = if (signalReady) 1f else 0f
             parts.networkSlot.alpha = if (parts.cellularReady || parts.wifiReady) 1f else 0f
         }
     }

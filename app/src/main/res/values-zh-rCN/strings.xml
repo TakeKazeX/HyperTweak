@@ -1450,4 +1450,6 @@
     <string name="aod_icons_section_apply">应用更改</string>
     <string name="aod_icons_restart_title">重启 SystemUI</string>
     <string name="aod_icons_restart_summary">重启 SystemUI 以应用 AOD 图标设置。</string>
+    <string name="icon_mirror_airplane">镜像飞行模式图标</string>
+    <string name="icon_mirror_airplane_summary">将原生飞行模式图标改为朝右，同时应用于三合一图标</string>
 </resources>

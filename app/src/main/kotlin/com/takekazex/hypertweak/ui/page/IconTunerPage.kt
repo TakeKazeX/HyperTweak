@@ -277,7 +277,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
-            StatusBarPreview(model = previewModel, duoSizes = DuoSizes(
+            StatusBarPreview(model = previewModel, mirrorAirplane = pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false), duoSizes = DuoSizes(
                 ring = DuoSizes.ratio(duoComponentPercents[0]),
                 wifi = DuoSizes.ratio(duoComponentPercents[1]),
                 cellular = DuoSizes.ratio(duoComponentPercents[2]),
@@ -320,6 +320,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                     1 -> {
                         DuoSignalSection(
                             componentPercents = duoComponentPercents,
+                            mirrorAirplane = pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false),
                             enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
                             small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
@@ -390,6 +391,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                         onChange = { key, value -> changed(key, value) }
                     )
                     3 -> {
+                        SmallTitle(stringResource(R.string.icon_slot_airplane))
+                        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                            TunerSwitch(
+                                pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false),
+                                stringResource(R.string.icon_mirror_airplane),
+                                stringResource(R.string.icon_mirror_airplane_summary)
+                            ) { changed(Preferences.KEY_ICON_MIRROR_AIRPLANE, it) }
+                        }
+
                         NotificationSection(
                 enabled = pref(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, false),
                 maximum = NotificationIconLimit.clamp(
@@ -1227,6 +1237,7 @@ private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: I
 @Composable
 private fun DuoSignalSection(
     componentPercents: List<Int>,
+    mirrorAirplane: Boolean,
     enabled: Boolean,
     expanded: Int,
     sizeDp: Int,
@@ -1244,7 +1255,7 @@ private fun DuoSignalSection(
         battery = DuoSizes.ratio(componentPercents[6]),
         percent = DuoSizes.ratio(componentPercents[7])
     )
-    DuoSignalPreview(small5GaEnabled, sizes)
+    DuoSignalPreview(small5GaEnabled, sizes, mirrorAirplane)
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),

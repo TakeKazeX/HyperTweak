@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -73,7 +74,7 @@ private const val CLOCK_REFRESH_MS = 30_000L
  * it - exactly what the module's own view does in the host row.
  */
 @Composable
-internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes = DuoSizes()) {
+internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes = DuoSizes(), mirrorAirplane: Boolean = false) {
     val clock = rememberClockText()
     val leftScroll = rememberScrollState()
     val indicatorScroll = rememberScrollState()
@@ -101,7 +102,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                     fontSize = CLOCK_SP.sp,
                     modifier = Modifier.padding(end = 6.dp)
                 )
-                model.leftSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
+                model.leftSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane) }
             }
         }
         Box(Modifier.weight(1f)) {
@@ -109,7 +110,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                 Modifier.align(Alignment.CenterEnd).horizontalScroll(indicatorScroll),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                model.indicatorSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
+                model.indicatorSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -133,28 +134,30 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                     modifier = Modifier.padding(end = 2.dp)
                 )
             }
-            model.coreSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes) }
+            model.coreSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane) }
         }
     }
 }
 
 @Composable
-private fun PreviewGlyph(slot: String, duoSizeDp: Float, duoSizes: DuoSizes) {
+private fun PreviewGlyph(slot: String, duoSizeDp: Float, duoSizes: DuoSizes, mirrorAirplane: Boolean) {
     if (slot == PREVIEW_DUO_SLOT) {
         DuoPreviewGlyph(duoSizeDp, duoSizes)
         return
     }
     StatusBarSlotGlyph(
         iconRes = IconSlotCatalog.of(slot)?.iconRes ?: IconSlotCatalog.fallbackIconRes(),
-        tint = MiuixTheme.colorScheme.onSurface
+        tint = MiuixTheme.colorScheme.onSurface,
+        modifier = Modifier.graphicsLayer { scaleX = if (slot == "airplane" && mirrorAirplane) -1f else 1f }
     )
 }
 
 /** Uses the production drawable, so the preview cannot drift from the real Duo artwork. */
 @Composable
 private fun DuoPreviewGlyph(duoSizeDp: Float, sizes: DuoSizes) {
-    val drawable = remember {
-        DuoDrawable().apply {
+    val context = LocalContext.current
+    val drawable = remember(context) {
+        DuoDrawable(context).apply {
             content = DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false)
         }
     }

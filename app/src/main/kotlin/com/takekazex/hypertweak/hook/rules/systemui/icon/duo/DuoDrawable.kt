@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import android.content.Context
 import android.graphics.Picture
 import android.graphics.Canvas
 import android.graphics.Color
@@ -15,6 +16,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.withSave
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -30,7 +32,12 @@ import kotlin.math.roundToInt
  *
  * Host foreground tint drives every layer; battery semantics stay on the charged part of the ring.
  */
-class DuoDrawable : Drawable() {
+enum class DuoRenderLayer { COMPOSITE, POWER_TRACK }
+
+class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRenderLayer.COMPOSITE) : Drawable() {
+    private val airplaneDrawable = if (layer == DuoRenderLayer.POWER_TRACK) null else AirplaneIconHooker.loadGlyph(context)
+    var mirrorAirplane = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
@@ -49,6 +56,9 @@ class DuoDrawable : Drawable() {
     private var signalFilterColor = Int.MIN_VALUE
     private var signalColorFilter: PorterDuffColorFilter? = null
 
+    var nativeWifi: Drawable? = null
+        set(value) { if (field !== value) { field = value; invalidateSelf() } }
+
     var sizes = DuoSizes()
         set(value) { if (field != value) { field = value; invalidateSelf() } }
 
@@ -57,6 +67,7 @@ class DuoDrawable : Drawable() {
     var hidePowerTrack = false
     var hiddenSignalRows: Set<Int> = emptySet()
     var networkOnly = false
+    var hideAirplane = false
     var hideNetwork = false
     var batteryOnly = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
@@ -94,10 +105,11 @@ class DuoDrawable : Drawable() {
                     translate(-CENTER, -CENTER)
                 }
                 if (!networkOnly && !hidePowerTrack) drawPowerTrack(this, state)
+                if (layer == DuoRenderLayer.POWER_TRACK) return@withSave
                 if (batteryOnly) {
                     drawInnerBattery(this)
-                } else if (state.airplaneMode) {
-                    if (!hideNetwork) drawAirplane(this)
+                } else if (state.airplaneMode && state.wifiLevel == null) {
+                    if (!hideAirplane && !hideNetwork) drawAirplane(this)
                 } else {
                     if (state.wifiLevel != null && !hideNetwork) {
                         drawWifi(this, state.wifiLevel)
@@ -109,7 +121,14 @@ class DuoDrawable : Drawable() {
                 }
             }
 
-            if (cellular && !hideNetwork && state.networkLabel != null) {
+            if (layer == DuoRenderLayer.POWER_TRACK) return
+            if (state.airplaneMode && state.wifiLevel != null && !batteryOnly && !networkOnly) {
+                if (!hideAirplane) canvas.withSave {
+                    translate(0f, LABEL_CENTER_Y - CENTER)
+                    scale(.58f, .58f, CENTER, CENTER)
+                    drawAirplane(this)
+                }
+            } else if (cellular && !hideNetwork && state.networkLabel != null) {
                 drawNetworkLabel(canvas, state, LABEL_CENTER_Y)
             } else if (!cellular && !batteryOnly && !networkOnly &&
                 state.wifiLevel != null && !hideSignalDots) {
@@ -154,6 +173,16 @@ class DuoDrawable : Drawable() {
     }
 
     private fun drawWifiUnscaled(canvas: Canvas, rawLevel: Int) {
+        val native = nativeWifi as? NativeWifiDrawable
+        if (native?.isReady() == true) {
+            val half = NATIVE_WIFI_SIZE / 2f
+            native.setBounds((CENTER - half).toInt(), (CENTER - half).toInt(),
+                (CENTER + half).toInt(), (CENTER + half).toInt())
+            native.alpha = opacity
+            native.foreground = foreground
+            native.draw(canvas)
+            return
+        }
         val level = rawLevel.coerceAtLeast(0)
         wifiArc(
             canvas,
@@ -201,40 +230,19 @@ class DuoDrawable : Drawable() {
         canvas.drawPath(path, paint)
     }
 
-    /**
-     * Airplane-mode silhouette traced from the host's real airplane glyph: broad swept wings,
-     * a compact tail and a rounded nose.  Keeping it as one contiguous path avoids the seams and
-     * odd double-fin look of the previous three-piece approximation at status-bar scale.
-     */
+    /** Draw the host vector with its native aspect ratio; mirror around the ring centre. */
     private fun drawAirplane(canvas: Canvas) = canvas.withSave {
-        scale(sizes.airplane, sizes.airplane, CENTER, CENTER)
-        drawAirplaneUnscaled(this)
-    }
-
-    private fun drawAirplaneUnscaled(canvas: Canvas) {
-        paint.style = Paint.Style.FILL
-        colorOf(foreground)
-        path.reset()
-
-        path.moveTo(12.64f, 9.58f)     // upper wing tip
-        path.lineTo(14.39f, 14.83f)    // upper wing root
-        path.lineTo(10.30f, 15.12f)    // upper tail root
-        path.lineTo(8.84f, 13.37f)     // tail upper tip
-        path.lineTo(8.84f, 18.92f)     // tail lower tip
-        path.lineTo(10.30f, 17.17f)    // lower tail root
-        path.lineTo(14.10f, 17.17f)    // lower fuselage/wing junction
-        path.lineTo(14.39f, 17.46f)
-        path.lineTo(12.64f, 22.13f)    // lower wing tip
-        path.lineTo(13.52f, 22.42f)
-        path.lineTo(17.90f, 17.17f)    // lower wing root
-        path.lineTo(22.28f, 17.17f)    // lower nose base
-        path.quadTo(23.16f, 17.17f, 23.16f, 16.29f)
-        path.quadTo(23.16f, 15.12f, 22.28f, 15.12f) // rounded nose
-        path.lineTo(17.90f, 15.12f)    // upper wing root
-        path.lineTo(13.52f, 9.87f)
-        path.close()
-
-        canvas.drawPath(path, paint)
+        val glyph = airplaneDrawable ?: return@withSave
+        scale(if (mirrorAirplane) -sizes.airplane else sizes.airplane, sizes.airplane, CENTER, CENTER)
+        val width = glyph.intrinsicWidth.coerceAtLeast(1).toFloat()
+        val height = glyph.intrinsicHeight.coerceAtLeast(1).toFloat()
+        val factor = 21f / maxOf(width, height)
+        translate(CENTER - width * factor / 2f, CENTER - height * factor / 2f)
+        scale(factor, factor)
+        glyph.setBounds(0, 0, width.toInt(), height.toInt())
+        glyph.setTint(foreground)
+        glyph.alpha = opacity
+        glyph.draw(this)
     }
 
     /**
@@ -509,6 +517,7 @@ class DuoDrawable : Drawable() {
         const val LABEL_MAX_WIDTH = 17.0f
         const val LABEL_MAX_HEIGHT = 10.2f
         /** The type sits in the lower opening; the signal remains centred in the ring. */
+        const val NATIVE_WIFI_SIZE = 16f
         const val LABEL_CENTER_Y = 25.0f
 
         const val COMPACT_RING_SCALE = 0.90f

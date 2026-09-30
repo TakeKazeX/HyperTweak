@@ -16,10 +16,11 @@ data class CarrierRowModel(
     /** Wi-Fi level 0..4; only the first row ever carries it. */
     val wifiLevel: Int? = null,
     /** Wi-Fi is default and its artwork is available, so the shared slot may fade out the type. */
-    val typeSuppressed: Boolean = false
+    val typeSuppressed: Boolean = false,
+    val airplane: Boolean = false
 ) {
-    /** A row is drawn only when a subscription actually owns its slot. */
-    val visible: Boolean get() = subId != null
+    /** A subscription owns its row; airplane mode owns the first row independently of SIMs. */
+    val visible: Boolean get() = subId != null || airplane
 
     val hasSignal: Boolean get() = visible && signalLevel != null
     val hasType: Boolean get() = visible && !typeText.isNullOrEmpty()
@@ -55,6 +56,10 @@ object CarrierBlockPolicy {
         config: CarrierBlockConfig,
         slotOf: (Int) -> Int
     ): List<CarrierRowModel> = (0 until ROW_COUNT).map { slot ->
+        if (state.airplaneMode) {
+            return@map CarrierRowModel(slot = slot, airplane = slot == 0,
+                wifiLevel = wifiLevel?.coerceIn(0, 4)?.takeIf { slot == 0 })
+        }
         val subId = state.subscriptionOrder.firstOrNull { candidate ->
             runCatching { slotOf(candidate) }.getOrDefault(INVALID_SLOT) == slot
         }
@@ -125,11 +130,12 @@ object CarrierBlockPolicy {
 }
 
 /** Replacement ownership is container-local; Wi-Fi is independent from the cellular group. */
-internal data class CarrierMask(val cellular: Boolean = false, val wifi: Boolean = false) {
-    val active: Boolean get() = cellular || wifi
+internal data class CarrierMask(val cellular: Boolean = false, val wifi: Boolean = false, val airplane: Boolean = false) {
+    val active: Boolean get() = cellular || wifi || airplane
     fun slots(): Set<String> = buildSet {
         if (cellular) addAll(CELLULAR_SLOTS)
         if (wifi) addAll(WIFI_SLOTS)
+        if (airplane) add("airplane")
     }
 
     companion object {

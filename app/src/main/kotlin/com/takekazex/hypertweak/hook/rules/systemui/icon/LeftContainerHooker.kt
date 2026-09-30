@@ -1110,6 +1110,16 @@ object LeftContainerHooker : StaticHooker() {
         mainHandler.postDelayed(reconcileRunnable, RECONCILE_INTERVAL_MS)
     }
 
+    private var ownershipRefreshPending = false
+    internal fun onDuoOwnershipChanged() {
+        if (ownershipRefreshPending) return
+        ownershipRefreshPending = true
+        mainHandler.post {
+            ownershipRefreshPending = false
+            reconcileAll()
+        }
+    }
+
     private fun reconcileAll() {
         reloadSnapshot()
         var needsOverlayRefresh = false
@@ -1360,15 +1370,22 @@ object LeftContainerHooker : StaticHooker() {
     /** Idempotent: sees the current right-cluster children and mirrors them into the left. */
     private fun syncClones(state: LeftState) {
         val right = state.rightContainer
-        val slots = activeSlots
+        val duoOwnsAirplane = com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+            .ownsAirplane(right)
+        val slots = if (duoOwnsAirplane) activeSlots - "airplane" else activeSlots
         // 1. Drop clones whose slot is no longer selected or has no live view on the right.
         val it = state.clones.entries.iterator()
         while (it.hasNext()) {
             val (slot, clone) = it.next()
             val child = rightChildForSlot(state, slot)
             if (slot !in slots || child == null) {
-                animateCloneVisibility(clone, false)
-                if (cloneFades[clone]?.animator != null) continue
+                if (slot == "airplane" && duoOwnsAirplane) {
+                    cloneFades[clone]?.animator?.cancel()
+                    panelMotions.remove(slot)?.clear()
+                } else {
+                    animateCloneVisibility(clone, false)
+                    if (cloneFades[clone]?.animator != null) continue
+                }
                 it.remove()
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
                 cloneFades.remove(clone)?.animator?.cancel()
@@ -1427,7 +1444,11 @@ object LeftContainerHooker : StaticHooker() {
         // IconManager enables this on every native StatusBarIconView. Without it, the special
         // 58x56dp airplane drawable measures at its intrinsic width instead of fitting the
         // 20dp status-bar slot, producing an abnormally wide clone.
-        (clone as? android.widget.ImageView)?.setAdjustViewBounds(true)
+        (clone as? android.widget.ImageView)?.apply {
+            setAdjustViewBounds(true)
+            // Native CENTER draws the 58dp airplane outside its measured status-bar box.
+            if (slot == "airplane") scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        }
         val container = ensureContainer(state) ?: return null
         // Add before payload/tint registration; DarkIconDispatcher immediately sends a callback.
         container.addView(clone)

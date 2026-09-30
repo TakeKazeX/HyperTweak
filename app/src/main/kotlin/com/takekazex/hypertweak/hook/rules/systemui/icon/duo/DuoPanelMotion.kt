@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
@@ -10,13 +11,18 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /** An owned overlay, with no added children in host StatusIconDisplayable containers. */
-internal class DuoPanelMotion {
+internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolean = false) {
     private var host: ViewGroup? = null
     private var target: View? = null
+    private var wifiArtwork: NativeWifiDrawable? = null
     private var savedAlpha = 1f
     private var appliedAlpha = 1f
     private val location = IntArray(2)
-    private val glyph = DuoDrawable().apply { networkOnly = true }
+    private val glyph = DuoDrawable(context).apply {
+        networkOnly = true
+        mirrorAirplane = com.takekazex.hypertweak.hook.Preferences.getBoolean(
+            com.takekazex.hypertweak.hook.Preferences.KEY_ICON_MIRROR_AIRPLANE, false)
+    }
     private var x = 0f
     private var y = 0f
     private var side = 0f
@@ -29,11 +35,18 @@ internal class DuoPanelMotion {
             val count = canvas.save()
             try {
                 canvas.translate(x - side / 2f, y - side / 2f)
-                glyph.setBounds(0, 0, side.toInt(), side.toInt())
-                // Drawable.opacity is a PixelFormat (-3 for TRANSLUCENT), not a 0..255 alpha.
-                // Explicit outer qualification prevents Kotlin resolving the inherited property.
-                glyph.alpha = this@DuoPanelMotion.layerAlpha
-                glyph.draw(canvas)
+                val wifi = wifiArtwork
+                if (wifi != null) {
+                    wifi.setBounds(0, 0, side.toInt(), side.toInt())
+                    wifi.alpha = this@DuoPanelMotion.layerAlpha
+                    wifi.foreground = glyph.foreground
+                    wifi.draw(canvas)
+                } else {
+                    glyph.setBounds(0, 0, side.toInt(), side.toInt())
+                    // Drawable.opacity is a PixelFormat, not the overlay's 0..255 alpha.
+                    glyph.alpha = this@DuoPanelMotion.layerAlpha
+                    glyph.draw(canvas)
+                }
                 if (!frameReady) {
                     frameReady = true
                     host?.postInvalidateOnAnimation()
@@ -59,17 +72,24 @@ internal class DuoPanelMotion {
         color: Int,
         progress: Float,
         small5GaEnabled: Boolean = false,
-        sizes: DuoSizes = DuoSizes()
+        sizes: DuoSizes = DuoSizes(),
+        nativeWifi: NativeWifiDrawable? = null
     ): Boolean {
         if (!progress.isFinite() || !root.isAttachedToWindow ||
             !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
             !native.isAttachedToWindow || native.width <= 0 || native.height <= 0) {
             clear(); return false
         }
+        // Missing/temporarily unbound native artwork uses the same local fallback as Duo.
+        // A hidden native view's layout or drawable bounds cannot cancel the gesture.
+        val usesNativeWifi = !airplaneOnly && content.wifiLevel != null && nativeWifi?.isReady() == true
+        val artwork = nativeWifi.takeIf { usesNativeWifi }
+        val rendered = if (airplaneOnly) content.copy(wifiLevel = null) else content
         val previousX = x; val previousY = y; val previousSide = side; val previousOpacity = layerAlpha
-        val contentChanged = glyph.content != content || glyph.foreground != color ||
-            glyph.small5GaEnabled != small5GaEnabled || host !== root || target !== native
+        val contentChanged = glyph.content != rendered || glyph.foreground != color ||
+            glyph.small5GaEnabled != small5GaEnabled || wifiArtwork !== artwork || host !== root || target !== native
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
+        wifiArtwork = artwork
         if (target !== native) {
             restoreTarget(); target = native; savedAlpha = native.alpha; appliedAlpha = native.alpha
             frameReady = false
@@ -79,11 +99,11 @@ internal class DuoPanelMotion {
         val handoff = DuoPanelGeometry.handoff(progress)
         // Do not hide either endpoint until the overlay has actually drawn successfully.
         appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
-        native.alpha = appliedAlpha
+        if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
         source.getLocationOnScreen(location)
         val sourceSide = min(source.width, source.height).toFloat()
         val sourceX = location[0] + source.width - source.paddingRight - sourceSide / 2f
-        val sourceY = location[1] + if (content.wifiLevel == null && content.networkLabel != null)
+        val sourceY = location[1] + if ((airplaneOnly && content.wifiLevel != null) || (content.wifiLevel == null && content.networkLabel != null))
             sourceSide * DuoDrawable.LABEL_CENTER_Y / DuoDrawable.VIEWPORT else
             sourceSide * DuoDrawable.COMPACT_RING_CENTER_Y / DuoDrawable.VIEWPORT
         native.getLocationOnScreen(location)
@@ -94,11 +114,13 @@ internal class DuoPanelMotion {
         y = DuoPanelGeometry.mix(sourceY, targetY, progress) - location[1]
         // Network artwork occupies roughly half the 32-unit viewport.
         side = DuoPanelGeometry.mix(min(source.width, source.height).toFloat() *
-            (if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE * sizes.wifi
+            (if (airplaneOnly) (if (content.wifiLevel != null) .58f else DuoDrawable.COMPACT_RING_SCALE) * sizes.airplane
+                else if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE * sizes.wifi *
+                    (if (usesNativeWifi) DuoDrawable.NATIVE_WIFI_SIZE / DuoDrawable.VIEWPORT else 1f)
                 else sizes.type),
-            min(native.width, native.height) * 1.7f, progress)
+            min(native.width, native.height) * (if (usesNativeWifi) 1f else 1.7f), progress)
         layerAlpha = DuoPanelGeometry.overlayAlpha(progress)
-        glyph.content = content
+        glyph.content = rendered
         glyph.foreground = color
         glyph.small5GaEnabled = small5GaEnabled
         layer.setBounds(0, 0, root.width, root.height)
@@ -115,6 +137,7 @@ internal class DuoPanelMotion {
         restoreTarget()
         host?.overlay?.remove(layer)
         host = null
+        wifiArtwork = null
         frameReady = false
         drawFailed = false
     }

@@ -43,6 +43,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotTintHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IgnoreSysIconSettingsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
@@ -772,6 +773,7 @@ class HookEntry : XposedModule() {
                 attachHooker(HideCellularIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IconManagerHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IconPositionHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AirplaneIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IconSlotTintHooker, classLoader, ctx, replacementHandles)
                 attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LeftContainerHooker, classLoader, ctx, replacementHandles)

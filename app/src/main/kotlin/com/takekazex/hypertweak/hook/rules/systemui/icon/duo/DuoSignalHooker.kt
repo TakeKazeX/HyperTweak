@@ -84,6 +84,7 @@ object DuoSignalHooker : StaticHooker() {
     private var networkPending: Runnable? = null
     private var batteryLayoutField: Field? = null
     private var statusIconsField: Field? = null
+    private var wifiTintResourceMethod: Method? = null
     private var visibilityMethod: Method? = null
     private var tintMethod: Method? = null
     private var darkMethod: Method? = null
@@ -110,7 +111,8 @@ object DuoSignalHooker : StaticHooker() {
         var privacyView: View? = null
         val privacyRect = RectF()
         var privacyInset = 0
-        val panelMotion = DuoPanelMotion()
+        val panelMotion = DuoPanelMotion(battery.context)
+        val airplaneMotion = DuoPanelMotion(battery.context, airplaneOnly = true)
         val signalMotions = HashMap<Int, SignalRowMotion>()
         val signalTargets = HashMap<Int, View>()
         val signalSourceBounds = RectF()
@@ -138,6 +140,9 @@ object DuoSignalHooker : StaticHooker() {
         // Preserve whether the host/user already ignored the native airplane slot before Duo.
         // Duo may add that slot while active, but must never unhide something the host chose to hide.
         var hostIgnoredAirplane: Boolean? = null
+        var airplaneMasked = false
+        var wifiGlyph: NativeWifiDrawable? = null
+        var wifiArtworkRevision = -1
     }
 
     private data class FullAodNativeState(
@@ -150,14 +155,17 @@ object DuoSignalHooker : StaticHooker() {
     )
 
     private class DuoView(context: Context) : View(context) {
-        val icon = DuoDrawable().also { it.callback = this }
+        val icon = DuoDrawable(context).also {
+            it.callback = this
+            it.mirrorAirplane = Preferences.getBoolean(Preferences.KEY_ICON_MIRROR_AIRPLANE, false)
+        }
         var drawFailed: ((Throwable) -> Unit)? = null
         private var reportedDrawFailure = false
         /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
         var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
         private val transition = DuoNetworkTransition()
         private val contentLayers = LinkedHashMap<DuoRepresentation, DuoDrawable>()
-        private val ring = DuoDrawable().apply { hideNetwork = true; hiddenSignalRows = setOf(0, 1); hideSignalDots = true }
+        private val ring = DuoDrawable(context, DuoRenderLayer.POWER_TRACK)
         private val percentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val percentMarkPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private var percentText = ""
@@ -294,7 +302,7 @@ object DuoSignalHooker : StaticHooker() {
             icon.content = content
             icon.cellularSignalPicture = cellularSignal
             val key = DuoRepresentation.of(content)
-            contentLayers.getOrPut(key) { DuoDrawable() }.apply {
+            contentLayers.getOrPut(key) { DuoDrawable(context) }.apply {
                 this.content = content
                 cellularSignalPicture = cellularSignal
             }
@@ -362,12 +370,15 @@ object DuoSignalHooker : StaticHooker() {
                         hidePowerTrack = true
                         hiddenSignalRows = icon.hiddenSignalRows
                         hideNetwork = icon.hideNetwork
+                        hideAirplane = icon.hideAirplane
                         hideSignalDots = icon.hideSignalDots
                         batteryOnly = icon.batteryOnly
                         innerBatteryDrawable = icon.innerBatteryDrawable
                         bounds = icon.bounds
                         foreground = icon.foreground
+                        nativeWifi = icon.nativeWifi
                         small5GaEnabled = icon.small5GaEnabled
+                        mirrorAirplane = icon.mirrorAirplane
                         alpha = (weight * 255).roundToInt()
                         draw(canvas)
                     }
@@ -471,6 +482,16 @@ object DuoSignalHooker : StaticHooker() {
         }
         darkMethod = "com.android.systemui.statusbar.DarkIconDispatcherExt".toClassOrNull()?.methods?.singleOrNull {
             it.name == "getDarkIntensity" && it.parameterCount == 3
+        }
+        wifiTintResourceMethod = "com.android.systemui.statusbar.MiuiStatusBarIconViewHelper"
+            .toClassOrNull()?.declaredMethods?.singleOrNull {
+                it.name == "transformResId" && java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                    it.returnType == Int::class.javaPrimitiveType &&
+                    it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType,
+                        Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
+            }?.apply { isAccessible = true }
+        if (wifiTintResourceMethod == null) {
+            DebugLog.hookSkipped(TAG, "native Wi-Fi tint artwork", "resource transformer signature unavailable")
         }
         // No hooks on global View/ImageView draw, visibility or tint methods.
         batteryClass.findMethodOrNull { name("onAttachedToWindow"); paramCount(0) }?.hook {
@@ -862,6 +883,7 @@ object DuoSignalHooker : StaticHooker() {
             }
             binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
+            binding.view.icon.nativeWifi = nativeWifiGlyph(binding)
             val batteryOnly = aod?.centerBattery == true || binding.surface == DuoSurface.EXPANDED &&
                 expandedStyle == DuoExpandedStyle.KEEP_DUO
             val percentContainer = read(battery, "mBatteryPercentContainer") as? View
@@ -1337,7 +1359,15 @@ object DuoSignalHooker : StaticHooker() {
         return find(root)
     }
 
-    private fun clearPanelMotion(binding: Binding) {
+    private fun clearAirplaneMotion(binding: Binding) {
+        binding.airplaneMotion.clear()
+        if (binding.view.icon.hideAirplane) {
+            binding.view.icon.hideAirplane = false
+            binding.view.invalidate()
+        }
+    }
+
+    private fun clearNetworkMotion(binding: Binding) {
         binding.networkMotionSettle?.let(main::removeCallbacks)
         binding.networkMotionSettle = null
         binding.networkMotionProgress = 0f
@@ -1348,6 +1378,11 @@ object DuoSignalHooker : StaticHooker() {
             binding.view.icon.hideNetwork = false
             binding.view.invalidate()
         }
+    }
+
+    private fun clearPanelMotion(binding: Binding) {
+        clearNetworkMotion(binding)
+        clearAirplaneMotion(binding)
     }
 
     fun hasActiveProxy(root: View): Boolean = enabled && bindings.values.any {
@@ -1392,9 +1427,11 @@ object DuoSignalHooker : StaticHooker() {
         positionProxy(binding, proxyRoot, home.view, target, expandedRoot, panelProgress)
         updateSignalMotions(binding, home, expanded, proxyRoot.rootView as? ViewGroup)
         val content = binding.view.icon.content
-        if (content == null || content.airplaneMode) {
-            clearPanelMotion(binding); return
-        }
+        binding.view.icon.nativeWifi = home.view.icon.nativeWifi
+        if (content == null) { clearPanelMotion(binding); return }
+        val root = proxyRoot.rootView as? ViewGroup
+        if (root != null) updateAirplaneMotion(binding, home.view, expanded, root, content, panelProgress)
+        if (content.airplaneMode && content.wifiLevel == null) return
         val wifi = content.wifiLevel != null
         val destination = DuoPolicy.networkDestination(
             expandedStyle,
@@ -1406,29 +1443,66 @@ object DuoSignalHooker : StaticHooker() {
                 expanded.icons, wifi, mobile.activeDataSubId)
             DuoNetworkDestination.NATIVE -> nativeNetworkView(expanded, wifi)
         }
-        val root = proxyRoot.rootView as? ViewGroup
-        if (networkTarget == null || root == null) { clearPanelMotion(binding); return }
+        if (networkTarget == null || root == null) { clearNetworkMotion(binding); return }
         if (panelProgress >= 1f && binding.networkMotionProgress >= 1f) return
         val carrierTarget = networkTarget.takeIf { destination == DuoNetworkDestination.CARRIER }
-        if (binding.carrierTarget !== carrierTarget) clearPanelMotion(binding)
+        if (binding.carrierTarget !== carrierTarget) clearNetworkMotion(binding)
         if (carrierTarget != null) {
             if (!ControlCenterCarrierBlockHooker.acquireDuoTarget(carrierTarget, binding)) {
-                clearPanelMotion(binding); return
+                clearNetworkMotion(binding); return
             }
             binding.carrierTarget = carrierTarget
         }
         if (panelProgress >= 1f) {
             settlePanelMotion(binding, root, home.view, networkTarget, content,
-                binding.view.icon.foreground)
+                home.view.icon.foreground, home.view.icon.nativeWifi as? NativeWifiDrawable)
             return
         }
         binding.networkMotionSettle?.let(main::removeCallbacks)
         binding.networkMotionSettle = null
         binding.networkMotionProgress = panelProgress
         val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
-            binding.view.icon.foreground, panelProgress, small5GaEnabled, componentSizes)
+            home.view.icon.foreground, panelProgress, small5GaEnabled, componentSizes,
+            home.view.icon.nativeWifi as? NativeWifiDrawable)
         if (binding.view.icon.hideNetwork != hidden) {
             binding.view.icon.hideNetwork = hidden
+            binding.view.invalidate()
+        }
+    }
+
+    private fun nativeWifiGlyph(binding: Binding): NativeWifiDrawable? {
+        val id = binding.networkIds["wifi_signal"]?.takeIf { it != 0 } ?: return null
+        val source = binding.icons.findViewById<View>(id) as? android.widget.ImageView ?: return null
+        val drawable = binding.wifiGlyph?.takeIf { it.source === source }
+            ?: wifiTintResourceMethod?.let { transform ->
+                NativeWifiDrawable(source) { resource ->
+                    transform.invoke(null, resource, true, false) as? Int
+                        ?: error("native Wi-Fi tint resource unavailable")
+                }.also { binding.wifiGlyph = it }
+            } ?: return null
+        val ready = drawable.isReady()
+        if (binding.wifiArtworkRevision != drawable.revision) {
+            binding.wifiArtworkRevision = drawable.revision
+            binding.view.invalidate()
+        }
+        return drawable.takeIf { ready }
+    }
+
+    private fun updateAirplaneMotion(binding: Binding, source: View, expanded: Binding,
+                                     root: ViewGroup, content: DuoContent, progress: Float) {
+        val icons = expanded.icons as? ViewGroup
+        val target = icons?.let { group ->
+            (0 until group.childCount).asSequence().map { group.getChildAt(it) }
+                .firstOrNull { read(it, "mSlot") == AIRPLANE_SLOT && it.isLaidOut && it.width > 0 }
+        }
+        val hidden = if (content.airplaneMode && target != null) {
+            val home = bindings.values.firstOrNull { it.view === source }
+            val sourceColor = home?.view?.icon?.foreground ?: binding.view.icon.foreground
+            binding.airplaneMotion.update(root, source, target, content,
+                sourceColor, progress, small5GaEnabled, componentSizes)
+        } else { binding.airplaneMotion.clear(); false }
+        if (binding.view.icon.hideAirplane != hidden) {
+            binding.view.icon.hideAirplane = hidden
             binding.view.invalidate()
         }
     }
@@ -1440,7 +1514,8 @@ object DuoSignalHooker : StaticHooker() {
         source: View,
         target: View,
         content: DuoContent,
-        color: Int
+        color: Int,
+        nativeWifi: NativeWifiDrawable?
     ) {
         if (binding.networkMotionSettle != null) return
         val from = binding.networkMotionProgress.coerceIn(0f, 1f)
@@ -1462,8 +1537,11 @@ object DuoSignalHooker : StaticHooker() {
                 val next = steps[index++]
                 binding.networkMotionProgress = next
                 val updated = runCatching {
+                    val expanded = bindings.values.firstOrNull { it.surface == DuoSurface.EXPANDED &&
+                        it.parent.rootView === binding.parent.rootView }
+                    if (expanded != null) updateAirplaneMotion(binding, source, expanded, root, content, next)
                     val hidden = binding.panelMotion.update(root, source, target, content, color,
-                        next, small5GaEnabled, componentSizes)
+                        next, small5GaEnabled, componentSizes, nativeWifi)
                     if (binding.view.icon.hideNetwork != hidden) {
                         binding.view.icon.hideNetwork = hidden
                         binding.view.invalidate()
@@ -1551,30 +1629,14 @@ object DuoSignalHooker : StaticHooker() {
      * Adds/removes only Duo's native-airplane suppression.  The baseline bit prevents restore from
      * exposing an airplane slot that was already hidden by Icon Tuner or the host configuration.
      */
+    internal fun ownsAirplane(container: View): Boolean = IconPositionHooker.duoOwnsAirplane(container)
+
     private fun setNativeAirplaneMasked(binding: Binding, masked: Boolean) {
-        captureAirplaneMaskBaseline(binding)
-        val ignored = ignoredSlots(binding.icons) ?: return
-        val hostAlreadyIgnored = binding.hostIgnoredAirplane == true
-        var changed = false
-        if (masked) {
-            if (ignored.none { it == AIRPLANE_SLOT }) {
-                ignored.add(AIRPLANE_SLOT)
-                changed = true
-            }
-        } else if (!hostAlreadyIgnored) {
-            var index = ignored.size - 1
-            while (index >= 0) {
-                if (ignored[index] == AIRPLANE_SLOT) {
-                    ignored.removeAt(index)
-                    changed = true
-                }
-                index--
-            }
-        }
-        if (changed) {
-            binding.icons.requestLayout()
-            binding.icons.invalidate()
-        }
+        // IconPosition owns the merged airplane mask. Never mutate ignoredSlots independently:
+        // its next pass would restore that list and trigger another layout every frame.
+        if (binding.airplaneMasked == masked) return
+        binding.airplaneMasked = masked
+        com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker.onDuoOwnershipChanged()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -1775,6 +1837,7 @@ object DuoSignalHooker : StaticHooker() {
             callback?.let { listener -> runCatching { connectivity?.unregisterNetworkCallback(listener) } }
             networkPending?.let(main::removeCallbacks)
             networkPending = null
+            wifiTintResourceMethod = null
             callback = null; connectivity = null; currentNetwork = null
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null
