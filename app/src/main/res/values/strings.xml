@@ -536,18 +536,6 @@
     <string name="icon_battery_style_outside_summary">Draw the control center battery as the solid icon with its percentage outside it. The home status bar, lockscreen and notification shade keep the system style</string>
     <string name="icon_battery_style_left">Percentage on the Left</string>
     <string name="icon_battery_style_left_summary">Put the control center percentage on the left of the icon instead of the right. The in-glyph number has no side, so this also switches to the outside style</string>
-    <string name="icon_compound_alarm">Alarm Clock</string>
-    <string name="icon_compound_alarm_summary">Merge the alarm clock state into the compound icon</string>
-    <string name="icon_compound_location">Location</string>
-    <string name="icon_compound_location_summary">Merge the location state into the compound icon</string>
-    <string name="icon_compound_priority">Priority order</string>
-    <string name="icon_compound_slot_mode">Compound Icon</string>
-    <string name="icon_compound_slot_mode_summary">Merge alarm, DND, location and volume into one icon</string>
-    <string name="icon_compound_title">Compound Icon</string>
-    <string name="icon_compound_volume">Volume</string>
-    <string name="icon_compound_volume_summary">Merge the mute/vibrate state into the compound icon</string>
-    <string name="icon_compound_zen">Do Not Disturb</string>
-    <string name="icon_compound_zen_summary">Merge the DND state into the compound icon</string>
     <string name="icon_stacked_signal_style">Stacked Signal Style</string>
     <string name="icon_stacked_signal_style_summary">Stack both SIMs into one icon</string>
     <string name="icon_stacked_type_hide_disconnect">Hide Type When Data Is Disconnected</string>
@@ -706,7 +694,6 @@
     <string name="icon_slot_zen">DND</string>
     <string name="icon_slot_volume">Silent</string>
     <string name="icon_slot_second_space">Second space</string>
-    <string name="icon_slot_compound_icon">Combined icon</string>
     <string name="icon_slot_stacked_mobile_icon">Dual-row signal icon</string>
     <string name="icon_slot_stacked_mobile_type">Network type text</string>
     <string name="icon_slot_single_sim1">Custom SIM 1 signal icon</string>

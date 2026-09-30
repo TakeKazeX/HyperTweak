@@ -19,12 +19,7 @@ data class IconSlotInfo(
      * `ic_stat_sys_*` foreground layers, with the rounded-square tile background removed so the
      * artwork matches what the status bar actually draws.
      */
-    @DrawableRes val iconRes: Int,
-    /**
-     * False for a settings-only key that never occupies a position in the host's slot list, so the
-     * order page must not offer it: it is a `Preferences` key for a group of slots, not a slot.
-     */
-    val orderable: Boolean = true
+    @DrawableRes val iconRes: Int
 )
 
 /**
@@ -50,7 +45,7 @@ object IconSlotCatalog {
         "sound_box_screen", "sound_box", "wireless_headset", "zen", "volume", "dist_compute",
         "camera", "glasses", "car", "tv", "pc", "pad", "phone", "hd", "airplane",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2",
-        "mobile", "demo_mobile", "no_sim", "wifi", "demo_wifi", "compound_icon"
+        "mobile", "demo_mobile", "no_sim", "wifi", "demo_wifi"
     )
 
     /** Catalog keyed by host slot name; `internal` so the unit test can assert full coverage. */
@@ -112,17 +107,11 @@ object IconSlotCatalog {
         IconSlotInfo("demo_mobile", R.string.icon_slot_demo_mobile, R.drawable.ic_stat_sys_mobile),
         IconSlotInfo("no_sim", R.string.icon_slot_no_sim, R.drawable.ic_stat_sys_no_sim),
         IconSlotInfo("wifi", R.string.icon_slot_wifi, R.drawable.ic_stat_sys_wifi),
-        IconSlotInfo("demo_wifi", R.string.icon_slot_demo_wifi, R.drawable.ic_stat_sys_wifi),
-        IconSlotInfo(
-            "compound_icon",
-            R.string.icon_slot_compound_icon,
-            R.drawable.ic_stat_sys_compound,
-            orderable = false
-        )
+        IconSlotInfo("demo_wifi", R.string.icon_slot_demo_wifi, R.drawable.ic_stat_sys_wifi)
     ).associateBy(IconSlotInfo::slot)
 
     /** Slots [IconOrderPage] can order: the host's own slots plus the module's signal slots. */
-    val orderSlots: List<String> = slots.filterNot { bySlot[it]?.orderable == false }
+    val orderSlots: List<String> = slots
 
     /** Preview metadata for a slot; null only for a slot added to the host list before this table. */
     fun of(slot: String): IconSlotInfo? = bySlot[slot]

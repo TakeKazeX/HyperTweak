@@ -155,6 +155,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         val percent = state.battery.percent.coerceIn(0, 100)
         if (percent == 0) return
         colorOf(when (state.battery.tone) {
+            BatteryTone.PERFORMANCE -> state.battery.performanceColor ?: foreground
             BatteryTone.NORMAL -> foreground
             BatteryTone.CHARGING -> Color.rgb(48, 209, 88)
             BatteryTone.LOW -> Color.rgb(255, 69, 58)

@@ -4,17 +4,19 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalKind
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
 
 /** Unknown inputs stay unknown: a disconnected collector must never produce a plausible icon. */
-data class DuoBattery(val percent: Int, val charging: Boolean, val powerSave: Boolean) {
+data class DuoBattery(val percent: Int, val charging: Boolean, val powerSave: Boolean,
+    val performanceColor: Int? = null) {
     val tone: BatteryTone
         get() = when {
             charging -> BatteryTone.CHARGING
             powerSave -> BatteryTone.POWER_SAVE
+            performanceColor != null -> BatteryTone.PERFORMANCE
             percent <= 19 -> BatteryTone.LOW
             else -> BatteryTone.NORMAL
         }
 }
 
-enum class BatteryTone { NORMAL, CHARGING, LOW, POWER_SAVE }
+enum class BatteryTone { NORMAL, CHARGING, LOW, POWER_SAVE, PERFORMANCE }
 enum class DuoTransport { UNKNOWN, NONE, WIFI, CELLULAR, VPN, OTHER }
 enum class DuoSurface { HOME, KEYGUARD, COLLAPSED_PROXY, EXPANDED, UNSUPPORTED }
 enum class DuoExpandedStyle { KEEP_DUO, RESTORE_NATIVE }

@@ -21,7 +21,6 @@ private const val SLOT_STACKED = "stacked_mobile_icon"
 private const val SLOT_MOBILE = "mobile"
 private const val SLOT_WIFI = "wifi"
 private const val SLOT_BATTERY = "handle_battery"
-private const val SLOT_COMPOUND = "compound_icon"
 
 /**
  * Indicator sample drawn in the right cluster, before the pinned connectivity cluster.
@@ -172,14 +171,8 @@ private fun previewHidden(slot: String, modes: Map<String, Int>): Boolean =
 /**
  * The user's left-placed host slots, reduced to glyphs the catalog can draw.
  *
- * The 合成图标 row drives synthetic `compound_*` slots that carry no artwork of their own, so that
- * group collapses to the catalog's `compound_icon` row. A left-placed slot stays out of the right
+ * A left-placed slot stays out of the right
  * cluster even when it exceeds [PREVIEW_MAX_LEFT_SLOTS], because the hook hides it there too.
  */
-private fun leftPreviewSlots(leftSlots: Set<String>): List<String> = leftSlots.mapNotNull { slot ->
-    when {
-        slot.startsWith("compound_") -> SLOT_COMPOUND
-        IconSlotCatalog.of(slot) != null -> slot
-        else -> null
-    }
-}.distinct()
+private fun leftPreviewSlots(leftSlots: Set<String>): List<String> =
+    leftSlots.filter { IconSlotCatalog.of(it) != null }.distinct()

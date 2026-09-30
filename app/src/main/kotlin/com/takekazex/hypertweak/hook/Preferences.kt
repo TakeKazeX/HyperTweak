@@ -671,20 +671,6 @@ object Preferences {
     const val KEY_ICON_MIRROR_AIRPLANE = "icon_mirror_airplane"
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
-    const val KEY_ICON_LEFT_COMPOUND = "icon_tuner_left_compound_icon"
-
-    // Compound icon feature (merges alarm / DND / location / volume into one status-bar icon),
-    // ported from Hyper Helper's `CompoundIcon`. The individual source toggles match upstream
-    // g32.K..N; the master switch is the `compound_icon` slot mode (1..3, see IconManagerHooker).
-    // `KEY_ICON_COMPOUND_PRIORITY` is the comma-separated priority order (upstream g32.O,
-    // default "location,alarm_clock,zen,volume"); the earlier entry wins when several states
-    // are active at once.
-    const val KEY_ICON_COMPOUND_ALARM = "icon_tuner_compound_icon_alarm"
-    const val KEY_ICON_COMPOUND_ZEN = "icon_tuner_compound_icon_zen"
-    const val KEY_ICON_COMPOUND_LOCATION = "icon_tuner_compound_icon_location"
-    const val KEY_ICON_COMPOUND_VOLUME = "icon_tuner_compound_icon_volume"
-    const val KEY_ICON_COMPOUND_PRIORITY = "icon_tuner_compound_priority"
-
     // Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (keys match upstream
     // w22.* / x22.e-f). `KEY_ICON_HIDE_CARRIER_*` cover the status-bar / control-center carrier
     // rows and the HD icon; `KEY_ICON_HIDE_LS_CARRIER_*` cover the lockscreen header.

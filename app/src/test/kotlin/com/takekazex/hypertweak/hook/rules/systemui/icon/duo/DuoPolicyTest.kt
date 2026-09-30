@@ -7,6 +7,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DuoPolicyTest {
+    @Test fun performanceModeUsesHostColourWithNativeStatePriority() {
+        val hostColor = 0xff123456.toInt()
+        assertEquals(BatteryTone.PERFORMANCE, DuoBattery(80, false, false, hostColor).tone)
+        assertEquals(BatteryTone.PERFORMANCE, DuoBattery(10, false, false, hostColor).tone)
+        assertEquals(BatteryTone.CHARGING, DuoBattery(10, true, false, hostColor).tone)
+        assertEquals(BatteryTone.POWER_SAVE, DuoBattery(10, false, true, hostColor).tone)
+        assertEquals(BatteryTone.LOW, DuoBattery(10, false, false, null).tone)
+        assertEquals(hostColor, DuoBattery(80, false, false, hostColor).performanceColor)
+    }
+
     @Test fun keepDuoNeverLeaksLeadingPercentIntoAnyGestureSurface() {
         DuoSurface.entries.forEach { surface ->
             assertFalse(DuoPolicy.leadingPercent(surface, DuoExpandedStyle.KEEP_DUO, true))

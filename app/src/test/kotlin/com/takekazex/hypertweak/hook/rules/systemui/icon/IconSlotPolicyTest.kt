@@ -18,7 +18,7 @@ class IconSlotPolicyTest {
             "mobile", "demo_mobile", "wifi", "demo_wifi"
         ), networkSlots)
         for (slot in listOf("zen", "quiet", "mute", "volume", "alarm_clock", "hotspot",
-                "network_speed", "bluetooth", "nfc", "vpn", "compound_icon", "future_indicator")) {
+                "network_speed", "bluetooth", "nfc", "vpn", "future_indicator")) {
             assertFalse("$slot belongs beside the battery", IconSlotPolicy.isTwoLineNetworkSlot(slot))
         }
     }

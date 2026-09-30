@@ -410,16 +410,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 ),
                 onChange = { key, value -> changed(key, value) }
                         )
-                        CompoundSection(
-                slotMode = pref(Preferences.slotKey("compound_icon"), 0),
-                alarm = pref(Preferences.KEY_ICON_COMPOUND_ALARM, false),
-                zen = pref(Preferences.KEY_ICON_COMPOUND_ZEN, false),
-                location = pref(Preferences.KEY_ICON_COMPOUND_LOCATION, false),
-                volume = pref(Preferences.KEY_ICON_COMPOUND_VOLUME, false),
-                priority = pref(Preferences.KEY_ICON_COMPOUND_PRIORITY, "location,alarm_clock,zen,volume"),
-                slotModes = slotModes,
-                onChange = { key, value -> changed(key, value) }
-                        )
                         BatteryStyleSection(
                 outside = pref(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
                 leadingPercent = pref(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false),
@@ -543,7 +533,7 @@ private fun StackedSignalSection(
 internal data class LeftToggleRow(
     val key: String,
     @StringRes val labelRes: Int,
-    /** Representative slot for the preview; the compound group names no host slot of its own. */
+    /** Representative host slot for the preview. */
     val previewSlot: String
 )
 
@@ -561,8 +551,7 @@ internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
     LeftToggleRow(Preferences.KEY_ICON_LEFT_NFC, R.string.icon_left_nfc, "nfc"),
     LeftToggleRow(Preferences.KEY_ICON_LEFT_VPN, R.string.icon_left_vpn, "vpn"),
     LeftToggleRow(Preferences.KEY_ICON_LEFT_AIRPLANE, R.string.icon_left_airplane, "airplane"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_COMPOUND, R.string.icon_compound_title, "compound_icon")
+    LeftToggleRow(Preferences.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset")
 )
 
 /**
@@ -974,59 +963,6 @@ private fun CellularTypeSection(
                 IntSliderRow(stringResource(R.string.icon_font_weight), singleWeight, 100, 900) {
                     onChange(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT, it)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompoundSection(
-    slotMode: Int,
-    alarm: Boolean,
-    zen: Boolean,
-    location: Boolean,
-    volume: Boolean,
-    priority: String,
-    slotModes: List<String>,
-    onChange: (String, Any) -> Unit
-) {
-    SmallTitle(stringResource(R.string.icon_compound_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            OverlayDropdownPreference(
-                title = stringResource(R.string.icon_compound_slot_mode),
-                summary = stringResource(R.string.icon_compound_slot_mode_summary),
-                items = slotModes,
-                selectedIndex = slotMode.coerceIn(0, slotModes.lastIndex),
-                onSelectedIndexChange = { onChange(Preferences.slotKey("compound_icon"), it) }
-            )
-            if (slotMode in 1..3) {
-                TunerSwitch(
-                    alarm,
-                    stringResource(R.string.icon_compound_alarm),
-                    stringResource(R.string.icon_compound_alarm_summary)
-                ) { onChange(Preferences.KEY_ICON_COMPOUND_ALARM, it) }
-                TunerSwitch(
-                    zen,
-                    stringResource(R.string.icon_compound_zen),
-                    stringResource(R.string.icon_compound_zen_summary)
-                ) { onChange(Preferences.KEY_ICON_COMPOUND_ZEN, it) }
-                TunerSwitch(
-                    location,
-                    stringResource(R.string.icon_compound_location),
-                    stringResource(R.string.icon_compound_location_summary)
-                ) { onChange(Preferences.KEY_ICON_COMPOUND_LOCATION, it) }
-                TunerSwitch(
-                    volume,
-                    stringResource(R.string.icon_compound_volume),
-                    stringResource(R.string.icon_compound_volume_summary)
-                ) { onChange(Preferences.KEY_ICON_COMPOUND_VOLUME, it) }
-                TextField(
-                    value = priority,
-                    onValueChange = { onChange(Preferences.KEY_ICON_COMPOUND_PRIORITY, it) },
-                    label = stringResource(R.string.icon_compound_priority),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
             }
         }
     }

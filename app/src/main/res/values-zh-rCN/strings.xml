@@ -536,18 +536,6 @@
     <string name="icon_battery_style_outside_summary">控制中心的电量改为实心图标，并把百分比显示在图标外；桌面状态栏、锁屏和通知中心保持系统样式</string>
     <string name="icon_battery_style_left">电量百分比放在图标左侧</string>
     <string name="icon_battery_style_left_summary">把控制中心的电量百分比从图标右侧移到左侧；图标内的数字没有左右之分，开启后会自动改为图标外显示</string>
-    <string name="icon_compound_alarm">闹钟</string>
-    <string name="icon_compound_alarm_summary">将闹钟状态合并进合成图标</string>
-    <string name="icon_compound_location">定位</string>
-    <string name="icon_compound_location_summary">将定位状态合并进合成图标</string>
-    <string name="icon_compound_priority">优先级顺序</string>
-    <string name="icon_compound_slot_mode">合成图标</string>
-    <string name="icon_compound_slot_mode_summary">将闹钟/勿扰/定位/音量合并为一个图标</string>
-    <string name="icon_compound_title">合成图标</string>
-    <string name="icon_compound_volume">音量</string>
-    <string name="icon_compound_volume_summary">将静音/振动状态合并进合成图标</string>
-    <string name="icon_compound_zen">勿扰</string>
-    <string name="icon_compound_zen_summary">将勿扰状态合并进合成图标</string>
     <string name="icon_stacked_signal_style">堆叠信号样式</string>
     <string name="icon_stacked_signal_style_summary">将两张 SIM 卡堆叠为一个图标</string>
     <string name="icon_stacked_type_hide_disconnect">断开数据时隐藏类型</string>
@@ -706,7 +694,6 @@
     <string name="icon_slot_zen">勿扰</string>
     <string name="icon_slot_volume">静音</string>
     <string name="icon_slot_second_space">手机分身</string>
-    <string name="icon_slot_compound_icon">组合图标</string>
     <string name="icon_slot_stacked_mobile_icon">双排信号图标</string>
     <string name="icon_slot_stacked_mobile_type">网络类型文字</string>
     <string name="icon_slot_single_sim1">自定义 SIM 卡 1 信号图标</string>

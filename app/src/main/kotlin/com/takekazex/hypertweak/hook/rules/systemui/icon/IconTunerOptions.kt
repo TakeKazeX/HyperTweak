@@ -34,8 +34,7 @@ object IconTunerOptions {
         "network_speed", "bluetooth", "bluetooth_handsfree_battery", "handle_battery", "nfc",
         "gps", "location", "wireless_headset", "phone", "pad", "pc", "sound_box_group",
         "stereo", "sound_box_screen", "sound_box", "tv", "glasses", "car", "camera",
-        "dist_compute", "headset", "alarm_clock", "zen", "volume", "second_space",
-        "compound_icon"
+        "dist_compute", "headset", "alarm_clock", "zen", "volume", "second_space"
     ) + IconSlotPolicy.MODULE_SLOTS
 
     private val leftPreferenceSlots = linkedMapOf(
@@ -48,8 +47,7 @@ object IconTunerOptions {
         Preferences.KEY_ICON_LEFT_NFC to "icon_tuner_left_nfc",
         Preferences.KEY_ICON_LEFT_VPN to "icon_tuner_left_vpn",
         Preferences.KEY_ICON_LEFT_AIRPLANE to "icon_tuner_left_airplane",
-        Preferences.KEY_ICON_LEFT_HEADSET to "icon_tuner_left_headset",
-        Preferences.KEY_ICON_LEFT_COMPOUND to "icon_tuner_left_compound_icon"
+        Preferences.KEY_ICON_LEFT_HEADSET to "icon_tuner_left_headset"
     )
 
     /**
@@ -123,13 +121,6 @@ object IconTunerOptions {
         Preferences.KEY_ICON_LEFT_ALARM_CLOCK -> listOf("alarm_clock")
         Preferences.KEY_ICON_LEFT_LOCATION -> listOf("location", "gps")
         Preferences.KEY_ICON_LEFT_HEADSET -> listOf("headset", "wireless_headset")
-        Preferences.KEY_ICON_LEFT_COMPOUND -> listOf(
-            "compound_location",
-            "compound_alarm_clock",
-            "compound_zen",
-            "compound_volume_vibrate",
-            "compound_volume_mute"
-        )
         else -> listOf(key.substringAfterLast('_'))
     }
 

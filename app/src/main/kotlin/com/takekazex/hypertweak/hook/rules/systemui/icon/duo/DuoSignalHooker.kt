@@ -542,7 +542,7 @@ object DuoSignalHooker : StaticHooker() {
                 } }
             } }
         }
-        for (name in listOf("onBatteryLevelChanged", "onPowerSaveChanged", "onChargeStateChanged", "updateLightDarkTint", "updateAll")) {
+        for (name in listOf("onBatteryLevelChanged", "onPowerSaveChanged", "onPerformanceModeChanged", "onChargeStateChanged", "updateLightDarkTint", "updateAll")) {
             batteryClass.declaredMethods.filter { it.name == name }.forEach { method ->
                 method.hook { after { param -> (param.thisObject as? View)?.let { battery -> guarded {
                     bindings[battery]?.let { reconcile(it) }
@@ -847,13 +847,18 @@ object DuoSignalHooker : StaticHooker() {
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
             val charging = read(battery, "mCharging") as? Boolean
             val powerSave = read(battery, "mPowerSave") as? Boolean
+            // Use the host's configured performance colour, including resource overlays.
+            // Charging and power saving retain the native progress-state priority.
+            val performanceColor = if (read(battery, "mPerformanceMode") == true)
+                read(battery, "mBatteryIconView")?.let { read(it, "mBatteryPerformanceModeColor") as? Int }
+                else null
             val freshContent = if (percent != null && charging != null && powerSave != null)
-                DuoPolicy.content(DuoBattery(percent, charging, powerSave), mobile, network) { subId ->
+                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, network) { subId ->
                     slotIndices[subId] ?: -1
                 } else null
             val content = when {
                 aod?.centerBattery == true -> percent?.let { value ->
-                    DuoContent(DuoBattery(value, charging == true, powerSave == true), null, null,
+                    DuoContent(DuoBattery(value, charging == true, powerSave == true, performanceColor), null, null,
                         0, false, false)
                 } ?: binding.view.icon.content
                 aod != null -> freshContent ?: binding.view.icon.content

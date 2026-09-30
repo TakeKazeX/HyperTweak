@@ -53,12 +53,6 @@ class IconSlotCatalogTest {
     }
 
     @Test
-    fun settingsOnlySlotModeKeyIsNotOrderable() {
-        assertEquals(false, IconSlotCatalog.of("compound_icon")?.orderable)
-        assertTrue("compound_icon" !in IconSlotCatalog.orderSlots)
-    }
-
-    @Test
     fun unknownSlotStillGetsAReadableFallback() {
         assertEquals(null, IconSlotCatalog.of("not_a_host_slot"))
         assertEquals("Some future slot", IconSlotCatalog.fallbackLabel("some_future_slot"))
