@@ -356,6 +356,23 @@ object Preferences {
     /** Keeps and extends the native battery-protection information rows. */
     const val KEY_SECURITY_CENTER_MORE_BATTERY_INFO = "securitycenter_more_battery_info"
 
+    /** Independently exposes Security Center's native privacy-call preference. */
+    const val KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY = "securitycenter_privacy_call_entry"
+
+    /** Selects a native anti-peeping implementation, or leaves Security Center unchanged. */
+    const val KEY_SECURITY_CENTER_ANTI_PEEPING_MODE = "securitycenter_anti_peeping_mode"
+    const val SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT = 0
+    const val SECURITY_CENTER_ANTI_PEEPING_V1 = 1
+    const val SECURITY_CENTER_ANTI_PEEPING_V2 = 2
+
+    /** Independently exposes native front-camera assistant and beauty preferences. */
+    const val KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY =
+        "securitycenter_front_camera_assistant_entry"
+
+    /** Independently exposes native call privacy-camera preferences. */
+    const val KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY =
+        "securitycenter_call_privacy_camera_entry"
+
     /** Restores AOSP's full-screen IME navigation bar. */
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
 

@@ -71,6 +71,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.LowBatteryWarningHooke
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreBatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
@@ -890,6 +891,9 @@ class HookEntry : XposedModule() {
                 attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
                 attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
+                // Anti-peeping capability checks also run in Security Center's remote process;
+                // the hooker limits preference and function-card changes to the main process.
+                attachHooker(SecurityCenterPrivacyEntriesHooker, classLoader, ctx, replacementHandles)
                 // Security Center ships its own copy of the vendor clipboard-read overlay and is the
                 // one that actually builds it; see LbeClipboardToastHooker.
                 attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)

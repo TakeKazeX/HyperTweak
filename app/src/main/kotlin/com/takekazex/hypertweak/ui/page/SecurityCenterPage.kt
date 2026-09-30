@@ -111,6 +111,38 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
         )
     }
+    var privacyCallEntry by remember {
+        mutableStateOf(
+            Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, false)
+        )
+    }
+    var antiPeepingMode by remember {
+        mutableIntStateOf(
+            Preferences.getInt(
+                Preferences.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
+                Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+            ).coerceIn(
+                Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT,
+                Preferences.SECURITY_CENTER_ANTI_PEEPING_V2
+            )
+        )
+    }
+    var frontCameraAssistantEntry by remember {
+        mutableStateOf(
+            Preferences.getBoolean(
+                Preferences.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
+                false
+            )
+        )
+    }
+    var callPrivacyCameraEntry by remember {
+        mutableStateOf(
+            Preferences.getBoolean(
+                Preferences.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
+                false
+            )
+        )
+    }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
 
@@ -144,6 +176,74 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             androidx.compose.foundation.layout.Spacer(
                 Modifier.height(padding.calculateTopPadding() + 8.dp)
             )
+
+            SmallTitle(stringResource(R.string.security_center_privacy_entries_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = privacyCallEntry,
+                    onCheckedChange = { enabled ->
+                        privacyCallEntry = enabled
+                        requestRestart(RestartScopeSelection(securityCenter = true))
+                        Preferences.putBoolean(
+                            Preferences.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
+                            enabled
+                        )
+                    },
+                    title = stringResource(R.string.security_center_privacy_call_entry),
+                    summary = stringResource(R.string.security_center_privacy_call_entry_summary)
+                )
+
+                OverlayDropdownPreference(
+                    items = listOf(
+                        stringResource(R.string.security_center_anti_peeping_system_default),
+                        stringResource(R.string.security_center_anti_peeping_v1),
+                        stringResource(R.string.security_center_anti_peeping_v2)
+                    ),
+                    selectedIndex = antiPeepingMode,
+                    onSelectedIndexChange = { mode ->
+                        antiPeepingMode = mode
+                        requestRestart(RestartScopeSelection(securityCenter = true))
+                        Preferences.putInt(
+                            Preferences.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
+                            mode
+                        )
+                    },
+                    title = stringResource(R.string.security_center_anti_peeping_mode),
+                    summary = stringResource(R.string.security_center_anti_peeping_mode_summary)
+                )
+
+                SwitchPreference(
+                    checked = frontCameraAssistantEntry,
+                    onCheckedChange = { enabled ->
+                        frontCameraAssistantEntry = enabled
+                        requestRestart(RestartScopeSelection(securityCenter = true))
+                        Preferences.putBoolean(
+                            Preferences.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
+                            enabled
+                        )
+                    },
+                    title = stringResource(R.string.security_center_front_camera_assistant_entry),
+                    summary = stringResource(
+                        R.string.security_center_front_camera_assistant_entry_summary
+                    )
+                )
+
+                SwitchPreference(
+                    checked = callPrivacyCameraEntry,
+                    onCheckedChange = { enabled ->
+                        callPrivacyCameraEntry = enabled
+                        requestRestart(RestartScopeSelection(securityCenter = true))
+                        Preferences.putBoolean(
+                            Preferences.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
+                            enabled
+                        )
+                    },
+                    title = stringResource(R.string.security_center_call_privacy_camera_entry),
+                    summary = stringResource(
+                        R.string.security_center_call_privacy_camera_entry_summary
+                    )
+                )
+            }
 
             SmallTitle(stringResource(R.string.security_center_clipboard_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
