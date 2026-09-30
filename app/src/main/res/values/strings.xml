@@ -1097,6 +1097,8 @@
     <string name="tweaks_cts_long_press_summary">Long press the gesture handle to start Circle to Search. Restart the launcher to apply; rebooting also rebinds the gesture.</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">Hide the clock and status icons while locked</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">Hide Lockscreen Status Bar</string>
+    <string name="tweaks_hide_lockscreen_date_title">Hide Lockscreen Date</string>
+    <string name="tweaks_hide_lockscreen_date_summary">Hide the date in supported lockscreen clocks, including full-screen AOD</string>
     <string name="tweaks_navigation_bar_title">Navigation Bar</string>
     <string name="tweaks_passkey_summary">Enable Google Passkey and third-party credential managers</string>
     <string name="tweaks_passkey_title">Unlock Google Passkey / Credential Manager</string>

@@ -102,6 +102,7 @@ import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
+import com.takekazex.hypertweak.hook.rules.systemui.LockscreenDateHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
@@ -756,6 +757,7 @@ class HookEntry : XposedModule() {
                 attachHooker(KeyguardFingerprintAvoidHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenChargingDetailHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenBottomTextHooker, classLoader, ctx, replacementHandles)
+                attachHooker(LockscreenDateHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ImmediateMonetRefreshHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)

@@ -80,6 +80,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_HIDE_LOCKSCREEN_DATE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),

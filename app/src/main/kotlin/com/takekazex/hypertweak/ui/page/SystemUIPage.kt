@@ -120,6 +120,9 @@ fun SystemUIPage(
     val coroutineScope = rememberCoroutineScope()
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
+    var hideLockscreenDate by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false))
+    }
 
     var volumeKeyStepCount by remember {
         mutableIntStateOf(
@@ -469,6 +472,17 @@ fun SystemUIPage(
                         onCheckedChange = onHideLockscreenStatusBarChange,
                         title = stringResource(R.string.tweaks_hide_lockscreen_status_bar_title),
                         summary = stringResource(R.string.tweaks_hide_lockscreen_status_bar_summary)
+                    )
+                    SwitchPreference(
+                        checked = hideLockscreenDate,
+                        onCheckedChange = { value ->
+                            hideLockscreenDate = value
+                            Preferences.putBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, value)
+                            Preferences.flush()
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                        },
+                        title = stringResource(R.string.tweaks_hide_lockscreen_date_title),
+                        summary = stringResource(R.string.tweaks_hide_lockscreen_date_summary)
                     )
                     // The notification-stack fingerprint avoidance anchors on the OS4
                     // `nsslLockYPosition` combine; OS3's keyguard uses a different container.

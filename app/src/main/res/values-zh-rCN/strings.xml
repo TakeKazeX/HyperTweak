@@ -1094,6 +1094,8 @@
     <string name="tweaks_cts_long_press_summary">长按底部手势条启动圈定即搜。需重启桌面后生效；重启系统会同时重新绑定该手势。</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">锁屏时隐藏时钟与状态图标</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">隐藏锁屏状态栏</string>
+    <string name="tweaks_hide_lockscreen_date_title">隐藏锁屏日期</string>
+    <string name="tweaks_hide_lockscreen_date_summary">隐藏受支持锁屏钟面中的日期，包括全屏息屏显示</string>
     <string name="tweaks_navigation_bar_title">导航栏</string>
     <string name="tweaks_passkey_summary">启用 Google 通行密钥与第三方凭据管理器</string>
     <string name="tweaks_passkey_title">解锁 Google 通行密钥 / 凭据管理器</string>
