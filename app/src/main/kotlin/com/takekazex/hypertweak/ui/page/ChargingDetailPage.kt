@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
- * Options for the lockscreen charging detail (Settings → Experimental → Charging Detail Options).
+ * Options for the lockscreen charging detail (Features → System UI → Lockscreen → Charging Detail Options).
  * State is kept locally and written straight into [Preferences]; the hooker re-reads these keys on
  * every render, so every option here applies live. The master switch installs the hook, so it
  * needs a SystemUI restart, offered through the in-page Restart SystemUI row.
@@ -64,6 +64,9 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     }
     // Saveable so the pending prompt survives navigating away (Nav3 disposes the entry).
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
+    var twoRows by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+    }
     var intervalMs by remember {
         mutableIntStateOf(
             Preferences.getInt(
@@ -128,6 +131,19 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         )
                     }
                 }
+            }
+
+            SmallTitle(stringResource(R.string.charging_section_layout))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = twoRows,
+                    onCheckedChange = { checked ->
+                        twoRows = checked
+                        Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
+                    },
+                    title = stringResource(R.string.charging_two_rows_title),
+                    summary = stringResource(R.string.charging_two_rows_summary)
+                )
             }
 
             SmallTitle(stringResource(R.string.charging_section_refresh))

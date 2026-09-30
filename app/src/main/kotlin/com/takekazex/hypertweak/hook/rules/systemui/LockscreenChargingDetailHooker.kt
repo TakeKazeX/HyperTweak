@@ -7,10 +7,6 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
-import android.view.Gravity
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -32,11 +28,11 @@ import java.util.WeakHashMap
  * `KeyguardIndicationRotateTextViewController.showIndication(int)` under the battery/charging
  * role `3` (the same role the lockscreen's reverse-charging hint uses; role 13 is the
  * dismissible swipe hint). When it renders, this hooker appends live values on a separate,
- * slightly smaller line below the charging text, so the single-line marquee never scrolls:
+ * slightly smaller line below the charging text by default, or a safe-width single row:
  * - fields: any of wattage / voltage / current / temperature, bitmask
  *   `KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS`;
  * - refresh interval: `KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS`.
- * The main switch gates hook installation and still needs a SystemUI restart; the two
+ * The main switch gates hook installation and still needs a SystemUI restart; the layout and telemetry
  * sub-options are re-read on every render (Preferences memo TTL is 100 ms), so they apply live.
  *
  * Data sources (all available to SystemUI, which runs with BATTERY_STATS):
@@ -46,9 +42,8 @@ import java.util.WeakHashMap
  * - voltage (mV) and temperature (tenths °C): the sticky `ACTION_BATTERY_CHANGED` broadcast.
  * - real-time wattage = |current µA| × voltage mV / 1e9.
  *
- * The pristine base message is remembered per view (WeakHashMap) and only reused when it still
- * prefixes the current text, so a changing system message (e.g. 充电保护中) is never glued to a
- * stale base.
+ * The base comes from the controller's current native message, including animated handoffs.
+ * BottomIndicationLayout owns reversible layout and overflow independently of telemetry.
  */
 object LockscreenChargingDetailHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -73,10 +68,10 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     private var currIndicationTypeField: Field? = null
     private var viewField: Field? = null
+    private var messageField: Field? = null
     private var getIntProperty: Method? = null
 
-    private val baseMessageByView = WeakHashMap<TextView, String>()
-    private val multilineConfigured = WeakHashMap<TextView, Boolean>()
+    private val layouts = WeakHashMap<TextView, BottomIndicationLayout>()
     private var recentController: WeakReference<Any?> = WeakReference(null)
 
     @Volatile
@@ -95,9 +90,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         enabled = false
         currIndicationTypeField = null
         viewField = null
+        messageField = null
         getIntProperty = null
-        baseMessageByView.clear()
-        multilineConfigured.clear()
+        layouts.values.forEach { layout ->
+            HookFailurePolicy.open(TAG, "restore layout", Unit) { layout.dispose() }
+        }
+        layouts.clear()
         recentController.clear()
         refreshGeneration++
         reportedFirstAppend = false
@@ -124,6 +122,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             return
         }
         currIndicationTypeField = typeField
+        messageField = runCatching {
+            clazz.getDeclaredField("mCurrMessage").apply { isAccessible = true }
+        }.getOrElse {
+            DebugLog.hookSkipped(TAG, "$ROTATE_VC#mCurrMessage", "field not found")
+            return
+        }
 
         // mView is declared `public final View` on the ViewController base class.
         val field = runCatching {
@@ -180,59 +184,32 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val typeField = currIndicationTypeField ?: return
         val field = viewField ?: return
         val type = runCatching { typeField.getInt(controller) }.getOrElse { return }
-        if (type != BATTERY_ROLE) return
         recentController = WeakReference(controller)
         val view = runCatching { field.get(controller) as? TextView }.getOrNull() ?: return
+        if (type != BATTERY_ROLE || !isPluggedIn(view.context)) {
+            layouts[view]?.restore()
+            return
+        }
         try {
             refreshTelemetry(view.context)
-            appendDetail(view)
+            val base = (messageField?.get(controller) as? CharSequence)?.toString()?.trim().orEmpty()
+            val detail = buildDetail()
+            if (base.isEmpty() || detail == null) {
+                layouts[view]?.restore()
+                return
+            }
+            val layout = layouts.getOrPut(view) { BottomIndicationLayout(view) }
+            layout.show(
+                base, detail,
+                Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true)
+            )
+            if (!reportedFirstAppend) {
+                reportedFirstAppend = true
+                DebugLog.d(TAG, "appended live charge detail: $detail")
+            }
         } catch (t: Throwable) {
             DebugLog.w(TAG, "append detail failed", t)
         }
-    }
-
-    private fun appendDetail(view: TextView) {
-        if (!isPluggedIn(view.context)) return
-        val base = currentBaseMessage(view) ?: return
-        val detail = buildDetail() ?: return
-        val current = view.text?.toString().orEmpty()
-        applyMultilineStyle(view)
-        val combined = "$base\n$detail"
-        if (current == combined) return
-        val spannable = SpannableStringBuilder()
-        spannable.append(base)
-        spannable.append('\n')
-        val detailStart = spannable.length
-        spannable.append(detail)
-        spannable.setSpan(
-            RelativeSizeSpan(0.8f), detailStart, spannable.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        view.text = spannable
-        baseMessageByView[view] = base
-        if (!reportedFirstAppend) {
-            reportedFirstAppend = true
-            DebugLog.d(TAG, "appended live charge detail: $detail")
-        }
-    }
-
-    /** Turns off single-line marquee so the two-line layout stays put instead of scrolling. */
-    private fun applyMultilineStyle(view: TextView) {
-        if (multilineConfigured[view] == true) return
-        runCatching {
-            view.isSingleLine = false
-            view.maxLines = 2
-            view.ellipsize = null
-            view.gravity = Gravity.CENTER_HORIZONTAL
-        }
-        multilineConfigured[view] = true
-    }
-
-    /** The pristine base message for [view]: the stored one when it still prefixes the text. */
-    private fun currentBaseMessage(view: TextView): String? {
-        val current = view.text?.toString()?.trim().orEmpty()
-        if (current.isEmpty()) return null
-        val stored = baseMessageByView[view]
-        return if (stored != null && current.startsWith(stored)) stored else current
     }
 
     // ─── Telemetry ─────────────────────────────────────────────────────────────

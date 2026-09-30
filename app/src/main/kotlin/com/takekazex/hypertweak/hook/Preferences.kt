@@ -129,10 +129,13 @@ object Preferences {
     /**
      * Appends live charging telemetry (wattage / voltage / current / temperature) to the lock
      * screen's bottom charging indication line, replacing the plain "充电中xx% / 已充满电" text
-     * with the charging state on one line and telemetry beneath it. Read by
+     * with a configurable one- or two-row layout. Read by
      * `LockscreenChargingDetailHooker`; requires a SystemUI restart (restart-scope key).
      */
     const val KEY_LOCKSCREEN_CHARGING_DETAIL = "lockscreen_charging_detail"
+
+    /** Two rows by default; use a new key so removed legacy false values do not opt users out. */
+    const val KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS = "lockscreen_charging_detail_two_rows"
 
     /**
      * Live-read by the hooker each render (sub-options of the charging detail feature): which

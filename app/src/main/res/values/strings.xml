@@ -140,6 +140,9 @@
     <string name="charging_restart_title">Restart SystemUI</string>
     <string name="charging_section_fields">Fields</string>
     <string name="charging_section_main">Charging Detail on Lockscreen</string>
+    <string name="charging_section_layout">Layout</string>
+    <string name="charging_two_rows_title">Two Rows</string>
+    <string name="charging_two_rows_summary">Enabled by default. Turn off for a centered wide row with charging status and live data separated by a spaced |; long text scrolls back and forth.</string>
     <string name="charging_section_refresh">Refresh</string>
     <string name="charging_title">Charging Detail</string>
     <string name="bottom_text_back">Back</string>

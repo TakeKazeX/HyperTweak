@@ -140,6 +140,9 @@
     <string name="charging_restart_title">重启 SystemUI</string>
     <string name="charging_section_fields">字段</string>
     <string name="charging_section_main">锁屏充电详情</string>
+    <string name="charging_section_layout">布局</string>
+    <string name="charging_two_rows_title">双排显示</string>
+    <string name="charging_two_rows_summary">默认开启。关闭后，充电状态与实时数据用左右留空格的英文「|」分隔并整行居中，保留屏幕安全边距；超长文字左右往返显示。</string>
     <string name="charging_section_refresh">刷新</string>
     <string name="charging_title">充电详情</string>
     <string name="bottom_text_back">返回</string>
