@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.content.Context
 import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
@@ -37,10 +38,11 @@ object ControlCenterHeaderHooker : StaticHooker() {
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
 
-    /** True when the compact carrier feature owns the two-line control-center header. */
-    fun secondRowStatusIconsEnabled(): Boolean =
+    /** True only when the compact two-row header is supported by this display configuration. */
+    fun secondRowStatusIconsEnabled(context: Context): Boolean =
         Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false) &&
+            supportsCompactLayout(context)
 
     private class DateState(var policy: Int, val visibility: Int)
     private class LayoutState(view: View) {
@@ -97,6 +99,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
                             reapplyCompactCarrierVisibility(carrier)
                         }
                         updateCarrierLayout(carrier)
+                    }
+                    if (name == "onConfigChanged" || name == "onScreenLayoutSizeChanged" ||
+                        name == "updateDimens") {
+                        IconManagerHooker.republishMergedLists()
                     }
                 } } }
             }
@@ -168,8 +174,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     /** Only the verified normal phone portrait header uses this constraint graph. */
-    fun supportsCompactLayout(view: View): Boolean {
-        val config = view.resources.configuration
+    fun supportsCompactLayout(view: View): Boolean = supportsCompactLayout(view.context)
+
+    fun supportsCompactLayout(context: Context): Boolean {
+        val config = context.resources.configuration
         return config.orientation == Configuration.ORIENTATION_PORTRAIT &&
             config.screenWidthDp in 300..599
     }

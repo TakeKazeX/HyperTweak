@@ -341,7 +341,7 @@ object IconPositionHooker : StaticHooker() {
 
     private fun ownsTwoLineLayout(container: ViewGroup): Boolean {
         if (container.javaClass.name != CONTAINER_CLASS ||
-            !ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
+            !ControlCenterHeaderHooker.secondRowStatusIconsEnabled(container.context)
         ) return false
         val layoutFrom = runCatching { layoutFromField?.getInt(container) }.getOrNull()
         return IconSlotPolicy.ownsTwoLineControlCenterRow(layoutFrom) &&
@@ -462,7 +462,7 @@ object IconPositionHooker : StaticHooker() {
             IconSlotPolicy.ownsTwoLineControlCenterRow(
                 runCatching { layoutFromField?.getInt(container) }.getOrNull()
             ) &&
-            ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
+            ((container as? View)?.context?.let(ControlCenterHeaderHooker::secondRowStatusIconsEnabled) == true)
         ) {
             IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)
         } else {
@@ -611,7 +611,7 @@ object IconPositionHooker : StaticHooker() {
      */
     private fun applyControlCenterRowPlacement(container: ViewGroup) {
         if (container.javaClass.name != CONTAINER_CLASS) return
-        if (!ControlCenterHeaderHooker.secondRowStatusIconsEnabled()) {
+        if (!ControlCenterHeaderHooker.secondRowStatusIconsEnabled(container.context)) {
             restoreRowTranslations(container)
             return
         }

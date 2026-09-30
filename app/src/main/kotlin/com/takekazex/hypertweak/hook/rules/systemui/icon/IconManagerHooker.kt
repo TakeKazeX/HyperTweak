@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -109,9 +110,7 @@ object IconManagerHooker : StaticHooker() {
             LeftContainerHooker.homeOwnedSlots(),
             LeftContainerHooker.keyguardOwnedSlots()
         )
-        if (IconSlotPolicy.ownsTwoLineControlCenterRow(location) &&
-            ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
-        ) {
+        if (usesTwoLineControlCenterPolicy(manager, location)) {
             return IconSlotPolicy.classicBlockedForTwoLineControlCenter(
                 slot, hostBlocked, options.policy, owned, minimalism
             )
@@ -272,9 +271,7 @@ object IconManagerHooker : StaticHooker() {
         // for the one row that would otherwise draw the same icon a second time. Everything else —
         // including a host re-emission that would otherwise drop the overlay — goes through here,
         // because this is the single place a host block-list emission is merged.
-        val blocked = if (IconSlotPolicy.ownsTwoLineControlCenterRow(location) &&
-            ControlCenterHeaderHooker.secondRowStatusIconsEnabled()
-        ) {
+        val blocked = if (usesTwoLineControlCenterPolicy(manager, location)) {
             IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)
         } else {
             IconSlotPolicy.blockedFor(surface, hostPristine, options.policy)
@@ -321,6 +318,16 @@ object IconManagerHooker : StaticHooker() {
     }
 
     private val locationFields = HashMap<Class<*>, Field?>()
+    private val contextFields = HashMap<Class<*>, Field?>()
+
+    private fun usesTwoLineControlCenterPolicy(manager: Any, location: String?): Boolean {
+        if (!IconSlotPolicy.ownsTwoLineControlCenterRow(location)) return false
+        val context = runCatching {
+            contextFields.getOrPut(manager.javaClass) { hierarchyField(manager.javaClass, "mContext") }
+                ?.get(manager) as? Context
+        }.getOrNull() ?: return false
+        return ControlCenterHeaderHooker.secondRowStatusIconsEnabled(context)
+    }
 
     private fun readLocation(manager: Any): String? = runCatching {
         locationFields.getOrPut(manager.javaClass) { hierarchyField(manager.javaClass, "mLocation") }?.get(manager)?.toString()
