@@ -116,7 +116,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)) {
-            DebugLog.hookSkipped(TAG, "more battery-protection information", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "more battery-protection information", "disabled")
             return
         }
 

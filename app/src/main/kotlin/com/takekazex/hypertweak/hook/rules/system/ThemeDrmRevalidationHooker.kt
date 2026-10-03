@@ -35,7 +35,7 @@ object ThemeDrmRevalidationHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.allowThirdPartyTheme()) {
-            DebugLog.hookSkipped(TAG, "theme DRM re-validation", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "theme DRM re-validation", "disabled")
             return
         }
 

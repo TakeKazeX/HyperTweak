@@ -96,7 +96,7 @@ object CellularIconHooker : StaticHooker() {
             if (hideVolteNoService) add("getVolteNoService")
             if (hideSpeechHd) add("getSpeechHd")
         }
-        DebugLog.i(TAG, "CellularIcon installing: getters=$getters roam=$hideRoam smallRoam=$hideSmallRoam roamGlobal=$hideRoamGlobal")
+        DebugLog.d(TAG, "CellularIcon installing: getters=$getters roam=$hideRoam smallRoam=$hideSmallRoam roamGlobal=$hideRoamGlobal")
         getters.forEach { getter ->
             vmClass.findMethodOrNull { name(getter) }?.hook {
                 before { param -> param.result = IconTunerFlows.falseFlow }

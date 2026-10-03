@@ -6,9 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.ContextWrapper
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -35,7 +33,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +57,10 @@ import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
+import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.util.LogRecord
+import com.takekazex.hypertweak.util.LogRepository
+import com.takekazex.hypertweak.util.LsposedLogReader
 import com.takekazex.hypertweak.util.DebugLog
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -77,23 +80,19 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Copy
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private const val FIELD_SEPARATOR = "\u001F"
 
 private enum class LogFilter(@StringRes val labelRes: Int) {
     All(R.string.logs_filter_all),
@@ -120,23 +119,7 @@ private fun logLevelFromPriority(priority: Int): LogLevelOption {
     return logLevelOptions.firstOrNull { it.priority == priority } ?: LogLevelOption.Info
 }
 
-@Immutable
-private data class DebugLogEntry(
-    val index: Int,
-    val time: String,
-    val level: String,
-    val pid: String,
-    val scope: String,
-    val event: String,
-    val message: String,
-    val stack: String
-) {
-    val isError: Boolean = level == "E" || event.contains("FAILED")
-    val isWarning: Boolean = level == "W" || event == "MISSING" || event == "SKIPPED" || event == "HOOK_SKIPPED"
-    val isHook: Boolean = event.startsWith("HOOK")
-    val isHookFailed: Boolean = event == "HOOK_FAILED"
-    val id: String = "$index-$time-$pid-$scope"
-}
+private typealias DebugLogEntry = LogRecord
 
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -155,22 +138,27 @@ fun LogsPage(
     // composition on the main thread, so run them once off-thread and show a loading placeholder.
     var entries by remember { mutableStateOf<List<DebugLogEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var selectedFilter by remember { mutableStateOf(LogFilter.All) }
+    var selectedFilter by rememberSaveable { mutableStateOf(LogFilter.All) }
     var logLevel by remember {
         mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
     var exportStatus by remember { mutableStateOf<String?>(null) }
-    var processLevels by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        val (parsed, levels) = withContext(Dispatchers.Default) {
-            val raw = runCatching { Preferences.getDebugLog() }.getOrDefault("")
-            val parsedEntries = parseLogEntries(raw).sortedBy { it.time }.asReversed()
-            val tags = runCatching { Preferences.debugLogProcessTags() }.getOrDefault(emptySet())
-            val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
-            parsedEntries to tags.map { tag -> tag to (Preferences.logLevelFor(tag) ?: global) }
+    var refreshGeneration by remember { mutableStateOf(0) }
+    var lsposedStatus by remember { mutableStateOf<LsposedLogReader.Status?>(null) }
+    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(refreshGeneration, service) {
+        loading = true
+        val snapshot = withContext(Dispatchers.IO) {
+            runCatching { LogRepository.read() }.getOrElse {
+                DebugLog.e("LogPage", "log snapshot read failed", it)
+                LogRepository.Snapshot(emptyList(), LsposedLogReader.Status.FAILED)
+            }
         }
-        entries = parsed
-        processLevels = levels
+        entries = snapshot.records
+        lsposedStatus = snapshot.lsposedStatus
+        val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
+        logLevel = logLevelFromPriority(global)
         loading = false
     }
     val filteredEntries = remember(entries, selectedFilter) {
@@ -186,24 +174,34 @@ fun LogsPage(
     }
 
     val onExport: () -> Unit = {
-        val exportText = buildString {
-            append("# HyperTweak debug log\n")
-            append(DebugLog.sessionHeader().trim())
-            append("\nFilter=${selectedFilter.name} shown=${filteredEntries.size}/${entries.size}\n\n")
-            append(filteredEntries.joinToString("\n\n", transform = ::formatSingleEntry))
+        coroutineScope.launch {
+            val exportText = buildString {
+                append("# HyperTweak logs\n")
+                append(DebugLog.sessionHeader().trim())
+                append("\nLSPosed=$lsposedStatus\nFilter=${selectedFilter.name} shown=${filteredEntries.size}/${entries.size}\n\n")
+                append(filteredEntries.joinToString("\n\n", transform = ::formatSingleEntry))
+            }
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    val dir = File(context.filesDir, "logs").apply { check(exists() || mkdirs()) }
+                    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                    val file = File(dir, "hypertweak-logs-$stamp.txt").also { it.writeText(exportText) }
+                    File(dir, "latest.txt").writeText(exportText)
+                    file.absolutePath
+                }.onFailure { DebugLog.e("LogPage", "log export failed", it) }
+            }
+            exportStatus = saved.fold(
+                { context.getString(R.string.logs_export_status, it) },
+                { context.getString(R.string.logs_export_failed) }
+            )
+            saved.getOrNull()?.let { path ->
+                runCatching { shareLogFile(context, context.getString(R.string.logs_share_title), File(path)) }
+                    .onFailure {
+                        DebugLog.e("LogPage", "log sharing failed", it)
+                        exportStatus = context.getString(R.string.logs_share_failed)
+                    }
+            }
         }
-        val dir = File(context.filesDir, "logs").apply { mkdirs() }
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val file = File(dir, "hypertweak-logs-$stamp.txt")
-        runCatching { file.writeText(exportText) }
-        shareText(context, context.getString(R.string.logs_share_title), exportText)
-        exportStatus = context.getString(R.string.logs_export_status, File(dir, "latest.txt").also { runCatching { it.writeText(exportText) } }.absolutePath)
-    }
-
-    val onProcessLevelSelected: (String, Int) -> Unit = { tag, level ->
-        Preferences.setLogLevelFor(tag, level)
-        val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
-        processLevels = processLevels.map { (t, _) -> t to (Preferences.logLevelFor(t) ?: global) }
     }
 
     Scaffold(
@@ -248,6 +246,22 @@ fun LogsPage(
                 Spacer(modifier = Modifier.height(8.dp))
                 SmallTitle(text = stringResource(R.string.logs_overview))
                 SummaryCard(entries = entries)
+                Card(
+                    onClick = { if (!loading) refreshGeneration++ },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    BasicComponent(
+                        title = stringResource(R.string.logs_refresh),
+                        summary = stringResource(when {
+                            loading -> R.string.logs_loading_summary
+                            lsposedStatus == LsposedLogReader.Status.READY -> R.string.logs_source_ready
+                            lsposedStatus == LsposedLogReader.Status.NO_FILES -> R.string.logs_source_no_files
+                            lsposedStatus == LsposedLogReader.Status.TIMED_OUT -> R.string.logs_source_timeout
+                            lsposedStatus == LsposedLogReader.Status.ROOT_UNAVAILABLE -> R.string.logs_source_root
+                            else -> R.string.logs_source_failed
+                        })
+                    )
+                }
             }
             item(key = "options") {
                 SmallTitle(text = stringResource(R.string.logs_options))
@@ -263,9 +277,6 @@ fun LogsPage(
                     },
                     onExport = onExport
                 )
-            }
-            item(key = "process-levels") {
-                ProcessLevelsCard(processLevels = processLevels, onSelected = onProcessLevelSelected)
             }
             item(key = "runtime-title") {
                 SmallTitle(text = stringResource(R.string.logs_runtime_title, filteredEntries.size))
@@ -404,31 +415,6 @@ private fun FilterCard(
 }
 
 @Composable
-private fun ProcessLevelsCard(
-    processLevels: List<Pair<String, Int>>,
-    onSelected: (String, Int) -> Unit
-) {
-    if (processLevels.isEmpty()) return
-    SmallTitle(text = stringResource(R.string.logs_process_level_title))
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-    ) {
-        processLevels.forEachIndexed { index, (tag, priority) ->
-            if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-            OverlayDropdownPreference(
-                title = tag,
-                summary = stringResource(R.string.logs_process_level_summary),
-                items = logLevelOptions.map { stringResource(it.labelRes) },
-                selectedIndex = logLevelOptions.indexOf(logLevelFromPriority(priority)).coerceAtLeast(0),
-                onSelectedIndexChange = { idx -> logLevelOptions.getOrNull(idx)?.let { onSelected(tag, it.priority) } }
-            )
-        }
-    }
-}
-
-@Composable
 private fun LogEntryCard(
     entry: DebugLogEntry,
     onCopy: () -> Unit
@@ -498,7 +484,7 @@ private fun LogEntryCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = stringResource(R.string.logs_event_pid, entry.event, entry.pid),
+                        text = stringResource(R.string.logs_event_pid, "${entry.source} · ${entry.process} · ${entry.event}", entry.pid),
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
@@ -584,24 +570,9 @@ private fun buildPreviewText(context: Context, entry: DebugLogEntry): String {
     }
 }
 
-private fun buildExportText(
-    entries: List<DebugLogEntry>,
-    filterLabel: String,
-    totalCount: Int
-): String {
-    val header = buildString {
-        append("HyperTweak Debug Logs\n")
-        append("Filter: $filterLabel\n")
-        append("Shown: ${entries.size} / $totalCount\n")
-        append("Exported: ${formatExportTime()}\n\n")
-    }
-    val body = entries.joinToString("\n\n", transform = ::formatSingleEntry)
-    return header + body
-}
-
 private fun formatSingleEntry(entry: DebugLogEntry): String {
     return buildString {
-        append("[${entry.level}] ${entry.time} ${entry.scope}")
+        append("[${entry.level}] ${entry.time} ${entry.source} ${entry.process} PID=${entry.pid} ${entry.scope}")
         append("\n")
         append(entry.message)
         if (entry.stack.isNotBlank()) {
@@ -616,11 +587,14 @@ private fun copyText(context: Context, label: String, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
-private fun shareText(context: Context, title: String, text: String) {
+private fun shareLogFile(context: Context, title: String, file: File) {
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, title)
-        putExtra(Intent.EXTRA_TEXT, text)
+        putExtra(Intent.EXTRA_STREAM, uri)
+        clipData = ClipData.newRawUri(title, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     val chooser = Intent.createChooser(intent, title)
     if (context.findActivity() == null) {
@@ -635,18 +609,6 @@ private tailrec fun Context.findActivity(): android.app.Activity? {
         is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
-}
-
-private fun defaultLogFileName(): String {
-    return "hyper-tweak-logs-${formatExportStamp()}.txt"
-}
-
-private fun formatExportTime(): String {
-    return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-}
-
-private fun formatExportStamp(): String {
-    return SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())
 }
 
 private fun DebugLogEntry.shortTime(): String {
@@ -664,85 +626,4 @@ private fun eventLabel(context: Context, entry: DebugLogEntry): String {
         "OK" -> context.getString(R.string.logs_event_ok)
         else -> entry.level
     }
-}
-
-private fun parseLogEntries(raw: String): List<DebugLogEntry> {
-    if (raw.isBlank()) return emptyList()
-    val entries = mutableListOf<DebugLogEntry>()
-    var pending: DebugLogEntry? = null
-    raw.lines().forEach { line ->
-        val parsed = parseLogLine(line)
-        if (parsed != null) {
-            pending?.let(entries::add)
-            pending = parsed
-        } else if (line.isNotBlank()) {
-            val current = pending
-            if (current != null) {
-                pending = current.copy(
-                    stack = listOf(current.stack, line).filter { it.isNotBlank() }.joinToString("\n")
-                )
-            }
-        }
-    }
-    pending?.let(entries::add)
-    return entries.mapIndexed { index, entry -> entry.copy(index = index) }
-}
-
-private fun parseLogLine(line: String): DebugLogEntry? {
-    if (line.startsWith("v2$FIELD_SEPARATOR")) {
-        val parts = line.split(FIELD_SEPARATOR)
-        if (parts.size >= 8) {
-            return DebugLogEntry(
-                index = 0,
-                time = unescape(parts[1]),
-                level = unescape(parts[2]),
-                pid = parts[3],
-                scope = unescape(parts[4]),
-                event = unescape(parts[5]),
-                message = unescape(parts[6]),
-                stack = unescape(parts[7])
-            )
-        }
-    }
-
-    val legacy = Regex("""^(\d\d-\d\d \d\d:\d\d:\d\d\.\d\d\d) ([DWEI])/(\d+) \[(.+?)] (.*)$""")
-        .matchEntire(line)
-        ?: return null
-    val message = legacy.groupValues[5]
-    val event = when {
-        message.startsWith("HOOK_OK") -> "HOOK_OK"
-        message.startsWith("HOOK_FAILED") -> "HOOK_FAILED"
-        message.startsWith("HOOK_SKIPPED") -> "HOOK_SKIPPED"
-        "failed" in message.lowercase() -> "FAILED"
-        "not found" in message.lowercase() -> "MISSING"
-        "hooked" in message.lowercase() -> "HOOK_OK"
-        else -> "INFO"
-    }
-    return DebugLogEntry(
-        index = 0,
-        time = legacy.groupValues[1],
-        level = legacy.groupValues[2],
-        pid = legacy.groupValues[3],
-        scope = legacy.groupValues[4],
-        event = event,
-        message = message,
-        stack = ""
-    )
-}
-
-private fun unescape(value: String): String {
-    val out = StringBuilder(value.length)
-    var escaped = false
-    value.forEach { ch ->
-        if (escaped) {
-            out.append(if (ch == 'n') '\n' else ch)
-            escaped = false
-        } else if (ch == '\\') {
-            escaped = true
-        } else {
-            out.append(ch)
-        }
-    }
-    if (escaped) out.append('\\')
-    return out.toString()
 }

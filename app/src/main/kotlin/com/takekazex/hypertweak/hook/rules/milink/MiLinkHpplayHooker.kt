@@ -31,7 +31,7 @@ object MiLinkHpplayHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, false)) {
-            DebugLog.hookSkipped(TAG, "MiLink HPPlay external files", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "MiLink HPPlay external files", "disabled")
             return
         }
 
@@ -91,7 +91,7 @@ object MiLinkHpplayHooker : StaticHooker() {
         if (installed == 0) {
             DebugLog.hookSkipped(TAG, "MiLink HPPlay external files", "no boundary was hooked")
         } else {
-            DebugLog.i(TAG, "HPPlay external-file creation disabled boundaries=$installed")
+            DebugLog.d(TAG, "HPPlay external-file creation disabled boundaries=$installed")
         }
     }
 

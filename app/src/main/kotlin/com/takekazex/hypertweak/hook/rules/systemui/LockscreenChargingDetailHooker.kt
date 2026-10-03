@@ -106,7 +106,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
         refreshGeneration++
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "keyguard charging indication", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "keyguard charging indication", "disabled")
             return
         }
 

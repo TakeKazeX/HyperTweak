@@ -31,7 +31,7 @@ object LowBatteryWarningHooker : StaticHooker() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
         if (mode == Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
-            DebugLog.hookSkipped(TAG, "low-battery warning", "follow system")
+            DebugLog.hookSkippedDebug(TAG, "low-battery warning", "follow system")
             return
         }
 

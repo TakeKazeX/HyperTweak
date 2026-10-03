@@ -1150,17 +1150,7 @@ object Preferences {
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"
-    private const val MAX_DEBUG_LOG_LENGTH = 40_000
-
-    /**
-     * Registry of process tags that have written a debug log (`debug_log_p_<tag>`). Maintained by
-     * [appendDebugLogs] so [getDebugLog] can read only the subscribed keys instead of dumping the
-     * whole preferences dict.
-     */
-    private const val KEY_DEBUG_LOG_PROCESSES = "debug_log_processes"
-
-    /** Per-process log-level override prefix (`debug_log_level_<sanitized-tag>`); absent = global. */
-    private const val KEY_LOG_LEVEL_PROCESS_PREFIX = "debug_log_level_"
+    private const val MAX_DEBUG_LOG_LENGTH = 256_000
 
     private lateinit var remotePrefs: SharedPreferences
     private var localSourcePrefs: SharedPreferences? = null
@@ -1210,9 +1200,9 @@ object Preferences {
             key == KEY_FINGERPRINT_SPLIT_BASELINE_MIGRATED ||
             key == LEGACY_KEY_DEBUG_LOG ||
             key.startsWith(KEY_DEBUG_LOG_PREFIX) ||
-            key == KEY_DEBUG_LOG_PROCESSES ||
+            key == "debug_log_processes" || // Retired log registry; exclude from settings backups.
             key == KEY_LOG_SESSION ||
-            key.startsWith(KEY_LOG_LEVEL_PROCESS_PREFIX)
+            key.startsWith("debug_log_level_") // Retired overrides are never configuration.
 
     /**
      * Wipes every setting in every storage location the module uses:
@@ -1452,6 +1442,7 @@ object Preferences {
             if (!isInitialized) return
             val local = localSourcePrefs
             runCatching { local?.edit { block() } }
+                .onFailure { DebugLog.e("Preferences", "local settings write failed", it) }
             if (isLocalOnly || local === remotePrefs) return
             serializedWriter.execute {
                 // Synchronous commit: libxposed's RemotePreferences Editor.apply() is asynchronous on
@@ -1478,22 +1469,22 @@ object Preferences {
     @Suppress("UseKtx")
     private fun commitRemoteMutation(block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
+        fun commit(): Boolean = try {
+            val editor = remotePrefs.edit()
+            block(editor)
+            editor.commit().also {
+                if (!it) DebugLog.w("Preferences", "settings mutation commit rejected")
+            }
+        } catch (t: Exception) {
+            DebugLog.e("Preferences", "settings mutation failed", t)
+            false
+        }
         val local = localSourcePrefs
-        if (isLocalOnly || local === remotePrefs) {
-            return runCatching {
-                val editor = remotePrefs.edit()
-                block(editor)
-                editor.commit()
-            }.getOrDefault(false)
-        }
-        val task = serializedWriter.submit<Boolean> {
-            runCatching {
-                val editor = remotePrefs.edit()
-                block(editor)
-                editor.commit()
-            }.getOrDefault(false)
-        }
-        return runCatching { task.get(5, TimeUnit.SECONDS) }.getOrDefault(false)
+        if (isLocalOnly || local === remotePrefs) return commit()
+        val task = serializedWriter.submit<Boolean> { commit() }
+        return runCatching { task.get(5, TimeUnit.SECONDS) }
+            .onFailure { DebugLog.e("Preferences", "waiting for settings mutation failed", it) }
+            .getOrDefault(false)
     }
 
     private fun SharedPreferences.Editor.putSharedPreferenceValue(key: String, value: Any) {
@@ -1780,140 +1771,41 @@ object Preferences {
         runCatching { task.get(3, TimeUnit.SECONDS) }
     }
 
-    fun appendDebugLog(processTag: String, line: String) {
-        synchronized(logLock) {
-            appendDebugLogs(processTag, listOf(line))
-        }
-    }
+    fun appendDebugLog(processTag: String, line: String) = appendDebugLogs(processTag, listOf(line))
 
+    /** App-owned records only. Hook-side records belong to the LSPosed daemon. */
     fun appendDebugLogs(processTag: String, lines: List<String>) {
         synchronized(logLock) {
-            if (!isInitialized) return
-            if (!getBoolean(KEY_RECORD_LOGS, true)) return
-            if (lines.isEmpty()) return
-            registerDebugLogProcess(processTag)
+            val local = localSourcePrefs ?: return
+            if (lines.isEmpty() || !getBoolean(KEY_RECORD_LOGS, true)) return
             val key = debugLogKeyFor(processTag)
-            val local = localSourcePrefs
-            val old = runCatching { remotePrefs.getString(key, "") }.getOrNull()
-                ?.takeIf { it.isNotEmpty() }
-                ?: runCatching { local?.getString(key, "") }.getOrNull().orEmpty()
+            val old = local.getString(key, "").orEmpty()
             val appended = lines.joinToString("\n")
-            var next = if (old.isEmpty()) appended else "$old\n$appended"
-            if (next.length > MAX_DEBUG_LOG_LENGTH) {
-                next = trimToMaxKeepTail(next)
+            val next = com.takekazex.hypertweak.util.LogCodec.boundedTail(
+                if (old.isBlank()) appended else "$old\n$appended", MAX_DEBUG_LOG_LENGTH
+            )
+            check(local.edit().putString(key, next).commit()) {
+                "App log storage rejected commit"
             }
-            runCatching { local?.edit(commit = true) { putString(key, next) } }
-            if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) { putString(key, next) } }
         }
     }
 
-    /**
-     * Keeps the NEWEST [MAX_DEBUG_LOG_LENGTH] characters, aligned to whole log lines so an entry's
-     * stack trace is never split. Drops oldest lines from the head rather than cutting the tail.
-     */
-    private fun trimToMaxKeepTail(text: String): String {
-        if (text.length <= MAX_DEBUG_LOG_LENGTH) return text
-        var start = text.length - MAX_DEBUG_LOG_LENGTH
-        val newline = text.indexOf('\n', start)
-        if (newline >= 0) start = newline + 1
-        return text.substring(start)
+    fun getDebugLog(): String = synchronized(logLock) {
+        val local = localSourcePrefs ?: return@synchronized ""
+        local.all.filterKeys { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+            .values.filterIsInstance<String>().flatMap { it.lines() }.distinct().joinToString("\n")
     }
 
-    /** Registers [processTag] in the process registry so [getDebugLog] can read only its keys. */
-    private fun registerDebugLogProcess(processTag: String) {
-        if (!isInitialized) return
-        val sanitized = sanitizeProcessTag(processTag)
-        val registered = runCatching { remotePrefs.getStringSet(KEY_DEBUG_LOG_PROCESSES, emptySet()) }
-            .getOrElse { emptySet() } ?: emptySet()
-        if (!registered.contains(sanitized)) {
-            runCatching { remotePrefs.edit(commit = true) { putStringSet(KEY_DEBUG_LOG_PROCESSES, registered + sanitized) } }
-        }
-    }
-
-    /**
-     * Per-process log level override for [processTag], if one was set. Returns null when the user
-     * has not overridden this process, so the caller falls back to the global [KEY_LOG_LEVEL].
-     */
-    fun logLevelFor(processTag: String): Int? {
-        if (!isInitialized) return null
-        val key = debugLogLevelKeyFor(processTag)
-        return runCatching { if (remotePrefs.contains(key)) remotePrefs.getInt(key, -1) else null }
-            .getOrNull()?.takeIf { it >= 0 }
-    }
-
-    /** Sets/clears a per-process log level override ([level] < 0 clears it, reverting to global). */
-    fun setLogLevelFor(processTag: String, level: Int) {
-        memoInvalidate(KEY_LOG_LEVEL_PROCESS_PREFIX + sanitizeProcessTag(processTag))
-        write {
-            val key = debugLogLevelKeyFor(processTag)
-            if (level < 0) remove(key) else putInt(key, level)
-        }
-    }
-
-    /** Process tags that have written a debug log, in insertion order (for the per-process UI). */
-    fun debugLogProcessTags(): Set<String> {
-        if (!isInitialized) return emptySet()
-        return runCatching { remotePrefs.getStringSet(KEY_DEBUG_LOG_PROCESSES, emptySet()) }
-            .getOrElse { emptySet() } ?: emptySet()
-    }
-
-    fun getDebugLog(): String {
-        if (!isInitialized) return ""
-        // Merge both stores: hook processes write to the daemon (remote) and the module app's own
-        // process writes to its local prefs, so neither should shadow the other.
-        val remote = debugBlocks(remotePrefsGetter)
-        val local = localSourcePrefs?.let { src -> debugBlocks(srcGetter(src)) } ?: emptyList()
-        return (remote + local).filterNotNull().distinct().joinToString("\n")
-    }
-
-    private val remotePrefsGetter: (String) -> String? =
-        { key -> runCatching { remotePrefs.getString(key, "")?.takeIf(String::isNotEmpty) }.getOrNull() }
-
-    private fun srcGetter(src: android.content.SharedPreferences): (String) -> String? =
-        { key -> runCatching { src.getString(key, "")?.takeIf(String::isNotEmpty) }.getOrNull() }
-
-    /** Reads each registered process log key (never the whole dict), with a scanning fallback. */
-    private fun debugBlocks(get: (String) -> String?): List<String?> {
-        val registered = runCatching { remotePrefs.getStringSet(KEY_DEBUG_LOG_PROCESSES, emptySet()) }
-            .getOrElse { emptySet() } ?: emptySet()
-        val keys = if (registered.isNotEmpty()) registered.map(::debugLogKeyFor)
-        else scanDebugLogKeys()
-        return keys.map(get)
-    }
-
-    /** Fallback key scan for logs written before the process registry existed. */
-    private fun scanDebugLogKeys(): Set<String> =
-        (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
-            runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
-            .filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
-            .toSet()
-
-    private fun debugLogKeys(): Set<String> {
-        val registered = debugLogProcessTags().map(::debugLogKeyFor).toSet()
-        val all = runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
-            runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() }
-        val scanned = all.filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }.toSet()
-        return registered + scanned
-    }
-
+    /** Clears app-owned logs. LSPosed files remain owned by the framework. */
     fun clearDebugLog() {
         synchronized(logLock) {
-            if (!isInitialized) return
-            val keys = debugLogKeys() + debugLogStateKeys()
-            if (keys.isEmpty()) return
-            runCatching { localSourcePrefs?.edit(commit = true) { keys.forEach(::remove) } }
-            runCatching { remotePrefs.edit(commit = true) { keys.forEach(::remove) } }
+            val local = localSourcePrefs ?: return
+            val keys = local.all.keys.filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+            check(local.edit().apply { keys.forEach(::remove); remove("debug_log_processes") }.commit()) {
+                "App log clearing rejected commit"
+            }
         }
     }
-
-    private fun debugLogStateKeys(): Set<String> =
-        setOf(KEY_DEBUG_LOG_PROCESSES) + perProcessLevelKeys()
-
-    private fun perProcessLevelKeys(): Set<String> =
-        (runCatching { remotePrefs.all.keys }.getOrElse { emptySet() } +
-            runCatching { localSourcePrefs?.all.orEmpty().keys }.getOrElse { emptySet() })
-            .filter { it.startsWith(KEY_LOG_LEVEL_PROCESS_PREFIX) }
-            .toSet()
 
     /**
      * Clears all debug logs when the runtime session changes (app update / reinstall / reboot),
@@ -1921,27 +1813,19 @@ object Preferences {
      */
     fun rotateLogSessionIfNeeded(token: String) {
         synchronized(logLock) {
-            if (!isInitialized) return
-            val currentToken = runCatching { remotePrefs.getString(KEY_LOG_SESSION, null) }.getOrNull()
-                ?: runCatching { localSourcePrefs?.getString(KEY_LOG_SESSION, null) }.getOrNull()
-            if (currentToken == token) return
-            val keys = debugLogKeys() + debugLogStateKeys()
-            localSourcePrefs?.edit(commit = true) {
+            val local = localSourcePrefs ?: return
+            if (local.getString(KEY_LOG_SESSION, null) == token) return
+            val keys = local.all.keys.filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
+            check(local.edit().apply {
                 keys.forEach(::remove)
+                remove("debug_log_processes")
                 putString(KEY_LOG_SESSION, token)
-            }
-            if (!isLocalOnly) runCatching { remotePrefs.edit(commit = true) {
-                keys.forEach(::remove)
-                putString(KEY_LOG_SESSION, token)
-            } }
+            }.commit()) { "App log session rotation rejected commit" }
         }
     }
 
     private fun debugLogKeyFor(processTag: String): String =
         "$KEY_DEBUG_LOG_PREFIX${sanitizeProcessTag(processTag)}"
-
-    private fun debugLogLevelKeyFor(processTag: String): String =
-        "$KEY_LOG_LEVEL_PROCESS_PREFIX${sanitizeProcessTag(processTag)}"
 
     /** Process tags are prefs keys, so reduce them to `[A-Za-z0-9_]`. */
     private fun sanitizeProcessTag(processTag: String): String =

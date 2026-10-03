@@ -205,7 +205,7 @@ class HookEntry : XposedModule() {
             // The native payload is injected before this callback runs. Record what it reports for
             // this process so a packaging or injection failure shows up in the module log without a
             // separate logcat capture.
-            DebugLog.i("NativeRules", NativeRules.describe())
+            DebugLog.d("NativeRules", NativeRules.describe())
             publishNativeRuleSwitches()
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "module load handling failed", t)

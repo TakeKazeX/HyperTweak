@@ -52,7 +52,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
-            DebugLog.hookSkipped(TAG, "Super Island whitelist signature auth", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "Super Island whitelist signature auth", "disabled")
             return
         }
         val targets = resolveTargets() ?: run {

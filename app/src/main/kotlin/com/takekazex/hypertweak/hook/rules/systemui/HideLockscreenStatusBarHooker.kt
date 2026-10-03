@@ -21,7 +21,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
         if (!enabled) {
-            DebugLog.hookSkipped("HideLockscreenStatusBar", "keyguard status bar hooks", "disabled")
+            DebugLog.hookSkippedDebug("HideLockscreenStatusBar", "keyguard status bar hooks", "disabled")
             return
         }
 

@@ -51,7 +51,7 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
         mSbnField = null
         canShowOnKeyguard = null
         if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)) {
-            DebugLog.hookSkipped(TAG, "lockscreen keep notifications", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "lockscreen keep notifications", "disabled")
             return
         }
         val entryCls = ENTRY_CLASS.toClassOrNull() ?: run {

@@ -51,7 +51,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false)) {
-            DebugLog.hookSkipped(TAG, "app manager menu", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "app manager menu", "disabled")
             return
         }
 

@@ -208,6 +208,7 @@ object PasskeyHooker : StaticHooker() {
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
+            logMissingQueries = false, // Optional: activity launch and switch-commit fallbacks remain available.
             queries = mapOf("OnCombiPreferenceClickListener" to { bridge ->
                 val onLeftSideClickedMatcher = org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                     .name("onLeftSideClicked")

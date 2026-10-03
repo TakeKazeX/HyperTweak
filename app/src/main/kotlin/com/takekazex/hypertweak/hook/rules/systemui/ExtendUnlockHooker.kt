@@ -135,7 +135,7 @@ object ExtendUnlockHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false)
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "keyguard trust state", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "keyguard trust state", "disabled")
             return
         }
 

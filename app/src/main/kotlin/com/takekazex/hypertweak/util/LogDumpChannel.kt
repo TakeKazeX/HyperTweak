@@ -5,10 +5,9 @@ import androidx.core.net.toUri
 /**
  * Cross-process channel for the debug-log dump interface.
  *
- * The module's per-process debug logs live in the LSPosed daemon's remote prefs, which the settings
- * UI already reads. [LogDumpProvider] exposes the aggregated log over a content provider so an agent
- * (adb / scripting) can pull it without opening the app. This object holds the authority, the [call]
- * method names and the result Bundle keys.
+ * App-owned logs and module-identified LSPosed records use the same repository as the log page.
+ * Reading LSPosed files requires root granted to the app; exports include source availability.
+ * The provider allows only the module UID, root and shell diagnostic callers.
  */
 object LogDumpChannel {
     const val AUTHORITY = "com.takekazex.hypertweak.logdump"
@@ -18,7 +17,7 @@ object LogDumpChannel {
      *  returns the written paths plus a short preview. The full text stays in the file. */
     const val METHOD_DUMP = "dump"
 
-    /** Returns the aggregated log text in the result Bundle (no file write). */
+    /** Returns bounded newest records in the Bundle (no file write); dump exports the full snapshot. */
     const val METHOD_GET = "get"
 
     const val KEY_PATH = "path"

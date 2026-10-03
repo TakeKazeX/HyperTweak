@@ -53,7 +53,7 @@ object UnlockClipboardHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false)
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "clipboard overlay", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "clipboard overlay", "disabled")
             return
         }
 

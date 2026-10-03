@@ -74,7 +74,7 @@ object NotificationBlockFoldHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.notificationBlockFold()
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "block notification fold", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "block notification fold", "disabled")
             return
         }
         // Independent installs: either hook alone already prevents folding (one by never scheduling

@@ -774,8 +774,6 @@
     <string name="logs_export_prompt">Tap to export and share the current log</string>
     <string name="logs_export_status">Exported · %1$s</string>
     <string name="logs_share_title">HyperTweak Logs</string>
-    <string name="logs_process_level_title">Per-Process Log Level</string>
-    <string name="logs_process_level_summary">Override the log level for a single process</string>
     <string name="logs_filter_all">All</string>
     <string name="logs_filter_content_description">Filter</string>
     <string name="logs_filter_errors">Errors</string>
@@ -1445,4 +1443,12 @@
     <string name="aod_icons_restart_summary">Restart SystemUI to apply AOD icon settings.</string>
     <string name="icon_mirror_airplane">Mirror airplane mode icon</string>
     <string name="icon_mirror_airplane_summary">Point the native airplane icon to the right, including Duo icons</string>
+    <string name="logs_refresh">Refresh Logs</string>
+    <string name="logs_source_ready">App and HyperTweak LSPosed records loaded. Tap to refresh.</string>
+    <string name="logs_source_root">App logs loaded. Allow root access to read HyperTweak LSPosed logs; tap to retry.</string>
+    <string name="logs_source_no_files">App logs loaded. No LSPosed module log files found.</string>
+    <string name="logs_source_timeout">App logs loaded. LSPosed log reading timed out; tap to retry.</string>
+    <string name="logs_source_failed">App logs loaded. LSPosed logs could not be read; tap to retry.</string>
+    <string name="logs_export_failed">Log file could not be saved.</string>
+    <string name="logs_share_failed">Log sharing could not be opened.</string>
 </resources>

@@ -49,7 +49,7 @@ object PowerRankingHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)) {
-            DebugLog.hookSkipped(TAG, "power ranking", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "power ranking", "disabled")
             return
         }
 
@@ -65,7 +65,7 @@ object PowerRankingHooker : StaticHooker() {
         if (fallbackBuilder == null) {
             DebugLog.w(TAG, "card fallback rows unavailable; card hook installed only")
         } else {
-            DebugLog.i(TAG, "card fallback ready ${fallbackBuilder?.describe()}")
+            DebugLog.d(TAG, "card fallback ready ${fallbackBuilder?.describe()}")
         }
 
         runCatching {
@@ -81,7 +81,7 @@ object PowerRankingHooker : StaticHooker() {
                         val fallback = fallbackBuilder?.build(context, limit).orEmpty()
                         if (fallback.isNotEmpty()) {
                             param.result = fallback
-                            DebugLog.i(TAG, "power-ranking card fallback rows=${fallback.size}")
+                            DebugLog.d(TAG, "power-ranking card fallback rows=${fallback.size}")
                         }
                     }
                 }
@@ -95,7 +95,7 @@ object PowerRankingHooker : StaticHooker() {
     private fun resolveCard(): CardResolution? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
         val dexResolved = DexKitManager.withBridge(apkPath) { bridge -> resolveCardWithBridge(bridge) }
-        if (dexResolved != null) DebugLog.i(TAG, "card method resolved structurally target=${dexResolved.method}")
+        if (dexResolved != null) DebugLog.d(TAG, "card method resolved structurally target=${dexResolved.method}")
         return dexResolved
     }
 

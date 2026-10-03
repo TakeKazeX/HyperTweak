@@ -26,12 +26,12 @@ object DexKitManager {
 
     fun loadLibrary(): Boolean {
         if (hotReloadPreparing) {
-            DebugLog.w("DexKit", "skip loading native library during hot reload preparation")
+            DebugLog.d("DexKit", "skip loading native library during hot reload preparation")
             return false
         }
         bridgeLock.withLock {
             if (hotReloadPreparing) {
-                DebugLog.w("DexKit", "skip loading native library during hot reload preparation")
+                DebugLog.d("DexKit", "skip loading native library during hot reload preparation")
                 return false
             }
             if (isLoaded) return true
@@ -96,7 +96,7 @@ object DexKitManager {
 
     fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
         if (!enterBridgeSession()) {
-            DebugLog.w("DexKit", "skip bridge creation during hot reload preparation")
+            DebugLog.d("DexKit", "skip bridge creation during hot reload preparation")
             return null
         }
         try {
@@ -174,7 +174,9 @@ object DexKitManager {
                     runCatching {
                         val clazz = classLoader.loadClass(cachedName)
                         val validator = validators[key]
-                        if (validator != null && !runCatching { validator(clazz) }.getOrDefault(false)) {
+                        if (validator != null && !runCatching { validator(clazz) }.onFailure {
+                            DebugLog.e("DexKit", "semantic validator threw key=$key class=${clazz.name}", it)
+                        }.getOrDefault(false)) {
                             DebugLog.w("DexKit", "cached class $cachedName for key $key failed semantic validation")
                             properties.remove(key)
                             missingQueries[key] = queries[key]!!
@@ -182,7 +184,7 @@ object DexKitManager {
                             resolvedMap[key] = clazz
                         }
                     }.onFailure {
-                        DebugLog.w("DexKit", "failed to load cached class $cachedName for key $key")
+                        DebugLog.w("DexKit", "failed to load cached class $cachedName for key $key", it)
                         properties.remove(key)
                         missingQueries[key] = queries[key]!!
                     }
@@ -205,12 +207,19 @@ object DexKitManager {
             val startTime = System.currentTimeMillis()
             withBridge(apkPath) { bridge ->
                 for ((key, queryFunc) in missingQueries) {
-                    val className = queryFunc(bridge)
+                    val className = try {
+                        queryFunc(bridge)
+                    } catch (t: Throwable) {
+                        DebugLog.e("DexKit", "target query failed key=$key apk=$apkPath", t)
+                        continue
+                    }
                     if (className != null) {
                         runCatching {
                             val clazz = classLoader.loadClass(className)
                             val validator = validators[key]
-                            if (validator != null && !runCatching { validator(clazz) }.getOrDefault(false)) {
+                            if (validator != null && !runCatching { validator(clazz) }.onFailure {
+                                DebugLog.e("DexKit", "semantic validator threw key=$key class=${clazz.name}", it)
+                            }.getOrDefault(false)) {
                                 DebugLog.w("DexKit", "scanned class $className for key $key failed semantic validation")
                                 properties.remove(key)
                             } else {
@@ -223,7 +232,7 @@ object DexKitManager {
                         }
                     } else {
                         if (logMissingQueries) {
-                            DebugLog.e("DexKit", "query returned null for key $key")
+                            DebugLog.w("DexKit", "required target unresolved key=$key; dependent hook skipped")
                         } else {
                             DebugLog.d("DexKit", "optional query returned null for key $key")
                         }

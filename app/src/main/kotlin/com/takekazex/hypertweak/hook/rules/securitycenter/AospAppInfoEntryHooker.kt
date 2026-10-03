@@ -50,7 +50,7 @@ object AospAppInfoEntryHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_AOSP_APP_INFO_ENTRY, false)) {
-            DebugLog.hookSkipped(TAG, "app details page", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "app details page", "disabled")
             return
         }
 

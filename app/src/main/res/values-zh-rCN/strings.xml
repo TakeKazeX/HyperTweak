@@ -773,8 +773,6 @@
     <string name="logs_export_prompt">点击导出并分享当前日志</string>
     <string name="logs_export_status">已导出 · %1$s</string>
     <string name="logs_share_title">HyperTweak 日志</string>
-    <string name="logs_process_level_title">按进程日志级别</string>
-    <string name="logs_process_level_summary">为单个进程单独设置日志级别</string>
     <string name="logs_filter_all">全部</string>
     <string name="logs_filter_content_description">筛选</string>
     <string name="logs_filter_errors">错误</string>
@@ -1439,4 +1437,12 @@
     <string name="aod_icons_restart_summary">重启 SystemUI 以应用 AOD 图标设置。</string>
     <string name="icon_mirror_airplane">镜像飞行模式图标</string>
     <string name="icon_mirror_airplane_summary">将原生飞行模式图标改为朝右，同时应用于三合一图标</string>
+    <string name="logs_refresh">刷新日志</string>
+    <string name="logs_source_ready">已读取应用日志和 HyperTweak 的 LSPosed 日志，点击刷新。</string>
+    <string name="logs_source_root">已读取应用日志。读取 HyperTweak 的 LSPosed 日志需要 Root 授权，点击重试。</string>
+    <string name="logs_source_no_files">已读取应用日志，未找到 LSPosed 模块日志文件。</string>
+    <string name="logs_source_timeout">已读取应用日志，LSPosed 日志读取超时，点击重试。</string>
+    <string name="logs_source_failed">已读取应用日志，LSPosed 日志读取失败，点击重试。</string>
+    <string name="logs_export_failed">日志文件保存失败。</string>
+    <string name="logs_share_failed">无法打开日志分享。</string>
 </resources>

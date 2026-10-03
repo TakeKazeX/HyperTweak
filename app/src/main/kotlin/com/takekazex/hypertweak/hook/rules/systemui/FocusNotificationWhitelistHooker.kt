@@ -42,7 +42,7 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) {
-            DebugLog.hookSkipped(TAG, "Super Island notification whitelist", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "Super Island notification whitelist", "disabled")
             return
         }
         val manager = SETTINGS_MANAGER.toClassOrNull() ?: run {

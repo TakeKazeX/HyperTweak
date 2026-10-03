@@ -10,7 +10,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
@@ -18,9 +17,7 @@ import java.util.concurrent.TimeUnit
 
 object DebugLog {
     private const val TAG = "HyperTweak"
-    private const val FIELD_SEPARATOR = "\u001F"
     private const val FLUSH_DELAY_MS = 750L
-    private const val MAX_PENDING_LINES = 64
 
     /** Hard cap on the in-memory queue so a hot path (DEBUG flood) can't grow it without bound. */
     private const val MAX_PENDING_QUEUE = 512
@@ -29,9 +26,8 @@ object DebugLog {
     const val DEFAULT_LEVEL = Log.INFO
 
     private val formatter = ThreadLocal.withInitial {
-        SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
     }
-    private val pendingLines = ConcurrentLinkedQueue<String>()
 
     @Volatile
     private var sessionHeaderEmitted = false
@@ -57,7 +53,8 @@ object DebugLog {
      * records from separate runtimes don't pile up together. Requires [Preferences] to be ready.
      */
     fun ensureSession() {
-        runCatching { Preferences.rotateLogSessionIfNeeded(sessionToken()) }
+        if (xposed == null) runCatching { Preferences.rotateLogSessionIfNeeded(sessionToken()) }
+            .onFailure { runCatching { Log.e(TAG, "log session rotation failed", it) } }
         emitSessionHeader()
     }
 
@@ -97,200 +94,141 @@ object DebugLog {
     }
 
     fun bindXposed(interfaceRef: XposedInterface) {
+        sessionHeaderEmitted = false
         xposed = interfaceRef
         d("DebugLog", "bound LSPosed logger api=${interfaceRef.apiVersion}")
     }
 
     fun prepareForHotReload() {
-        pendingFlush?.cancel(false)
-        flushPendingLines()
-        flushExecutor?.shutdownNow()
-        flushExecutor = null
-        xposed = null
+        synchronized(this) {
+            repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
+            pendingFlush?.cancel(false)
+            flushPendingLines()
+            flushExecutor?.shutdown()
+            flushExecutor = null
+            xposed = null
+        }
     }
 
-    fun d(scope: String, message: String) {
-        write(Log.DEBUG, scope, message, null)
-    }
+    fun d(scope: String, message: String) = write(Log.DEBUG, scope, message, null)
+    fun i(scope: String, message: String) = write(Log.INFO, scope, message, null)
+    fun w(scope: String, message: String, throwable: Throwable? = null) = write(Log.WARN, scope, message, throwable)
+    fun e(scope: String, message: String, throwable: Throwable? = null) = write(Log.ERROR, scope, message, throwable)
+    fun hookRegistered(scope: String, target: String) = d(scope, "HOOK_OK target=$target")
+    fun hookFailed(scope: String, target: String, throwable: Throwable? = null) = e(scope, "HOOK_FAILED target=$target", throwable)
+    fun hookSkipped(scope: String, target: String, reason: String) = w(scope, "HOOK_SKIPPED target=$target reason=$reason")
+    fun hookSkippedDebug(scope: String, target: String, reason: String) = d(scope, "HOOK_SKIPPED target=$target reason=$reason")
 
-    fun i(scope: String, message: String) {
-        write(Log.INFO, scope, message, null)
-    }
+    private val repeatLimiter = LogRepeatLimiter()
+    private data class Pending(val record: LogRecord, val throwable: Throwable?, val logger: XposedInterface?)
+    private val queueLock = Any()
+    private val records = ArrayDeque<Pending>()
+    private var dropped = 0
 
-    fun w(scope: String, message: String, throwable: Throwable? = null) {
-        write(Log.WARN, scope, message, throwable)
-    }
-
-    fun e(scope: String, message: String, throwable: Throwable? = null) {
-        write(Log.ERROR, scope, message, throwable)
-    }
-
-    fun hookRegistered(scope: String, target: String) {
-        i(scope, "HOOK_OK target=$target")
-    }
-
-    fun hookFailed(scope: String, target: String, throwable: Throwable? = null) {
-        e(scope, "HOOK_FAILED target=$target", throwable)
-    }
-
-    fun hookSkipped(scope: String, target: String, reason: String) {
-        w(scope, "HOOK_SKIPPED target=$target reason=$reason")
-    }
-
-    /** Records an expected, preference-gated or optional probe skip without polluting W logs. */
-    fun hookSkippedDebug(scope: String, target: String, reason: String) {
-        d(scope, "HOOK_SKIPPED target=$target reason=$reason")
-    }
-
-    private fun currentThreshold(): Int {
-        // Per-process override wins, so one process can be debugged at DEBUG without flooding the
-        // rest. Falls back to the global level.
-        val perProcess = runCatching { Preferences.logLevelFor(processTag) }.getOrNull()
-        if (perProcess != null) return perProcess
-        if (!Preferences.isInitialized) return DEFAULT_LEVEL
-        return runCatching { Preferences.getInt(Preferences.KEY_LOG_LEVEL, DEFAULT_LEVEL) }
-            .getOrDefault(DEFAULT_LEVEL)
-    }
+    private fun currentThreshold(): Int = runCatching {
+        if (Preferences.isInitialized) {
+            Preferences.getInt(Preferences.KEY_LOG_LEVEL, DEFAULT_LEVEL)
+        } else DEFAULT_LEVEL
+    }.getOrDefault(DEFAULT_LEVEL)
 
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
-        // BaseHooker registers hooks individually, which can produce hundreds of same-form success
-        // records during process startup. Keep target-level details available at DEBUG while
-        // leaving concise feature-level HOOK_OK summaries at INFO.
-        val effectivePriority = if (
-            priority == Log.INFO && message.startsWith("HOOK_OK target=")
-        ) {
-            Log.DEBUG
-        } else {
-            priority
-        }
-        if (effectivePriority < currentThreshold()) return
-
-        val fullMessage = "$scope: $message"
-        when (effectivePriority) {
-            Log.ERROR -> Log.e(TAG, fullMessage, throwable)
-            Log.WARN -> Log.w(TAG, fullMessage, throwable)
-            Log.INFO -> Log.i(TAG, fullMessage)
-            else -> Log.d(TAG, fullMessage)
-        }
-
-        // Never let a preference hiccup crash the logger: a failure inside a hook callback (e.g.
-        // while attaching a hooker) is itself logged via this path, and a throw here would swallow
-        // the very diagnostic we are trying to record (and propagate up into the host). If the
-        // record toggle can't be read, default to recording so the failure is preserved.
-        val recordLogs = runCatching { Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true) }
-            .getOrDefault(true)
-        if (recordLogs) {
-            enqueueLine(
-                formatLine(effectivePriority, scope, message, throwable),
-                effectivePriority >= Log.WARN
-            )
-        }
-        forwardToXposed(effectivePriority, fullMessage, throwable)
+        // Successful target registration is diagnostic detail. Severity never depends on words
+        // like "error" appearing inside a successful operation's description.
+        val effective = if (priority == Log.INFO && message.startsWith("HOOK_OK")) Log.DEBUG else priority
+        if (effective < currentThreshold()) return
+        val record = LogRecord(
+            formatter.get()!!.format(Date()), levelName(effective), Process.myPid().toString(), scope,
+            LogCodec.event(message, throwable != null), message.take(8000),
+            throwable?.let { Log.getStackTraceString(it).trimEnd().take(16000) }.orEmpty(),
+            processTag, if (xposed == null) "app" else "LSPosed"
+        )
+        repeatLimiter.drain(SystemClock.elapsedRealtime()).forEach(::enqueue)
+        if (repeatLimiter.accept(record, SystemClock.elapsedRealtime())) enqueue(record, throwable)
     }
 
-    private fun forwardToXposed(priority: Int, fullMessage: String, throwable: Throwable?) {
-        val logger = xposed ?: return
-        val task = Runnable {
-            runCatching {
-                if (throwable != null) {
-                    logger.log(priority, TAG, fullMessage, throwable)
-                } else {
-                    logger.log(priority, TAG, fullMessage)
-                }
+    private fun enqueue(record: LogRecord, throwable: Throwable? = null) {
+        val priority = when (record.level) { "E", "F" -> Log.ERROR; "W" -> Log.WARN; "I" -> Log.INFO; else -> Log.DEBUG }
+        if (record.event == "REPEATED" && priority < currentThreshold()) return
+        synchronized(queueLock) {
+            if (records.size >= MAX_PENDING_QUEUE) {
+                // Preserve warnings/errors preferentially, but never allow an error storm to
+                // allocate an unbounded executor queue. Emit the loss count on the next drain.
+                val discard = records.indexOfFirst { it.record.level !in listOf("W", "E", "F") }
+                if (discard >= 0) records.removeAt(discard) else records.removeFirst()
+                dropped++
             }
+            records.addLast(Pending(
+                if (record.event == "REPEATED") record.copy(time = formatter.get()!!.format(Date())) else record,
+                throwable, xposed
+            ))
         }
-        val scheduled = runCatching {
-            getFlushExecutor().schedule(task, 0L, TimeUnit.MILLISECONDS)
-        }.getOrNull()
-        if (scheduled == null) task.run()
-    }
-
-    private fun enqueueLine(line: String, urgent: Boolean) {
-        pendingLines.offer(line)
-        // Bound memory under a DEBUG flood: drop the oldest once the queue exceeds the cap.
-        if (pendingLines.size > MAX_PENDING_QUEUE) {
-            pendingLines.poll()
-        }
-        scheduleFlush(urgent || pendingLines.size >= MAX_PENDING_LINES)
+        scheduleFlush(record.level in listOf("W", "E", "F"))
     }
 
     @Synchronized
     private fun scheduleFlush(immediate: Boolean) {
         val current = pendingFlush
-        if (!immediate && current != null && !current.isDone) return
-        if (immediate && current != null && !current.isDone) {
+        if (current?.isDone == false) {
+            if (!immediate || current.getDelay(TimeUnit.MILLISECONDS) <= 0L) return
             current.cancel(false)
         }
-
-        val delay = if (immediate) 0L else FLUSH_DELAY_MS
         pendingFlush = runCatching {
-            getFlushExecutor().schedule({ flushPendingLines() }, delay, TimeUnit.MILLISECONDS)
-        }.getOrNull()
+            getFlushExecutor().schedule({
+                pendingFlush = null
+                flushPendingLines()
+            }, if (immediate) 0L else FLUSH_DELAY_MS, TimeUnit.MILLISECONDS)
+        }.getOrElse {
+            // The logger's own failures must never re-enter DebugLog.
+            runCatching { Log.e(TAG, "log worker unavailable", it) }
+            null
+        }
     }
 
     @Synchronized
     private fun getFlushExecutor(): ScheduledExecutorService {
-        val current = flushExecutor
-        if (current != null && !current.isShutdown) return current
-
+        flushExecutor?.takeUnless { it.isShutdown }?.let { return it }
         return Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
-        }.also { flushExecutor = it }
+        }.also { executor ->
+            flushExecutor = executor
+            executor.scheduleWithFixedDelay({
+                repeatLimiter.drain(SystemClock.elapsedRealtime()).forEach(::enqueue)
+            }, 60L, 60L, TimeUnit.SECONDS)
+        }
     }
 
+    @Synchronized
     private fun flushPendingLines() {
-        val lines = mutableListOf<String>()
-        while (true) {
-            val line = pendingLines.poll() ?: break
-            lines.add(line)
+        val pending = synchronized(queueLock) {
+            val batch = records.toList()
+            records.clear()
+            if (dropped > 0) {
+                val loss = LogRecord(formatter.get()!!.format(Date()), "W", Process.myPid().toString(),
+                    "DebugLog", "DROPPED", "log queue overflow: dropped=$dropped", process = processTag)
+                dropped = 0
+                batch + Pending(loss, null, xposed)
+            } else batch
         }
-        if (lines.isEmpty()) return
-        runCatching {
-            Preferences.appendDebugLogs(processTag, lines)
+        if (pending.isEmpty()) return
+        val localLines = mutableListOf<String>()
+        for ((record, throwable, logger) in pending) {
+            val priority = when (record.level) { "E", "F" -> Log.ERROR; "W" -> Log.WARN; "I" -> Log.INFO; else -> Log.DEBUG }
+            val text = "${record.scope}: ${record.message}"
+            runCatching { Log.println(priority, TAG, text + if (record.stack.isBlank()) "" else "\n${record.stack}") }
+            if (logger != null) {
+                runCatching {
+                    if (throwable == null) logger.log(priority, TAG, text)
+                    else logger.log(priority, TAG, text, throwable)
+                }.onFailure { runCatching { Log.e(TAG, "LSPosed log forwarding failed", it) } }
+            } else localLines += LogCodec.encode(record)
         }
+        // Hook-side remote preferences are a configuration channel, not a writable log store.
+        // LSPosed owns those records; the app reads them through LsposedLogReader.
+        if (localLines.isNotEmpty()) runCatching { Preferences.appendDebugLogs(processTag, localLines) }
+            .onFailure { runCatching { Log.e(TAG, "app log persistence failed", it) } }
     }
 
-    private fun formatLine(priority: Int, scope: String, message: String, throwable: Throwable?): String {
-        val level = when (priority) {
-            Log.ERROR -> "E"
-            Log.WARN -> "W"
-            Log.INFO -> "I"
-            else -> "D"
-        }
-        val time = formatter.get()!!.format(Date())
-        val stack = throwable?.let { Log.getStackTraceString(it).trimEnd() }.orEmpty()
-        return listOf(
-            "v2",
-            escape(time),
-            escape(level),
-            Process.myPid().toString(),
-            escape(scope),
-            escape(eventFrom(message, throwable)),
-            escape(message),
-            escape(stack)
-        ).joinToString(FIELD_SEPARATOR)
-    }
-
-    private fun eventFrom(message: String, throwable: Throwable?): String {
-        return when {
-            throwable != null -> "FAILED"
-            message.startsWith("HOOK_OK") -> "HOOK_OK"
-            message.startsWith("HOOK_FAILED") -> "HOOK_FAILED"
-            message.startsWith("HOOK_SKIPPED") -> "HOOK_SKIPPED"
-            "failed" in message.lowercase(Locale.US) -> "FAILED"
-            "not found" in message.lowercase(Locale.US) -> "MISSING"
-            "skip" in message.lowercase(Locale.US) -> "SKIPPED"
-            "hooked" in message.lowercase(Locale.US) -> "HOOK_OK"
-            "registered" in message.lowercase(Locale.US) -> "OK"
-            "loaded" in message.lowercase(Locale.US) -> "OK"
-            else -> "INFO"
-        }
-    }
-
-    private fun escape(value: String): String {
-        return value
-            .replace("\\", "\\\\")
-            .replace("\n", "\\n")
-            .replace(FIELD_SEPARATOR, " ")
+    private fun levelName(priority: Int): String = when (priority) {
+        Log.ERROR -> "E"; Log.WARN -> "W"; Log.INFO -> "I"; else -> "D"
     }
 }

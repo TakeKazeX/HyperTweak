@@ -39,7 +39,7 @@ object ThemeManagerRightsCheckHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.allowThirdPartyTheme()) {
-            DebugLog.hookSkipped(TAG, "theme rights check", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "theme rights check", "disabled")
             return
         }
 

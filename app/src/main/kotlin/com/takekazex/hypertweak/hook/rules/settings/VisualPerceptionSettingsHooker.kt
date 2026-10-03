@@ -52,6 +52,6 @@ object VisualPerceptionSettingsHooker : StaticHooker() {
             } }
             count++
         }
-        DebugLog.i(TAG, "forced $count AON capability checks in Settings")
+        DebugLog.d(TAG, "forced $count AON capability checks in Settings")
     }
 }

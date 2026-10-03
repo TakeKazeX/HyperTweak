@@ -58,7 +58,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
             Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
         )
         if (mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) {
-            DebugLog.hookSkipped(TAG, "nsslLockYPosition combine", "mode is system default")
+            DebugLog.hookSkippedDebug(TAG, "nsslLockYPosition combine", "mode is system default")
             return
         }
 

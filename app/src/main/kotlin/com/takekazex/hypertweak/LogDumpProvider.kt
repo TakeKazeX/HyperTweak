@@ -7,7 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Binder
 import android.os.Process
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.LogRepository
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.LogDumpChannel
 import java.io.File
@@ -18,9 +18,9 @@ import java.util.Locale
 /**
  * AI/automation-readable debug-log export.
  *
- * The module's per-process debug logs live in the LSPosed daemon's remote prefs. This provider runs
- * in the module's own process (auto-started on access) and assembles the aggregated log into one
- * text blob with a session header, either returning it over a [call] or writing it to a file. It is
+ * App-owned records and module-identified LSPosed records are assembled by LogRepository.
+ * Framework file access requires root permission granted to the app; its status is included in
+ * every export. App records stay readable when the framework source is unavailable. This is
  * the stable machine interface an agent drives from a shell:
  *
  *   adb shell content call --uri content://com.takekazex.hypertweak.logdump --method dump
@@ -37,7 +37,7 @@ class LogDumpProvider : ContentProvider() {
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? = when (method) {
         LogDumpChannel.METHOD_DUMP -> if (isTrustedCaller()) dump(arg) else null
         LogDumpChannel.METHOD_GET -> Bundle().apply {
-            if (isTrustedCaller()) putString(LogDumpChannel.KEY_DATA, exportText())
+            if (isTrustedCaller()) putString(LogDumpChannel.KEY_DATA, exportText(128_000))
         }.takeIf { isTrustedCaller() }
         else -> null
     }
@@ -49,11 +49,8 @@ class LogDumpProvider : ContentProvider() {
     }
 
     /** Aggregated log with a fresh session header, independent of any per-process log level. */
-    private fun exportText(): String {
-        val log = runCatching { Preferences.getDebugLog() }.getOrDefault("")
-        val header = "# HyperTweak debug log export\n${DebugLog.sessionHeader()}\ntime=${System.currentTimeMillis()}"
-        return if (log.isBlank()) "$header\n(no debug log recorded)"
-        else "$header\n---\n$log"
+    private fun exportText(maxCharacters: Int = Int.MAX_VALUE): String {
+        return LogRepository.export(LogRepository.read(), maxCharacters)
     }
 
     private fun dump(filename: String?): Bundle {
@@ -62,8 +59,13 @@ class LogDumpProvider : ContentProvider() {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val stamped = File(dir, filename?.takeIf { it.isNotBlank() && !it.contains('/') } ?: "hypertweak-logs-$stamp.txt")
         val latest = File(dir, "latest.txt")
-        runCatching { stamped.writeText(text) }
-        runCatching { latest.writeText(text) }
+        try {
+            stamped.writeText(text)
+            latest.writeText(text)
+        } catch (t: Exception) {
+            DebugLog.e("LogDump", "diagnostic export failed", t)
+            return Bundle().apply { putString("error", t.javaClass.simpleName) }
+        }
         return Bundle().apply {
             putString(LogDumpChannel.KEY_PATH, latest.absolutePath)
             putString(LogDumpChannel.KEY_FILE, stamped.absolutePath)

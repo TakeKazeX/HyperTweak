@@ -27,7 +27,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING, false)) {
-            DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "MiTrustService MRM gate", "disabled")
             return
         }
 

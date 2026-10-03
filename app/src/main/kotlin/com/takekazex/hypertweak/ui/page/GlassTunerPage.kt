@@ -187,6 +187,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                     previewBitmap = image.bitmap
                     previewDark = image.darkTheme
                 }.onFailure {
+                    DebugLog.w("GlassTuner", "preview image decode failed", it)
                     Toast.makeText(context, R.string.glass_preview_image_load_failed, Toast.LENGTH_LONG).show()
                 }
             }
@@ -304,7 +305,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                 .orEmpty()
         }.getOrDefault("")
         if (code.isBlank()) {
-            DebugLog.w("GlassTuner", "clipboard preset import rejected: empty clipboard")
+            DebugLog.d("GlassTuner", "clipboard preset import rejected: empty clipboard")
             Toast.makeText(context, R.string.glass_preset_clipboard_empty, Toast.LENGTH_SHORT).show()
             return
         }
@@ -314,7 +315,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
                 DebugLog.i("GlassTuner", "clipboard preset code parsed; awaiting overwrite confirmation")
             }
             .onFailure { error ->
-                DebugLog.e("GlassTuner", "clipboard preset import failed validation", error)
+                if (error is IllegalArgumentException) {
+                    DebugLog.d("GlassTuner", "clipboard preset rejected by validation")
+                } else {
+                    DebugLog.e("GlassTuner", "clipboard preset import failed", error)
+                }
                 Toast.makeText(context, R.string.glass_preset_invalid_code, Toast.LENGTH_LONG).show()
             }
     }

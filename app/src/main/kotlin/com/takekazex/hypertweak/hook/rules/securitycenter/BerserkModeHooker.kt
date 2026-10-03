@@ -26,7 +26,7 @@ object BerserkModeHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false)) {
-            DebugLog.hookSkipped(TAG, "show Berserk mode", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "show Berserk mode", "disabled")
             return
         }
 

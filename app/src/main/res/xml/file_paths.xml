@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Shareable paths for the update provider.
+  Shareable paths for update installation and user-requested log export.
 
-  Only the directory holding a downloaded update APK is exposed, and only as a named subdirectory
-  of filesDir. A `<root-path>` or an external-storage entry would let any activity that receives
+  Only downloaded updates and exported log files are exposed as named subdirectories of filesDir.
+  A `<root-path>` or an external-storage entry would let any activity that receives
   one granted URI walk outside the downloaded package, so neither is declared.
 -->
 <paths>
     <files-path
         name="updates"
         path="updates/" />
+    <files-path
+        name="logs"
+        path="logs/" />
 </paths>

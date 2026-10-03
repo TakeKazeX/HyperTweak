@@ -31,7 +31,7 @@ object GuardProviderEnvironmentCheckHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK, false)) {
-            DebugLog.hookSkipped(TAG, "GuardProvider environment checks", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "GuardProvider environment checks", "disabled")
             return
         }
 

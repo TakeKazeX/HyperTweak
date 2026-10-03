@@ -59,7 +59,7 @@ object HideFingerprintIcon : StaticHooker() {
         hideLockscreenEnabled = Preferences.hideFingerprintLockscreenEnabled()
         hideAppAuthEnabled = Preferences.hideFingerprintAppAuthEnabled()
         if (!hideAodEnabled && !hideLockscreenEnabled && !hideAppAuthEnabled) {
-            DebugLog.hookSkipped("HideFingerprint", "fingerprint icon hooks", "disabled")
+            DebugLog.hookSkippedDebug("HideFingerprint", "fingerprint icon hooks", "disabled")
             return
         }
 

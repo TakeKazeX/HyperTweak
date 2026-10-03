@@ -138,7 +138,7 @@ object GlassMaterialHooker : StaticHooker() {
         glassOpacity = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
         glassTone = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "Resources#get* / View#setMiGlass", "glass tuner disabled")
+            DebugLog.hookSkippedDebug(TAG, "Resources#get* / View#setMiGlass", "glass tuner disabled")
             return
         }
         DebugLog.i(

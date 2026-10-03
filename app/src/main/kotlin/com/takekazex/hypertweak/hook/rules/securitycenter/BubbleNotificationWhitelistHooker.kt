@@ -53,7 +53,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
                 false
             )
         ) {
-            DebugLog.hookSkipped(TAG, "Security Center bubble notification app limit", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "Security Center bubble notification app limit", "disabled")
             return
         }
 

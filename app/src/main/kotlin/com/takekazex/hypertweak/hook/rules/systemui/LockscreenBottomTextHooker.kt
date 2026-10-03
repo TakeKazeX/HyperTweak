@@ -107,7 +107,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "lockscreen bottom text hooks", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "lockscreen bottom text hooks", "disabled")
             return
         }
 

@@ -114,7 +114,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         mediaSwitchVisibilityIds = intArrayOf()
         visibilityGuardLogged.set(false)
         if (!Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
-            DebugLog.hookSkipped(TAG, "media card device switch", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "media card device switch", "disabled")
             return
         }
         installVisibilityGuard()

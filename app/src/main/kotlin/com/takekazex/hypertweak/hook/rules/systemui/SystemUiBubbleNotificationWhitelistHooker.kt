@@ -66,7 +66,7 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
                 false
             )
         ) {
-            DebugLog.hookSkipped(TAG, "SystemUI bubble notification whitelist", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "SystemUI bubble notification whitelist", "disabled")
             return
         }
 

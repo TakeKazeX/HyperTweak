@@ -65,7 +65,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
     fun refreshHotReloadTargets() {
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {
-            DebugLog.w("XposedService", "skip hot reload target query; service=${service != null} api=${service?.apiVersion}")
+            DebugLog.d("XposedService", "skip hot reload target query; service=${service != null} api=${service?.apiVersion}")
             _staleTargetsFlow.value = emptyList()
             return
         }
@@ -108,7 +108,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         val staleTargets = _staleTargetsFlow.value
         val targets = staleTargets
         if (targets.isEmpty()) {
-            DebugLog.w("XposedService", "hot reload requested but no stale targets")
+            DebugLog.d("XposedService", "hot reload requested but no stale targets")
             val report = HotReloadReport(
                 requestedTargets = emptyList(),
                 results = emptyList()

@@ -55,6 +55,6 @@ object AonRuntimeGateHooker : StaticHooker() {
                 DebugLog.w(TAG, "failed to force AON resource 0x${id.toString(16)}", t)
             }
         } }
-        DebugLog.i(TAG, "forcing AON visual-perception runtime gates ${visualPerceptionIds.joinToString { "0x${it.toString(16)}" }}")
+        DebugLog.d(TAG, "forcing AON visual-perception runtime gates ${visualPerceptionIds.joinToString { "0x${it.toString(16)}" }}")
     }
 }

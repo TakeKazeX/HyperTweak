@@ -36,7 +36,7 @@ object VideoRingbackHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PHONE_PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, false)) {
-            DebugLog.hookSkipped(TAG, "video ringback disable", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "video ringback disable", "disabled")
             return
         }
 

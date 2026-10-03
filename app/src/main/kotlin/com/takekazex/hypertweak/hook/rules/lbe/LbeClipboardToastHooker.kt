@@ -74,7 +74,7 @@ object LbeClipboardToastHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, hookParam.packageName, "clipboard Toast disabled")
+            DebugLog.hookSkippedDebug(TAG, hookParam.packageName, "clipboard Toast disabled")
             return
         }
 

@@ -29,7 +29,7 @@ object DetailedPowerDataHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)) {
-            DebugLog.hookSkipped(TAG, "detailed power data", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "detailed power data", "disabled")
             return
         }
 

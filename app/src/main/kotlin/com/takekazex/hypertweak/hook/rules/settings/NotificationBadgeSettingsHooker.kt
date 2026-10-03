@@ -68,7 +68,7 @@ object NotificationBadgeSettingsHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.notificationBadge()) {
-            DebugLog.hookSkipped(TAG, "channel badge checkbox", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "channel badge checkbox", "disabled")
             return
         }
         val baseClass = BASE.toClassOrNull() ?: run {

@@ -46,7 +46,7 @@ object LockscreenAllNotificationsHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
-            DebugLog.hookSkipped(TAG, "lockscreen notification gate", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "lockscreen notification gate", "disabled")
             return
         }
         val manager = SETTINGS_MANAGER.toClassOrNull() ?: run {

@@ -80,7 +80,7 @@ object WifiIconHooker : StaticHooker() {
         if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&
             !paddingEnabled && !activityRight
         ) {
-            DebugLog.hookSkipped(TAG, "WifiIcon", "no icon tuner wifi switches enabled")
+            DebugLog.hookSkippedDebug(TAG, "WifiIcon", "no icon tuner wifi switches enabled")
             return
         }
 

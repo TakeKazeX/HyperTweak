@@ -43,7 +43,7 @@ object NativeRules {
                 System.loadLibrary(LIBRARY_NAME)
                 State.LOADED
             } catch (t: UnsatisfiedLinkError) {
-                DebugLog.w("NativeRules", "native payload unavailable: ${t.message}")
+                DebugLog.w("NativeRules", "native payload unavailable", t)
                 State.UNAVAILABLE
             }
         }
@@ -56,7 +56,7 @@ object NativeRules {
         return try {
             nativeStatus()
         } catch (t: Throwable) {
-            DebugLog.w("NativeRules", "native status query failed: ${t.message}")
+            DebugLog.w("NativeRules", "native status query failed", t)
             null
         }
     }
@@ -93,7 +93,7 @@ object NativeRules {
             )
             true
         } catch (t: Throwable) {
-            DebugLog.w("NativeRules", "native rule switch push failed: ${t.message}")
+            DebugLog.w("NativeRules", "native rule switch push failed", t)
             false
         }
     }

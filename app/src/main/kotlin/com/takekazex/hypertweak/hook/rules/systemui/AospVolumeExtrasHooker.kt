@@ -116,7 +116,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false)) {
-            DebugLog.hookSkipped(TAG, "AOSP volume extras", "AOSP volume panel disabled")
+            DebugLog.hookSkippedDebug(TAG, "AOSP volume extras", "AOSP volume panel disabled")
             return
         }
         enabled = true

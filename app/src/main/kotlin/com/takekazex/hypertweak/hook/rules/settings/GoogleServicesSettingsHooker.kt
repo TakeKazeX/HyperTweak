@@ -35,7 +35,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)) {
-            DebugLog.hookSkipped(TAG, "Settings home Google services entry", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "Settings home Google services entry", "disabled")
             return
         }
 

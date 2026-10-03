@@ -15,11 +15,11 @@ object GlobalSettingsInterfaceHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != SETTINGS_PACKAGE || !isMainProcess) {
-            DebugLog.hookSkipped(TAG, SETTINGS_PACKAGE, "not the Settings main process")
+            DebugLog.hookSkippedDebug(TAG, SETTINGS_PACKAGE, "not the Settings main process")
             return
         }
         if (!Preferences.getBoolean(Preferences.KEY_SETTINGS_GLOBAL_INTERFACE, false)) {
-            DebugLog.hookSkipped(TAG, "international Settings interface", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "international Settings interface", "disabled")
             return
         }
 

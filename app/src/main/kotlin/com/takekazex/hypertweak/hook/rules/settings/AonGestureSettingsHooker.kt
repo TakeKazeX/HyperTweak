@@ -57,7 +57,7 @@ object AonGestureSettingsHooker : StaticHooker() {
             runCatching { ensureExtraRows(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to add extra gesture rows", t) }
         } }
-        DebugLog.i(TAG, "extra AON gesture rows armed on ${clazz.name}#onResume")
+        DebugLog.d(TAG, "extra AON gesture rows armed on ${clazz.name}#onResume")
     }
 
     private fun ensureExtraRows(host: Any) {

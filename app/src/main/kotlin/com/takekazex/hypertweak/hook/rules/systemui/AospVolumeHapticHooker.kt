@@ -116,7 +116,7 @@ object AospVolumeHapticHooker : StaticHooker() {
         if (!Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false) ||
             !Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_HAPTIC_MIUI, false)
         ) {
-            DebugLog.hookSkipped(TAG, "AOSP volume haptic", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "AOSP volume haptic", "disabled")
             return
         }
         enabled = true

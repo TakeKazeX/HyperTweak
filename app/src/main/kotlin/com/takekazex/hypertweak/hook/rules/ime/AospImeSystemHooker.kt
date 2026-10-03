@@ -83,7 +83,7 @@ object AospImeSystemHooker : StaticHooker() {
 
     override fun onHook() {
         if (!AospImeConfig.isEnabled()) {
-            DebugLog.hookSkipped(TAG, "InputMethodManagerService", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "InputMethodManagerService", "disabled")
             return
         }
         hookNavButtonFlags()

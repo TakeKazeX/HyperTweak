@@ -50,7 +50,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         shadeAppIconField = null
         islandAppIconField = null
         if (!Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)) {
-            DebugLog.hookSkipped(TAG, "media card app icon", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "media card app icon", "disabled")
             return
         }
         installShadeHook()

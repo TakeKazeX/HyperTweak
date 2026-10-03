@@ -56,7 +56,7 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
-            DebugLog.hookSkipped(TAG, "per-channel keyguard toggle", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "per-channel keyguard toggle", "disabled")
             return
         }
         val clazz = CHANNEL_SETTINGS.toClassOrNull() ?: run {

@@ -33,7 +33,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, false)) {
-            DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "GuardProvider app-list upload", "disabled")
             return
         }
 

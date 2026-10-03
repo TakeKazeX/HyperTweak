@@ -40,7 +40,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
                 false
             )
         ) {
-            DebugLog.hookSkipped(TAG, "SecurityCore bubble app list", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "SecurityCore bubble app list", "disabled")
             return
         }
 

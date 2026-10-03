@@ -58,7 +58,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!hasAnyFeatureEnabled()) {
-            DebugLog.hookSkipped(TAG, "native privacy and camera entries", "no overrides selected")
+            DebugLog.hookSkippedDebug(TAG, "native privacy and camera entries", "no overrides selected")
             return
         }
 

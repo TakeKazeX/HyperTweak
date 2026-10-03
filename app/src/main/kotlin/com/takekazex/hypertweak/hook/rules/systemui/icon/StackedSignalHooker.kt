@@ -301,7 +301,7 @@ object StackedSignalHooker : StaticHooker() {
             ControlCenterCarrierBlockHooker.requiresMobileState
         typeConfig = readTypeConfig()
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "StackedSignal", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "StackedSignal", "disabled")
             return
         }
         if (!installed.compareAndSet(false, true)) return
@@ -513,7 +513,7 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         adapterFlowsReady = true
-        DebugLog.i(TAG, "stacked signal adapter flows bound")
+        DebugLog.d(TAG, "stacked signal adapter flows bound")
         scheduleRender(bindingGeneration)
     }
 
@@ -546,7 +546,7 @@ object StackedSignalHooker : StaticHooker() {
         // the Dagger Provider too early can eagerly initialize unrelated startables during boot.
         val adapter = findExistingAdapter(allowProvider = adapterDiscoveryAttempt >= 3)
         if (adapter != null) {
-            DebugLog.i(TAG, "recovered existing MobileUiAdapter from SysUI component")
+            DebugLog.d(TAG, "recovered existing MobileUiAdapter from SysUI component")
             runCatching { setupAdapter(adapter) }
                 .onFailure { DebugLog.w(TAG, "existing stacked adapter setup failed", it) }
             return
@@ -1037,7 +1037,7 @@ object StackedSignalHooker : StaticHooker() {
         MobileSignalVisibility.setHiddenForSubIds(
             state.replacementMask(published, options.ignoreSystemHide)
         )
-        DebugLog.i(
+        DebugLog.d(
             TAG,
             "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}"
         )
@@ -1141,7 +1141,7 @@ object StackedSignalHooker : StaticHooker() {
                 if (!stillCurrent) return@post
                 if (assets != null) {
                     signalAssets = assets
-                    DebugLog.i(
+                    DebugLog.d(
                         TAG,
                         "signal SVG assets ready style=HyperOS3"
                     )
@@ -1217,7 +1217,7 @@ object StackedSignalHooker : StaticHooker() {
             typeFade.snap(visible = false, apply = publish)
             typeFade.animate(visible = true, apply = publish)
         }
-        DebugLog.i(TAG, "cellular type published text=${output.text} bitmap=${bitmap.width}x${bitmap.height}")
+        DebugLog.d(TAG, "cellular type published text=${output.text} bitmap=${bitmap.width}x${bitmap.height}")
     }
 
     /** Drops the type slot through the fade, so no queued frame can land on a removed holder. */

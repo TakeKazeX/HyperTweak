@@ -43,7 +43,7 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
             if (Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false)) add(VOLUME_DIALOG_PLUGIN)
         }
         if (blockedClasses.isEmpty()) {
-            DebugLog.hookSkipped(TAG, "MIUI SystemUI plugins", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "MIUI SystemUI plugins", "disabled")
             return
         }
 

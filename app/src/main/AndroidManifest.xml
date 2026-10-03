@@ -151,9 +151,9 @@
             android:grantUriPermissions="false"
             tools:ignore="ExportedContentProvider" />
 
-        <!-- Hands a downloaded update APK to the system installer. Not exported: the file URI is
-             only ever granted to the installer through the explicit intent in UpdateInstaller, and
-             `file_paths.xml` exposes nothing beyond filesDir/updates/. -->
+        <!-- Shares downloaded updates with the installer and exported logs with the user's
+             selected share target. Not exported; each intent grants read access to one file.
+             `file_paths.xml` exposes only filesDir/updates/ and filesDir/logs/. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.takekazex.hypertweak.fileprovider"

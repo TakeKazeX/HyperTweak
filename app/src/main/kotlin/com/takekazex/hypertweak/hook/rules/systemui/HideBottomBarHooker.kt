@@ -48,7 +48,7 @@ object HideBottomBarHooker : StaticHooker() {
         hideGestureBarEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
         raiseLayoutEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
         if (!hideGestureBarEnabled) {
-            DebugLog.hookSkipped("HideBottomBar", "gesture bar hooks", "disabled")
+            DebugLog.hookSkippedDebug("HideBottomBar", "gesture bar hooks", "disabled")
             return
         }
 

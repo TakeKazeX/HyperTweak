@@ -51,6 +51,6 @@ object AdaptiveRefreshSettingsHooker : StaticHooker() {
                 DebugLog.w(TAG, "failed to force $PROP_PWM_SWITCH in Settings", t)
             }
         } }
-        DebugLog.i(TAG, "armed $PROP_PWM_SWITCH -> true for the 显示与亮度 mimotion_pwm_enable row")
+        DebugLog.d(TAG, "armed $PROP_PWM_SWITCH -> true for the 显示与亮度 mimotion_pwm_enable row")
     }
 }

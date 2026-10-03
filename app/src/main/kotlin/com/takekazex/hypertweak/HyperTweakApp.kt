@@ -19,6 +19,7 @@ class HyperTweakApp : Application() {
         val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
+        DebugLog.ensureSession()
 
         // Republish the native rule flags on every start so the launcher-side payload sees the
         // current state even when the last write came from an older build.

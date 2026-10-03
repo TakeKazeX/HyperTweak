@@ -134,7 +134,7 @@ object PowerButtonCtsHooker : StaticHooker() {
 
     override fun onHook() {
         if (Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_DISABLED) {
-            DebugLog.hookSkipped(SCOPE, "power button long press", "action disabled")
+            DebugLog.hookSkippedDebug(SCOPE, "power button long press", "action disabled")
             return
         }
         // The MIUI layer is the one that owns the key on this baseline; its hook is installed
@@ -178,7 +178,7 @@ object PowerButtonCtsHooker : StaticHooker() {
                     // This dispatcher serves every MIUI single-key rule; only the power key is ours.
                     if (readEventKeyCode(event) != KEYCODE_POWER) return@before
                     if (readEventType(event) != GESTURE_TYPE_LONG_PRESS) return@before
-                    DebugLog.i(
+                    DebugLog.d(
                         SCOPE,
                         "MIUI power long press observed enabled=${dispatchEnabled()}"
                     )
@@ -529,7 +529,7 @@ object PowerButtonCtsHooker : StaticHooker() {
                 HAPTIC_LONG_PRESS_POWER_BUTTON,
                 "HyperTweak - Power Long Press"
             )
-            DebugLog.i(SCOPE, "power long press haptic played")
+            DebugLog.d(SCOPE, "power long press haptic played")
         }.onFailure { t ->
             DebugLog.w(SCOPE, "power long press haptic failed", t)
         }

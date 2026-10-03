@@ -203,7 +203,7 @@ class AodStatusIconHooker : DynamicHooker() {
         val battery = currentBattery(root)
         val binding = bindings[root] ?: Binding(root, icon, percent, battery).also {
             bindings[root] = it
-            DebugLog.i(TAG, "bound AOD battery row; duo=${AodIconSettings.current().duo}")
+            DebugLog.d(TAG, "bound AOD battery row; duo=${AodIconSettings.current().duo}")
         }
         if (binding.battery == null) binding.battery = battery
         refresh(binding)
@@ -311,7 +311,7 @@ class AodStatusIconHooker : DynamicHooker() {
         binding.wrapper = frame
         binding.duoView = duo
         binding.composed = true
-        DebugLog.i(TAG, "composed AOD Duo row")
+        DebugLog.d(TAG, "composed AOD Duo row")
     }
 
     private fun renderDuo(binding: Binding, content: DuoContent, settings: AodIconSettings) {

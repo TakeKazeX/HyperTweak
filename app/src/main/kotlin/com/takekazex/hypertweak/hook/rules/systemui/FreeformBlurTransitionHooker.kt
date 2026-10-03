@@ -146,7 +146,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.freeformBlurTransition()
         if (!enabled) {
-            DebugLog.hookSkipped(TAG, "freeform blur transition", "disabled")
+            DebugLog.hookSkippedDebug(TAG, "freeform blur transition", "disabled")
             return
         }
 

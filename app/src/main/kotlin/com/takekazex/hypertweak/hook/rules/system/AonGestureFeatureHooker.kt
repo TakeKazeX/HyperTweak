@@ -81,7 +81,7 @@ object AonGestureFeatureHooker : StaticHooker() {
                     fieldInt(host, "mTofGestureDoublePressSupportFeature")
             }.onFailure { t -> DebugLog.w(TAG, "failed to widen AON gesture mask", t) }
         } }
-        DebugLog.i(TAG, "AON left/right + double-press gesture features armed")
+        DebugLog.d(TAG, "AON left/right + double-press gesture features armed")
     }
 
     private fun isAonController(host: Any): Boolean =
