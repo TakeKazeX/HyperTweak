@@ -1408,7 +1408,7 @@
     <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">Keep three-in-one</string>
     <string name="icon_duo_native">Restore original icons</string>
-    <string name="icon_duo_preview">Preview: normal Wi-Fi, charging 5G, low battery 4G, battery saver 5G-A</string>
+    <string name="icon_duo_preview">Preview: normal Wi-Fi, charging 5G, low battery 4G, battery saver 5GA</string>
     <string name="icon_duo_advanced">Advanced customization</string>
     <string name="icon_duo_ring_scale">Power ring (%)</string>
     <string name="icon_duo_wifi_scale">Wi-Fi (%)</string>

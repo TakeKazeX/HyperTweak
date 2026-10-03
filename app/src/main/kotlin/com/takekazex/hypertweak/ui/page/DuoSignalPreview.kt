@@ -40,7 +40,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
             DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
             DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false, cellularSignalLevels = listOf(3, 2)),
             DuoContent(DuoBattery(15, false, false), null, "4G", 2, false, false),
-            DuoContent(DuoBattery(45, false, true), null, "5G-A", 4, false, false),
+            DuoContent(DuoBattery(45, false, true), null, "5GA", 4, false, false),
             DuoContent(DuoBattery(75, false, false), 3, null, 0, false, false, airplaneMode = true)
         ).map { state ->
             DuoDrawable(context).apply {

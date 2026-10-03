@@ -1402,7 +1402,7 @@
     <string name="icon_duo_size_unit">dp</string>
     <string name="icon_duo_keep">保持三合一</string>
     <string name="icon_duo_native">恢复原本图标</string>
-    <string name="icon_duo_preview">样式预览：普通 Wi-Fi、充电 5G、低电量 4G、省电 5G-A</string>
+    <string name="icon_duo_preview">样式预览：普通 Wi-Fi、充电 5G、低电量 4G、省电 5GA</string>
     <string name="icon_duo_advanced">高级自定义</string>
     <string name="icon_duo_ring_scale">电量环 (%)</string>
     <string name="icon_duo_wifi_scale">Wi-Fi (%)</string>

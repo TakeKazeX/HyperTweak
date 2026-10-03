@@ -65,6 +65,9 @@ object IconPositionHooker : StaticHooker() {
     @Volatile
     private var restoring = false
     private var applyingNativeVisibility = false
+    private var applyingNativeViewVisibility = false
+    private val nativeViewVisibility = NativeViewVisibilityMask(View.GONE)
+    private var mobileViewClass: Class<*>? = null
 
     private val networkVisibility = LinkedHashMap<Class<*>, Method>()
     private val networkSlotFields = HashMap<Class<*>, Field?>()
@@ -183,6 +186,7 @@ object IconPositionHooker : StaticHooker() {
                     Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
             }?.apply { isAccessible = true } ?: return@forEach
             networkVisibility[type] = method
+            if (name.endsWith(".ModernStatusBarMobileView")) mobileViewClass = type
             networkSlotFields[type] = findField(type, "slot")
             deoptimize(method)
             method.hook { before { param ->
@@ -201,7 +205,42 @@ object IconPositionHooker : StaticHooker() {
                 }
             } }
         }
+        hookNativeMobileVisibility()
         DebugLog.i(TAG, "IconPosition hooks installed")
+    }
+
+    /** MIUI's binder writes View visibility independently of the icon container's visible state. */
+    private fun hookNativeMobileVisibility() {
+        val method = View::class.java.getDeclaredMethod("setVisibility", Int::class.javaPrimitiveType)
+        deoptimize(method)
+        method.hook {
+            before { param ->
+                if (applyingNativeViewVisibility || Looper.myLooper() != Looper.getMainLooper()) return@before
+                val view = param.thisObject as? View ?: return@before
+                val type = mobileViewClass ?: return@before
+                if (!type.isInstance(view)) return@before
+                runCatching {
+                    val container = view.parent ?: return@runCatching
+                    val slot = networkSlotFields[type]?.get(view) as? String ?: return@runCatching
+                    val requested = param.args[0] as? Int ?: return@runCatching
+                    param.args[0] = nativeViewVisibility.hostRequest(
+                        view, requested, slot in maskSlotsFor(container)
+                    )
+                }.onFailure { DebugLog.w(TAG, "native mobile visibility mask failed", it) }
+            }
+        }
+    }
+
+    private fun reconcileNativeMobileVisibility(view: View, masked: Boolean) {
+        if (mobileViewClass?.isInstance(view) != true) return
+        val visibility = nativeViewVisibility.reconcile(view, view.visibility, masked)
+        if (view.visibility == visibility) return
+        applyingNativeViewVisibility = true
+        try {
+            view.visibility = visibility
+        } finally {
+            applyingNativeViewVisibility = false
+        }
     }
 
     private fun hookStatusBarIconListFactory() {
@@ -537,6 +576,7 @@ object IconPositionHooker : StaticHooker() {
             val child = group.getChildAt(index)
             val entry = networkVisibility.entries.firstOrNull { it.key.isInstance(child) } ?: continue
             val slot = networkSlotFields[entry.key]?.get(child) as? String ?: continue
+            reconcileNativeMobileVisibility(child, slot in slots)
             if (slot in slots) {
                 if (!state.nativeVisibleStates.containsKey(child)) {
                     readNativeVisibleState(child)?.let { state.nativeVisibleStates[child] = it }
