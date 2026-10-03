@@ -2,6 +2,11 @@
 #include "dart_rule_support.h"
 
 #include "logging.h"
+#include "dart_resolution_cache.h"
+#include "native_store.h"
+#include <pthread.h>
+#include <time.h>
+#include <stdio.h>
 
 #include <string.h>
 
@@ -14,84 +19,69 @@ bool MiuiHomeHyosResolveDartImage(void* dart_handle, uint8_t** base_out,
 namespace hypertweak::native {
 namespace {
 
-// Resolution costs a full scan of the launcher's executable segments (tens of
-// megabytes, several passes). The rules call this from the input maintenance
-// path on every action-down, so an uncached resolve there blocks the launcher's
-// input thread and produced a real "Input dispatching timed out" ANR. Results --
-// including failures -- are therefore memoized per (image base, spec): the image
-// cannot change without its base changing, so a base match is a valid identity.
-//
-// Failures are cached deliberately. A site that cannot be found stays unfound
-// until the image changes, and retrying the full scan on every gesture is exactly
-// what made the device unresponsive.
+// Full scans are permitted only on the preparation worker. Input callbacks do
+// a bounded cache lookup and byte check, then wait for a later input boundary.
 constexpr size_t kMaxCacheEntries = 8u;
-
-// The identity of a resolved image. `base` alone is not enough: a launcher remap
-// can unmap and reload the snapshot at the same address, and the cached offsets
-// would then describe a build that is no longer there. The 32-byte GNU build-id
-// note is what distinguishes the two, so it is part of the key.
-//
-// This is a cache identity, not a gate. Resolution itself stays build
-// independent -- a new build simply misses the cache and is re-resolved.
-constexpr size_t kImageIdentitySize = 32u;
-
+constexpr size_t kImageIdentitySize = kDartIdentitySize;
 struct CacheEntry {
     uint8_t* base;
     const dart::TargetSpec* spec;
     uint8_t identity[kImageIdentitySize];
-    bool identity_valid;
     DartResolution result;
+    uint32_t attempts;
+    uint64_t retry_after;
 };
-
-CacheEntry g_cache[kMaxCacheEntries];
-uint32_t g_cache_ready[kMaxCacheEntries] = {};
+CacheEntry g_cache[kMaxCacheEntries]{};
 size_t g_cache_next = 0u;
-
-bool IdentityMatches(const CacheEntry& entry, bool identity_valid,
-                     const uint8_t* identity) {
-    if (entry.identity_valid != identity_valid) return false;
-    if (!identity_valid) return true;
-    if (identity == nullptr) return false;
-    return memcmp(entry.identity, identity, kImageIdentitySize) == 0;
+pthread_mutex_t g_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+thread_local bool g_allow_scan = false;
+uint64_t NowNs() {
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return static_cast<uint64_t>(now.tv_sec) * 1000000000ull + now.tv_nsec;
 }
-
-const DartResolution* CacheLookup(uint8_t* base, const dart::TargetSpec* spec,
-                                  const uint8_t* identity) {
-    const bool identity_valid = identity != nullptr;
-    for (size_t index = 0u; index < kMaxCacheEntries; ++index) {
-        if (__atomic_load_n(&g_cache_ready[index], __ATOMIC_ACQUIRE) == 0u) {
-            continue;
-        }
-        if (g_cache[index].base != base || g_cache[index].spec != spec) {
-            continue;
-        }
-        if (!IdentityMatches(g_cache[index], identity_valid, identity)) {
-            continue;
-        }
-        return &g_cache[index].result;
+bool SameKey(const CacheEntry& entry, uint8_t* base,
+             const dart::TargetSpec& spec, const uint8_t* identity) {
+    return identity != nullptr && entry.base == base && entry.spec == &spec &&
+           memcmp(entry.identity, identity, kImageIdentitySize) == 0;
+}
+bool CacheLookup(uint8_t* base, const dart::TargetSpec& spec,
+                 const uint8_t* identity, DartResolution* result) {
+    bool found = false;
+    pthread_mutex_lock(&g_cache_lock);
+    for (const auto& entry : g_cache) {
+        if (!SameKey(entry, base, spec, identity)) continue;
+        // A failed scan can be retried after settling, at most three times per
+        // image/configuration generation. Never persist negative results.
+        if (g_allow_scan && !entry.result.located && entry.attempts < 3u &&
+            NowNs() >= entry.retry_after) break;
+        *result = entry.result;
+        found = true;
+        break;
     }
-    return nullptr;
+    pthread_mutex_unlock(&g_cache_lock);
+    return found;
 }
-
-void CacheStore(uint8_t* base, const dart::TargetSpec* spec,
+void CacheStore(uint8_t* base, const dart::TargetSpec& spec,
                 const uint8_t* identity, const DartResolution& result) {
-    // Plain round-robin over fixed slots. A concurrent store can only cost one
-    // redundant resolve, never a wrong answer, because every entry is keyed by
-    // the image base, the build identity and the spec, and is published with a
-    // release store.
-    const size_t slot = g_cache_next % kMaxCacheEntries;
-    ++g_cache_next;
-    __atomic_store_n(&g_cache_ready[slot], 0u, __ATOMIC_RELEASE);
-    g_cache[slot].base = base;
-    g_cache[slot].spec = spec;
-    g_cache[slot].identity_valid = identity != nullptr;
-    if (identity != nullptr) {
-        memcpy(g_cache[slot].identity, identity, kImageIdentitySize);
-    } else {
-        memset(g_cache[slot].identity, 0, kImageIdentitySize);
+    if (identity == nullptr) return;
+    pthread_mutex_lock(&g_cache_lock);
+    size_t slot = kMaxCacheEntries;
+    for (size_t i = 0u; i < kMaxCacheEntries; ++i) {
+        if (SameKey(g_cache[i], base, spec, identity)) { slot = i; break; }
     }
-    g_cache[slot].result = result;
-    __atomic_store_n(&g_cache_ready[slot], 1u, __ATOMIC_RELEASE);
+    if (slot == kMaxCacheEntries) {
+        slot = g_cache_next++ % kMaxCacheEntries;
+        g_cache[slot] = CacheEntry{};
+    }
+    auto& entry = g_cache[slot];
+    entry.base = base;
+    entry.spec = &spec;
+    memcpy(entry.identity, identity, kImageIdentitySize);
+    entry.result = result;
+    ++entry.attempts;
+    entry.retry_after = NowNs() + 1000000000ull;
+    pthread_mutex_unlock(&g_cache_lock);
 }
 
 // Logs one line per site so a device-side failure names the stage and the
@@ -154,11 +144,16 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
         out->reason = "dart_image_unresolved";
         return false;
     }
+    if (!ValidDartCacheIdentity(build_id)) {
+        out->reason = "dart_identity_rejected";
+        return false;
+    }
 
     // Memoized: this runs on the launcher's input thread.
-    if (const DartResolution* cached = CacheLookup(base, &spec, build_id)) {
-        *out = *cached;
-        return cached->located;
+    if (CacheLookup(base, spec, build_id, out)) return out->located;
+    if (!g_allow_scan) {
+        out->reason = "dart_preparation_pending";
+        return false;
     }
 
     dart::Image image{};
@@ -180,7 +175,27 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
                 image.loads[index].flags);
     }
 
-    const dart::TargetResult result = dart::ResolveTarget(image, spec);
+    dart::TargetResult result{};
+    DartCacheRecord record{};
+    char cache_name[64];
+    snprintf(cache_name, sizeof(cache_name), "%s.cache", spec.id);
+    const bool exists = ReadNativeRecord(cache_name, &record, sizeof(record));
+    const bool restored = exists && DecodeDartCache(image, spec, build_id,
+                                HYPERTWEAK_NATIVE_VERSION, record, &result);
+    if (restored) {
+        LogInfo("dart persistent cache restored: %s", spec.id);
+    } else {
+        if (exists) {
+            DeleteNativeRecord(cache_name);
+            LogInfo("dart persistent cache invalidated: %s", spec.id);
+        }
+        result = dart::ResolveTarget(image, spec);
+        if (EncodeDartCache(image, spec, build_id, HYPERTWEAK_NATIVE_VERSION,
+                            result, &record)) {
+            LogInfo("dart persistent cache saved: %s success=%d", spec.id,
+                    WriteNativeRecord(cache_name, &record, sizeof(record)) ? 1 : 0);
+        }
+    }
     if (!result.resolved) {
         LogResult(result);
         // The failing site's name is static (it lives in the spec), so it is safe
@@ -188,7 +203,7 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
         // and the log never see a dangling pointer.
         out->reason = "dart_site_not_found";
         out->failing_site = result.reason;
-        CacheStore(base, &spec, build_id, *out);
+        CacheStore(base, spec, build_id, *out);
         return false;
     }
 
@@ -213,8 +228,31 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
     out->base = base;
     out->located = true;
     out->reason = "resolved";
-    CacheStore(base, &spec, build_id, *out);
+    CacheStore(base, spec, build_id, *out);
     return true;
 }
 
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns) {
+    g_allow_scan = true;
+    DartResolution result{};
+    bool success = true;
+    if (clear_button) success = ResolveDartSites(handle, dart::kRecentsClearButtonTarget, &result);
+    if (folder_columns) success = ResolveDartSites(handle, dart::kFolderColumnsTarget, &result) && success;
+    g_allow_scan = false;
+    return success;
+}
+void InvalidateFailedDartRuleTargets() {
+    pthread_mutex_lock(&g_cache_lock);
+    for (auto& entry : g_cache) if (!entry.result.located) entry = CacheEntry{};
+    pthread_mutex_unlock(&g_cache_lock);
+}
+void ResetDartRulePreparationAfterFork() {
+    // Successful offsets remain valid only after the normal image/build-id check.
+    pthread_mutex_t fresh = PTHREAD_MUTEX_INITIALIZER;
+    g_cache_lock = fresh;
+    g_allow_scan = false;
+    for (auto& entry : g_cache) if (!entry.result.located) entry = CacheEntry{};
+}
+void LockDartRulePreparationForFork() { pthread_mutex_lock(&g_cache_lock); }
+void UnlockDartRulePreparationAfterFork() { pthread_mutex_unlock(&g_cache_lock); }
 }  // namespace hypertweak::native

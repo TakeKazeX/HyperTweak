@@ -71,6 +71,7 @@ android {
                 // `c++_static` keeps libc++ inside the payload: the launcher
                 // process must not need an extra shared runtime from the APK.
                 arguments.add("-DANDROID_STL=c++_static")
+                arguments.add("-DHYPERTWEAK_NATIVE_VERSION=${explicitVersionCode ?: commitCount}")
                 targets.add("hypertweak_native")
             }
         }

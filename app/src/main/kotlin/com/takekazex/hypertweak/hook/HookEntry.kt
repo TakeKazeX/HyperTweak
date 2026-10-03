@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.Context
 import com.takekazex.hypertweak.hook.base.BaseHooker
@@ -153,6 +154,35 @@ class HookEntry : XposedModule() {
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
     private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
     private val preferenceRetryGeneration = AtomicLong(0L)
+    private val nativeRuleStatePublisher by lazy { NativeRuleStatePublisher() }
+    @Volatile private var nativeSettingsSource: SharedPreferences? = null
+    @Volatile private var nativeSettingsReady = false
+    private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key == Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON ||
+            key == Preferences.KEY_OPENED_FOLDER_COLUMNS ||
+            key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == "prefs_epoch") {
+            // A change notification must bypass the normal short-lived read memo.
+            Preferences.invalidateRuntimeReadCache()
+            publishNativeRuleSwitches()
+        }
+    }
+
+    private fun detachNativeSettingsListener() {
+        nativeSettingsSource?.let { source ->
+            runCatching { source.unregisterOnSharedPreferenceChangeListener(nativeSettingsListener) }
+        }
+        nativeSettingsSource = null
+    }
+
+    private fun bindNativeSettingsListener(source: SharedPreferences) {
+        if ((processName != LAUNCHER_PACKAGE && processName != "com.android.systemui") ||
+            nativeSettingsSource === source) return
+        detachNativeSettingsListener()
+        runCatching {
+            source.registerOnSharedPreferenceChangeListener(nativeSettingsListener)
+            nativeSettingsSource = source
+        }.onFailure { DebugLog.w("NativeRules", "native settings listener unavailable", it) }
+    }
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
     private var systemServerClassLoader: ClassLoader? = null
@@ -247,6 +277,11 @@ class HookEntry : XposedModule() {
             )
 
             handlePackageReadyContext(param.packageName, param.classLoader)
+            if (processName == LAUNCHER_PACKAGE) {
+                // The early daemon binding may have failed before package readiness.
+                if (nativeSettingsSource == null) tryInitPreferences()
+                publishNativeRuleSwitches()
+            }
 
             if (param.packageName == "com.android.systemui") {
                 HideBottomBarHooker.onPackageReady(packageStates[param.packageName]?.appContext, param.classLoader)
@@ -286,6 +321,9 @@ class HookEntry : XposedModule() {
             rootHookers.clear()
             param.setSavedInstanceState(hyperTweakState)
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
+            detachNativeSettingsListener()
+            nativeSettingsReady = false
+            if (processName == "com.android.systemui") nativeRuleStatePublisher.close()
             DebugLog.prepareForHotReload()
         }.onFailure { t ->
             DexKitManager.cancelHotReloadPreparation()
@@ -310,6 +348,7 @@ class HookEntry : XposedModule() {
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
         initPreferences()
+        publishNativeRuleSwitches()
         DebugLog.ensureSession()
         val restoredState = HotReloadState.restore(param.savedInstanceState)
         val oldHandles = HotReloadHandleStore(param.oldHookHandles)
@@ -528,6 +567,7 @@ class HookEntry : XposedModule() {
             BatteryInfoHooker.onPackageReady(appContext)
         }
         if (packageName == "com.android.systemui") {
+            if (nativeSettingsReady) nativeRuleStatePublisher.attach(appContext)
             ProxyLaunchHooker.register(appContext)
             ExtendUnlockHooker.syncTrustAgent(appContext)
             StackedSignalHooker.onPackageReady(appContext)
@@ -562,6 +602,7 @@ class HookEntry : XposedModule() {
                 BatteryInfoHooker.onPackageReady(appContext)
             }
             if (state.packageName == "com.android.systemui") {
+                if (nativeSettingsReady) nativeRuleStatePublisher.attach(appContext)
                 ProxyLaunchHooker.register(appContext)
                 ExtendUnlockHooker.syncTrustAgent(appContext)
                 StackedSignalHooker.onPackageReady(appContext)
@@ -646,6 +687,15 @@ class HookEntry : XposedModule() {
      * this call is what actually reaches the rules — see [NativeRules.applyRuleSwitches].
      */
     private fun publishNativeRuleSwitches() {
+        // An unavailable daemon must not overwrite the last good native snapshot
+        // with default values during boot. The successful bind/retry publishes it.
+        if (!nativeSettingsReady) return
+        if (processName == "com.android.systemui") {
+            val context = packageStates[processName]?.appContext
+            if (context != null) nativeRuleStatePublisher.attach(context)
+            nativeRuleStatePublisher.publish()
+            return
+        }
         if (processName != LAUNCHER_PACKAGE) return
         runCatching {
             NativeRules.applyRuleSwitches(
@@ -663,9 +713,12 @@ class HookEntry : XposedModule() {
         return try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
+            bindNativeSettingsListener(remotePrefs)
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
+            nativeSettingsReady = true
             true
         } catch (t: Throwable) {
+            nativeSettingsReady = false
             Preferences.noteRemoteBackendUnavailable()
             DebugLog.e("HookEntry", "failed to init Preferences (remote channel unavailable; using cache fallback)", t)
             false

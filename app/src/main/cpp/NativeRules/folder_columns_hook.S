@@ -15,6 +15,12 @@
     .type HyperTweakFolderColumnsHook, %function
 HyperTweakFolderColumnsHook:
     bti c
+    // This site precedes the native `add x0, x0, #6`. Remember the native
+    // result independently of the module override so disable can restore it.
+    add x17, x0, #6
+    adrp x16, hypertweak_folder_native_columns_smi
+    add x16, x16, :lo12:hypertweak_folder_native_columns_smi
+    stlr x17, [x16]
     adrp x16, hypertweak_folder_columns_hits
     add x16, x16, :lo12:hypertweak_folder_columns_hits
     ldr w17, [x16]
@@ -67,6 +73,79 @@ HyperTweakFolderPreviewSetItemsHook:
     ldar x16, [x16]
     br x16
     .size HyperTweakFolderPreviewSetItemsHook, .-HyperTweakFolderPreviewSetItemsHook
+
+    // Replay the validated onFolderOpen entry and synchronize the late static
+    // on the owning Dart thread, before the host rebuilds positions and layout.
+    // The three temporary frame slots are overwritten by the original body.
+    // No Dart/GC object pointer escapes this boundary and no C++ call is made.
+    .global HyperTweakFolderOpenHook
+    .hidden HyperTweakFolderOpenHook
+    .type HyperTweakFolderOpenHook, %function
+HyperTweakFolderOpenHook:
+    bti c
+    stp x29, x30, [x15, #-0x10]!
+    mov x29, x15
+    adrp x16, hypertweak_folder_open_frame_size
+    add x16, x16, :lo12:hypertweak_folder_open_frame_size
+    ldar x16, [x16]
+    sub x15, x15, x16
+    mov x0, x2
+    mrs x16, nzcv
+    stur x16, [x29, #-24]
+    adrp x16, hypertweak_folder_columns_field_offset
+    add x16, x16, :lo12:hypertweak_folder_columns_field_offset
+    ldar x16, [x16]
+    ldr x17, [x26, #0x78]
+    add x16, x17, x16
+    stur x16, [x29, #-8]
+    ldr x17, [x16]
+    // A sentinel/heap reference must still be initialized by the host. Only
+    // recognized SMI column counts can be replaced without a GC write barrier.
+    cmp x17, #6
+    b.eq .Lfolder_cache_valid
+    cmp x17, #8
+    b.eq .Lfolder_cache_valid
+    cmp x17, #10
+    b.ne .Lfolder_open_resume
+.Lfolder_cache_valid:
+    stur x17, [x29, #-16]
+    adrp x16, hypertweak_folder_native_columns_smi
+    add x16, x16, :lo12:hypertweak_folder_native_columns_smi
+    ldar x17, [x16]
+    cbnz x17, .Lfolder_native_known
+    ldur x17, [x29, #-16]
+    cmp x17, #10
+    b.eq .Lfolder_open_resume
+    stlr x17, [x16]
+.Lfolder_native_known:
+    adrp x16, hypertweak_folder_columns_enabled
+    add x16, x16, :lo12:hypertweak_folder_columns_enabled
+    ldar w17, [x16]
+    cbnz w17, .Lfolder_cache_override
+    adrp x16, hypertweak_folder_native_columns_smi
+    add x16, x16, :lo12:hypertweak_folder_native_columns_smi
+    ldar x17, [x16]
+    b .Lfolder_cache_write
+.Lfolder_cache_override:
+    adrp x16, hypertweak_folder_columns_smi
+    add x16, x16, :lo12:hypertweak_folder_columns_smi
+    ldar x17, [x16]
+.Lfolder_cache_write:
+    ldur x16, [x29, #-8]
+    stlr x17, [x16]
+    adrp x16, hypertweak_folder_cache_sync_hits
+    add x16, x16, :lo12:hypertweak_folder_cache_sync_hits
+    ldr w17, [x16]
+    add w17, w17, #1
+    str w17, [x16]
+.Lfolder_open_resume:
+    ldur x16, [x29, #-24]
+    msr nzcv, x16
+    adrp x16, hypertweak_folder_open_continuation
+    add x16, x16, :lo12:hypertweak_folder_open_continuation
+    ldar x16, [x16]
+    br x16
+    .size HyperTweakFolderOpenHook, .-HyperTweakFolderOpenHook
 
     // Match the C++ objects' BTI/PAC/GCS GNU property declaration.
     .section .note.gnu.property,"a",%note

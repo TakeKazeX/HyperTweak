@@ -49,6 +49,9 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/dart_image.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_targets.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_rule_support.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/dart_resolution_cache.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/native_store.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/native_rule_runtime.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/lsposed_hook_backend.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/runtime_profile_resolver.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_runtime_resolver.cpp"
@@ -98,4 +101,9 @@ target_link_libraries(${HYPERTWEAK_NATIVE_TARGET} PRIVATE log dl lsplt::lsplt)
 set_target_properties(${HYPERTWEAK_NATIVE_TARGET} PROPERTIES
     CXX_EXTENSIONS OFF
     OUTPUT_NAME "${HYPERTWEAK_NATIVE_TARGET}"
+)
+
+# Persisted offsets are invalidated on module version changes as well as AOT identity.
+target_compile_definitions(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
+    HYPERTWEAK_NATIVE_VERSION=${HYPERTWEAK_NATIVE_VERSION}
 )

@@ -5,6 +5,7 @@
 #include "logging.h"
 #include "lsposed_hook_backend.h"
 #include "native_config.h"
+#include "native_rule_runtime.h"
 
 #include <dlfcn.h>
 #include <stdint.h>
@@ -37,6 +38,9 @@ volatile uint32_t g_installed = 0u;
 volatile uint32_t g_applying = 0u;
 const char* volatile g_reason = "not_attempted";
 void* g_target = nullptr;
+uint8_t g_installed_patch[16]{};
+uint8_t g_original_site[16]{};
+const uint8_t* g_target_base = nullptr;
 void* g_last_dart_handle = nullptr;
 volatile uintptr_t g_target_address = 0u;
 
@@ -80,7 +84,8 @@ struct DartTarget {
 };
 
 bool ResolveDartTarget(void* handle, DartTarget* output) {
-    if (handle == nullptr || output == nullptr) return false;
+    if (output == nullptr) return false;
+    if (handle == nullptr) { SetReason("dart_image_unresolved"); return false; }
     output->base = nullptr;
     output->address = 0u;
     output->verify = {nullptr, nullptr, 0u};
@@ -91,8 +96,9 @@ bool ResolveDartTarget(void* handle, DartTarget* output) {
                           &resolution)) {
         // The reason is a static string chosen by the adapter; the failing site
         // is static too, so both are safe to keep and log.
+        const char* previous = __atomic_load_n(&g_reason, __ATOMIC_ACQUIRE);
         SetReason(resolution.reason);
-        if (resolution.failing_site != nullptr) {
+        if (resolution.failing_site != nullptr && previous != resolution.reason) {
             LogWarn("clear button target unresolved: %s (%s site %s)",
                     resolution.reason, dart::kRecentsClearButtonTarget.id,
                     resolution.failing_site);
@@ -127,12 +133,11 @@ bool IsOriginalBytesPresent(const DartTarget& target) {
 void* ResolveHandleForApply(void* supplied_handle, bool* close_handle) {
     if (close_handle != nullptr) *close_handle = false;
     if (supplied_handle != nullptr) return supplied_handle;
+    if (void* current = NativeRuleCurrentDartHandle()) return current;
     if (g_last_dart_handle != nullptr) return g_last_dart_handle;
     void* handle = MiuiHomeHyosCurrentDartHandle();
     if (handle != nullptr) return handle;
-    handle = dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
-    if (handle != nullptr && close_handle != nullptr) *close_handle = true;
-    return handle;
+    return nullptr; // Only the preparation worker may query the loader.
 }
 
 }  // namespace
@@ -170,6 +175,15 @@ bool ApplyClearButtonRule(void* dart_handle) {
             SetReason("disabled");
             return true;
         }
+        const uintptr_t address = reinterpret_cast<uintptr_t>(g_target);
+        const uintptr_t base = reinterpret_cast<uintptr_t>(g_target_base);
+        if (g_target_base == nullptr || address < base ||
+            !MiuiHomeHyosDartRangeHasFlags(g_target_base, address - base, 16u, 5u) ||
+            (memcmp(g_target, g_installed_patch, 16u) != 0 &&
+             memcmp(g_target, g_original_site, 16u) != 0)) {
+            SetReason("foreign_patch_detected");
+            return false;
+        }
         if (RemoveInlineHook(g_target) != kHookSuccess) {
             SetReason("unhook_failed");
             return false;
@@ -197,8 +211,11 @@ bool ApplyClearButtonRule(void* dart_handle) {
     // bytes present" means the patch was lost and has to be reapplied.
     const bool original_bytes_present = IsOriginalBytesPresent(current);
     if (installed && same_target && !original_bytes_present) {
-        SetReason("installed");
-        return true;
+        const bool owned = memcmp(g_installed_patch,
+                                  reinterpret_cast<const void*>(current.address),
+                                  sizeof(g_installed_patch)) == 0;
+        SetReason(owned ? "installed" : "foreign_patch_detected");
+        return owned;
     }
     if (!original_bytes_present) {
         SetReason("target_bytes_mismatch");
@@ -219,6 +236,8 @@ bool ApplyClearButtonRule(void* dart_handle) {
         SetReason("remap_detected");
     }
 
+    memcpy(g_original_site, reinterpret_cast<const void*>(current.address), 16u);
+    g_target_base = current.base;
     void* original = nullptr;
     if (InstallInlineHook(
                 reinterpret_cast<void*>(current.address),
@@ -229,6 +248,7 @@ bool ApplyClearButtonRule(void* dart_handle) {
     }
     __atomic_store_n(&g_target_address, current.address, __ATOMIC_RELEASE);
     g_target = reinterpret_cast<void*>(current.address);
+    memcpy(g_installed_patch, g_target, sizeof(g_installed_patch));
     __atomic_store_n(&g_installed, uint32_t{1}, __ATOMIC_RELEASE);
     SetReason("installed");
     LogInfo("clear button rule installed for %s; recents overlay insertion is suppressed",

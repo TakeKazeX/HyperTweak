@@ -16,6 +16,18 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
+
+```sh
+python3 app/src/test/cpp/run_dart_rule_cache_test.py /absolute/path/to/verified/libapp.so
+```
+
+It covers cache identity and corruption, relocation, readiness/input deferral, repeated application, remap recovery, preservation of another owner's patch, and the event-generation gate including self-generated library notifications. The executable and compiler output are temporary; target artifacts remain outside the repository.
+
+For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the NativeRules include directory and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
+
+For folder Dart shim/register/stack changes, compile and execute `app/src/test/cpp/folder_columns_abi_test.cpp`, `folder_columns_abi_test.S` and the actual `folder_columns_hook.S` using the same Android NDK target and static runtime. This verifies the real assembly with synthetic Dart thread/static storage, including cache changes, native-default restoration, sentinels and receiver/argument/NZCV preservation. Host hook stubs cannot establish these ABI properties; actual folder open/close, Home return and preview acceptance remain manual.
+
 Combine selected tasks in one invocation where useful; do not separately repeat compilation already covered by a selected task. Preserve the requested build channel. Use `BUILD_CHANNEL=stable` only for stable-channel builds, not every release-variant check.
 
 Fix failures caused by the change and rerun affected checks. Report unrelated failures or unavailable dependencies accurately; they do not justify unrelated repairs or repeated identical attempts. A code-delivery task can finish with explicitly pending manual acceptance; a request to prove device behavior cannot be marked verified without that evidence.

@@ -8,6 +8,7 @@
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
 #include "native_config.h"
+#include "native_rule_runtime.h"
 
 #include <jni.h>
 #include <stdio.h>
@@ -20,7 +21,7 @@ jstring BuildStatus(JNIEnv* env) {
     char buffer[kStatusBufferSize];
     snprintf(buffer, sizeof(buffer),
              "clearButton=%s/%s target=0x%zx hits=%u "
-             "folderColumns=%d/%s target=0x%zx hits=%u config=%s",
+             "folderColumns=%d/%s target=0x%zx hits=%u config=%s source=%s",
              hypertweak::native::ClearButtonHiddenRequested() ? "hide" : "keep",
              hypertweak::native::ClearButtonRuleReason(),
              static_cast<size_t>(hypertweak::native::ClearButtonTargetAddress()),
@@ -29,7 +30,8 @@ jstring BuildStatus(JNIEnv* env) {
              hypertweak::native::FolderColumnsRuleReason(),
              static_cast<size_t>(hypertweak::native::FolderColumnsTargetAddress()),
              hypertweak::native::FolderColumnsHookHits(),
-             hypertweak::native::ConfigChannelPath());
+             hypertweak::native::ConfigChannelPath(),
+             hypertweak::native::NativeRuleRuntimeSource());
     return env->NewStringUTF(buffer);
 }
 
@@ -52,17 +54,16 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeStatus(JNIEnv* env, jobject
 // so the file values never reach the rules. The module's Java is injected into
 // the launcher, so it hands the values over here instead.
 //
-// Safe to call from any thread; the launcher rules read the state when they
-// apply (contextual search at each trigger, the two Dart rules on their next
-// action-down maintenance pass).
+// Safe to call from any thread. The runtime persists this Preferences snapshot
+// in the launcher's own DE directory and wakes its preparation worker. The two
+// Dart rules install at a subsequent input/load boundary, never on this JNI call.
 extern "C" JNIEXPORT void JNICALL
 Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
         JNIEnv* env, jobject thiz, jboolean hide_recents_clear, jint folder_columns,
         jboolean contextual_search_long_press) {
     (void)env;
     (void)thiz;
-    hypertweak::native::SetClearButtonHidden(hide_recents_clear == JNI_TRUE);
-    hypertweak::native::SetFolderColumns(static_cast<int32_t>(folder_columns));
-    HyperTweakSetContextualSearchLongPress(
+    hypertweak::native::UpdateNativeRuleSettings(
+            hide_recents_clear == JNI_TRUE, static_cast<int32_t>(folder_columns),
             contextual_search_long_press == JNI_TRUE);
 }

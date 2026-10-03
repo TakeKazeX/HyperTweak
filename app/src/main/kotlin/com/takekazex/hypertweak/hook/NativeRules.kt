@@ -74,6 +74,9 @@ object NativeRules {
      * module's Java is injected into the launcher too, so it reads the preferences through the
      * remote channel and passes them here.
      *
+     * The launcher runtime saves the received snapshot in its own device-encrypted storage,
+     * so boot does not depend on the unavailable shared-media file. Preparation runs on a
+     * native worker; installation follows at the next input/load maintenance boundary.
      * Returns false when the payload is not loaded in this process. Never throws.
      */
     fun applyRuleSwitches(

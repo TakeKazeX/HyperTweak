@@ -5,6 +5,8 @@
 #include "dart_state_publication.h"
 #include "launcher_profiles.h"
 #include "native_config.h"
+#include "native_rule_runtime.h"
+#include "native_rule_events.h"
 #include "launcher_profiles.generated.h"
 #include "runtime_profile_resolver.h"
 
@@ -136,6 +138,8 @@ __attribute__((used, visibility("hidden")))
 volatile uint32_t g_dart_state_publish_dispatcher_state = 0;
 
 }
+
+extern "C" bool HyperTweakIsLauncherProcess();
 
 namespace {
 
@@ -597,8 +601,9 @@ void ResetDartStateOwnerForProcess(int32_t process_pid) {
                      __ATOMIC_RELEASE);
     __atomic_store_n(&g_dart_state_publish_dispatcher_state, uint32_t{0},
                      __ATOMIC_RELEASE);
-    __atomic_store_n(&g_dart_state_owner_pid, process_pid, __ATOMIC_RELEASE);
     g_last_dart_maintenance_down = 0u;
+    hypertweak::native::ResetNativeRuleRuntimeAfterFork();
+    __atomic_store_n(&g_dart_state_owner_pid, process_pid, __ATOMIC_RELEASE);
 }
 
 void ResetDartStateOwnerAfterFork() {
@@ -1403,6 +1408,65 @@ void HookBroadcastReceiverOnReceive(void* receiver, void* context, void* intent)
         return;
     }
     (void)TryCallOriginalBroadcastReceiverOnReceive(receiver, context, intent);
+}
+
+// Settings transport uses the receiver *dispatch PLT*, not the upstream's
+// receiver inline hook or private send GOT. Forwarding stays intact regardless
+// of whether the independently installed upstream hooks the callee before/after us.
+void* g_native_rule_receiver_original = nullptr;
+uint32_t g_native_rule_bridge_state = 0u;
+
+bool ObserveNativeRuleSettingsIntent(void* intent) {
+    if (intent == nullptr || !IntentActionEquals(intent, kArbiterStateCarrierAction)) return false;
+    const auto get_sender = ResolveLauncherSymbol<IntentGetSenderPackageFn>("Intent_get_sender_package_name");
+    const auto get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>("Intent_get_extras");
+    if (get_sender == nullptr || get_extras == nullptr) return false;
+    const auto sender = get_sender(intent);
+    if (sender.tag != 0u || sender.data == nullptr || sender.length != ConstStringLength(kSystemUiPackage) ||
+        memcmp(sender.data, kSystemUiPackage, sender.length) != 0) return false;
+    void* extras = get_extras(intent);
+    int32_t schema = 0, uid = -1, columns = 3;
+    int64_t revision = 0;
+    bool hidden = false, contextual = false;
+    if (!ReadNativeI32(extras, "hypertweak_rule_schema", &schema) || schema != 2 ||
+        !ReadNativeI32(extras, "sender_uid", &uid) || !VerifySystemUiUid(uid) ||
+        !ReadNativeI64(extras, "hypertweak_rule_revision", &revision) || revision <= 0 ||
+        !ReadNativeBool(extras, "hypertweak_rule_hide_clear", &hidden) ||
+        !ReadNativeI32(extras, "hypertweak_rule_folder_columns", &columns) ||
+        !ReadNativeBool(extras, "hypertweak_rule_contextual_search", &contextual)) return false;
+    return hypertweak::native::ReceiveNativeRuleSettings(hidden, columns, contextual, revision);
+}
+void HookNativeRuleReceiverDispatch(void* receiver, void* context, void* intent) {
+    const auto original = reinterpret_cast<BroadcastReceiverOnReceiveFn>(
+            __atomic_load_n(&g_native_rule_receiver_original, __ATOMIC_ACQUIRE));
+    if (original == nullptr) return;
+    // Xiaomi and any upstream receiver observer always get the unchanged call first.
+    original(receiver, context, intent);
+    if (!HyperTweakIsLauncherProcess()) return;
+    bool accepted = false;
+    {
+        hypertweak::native::NativeRuleLibraryQuery internal;
+        accepted = ObserveNativeRuleSettingsIntent(intent);
+    }
+    if (accepted) hypertweak::native::ApplyPreparedNativeRules();
+}
+void TryInstallNativeRuleSettingsBridge() {
+    if (!IsLauncherHookProcess() || AtomicLoad(&g_native_rule_bridge_state) == 3u) return;
+    uint32_t expected = 0u;
+    if (!__atomic_compare_exchange_n(&g_native_rule_bridge_state, &expected, 1u, false,
+                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;
+    hypertweak::native::NativeRuleLibraryQuery internal;
+    auto* resolver = NewNativeSymbolResolver(kBroadcastPrivatePath, nullptr);
+    void* base = resolver == nullptr ? nullptr : GetNativeBaseAddress(resolver);
+    void** slot = resolver == nullptr ? nullptr : LookupNativePltSlot(resolver, kBroadcastReceiverOnReceiveSymbol);
+    const bool installed = base != nullptr && slot != nullptr &&
+            InstallPltHook(base, kBroadcastReceiverOnReceiveSymbol,
+                           reinterpret_cast<void*>(HookNativeRuleReceiverDispatch),
+                           &g_native_rule_receiver_original) == kHookSuccess &&
+            g_native_rule_receiver_original != nullptr;
+    if (resolver != nullptr) FreeNativeSymbolResolver(resolver);
+    AtomicStore(&g_native_rule_bridge_state, installed ? uint32_t{3} : uint32_t{0});
+    if (installed) Log(ANDROID_LOG_INFO, "installed independent native rule settings receiver dispatch");
 }
 
 bool AddBundleBool(void* bundle, const char* key, bool value) {
@@ -3285,30 +3349,33 @@ void* HookLauncherDlopenForSlot(
     if (original == nullptr) return nullptr;
     void* result = original(filename, flags);
     if (result != nullptr && IsDartLibraryPath(filename)) {
-        const auto* profile = ResolveDartFeatureProfile(result);
-        if (profile != nullptr) {
-            TryInstallDartDrawerStateHook(result, profile);
-            TryInstallDartOverviewStateHook(result, profile);
-            TryInstallDartEditingStateHook(result, profile);
-        } else {
-            const auto* launcher = CurrentLauncherProfile();
-            const uint32_t dart_stage = AtomicLoad(
-                    &g_dart_profile_resolve_state);
-            if (launcher != nullptr && g_launcher_base != nullptr &&
-                    StringsEqual(launcher->id, "runtime-side-v1") &&
-                    dart_stage >= static_cast<uint32_t>(
-                            miui_home_dart_profile::ResolveStage::
-                                    kRejectedElf)) {
-                if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{1}) {
-                    __atomic_store_n(&g_overview_state_hook_state,
-                                     uint32_t{2}, __ATOMIC_RELEASE);
-                }
-                if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{1}) {
-                    __atomic_store_n(&g_editing_state_hook_state,
-                                     uint32_t{2}, __ATOMIC_RELEASE);
+        if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) != 0u) {
+            const auto* profile = ResolveDartFeatureProfile(result);
+            if (profile != nullptr) {
+                TryInstallDartDrawerStateHook(result, profile);
+                TryInstallDartOverviewStateHook(result, profile);
+                TryInstallDartEditingStateHook(result, profile);
+            } else {
+                const auto* launcher = CurrentLauncherProfile();
+                const uint32_t dart_stage = AtomicLoad(
+                        &g_dart_profile_resolve_state);
+                if (launcher != nullptr && g_launcher_base != nullptr &&
+                        StringsEqual(launcher->id, "runtime-side-v1") &&
+                        dart_stage >= static_cast<uint32_t>(
+                                miui_home_dart_profile::ResolveStage::
+                                        kRejectedElf)) {
+                    if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{1}) {
+                        __atomic_store_n(&g_overview_state_hook_state,
+                                         uint32_t{2}, __ATOMIC_RELEASE);
+                    }
+                    if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{1}) {
+                        __atomic_store_n(&g_editing_state_hook_state,
+                                         uint32_t{2}, __ATOMIC_RELEASE);
+                    }
                 }
             }
         }
+        hypertweak::native::ObserveNativeRuleDartLibrary(result);
         hypertweak::native::OnClearButtonLibraryLoaded(filename, result);
         hypertweak::native::OnFolderColumnsLibraryLoaded(filename, result);
     }
@@ -3329,6 +3396,13 @@ void* HookLauncherDlopen3(const char* filename, int flags) {
 }
 
 void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
+    hypertweak::native::RequestNativeRulePreparation();
+    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
+        // Our rules do not own the upstream Dart state family. In particular,
+        // never perform that family's full resolver scan on our input path.
+        hypertweak::native::ApplyPreparedNativeRules();
+        return;
+    }
     RepairBusinessHooksIfRemapped(slot_index);
     EnsureDartStatePublisherThread();
     const auto* profile = CurrentDartFeatureProfile();
@@ -4951,6 +5025,7 @@ void BackfillLoadedLibraries() {
 }
 
 void OnLsposedLibraryLoaded(const char* name, void* handle) {
+    if (hypertweak::native::NativeRuleLibraryQueryActive()) return;
     if (name == nullptr || handle == nullptr) return;
     if (IsLauncherProcess() &&
             !EnsureDartStateOwnerForCurrentProcess()) {
@@ -4982,7 +5057,8 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
         }
     }
 
-    if (IsDartLibraryPath(name) && IsLauncherHookProcess()) {
+    if (IsDartLibraryPath(name) && IsLauncherHookProcess() &&
+        __atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) != 0u) {
         const auto* profile = ResolveDartFeatureProfile(handle);
         if (profile != nullptr) {
             TryInstallDartDrawerStateHook(handle, profile);
@@ -4990,6 +5066,10 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
             TryInstallDartEditingStateHook(handle, profile);
         }
     }
+    if (IsDartLibraryPath(name)) hypertweak::native::ObserveNativeRuleDartLibrary(handle);
+    if (IsLauncherHookProcess() && (StringsEqual(name, kBroadcastPrivatePath) ||
+        EndsWith(name, "/libhyper_os_broadcast_private.dylib.so") ||
+        IsLauncherLibraryPath(name))) TryInstallNativeRuleSettingsBridge();
     hypertweak::native::OnClearButtonLibraryLoaded(name, handle);
     hypertweak::native::OnFolderColumnsLibraryLoaded(name, handle);
     TryInstallArbiterBridge();
@@ -5076,6 +5156,21 @@ bool MiuiHomeHyosDartRangeHasFlags(const uint8_t* base, uintptr_t offset,
 //
 // Internal to the library: the JNI entry point in jni_bridge.cpp is what the
 // module calls, and exports.map keeps every other symbol local.
+extern "C" bool HyperTweakIsLauncherProcess() {
+    // Cache per PID: child specialization changes cmdline after fork.
+    static int32_t cached_pid = 0;
+    static uint32_t cached_launcher = 0u;
+    const int32_t pid = static_cast<int32_t>(getpid());
+    if (__atomic_load_n(&cached_pid, __ATOMIC_ACQUIRE) == pid &&
+        __atomic_load_n(&cached_launcher, __ATOMIC_RELAXED) != 0u) return true;
+    const bool launcher = IsLauncherProcess();
+    if (launcher && !EnsureDartStateOwnerForCurrentProcess()) return false;
+    if (launcher) {
+        __atomic_store_n(&cached_launcher, 1u, __ATOMIC_RELAXED);
+        __atomic_store_n(&cached_pid, pid, __ATOMIC_RELEASE);
+    }
+    return launcher;
+}
 extern "C" void HyperTweakSetContextualSearchLongPress(bool enabled) {
     __atomic_store_n(&g_contextual_search_enabled,
                      enabled ? uint32_t{1} : uint32_t{0}, __ATOMIC_RELEASE);
@@ -5119,7 +5214,9 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
                 &g_dart_state_atfork_state, &atfork_expected, uint32_t{1},
                 false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         const int atfork_result = pthread_atfork(
-                nullptr, nullptr, ResetDartStateOwnerAfterFork);
+                hypertweak::native::PrepareNativeRulesForFork,
+                hypertweak::native::ResumeNativeRulesAfterFork,
+                ResetDartStateOwnerAfterFork);
         __atomic_store_n(&g_dart_state_atfork_state,
                          atfork_result == 0 ? uint32_t{3} : uint32_t{6},
                          __ATOMIC_RELEASE);

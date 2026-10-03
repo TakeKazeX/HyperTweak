@@ -6,9 +6,9 @@
 #include "logging.h"
 #include "lsposed_hook_backend.h"
 #include "native_config.h"
+#include "native_rule_runtime.h"
 
 #include <dlfcn.h>
-#include <elf.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -22,6 +22,18 @@ __attribute__((used, visibility("hidden")))
 volatile uint32_t hypertweak_folder_columns_hits = uint32_t{0};
 __attribute__((used, visibility("hidden")))
 volatile uintptr_t hypertweak_folder_preview_set_items_continuation = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uintptr_t hypertweak_folder_open_continuation = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uint64_t hypertweak_folder_open_frame_size = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uint64_t hypertweak_folder_columns_field_offset = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uint64_t hypertweak_folder_native_columns_smi = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uint32_t hypertweak_folder_columns_enabled = 0u;
+__attribute__((used, visibility("hidden")))
+volatile uint32_t hypertweak_folder_cache_sync_hits = 0u;
 }
 
 // Implemented in folder_columns_hook.S.
@@ -29,6 +41,7 @@ extern "C" void HyperTweakFolderColumnsHook();
 extern "C" void HyperTweakFolderPreviewIconColumnsHook();
 extern "C" void HyperTweakFolderPreviewItemsMaxCountHook();
 extern "C" void HyperTweakFolderPreviewSetItemsHook();
+extern "C" void HyperTweakFolderOpenHook();
 
 namespace hypertweak::native {
 namespace {
@@ -65,9 +78,16 @@ volatile uint32_t g_installed = 0u;
 volatile uint32_t g_applying = 0u;
 const char* volatile g_reason = "not_attempted";
 void* g_target = nullptr;
+uint8_t g_installed_patch[1u + kPreviewTargetCount][16]{};
+uint8_t g_original_sites[1u + kPreviewTargetCount][16]{};
+const uint8_t* g_target_base = nullptr;
 void* g_preview_targets[kPreviewTargetCount] = {};
 void* g_last_dart_handle = nullptr;
 volatile uintptr_t g_target_address = 0u;
+void* g_open_target = nullptr;
+const uint8_t* g_open_base = nullptr;
+uint8_t g_open_patch[16]{};
+uint8_t g_open_original[16]{};
 
 void SetReason(const char* reason) {
     __atomic_store_n(&g_reason, reason, __ATOMIC_RELEASE);
@@ -107,11 +127,14 @@ struct DartTarget {
     uintptr_t address;              // grid return epilogue
     uintptr_t preview[kPreviewTargetCount];
     uintptr_t preview_continuation;
+    uintptr_t cache_reader;
+    uintptr_t folder_open;
     DartResolution resolution;
 };
 
 bool ResolveDartTarget(void* handle, DartTarget* output) {
-    if (handle == nullptr || output == nullptr) return false;
+    if (output == nullptr) return false;
+    if (handle == nullptr) { SetReason("dart_image_unresolved"); return false; }
     output->base = nullptr;
     output->address = 0u;
     output->preview_continuation = 0u;
@@ -122,8 +145,9 @@ bool ResolveDartTarget(void* handle, DartTarget* output) {
 
     if (!ResolveDartSites(handle, dart::kFolderColumnsTarget,
                           &output->resolution)) {
+        const char* previous = __atomic_load_n(&g_reason, __ATOMIC_ACQUIRE);
         SetReason(output->resolution.reason);
-        if (output->resolution.failing_site != nullptr) {
+        if (output->resolution.failing_site != nullptr && previous != output->resolution.reason) {
             LogWarn("opened folder columns target unresolved: %s (%s site %s)",
                     output->resolution.reason, dart::kFolderColumnsTarget.id,
                     output->resolution.failing_site);
@@ -134,12 +158,15 @@ bool ResolveDartTarget(void* handle, DartTarget* output) {
     output->address = output->resolution.Find(kSiteGridReturn);
     output->preview_continuation =
             output->resolution.Find(kSitePreviewContinuation);
+    output->cache_reader = output->resolution.Find("cache_reader");
+    output->folder_open = output->resolution.Find("folder_open");
     for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
         output->preview[index] = output->resolution.Find(kPreviewSites[index]);
     }
     // Find() returns 0 for a missing name. The registry resolves every required
     // site or fails, so a zero here means the spec and this table disagree.
-    if (output->address == 0u || output->preview_continuation == 0u) {
+    if (output->address == 0u || output->preview_continuation == 0u ||
+        output->cache_reader == 0u || output->folder_open == 0u) {
         SetReason("dart_site_missing");
         return false;
     }
@@ -189,6 +216,18 @@ bool HasInstalledHookState() {
 }
 
 bool RemoveInstalledHooks() {
+    void* targets[1u + kPreviewTargetCount] = {g_target};
+    for (size_t i = 0u; i < kPreviewTargetCount; ++i) targets[i + 1u] = g_preview_targets[i];
+    const uintptr_t base = reinterpret_cast<uintptr_t>(g_target_base);
+    // Validate the complete owned set before retiring any one site.
+    for (size_t i = 0u; i < 1u + kPreviewTargetCount; ++i) {
+        if (targets[i] == nullptr) continue;
+        const uintptr_t address = reinterpret_cast<uintptr_t>(targets[i]);
+        if (g_target_base == nullptr || address < base ||
+            !MiuiHomeHyosDartRangeHasFlags(g_target_base, address - base, 16u, 5u) ||
+            (memcmp(targets[i], g_installed_patch[i], 16u) != 0 &&
+             memcmp(targets[i], g_original_sites[i], 16u) != 0)) return false;
+    }
     bool success = true;
     if (g_target != nullptr) {
         if (RemoveInlineHook(g_target) == kHookSuccess) {
@@ -213,15 +252,67 @@ bool RemoveInstalledHooks() {
     return true;
 }
 
+bool OpenHookOwnedOrOriginal() {
+    if (g_open_target == nullptr) return true;
+    const uintptr_t address = reinterpret_cast<uintptr_t>(g_open_target);
+    const uintptr_t base = reinterpret_cast<uintptr_t>(g_open_base);
+    return g_open_base != nullptr && address >= base &&
+           MiuiHomeHyosDartRangeHasFlags(g_open_base, address - base, 16u, 5u) &&
+           (memcmp(g_open_target, g_open_patch, 16u) == 0 ||
+            memcmp(g_open_target, g_open_original, 16u) == 0);
+}
+
+bool EnsureOpenHook(const DartTarget& target) {
+    if (!OpenHookOwnedOrOriginal()) { SetReason("foreign_patch_detected"); return false; }
+    if (g_open_target == reinterpret_cast<void*>(target.folder_open) &&
+        memcmp(g_open_target, g_open_patch, 16u) == 0) return true;
+    if (!target.resolution.MatchVerify("folder_open") ||
+        !target.resolution.MatchVerify("cache_reader")) {
+        SetReason("folder_cache_contract_mismatch"); return false;
+    }
+    uint32_t load = 0u, frame = 0u;
+    memcpy(&load, reinterpret_cast<const void*>(target.cache_reader + 4u), 4u);
+    memcpy(&frame, reinterpret_cast<const void*>(target.folder_open + 8u), 4u);
+    uintptr_t offset = 0u;
+    if (!dart::IsLoadX0FromX0(load, &offset) || offset == 0u || offset > 0x10000u ||
+        (offset & 7u) != 0u || (frame & 0xffc003ffu) != 0xd10001efu) {
+        SetReason("folder_cache_operands_rejected"); return false;
+    }
+    const uint64_t frame_size = (frame >> 10u) & 0xfffu;
+    if (frame_size < 24u || frame_size > 0x1000u) {
+        SetReason("folder_frame_rejected"); return false;
+    }
+    if (g_open_target != nullptr && RemoveInlineHook(g_open_target) != kHookSuccess) {
+        SetReason("folder_open_unhook_failed"); return false;
+    }
+    g_open_target = nullptr;
+    __atomic_store_n(&hypertweak_folder_columns_field_offset, offset, __ATOMIC_RELEASE);
+    __atomic_store_n(&hypertweak_folder_open_frame_size, frame_size, __ATOMIC_RELEASE);
+    __atomic_store_n(&hypertweak_folder_open_continuation, target.folder_open + 16u, __ATOMIC_RELEASE);
+    if (g_open_base != target.base) {
+        __atomic_store_n(&hypertweak_folder_native_columns_smi, uint64_t{0}, __ATOMIC_RELEASE);
+    }
+    memcpy(g_open_original, reinterpret_cast<const void*>(target.folder_open), 16u);
+    void* original = nullptr;
+    if (InstallInlineHook(reinterpret_cast<void*>(target.folder_open),
+        reinterpret_cast<void*>(&HyperTweakFolderOpenHook), &original) != kHookSuccess || original == nullptr) {
+        SetReason("folder_open_hook_failed"); return false;
+    }
+    g_open_target = reinterpret_cast<void*>(target.folder_open);
+    g_open_base = target.base;
+    memcpy(g_open_patch, g_open_target, 16u);
+    LogInfo("opened folder cache boundary installed; static field offset=0x%zx", static_cast<size_t>(offset));
+    return true;
+}
+
 void* ResolveHandleForApply(void* supplied_handle, bool* close_handle) {
     if (close_handle != nullptr) *close_handle = false;
     if (supplied_handle != nullptr) return supplied_handle;
+    if (void* current = NativeRuleCurrentDartHandle()) return current;
     if (g_last_dart_handle != nullptr) return g_last_dart_handle;
     void* current = MiuiHomeHyosCurrentDartHandle();
     if (current != nullptr) return current;
-    current = dlopen(kDartLibraryName, RTLD_NOW | RTLD_NOLOAD);
-    if (current != nullptr && close_handle != nullptr) *close_handle = true;
-    return current;
+    return nullptr; // Only the preparation worker may query the loader.
 }
 
 int32_t NormalizeColumns(int32_t columns) {
@@ -237,6 +328,8 @@ void SetFolderColumns(int32_t columns) {
     __atomic_store_n(&hypertweak_folder_columns_smi,
                      static_cast<uint64_t>(normalized) << 1u,
                      __ATOMIC_RELEASE);
+    __atomic_store_n(&hypertweak_folder_columns_enabled,
+                     normalized != kDefaultFolderColumns ? 1u : 0u, __ATOMIC_RELEASE);
     LogInfo("opened folder columns requested=%d", normalized);
 }
 
@@ -265,6 +358,9 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
     const bool installed = __atomic_load_n(&g_installed, __ATOMIC_ACQUIRE) != 0u ||
             HasInstalledHookState();
     if (columns == kDefaultFolderColumns) {
+        // Retain the passive Dart boundary after disabling: the next open
+        // restores the saved native SMI before layout reads the cached column.
+        if (!OpenHookOwnedOrOriginal()) { SetReason("foreign_patch_detected"); return false; }
         if (!installed) {
             SetReason("disabled");
             return true;
@@ -286,6 +382,7 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
     if (close_handle && handle != nullptr) dlclose(handle);
     if (!resolved) return false;
     if (handle != nullptr && !close_handle) g_last_dart_handle = handle;
+    if (!EnsureOpenHook(current)) return false;
 
     // Addresses come straight from the registry, which already proved each site
     // unique and verified its bytes. Copying them into a local array keeps the
@@ -315,8 +412,29 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
     all_targets_patched = all_targets_patched &&
             !IsOriginalBytesPresent(current.resolution, kSitePreviewSetItems);
     if (all_targets_patched) {
-        SetReason("installed");
-        return true;
+        bool owned = memcmp(g_installed_patch[0], reinterpret_cast<const void*>(current.address), 16u) == 0;
+        for (size_t i = 0u; i < kPreviewTargetCount; ++i) {
+            owned = owned && memcmp(g_installed_patch[i + 1u],
+                                   reinterpret_cast<const void*>(preview_addresses[i]), 16u) == 0;
+        }
+        SetReason(owned ? "installed" : "foreign_patch_detected");
+        return owned;
+    }
+    if (same_installation) {
+        // A partial remap can restore some sites. Do not retire a trampoline
+        // whose target was changed by another owner instead of by that remap.
+        if (!IsOriginalBytesPresent(current.resolution, kSiteGridReturn) &&
+            memcmp(g_installed_patch[0], reinterpret_cast<const void*>(current.address), 16u) != 0) {
+            SetReason("foreign_patch_detected");
+            return false;
+        }
+        for (size_t i = 0u; i < kPreviewTargetCount; ++i) {
+            if (!IsOriginalBytesPresent(current.resolution, kPreviewSites[i]) &&
+                memcmp(g_installed_patch[i + 1u], reinterpret_cast<const void*>(preview_addresses[i]), 16u) != 0) {
+                SetReason("foreign_patch_detected");
+                return false;
+            }
+        }
     }
 
     if (installed) {
@@ -347,6 +465,11 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
 
     __atomic_store_n(&hypertweak_folder_preview_set_items_continuation,
                      preview_set_items_continuation, __ATOMIC_RELEASE);
+    g_target_base = current.base;
+    memcpy(g_original_sites[0], reinterpret_cast<const void*>(current.address), 16u);
+    for (size_t i = 0u; i < kPreviewTargetCount; ++i) {
+        memcpy(g_original_sites[i + 1u], reinterpret_cast<const void*>(preview_addresses[i]), 16u);
+    }
     void* original = nullptr;
     if (InstallInlineHook(
                 reinterpret_cast<void*>(current.address),
@@ -356,6 +479,7 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
         return false;
     }
     g_target = reinterpret_cast<void*>(current.address);
+    memcpy(g_installed_patch[0], g_target, 16u);
 
     for (size_t index = 0u; index < kPreviewTargetCount; ++index) {
         void* unused_original = nullptr;
@@ -369,6 +493,7 @@ bool ApplyFolderColumnsRule(void* dart_handle) {
         }
         g_preview_targets[index] =
                 reinterpret_cast<void*>(preview_addresses[index]);
+        memcpy(g_installed_patch[index + 1u], g_preview_targets[index], 16u);
     }
 
     __atomic_store_n(&g_target_address, current.address, __ATOMIC_RELEASE);

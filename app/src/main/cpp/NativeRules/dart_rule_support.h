@@ -64,10 +64,17 @@ struct DartResolution {
     bool MatchVerify(const char* name) const;
 };
 
-// Resolves and verifies every site of `spec` against the Dart image mapped behind
-// `dart_handle`. Returns true only when all required sites resolved and their
-// verification bytes are present.
+// Consumes a prepared resolution for the validated image behind `dart_handle`.
+// Input cache misses return pending; only PrepareDartRuleTargets may scan.
+// Original-byte verification remains the rule's responsibility before writing.
 bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
                       DartResolution* out);
+
+// Preparation runs off the input thread; Apply only consumes published results.
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns);
+void InvalidateFailedDartRuleTargets();
+void ResetDartRulePreparationAfterFork();
+void LockDartRulePreparationForFork();
+void UnlockDartRulePreparationAfterFork();
 
 }  // namespace hypertweak::native

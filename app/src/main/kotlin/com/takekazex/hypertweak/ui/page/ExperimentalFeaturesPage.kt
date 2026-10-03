@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -70,24 +69,16 @@ fun ExperimentalFeaturesPage(
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     // These controls are self-contained on this second-level page instead of threading another
     // callback through the navigation layer for each one. Most hook settings are read live; the
-    // launcher AOT controls below explicitly request a launcher restart.
+    // launcher AOT controls apply at the next safe native input boundary.
     var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
     var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
     var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
     var hideRecentsClearButton by remember { mutableStateOf(Preferences.hideRecentsClearButton()) }
     var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
-    var launcherRestartPending by rememberSaveable { mutableStateOf(false) }
-
-    fun requestLauncherRestart() {
-        launcherRestartPending = true
-        requestRestartScopes(RestartScopeSelection(miuiHome = true))
-    }
-
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.experimental_features_title),
@@ -209,8 +200,8 @@ fun ExperimentalFeaturesPage(
                         onCheckedChange = {
                             hideRecentsClearButton = it
                             Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
-                            // The launcher-side payload cannot read this process's preferences, so
-                            // publish both native settings to the shared config file.
+                            // Preferences delivers the live snapshot to the launcher; keep the
+                            // legacy file as an inspectable diagnostic copy.
                             NativeRuleConfig.publish(context, it, openedFolderColumns)
                         },
                         title = stringResource(R.string.settings_recents_clear_button_title),
@@ -243,27 +234,23 @@ fun ExperimentalFeaturesPage(
                                     hideRecentsClearButton,
                                     openedFolderColumns
                                 )
-                                requestLauncherRestart()
                             }
                         )
-                        if (launcherRestartPending) {
-                            ArrowPreference(
-                                title = stringResource(R.string.settings_opened_folder_restart_title),
-                                summary = stringResource(R.string.settings_opened_folder_restart_summary),
-                                onClick = {
-                                    Preferences.flush()
-                                    RestartUtils.restartScope(
-                                        context = context,
-                                        coroutineScope = coroutineScope,
-                                        selection = RestartScopeSelection(miuiHome = true)
-                                    )
-                                    handleRestartedScopes(
-                                        RestartScopeSelection(miuiHome = true)
-                                    )
-                                    launcherRestartPending = false
-                                }
-                            )
-                        }
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_opened_folder_restart_title),
+                            summary = stringResource(R.string.settings_opened_folder_restart_summary),
+                            onClick = {
+                                Preferences.flush()
+                                RestartUtils.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = RestartScopeSelection(miuiHome = true)
+                                )
+                                handleRestartedScopes(
+                                    RestartScopeSelection(miuiHome = true)
+                                )
+                            }
+                        )
                     }
                 }
             }

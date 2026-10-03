@@ -1417,6 +1417,14 @@ object Preferences {
         memo.clear()
     }
 
+    internal fun nativeRuleSnapshot(): NativeRuleStateSnapshot? {
+        if (!this::remotePrefs.isInitialized || isLocalOnly) return null
+        return NativeRuleStateSnapshot.read { remotePrefs.all }
+    }
+
+    /** A remote change callback is authoritative; do not reuse pre-notification reads. */
+    fun invalidateRuntimeReadCache() = memoClear()
+
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         memoClear()
         remoteBackendUnavailable = false

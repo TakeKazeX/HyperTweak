@@ -10,13 +10,14 @@
 namespace hypertweak::native {
 
 // Desired opened-folder column count. Three means the native launcher default
-// and deliberately leaves the AOT function untouched.
+// and removes the getter/preview overrides. Once enabled, a passive on-open
+// boundary remains to restore the original cached column count on disable.
 void SetFolderColumns(int32_t columns);
 int32_t FolderColumnsRequested();
 
 // Resolves the exact Dart snapshot through the upstream native framework and
 // installs/removes the column-count return-epilogue replacement and preview
-// guards as needed.
+// guards as needed, plus the owning-Dart-thread late-static synchronization.
 bool ApplyFolderColumnsRule(void* dart_handle = nullptr);
 
 // Number of times the replacement getter has been entered since installation.
