@@ -8,11 +8,13 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
+import java.util.WeakHashMap
 
 /** Restores the framework notification typefaces after MIUI's notification bindings run. */
 object NotificationFontWeightHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationFontWeight"
     private const val HYBRID_VIEW_CLASS =
@@ -35,7 +37,44 @@ object NotificationFontWeightHooker : StaticHooker() {
     private val bodyTypeface = Typeface.create(baseTypeface, BODY_WEIGHT, false)
     private val actionTypeface = Typeface.create(baseTypeface, ACTION_WEIGHT, false)
 
+    @Volatile private var retiring = false
+    private val originals = WeakHashMap<TextView, Typeface?>()
+    private val applied = WeakHashMap<TextView, Int>()
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        applied.entries.map { (view, weight) -> listOf(view, weight) }
+    }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain {
+            if (!isEnabled()) return@onMain
+            (state as? List<*>)?.filterIsInstance<List<*>>()?.forEach { item ->
+                val view = item.getOrNull(0) as? TextView ?: return@forEach
+                val weight = item.getOrNull(1) as? Int ?: return@forEach
+                applyTypeface(view, Typeface.create(baseTypeface, weight, false), weight)
+            }
+        }
+    }
+    override fun onPrepareHotReload() {
+        retiring = true
+        StatusIconHostAccess.onMain {
+            originals.forEach { (view, typeface) -> view.typeface = typeface }
+            originals.clear()
+            applied.clear()
+        }
+    }
+    internal fun recoverHybrid(view: View) {
+        if (isEnabled() && generateSequence<Class<*>>(view.javaClass) { it.superclass }
+            .any { it.name == HYBRID_VIEW_CLASS }) forceHybridTypeface(view)
+    }
+    private fun applyTypeface(view: TextView, typeface: Typeface, weight: Int) {
+        if (!isEnabled()) return
+        if (!originals.containsKey(view)) originals[view] = view.typeface
+        applied[view] = weight
+        view.typeface = typeface
+    }
+
     override fun onHook() {
+        retiring = false
         var hookCount = 0
         hookCount += hookAfter(HYBRID_VIEW_CLASS, "bind", 3, "notification_font_hybrid_bind") { target, _ ->
             forceHybridTypeface(target)
@@ -105,9 +144,9 @@ object NotificationFontWeightHooker : StaticHooker() {
 
     private fun forceHybridTypeface(target: Any?) {
         val view = target as? View ?: return
-        invokeTextViewGetter(target, "getTitleView")?.typeface = titleTypeface
-        invokeTextViewGetter(target, "getTextView")?.typeface = bodyTypeface
-        invokeTextViewGetter(target, "getConversationSenderNameView")?.typeface = bodyTypeface
+        invokeTextViewGetter(target, "getTitleView")?.let { applyTypeface(it, titleTypeface, TITLE_WEIGHT) }
+        invokeTextViewGetter(target, "getTextView")?.let { applyTypeface(it, bodyTypeface, BODY_WEIGHT) }
+        invokeTextViewGetter(target, "getConversationSenderNameView")?.let { applyTypeface(it, bodyTypeface, BODY_WEIGHT) }
         // MIUI's summarization branch explicitly applies Typeface style=2 (italic) to content.
         view.invalidate()
     }
@@ -139,12 +178,12 @@ object NotificationFontWeightHooker : StaticHooker() {
         runCatching { target.javaClass.getMethod(name).invoke(target) as? TextView }.getOrNull()
 
     private fun setFieldTypeface(target: Any, name: String, typeface: Typeface) {
-        (readField(target, name) as? TextView)?.typeface = typeface
+        (readField(target, name) as? TextView)?.let { applyTypeface(it, typeface, typeface.weight) }
     }
 
     private fun setTextTypefaces(view: View, typeface: Typeface) {
         if (view is TextView) {
-            view.typeface = typeface
+            applyTypeface(view, typeface, typeface.weight)
         } else if (view is ViewGroup) {
             for (index in 0 until view.childCount) {
                 setTextTypefaces(view.getChildAt(index), typeface)
@@ -166,5 +205,5 @@ object NotificationFontWeightHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, false)
+        !retiring && Preferences.getBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, false)
 }

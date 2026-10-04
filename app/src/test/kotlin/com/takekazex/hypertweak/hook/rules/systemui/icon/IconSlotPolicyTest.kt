@@ -9,6 +9,29 @@ import org.junit.Test
 
 class IconSlotPolicyTest {
     @Test
+    fun reloadOrderReturnsToNativeAfterRepeatedPositionChanges() {
+        val native = listOf("alarm_clock", "mobile", "wifi", "airplane")
+        val swap = IconSlotPolicyConfig(position = IconSlotPolicyConfig.POSITION_WIFI_BEFORE_MOBILE)
+        var current = native
+        repeat(5) {
+            current = IconSlotPolicy.normalizeReloadOrder(native, current, swap)
+            assertTrue(current.indexOf("wifi") < current.indexOf("mobile"))
+            current = IconSlotPolicy.normalizeReloadOrder(native, current, IconSlotPolicyConfig())
+            assertEquals(native, current)
+        }
+    }
+
+    @Test
+    fun reloadOrderPreservesNewHostSlotsAndRetainsModuleHolders() {
+        val native = listOf("alarm_clock", "mobile", "wifi")
+        val existing = listOf("wifi", "future_indicator", "mobile", "stacked_mobile_icon", "alarm_clock")
+        val result = IconSlotPolicy.normalizeReloadOrder(native, existing, IconSlotPolicyConfig())
+        assertEquals(native + listOf("future_indicator", "stacked_mobile_icon"), result)
+        assertEquals(existing.toSet(), result.toSet())
+        assertEquals(result, IconSlotPolicy.normalizeReloadOrder(native, result, IconSlotPolicyConfig()))
+    }
+
+    @Test
     fun twoLineKeepsEveryNonNetworkIndicatorBesideTheBattery() {
         val networkSlots = IconSlotCatalog.slots
             .filter(IconSlotPolicy::isTwoLineNetworkSlot)

@@ -1451,4 +1451,7 @@
     <string name="logs_source_failed">App logs loaded. LSPosed logs could not be read; tap to retry.</string>
     <string name="logs_export_failed">Log file could not be saved.</string>
     <string name="logs_share_failed">Log sharing could not be opened.</string>
+    <string name="home_hot_reload_result_states">%1$d succeeded · %2$d failed · %3$d exited · %4$d in progress</string>
+    <string name="home_hot_reload_process_exited">Process exited; the next launch loads the updated module</string>
+    <string name="home_hot_reload_process_pending">Reload already in progress</string>
 </resources>

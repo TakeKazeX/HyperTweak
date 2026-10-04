@@ -64,6 +64,7 @@ object IconPositionHooker : StaticHooker() {
 
     @Volatile
     private var restoring = false
+    @Volatile private var retiring = false
     private var applyingNativeVisibility = false
     private var applyingNativeViewVisibility = false
     private val nativeViewVisibility = NativeViewVisibilityMask(View.GONE)
@@ -72,6 +73,7 @@ object IconPositionHooker : StaticHooker() {
     private val networkVisibility = LinkedHashMap<Class<*>, Method>()
     private val networkSlotFields = HashMap<Class<*>, Field?>()
     private val networkVisibleStateFields = HashMap<Class<*>, Field?>()
+    private val clipStates = WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()
     private val rowTranslations = WeakHashMap<View, TranslationState>()
     private val lastRestoredOverflow = WeakHashMap<ViewGroup, Set<String>>()
     private val iconVisibleGetters = HashMap<Class<*>, Method?>()
@@ -86,6 +88,7 @@ object IconPositionHooker : StaticHooker() {
     private val pendingPlacements = java.util.Collections.newSetFromMap(
         WeakHashMap<ViewGroup, Boolean>()
     )
+    private var originalSlotOrder = emptyList<String>()
     private var slotsField: Field? = null
     private var slotNameField: Field? = null
     private var ignoredSlotsField: Field? = null
@@ -107,21 +110,34 @@ object IconPositionHooker : StaticHooker() {
         val childIndex: Int
     )
 
-    override fun saveHotReloadState(): Any = synchronized(stateLock) {
-        containerStates.entries.map { (container, state) -> listOf(container, ArrayList(state.hostIgnored)) }
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
+            containerStates.entries.map { (container, state) -> listOf(container, ArrayList(state.hostIgnored)) }
+        })
     }
 
     override fun restoreHotReloadState(state: Any?) {
-        val saved = state as? List<*> ?: return
-        mainHandler.post {
+        // Accept snapshots from the previous build as well as the versioned map.
+        val saved = (state as? Map<*, *>)?.get("containers") as? List<*> ?: state as? List<*> ?: return
+        StatusIconHostAccess.onMain {
+            originalSlotOrder = ((state as? Map<*, *>)?.get("order") as? List<*>)?.filterIsInstance<String>().orEmpty()
             saved.forEach { entry ->
                 val row = entry as? List<*> ?: return@forEach
                 val container = row.getOrNull(0) as? View ?: return@forEach
                 val ignored = (row.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: return@forEach
                 synchronized(stateLock) { containerStates[container] = ContainerState(ignored) }
-                recoverExistingContainers(listOf(container))
             }
         }
+    }
+
+    internal fun recoverSlotOrder(controller: Any, context: Context) {
+        val list = StatusIconHostAccess.read(controller, "mStatusBarIconList") ?: error("Missing host icon list")
+        if (originalSlotOrder.isEmpty()) {
+            val id = context.resources.getIdentifier("config_statusBarIcons", "array", "com.android.systemui")
+            check(id != 0) { "Missing native status icon order" }
+            originalSlotOrder = context.resources.getStringArray(id).toList()
+        }
+        rewriteIconList(list)
     }
 
     internal fun recoverExistingContainers(views: List<View>) {
@@ -138,16 +154,23 @@ object IconPositionHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        retiring = true
+        mainHandler.removeCallbacksAndMessages(null)
         // The replacement callback runs off the UI thread. Restore only the mutable container
-        // lists on the main thread; the host Slot list itself is process-startup state.
+        // lists on the main thread. The replacement rebuilds groups before changing slot indices.
         val pending = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
-        mainHandler.post {
+        StatusIconHostAccess.onMain {
             restoring = true
             maskOwners.clear()
             try {
                 pendingPlacements.clear()
                 lastRestoredOverflow.clear()
                 restoreRowTranslations()
+                clipStates.forEach { (group, flags) ->
+                    if (!group.clipChildren) group.clipChildren = flags.first
+                    if (!group.clipToPadding) group.clipToPadding = flags.second
+                }
+                clipStates.clear()
                 pending.forEach { (container, state) ->
                     hideNativeNetworkChildren(container)
                     restoreIgnoredSlots(container, state.hostIgnored.toList())
@@ -280,7 +303,8 @@ object IconPositionHooker : StaticHooker() {
             name to slot
         }
         val currentNames = current.map { it.first }
-        val normalizedNames = IconSlotPolicy.normalizeOrder(currentNames, options.policy)
+        if (originalSlotOrder.isEmpty()) originalSlotOrder = currentNames
+        val normalizedNames = IconSlotPolicy.normalizeReloadOrder(originalSlotOrder, currentNames, options.policy)
         if (normalizedNames == currentNames) return
 
         val byName = LinkedHashMap<String, Any>()
@@ -295,6 +319,9 @@ object IconPositionHooker : StaticHooker() {
             DebugLog.w(TAG, "slot order skipped because a module Slot could not be created")
             return
         }
+        // The factory exposes an unmodifiable *view* of this same mutable list. Preserve identity.
+        val viewOnly = findField(listObject.javaClass, "mViewOnlySlots")
+        check(viewOnly?.get(listObject) is List<*>) { "Missing native slot view" }
         slots.clear()
         slots.addAll(rewritten)
         DebugLog.i(TAG, "StatusBarIconList slots reordered count=${rewritten.size}")
@@ -447,7 +474,7 @@ object IconPositionHooker : StaticHooker() {
         }
         method.hook {
             before { param ->
-                if (restoring) return@before
+                if (restoring || retiring) return@before
                 val incoming = param.args.getOrNull(0) as? List<*> ?: return@before
                 val state = captureContainerState(param.thisObject, incoming)
                 val surface = surfaceFor(param.thisObject, incoming)
@@ -456,7 +483,7 @@ object IconPositionHooker : StaticHooker() {
                 param.args[0] = ArrayList(merged)
             }
             after { param ->
-                if (restoring) return@after
+                if (restoring || retiring) return@after
                 synchronized(stateLock) {
                     containerStates[param.thisObject]?.lastApplied?.let { applied ->
                         restoreIgnoredSlots(param.thisObject, applied)
@@ -537,6 +564,7 @@ object IconPositionHooker : StaticHooker() {
         slots: Set<String>,
         owner: IconMaskOwners.Owner
     ): Boolean {
+        if (retiring) return slots.isEmpty()
         if (Looper.myLooper() != Looper.getMainLooper()) return false
         return runCatching {
             val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
@@ -569,7 +597,7 @@ object IconPositionHooker : StaticHooker() {
         val group = container as? ViewGroup ?: return
         val slots = maskSlotsFor(container)
         val state = containerStates[container] ?: return
-        val hostBlocked = state.lastApplied ?: blockedFor(
+        val hostBlocked = if (restoring) state.hostIgnored else state.lastApplied ?: blockedFor(
             container, surfaceFor(container, state.hostIgnored), state.hostIgnored
         )
         for (index in 0 until group.childCount) {
@@ -655,6 +683,12 @@ object IconPositionHooker : StaticHooker() {
         return null
     }
 
+    private fun disableClipping(group: ViewGroup) {
+        clipStates.putIfAbsent(group, group.clipChildren to group.clipToPadding)
+        group.clipChildren = false
+        group.clipToPadding = false
+    }
+
     /**
      * Place each native status icon against the carrier block's real two-row geometry. The host has
      * both a real and a fake control-center row, and their constraint updates can arrive in either
@@ -662,6 +696,7 @@ object IconPositionHooker : StaticHooker() {
      * anchored first.
      */
     private fun applyControlCenterRowPlacement(container: ViewGroup) {
+        if (retiring) return
         if (container.javaClass.name != CONTAINER_CLASS) return
         if (!ControlCenterHeaderHooker.secondRowStatusIconsEnabled(container.context)) {
             restoreRowTranslations(container)
@@ -676,12 +711,10 @@ object IconPositionHooker : StaticHooker() {
             return
         }
         if (!isControlCenterContainer(container) || container.height <= 0) return
-        container.clipChildren = false
-        container.clipToPadding = false
+        disableClipping(container)
         var parent = container.parent as? ViewGroup
         while (parent != null) {
-            parent.clipChildren = false
-            parent.clipToPadding = false
+            disableClipping(parent)
             if (parent.javaClass.name == CONTROL_CENTER_ROW_CLASS ||
                 parent.javaClass.name == CONTROL_CENTER_FAKE_ROW_CLASS) break
             parent = parent.parent as? ViewGroup
@@ -730,7 +763,7 @@ object IconPositionHooker : StaticHooker() {
         if (!pendingPlacements.add(container)) return
         mainHandler.post {
             try {
-                if (!restoring && container.isAttachedToWindow) {
+                if (!retiring && !restoring && container.isAttachedToWindow) {
                     applyControlCenterRowPlacement(container)
                 }
             } catch (error: Throwable) {

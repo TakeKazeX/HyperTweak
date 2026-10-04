@@ -1445,4 +1445,7 @@
     <string name="logs_source_failed">已读取应用日志，LSPosed 日志读取失败，点击重试。</string>
     <string name="logs_export_failed">日志文件保存失败。</string>
     <string name="logs_share_failed">无法打开日志分享。</string>
+    <string name="home_hot_reload_result_states">%1$d 成功 · %2$d 失败 · %3$d 已退出 · %4$d 正在替换</string>
+    <string name="home_hot_reload_process_exited">进程已退出，下次启动将加载新模块</string>
+    <string name="home_hot_reload_process_pending">框架正在替换</string>
 </resources>

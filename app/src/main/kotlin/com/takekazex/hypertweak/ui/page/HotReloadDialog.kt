@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.HotReloadOutcome
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -168,17 +169,19 @@ private fun HotReloadResultCard(report: HotReloadReport) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val hasFailure = report.failedCount > 0
+    val incomplete = report.exitedCount > 0 || report.pendingCount > 0
     val container = when {
         hasFailure -> if (isDark) Color(0xFF3A1F1F) else Color(0xFFFFECEC)
-        report.results.isEmpty() -> if (isDark) Color(0xFF2F2A1B) else Color(0xFFFFF6D9)
+        (report.results.isEmpty() || incomplete) -> if (isDark) Color(0xFF2F2A1B) else Color(0xFFFFF6D9)
         else -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
     }
     val content = when {
         hasFailure -> if (isDark) Color(0xFFFFB4AB) else Color(0xFF8C1D18)
-        report.results.isEmpty() -> if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
+        (report.results.isEmpty() || incomplete) -> if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
         else -> if (isDark) Color(0xFF9BE6B3) else Color(0xFF12622D)
     }
     val title = when {
+        incomplete -> stringResource(R.string.home_hot_reload_result_states, report.succeededCount, report.failedCount, report.exitedCount, report.pendingCount)
         hasFailure -> stringResource(R.string.home_hot_reload_result_counts, report.succeededCount, report.failedCount)
         report.results.isEmpty() -> stringResource(R.string.home_hot_reload_result_none)
         else -> stringResource(R.string.home_hot_reload_result_all)
@@ -204,7 +207,12 @@ private fun HotReloadResultCard(report: HotReloadReport) {
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     itemsIndexed(report.results) { _, result ->
-                        val marker = if (result.succeeded) "OK" else "FAIL"
+                        val marker = when (result.outcome) {
+                            HotReloadOutcome.SUCCEEDED -> "OK"
+                            HotReloadOutcome.FAILED -> "FAIL"
+                            HotReloadOutcome.PROCESS_EXITED -> stringResource(R.string.home_hot_reload_process_exited)
+                            HotReloadOutcome.IN_PROGRESS -> stringResource(R.string.home_hot_reload_process_pending)
+                        }
                         val message = result.message
                             ?.takeIf { it.isNotBlank() }
                             ?.let { " - $it" }

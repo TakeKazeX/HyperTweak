@@ -41,16 +41,19 @@ object IconManagerHooker : StaticHooker() {
 
     @Volatile
     private var restoring = false
+    @Volatile private var retiring = false
 
     private var setBlockListMethod: java.lang.reflect.Method? = null
 
-    override fun saveHotReloadState(): Any = synchronized(stateLock) {
-        states.entries.map { (manager, state) -> listOf(manager, ArrayList(state.pristine)) }
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        synchronized(stateLock) {
+            states.entries.map { (manager, state) -> listOf(manager, ArrayList(state.pristine)) }
+        }
     }
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        mainHandler.post {
+        StatusIconHostAccess.onMain {
             synchronized(stateLock) {
                 saved.forEach { entry ->
                     val row = entry as? List<*> ?: return@forEach
@@ -77,12 +80,14 @@ object IconManagerHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        retiring = true
+        mainHandler.removeCallbacksAndMessages(null)
         // `setBlockList` asserts the main thread. Preparing a replacement generation runs on the
-        // Xposed binder thread, so only request the restore here.
+        // Xposed binder thread, so finish restoration there through the main-thread barrier.
         val pending = synchronized(stateLock) {
             states.entries.map { (manager, state) -> manager to state.pristine.toList() }
         }
-        mainHandler.post {
+        StatusIconHostAccess.onMain {
             restoring = true
             try {
                 pending.forEach { (manager, pristine) ->
@@ -103,6 +108,7 @@ object IconManagerHooker : StaticHooker() {
     private val refreshContexts = ThreadLocal.withInitial { ArrayList<RefreshContext>() }
 
     private fun finalBlocked(manager: Any, slot: String, hostBlocked: Boolean, minimalism: Boolean = false): Boolean {
+        if (restoring || retiring) return hostBlocked
         val location = readLocation(manager)
         val surface = IconSlotPolicy.surfaceForHostLocation(location)
         val owned = IconSlotPolicy.ownedSlotsFor(
@@ -195,7 +201,7 @@ object IconManagerHooker : StaticHooker() {
             before { param ->
                 // No caller is excluded any more: the left container used to write its own overlay
                 // through this method and skip the merge, which silently bypassed the slot modes.
-                if (restoring) return@before
+                if (restoring || retiring) return@before
                 applyPolicy(param.thisObject, param.args.getOrNull(0)) { merged ->
                     param.args[0] = ArrayList(merged)
                 }
@@ -301,6 +307,7 @@ object IconManagerHooker : StaticHooker() {
      * so this carries no policy state of its own.
      */
     fun republishMergedLists() {
+        if (retiring) return
         // `IconManager.setBlockList` asserts the main thread.
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post { republishMergedLists() }

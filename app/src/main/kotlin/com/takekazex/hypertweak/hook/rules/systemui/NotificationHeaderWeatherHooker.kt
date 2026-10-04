@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -22,7 +23,7 @@ import java.util.concurrent.TimeUnit
 
 /** Appends Xiaomi Weather provider data to the date in the OS4 notification header. */
 object NotificationHeaderWeatherHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeaderWeather"
     private const val HEADER_CLASS = "com.android.systemui.qs.MiuiNotificationHeaderView"
@@ -63,7 +64,40 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     private var callbackProxy: Any? = null
     private var updateTimeMethod: Method? = null
 
+    @Volatile private var enabled = false
+    @Volatile private var retiring = false
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        val weather = weatherSnapshot
+        listOf(headers.keys.toList(), weather?.let {
+            listOf(it.region, it.condition, it.temperature, it.rainProbability)
+        }, lastSuccessElapsed)
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        StatusIconHostAccess.onMain {
+            if (!enabled) return@onMain
+            (saved.getOrNull(1) as? List<*>)?.let { weather ->
+                weatherSnapshot = NotificationHeaderModel.WeatherSnapshot(
+                    weather.getOrNull(0) as? String, weather.getOrNull(1) as? String,
+                    weather.getOrNull(2) as? Int, weather.getOrNull(3) as? String)
+                lastSuccessElapsed = saved.getOrNull(2) as? Long ?: Long.MIN_VALUE
+            }
+            recoverExistingHeaders((saved.getOrNull(0) as? List<*>)?.filterIsInstance<ViewGroup>().orEmpty())
+        }
+    }
+
+    internal fun recoverExistingHeaders(roots: List<ViewGroup>) {
+        if (!enabled || retiring) return
+        roots.forEach(::registerHeader)
+        DebugLog.i(TAG, "hot reload weather hosts=${headers.size} cached=${weatherSnapshot != null}")
+    }
+
     override fun onPrepareHotReload() {
+        retiring = true
+        enabled = false
+        main.removeCallbacksAndMessages(null)
         val restore = {
             runCatching { fetcher?.javaClass?.methods?.firstOrNull {
                 it.name == "reset" && it.parameterCount == 0
@@ -100,7 +134,9 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)) return
+        retiring = false
+        enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+        if (!enabled) return
         showRegion = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
         weatherType = NotificationHeaderModel.normalizeWeatherType(
             Preferences.getInt(
@@ -164,15 +200,18 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     }
 
     private fun registerHeader(root: ViewGroup) {
-        if (headers.containsKey(root)) return
+        if (retiring || !enabled || headers.containsKey(root)) return
         val date = (read(root, "mDateView") as? TextView)
             ?: root.findViewById(id(root, "date_time"))
             ?: return
+        // A retained header can still contain the previous generation's suffix. Capture
+        // a fresh native date rather than appending weather to weather.
+        updateTimeMethod?.takeIf { it.declaringClass.isInstance(date) }?.invoke(date)
         val carrier = (read(root, "mCarrierContainer") as? View)
             ?: root.findViewById(id(root, "carrier_container"))
         val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             HookFailurePolicy.open(TAG, "date bounds", Unit) {
-                updateDateBounds(root, date, carrier)
+                if (!retiring) updateDateBounds(root, date, carrier)
             }
         }
         headers[root] = HeaderState(date, carrier, listener)
@@ -184,7 +223,8 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
         date.maxLines = 1
         date.ellipsize = TextUtils.TruncateAt.END
         root.addOnLayoutChangeListener(listener)
-        root.post {
+        main.post {
+            if (retiring || !enabled) return@post
             HookFailurePolicy.open(TAG, "initial weather", Unit) {
                 updateDateBounds(root, date, carrier)
                 render(date)
@@ -202,6 +242,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     }
 
     private fun render(date: TextView) {
+        if (retiring || !enabled) return
         val base = synchronized(stateLock) { baseTexts[date] } ?: return
         val locale = date.resources.configuration.locales[0] ?: Locale.getDefault()
         val rainLabel = if (locale.language == Locale.CHINESE.language) "降雨" else "Rain "
@@ -250,6 +291,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     }
 
     private fun requestWeather(date: TextView) {
+        if (retiring || !enabled) return
         val now = SystemClock.elapsedRealtime()
         synchronized(stateLock) {
             if (fetchInFlight) return
@@ -272,18 +314,22 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     }
 
     private fun onWeatherResult(bean: Any?) {
-        HookFailurePolicy.open(TAG, "weather callback", Unit) {
-            val snapshot = bean?.let(::extractSnapshot)
-            synchronized(stateLock) {
-                fetchInFlight = false
-                if (snapshot != null) {
-                    weatherSnapshot = snapshot
-                    lastSuccessElapsed = SystemClock.elapsedRealtime()
+        if (retiring || !enabled) return
+        main.post {
+            if (retiring || !enabled) return@post
+            HookFailurePolicy.open(TAG, "weather callback", Unit) {
+                val snapshot = bean?.let(::extractSnapshot)
+                synchronized(stateLock) {
+                    fetchInFlight = false
+                    if (snapshot != null) {
+                        weatherSnapshot = snapshot
+                        lastSuccessElapsed = SystemClock.elapsedRealtime()
+                    }
                 }
+                if (snapshot == null) return@open
+                val liveDates = synchronized(stateLock) { baseTexts.keys.toList() }
+                liveDates.filter(View::isAttachedToWindow).forEach(::render)
             }
-            if (snapshot == null) return@open
-            val liveDates = synchronized(stateLock) { baseTexts.keys.toList() }
-            liveDates.filter(View::isAttachedToWindow).forEach(::render)
         }
     }
 

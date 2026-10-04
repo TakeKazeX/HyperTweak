@@ -70,6 +70,12 @@ data class IconSlotPolicyConfig(
  * same policy is used for classic manager block lists, modern container ignored slots, and tests.
  */
 object IconSlotPolicy {
+    fun normalizeReloadOrder(
+        nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig
+    ): List<String> = normalizeOrder(
+        (nativeOrder.filter { it in currentOrder } + currentOrder).distinct(), config
+    )
+
     const val SLOT_MOBILE = "mobile"
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"

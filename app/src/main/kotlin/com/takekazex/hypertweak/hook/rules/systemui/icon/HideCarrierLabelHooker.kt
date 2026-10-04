@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
+import java.util.WeakHashMap
 
 /**
  * Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (OS4_ADAPTATION_PLAN.md T7).
@@ -36,6 +37,12 @@ object HideCarrierLabelHooker : StaticHooker() {
     @Volatile private var hideLsOne = false
     @Volatile private var hideLsTwo = false
 
+    private val hiddenViews = WeakHashMap<View, Int>()
+    private fun hideView(view: View) {
+        if (!hiddenViews.containsKey(view) || view.visibility != View.GONE) hiddenViews[view] = view.visibility
+        view.visibility = View.GONE
+    }
+
     // Reflection cache.
     private var leftTextField: Field? = null
     private var rightTextField: Field? = null
@@ -46,6 +53,10 @@ object HideCarrierLabelHooker : StaticHooker() {
     private var callbackOwnerField: Field? = null
 
     override fun onPrepareHotReload() {
+        StatusIconHostAccess.onMain {
+            hiddenViews.forEach { (view, visibility) -> if (view.visibility == View.GONE) view.visibility = visibility }
+            hiddenViews.clear()
+        }
         hideOne = false
         hideTwo = false
         hideHd = false
@@ -103,8 +114,8 @@ object HideCarrierLabelHooker : StaticHooker() {
                         after { param ->
                             val text = param.thisObject
                             runCatching {
-                                (hdTextField?.get(text) as? View)?.visibility = View.GONE
-                                (plusTextField?.get(text) as? View)?.visibility = View.GONE
+                                (hdTextField?.get(text) as? View)?.let(::hideView)
+                                (plusTextField?.get(text) as? View)?.let(::hideView)
                             }.onFailure { t ->
                                 DebugLog.w(TAG, "HideCarrierLabel HD hide failed", t)
                             }
@@ -127,16 +138,9 @@ object HideCarrierLabelHooker : StaticHooker() {
                     method.hook {
                         after { param ->
                             val callback = param.thisObject
-                            val slotId = param.args.getOrNull(2) as? Int ?: return@after
-                            val hide = when (slotId) {
-                                0 -> hideOne
-                                1 -> hideTwo
-                                else -> false
-                            }
-                            if (!hide) return@after
                             val owner = runCatching { callbackOwnerField?.get(callback) }.getOrNull()
                                 ?: return@after
-                            hideCarrierText(owner)
+                            hideRequestedRow(owner)
                         }
                     }
                 } ?: DebugLog.hookSkipped(TAG, "$CC_CALLBACK_CLASS#onCarrierTextChanged", "method not found")
@@ -144,9 +148,33 @@ object HideCarrierLabelHooker : StaticHooker() {
         }
     }
 
+    internal fun recoverExistingViews(views: List<View>) {
+        views.filter { it.javaClass.name == CC_TEXT_CLASS }.forEach { row ->
+            val controller = StatusIconHostAccess.read(row, "carrierTextController")
+            val callback = StatusIconHostAccess.read(row, "mCarrierTextCallback")
+            if (controller != null && callback != null) {
+                controller.javaClass.methods.singleOrNull {
+                    it.name == "addCallback" && it.parameterCount == 1 && it.parameterTypes[0].isInstance(callback)
+                }?.invoke(controller, callback)
+            }
+        }
+        views.filter { it.javaClass.name == LAYOUT_CLASS }.forEach { layout ->
+            hideRow(leftTextField, layout)
+            hideRow(rightTextField, layout)
+        }
+        if (hideHd) views.filter { it.javaClass.name == CC_TEXT_CLASS }.forEach { row ->
+            (hdTextField?.get(row) as? View)?.let(::hideView)
+            (plusTextField?.get(row) as? View)?.let(::hideView)
+        }
+    }
+
     private fun hideRow(textField: Field?, layout: Any) {
         if (textField == null) return
         val row = runCatching { textField.get(layout) }.getOrNull() ?: return
+        hideRequestedRow(row)
+    }
+
+    private fun hideRequestedRow(row: Any) {
         val isKeyguard = runCatching { keyguardLayoutField?.getBoolean(row) }.getOrNull() ?: false
         val slotId = runCatching { row.javaClass.getDeclaredField("innerCarrierSlotId").apply { isAccessible = true } }
             .getOrNull()?.let { runCatching { it.getInt(row) }.getOrDefault(-1) } ?: -1
@@ -171,7 +199,7 @@ object HideCarrierLabelHooker : StaticHooker() {
             if (CarrierBlockPolicy.preserveCarrierName(
                     ControlCenterCarrierBlockHooker.ownsRow(row as? ViewGroup), requestedHidden = true)) return
             val view = carrierTextViewField?.get(row) as? View ?: return
-            view.visibility = View.GONE
+            hideView(view)
         }.onFailure { t ->
             DebugLog.w(TAG, "HideCarrierLabel carrier hide failed", t)
         }

@@ -9,6 +9,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
+import android.util.SparseArray
 import android.view.ViewGroup
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
@@ -17,6 +18,8 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.util.IdentityHashMap
+import java.util.WeakHashMap
+import java.util.Collections
 import kotlin.math.ceil
 
 /**
@@ -46,6 +49,17 @@ object CellularTypeIconHooker : StaticHooker() {
     @Volatile private var drawableWeight = 660
     @Volatile private var singleFontEnabled = false
     @Volatile private var singleWeight = 400
+
+    private data class PaintState(val original: Typeface?, var applied: Typeface?)
+    private val paintStates = Collections.synchronizedMap(WeakHashMap<Paint, PaintState>())
+    private val modifiedDrawables = Collections.synchronizedMap(WeakHashMap<Any, Boolean>())
+
+    private fun applyTypeface(paint: Paint, resolved: Typeface) = synchronized(paintStates) {
+        if (!drawableFontEnabled) return@synchronized
+        val state = paintStates[paint] ?: PaintState(paint.typeface, resolved).also { paintStates[paint] = it }
+        state.applied = resolved
+        paint.typeface = resolved
+    }
 
     private var typeface: Typeface? = null
     private var singleTypeface: Typeface? = null
@@ -86,8 +100,18 @@ object CellularTypeIconHooker : StaticHooker() {
         singleWeight = 400
         typeface = null
         singleTypeface = null
-        nativeDrawStates.remove()
-        nativeSmallSuffixPaint.remove()
+        StatusIconHostAccess.onMain {
+            synchronized(paintStates) {
+                paintStates.forEach { (paint, state) -> if (paint.typeface === state.applied) paint.typeface = state.original }
+                paintStates.clear()
+            }
+            val drawables = synchronized(modifiedDrawables) {
+                modifiedDrawables.keys.toList().also { modifiedDrawables.clear() }
+            }
+            drawables.forEach { drawable -> findMethod(drawable.javaClass, "measure", 0)?.invoke(drawable) }
+            nativeDrawStates.remove()
+            nativeSmallSuffixPaint.remove()
+        }
     }
 
     override fun onHook() {
@@ -245,21 +269,25 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     private fun applySmall5GaMetrics(target: Any, fields: NativeDrawableFields) {
-        val raw = fields.label.get(target) as? String ?: return
-        val parts = MobileTypeLabelStyle.small5GaParts(raw) ?: return
-        if (fields.doublePlus.getBoolean(target)) return
-        val mainPaint = fields.mainPaint.get(target) as? Paint ?: return
-        val suffixPaint = fields.suffixPaint.get(target) as? Paint ?: return
-        val suffix = prepareNativeSmallSuffixPaint(mainPaint, suffixPaint)
-        val bounds = Rect()
-        mainPaint.getTextBounds(parts.baseText, 0, parts.baseText.length, bounds)
-        fields.width.setInt(target, ceil(mainPaint.measureText(parts.baseText).toDouble()).toInt())
-        fields.height.setInt(target, bounds.height() + bounds.bottom)
-        fields.extraWidth.setInt(
-            target,
-            ceil(suffix.measureText(parts.suffixText).toDouble()).toInt()
-        )
-        (target as? Drawable)?.invalidateSelf()
+        synchronized(modifiedDrawables) {
+            if (!small5GaEnabled) return
+            val raw = fields.label.get(target) as? String ?: return
+            val parts = MobileTypeLabelStyle.small5GaParts(raw) ?: return
+            if (fields.doublePlus.getBoolean(target)) return
+            modifiedDrawables[target] = true
+            val mainPaint = fields.mainPaint.get(target) as? Paint ?: return
+            val suffixPaint = fields.suffixPaint.get(target) as? Paint ?: return
+            val suffix = prepareNativeSmallSuffixPaint(mainPaint, suffixPaint)
+            val bounds = Rect()
+            mainPaint.getTextBounds(parts.baseText, 0, parts.baseText.length, bounds)
+            fields.width.setInt(target, ceil(mainPaint.measureText(parts.baseText).toDouble()).toInt())
+            fields.height.setInt(target, bounds.height() + bounds.bottom)
+            fields.extraWidth.setInt(
+                target,
+                ceil(suffix.measureText(parts.suffixText).toDouble()).toInt()
+            )
+            (target as? Drawable)?.invalidateSelf()
+        }
     }
 
     private fun prepareNativeSmallSuffixPaint(mainPaint: Paint, hostSuffixPaint: Paint): Paint =
@@ -312,6 +340,20 @@ object CellularTypeIconHooker : StaticHooker() {
                 }
             }
         } ?: DebugLog.hookSkipped(TAG, "$POLICY_CLASS#getMiuiOperatorConfig", "method not found")
+    }
+
+    internal fun recoverOperatorConfig(component: Any) {
+        val policy = StatusIconHostAccess.provider(component, "miuiOperatorCustomizedPolicyProvider") ?: return
+        val method = StatusIconHostAccess.method(policy, "getMiuiOperatorConfig", Int::class.javaPrimitiveType!!) ?: return
+        val flows = StatusIconHostAccess.read(policy, "configFlows") as? Map<*, *> ?: return
+        @Suppress("UNCHECKED_CAST")
+        val configs = StatusIconHostAccess.read(policy, "mOperatorConfigs") as? SparseArray<Any>
+        flows.entries.toList().forEach { (slot, flow) ->
+            val id = (slot as? Number)?.toInt() ?: return@forEach
+            val config = method.invoke(policy, id) ?: return@forEach
+            configs?.put(id, config)
+            if (flow != null) IconTunerFlows.setFlowValue(flow, config)
+        }
     }
 
     /** Applies single-row layout changes after the host has created the complete view hierarchy. */
@@ -372,19 +414,24 @@ object CellularTypeIconHooker : StaticHooker() {
             paramCount(1)
         }?.hook {
             after { param ->
+                if (!drawableFontEnabled) return@after
                 val paints = param.args.getOrNull(0) as? Array<*> ?: return@after
                 val resolved = drawableTypeface()
-                paints.filterIsInstance<Paint>().forEach { it.typeface = resolved }
+                paints.filterIsInstance<Paint>().forEach { applyTypeface(it, resolved) }
             }
         } ?: DebugLog.hookSkipped(TAG, "$DRAWABLE_CLASS#setMiuiStatusBarTypeface", "method not found")
     }
 
     private fun applyDrawablePaints(target: Any) {
-        val resolved = drawableTypeface()
-        listOf("mMobileTypeTextPaint", "mMobileTypePlusPaint").forEach { name ->
-            (readField(target, name) as? Paint)?.typeface = resolved
+        synchronized(modifiedDrawables) {
+            if (!drawableFontEnabled) return
+            modifiedDrawables[target] = true
+            val resolved = drawableTypeface()
+            listOf("mMobileTypeTextPaint", "mMobileTypePlusPaint").forEach { name ->
+                (readField(target, name) as? Paint)?.let { applyTypeface(it, resolved) }
+            }
+            runCatching { findMethod(target.javaClass, "measure", 0)?.invoke(target) }
         }
-        runCatching { findMethod(target.javaClass, "measure", 0)?.invoke(target) }
     }
 
     private fun drawableTypeface(): Typeface = typeface ?: IconFontResolver.resolve(

@@ -53,6 +53,26 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
         if (ignoreSysHide) hookNetworkSpeed()
     }
 
+    internal fun recoverController(controller: Any) {
+        val observer = StatusIconHostAccess.read(controller, "mStatusBarIconObserver") ?: return
+        val value = StatusIconHostAccess.invoke(observer, "loadStatusBarIcon") ?: return
+        val flow = StatusIconHostAccess.read(observer, "statusBarIconShow") ?: return
+        IconTunerFlows.setFlowValue(flow, value)
+    }
+
+    internal fun recoverNetworkSpeed(component: Any) {
+        val speed = StatusIconHostAccess.provider(component, "networkSpeedControllerProvider") ?: return
+        if (ignoreSysHide) {
+            speed.javaClass.getDeclaredField("mShowNetworkSpeed").apply { isAccessible = true }.setBoolean(speed, netSpeedShown)
+            speed.javaClass.declaredMethods.singleOrNull {
+                it.name.contains("mupdateVisibility") && it.parameterTypes.contentEquals(arrayOf(speed.javaClass, String::class.java))
+            }?.apply { isAccessible = true }?.invoke(null, speed, "HyperTweak hot reload")
+        } else {
+            val observer = StatusIconHostAccess.read(speed, "mShowNetworkSpeedObserver") ?: return
+            StatusIconHostAccess.method(observer, "onChange", Boolean::class.javaPrimitiveType!!)?.invoke(observer, false)
+        }
+    }
+
     private fun hookStatusBarIconObserver() {
         val observerClass = OBSERVER_CLASS.toClassOrNull()
         if (observerClass == null) {

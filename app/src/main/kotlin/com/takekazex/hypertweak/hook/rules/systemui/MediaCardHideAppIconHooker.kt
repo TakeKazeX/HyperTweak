@@ -1,12 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.view.View
+import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
+import java.util.WeakHashMap
 
 /**
  * Hides the source-app icon overlay on the media cards (封面隐藏来源应用图标), OS4 SystemUI.
@@ -25,10 +28,10 @@ import java.lang.reflect.Field
  * - island: `MiuiIslandMediaViewBinderImpl.attach(MiuiIslandMediaViewHolder,
  *   MiuiIslandMediaViewHolder)` (real + dummy holder); hide both `appIcon` views.
  *
- * The master switch gates hook installation and needs a SystemUI restart.
+ * Existing holders are recovered after replacement; retirement restores native visibility.
  */
 object MediaCardHideAppIconHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideAppIcon"
     private const val SHADE_VC =
@@ -46,10 +49,42 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     @Volatile
     private var islandAppIconField: Field? = null
 
+    private val originals = WeakHashMap<View, Int>()
+    @Volatile private var enabled = false
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain {
+            if (enabled) (state as? List<*>)?.filterIsInstance<View>()?.forEach(::hideIcon)
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>) {
+        views.filterIsInstance<ViewGroup>().forEach { root ->
+            val name = runCatching { root.resources.getResourceEntryName(root.id) }.getOrNull()
+            if (name != "mi_media_controls") return@forEach
+            val id = root.resources.getIdentifier("icon", "id", "com.android.systemui")
+            if (id != 0) root.findViewById<View>(id)?.let { icon ->
+                // All three verified native templates declare this overlay visible, and
+                // their binders never change visibility. Older generations hid it permanently
+                // without a snapshot; recover that native baseline during this migration.
+                if (icon.visibility == View.GONE && !originals.containsKey(icon)) icon.visibility = View.VISIBLE
+                if (enabled) hideIcon(icon)
+            }
+        }
+    }
+
+    private fun hideIcon(icon: View) {
+        if (!enabled) return
+        originals.putIfAbsent(icon, icon.visibility)
+        icon.visibility = View.GONE
+    }
+
     override fun onHook() {
         shadeAppIconField = null
         islandAppIconField = null
-        if (!Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)) {
+        enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "media card app icon", "disabled")
             return
         }
@@ -58,6 +93,11 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        enabled = false
+        StatusIconHostAccess.onMain {
+            originals.forEach { (view, visibility) -> view.visibility = visibility }
+            originals.clear()
+        }
         shadeAppIconField = null
         islandAppIconField = null
     }
@@ -132,8 +172,9 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private fun hideAppIcon(holder: Any?, field: Field?) {
-        val icon = field?.get(holder) as? View ?: return
-        if (icon.visibility != View.GONE) icon.visibility = View.GONE
+        if (holder == null || field == null) return
+        val icon = field.get(holder) as? View ?: return
+        hideIcon(icon)
     }
 
     /** Resolves the public `appIcon` ImageView field, walking the class hierarchy. */

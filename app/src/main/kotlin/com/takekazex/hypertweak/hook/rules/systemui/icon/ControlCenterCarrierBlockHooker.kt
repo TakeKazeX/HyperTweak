@@ -12,6 +12,7 @@ import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewTreeObserver
+import android.view.inspector.WindowInspector
 import android.os.Handler
 import android.os.Looper
 import android.telephony.SubscriptionManager
@@ -118,6 +119,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var artGeneration = Long.MIN_VALUE
     @Volatile private var artInFlight = Long.MIN_VALUE
 
+    private val knownLayouts = WeakHashMap<ViewGroup, Boolean>()
+    private var recoveryTask: Runnable? = null
+    private var recoveryAttempt = 0
+    private var lastRecoveryEvidence: CarrierRecoveryEvidence? = null
+
     private var wifiScope: Any? = null
     private var wifiInteractor: Any? = null
 
@@ -218,17 +224,21 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         var appliedAlpha: Float = view.alpha
     }
 
-    /** Called by HookEntry once SystemUI's application context is available. */
+    /** Idempotent host environment binding, shared by package readiness and recovered views. */
     fun onPackageReady(context: Context) {
-        hostContext = context
-        resolveIds()
-        val moduleContext = runCatching {
-            context.createPackageContext(
-                HostIconBridge.MODULE_PACKAGE,
-                Context.CONTEXT_IGNORE_SECURITY
-            )
-        }.getOrNull()
-        svgRepository = moduleContext?.let(::IconSvgRepository)
+        StatusIconHostAccess.onMain { bindEnvironment(context) }
+    }
+
+    private fun bindEnvironment(context: Context) {
+        val app = context.applicationContext ?: context
+        hostContext = app
+        resolveIds(context)
+        if (svgRepository == null) {
+            val moduleContext = runCatching {
+                context.createPackageContext(HostIconBridge.MODULE_PACKAGE, Context.CONTEXT_IGNORE_SECURITY)
+            }.onFailure { DebugLog.w(TAG, "carrier module resources unavailable", it) }.getOrNull()
+            svgRepository = moduleContext?.let(::IconSvgRepository)
+        }
         if (enabled) scheduleArtworkLoad(generation.get())
     }
 
@@ -245,34 +255,107 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false))
 
     override fun saveHotReloadState(): Any = onMainBlocking {
-        listOf(blocks.keys.filterIsInstance<View>(), wifiScope, wifiInteractor, progress, panelVisible)
+        listOf((knownLayouts.keys + blocks.keys.filterIsInstance<ViewGroup>()).distinct(),
+            wifiScope, wifiInteractor, progress, panelVisible, hostContext)
     }
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        val token = generation.get()
-        main.post {
-            if (!enabled || generation.get() != token) return@post
-            runCatching {
-                recoverExistingViews((saved.getOrNull(0) as? List<*>)?.filterIsInstance<View>().orEmpty(),
-                    saved.getOrNull(3) as? Float, saved.getOrNull(4) as? Boolean)
-                val scope = saved.getOrNull(1)
-                val interactor = saved.getOrNull(2)
-                val context = hostContext
-                if (scope != null && interactor != null && context != null) bindWifi(scope, interactor, context)
-            }.onFailure { DebugLog.w(TAG, "carrier hot reload restore failed", it) }
+        StatusIconHostAccess.onMain {
+            if (!enabled) return@onMain
+            val views = (saved.getOrNull(0) as? List<*>)?.filterIsInstance<View>().orEmpty()
+            val context = saved.getOrNull(5) as? Context ?: hostContext ?: views.firstOrNull()?.context
+            if (context == null) {
+                DebugLog.w(TAG, "carrier snapshot has no host environment; awaiting explicit recovery")
+                return@onMain
+            }
+            recoverExistingViews(context, views, saved.getOrNull(3) as? Float, saved.getOrNull(4) as? Boolean)
+            val scope = saved.getOrNull(1)
+            val interactor = saved.getOrNull(2)
+            if (scope != null && interactor != null) bindWifi(scope, interactor, context)
         }
     }
 
-    internal fun recoverExistingViews(views: List<View>, savedProgress: Float?, visible: Boolean?) {
+    internal fun recoverExistingViews(context: Context, views: List<View>, savedProgress: Float?, visible: Boolean?) {
         if (!enabled) return
+        check(Looper.myLooper() == Looper.getMainLooper())
+        // Context/resources must be ready BEFORE accepting a saved or discovered host.
+        bindEnvironment(context)
         savedProgress?.let { progress = it.coerceIn(0f, 1f) }
         visible?.let { panelVisible = it }
-        views.filter { it.javaClass.name == LAYOUT_CLASS && it.isAttachedToWindow }
-            .filterIsInstance<ViewGroup>().forEach(::installBlock)
+        views.filter { it.javaClass.name == LAYOUT_CLASS }.filterIsInstance<ViewGroup>()
+            .forEach { knownLayouts[it] = true }
+        recoveryTask?.let(main::removeCallbacks)
+        recoveryAttempt = 0
+        lastRecoveryEvidence = null
+        val token = generation.get()
+        val task = Runnable {
+            runCatching { recoverHosts(token) }.onFailure { error ->
+                DebugLog.w(TAG, "carrier recovery attempt=$recoveryAttempt failed", error)
+                if (enabled && generation.get() == token && recoveryAttempt < CarrierRecoveryPolicy.MAX_ATTEMPTS) {
+                    recoveryTask?.let { main.postDelayed(it, CarrierRecoveryPolicy.RETRY_DELAY_MS) }
+                } else recoveryTask = null
+            }
+        }
+        recoveryTask = task
+        task.run()
+    }
+
+    /** Reconcile saved, attached-window and controller-owned (possibly detached) hosts. */
+    private fun recoverHosts(token: Long) {
+        if (!enabled || generation.get() != token) return
+        val context = hostContext ?: return
+        recoveryAttempt++
+        bindEnvironment(context)
+        val app = context.applicationContext ?: context
+        val component = StatusIconHostAccess.read(app, "mSysUIComponent")
+            ?: StatusIconHostAccess.read(app, "mInitializer")?.let { StatusIconHostAccess.invoke(it, "getSysUIComponent") }
+        if (component != null) {
+            runCatching {
+                val header = StatusIconHostAccess.provider(component, "combinedHeaderControllerProvider")
+                val layout = header?.let { StatusIconHostAccess.read(it, "controlCenterCarrierLayout") } as? ViewGroup
+                if (layout != null) knownLayouts[layout] = true
+                val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider")
+                val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider")
+                if (scope != null && interactor != null) bindWifi(scope, interactor, context)
+            }.onFailure { DebugLog.w(TAG, "carrier host/source discovery failed", it) }
+        }
+        fun visit(view: View) {
+            if (view.javaClass.name == LAYOUT_CLASS && view is ViewGroup) knownLayouts[view] = true
+            if (view is ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+        }
+        WindowInspector.getGlobalWindowViews().forEach(::visit)
+        knownLayouts.keys.toList().forEach { layout ->
+            runCatching { installBlock(layout) }.onFailure { DebugLog.w(TAG, "carrier recovered host rejected", it) }
+        }
         scheduleRender()
         applyHandoverGuarded(progress)
-        DebugLog.i(TAG, "hot reload carrier blocks=${blocks.size}")
+        val evidence = CarrierRecoveryEvidence(
+            environmentReady = carrierLayoutId != 0 && svgRepository != null,
+            hosts = blocks.size,
+            rows = blocks.values.sumOf { it.rows.size },
+            artworkReady = artwork != null,
+            wifiBound = wifiHandles.isNotEmpty(),
+            mobileBound = StackedSignalHooker.mobilePipelineConnected
+        )
+        if (evidence != lastRecoveryEvidence) {
+            lastRecoveryEvidence = evidence
+            DebugLog.i(TAG, "carrier recovery attempt=$recoveryAttempt hosts=${evidence.hosts} " +
+                "attached=${blocks.keys.filterIsInstance<View>().count { it.isAttachedToWindow }} " +
+                "rows=${evidence.rows} missing=${evidence.missing}")
+        }
+        when (CarrierRecoveryPolicy.decide(enabled && generation.get() == token, recoveryAttempt, evidence)) {
+            CarrierRecoveryPolicy.Decision.PREPARED -> {
+                recoveryTask = null
+                DebugLog.i(TAG, "carrier recovery prepared hosts=${evidence.hosts} rows=${evidence.rows}")
+            }
+            CarrierRecoveryPolicy.Decision.RETRY -> recoveryTask?.let { main.postDelayed(it, CarrierRecoveryPolicy.RETRY_DELAY_MS) }
+            CarrierRecoveryPolicy.Decision.EXHAUSTED -> {
+                recoveryTask = null
+                DebugLog.w(TAG, "carrier recovery incomplete after $recoveryAttempt attempts missing=${evidence.missing}")
+            }
+            CarrierRecoveryPolicy.Decision.RETIRED -> Unit
+        }
     }
 
     internal fun recoverWifi(scope: Any, interactor: Any, context: Context) {
@@ -282,6 +365,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
         enabled = false
+        main.removeCallbacksAndMessages(null)
+        recoveryTask = null
+        assetExecutor.shutdownNow()
         shadeSwitching = false
         hostShadeSwitching = false
         shadeSwitchProgress = 0f
@@ -307,6 +393,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             maskedContainers.clear()
             blocks.values.toList().forEach(::removeBlock)
             blocks.clear()
+            knownLayouts.clear()
+            hostContext = null
+            svgRepository = null
+            lastRecoveryEvidence = null
             rowIndex.clear()
             mobileState = MobileSignalState()
             progress = 0f
@@ -357,8 +447,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     // ---------------------------------------------------------------- settings / ids
 
-    private fun resolveIds() {
-        val context = hostContext ?: return
+    private fun resolveIds(context: Context? = hostContext) {
+        context ?: return
         val resources = context.resources
         carrierLayoutId = id(resources, "normal_control_center_carrier_layout")
         fakeStatusBarId = id(resources, "normal_fake_control_center_status_bar")
@@ -785,7 +875,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private fun installBlock(layout: ViewGroup) {
         if (blocks.containsKey(layout)) return
-        if (carrierLayoutId == 0) resolveIds()
+        // A native view supplies its own environment even when PackageReady was missed.
+        bindEnvironment(layout.context)
+        knownLayouts[layout] = true
         if (layout.id == 0 || layout.id != carrierLayoutId) return
         val linear = layout as? LinearLayout ?: return
         val left = leftTextField?.get(layout) as? LinearLayout ?: return
@@ -1035,12 +1127,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             renderAll()
         } else {
-            main.post { renderAll() }
+            val token = generation.get()
+            main.post { if (enabled && generation.get() == token) renderAll() }
         }
     }
 
     private fun renderAll() {
-        if (blocks.isEmpty()) return
+        if (!enabled || blocks.isEmpty()) return
         // A failed SVG read must not pin the block to "no artwork": the next state change retries.
         if (artwork == null) scheduleArtworkLoad(generation.get())
         val rows = CarrierBlockPolicy.resolve(

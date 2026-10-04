@@ -53,6 +53,7 @@ object HideCellularIconHooker : StaticHooker() {
     private var hideOnWifi = false
 
     private var state = MobileSignalState()
+    private var adapterReference: java.lang.ref.WeakReference<Any>? = null
 
     /**
      * Per-subscription WiFi availability, consumed on the main looper.
@@ -72,22 +73,47 @@ object HideCellularIconHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         generation.incrementAndGet()
         enabled = false
-        hideSimOne = false
-        hideSimTwo = false
-        hideNonDefault = false
-        hideOnWifi = false
-        wifiBySub.clear()
-        // The host binder consumes both members of this Pair. Restore the original first member
-        // before cancellation/unregistration so a hot reload cannot leave a stopped false flow.
-        MobileSignalVisibility.clearForHotReload()
-        flowHandles.forEach { it.cancel() }
-        flowHandles.clear()
-        bindings.keys.toList().forEach { subId -> removeBinding(subId) }
-        pendingBindings.clear()
-        state = MobileSignalState()
-        adapterFlowInstalled.set(false)
-        installed.set(false)
-        HostFlowCollector.resetForReload()
+        adapterReference = null
+        StatusIconHostAccess.onMain {
+            hideSimOne = false
+            hideSimTwo = false
+            hideNonDefault = false
+            hideOnWifi = false
+            wifiBySub.clear()
+            // The host binder consumes both members of this Pair. Restore the original first member
+            // before cancellation/unregistration so a hot reload cannot leave a stopped false flow.
+            MobileSignalVisibility.clearForHotReload()
+            flowHandles.forEach { it.cancel() }
+            flowHandles.clear()
+            bindings.keys.toList().forEach { subId -> removeBinding(subId) }
+            pendingBindings.clear()
+            state = MobileSignalState()
+            adapterFlowInstalled.set(false)
+            installed.set(false)
+        }
+    }
+
+    override fun saveHotReloadState(): Any? = adapterReference?.get()
+
+    override fun restoreHotReloadState(state: Any?) {
+        if (state != null) StatusIconHostAccess.onMain { recoverAdapter(state) }
+    }
+
+    internal fun recoverAdapter(adapter: Any) {
+        if (!enabled) return
+        setupAdapter(adapter)
+        val lazy = readField(adapter, "mobileIconsViewModel") ?: return
+        val icons = unwrapLazy(lazy) ?: lazy
+        val cache = readField(icons, "reuseCache") as? Map<*, *> ?: return
+        val token = generation.get()
+        cache.forEach { (key, value) ->
+            val subId = (key as? Number)?.toInt() ?: return@forEach
+            val triple = value ?: return@forEach
+            val vm = triplePart(triple, "getThird") ?: return@forEach
+            if (bindings[subId]?.viewModel !== vm) registerSubscription(subId, triple, token)
+        }
+        applyMask()
+        DebugLog.i(TAG, "hot reload SIM visibility subscriptions=${bindings.size}")
     }
 
     override fun onHook() {
@@ -167,6 +193,7 @@ object HideCellularIconHooker : StaticHooker() {
     }
 
     private fun setupAdapter(adapter: Any) {
+        adapterReference = java.lang.ref.WeakReference(adapter)
         if (!adapterFlowInstalled.compareAndSet(false, true)) return
         val scope = readField(adapter, "scope")
         val iconsLazy = readField(adapter, "mobileIconsViewModel")

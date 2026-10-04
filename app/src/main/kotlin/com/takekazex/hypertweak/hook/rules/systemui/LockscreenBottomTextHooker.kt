@@ -18,7 +18,7 @@ import com.takekazex.hypertweak.util.DebugLog
  * card or per-app notification gate is touched.
  */
 object LockscreenBottomTextHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "LockscreenBottomText"
     private const val INDICATION_CONTROLLER =
@@ -94,6 +94,13 @@ object LockscreenBottomTextHooker : StaticHooker() {
 
     @Volatile
     private var compactIdsLogged = false
+
+    internal fun recoverExistingViews(views: List<View>) {
+        // The stock repeatWhenAttached binder replays DND/count state, visibility and Folme.
+        // Recollect the real native inputs instead of guessing whether a masked label was visible.
+        views.filter { it.javaClass.name == NUM_STATE_VIEW && it.isAttachedToWindow }
+            .forEach(NativeViewAttachmentReplay::replay)
+    }
 
     override fun onPrepareHotReload() {
         enabled = false

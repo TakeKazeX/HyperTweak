@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
 import java.lang.ref.WeakReference
@@ -46,7 +47,7 @@ import java.util.WeakHashMap
  * BottomIndicationLayout owns reversible layout and overflow independently of telemetry.
  */
 object LockscreenChargingDetailHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "LockscreenChargeDetail"
     private const val ROTATE_VC = "com.android.systemui.keyguard.KeyguardIndicationRotateTextViewController"
@@ -86,18 +87,35 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     @Volatile
     private var refreshGeneration = 0
 
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private var refreshRunnable: Runnable? = null
+
+    internal fun recoverController(controller: Any) {
+        if (enabled) attachDetail(controller)
+    }
+
+    override fun saveHotReloadState(): Any? = StatusIconHostAccess.onMain { recentController.get() }
+    override fun restoreHotReloadState(state: Any?) {
+        if (!enabled || state == null) return
+        StatusIconHostAccess.onMain { attachDetail(state) }
+    }
+
     override fun onPrepareHotReload() {
         enabled = false
         currIndicationTypeField = null
         viewField = null
         messageField = null
         getIntProperty = null
-        layouts.values.forEach { layout ->
-            HookFailurePolicy.open(TAG, "restore layout", Unit) { layout.dispose() }
-        }
-        layouts.clear()
-        recentController.clear()
         refreshGeneration++
+        StatusIconHostAccess.onMain {
+            refreshRunnable?.let(refreshHandler::removeCallbacks)
+            refreshRunnable = null
+            layouts.values.forEach { layout ->
+                HookFailurePolicy.open(TAG, "restore layout", Unit) { layout.dispose() }
+            }
+            layouts.clear()
+            recentController.clear()
+        }
         reportedFirstAppend = false
         resetTelemetry()
     }
@@ -286,7 +304,8 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     private fun scheduleRefresh() {
         val gen = refreshGeneration
-        val handler = Handler(Looper.getMainLooper())
+        val handler = refreshHandler
+        refreshRunnable?.let(handler::removeCallbacks)
         val runnable = object : Runnable {
             override fun run() {
                 if (gen != refreshGeneration) return
@@ -298,6 +317,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
                 }
             }
         }
+        refreshRunnable = runnable
         handler.postDelayed(runnable, refreshIntervalMs().toLong())
     }
 

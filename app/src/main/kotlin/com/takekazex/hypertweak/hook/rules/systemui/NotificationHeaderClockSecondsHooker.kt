@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.util.WeakHashMap
@@ -21,7 +22,7 @@ import java.util.WeakHashMap
  * while its view is attached.
  */
 object NotificationHeaderClockSecondsHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationClockSeconds"
     private const val CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock"
@@ -61,32 +62,45 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     private var nextExpiryToken = 0L
 
+    @Volatile private var retiring = false
+
+    internal fun recoverExistingViews(views: List<View>) {
+        if (retiring) return
+        views.filterIsInstance<TextView>().forEach { view ->
+            val target = targetOf(view) ?: return@forEach
+            installLongPressListener(view)
+            refresh(view, target, forceStock = true)
+        }
+    }
+
     override fun onPrepareHotReload() {
-        persistentHeaderEnabled = false
-        clockClass = null
-        headerClockClass = null
-        updateTimeMethod = null
-        statusBarClockId = 0
-        synchronized(callbacksLock) {
-            tickCallbacks.forEach { (view, callback) ->
-                runCatching { view.removeCallbacks(callback) }
+        retiring = true
+        StatusIconHostAccess.onMain {
+            synchronized(callbacksLock) {
+                tickCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
+                expiryCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
+                val clocks = (tickCallbacks.keys + longPressInstalled.keys).distinct()
+                clocks.forEach { view ->
+                    view.setOnLongClickListener(null)
+                    (view as? TextView)?.let(::restoreStock)
+                }
+                tickCallbacks.clear()
+                expiryCallbacks.clear()
+                expiryTokens.clear()
+                longPressInstalled.clear()
+                temporaryOverrides.clear()
+                restoringStock.clear()
             }
-            expiryCallbacks.forEach { (view, callback) ->
-                runCatching { view.removeCallbacks(callback) }
-            }
-            longPressInstalled.keys.forEach { view ->
-                runCatching { view.setOnLongClickListener(null) }
-            }
-            tickCallbacks.clear()
-            expiryCallbacks.clear()
-            expiryTokens.clear()
-            longPressInstalled.clear()
-            temporaryOverrides.clear()
-            restoringStock.clear()
+            persistentHeaderEnabled = false
+            clockClass = null
+            headerClockClass = null
+            updateTimeMethod = null
+            statusBarClockId = 0
         }
     }
 
     override fun onHook() {
+        retiring = false
         persistentHeaderEnabled = Preferences.getBoolean(
             Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
             false
@@ -209,6 +223,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         }
 
     private fun installLongPressListener(view: TextView) {
+        if (retiring) return
         val shouldInstall = synchronized(callbacksLock) {
             if (longPressInstalled.containsKey(view)) {
                 false
@@ -234,7 +249,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     private fun handleLongPress(view: View): Boolean {
         val target = targetOf(view) ?: return false
         val textView = view as? TextView ?: return false
-        if (!view.isAttachedToWindow) return false
+        if (retiring || !view.isAttachedToWindow) return false
 
         val currentlyEnabled = isSecondsEnabled(view, target)
         val baseline = baselineSecondsEnabled(target)
@@ -262,7 +277,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     private fun refresh(view: TextView, target: ClockTarget, forceStock: Boolean = false) {
-        if (!view.isAttachedToWindow) return
+        if (retiring || !view.isAttachedToWindow) return
         if (isSecondsEnabled(view, target)) {
             renderSeconds(view)
             schedule(view)
@@ -273,7 +288,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     private fun renderSeconds(view: TextView) {
-        if (!view.isAttachedToWindow) return
+        if (retiring || !view.isAttachedToWindow) return
         val context = view.context
         val locale = context.resources.configuration.locales[0]
         val skeleton = if (DateFormat.is24HourFormat(context)) "Hms" else "hmsa"
@@ -307,6 +322,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     private fun schedule(view: View) {
+        if (retiring) return
         val target = targetOf(view)
         if (target == null || !view.isAttachedToWindow || !isSecondsEnabled(view, target)) {
             cancelTick(view)
@@ -317,7 +333,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             tickCallbacks[view] ?: Runnable {
                 HookFailurePolicy.open(TAG, "secondTick", Unit) {
                     val currentTarget = targetOf(view)
-                    if (!view.isAttachedToWindow || currentTarget == null ||
+                    if (retiring || !view.isAttachedToWindow || currentTarget == null ||
                         !isSecondsEnabled(view, currentTarget)
                     ) {
                         cancelTick(view)
@@ -340,7 +356,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     private fun scheduleExpiry(view: View) {
-        if (!view.isAttachedToWindow) return
+        if (retiring || !view.isAttachedToWindow) return
         val token: Long
         val callback: Runnable
         synchronized(callbacksLock) {

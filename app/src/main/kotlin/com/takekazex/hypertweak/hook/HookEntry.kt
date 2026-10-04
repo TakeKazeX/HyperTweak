@@ -316,6 +316,9 @@ class HookEntry : XposedModule() {
                 packages = packageStates.values,
                 hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() }
             )
+            if (processName == "com.android.systemui") {
+                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
+            }
             rootHookers.forEach { it.prepareForHotReload() }
             rootHookers.forEach { it.resetAfterHotReloadPrepared() }
             rootHookers.clear()
@@ -567,17 +570,22 @@ class HookEntry : XposedModule() {
             BatteryInfoHooker.onPackageReady(appContext)
         }
         if (packageName == "com.android.systemui") {
-            if (nativeSettingsReady) nativeRuleStatePublisher.attach(appContext)
-            ProxyLaunchHooker.register(appContext)
-            ExtendUnlockHooker.syncTrustAgent(appContext)
-            StackedSignalHooker.onPackageReady(appContext)
-            ControlCenterCarrierBlockHooker.onPackageReady(appContext)
-            LeftContainerHooker.onPackageReady(appContext)
+            onSystemUiContextReady(appContext)
         }
         if (packageName == "com.google.android.gms") {
             QuickSharePhenotypeHooker.onPackageReady(appContext)
         }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
+    }
+
+    /** Cold startup and hot reload must publish the same host environment to every consumer. */
+    private fun onSystemUiContextReady(context: Context) {
+        if (nativeSettingsReady) nativeRuleStatePublisher.attach(context)
+        ProxyLaunchHooker.register(context)
+        ExtendUnlockHooker.syncTrustAgent(context)
+        StackedSignalHooker.onPackageReady(context)
+        ControlCenterCarrierBlockHooker.onPackageReady(context)
+        LeftContainerHooker.onPackageReady(context)
     }
 
     private fun hotReloadModeSummary(): String {
@@ -602,11 +610,7 @@ class HookEntry : XposedModule() {
                 BatteryInfoHooker.onPackageReady(appContext)
             }
             if (state.packageName == "com.android.systemui") {
-                if (nativeSettingsReady) nativeRuleStatePublisher.attach(appContext)
-                ProxyLaunchHooker.register(appContext)
-                ExtendUnlockHooker.syncTrustAgent(appContext)
-                StackedSignalHooker.onPackageReady(appContext)
-                LeftContainerHooker.onPackageReady(appContext)
+                onSystemUiContextReady(appContext)
             }
             if (state.packageName == "com.google.android.gms") {
                 QuickSharePhenotypeHooker.onPackageReady(appContext)

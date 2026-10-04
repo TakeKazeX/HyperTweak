@@ -18,14 +18,14 @@ import com.takekazex.hypertweak.util.DebugLog
  * clobbered right after it lands and has no effect on OS4; forcing the getters instead covers the
  * real read path. Roam visibility is split across the VM getters (`getMobileRoamVisible`,
  * `getSmallRoamVisible`) and a `StatusBarIconObserver.roamSettingBlock` field for the global
- * block. Requires a SystemUI restart.
+ * block. Global hiding now shares the native roaming getter boundaries instead of overwriting
+ * the observer field; rebuilding native icon groups reconnects existing binder collections.
  */
 object CellularIconHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
-    private const val OBSERVER_CLASS = "com.android.systemui.statusbar.policy.StatusBarIconObserver"
 
     @Volatile
     private var hideActivity = false
@@ -104,40 +104,18 @@ object CellularIconHooker : StaticHooker() {
         }
 
         // 2. Roam indicator methods return the flow directly.
-        if (hideRoam) {
+        if (hideRoam || hideRoamGlobal) {
             vmClass.findMethodOrNull { name("getMobileRoamVisible") }?.hook {
                 before { param -> param.result = IconTunerFlows.falseFlow }
             } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getMobileRoamVisible", "method not found")
         }
-        if (hideSmallRoam) {
+        if (hideSmallRoam || hideRoamGlobal) {
             vmClass.findMethodOrNull { name("getSmallRoamVisible") }?.hook {
                 before { param -> param.result = IconTunerFlows.falseFlow }
             } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getSmallRoamVisible", "method not found")
         }
 
-        // 3. Global roam block lives on StatusBarIconObserver.
-        if (hideRoamGlobal) {
-            val observerClass = OBSERVER_CLASS.toClassOrNull()
-            if (observerClass == null) {
-                DebugLog.hookSkipped(TAG, OBSERVER_CLASS, "class not found")
-                return
-            }
-            val roamField = runCatching { observerClass.getDeclaredField("roamSettingBlock") }
-                .getOrNull()
-            if (roamField == null) {
-                DebugLog.hookSkipped(TAG, "$OBSERVER_CLASS#roamSettingBlock", "field not found")
-                return
-            }
-            observerClass.hookAllConstructors {
-                after { param ->
-                    val observer = param.thisObject
-                    runCatching {
-                        IconTunerFlows.writeField(observer, roamField, IconTunerFlows.falseFlow)
-                    }.onFailure { t ->
-                        DebugLog.w(TAG, "CellularIcon failed to write roamSettingBlock", t)
-                    }
-                }
-            }
-        }
+        // Global roaming applies to both native roaming consumers. Keep the observer's original
+        // flow intact so disabling this switch and rebuilding binders restores host ownership.
     }
 }

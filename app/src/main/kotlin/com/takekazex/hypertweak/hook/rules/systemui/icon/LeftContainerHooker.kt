@@ -65,6 +65,7 @@ import kotlin.math.abs
 object LeftContainerHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
+    @Volatile private var retiring = false
     private const val TAG = "IconTuner"
     private const val RECONCILE_INTERVAL_MS = 1500L
 
@@ -309,6 +310,7 @@ object LeftContainerHooker : StaticHooker() {
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
         mainHandler.post {
+            if (retiring) return@post
             panelProgress = saved.getOrNull(2) as? Float ?: 0f
             panelVisible = saved.getOrNull(3) as? Boolean ?: false
             shadeSwitchSettledToControlCenter = saved.getOrNull(4) as? Boolean ?: false
@@ -355,6 +357,8 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        retiring = true
+        mainHandler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(reconcileRunnable)
         onMainBlocking {
             restoreHandover()
@@ -510,6 +514,7 @@ object LeftContainerHooker : StaticHooker() {
                     // attached. Give the home clone state an immediate hand-off instead of
                     // waiting for the periodic ticker to notice the changed keyguard state.
                     mainHandler.post {
+                        if (retiring) return@post
                         runCatching { reconcileAll() }
                             .onFailure { DebugLog.w(TAG, "unlock left-container reconcile failed", it) }
                     }
@@ -535,6 +540,7 @@ object LeftContainerHooker : StaticHooker() {
             after { param ->
                 val root = param.thisObject as? ViewGroup ?: return@after
                 mainHandler.post {
+                    if (retiring) return@post
                     runCatching { rebindHomeState(root, groupField) }
                         .onFailure { DebugLog.w(TAG, "home left-container rebind failed", it) }
                 }
@@ -670,7 +676,7 @@ object LeftContainerHooker : StaticHooker() {
         ccRows[row.javaClass.name] = WeakReference(row)
         // Install the parked copies immediately: a row that turns visible before the first expansion
         // callback (or attaches mid-gesture) must not draw the icon on the right.
-        mainHandler.post { applyHandoverGuarded(panelProgress) }
+        mainHandler.post { if (!retiring) applyHandoverGuarded(panelProgress) }
     }
 
     /** The live rows that draw a copy of the home cluster, in hand-over preference order. */
@@ -708,7 +714,7 @@ object LeftContainerHooker : StaticHooker() {
      */
     private fun applyHandover(progress: Float) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { applyHandoverGuarded(progress) }
+            mainHandler.post { if (!retiring) applyHandoverGuarded(progress) }
             return
         }
         if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
@@ -970,7 +976,7 @@ object LeftContainerHooker : StaticHooker() {
 
     private fun captureKeyguardState(controller: Any) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { captureKeyguardState(controller) }
+            mainHandler.post { if (!retiring) captureKeyguardState(controller) }
             return
         }
         val view = hierarchyField(controller.javaClass, "mView")?.get(controller) as? ViewGroup
@@ -1036,8 +1042,9 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     private fun runOnMain(block: () -> Unit) {
+        if (retiring) return
         if (Looper.myLooper() == Looper.getMainLooper()) block()
-        else mainHandler.post { runCatching(block).onFailure { DebugLog.w(TAG, "main cleanup failed", it) } }
+        else mainHandler.post { if (!retiring) runCatching(block).onFailure { DebugLog.w(TAG, "main cleanup failed", it) } }
     }
 
     private fun readRightBlockSeed(): List<String> = runCatching {
@@ -1104,6 +1111,7 @@ object LeftContainerHooker : StaticHooker() {
     // ─── Periodic reconciliation (main thread only) ──────────────────────────────
 
     private fun reconcileTick() {
+        if (retiring) return
         runCatching { reconcileAll() }.onFailure { t ->
             DebugLog.w(TAG, "LeftContainer reconcile failed", t)
         }
@@ -1115,12 +1123,14 @@ object LeftContainerHooker : StaticHooker() {
         if (ownershipRefreshPending) return
         ownershipRefreshPending = true
         mainHandler.post {
+            if (retiring) return@post
             ownershipRefreshPending = false
             reconcileAll()
         }
     }
 
     private fun reconcileAll() {
+        if (retiring) return
         reloadSnapshot()
         var needsOverlayRefresh = false
         synchronized(states) {
@@ -1217,7 +1227,7 @@ object LeftContainerHooker : StaticHooker() {
     /** Re-capture/reconcile the home manager after its view has re-entered the window. */
     private fun rebindHomeState(root: ViewGroup, groupField: Field) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { rebindHomeState(root, groupField) }
+            mainHandler.post { if (!retiring) rebindHomeState(root, groupField) }
             return
         }
         val manager = hierarchyField(root.javaClass, "mDarkIconManager")?.get(root) ?: return
@@ -1341,7 +1351,7 @@ object LeftContainerHooker : StaticHooker() {
      */
     private fun publishOwnedChange() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { publishOwnedChange() }
+            mainHandler.post { if (!retiring) publishOwnedChange() }
             return
         }
         publishedOwnedSlots = homeOwnedSlots()
@@ -1354,7 +1364,7 @@ object LeftContainerHooker : StaticHooker() {
     private fun syncClonesFor(state: LeftState?) {
         if (state == null || !shouldRender(state)) return
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { syncClonesFor(state) }
+            mainHandler.post { if (!retiring) syncClonesFor(state) }
             return
         }
         runCatching {

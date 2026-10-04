@@ -1698,7 +1698,9 @@ object DuoSignalHooker : StaticHooker() {
         restore(binding)
         binding.preDraw?.let { listener -> binding.observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener) }
         // Removal during the parent's detach traversal can skip sibling detach callbacks.
-        main.post { if (binding.view.parent === binding.parent) binding.parent.removeView(binding.view) }
+        if (!enabled && Looper.myLooper() == Looper.getMainLooper()) {
+            if (binding.view.parent === binding.parent) binding.parent.removeView(binding.view)
+        } else main.post { if (binding.view.parent === binding.parent) binding.parent.removeView(binding.view) }
     }
 
     private fun hookWifi() {

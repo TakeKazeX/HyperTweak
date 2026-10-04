@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.app.Notification
 import android.content.Context
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.view.View
 import android.view.ViewGroup
@@ -10,7 +11,9 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -23,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * untouched because they own their own contrast.
  */
 object NotificationMonetTextColorHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationMonetTextColor"
     private const val COLORS_CLASS = "android.app.Notification\$Colors"
@@ -51,12 +54,75 @@ object NotificationMonetTextColorHooker : StaticHooker() {
 
     private val redirectLogCount = AtomicInteger()
 
+    @Volatile private var retiring = false
+    private val originals = WeakHashMap<TextView, ColorStateList>()
+    private val applied = WeakHashMap<TextView, Int>()
+    private val palettes = WeakHashMap<Any, Int>()
+    private val paletteContexts = WeakHashMap<Any, Context>()
+    private val paletteLock = Any()
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        listOf(applied.entries.map { (view, color) -> listOf(view, color) },
+            synchronized(paletteLock) { paletteContexts.entries.map { (palette, context) -> listOf(palette, context) } })
+    }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain {
+            if (!isEnabled()) return@onMain
+            val saved = state as? List<*> ?: return@onMain
+            (saved.getOrNull(1) as? List<*>)?.filterIsInstance<List<*>>()?.forEach { item ->
+                val palette = item.getOrNull(0) ?: return@forEach
+                val context = item.getOrNull(1) as? Context ?: return@forEach
+                synchronized(paletteLock) {
+                    textColorField?.let { field ->
+                        palettes[palette] = field.getInt(palette)
+                        paletteContexts[palette] = context
+                        field.setInt(palette, neutralFor(context))
+                    }
+                }
+            }
+            (saved.getOrNull(0) as? List<*>)?.filterIsInstance<List<*>>()?.forEach { item ->
+                val view = item.getOrNull(0) as? TextView ?: return@forEach
+                val color = item.getOrNull(1) as? Int ?: return@forEach
+                applyTextColor(view, color)
+            }
+        }
+    }
     override fun onPrepareHotReload() {
-        textColorField = null
+        retiring = true
+        StatusIconHostAccess.onMain {
+            originals.forEach { (view, colors) -> view.setTextColor(colors) }
+            originals.clear()
+            applied.clear()
+        }
+        synchronized(paletteLock) {
+            palettes.forEach { (palette, color) -> textColorField?.setInt(palette, color) }
+            palettes.clear()
+            paletteContexts.clear()
+            textColorField = null
+        }
         redirectLogCount.set(0)
+    }
+    internal fun recoverHybrid(view: View) {
+        if (isEnabled() && generateSequence<Class<*>>(view.javaClass) { it.superclass }
+            .any { it.name == HYBRID_VIEW_CLASS }) forceHybridText(view)
+    }
+    internal fun recoverWrapper(wrapper: Any, row: View) {
+        if (!isEnabled()) return
+        if (generateSequence(wrapper.javaClass) { it.superclass }
+            .none { it.name == BIG_TEXT_WRAPPER_CLASS || it.name == TEMPLATE_WRAPPER_CLASS }) return
+        val entry = StatusIconHostAccess.invoke(row, "getEntry") ?: return
+        forceWrapperText(wrapper, entry)
+    }
+
+    private fun applyTextColor(view: TextView, color: Int) {
+        if (!isEnabled()) return
+        originals.putIfAbsent(view, view.textColors)
+        applied[view] = color
+        view.setTextColor(color)
     }
 
     override fun onHook() {
+        retiring = false
         val colorsClass = COLORS_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, COLORS_CLASS, "class not found")
             return
@@ -89,7 +155,14 @@ object NotificationMonetTextColorHooker : StaticHooker() {
                     if (!isEnabled()) return@open
                     val context = param.args.getOrNull(0) as? Context ?: return@open
                     val neutral = neutralFor(context)
-                    textColorField?.setInt(param.thisObject, neutral)
+                    synchronized(paletteLock) {
+                        if (!isEnabled()) return@open
+                        textColorField?.let { field ->
+                            palettes[param.thisObject] = field.getInt(param.thisObject)
+                            paletteContexts[param.thisObject] = context
+                            field.setInt(param.thisObject, neutral)
+                        }
+                    }
                     if (redirectLogCount.getAndIncrement() < 3) {
                         DebugLog.d(
                             TAG,
@@ -181,9 +254,9 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         val view = target as? View ?: return
         val primary = neutralFor(view.context)
         val secondary = secondaryFor(view.context)
-        invokeTextViewGetter(target, "getTitleView")?.setTextColor(primary)
-        invokeTextViewGetter(target, "getTextView")?.setTextColor(secondary)
-        invokeTextViewGetter(target, "getConversationSenderNameView")?.setTextColor(secondary)
+        invokeTextViewGetter(target, "getTitleView")?.let { applyTextColor(it, primary) }
+        invokeTextViewGetter(target, "getTextView")?.let { applyTextColor(it, secondary) }
+        invokeTextViewGetter(target, "getConversationSenderNameView")?.let { applyTextColor(it, secondary) }
     }
 
     private fun forceWrapperText(target: Any?, entry: Any?) {
@@ -214,7 +287,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         runCatching { target.javaClass.getMethod(name).invoke(target) as? TextView }.getOrNull()
 
     private fun setFieldTextColor(target: Any, name: String, color: Int) {
-        (readField(target, name) as? TextView)?.setTextColor(color)
+        (readField(target, name) as? TextView)?.let { applyTextColor(it, color) }
     }
 
     private fun findTextView(target: Any): TextView? =
@@ -228,7 +301,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
 
     private fun setTextColors(view: View, color: Int) {
         if (view is TextView) {
-            view.setTextColor(color)
+            applyTextColor(view, color)
         } else if (view is ViewGroup) {
             for (index in 0 until view.childCount) {
                 setTextColors(view.getChildAt(index), color)
@@ -267,5 +340,5 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
+        !retiring && Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
 }

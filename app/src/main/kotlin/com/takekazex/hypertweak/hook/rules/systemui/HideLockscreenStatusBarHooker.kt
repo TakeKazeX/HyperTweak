@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import java.util.WeakHashMap
 import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -7,14 +9,31 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 
 object HideLockscreenStatusBarHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     @Volatile
     private var enabled = false
     private var keyguardStatusBarClass: Class<*>? = null
 
+    private data class Original(val visibility: Int, val alpha: Float)
+    private val originals = WeakHashMap<View, Original>()
+    private var applying = false
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
+    }
+    internal fun recoverExistingViews(views: List<View>) {
+        if (!enabled) return
+        views.filter { keyguardStatusBarClass?.isInstance(it) == true }.forEach(::hide)
+    }
+
     override fun onPrepareHotReload() {
         enabled = false
+        StatusIconHostAccess.onMain {
+            originals.forEach { (view, state) -> view.visibility = state.visibility; view.alpha = state.alpha }
+            originals.clear()
+        }
         keyguardStatusBarClass = null
     }
 
@@ -50,6 +69,9 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             View::class.java.getMethod("setVisibility", Int::class.javaPrimitiveType).hook {
                 before { param ->
                     if (shouldHide(param.thisObject)) {
+                        val view = param.thisObject as? View ?: return@before
+                        val original = originals.getOrPut(view) { Original(view.visibility, view.alpha) }
+                        if (!applying) originals[view] = original.copy(visibility = param.args[0] as Int)
                         param.args[0] = View.INVISIBLE
                     }
                 }
@@ -62,6 +84,9 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             View::class.java.getMethod("setAlpha", Float::class.javaPrimitiveType).hook {
                 before { param ->
                     if (shouldHide(param.thisObject)) {
+                        val view = param.thisObject as? View ?: return@before
+                        val original = originals.getOrPut(view) { Original(view.visibility, view.alpha) }
+                        if (!applying) originals[view] = original.copy(alpha = param.args[0] as Float)
                         param.args[0] = 0f
                     }
                 }
@@ -76,11 +101,14 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     private fun hide(view: View) {
-        runCatching {
+        if (!enabled) return
+        originals.putIfAbsent(view, Original(view.visibility, view.alpha))
+        applying = true
+        try { runCatching {
             view.visibility = View.INVISIBLE
             view.alpha = 0f
         }.onFailure {
             DebugLog.w("HideLockscreenStatusBar", "failed to hide keyguard status bar", it)
-        }
+        } } finally { applying = false }
     }
 }

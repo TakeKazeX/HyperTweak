@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.view.View
+import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -25,6 +27,24 @@ object NotificationMaxNumberHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         enabled = false
         maximum = NotificationIconLimit.DEFAULT
+    }
+
+    internal fun recoverExistingViews(views: List<View>) {
+        // Both status-bar and full-AOD consumers collect the cold maxIconFlow while attached.
+        // A real detach/attach disposes their old collection and replays current host inputs.
+        // Preserve the view, parent, index and LayoutParams; do not replace the concrete flow.
+        views.filter { it.javaClass.name == "com.android.systemui.statusbar.phone.NotificationIconContainer" }
+            .filter { it.isAttachedToWindow }.forEach { view ->
+                val parent = view.parent as? ViewGroup ?: return@forEach
+                val index = parent.indexOfChild(view)
+                val params = view.layoutParams
+                parent.removeView(view)
+                try { parent.addView(view, index.coerceAtMost(parent.childCount), params) }
+                finally {
+                    if (view.parent == null) parent.addView(view, index.coerceAtMost(parent.childCount), params)
+                }
+                view.requestLayout()
+            }
     }
 
     override fun onHook() {

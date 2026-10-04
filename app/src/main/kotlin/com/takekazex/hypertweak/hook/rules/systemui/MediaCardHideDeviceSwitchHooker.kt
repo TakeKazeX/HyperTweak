@@ -6,8 +6,10 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -30,10 +32,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The `holder` field on `MiuiMediaViewControllerImpl` and the `seamless` field on both holder
  * classes are public, so no reflection is needed beyond a plain field read.
  *
- * The master switch gates hook installation and needs a SystemUI restart.
+ * The switch gates hook installation; hot reload restores and rebinds existing native switch views.
  */
 object MediaCardHideDeviceSwitchHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideDeviceSwitch"
     private const val SHADE_VC =
@@ -99,6 +101,27 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
 
     private val visibilityGuardLogged = AtomicBoolean(false)
 
+    @Volatile private var enabled = false
+    private var applyingVisibility = false
+    private val originals = WeakHashMap<View, Int>()
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain {
+            if (enabled) (state as? List<*>)?.filterIsInstance<View>()?.forEach(::hideSeamless)
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>) {
+        if (!enabled) return
+        views.firstOrNull()?.resources?.let { resources ->
+            val ids = mediaSwitchResourceNames.map { resources.getIdentifier(it, "id", "com.android.systemui") }
+                .filter { it != 0 }
+            if (ids.isNotEmpty()) mediaSwitchVisibilityIds = ids.toIntArray()
+        }
+        views.filter(::isMediaSwitchView).forEach(::hideSeamless)
+    }
+
     override fun onHook() {
         shadeHolderField = null
         shadeSeamlessField = null
@@ -113,7 +136,8 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         aospSeamlessIconField = null
         mediaSwitchVisibilityIds = intArrayOf()
         visibilityGuardLogged.set(false)
-        if (!Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
+        enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "media card device switch", "disabled")
             return
         }
@@ -125,6 +149,11 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        enabled = false
+        StatusIconHostAccess.onMain {
+            originals.forEach { (view, visibility) -> view.visibility = visibility }
+            originals.clear()
+        }
         shadeHolderField = null
         shadeSeamlessField = null
         islandSeamlessField = null
@@ -184,9 +213,10 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         setVisibility.hook {
             before { param ->
                 val view = param.thisObject as? View
-                if (view != null && isMediaSwitchView(view)) {
+                if (enabled && view != null && isMediaSwitchView(view)) {
                     HookFailurePolicy.open(TAG, "media switch View#setVisibility", Unit) {
                         val requested = param.args.getOrNull(0) as? Int
+                        if (requested != null && !applyingVisibility) originals[view] = requested
                         if (requested != null && requested != View.GONE) {
                             param.args[0] = View.GONE
                             if (visibilityGuardLogged.compareAndSet(false, true)) {
@@ -393,7 +423,8 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private fun hideSeamless(holder: Any?, field: Field?) {
-        val seamless = field?.get(holder) as? View ?: return
+        if (holder == null || field == null) return
+        val seamless = field.get(holder) as? View ?: return
         hideSeamless(seamless)
     }
 
@@ -404,22 +435,23 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         iconField: Field?
     ) {
         hideSeamless(holder, seamlessField)
-        hideViewField(holder, buttonField, disableInteraction = true)
-        hideViewField(holder, iconField, disableInteraction = true)
+        hideViewField(holder, buttonField)
+        hideViewField(holder, iconField)
     }
 
-    private fun hideViewField(holder: Any?, field: Field?, disableInteraction: Boolean) {
+    private fun hideViewField(holder: Any?, field: Field?) {
         val view = runCatching { field?.get(holder) as? View }.getOrNull() ?: return
         hideSeamless(view)
-        if (disableInteraction) {
-            view.isClickable = false
-            view.isEnabled = false
-            view.setOnClickListener(null)
-        }
+        // GONE removes the hit target. Keep native enabled state and click listeners so
+        // disabling the feature can restore the existing holder without another bind.
     }
 
     private fun hideSeamless(view: View?) {
-        if (view != null && view.visibility != View.GONE) view.visibility = View.GONE
+        if (!enabled || view == null) return
+        originals.putIfAbsent(view, view.visibility)
+        applyingVisibility = true
+        try { if (view.visibility != View.GONE) view.visibility = View.GONE }
+        finally { applyingVisibility = false }
     }
 
     private fun isMediaSwitchView(view: View): Boolean {

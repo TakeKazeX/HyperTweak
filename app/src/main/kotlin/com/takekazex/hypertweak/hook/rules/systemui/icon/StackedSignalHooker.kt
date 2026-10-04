@@ -25,11 +25,9 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.TimeUnit
 
 /**
  * Publishes the custom cellular signal as a normal SystemUI icon-controller slot.
@@ -263,7 +261,6 @@ object StackedSignalHooker : StaticHooker() {
         pendingBindings.clear()
         pendingEvents.clear()
         factoryViewModelIds = emptySet()
-        HostFlowCollector.resetForReload()
         signalState = MobileSignalState()
         slotIndices = emptyMap()
         signalAssets = null
@@ -430,6 +427,17 @@ object StackedSignalHooker : StaticHooker() {
                     .onFailure { DebugLog.w(TAG, "stacked adapter setup failed", it) }
             }
         }
+    }
+
+    /** Source attachment, valid even when there are currently no SIM rows to render. */
+    internal val mobilePipelineConnected: Boolean get() = adapterFlowsReady
+
+    internal fun recoverAdapter(adapter: Any) {
+        if (!enabled) return
+        setupAdapter(adapter)
+        val icons = mobileIconsViewModelReference?.get() ?: return
+        val flow = readField(icons, "mobileSubViewModels")
+        restoreFactoryViewModelsOnMain(flow?.let(IconTunerFlows::readFlowValue), generation.get())
     }
 
     private fun setupAdapter(adapter: Any) {
@@ -610,19 +618,7 @@ object StackedSignalHooker : StaticHooker() {
                 bridge?.removeAllOwned()
             }
         }
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            cleanup.run()
-            return
-        }
-        val completed = CountDownLatch(1)
-        mainHandler.post {
-            try {
-                cleanup.run()
-            } finally {
-                completed.countDown()
-            }
-        }
-        runCatching { completed.await(1L, TimeUnit.SECONDS) }
+        StatusIconHostAccess.onMain { cleanup.run() }
     }
 
     private fun registerSubscription(subId: Int, triple: Any, bindingGeneration: Long) {

@@ -7,6 +7,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -15,16 +16,30 @@ import java.util.WeakHashMap
 
 /** Hide dates in keyguard clocks throughout lockscreen/full-AOD transitions, excluding previews. */
 object LockscreenDateHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
     private val bindings = WeakHashMap<View, Binding>()
     @Volatile private var enabled = false
 
+    private var bindExisting: ((ViewGroup) -> Unit)? = null
+
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { bindings.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) {
+        StatusIconHostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
+    }
+    internal fun recoverExistingViews(views: List<View>) {
+        if (!enabled) return
+        views.filterIsInstance<ViewGroup>()
+            .filter { it.javaClass.name == "com.android.keyguard.clock.KeyguardClockContainer" }
+            .forEach { bindExisting?.invoke(it) }
+    }
+
     override fun onPrepareHotReload() {
         enabled = false
-        bindings.values.toList().forEach { binding ->
-            binding.root.get()?.let { root -> root.post { binding.dispose() } }
+        StatusIconHostAccess.onMain {
+            bindings.values.toList().forEach { it.dispose() }
+            bindings.clear()
+            bindExisting = null
         }
-        bindings.clear()
     }
 
     override fun onHook() {
@@ -58,20 +73,20 @@ object LockscreenDateHooker : StaticHooker() {
                 }
             }.getOrNull()
             val textAreaRole = runCatching { role.getField("TEXT_AREA").get(null) }.getOrNull()
+            bindExisting = { root ->
+                if (enabled && !bindings.containsKey(root)) {
+                    val binding = Binding(root, controllers, activeClock, getView, dateRoles, contentType, textAreaRole)
+                    bindings[root] = binding
+                    binding.attach()
+                    binding.onPreDraw()
+                }
+            }
             val attach = container.getDeclaredMethod("onAttachedToWindow")
             attach.hook {
                 after { param ->
                     val root = param.thisObject as? ViewGroup ?: return@after
-                    runCatching {
-                        if (enabled && !bindings.containsKey(root)) {
-                            val binding = Binding(
-                                root, controllers, activeClock, getView, dateRoles,
-                                contentType, textAreaRole
-                            )
-                            bindings[root] = binding
-                            binding.attach()
-                        }
-                    }.onFailure { DebugLog.hookFailed("LockscreenDate", "bind active clock", it) }
+                    runCatching { bindExisting?.invoke(root) }
+                        .onFailure { DebugLog.hookFailed("LockscreenDate", "bind active clock", it) }
                 }
             }
             DebugLog.hookRegistered("LockscreenDate", "KeyguardClockContainer#onAttachedToWindow")

@@ -47,8 +47,15 @@ object WifiIconHooker : StaticHooker() {
     @Volatile private var paddingStart = 0f
     @Volatile private var paddingEnd = 0f
     @Volatile private var activityRight = false
+    private var restoredDirection: Any? = null
+    private val directionHandles = ArrayList<HostFlowCollector.Handle>()
+    @Volatile private var directionEpoch = 0L
 
     override fun onPrepareHotReload() {
+        directionEpoch++
+        directionHandles.forEach { it.cancel() }
+        directionHandles.clear()
+        restoredDirection = null
         hideActivity = false
         hideType = false
         hideUnavailable = false
@@ -77,6 +84,7 @@ object WifiIconHooker : StaticHooker() {
             Preferences.getFloat(Preferences.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
         )
         activityRight = Preferences.getBoolean(Preferences.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
+        hookActivityDirection()
         if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&
             !paddingEnabled && !activityRight
         ) {
@@ -123,7 +131,6 @@ object WifiIconHooker : StaticHooker() {
             }
         }
         if (paddingEnabled) hookPadding()
-        if (activityRight && !hideActivity) hookActivityDirection()
         DebugLog.hookRegistered(
             TAG,
             "WifiIcon: standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight"
@@ -259,14 +266,54 @@ object WifiIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        vmClass.hookAllConstructors {
-            after { param ->
-                val field = findField(param.thisObject.javaClass, "inoutLeft") ?: return@after
-                runCatching {
-                    IconTunerFlows.writeField(param.thisObject, field, IconTunerFlows.falseFlow)
-                }.onFailure { DebugLog.w(TAG, "Wi-Fi activity direction update failed", it) }
+        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.hook {
+            before { param ->
+                if (activityRight && !hideActivity) param.result = IconTunerFlows.falseFlow
+                else restoredDirection?.let { param.result = it }
             }
+        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getInoutLeft", "method not found")
+    }
+
+    internal fun recoverViewModel(component: Any) {
+        val vm = StatusIconHostAccess.provider(component, "wifiViewModelProvider") ?: return
+        val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider") ?: return
+        val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider") ?: return
+        val network = StatusIconHostAccess.read(interactor, "wifiNetwork") ?: return
+        val standard = StatusIconHostAccess.read(vm, "wifiStandard") ?: return
+        // Older module builds overwrote inoutLeft. Recompute the native boolean contract from
+        // its real inputs; optimized SuspendLambda classes may have no declared constructor.
+        // Keep the host flow type and native binder; do not change VM fields.
+        // A MutableStateFlow implements the native getter's Flow contract directly.
+        // Do not unwrap an optional ReadonlyStateFlow: optimized hosts may return the mutable itself.
+        val mutable = IconTunerFlows.createMutableStateFlow(false)
+            ?: error("Cannot create native Wi-Fi direction StateFlow")
+        val exposed = mutable
+        val token = ++directionEpoch
+        var metered = false
+        var standardValue = (IconTunerFlows.readFlowValue(standard) as? Number)?.toInt() ?: 0
+        fun publish() {
+            val value = WifiActivityPolicy.nativeInoutLeft(metered, standardValue)
+            IconTunerFlows.setFlowValue(mutable, value)
         }
+        fun updateNetwork(value: Any?) {
+            val ext = readField(value, "ext")
+            metered = readField(ext, "meteredHint") as? Boolean ?: false
+            publish()
+        }
+        directionHandles.forEach { it.cancel() }; directionHandles.clear()
+        updateNetwork(IconTunerFlows.readFlowValue(network))
+        val handles = listOf(
+            HostFlowCollector.collect(scope, network, consumer = ::updateNetwork, isCurrent = { token == directionEpoch }),
+            HostFlowCollector.collect(scope, standard, consumer = { value ->
+                standardValue = (value as? Number)?.toInt() ?: 0; publish()
+            }, isCurrent = { token == directionEpoch })
+        )
+        if (handles.any { it == null }) {
+            handles.filterNotNull().forEach { it.cancel() }
+            error("Native Wi-Fi direction inputs could not be rebound")
+        }
+        directionHandles.addAll(handles.filterNotNull())
+        restoredDirection = exposed
     }
 
     private fun dpToPx(group: ViewGroup, value: Float): Int =

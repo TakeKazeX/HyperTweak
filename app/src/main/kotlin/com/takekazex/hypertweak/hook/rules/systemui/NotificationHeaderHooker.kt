@@ -12,10 +12,8 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
-import org.luckypray.dexkit.DexKitBridge
-import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
 import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -24,6 +22,9 @@ import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.result.MethodData
 
 /**
  * Customizes only OS4's new-control-center notification header
@@ -31,7 +32,7 @@ import kotlin.math.roundToInt
  * lockscreen reuse some resource ids, so every target is first captured from this exact parent.
  */
 object NotificationHeaderHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeader"
     private const val HEADER_CLASS = "com.android.systemui.qs.MiuiNotificationHeaderView"
@@ -101,8 +102,64 @@ object NotificationHeaderHooker : StaticHooker() {
     private var landscapeModeMethod: Method? = null
     private var generatedCallbacks: GeneratedCallbacks? = null
 
+    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+        listOf(layoutController.roots(), controllerSizes.keys.toList(),
+            shadeHeaderHeightAnimators.keys.toList(), notificationTopPaddingControllers.keys.toList())
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        StatusIconHostAccess.onMain {
+            if (!hasHeaderWork()) return@onMain
+            (saved.getOrNull(1) as? List<*>)?.filterNotNull()?.forEach(::applyClockSize)
+            (saved.getOrNull(2) as? List<*>)?.filterNotNull()?.forEach { shadeHeaderHeightAnimators[it] = true }
+            (saved.getOrNull(3) as? List<*>)?.filterNotNull()?.forEach { notificationTopPaddingControllers[it] = true }
+            (saved.getOrNull(0) as? List<*>)?.filterIsInstance<ViewGroup>()?.forEach(::applyHeader)
+        }
+    }
+
+    /** Rebind already-created native hosts; inflation and constructors do not run on replacement. */
+    internal fun recoverExistingHosts(component: Any?, views: List<View>): List<ViewGroup> {
+        val combined = component?.let { StatusIconHostAccess.provider(it, "combinedHeaderControllerProvider") }
+        val roots = (views.filterIsInstance<ViewGroup>().filter { it.javaClass.name == HEADER_CLASS } +
+            listOfNotNull(combined?.let { read(it, "notificationHeaderView") as? ViewGroup }) +
+            layoutController.roots()).distinct()
+        if (!hasHeaderWork()) return roots
+        component?.let { host ->
+            StatusIconHostAccess.provider(host, "shadeHeaderHeightAnimatorProvider")?.let {
+                shadeHeaderHeightAnimators[it] = true
+            }
+            StatusIconHostAccess.provider(host, "notificationTopPaddingControllerImplProvider")?.let {
+                notificationTopPaddingControllers[it] = true
+            }
+            StatusIconHostAccess.provider(host, "notificationHeaderExpandControllerProvider")?.let(::applyClockSize)
+        }
+        roots.forEach { root ->
+            guarded("existing header layout") {
+                // Include the cached header while detached so its next attachment uses current options.
+                layoutController.apply(root, root.rootWindowInsets)
+                applyHeader(root)
+            }
+        }
+        component?.let { StatusIconHostAccess.provider(it, "notificationHeaderExpandControllerProvider") }
+            ?.let(::replayExpansion)
+        syncShadeHeaderClipHeight()
+        refreshNotificationTopPadding()
+        DebugLog.i(TAG, "hot reload header hosts=${roots.size} sizeControllers=${controllerSizes.size}")
+        return roots
+    }
+
+    private fun hasHeaderWork(): Boolean = hideCarrier || hideTime || hideDate || dateAboveTime ||
+        dateAlignment != NotificationHeaderModel.ALIGN_START || timeAlignment != NotificationHeaderModel.ALIGN_START ||
+        timeScale != NotificationHeaderModel.DEFAULT_TIME_SCALE
+
+    private fun replayExpansion(controller: Any) {
+        NotificationHeaderExpansionReplay.replay(controller, generatedCallbacks?.notificationExpansion)
+    }
+
     override fun onPrepareHotReload() {
         restoring = true
+        main.removeCallbacksAndMessages(null)
         val restore = {
             val headerRoots = layoutController.roots()
             layoutController.restoreAll()
@@ -118,6 +175,7 @@ object NotificationHeaderHooker : StaticHooker() {
                         ?.setInt(controller, state.flipSize)
                 }
             }
+            controllerSizes.keys.toList().forEach { guarded("restore native expansion") { replayExpansion(it) } }
             controllerSizes.clear()
             shadeHeaderHeightAnimators.clear()
             notificationTopPaddingControllers.clear()
@@ -386,7 +444,7 @@ object NotificationHeaderHooker : StaticHooker() {
         layoutController.apply(root, root.rootWindowInsets)
         val time = layoutController.views(root)?.time as? TextView ?: return
         // Text/content and measured width can settle after the lifecycle/resource callback.
-        time.post {
+        main.post {
             if (!restoring && layoutController.onClockTextChanged(time)) {
                 syncShadeHeaderClipHeight()
                 refreshNotificationTopPadding()
@@ -409,7 +467,7 @@ object NotificationHeaderHooker : StaticHooker() {
         }
         resettingHeaders.remove(root)
         applyHeader(root)
-        root.post { if (!restoring) applyHeader(root) }
+        main.post { if (!restoring) applyHeader(root) }
     }
 
     private fun enforceVisibility(view: View) {
@@ -694,7 +752,10 @@ object NotificationHeaderHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 after { param -> guarded("clock size config") {
-                    readOuter(param.thisObject, EXPAND_CONTROLLER_CLASS)?.let(::applyClockSize)
+                    readOuter(param.thisObject, EXPAND_CONTROLLER_CLASS)?.let { controller ->
+                        applyClockSize(controller)
+                        replayExpansion(controller)
+                    }
                 } }
             }
         } ?: DebugLog.hookSkipped(TAG, "expand-controller configuration callback", "unique DexKit target not found")
@@ -707,7 +768,7 @@ object NotificationHeaderHooker : StaticHooker() {
                     after { param -> guarded("expanded clock text width") {
                         val clock = param.thisObject as? TextView ?: return@guarded
                         if (layoutController.rootFor(clock) == null) return@guarded
-                        clock.post {
+                        main.post {
                             if (!restoring && layoutController.onClockTextChanged(clock)) {
                                 syncShadeHeaderClipHeight()
                                 refreshNotificationTopPadding()

@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.provider.Settings
 import android.view.View
+import java.util.WeakHashMap
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -39,6 +41,8 @@ object CcBatteryStyleHooker : StaticHooker() {
     private const val STYLE_ICON_AND_PERCENT = 3
 
     @Volatile private var leadingPercent = false
+    private var retiring = false
+    private val hostStyles = WeakHashMap<View, Int>()
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private var tagField: Field? = null
     private var iconField: Field? = null
@@ -69,8 +73,14 @@ object CcBatteryStyleHooker : StaticHooker() {
             method.hook {
                 before { param ->
                     val batteryView = param.thisObject as? View ?: return@before
-                    if (!isControlCenter(batteryView)) return@before
+                    if (retiring || !isControlCenter(batteryView)) return@before
+                    val requested = param.args[0] as? Int ?: return@before
+                    hostStyles[batteryView] = requested
                     param.args[0] = STYLE_ICON_AND_PERCENT
+                }
+                after { param ->
+                    val view = param.thisObject as? View ?: return@after
+                    if (!retiring) hostStyles[view]?.let { style -> field(view.javaClass, "mStoreRealStyle")?.setInt(view, style) }
                 }
             }
         }
@@ -86,6 +96,27 @@ object CcBatteryStyleHooker : StaticHooker() {
             }
         }
         DebugLog.hookRegistered(TAG, "control-center battery outside=$outside leading=$leadingPercent")
+    }
+
+    override fun onPrepareHotReload() {
+        StatusIconHostAccess.onMain {
+            retiring = true
+            leadingPercent = false
+            hostStyles.entries.toList().forEach { (view, style) ->
+                StatusIconHostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
+                view.requestLayout()
+            }
+            hostStyles.clear()
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>) {
+        views.filter { it.javaClass.name == BATTERY }.forEach { view ->
+            // Recover even when both switches are disabled: a previous generation forced style 3.
+            val style = Settings.System.getInt(view.context.contentResolver, "battery_indicator_style", 1)
+            StatusIconHostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
+            view.requestLayout()
+        }
     }
 
     /** Apply the expanded style only to the real QS row. */
