@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.hook
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideSelection
+import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSavePolicy
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
@@ -1049,6 +1051,44 @@ object Preferences {
     const val KEY_UNLOCK_ADAPTIVE_REFRESH_PRO = "unlock_adaptive_refresh_pro"
 
     /**
+     * Power-save overrides: keep the features HyperOS pins while 省电模式 is active. Security Center
+     * (手机管家), from its remote process, writes fixed values into Settings on entering power save
+     * (60 Hz into `user_refresh_rate`/`peak_refresh_rate`/`miui_refresh_rate`, `haptic_feedback_enabled`
+     * = 0, five sound switches = 0, `pick_up_gesture_wakeup_mode` and
+     * `wakeup_for_keyguard_notification` = 0) and restores them from `power_center_*` backups on
+     * leaving. The module drops only those exact writes, so the rest of the policy stays active. See
+     * [rules.securitycenter.PowerSaveOverrideHooker] / [rules.securitycenter.PowerSaveOverridePolicy]
+     * and docs/FEATURE_DETAIL.md.
+     *
+     * The four feature switches are independent. [KEY_POWER_SAVE_OVERRIDE_MASTER] is a legacy
+     * compatibility gate, flattened to enabled on the first individual edit.
+     */
+    const val KEY_POWER_SAVE_OVERRIDE_MASTER = "power_save_override_master"
+    const val KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE = "keep_refresh_rate_in_power_save"
+    const val KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE = "keep_haptic_feedback_in_power_save"
+    const val KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE = "keep_system_sounds_in_power_save"
+    const val KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE = "keep_wakeup_gestures_in_power_save"
+
+    /**
+     * Automatic power-save control. SystemUI watches battery events and requests the native
+     * Security Center changePowerMode protocol used by the control-center tile. See
+     * [rules.system.BatteryAutoPowerSaveHooker] / [rules.system.BatteryAutoPowerSavePolicy].
+     *
+     * [KEY_BATTERY_AUTO_POWER_SAVE_ENABLED] turns power save on at or below
+     * [KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD] percent while unplugged;
+     * [KEY_EXIT_POWER_SAVE_WHEN_CHARGING] leaves power save once on connection, then selects
+     * on/off on unplug from the same threshold. Manual changes while charging are preserved.
+     * Both switches need one SystemUI restart after changing.
+     */
+    const val KEY_BATTERY_AUTO_POWER_SAVE_ENABLED = "battery_auto_power_save_enabled"
+    const val KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD = "battery_auto_power_save_threshold"
+    const val KEY_EXIT_POWER_SAVE_WHEN_CHARGING = "exit_power_save_when_charging"
+
+    const val DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.DEFAULT_THRESHOLD
+    const val MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.MIN_THRESHOLD
+    const val MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.MAX_THRESHOLD
+
+    /**
      * Removes the recents "clean up background apps" button. The button is a Dart widget inside
      * MiuiHome's Flutter AOT snapshot, so the module suppresses the overlay insertion through the
      * native payload rather than through an ART hook. It is read when `com.miui.home` loads the
@@ -1082,6 +1122,46 @@ object Preferences {
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
     fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
+
+    // The removed master is retained only to interpret legacy snapshots. Each new individual
+    // edit atomically flattens the effective selection and permanently opens that legacy gate.
+    private fun powerSaveFeatureEnabled(key: String): Boolean =
+        getBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, false) && getBoolean(key, false)
+
+    fun keepRefreshRateInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE)
+    fun keepHapticFeedbackInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE)
+    fun keepSystemSoundsInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE)
+    fun keepWakeupGesturesInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
+
+    /** Whether the module enables power save below [batteryAutoPowerSaveThreshold]. */
+    fun batteryAutoPowerSaveEnabled(): Boolean = getBoolean(KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
+
+    /** Whether a new charger connection requests one native power-save exit. */
+    fun exitPowerSaveWhenCharging(): Boolean = getBoolean(KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
+
+    /** The low-battery threshold in percent, bounded to the slider's band. */
+    fun batteryAutoPowerSaveThreshold(): Int = getInt(
+        KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+        DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+    ).coerceIn(MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD, MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD)
+
+    /** Preserve the effective legacy selection when editing one independent feature. */
+    fun setPowerSaveFeature(key: String, enabled: Boolean) {
+        val keys = listOf(
+            KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE, KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+            KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE, KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+        )
+        require(key in keys)
+        val values = PowerSaveOverrideSelection.edit(
+            getBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, false),
+            keys.associateWith { getBoolean(it, false) }, key, enabled,
+        )
+        (keys + KEY_POWER_SAVE_OVERRIDE_MASTER).forEach(::memoInvalidate)
+        write {
+            putBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, true)
+            values.forEach { (featureKey, value) -> putBoolean(featureKey, value) }
+        }
+    }
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
 

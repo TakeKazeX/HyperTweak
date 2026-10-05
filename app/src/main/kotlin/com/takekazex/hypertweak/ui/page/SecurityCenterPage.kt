@@ -45,7 +45,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /** Security Center-scoped feature switches, grouped independently from AOSP restoration. */
 @Composable
-fun SecurityCenterPage(onBack: () -> Unit) {
+fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -307,6 +307,11 @@ fun SecurityCenterPage(onBack: () -> Unit) {
             SmallTitle(stringResource(R.string.security_center_battery_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.power_save_override_title),
+                        summary = stringResource(R.string.power_save_override_entry_summary),
+                        onClick = onNavigateToPowerSave,
+                    )
                     OverlayDropdownPreference(
                         items = listOf(
                             stringResource(R.string.security_center_low_battery_follow),

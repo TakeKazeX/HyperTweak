@@ -23,6 +23,7 @@ sealed interface Route : NavKey {
     data object IconOrder : Route
     data object GlassTuner : Route
     data object ExperimentalFeatures : Route
+    data object PowerSave : Route
     data object CameraWatermark : Route
     data object ChargingDetail : Route
     data object LockscreenBottomText : Route
@@ -63,6 +64,7 @@ val Route.saveKey: String
         Route.GlassTuner -> "GlassTuner"
         Route.CameraWatermark -> "CameraWatermark"
         Route.ExperimentalFeatures -> "ExperimentalFeatures"
+        Route.PowerSave -> "PowerSave"
         Route.ChargingDetail -> "ChargingDetail"
         Route.LockscreenBottomText -> "LockscreenBottomText"
         Route.ControlCenterCorner -> "ControlCenterCorner"
@@ -97,6 +99,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "GlassTuner" -> Route.GlassTuner
     "CameraWatermark" -> Route.CameraWatermark
     "ExperimentalFeatures" -> Route.ExperimentalFeatures
+    "PowerSave" -> Route.PowerSave
     "ChargingDetail" -> Route.ChargingDetail
     "LockscreenBottomText" -> Route.LockscreenBottomText
     "ControlCenterCorner" -> Route.ControlCenterCorner

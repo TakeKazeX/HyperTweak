@@ -71,6 +71,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.DetailedPowerDataHooke
 import com.takekazex.hypertweak.hook.rules.securitycenter.LowBatteryWarningHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreBatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
@@ -87,6 +88,7 @@ import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
 import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepsHooker
 import com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker
 import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
+import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
 import com.takekazex.hypertweak.hook.rules.system.ForceDarkAppListHooker
 import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
 import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
@@ -603,6 +605,9 @@ class HookEntry : XposedModule() {
         StackedSignalHooker.onPackageReady(context)
         ControlCenterCarrierBlockHooker.onPackageReady(context)
         LeftContainerHooker.onPackageReady(context)
+        // The battery monitor needs a Context to register its receiver; appContext is null while
+        // hooks are attached at package load.
+        BatteryAutoPowerSaveHooker.onPackageReady(context)
     }
 
     private fun hotReloadModeSummary(): String {
@@ -837,6 +842,9 @@ class HookEntry : XposedModule() {
                 attachHooker(LockscreenBottomTextHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenDateHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ImmediateMonetRefreshHooker, classLoader, ctx, replacementHandles)
+                // Auto power save needs a persistent process: SystemUI holds DEVICE_POWER and is
+                // always scoped, so the battery receiver lives here rather than in the app.
+                attachHooker(BatteryAutoPowerSaveHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospVolumeHapticHooker, classLoader, ctx, replacementHandles)
@@ -969,6 +977,9 @@ class HookEntry : XposedModule() {
                 attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
                 attachHooker(DetailedPowerDataHooker, classLoader, ctx, replacementHandles)
                 attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
+                // The 省电模式 pins come from Security Center's remote process (PowerSaveService),
+                // so this cannot be limited to the main application process.
+                attachHooker(PowerSaveOverrideHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
                 attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
                 // Anti-peeping capability checks also run in Security Center's remote process;

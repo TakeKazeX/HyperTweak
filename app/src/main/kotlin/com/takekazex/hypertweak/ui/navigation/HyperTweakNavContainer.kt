@@ -46,6 +46,7 @@ import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
 import com.takekazex.hypertweak.ui.page.GoogleServicesPage
 import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
+import com.takekazex.hypertweak.ui.page.PowerSavePage
 import com.takekazex.hypertweak.ui.page.CameraWatermarkUnlockPage
 import com.takekazex.hypertweak.ui.page.ChargingDetailPage
 import com.takekazex.hypertweak.ui.page.LockscreenBottomTextPage
@@ -484,7 +485,8 @@ fun HyperTweakNavContainer(
         }
         entry<Route.SecurityCenter> {
             SecurityCenterPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onNavigateToPowerSave = { backStack.add(Route.PowerSave) }
             )
         }
         entry<Route.AospIme> {
@@ -619,6 +621,11 @@ fun HyperTweakNavContainer(
                 onNavigateToControlCenterResize = { backStack.add(Route.ControlCenterResize) },
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange
+            )
+        }
+        entry<Route.PowerSave> {
+            PowerSavePage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.ChargingDetail> {
