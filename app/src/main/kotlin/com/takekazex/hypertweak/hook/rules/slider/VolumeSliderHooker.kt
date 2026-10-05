@@ -1,15 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
-import android.graphics.Typeface
 import android.util.Log
 import android.view.View
 import android.widget.TextView
-import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.blendColors
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercentFromSliderValue
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
@@ -19,29 +15,21 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.initTopText
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.refreshViewCache
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
-private val DARK_BADGE_BG_COLOR = "#3A3A3C".toColorInt()
-private val LIGHT_BADGE_BG_COLOR = "#E5E5E5".toColorInt()
-private val DARK_BADGE_STROKE_COLOR = "#33FFFFFF".toColorInt()
-private val LIGHT_BADGE_STROKE_COLOR = "#33000000".toColorInt()
+private const val TAG = "VolumeSlider"
 
 class VolumeSliderHooker(
     private val parent: SliderPercentageHooker
 ) : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 
+    /** Owns the collapsed badge capsule's material/style; cleared with the hooker on hot reload. */
+    private val badgeStyler = VolumeBadgeStyler(TAG)
+
 
     @Volatile
     private var isVolumeViewHooked = false
-
-    // Cached reflection fields for iconColorTransition / iconBlendColorTransition (hot path: every animation frame)
-    private var cachedThis0Field: java.lang.reflect.Field? = null
-    private var cachedSuperVolumeField: java.lang.reflect.Field? = null
-    private var cachedMiBlurCompatClass: Class<*>? = null
-    private var cachedColorBlendTokenClass: Class<*>? = null
-    private var cachedTokenBlendMethod: java.lang.reflect.Method? = null
 
     // Cached field refs for VolumePanelViewController hooks (hot path: every volume state update)
     private var cachedVpcFieldsLoaded = false
@@ -67,19 +55,11 @@ class VolumeSliderHooker(
     private var cachedColumnStreamField: java.lang.reflect.Field? = null
     private var cachedColumnStreamGetter: java.lang.reflect.Method? = null
 
-    private var cachedVolumeRadiusMethod: java.lang.reflect.Method? = null
-    private var cachedVolumeRadiusLoaded = false
-
     // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
     private val textViewToStreamCache = java.util.WeakHashMap<TextView, Int>()
 
     override fun onPrepareHotReload() {
         isVolumeViewHooked = false
-        cachedThis0Field = null
-        cachedSuperVolumeField = null
-        cachedMiBlurCompatClass = null
-        cachedColorBlendTokenClass = null
-        cachedTokenBlendMethod = null
         cachedVpcFieldsLoaded = false
         vpcField_mState = null
         vpcField_mExpanded = null
@@ -98,9 +78,8 @@ class VolumeSliderHooker(
         cachedVolumeColumnField = null
         cachedColumnStreamField = null
         cachedColumnStreamGetter = null
-        cachedVolumeRadiusMethod = null
-        cachedVolumeRadiusLoaded = false
         textViewToStreamCache.clear()
+        badgeStyler.clear()
     }
 
     override fun onHook() {
@@ -208,25 +187,12 @@ class VolumeSliderHooker(
                             thisObject.javaClass.getMethod("isInCCMainPage").invoke(thisObject) as Boolean
                         }.getOrDefault(true)
                         
-                        val shouldShow = isExpanded || (isInCCMainPage && !sameStyle)
+                        val shouldShow = VolumeBadgePolicy.visible(isExpanded, isInCCMainPage, sameStyle)
                         runCatching {
                             val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
                                 .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
                             superVolume.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
-                            superVolume.typeface = Typeface.DEFAULT_BOLD
-                            if (sameStyle) {
-                                putTag(superVolume, "sliderType", "VolumePanelViewController")
-                                val activeColor = ACTIVE_BLUE_COLOR
-                                ColorOverrideLock.isSettingColor.set(true)
-                                runCatching {
-                                    superVolume.setTextColor(activeColor)
-                                }
-                                ColorOverrideLock.isSettingColor.set(false)
-                            } else {
-                                val context = superVolume.context
-                                val textColor = getSliderTextColor(context)
-                                superVolume.setTextColor(textColor)
-                            }
+                            badgeStyler.applyTextStyle(superVolume, sameStyle)
                         }
                     }
                 }
@@ -239,7 +205,7 @@ class VolumeSliderHooker(
         // Track whether badge theme has been applied since last show, to avoid re-applying on every update
         var badgeThemeApplied = false
 
-        // Helper: apply badge theme colors. Called both at init, update, and show.
+        // Helper: resolve the VolumePanelViewController field handles once per process.
         fun loadVpcFields(thisObject: Any) {
             if (cachedVpcFieldsLoaded) return
             val clz = thisObject.javaClass
@@ -258,111 +224,69 @@ class VolumeSliderHooker(
             cachedVpcFieldsLoaded = true
         }
 
-        fun applyBadgeThemeColors(thisObject: Any) {
-            if (!parent.showPercentageEnabled) return
+        /**
+         * Binds the dialog view's `updateSuperVolumeVisibility` once the volume view exists, so the
+         * module's collapsed/CC visibility decision wins over the host's super-volume-only rule.
+         * This resolves a view class that is only reachable from a live controller, hence the hook
+         * installed at runtime instead of at registration time.
+         */
+        fun hookSuperVolumeVisibilityFallback(thisObject: Any) {
+            if (isVolumeViewHooked) return
             runCatching {
-                loadVpcFields(thisObject)
-                val mSuperVolumeBg = vpcField_mSuperVolumeBg?.get(thisObject) as? View
-                val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
-                val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
-                if (mSuperVolumeBg != null && mSuperVolume != null) {
-                    val context = mSuperVolumeBg.context
-                    val isDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                    val bgColor = if (isDark) DARK_BADGE_BG_COLOR else LIGHT_BADGE_BG_COLOR
-
-                    // Cached radius method and reusable GradientDrawable
-                    val radiusMethod = cachedVolumeRadiusMethod ?: run {
-                        if (!cachedVolumeRadiusLoaded) {
-                            val m = runCatching {
-                                val clz = context.classLoader.loadClass("com.android.systemui.miui.volume.VolumeColumnRes")
-                                clz.getMethod("getRadius", android.content.Context::class.java)
-                            }.getOrNull()
-                            cachedVolumeRadiusMethod = m
-                            cachedVolumeRadiusLoaded = true
-                            m
-                        } else null
-                    }
-                    val radius = (if (radiusMethod != null) {
-                        runCatching { radiusMethod.invoke(null, context) as Int }.getOrNull()?.toFloat()
-                    } else null) ?: (20f * context.resources.displayMetrics.density)
-
-                    mSuperVolumeBg.background = android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                        setColor(bgColor)
-                        cornerRadius = radius
-                    }
-                    mSuperVolumeBg.backgroundTintList = null
-
-                    // Add subtle stroke border
-                    (mSuperVolumeBg.background as? android.graphics.drawable.GradientDrawable)?.setStroke(
-                        (1 * context.resources.displayMetrics.density).toInt(),
-                        if (isDark) DARK_BADGE_STROKE_COLOR else LIGHT_BADGE_STROKE_COLOR
-                    )
-
-                    // Clear the TextView's background/tint to let the capsule's background show through
-                    val paddingLeft = mSuperVolume.paddingLeft
-                    val paddingTop = mSuperVolume.paddingTop
-                    val paddingRight = mSuperVolume.paddingRight
-                    val paddingBottom = mSuperVolume.paddingBottom
-                    mSuperVolume.background = null
-                    mSuperVolume.backgroundTintList = null
-                    mSuperVolume.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom)
-
-                    // Style text color and typeface
-                    mSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                    val sameStyleVolume = parent.sameStyleEnabled
-                    if (sameStyleVolume) {
-                        putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                        withColorOverride {
-                            runCatching {
-                            mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
-                            }
-                        }
-                    } else {
-                        val textColor = getSliderTextColor(context)
-                        mSuperVolume.setTextColor(textColor)
-                    }
-
-                    // Maintain visibility based on expanded state
-                    val badgeVisibility = if (mExpanded) View.GONE else View.VISIBLE
-                    mSuperVolumeBg.visibility = badgeVisibility
-                    mSuperVolume.visibility = badgeVisibility
-
-                    // Dynamic fallback hook for updateSuperVolumeVisibility
-                    if (!isVolumeViewHooked) {
-                        runCatching {
-                            val mVolumeView = vpcField_mVolumeView?.get(thisObject)
-                            if (mVolumeView != null) {
-                                val clz = mVolumeView.javaClass
-                                clz.declaredMethods.firstOrNull {
-                                    it.name == "updateSuperVolumeVisibility" &&
-                                    it.parameterTypes.size == 1 &&
-                                    it.parameterTypes[0] == Boolean::class.javaPrimitiveType
-                                }?.let { method ->
-                                    method.hook {
-                                        before { param ->
-                                            if (parent.showPercentageEnabled) {
-                                                val view = param.thisObject
-                                                val isExpanded = runCatching {
-                                                    view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
-                                                }.getOrDefault(false)
-                                                val inCCMainPage = runCatching {
-                                                    view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
-                                                }.getOrNull()
-                                                if (inCCMainPage != true) {
-                                                    param.args[0] = !isExpanded
-                                                }
-                                            }
-                                        }
-                                    }
+                val mVolumeView = vpcField_mVolumeView?.get(thisObject) ?: return@runCatching
+                mVolumeView.javaClass.declaredMethods.firstOrNull {
+                    it.name == "updateSuperVolumeVisibility" &&
+                        it.parameterTypes.size == 1 &&
+                        it.parameterTypes[0] == Boolean::class.javaPrimitiveType
+                }?.let { method ->
+                    method.hook {
+                        before { param ->
+                            if (parent.showPercentageEnabled) {
+                                val view = param.thisObject
+                                val isExpanded = runCatching {
+                                    view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
+                                }.getOrDefault(false)
+                                val inCCMainPage = runCatching {
+                                    view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
+                                }.getOrNull()
+                                if (inCCMainPage != true) {
+                                    param.args[0] = !isExpanded
                                 }
-                                isVolumeViewHooked = true
                             }
                         }
                     }
                 }
+                isVolumeViewHooked = true
+            }
+        }
+
+        /**
+         * Applies the badge's appearance from the current system material state: the capsule is
+         * painted by [badgeStyler] with the volume panel's own material tokens (柔光玻璃 /
+         * 清透磨砂), the percentage text follows 统一风格, and both views follow the expanded state.
+         * Host material state is read on every call, so a 材质风格 switch is picked up on the next
+         * panel show and at the host's material-change boundary.
+         */
+        fun applyBadgeAppearance(thisObject: Any) {
+            if (!parent.showPercentageEnabled) return
+            runCatching {
+                loadVpcFields(thisObject)
+                val badgeBg = vpcField_mSuperVolumeBg?.get(thisObject) as? View ?: return@runCatching
+                val badgeText = vpcField_mSuperVolume?.get(thisObject) as? TextView ?: return@runCatching
+                val expanded = vpcField_mExpanded?.get(thisObject) as Boolean
+
+                // Only the outer capsule paints the material; the text stays transparent.
+                badgeStyler.detachTextBackground(badgeText)
+                badgeStyler.applyCapsule(badgeBg, expanded, thisObject.javaClass.classLoader)
+                badgeStyler.applyTextStyle(badgeText, parent.sameStyleEnabled)
+
+                val badgeVisibility = if (expanded) View.GONE else View.VISIBLE
+                badgeBg.visibility = badgeVisibility
+                badgeText.visibility = badgeVisibility
+
+                hookSuperVolumeVisibilityFallback(thisObject)
             }.onFailure { t ->
-                Log.e("HyperTweak", "Error applying badge theme colors", t)
+                Log.e("HyperTweak", "Error applying volume badge appearance", t)
             }
         }
 
@@ -408,12 +332,23 @@ class VolumeSliderHooker(
             }
         }
 
-        // Apply at init so the color is ready before the first show
+        // The host's own badge setup runs first (transparent capsule plus its material fallbacks),
+        // then the module refines it so 柔光玻璃 / 清透磨砂 come from the panel's material tokens.
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "initSuperVolumeColor" }?.let { method ->
             method.hook {
-                intercept { chain ->
-                    applyBadgeThemeColors(chain.thisObject)
-                    null
+                after { param ->
+                    applyBadgeAppearance(param.thisObject)
+                }
+            }
+        }
+
+        // 材质风格 switch: the host re-styles its panel surfaces here but never re-inits this badge,
+        // so the capsule has to be repainted at the same boundary to follow the new material.
+        clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "onMaterialModeChanged" }?.let { method ->
+            method.hook {
+                after { param ->
+                    badgeThemeApplied = false
+                    applyBadgeAppearance(param.thisObject)
                 }
             }
         }
@@ -426,7 +361,7 @@ class VolumeSliderHooker(
                     val activeStream = vpcField_mActiveStream?.get(param.thisObject) as? Int
                     if (activeStream != null) updateBadgeText(param.thisObject, activeStream)
                     badgeThemeApplied = false
-                    applyBadgeThemeColors(param.thisObject)
+                    applyBadgeAppearance(param.thisObject)
                 }
             }
         }
@@ -481,23 +416,10 @@ class VolumeSliderHooker(
                                 if (columnSuperVolume != null) {
                                     setPercentIfChanged(columnSuperVolume, pct)
                                     val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
-                                    val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
+                                    val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
-                                        columnSuperVolume.typeface = Typeface.DEFAULT_BOLD
-                                        if (sameStyleVolume) {
-                                            putTag(columnSuperVolume, "sliderType", "VolumePanelViewController")
-                                            val activeColor = ACTIVE_BLUE_COLOR
-                                            withColorOverride {
-                                                runCatching {
-                                                columnSuperVolume.setTextColor(activeColor)
-                                                }
-                                            }
-                                        } else {
-                                            val context = columnSuperVolume.context
-                                            val textColor = getSliderTextColor(context)
-                                            columnSuperVolume.setTextColor(textColor)
-                                        }
+                                        badgeStyler.applyTextStyle(columnSuperVolume, sameStyleVolume)
                                     } else {
                                         // Badge not visible — skip expensive theme work
                                         badgeThemeApplied = false
@@ -509,25 +431,12 @@ class VolumeSliderHooker(
                                         val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
                                         if (mSuperVolume != null) {
                                             setPercentIfChanged(mSuperVolume, pct)
-                                            mSuperVolume.typeface = Typeface.DEFAULT_BOLD
                                             mSuperVolume.visibility = View.VISIBLE
-
-                                            if (sameStyleVolume) {
-                                                putTag(mSuperVolume, "sliderType", "VolumePanelViewController")
-                                                withColorOverride {
-                                                    runCatching {
-                                                    mSuperVolume.setTextColor(ACTIVE_BLUE_COLOR)
-                                                    }
-                                                }
-                                            } else {
-                                                val context = mSuperVolume.context
-                                                val textColor = getSliderTextColor(context)
-                                                mSuperVolume.setTextColor(textColor)
-                                            }
+                                            badgeStyler.applyTextStyle(mSuperVolume, sameStyleVolume)
                                         }
                                         // Only re-apply badge theme if not already applied (avoids per-update overhead)
                                         if (!badgeThemeApplied) {
-                                            applyBadgeThemeColors(thisObject)
+                                            applyBadgeAppearance(thisObject)
                                             badgeThemeApplied = true
                                         }
                                     }
@@ -560,7 +469,7 @@ class VolumeSliderHooker(
                             if (superVolume != null) {
                                 val sameStyleVolume = parent.sameStyleEnabled
                                 val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
-                                val shouldShowInner = mExpanded || (isControlCenter && !sameStyleVolume)
+                                val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
                                 superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                             }
                         }
@@ -636,26 +545,12 @@ class VolumeSliderHooker(
 
                                     val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
                                     val sameStyleSuper = parent.sameStyleEnabled
-                                    if (textView === mSuperVolume) {
-                                        textView.visibility = if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
+                                    textView.visibility = if (textView === mSuperVolume) {
+                                        if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
                                     } else {
-                                        textView.visibility = if (mExpanded) View.VISIBLE else View.INVISIBLE
+                                        if (mExpanded) View.VISIBLE else View.INVISIBLE
                                     }
-
-                                    textView.typeface = Typeface.DEFAULT_BOLD
-                                    if (sameStyleSuper) {
-                                        putTag(textView, "sliderType", "VolumePanelViewController")
-                                        val activeColor = ACTIVE_BLUE_COLOR
-                                        withColorOverride {
-                                            runCatching {
-                                            textView.setTextColor(activeColor)
-                                            }
-                                        }
-                                    } else {
-                                        val context = textView.context
-                                        val textColor = getSliderTextColor(context)
-                                        textView.setTextColor(textColor)
-                                    }
+                                    badgeStyler.applyTextStyle(textView, sameStyleSuper)
                                     true
                                 } else {
                                     false
@@ -675,7 +570,7 @@ class VolumeSliderHooker(
             method.hook {
                 intercept { chain ->
                     if (!badgeThemeApplied) {
-                        applyBadgeThemeColors(chain.thisObject)
+                        applyBadgeAppearance(chain.thisObject)
                         badgeThemeApplied = true
                     }
                     null
