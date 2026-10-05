@@ -32,6 +32,14 @@ object HostFlowCollector {
     class Handle internal constructor(private val job: Any) {
         private val cancelled = AtomicBoolean(false)
 
+        internal fun isActive(): Boolean = runCatching {
+            val getter = job.javaClass.methods.firstOrNull {
+                it.name in setOf("isActive", "getIsActive") && it.parameterTypes.isEmpty()
+            } ?: return@runCatching true
+            getter.isAccessible = true
+            getter.invoke(job) as? Boolean ?: false
+        }.getOrDefault(false)
+
         fun cancel() {
             if (!cancelled.compareAndSet(false, true)) return
             runCatching {
@@ -77,7 +85,12 @@ object HostFlowCollector {
             method.invoke(null, scope, flow, guardedConsumer)
         }.mapCatching { job ->
             if (job == null) error("JavaAdapter returned null Job")
-            Handle(job)
+            Handle(job).also {
+                if (!it.isActive()) {
+                    it.cancel()
+                    error("JavaAdapter returned an inactive Job")
+                }
+            }
         }.onFailure {
             DebugLog.w(TAG, "static JavaAdapter flow collection failed", it)
         }.getOrNull()

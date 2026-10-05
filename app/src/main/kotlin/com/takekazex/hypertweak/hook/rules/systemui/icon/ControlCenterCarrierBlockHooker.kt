@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.util.TypedValue
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.ViewTreeObserver
 import android.view.inspector.WindowInspector
@@ -200,7 +201,19 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         var wifiReady = false
         var typeSuppressed = false
         var networkWidth = 0
+        val badgeDrawable = GradientDrawable()
+        var badgeTint: Int? = null
+        var badgeDensity = 0f
+        var rendered: RowRenderState? = null
     }
+
+    private data class RowRenderState(
+        val model: CarrierRowModel, val art: Artwork, val tint: Int,
+        val densityDpi: Int, val fontScale: Float, val rtl: Boolean,
+        val iconHeight: Int, val carrier: String, val badgeText: String,
+        val single: Boolean, val roaming: Boolean, val keepType: Boolean,
+        val config: MobileTypeConfig, val badge: Boolean
+    )
 
     private class Block(
         val layout: LinearLayout,
@@ -383,6 +396,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         // Finish host restoration before the lifecycle removes this generation's hooks.
         onMainBlocking {
+            Choreographer.getInstance().removeFrameCallback(renderFrame)
+            renderGate.cancel()
             motions.values.forEach(CarrierTypeMotion::clear)
             motions.clear()
             duoTargets.clear()
@@ -967,6 +982,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val compact = enabled && ControlCenterHeaderHooker.supportsCompactLayout(block.layout)
         if (block.compact == compact && !restyle) return
         block.compact = compact
+        block.rows.forEach { it.rendered = null }
         if (!compact) {
             restoreBlockStyle(block)
             releaseMask(block)
@@ -1010,6 +1026,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             (readField(parts.row, "hdText") as? View)?.visibility = View.GONE
             (readField(parts.row, "plusText") as? View)?.visibility = View.GONE
         }
+        ControlCenterHeaderHooker.updateCarrierLayout(block.layout)
     }
 
     private fun collapse(view: View?) {
@@ -1053,6 +1070,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.attachListener?.let(block.layout::removeOnAttachStateChangeListener)
         releaseMask(block)
         restoreBlockStyle(block)
+        ControlCenterHeaderHooker.releaseCarrier(block.layout)
         block.rows.forEach { parts ->
             rowIndex.remove(parts.row)
             rowIndex.remove(parts.networkSlot)
@@ -1103,7 +1121,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.observer = block.layout.viewTreeObserver
         block.preDraw = ViewTreeObserver.OnPreDrawListener {
             runCatching {
-                ControlCenterHeaderHooker.updateCarrierLayout(block.layout)
+                ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
                 syncMask(block)
                 if (!shadeSwitching && panelVisible && progress > 0f && progress < 1f) {
                     applyHandoverGuarded(progress)
@@ -1123,12 +1141,24 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     // ---------------------------------------------------------------- rendering
 
+    private val renderGate = FrameUpdateGate()
+    private var renderTicket = 0L
+    private val renderFrame = Choreographer.FrameCallback {
+        renderGate.drain(renderTicket) {
+            if (enabled) runCatching { renderAll() }
+                .onFailure { DebugLog.w(TAG, "carrier frame render failed", it) }
+        }
+    }
+
     private fun scheduleRender() {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            renderAll()
-        } else {
-            val token = generation.get()
-            main.post { if (enabled && generation.get() == token) renderAll() }
+        if (!enabled) return
+        val ticket = renderGate.request() ?: return
+        val token = generation.get()
+        main.post {
+            if (enabled && generation.get() == token && renderGate.isPending(ticket)) {
+                renderTicket = ticket
+                Choreographer.getInstance().postFrameCallback(renderFrame)
+            }
         }
     }
 
@@ -1146,6 +1176,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             slotOf = ::slotOf
         )
         blocks.values.toList().forEach { block ->
+            if (!block.layout.isAttachedToWindow) return@forEach
             if (block.compact) block.rows.forEach { parts -> renderRow(parts, rows) }
             else releaseMask(block)
         }
@@ -1170,21 +1201,30 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.typeSuppressed = false
             parts.wifiBitmap = null
             parts.typeBitmap = null
+            parts.rendered = null
             return
         }
         parts.row.visibility = View.VISIBLE
         val tint = runCatching { parts.carrierText.currentTextColor }.getOrDefault(0xFFFFFFFF.toInt())
-        parts.badge.setTextColor(tint)
-        parts.airplaneText.setTextColor(tint)
-        val density = parts.row.resources.displayMetrics.density
-        parts.badge.background = GradientDrawable().apply {
-            cornerRadius = 2 * density
-            setStroke(density.roundToInt().coerceAtLeast(1), tint)
-        }
         val context = parts.row.context
+        val density = context.resources.displayMetrics.density
         val densityDpi = context.resources.displayMetrics.densityDpi
         val fontScale = context.resources.configuration.fontScale
         val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        val state = RowRenderState(model, art, tint, densityDpi, fontScale, rtl,
+            iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
+            mobileState.subscriptionOrder.size == 1,
+            mobileState.subscriptions[model.subId]?.roaming == true, keepTypeOnWifi, typeConfig, showBadge)
+        if (parts.rendered == state) return
+        parts.badge.setTextColor(tint)
+        parts.airplaneText.setTextColor(tint)
+        if (parts.badgeTint != tint || parts.badgeDensity != density) {
+            parts.badgeDrawable.cornerRadius = 2 * density
+            parts.badgeDrawable.setStroke(density.roundToInt().coerceAtLeast(1), tint)
+            parts.badgeTint = tint
+            parts.badgeDensity = density
+        }
+        if (parts.badge.background !== parts.badgeDrawable) parts.badge.background = parts.badgeDrawable
 
         // In expanded Duo mode the battery ring stays on its own; the network type and Wi-Fi return
         // to the carrier row alongside each SIM's signal.
@@ -1222,6 +1262,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
         publishNetwork(parts, typeBitmap, wifiBitmap, tint)
+        parts.rendered = state.takeIf {
+            (model.signalLevel == null || signalBitmap != null) &&
+                (model.wifiLevel == null || wifiBitmap != null) &&
+                (model.typeText.isNullOrBlank() || typeBitmap != null)
+        }
         parts.row.contentDescription = buildString {
             if (showBadge) append(parts.badge.text).append(", ")
             if (model.airplane) append("Airplane mode") else append(parts.carrierText.text)
@@ -1338,7 +1383,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     artwork = loaded
                     artGeneration = token
                     DebugLog.i(TAG, "carrier artwork ready")
-                    renderAll()
+                    scheduleRender()
                     applyHandoverGuarded(progress)
                 }
             }

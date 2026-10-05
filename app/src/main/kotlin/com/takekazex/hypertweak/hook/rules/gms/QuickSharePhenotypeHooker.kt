@@ -102,13 +102,18 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != GMS_PACKAGE) return
         enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
-        installGateHooks()
+        if (enabledCache) installGateHooks()
+        else DebugLog.hookSkippedDebug(TAG, "Quick Share gates", "disabled")
     }
 
     /** Called from HookEntry once the GMS app context exists (every GMS process). */
     fun onPackageReady(context: Context) {
         // Only the main GMS process writes the DB and sends the broadcast; other GMS processes
         // would only contend on the same SQLite file. Falls back to running if not attached yet.
+        // Secondary processes also need the enabled gate, but disabled generations need no
+        // DexKit mapping/class materialization. Main-process override removal still runs.
+        enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+        if (enabledCache) installGateHooks()
         val isMain = runCatching { hookParam.isMainProcess }.getOrDefault(true)
         if (!isMain) return
 

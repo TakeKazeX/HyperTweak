@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -7,6 +8,10 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.os.PowerManager
+import android.app.KeyguardManager
+import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -20,6 +25,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Locale
 import java.util.WeakHashMap
+import java.util.concurrent.Executors
 
 /**
  * Appends live charging telemetry to the lockscreen's bottom charging indication, OS4 SystemUI.
@@ -78,7 +84,50 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     @Volatile
     private var reportedFirstAppend = false
 
-    private var lastFetchUptime = 0L
+    private var plugged = false
+    private var interactive = false
+    private var keyguard = false
+    private var receiverContext: Context? = null
+    private var worker = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "HT-ChargeSample").apply { isDaemon = true }
+    }
+    private var sampleGate = ChargingSampleGate()
+    private var activeView = WeakReference<TextView>(null)
+    private var observedView = WeakReference<TextView>(null)
+    private var observer: ViewTreeObserver? = null
+    private var samplingActive = false
+    private val preDraw = ViewTreeObserver.OnPreDrawListener {
+        boundary {
+            if (displayDemanded() != samplingActive) reconcile()
+        }
+        true
+    }
+    private val attachListener = object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) = boundary { observe(v as TextView); reconcile() }
+        override fun onViewDetachedFromWindow(v: View) = boundary {
+            stopObserving()
+            stopRefresh()
+            layouts[v]?.restore()
+        }
+    }
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = boundary {
+            when (intent.action) {
+                Intent.ACTION_BATTERY_CHANGED -> {
+                    plugged = intent.getIntExtra("plugged", 0) != 0
+                    cachedVoltageMv = intent.getIntExtra("voltage", -1)
+                    cachedTempTenths = intent.getIntExtra("temperature", Int.MIN_VALUE)
+                }
+                Intent.ACTION_SCREEN_OFF -> interactive = false
+                Intent.ACTION_SCREEN_ON -> {
+                    interactive = true
+                    keyguard = (context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isKeyguardLocked == true
+                }
+                Intent.ACTION_USER_PRESENT -> keyguard = false
+            }
+            reconcile()
+        }
+    }
     private var cachedCurrentUa = 0L
     private var cachedVoltageMv = -1
     private var cachedTempTenths = Int.MIN_VALUE
@@ -102,14 +151,22 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        currIndicationTypeField = null
-        viewField = null
-        messageField = null
-        getIntProperty = null
         refreshGeneration++
         StatusIconHostAccess.onMain {
-            refreshRunnable?.let(refreshHandler::removeCallbacks)
-            refreshRunnable = null
+            stopRefresh()
+            stopObserving()
+            observedView.get()?.removeOnAttachStateChangeListener(attachListener)
+            observedView.clear()
+            activeView.clear()
+            receiverContext?.let { context ->
+                boundary { context.unregisterReceiver(batteryReceiver) }
+            }
+            receiverContext = null
+            worker.shutdownNow()
+            currIndicationTypeField = null
+            viewField = null
+            messageField = null
+            getIntProperty = null
             layouts.values.forEach { layout ->
                 HookFailurePolicy.open(TAG, "restore layout", Unit) { layout.dispose() }
             }
@@ -123,6 +180,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
         refreshGeneration++
+        if (worker.isShutdown) {
+            sampleGate = ChargingSampleGate()
+            worker = Executors.newSingleThreadExecutor { task ->
+                Thread(task, "HT-ChargeSample").apply { isDaemon = true }
+            }
+        }
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "keyguard charging indication", "disabled")
             return
@@ -184,7 +247,6 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             DebugLog.hookFailed(TAG, "$ROTATE_VC#showIndication(int)", it)
         }
 
-        scheduleRefresh()
         DebugLog.d(TAG, "keyguard charging indication detail enabled")
     }
 
@@ -197,65 +259,127 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         Preferences.getInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, DEFAULT_INTERVAL_MS)
             .coerceIn(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
 
+    private fun boundary(action: () -> Unit) =
+        HookFailurePolicy.open(TAG, "charging lifecycle", Unit, action)
+
     private fun attachDetail(controller: Any?) {
         if (!enabled || controller == null) return
-        val typeField = currIndicationTypeField ?: return
-        val field = viewField ?: return
-        val type = runCatching { typeField.getInt(controller) }.getOrElse { return }
-        recentController = WeakReference(controller)
-        val view = runCatching { field.get(controller) as? TextView }.getOrNull() ?: return
-        if (type != BATTERY_ROLE || !isPluggedIn(view.context)) {
+        val view = runCatching { viewField?.get(controller) as? TextView }.getOrNull() ?: return
+        if (recentController.get() !== controller || observedView.get() !== view) {
+            stopRefresh()
+            stopObserving()
+            observedView.get()?.let {
+                it.removeOnAttachStateChangeListener(attachListener)
+                layouts[it]?.restore()
+            }
+            observedView = WeakReference(view)
+            recentController = WeakReference(controller)
+            view.addOnAttachStateChangeListener(attachListener)
+            if (view.isAttachedToWindow) observe(view)
+        }
+        bindBatteryEvents(view.context)
+        reconcile()
+    }
+
+    private fun bindBatteryEvents(context: Context) {
+        if (receiverContext != null) return
+        val app = context.applicationContext ?: context
+        interactive = (app.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive == true
+        keyguard = (app.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isKeyguardLocked == true
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED).apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        val sticky = app.registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        receiverContext = app
+        sticky?.let { batteryReceiver.onReceive(app, it) }
+    }
+
+    private fun observe(view: TextView) {
+        stopObserving()
+        observer = view.viewTreeObserver.also { it.addOnPreDrawListener(preDraw) }
+    }
+
+    private fun stopObserving() {
+        observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(preDraw)
+        observer = null
+    }
+
+    private fun displayDemanded(): Boolean {
+        val controller = recentController.get()
+        val view = observedView.get()
+        val batteryRole = controller != null && runCatching {
+            currIndicationTypeField?.getInt(controller) == BATTERY_ROLE
+        }.getOrDefault(false)
+        return enabled && plugged && interactive && keyguard && batteryRole &&
+            view != null && view.isAttachedToWindow && view.isShown && view.windowVisibility == View.VISIBLE
+    }
+
+    private fun reconcile() {
+        val controller = recentController.get()
+        val view = observedView.get()
+        val visible = displayDemanded()
+        if (!visible) {
+            if (samplingActive) stopRefresh()
+            view?.let { layouts[it]?.restore() }
+            return
+        }
+        if (!samplingActive) {
+            samplingActive = true
+            activeView = WeakReference(view)
+            sampleGate.start()
+            scheduleRefresh()
+        }
+        if (view != null && controller != null) {
+            renderDetail(controller, view)
+            requestSample(view)
+        }
+    }
+
+    private fun renderDetail(controller: Any, view: TextView) {
+        val base = (messageField?.get(controller) as? CharSequence)?.toString()?.trim().orEmpty()
+        val detail = buildDetail()
+        if (base.isEmpty() || detail == null) {
             layouts[view]?.restore()
             return
         }
-        try {
-            refreshTelemetry(view.context)
-            val base = (messageField?.get(controller) as? CharSequence)?.toString()?.trim().orEmpty()
-            val detail = buildDetail()
-            if (base.isEmpty() || detail == null) {
-                layouts[view]?.restore()
-                return
-            }
-            val layout = layouts.getOrPut(view) { BottomIndicationLayout(view) }
-            layout.show(
-                base, detail,
-                Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true)
-            )
-            if (!reportedFirstAppend) {
-                reportedFirstAppend = true
-                DebugLog.d(TAG, "appended live charge detail: $detail")
-            }
-        } catch (t: Throwable) {
-            DebugLog.w(TAG, "append detail failed", t)
+        layouts.getOrPut(view) { BottomIndicationLayout(view) }.show(base, detail,
+            Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+        if (!reportedFirstAppend) {
+            reportedFirstAppend = true
+            DebugLog.d(TAG, "appended live charge detail: $detail")
         }
     }
 
-    // ─── Telemetry ─────────────────────────────────────────────────────────────
-
-    private fun refreshTelemetry(context: Context) {
-        val sticky = runCatching {
-            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        }.getOrNull() ?: return
-        cachedVoltageMv = sticky.getIntExtra("voltage", -1)
-        cachedTempTenths = sticky.getIntExtra("temperature", Int.MIN_VALUE)
-
-        val now = SystemClock.uptimeMillis()
-        if (now - lastFetchUptime >= refreshIntervalMs() || cachedCurrentUa == 0L) {
-            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-            cachedCurrentUa = readCurrentUa(batteryManager)
-            lastFetchUptime = now
-        }
-    }
-
-    private fun isPluggedIn(context: Context): Boolean {
-        val sticky = runCatching {
-            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        }.getOrNull() ?: return false
-        return sticky.getIntExtra("plugged", 0) != 0
-    }
-
-    private fun readCurrentUa(batteryManager: BatteryManager?): Long {
+    // Basic battery values are event-cached; only current/power require periodic IPC/sysfs.
+    private fun requestSample(view: TextView) {
+        if (!samplingActive || !needsCurrent(fields())) return
+        val gate = sampleGate
+        val ticket = gate.request(SystemClock.uptimeMillis(), refreshIntervalMs().toLong()) ?: return
+        val gen = refreshGeneration
+        val target = WeakReference(view)
+        val context = view.context.applicationContext ?: view.context
         val method = getIntProperty
+        worker.execute {
+            val current = runCatching {
+                readCurrentUa(context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager, method)
+            }.onFailure { DebugLog.w(TAG, "charging sample failed", it) }.getOrDefault(0L)
+            refreshHandler.post {
+                val currentOwner = gate.complete(ticket)
+                if (currentOwner && gen == refreshGeneration && samplingActive && target.get() === activeView.get()) {
+                    boundary {
+                        cachedCurrentUa = current
+                        reconcile()
+                    }
+                } else if (enabled) boundary { reconcile() }
+            }
+        }
+    }
+
+    internal fun needsCurrent(flags: Int): Boolean = flags and (FIELD_WATTAGE or FIELD_CURRENT) != 0
+
+    private fun readCurrentUa(batteryManager: BatteryManager?, method: Method?): Long {
         if (method != null && batteryManager != null) {
             var value = runCatching {
                 method.invoke(batteryManager, 2) as? Int ?: Int.MIN_VALUE
@@ -302,29 +426,35 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     // ─── Live refresh ──────────────────────────────────────────────────────────
 
+    private fun stopRefresh() {
+        refreshGeneration++
+        samplingActive = false
+        sampleGate.stop()
+        activeView.clear()
+        refreshRunnable?.let(refreshHandler::removeCallbacks)
+        refreshRunnable = null
+        cachedCurrentUa = 0L
+    }
+
     private fun scheduleRefresh() {
         val gen = refreshGeneration
-        val handler = refreshHandler
-        refreshRunnable?.let(handler::removeCallbacks)
+        refreshRunnable?.let(refreshHandler::removeCallbacks)
         val runnable = object : Runnable {
             override fun run() {
-                if (gen != refreshGeneration) return
-                try {
-                    recentController.get()?.let { attachDetail(it) }
-                } catch (_: Throwable) {
-                } finally {
-                    if (gen == refreshGeneration) handler.postDelayed(this, refreshIntervalMs().toLong())
+                if (gen != refreshGeneration || !samplingActive) return
+                boundary { reconcile() }
+                if (gen == refreshGeneration && samplingActive) {
+                    refreshHandler.postDelayed(this, refreshIntervalMs().toLong())
                 }
             }
         }
         refreshRunnable = runnable
-        handler.postDelayed(runnable, refreshIntervalMs().toLong())
+        refreshHandler.postDelayed(runnable, refreshIntervalMs().toLong())
     }
 
     private fun abs(value: Long): Long = if (value < 0) -value else value
 
     private fun resetTelemetry() {
-        lastFetchUptime = 0L
         cachedCurrentUa = 0L
         cachedVoltageMv = -1
         cachedTempTenths = Int.MIN_VALUE

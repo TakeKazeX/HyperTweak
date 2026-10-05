@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -32,7 +33,12 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val dates = WeakHashMap<View, DateState>()
     private val layouts = WeakHashMap<View, LayoutState>()
-    private val compactHeaders = WeakHashMap<ViewGroup, Pair<View, View?>>()
+    private class ResourceIds(resources: Resources) {
+        val configuration = Configuration(resources.configuration)
+        val values = HashMap<String, Int>()
+    }
+    private val resourceIds = WeakHashMap<Resources, ResourceIds>()
+    private val compactHeaders = WeakHashMap<ViewGroup, WeakSiblings<View>>()
     private val compactCarrierVisibility = WeakHashMap<ViewGroup, Int>()
 
     @Volatile private var carrierLeft = false
@@ -68,6 +74,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             compactCarrierVisibility.clear()
             compactHeaders.clear()
             fields.clear()
+            resourceIds.clear()
         }
         if (Looper.myLooper() == Looper.getMainLooper()) restore() else {
             val latch = CountDownLatch(1)
@@ -112,7 +119,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             deoptimize(method)
             method.hook { after { param -> guarded {
                 (read(param.thisObject, "controlCenterCarrierLayout") as? ViewGroup)
-                    ?.let(::updateCarrierLayout)
+                    ?.let { updateCarrierLayout(it) }
             } } }
         }
         if (hideDate) hookClockPolicy()
@@ -125,7 +132,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             guarded {
                 if (isDate(view)) hideDateView(view)
                 if (view.javaClass.name == "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout") {
-                    (view as? ViewGroup)?.let(::updateCarrierLayout)
+                    (view as? ViewGroup)?.let { updateCarrierLayout(it) }
                 }
             }
         }
@@ -206,13 +213,19 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     /** Called after carrier measurement too, so the right cluster tracks the actual first row. */
-    fun updateCarrierLayout(carrier: ViewGroup) = guarded {
+    fun updateCarrierLayout(carrier: ViewGroup, geometryOnly: Boolean = false) = guarded {
         val parent = carrier.parent as? ViewGroup ?: return@guarded
         if (ControlCenterCarrierBlockHooker.ownsLayout(carrier) && supportsCompactLayout(carrier)) {
+            if (geometryOnly) {
+                compactHeaders[carrier]?.first?.get()?.takeIf { it.parent === parent }?.let { status ->
+                    changeTopMargin(status, ControlCenterCarrierBlockHooker.firstRowCenter(carrier) - status.measuredHeight / 2)
+                    return@guarded
+                }
+            }
             val statusId = id(carrier, "normal_control_center_status_bar")
             val status = parent.findViewById<View>(statusId) ?: return@guarded
             val fake = parent.findViewById<View>(id(carrier, "normal_fake_control_center_status_bar"))
-            compactHeaders[carrier] = status to fake
+            compactHeaders[carrier] = WeakSiblings(status, fake)
             // Keep the status/battery root at the first row: the battery belongs to the header's
             // first-row anchor. IconPositionHooker splits only the statusIcons children against
             // the carrier block's two measured row centers, so ordinary icons can return to row 2
@@ -250,13 +263,29 @@ object ControlCenterHeaderHooker : StaticHooker() {
                     it.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
         } else {
-            compactHeaders.remove(carrier)?.let { (status, fake) ->
-                restoreLayout(carrier)
-                restoreLayout(status)
-                fake?.let(::restoreLayout)
-            }
+            releaseCarrier(carrier)
             if (carrierLeft) applyCarrierSide(carrier)
         }
+    }
+
+    /** Called after the host detach traversal, and before this block relinquishes ownership. */
+    internal fun releaseCarrier(carrier: ViewGroup) {
+        compactHeaders.remove(carrier)?.let { header ->
+            restoreLayout(carrier)
+            header.first.get()?.let(::restoreLayout)
+            header.second.get()?.let(::restoreLayout)
+        }
+        compactCarrierVisibility.remove(carrier)?.let { carrier.visibility = it }
+    }
+
+    private fun changeTopMargin(view: View, value: Int) {
+        val params = view.layoutParams ?: return
+        val f = field(params.javaClass, "topMargin") ?: return
+        if (f.getInt(params) == value) return
+        val state = layouts.getOrPut(view) { LayoutState(view) }
+        state.params.putIfAbsent("topMargin", f.getInt(params))
+        f.setInt(params, value)
+        view.layoutParams = params
     }
 
     private fun applyCarrierSide(carrier: ViewGroup) {
@@ -291,8 +320,12 @@ object ControlCenterHeaderHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "carrier header restore failed", it) }
     }
 
-    private fun id(view: View, name: String): Int =
-        view.resources.getIdentifier(name, "id", "com.android.systemui")
+    private fun id(view: View, name: String): Int {
+        val resources = view.resources
+        val cached = resourceIds[resources]?.takeIf { it.configuration == resources.configuration }
+            ?: ResourceIds(resources).also { resourceIds[resources] = it }
+        return cached.values.getOrPut(name) { resources.getIdentifier(name, "id", "com.android.systemui") }
+    }
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 

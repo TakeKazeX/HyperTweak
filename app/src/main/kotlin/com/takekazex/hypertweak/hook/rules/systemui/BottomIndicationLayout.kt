@@ -101,6 +101,8 @@ internal class BottomIndicationLayout(view: TextView) {
 
     fun show(base: String, detail: String, twoRows: Boolean) {
         val view = reference.get() ?: return
+        if (active && this.base == base && this.detail == detail && this.twoRows == twoRows &&
+            view.text?.toString() == emitted) return
         if (!active || this.twoRows != twoRows || this.base != base) scroll.reset()
         active = true
         this.base = base

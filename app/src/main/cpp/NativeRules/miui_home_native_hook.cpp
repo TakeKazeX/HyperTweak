@@ -1707,6 +1707,10 @@ bool SendNativeBroadcast(const char* action, void* extras) {
     ROptionRString owned_package{};
     if (!MakeOwnedROptionString(action, &owned_action) ||
             !MakeOwnedROptionString(kSystemUiPackage, &owned_package)) {
+        // Neither setter has consumed these RStrings yet. Their buffers use malloc;
+        // the successful setters consume/drop through the host RString vtable.
+        free(owned_action.value.data);
+        free(owned_package.value.data);
         AtomicStore(&g_native_broadcast_send_state, uint32_t{5});
         intent_drop(intent);
         return false;

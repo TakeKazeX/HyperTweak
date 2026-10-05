@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.view.ViewGroup
+import android.os.Handler
+import android.os.Looper
+import java.lang.ref.WeakReference
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -50,12 +53,21 @@ object WifiIconHooker : StaticHooker() {
     private var restoredDirection: Any? = null
     private val directionHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var directionEpoch = 0L
+    private var directionAttempt = 0L
+    private val recoveryHandler = Handler(Looper.getMainLooper())
+    private var recoveryTask: Runnable? = null
+    private var retired = false
 
     override fun onPrepareHotReload() {
-        directionEpoch++
-        directionHandles.forEach { it.cancel() }
-        directionHandles.clear()
-        restoredDirection = null
+        StatusIconHostAccess.onMain {
+            retired = true
+            recoveryTask?.let(recoveryHandler::removeCallbacks)
+            recoveryTask = null
+            directionEpoch = ++directionAttempt
+            directionHandles.forEach { it.cancel() }
+            directionHandles.clear()
+            restoredDirection = null
+        }
         hideActivity = false
         hideType = false
         hideUnavailable = false
@@ -68,6 +80,7 @@ object WifiIconHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        retired = false
         IconTunerFlows.init(classLoader)
         hideActivity = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
         hideType = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_WIFI_TYPE, false)
@@ -275,20 +288,51 @@ object WifiIconHooker : StaticHooker() {
     }
 
     internal fun recoverViewModel(component: Any) {
-        val vm = StatusIconHostAccess.provider(component, "wifiViewModelProvider") ?: return
-        val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider") ?: return
-        val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider") ?: return
-        val network = StatusIconHostAccess.read(interactor, "wifiNetwork") ?: return
-        val standard = StatusIconHostAccess.read(vm, "wifiStandard") ?: return
+        StatusIconHostAccess.onMain {
+            recoveryTask?.let(recoveryHandler::removeCallbacks)
+            recoveryTask = null
+            recoverDirection(component, 0)
+        }
+    }
+
+    private fun retryDirection(component: Any, attempt: Int) {
+        if (retired || attempt >= 3) {
+            if (!retired) DebugLog.w(TAG, "Wi-Fi direction recovery incomplete after bounded retries")
+            return
+        }
+        val owner = WeakReference(component)
+        val task = Runnable {
+            recoveryTask = null
+            if (!retired) owner.get()?.let { recoverDirection(it, attempt + 1) }
+        }
+        recoveryTask = task
+        recoveryHandler.postDelayed(task, 250L shl attempt)
+    }
+
+    private fun recoverDirection(component: Any, attempt: Int) {
+        if (retired) return
+        val vm = StatusIconHostAccess.provider(component, "wifiViewModelProvider")
+        val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider")
+        val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider")
+        val network = interactor?.let { StatusIconHostAccess.read(it, "wifiNetwork") }
+        val standard = vm?.let { StatusIconHostAccess.read(it, "wifiStandard") }
+        if (vm == null || network == null || standard == null) {
+            retryDirection(component, attempt)
+            return
+        }
         // Older module builds overwrote inoutLeft. Recompute the native boolean contract from
         // its real inputs; optimized SuspendLambda classes may have no declared constructor.
         // Keep the host flow type and native binder; do not change VM fields.
         // A MutableStateFlow implements the native getter's Flow contract directly.
         // Do not unwrap an optional ReadonlyStateFlow: optimized hosts may return the mutable itself.
-        val mutable = IconTunerFlows.createMutableStateFlow(false)
-            ?: error("Cannot create native Wi-Fi direction StateFlow")
+        // Reuse the published mutable across retries: native binders may already collect it.
+        val mutable = restoredDirection ?: IconTunerFlows.createMutableStateFlow(false)
+            ?: run {
+                retryDirection(component, attempt)
+                return
+            }
         val exposed = mutable
-        val token = ++directionEpoch
+        val token = ++directionAttempt
         var metered = false
         var standardValue = (IconTunerFlows.readFlowValue(standard) as? Number)?.toInt() ?: 0
         fun publish() {
@@ -300,8 +344,12 @@ object WifiIconHooker : StaticHooker() {
             metered = readField(ext, "meteredHint") as? Boolean ?: false
             publish()
         }
-        directionHandles.forEach { it.cancel() }; directionHandles.clear()
         updateNetwork(IconTunerFlows.readFlowValue(network))
+        if (restoredDirection == null) restoredDirection = exposed
+        if (scope == null) {
+            retryDirection(component, attempt)
+            return
+        }
         val handles = listOf(
             HostFlowCollector.collect(scope, network, consumer = ::updateNetwork, isCurrent = { token == directionEpoch }),
             HostFlowCollector.collect(scope, standard, consumer = { value ->
@@ -310,8 +358,19 @@ object WifiIconHooker : StaticHooker() {
         )
         if (handles.any { it == null }) {
             handles.filterNotNull().forEach { it.cancel() }
-            error("Native Wi-Fi direction inputs could not be rebound")
+            // Preserve a working subscription set. On the first recovery publish the native
+            // input snapshot so an older delegate-less getter cannot abort all host recovery.
+            if (restoredDirection == null) restoredDirection = exposed
+            DebugLog.w(TAG, "Wi-Fi direction inputs unavailable; retaining native snapshot/previous subscriptions")
+            retryDirection(component, attempt)
+            return
         }
+        directionEpoch = token
+        directionHandles.forEach { it.cancel() }
+        directionHandles.clear()
+        // Re-read after binding: emissions during the tentative transaction were ignored.
+        standardValue = (IconTunerFlows.readFlowValue(standard) as? Number)?.toInt() ?: 0
+        updateNetwork(IconTunerFlows.readFlowValue(network))
         directionHandles.addAll(handles.filterNotNull())
         restoredDirection = exposed
     }
