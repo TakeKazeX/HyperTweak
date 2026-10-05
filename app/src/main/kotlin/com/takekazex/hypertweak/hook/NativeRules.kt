@@ -10,19 +10,22 @@ import com.takekazex.hypertweak.util.DebugLog
  * in the HYOS launcher process family; other processes return from the native entry without
  * installing hooks.
  *
- * The launcher carries no dex of its own for the module's hooks, but it is in the declared scope,
- * so LSPosed injects both the payload and this module's Java there. That is what makes
- * [applyRuleSwitches] work: the launcher-side rules cannot read the module's preferences or the
- * config file [NativeRuleConfig] writes, but this process's Java can, and it hands the values to
- * the payload through JNI.
+ * Java-capable launcher processes can use [applyRuleSwitches] as a fallback. The pure HYOS
+ * launcher uses the authenticated SystemUI settings transport; it does not depend on ART or JNI
+ * initialization. Its native code cannot read the module's shared-media configuration file.
  *
- * The status below therefore describes the payload **in the process that calls it**. Reading it
- * from the module's own process proves packaging and JNI binding, not the launcher's state.
- * Observe the launcher through the upstream native log tag or its authenticated runtime status
- * path.
+ * JNI loading and status are restricted to the exact launcher owner. Diagnostics in other
+ * processes stay passive. Observe the launcher through the upstream native log tag or its
+ * authenticated runtime status path.
  */
 object NativeRules {
     private const val LIBRARY_NAME = "hypertweak_native"
+
+    @Volatile private var processName = ""
+
+    /** The native bridge has exactly one process owner, matching the payload's cmdline guard. */
+    fun bindProcess(name: String) { processName = name }
+    internal fun ownsBridge(name: String): Boolean = name == "com.miui.home"
 
     enum class State { NOT_ATTEMPTED, LOADED, UNAVAILABLE }
 
@@ -36,9 +39,10 @@ object NativeRules {
      * fail the host's module-load path.
      */
     fun ensureLoaded(): Boolean {
-        if (state == State.LOADED) return true
+        if (!ownsBridge(processName)) return false
+        if (state != State.NOT_ATTEMPTED) return state == State.LOADED
         synchronized(this) {
-            if (state == State.LOADED) return true
+            if (state != State.NOT_ATTEMPTED) return state == State.LOADED
             state = try {
                 System.loadLibrary(LIBRARY_NAME)
                 State.LOADED
@@ -52,7 +56,7 @@ object NativeRules {
 
     /** One-line payload status, or null when the payload is not loaded in this process. */
     fun status(): String? {
-        if (!ensureLoaded()) return null
+        if (!ownsBridge(processName) || state != State.LOADED) return null
         return try {
             nativeStatus()
         } catch (t: Throwable) {
@@ -62,17 +66,14 @@ object NativeRules {
     }
 
     /** Always-renderable summary for the debug log. */
-    fun describe(): String = status()?.let { "native payload $it" } ?: "native payload unavailable"
+    fun describe(): String = status()?.let { "native payload $it" } ?: "native payload state=$state"
 
     /**
      * Hands the launcher-side rule switches to the payload in this process.
      *
-     * This is the channel the rules actually use. [NativeRuleConfig] publishes the same values as
-     * a file as well, but only the module's own process can read it back: the launcher runs as
-     * `platform_app_36` with an ordinary app uid, is neither the file's owner nor in its
-     * `media_rw` group, and scoped storage refuses it the module's `Android/media` directory. The
-     * module's Java is injected into the launcher too, so it reads the preferences through the
-     * remote channel and passes them here.
+     * Java-capable launchers read remote Preferences and pass them here. Pure native HYOS
+     * launchers receive the same subset through SystemUI's authenticated broadcasts. The shared
+     * media file is not a launcher-readable configuration source under scoped storage.
      *
      * The launcher runtime saves the received snapshot in its own device-encrypted storage,
      * so boot does not depend on the unavailable shared-media file. Preparation runs on a

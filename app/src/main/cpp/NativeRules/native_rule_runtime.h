@@ -9,6 +9,7 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
 void ApplyPreparedNativeRules();
 void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search);
 void RequestNativeRulePreparation();
+void MarkNativeRuntimeInitialized();
 void ResetNativeRuleRuntimeAfterFork();
 void PrepareNativeRulesForFork();
 void ResumeNativeRulesAfterFork();

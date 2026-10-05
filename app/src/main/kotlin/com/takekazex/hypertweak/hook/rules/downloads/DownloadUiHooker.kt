@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import org.luckypray.dexkit.query.matchers.MethodMatcher
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -34,7 +35,7 @@ object DownloadUiHooker : StaticHooker() {
 
     private const val TAG = "DownloadUi"
     private const val HOME_CACHE_KEY = "download_ui_home_fragment"
-    private const val DETAIL_CACHE_KEY = "download_ui_detail_fragment"
+    private const val DETAIL_CACHE_KEY = "download_ui_detail_text_renderer"
     private const val DETAIL_MARKER = "from_browser"
     private const val NEW_DOWNLOAD_ACTIVITY =
         "com.android.providers.downloads.ui.activity.NewDownloadTaskActivity"
@@ -78,7 +79,8 @@ object DownloadUiHooker : StaticHooker() {
 
     /**
      * DexKit resolves the final parcelable detail renderer from the browser-origin marker and
-     * renderer prototype. The hook then restores the source URL and copy views after rendering.
+     * native TextView writes and renderer prototype. The hook restores the source URL and copy
+     * views after rendering. A separate cache key invalidates the older navigation-only contract.
      */
     private fun installAlwaysShowFullLink(): Int {
         val apkPath = hookParam.appInfo?.sourceDir ?: run {
@@ -89,18 +91,20 @@ object DownloadUiHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "download detail renderer", "unique DexKit target not found")
             return 0
         }
-        val renderMethod = resolveDetailRenderer(detailClass) ?: run {
-            DebugLog.hookSkipped(TAG, detailClass.name, "unique parcelable renderer not found")
+        val contract = resolveDetailRenderer(apkPath, detailClass) ?: run {
+            DebugLog.hookSkipped(TAG, detailClass.name, "native renderer/copy-source contract not uniquely resolved")
             return 0
         }
 
+        val renderMethod = contract.method
         deoptimize(renderMethod)
         renderMethod.hook("download_ui_full_link") {
             after { param ->
                 runCatching {
                     forceFullLinkViews(
                         owner = param.thisObject,
-                        info = param.args.getOrNull(0) ?: return@runCatching
+                        info = param.args.getOrNull(contract.infoIndex) ?: return@runCatching,
+                        sourceField = contract.source
                     )
                 }.onFailure {
                     DebugLog.w(TAG, "failed to force full download source view", it)
@@ -274,9 +278,9 @@ object DownloadUiHooker : StaticHooker() {
                 DETAIL_CACHE_KEY to { bridge ->
                     val candidates = bridge.findMethod {
                         matcher {
-                            paramCount(1)
                             returnType(Void.TYPE)
                             addUsingString(DETAIL_MARKER, StringMatchType.Equals)
+                            addInvoke(detailTextRenderer())
                         }
                     }.toList()
                     candidates.asSequence()
@@ -284,9 +288,8 @@ object DownloadUiHooker : StaticHooker() {
                             val method = runCatching { data.getMethodInstance(classLoader) }.getOrNull()
                                 ?: return@filter false
                             !Modifier.isStatic(method.modifiers) &&
-                                method.parameterCount == 1 &&
                                 method.returnType == Void.TYPE &&
-                                Parcelable::class.java.isAssignableFrom(method.parameterTypes[0]) &&
+                                DownloadDetailContract.infoIndex(method) { Parcelable::class.java.isAssignableFrom(it) } != null &&
                                 isFragmentClass(method.declaringClass)
                         }
                         .map { it.className }
@@ -310,7 +313,7 @@ object DownloadUiHooker : StaticHooker() {
             }
 
     private fun isDetailClass(type: Class<*>): Boolean =
-        isFragmentClass(type) && type.declaredMethods.count(::isDetailRenderer) == 1
+        isFragmentClass(type) && type.declaredMethods.any(::isDetailRenderer)
 
     private fun isFragmentClass(type: Class<*>): Boolean = runCatching {
         val fragment = classLoader.loadClass("miuix.appcompat.app.Fragment")
@@ -319,13 +322,54 @@ object DownloadUiHooker : StaticHooker() {
 
     private fun isDetailRenderer(method: Method): Boolean =
         !Modifier.isStatic(method.modifiers) &&
-            method.parameterCount == 1 &&
             method.returnType == Void.TYPE &&
-            Parcelable::class.java.isAssignableFrom(method.parameterTypes[0])
+            DownloadDetailContract.infoIndex(method) { Parcelable::class.java.isAssignableFrom(it) } != null
 
-    private fun resolveDetailRenderer(detailClass: Class<*>): Method? =
-        detailClass.declaredMethods.singleOrNull(::isDetailRenderer)
-            ?.apply { isAccessible = true }
+    private data class DetailRenderer(val method: Method, val source: Field, val infoIndex: Int)
+
+    private fun resolveDetailRenderer(apkPath: String, detailClass: Class<*>): DetailRenderer? =
+        DexKitManager.withBridge(apkPath) { bridge ->
+            val evidence = bridge.findMethod {
+                matcher {
+                    declaredClass(detailClass.name, StringMatchType.Equals)
+                    returnType(Void.TYPE)
+                    addUsingString(DETAIL_MARKER, StringMatchType.Equals)
+                    addInvoke(detailTextRenderer())
+                }
+            }.mapNotNull { runCatching { it.getMethodInstance(classLoader) }.getOrNull() }
+            val render = DownloadDetailContract.renderer(detailClass, evidence) {
+                Parcelable::class.java.isAssignableFrom(it)
+            } ?: return@withBridge null
+            val copyCalls = bridge.findMethod {
+                matcher {
+                    declaredClass(detailClass.name, StringMatchType.Equals)
+                    addInvoke(MethodMatcher.create().declaredClass("android.content.ClipboardManager")
+                        .name("setText").paramTypes(CharSequence::class.java).returnType(Void.TYPE))
+                }
+            }.toList() + bridge.findMethod {
+                matcher {
+                    declaredClass(detailClass.name, StringMatchType.Equals)
+                    addInvoke(MethodMatcher.create().declaredClass("android.content.ClipData")
+                        .name("newPlainText").paramTypes(CharSequence::class.java, CharSequence::class.java))
+                }
+            }.toList()
+            val fields = copyCalls.flatMap { it.usingFields }.mapNotNull {
+                runCatching { it.field.getFieldInstance(classLoader) }.getOrNull()
+            }
+            val infoIndex = DownloadDetailContract.infoIndex(render) { Parcelable::class.java.isAssignableFrom(it) }
+                ?: return@withBridge null
+            val source = DownloadDetailContract.source(render.parameterTypes[infoIndex], fields) ?: return@withBridge null
+            DebugLog.d(TAG, "native detail contract renderer=${render.name} source=${source.name}")
+            DetailRenderer(render, source, infoIndex)
+        }
+
+    // Navigation methods share the browser extra and model; only the native detail binder
+    // also renders its text. Keep this evidence independent of obfuscated class names.
+    private fun detailTextRenderer(): MethodMatcher = MethodMatcher.create()
+        .declaredClass(TextView::class.java.name)
+        .name("setText")
+        .paramTypes(CharSequence::class.java)
+        .returnType(Void.TYPE)
 
     private fun installLegacyActionBarHook(hideXl: Boolean, addNewButton: Boolean): Int {
         val delegateClass =
@@ -692,9 +736,10 @@ object DownloadUiHooker : StaticHooker() {
         DebugLog.d(TAG, "removed legacy Xunlei text field=${field.name}")
     }
 
-    private fun forceFullLinkViews(owner: Any?, info: Any) {
+    private fun forceFullLinkViews(owner: Any?, info: Any, sourceField: Field) {
         owner ?: return
-        val url = findUrlValue(info) ?: return
+        val url = sourceField.get(info) as? String ?: return
+        if (!URL_PATTERN.matches(url.trim())) return
         val root = findMethodInHierarchy(owner.javaClass) {
             it.name == "getView" && it.parameterTypes.isEmpty()
         }?.let { runCatching { it.invoke(owner) as? View }.getOrNull() } ?: return
@@ -725,16 +770,6 @@ object DownloadUiHooker : StaticHooker() {
         }
         source.requestLayout()
         DebugLog.d(TAG, "forced full download source text length=${url.length}")
-    }
-
-    private fun findUrlValue(info: Any): String? {
-        val values = fieldsInHierarchy(info.javaClass)
-            .filter { it.type == String::class.java && !Modifier.isStatic(it.modifiers) }
-            .mapNotNull { field -> runCatching { field.get(info) as? String }.getOrNull() }
-            .map(String::trim)
-            .filter { URL_PATTERN.matches(it) }
-            .distinct()
-        return values.singleOrNull()
     }
 
     private fun activityOf(value: Any?): Activity? {

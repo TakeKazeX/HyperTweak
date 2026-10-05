@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit
 
 object Preferences {
     const val NAME = "hypertweak_settings"
+    internal const val KEY_NATIVE_RULE_REVISION = "native_rules_revision"
     private const val CACHE_NAME = "hypertweak_cache"
     const val DEFAULT_SEED_COLOR = 0
     const val DEFAULT_IMMEDIATE_MONET_REFRESH = true
@@ -1191,6 +1192,7 @@ object Preferences {
     /** Keys used by the module runtime itself rather than by user-facing configuration. */
     private fun isRuntimeKey(key: String): Boolean =
         key == KEY_PREFS_EPOCH ||
+            key == KEY_NATIVE_RULE_REVISION ||
             key == KEY_PENDING_RESTART_BOOT_TOKEN ||
             key == KEY_DIRTY_TWEAK_KEYS ||
             key.startsWith(KEY_TWEAK_BASELINE_PREFIX) ||
@@ -1222,16 +1224,19 @@ object Preferences {
                 val epoch = runCatching {
                     remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH)
                 }.getOrDefault(INITIAL_EPOCH) + 1
+                val nativeRevision = android.os.SystemClock.elapsedRealtimeNanos().coerceAtLeast(1)
+                val nativeReset = NativeRuleStateSnapshot(false, 3, false, nativeRevision, epoch)
 
                 // Queue the clear behind every ordinary async write and wait for it. Without this
                 // ordering, a setting changed immediately before the clear could be committed
                 // after the clear and silently resurrect the old configuration.
-                val committed = commitRemoteMutation {
+                val committed = commitRemoteMutation(nativeReset) {
                     clear()
                     putLong(KEY_PREFS_EPOCH, epoch)
+                    putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
-                runCatching { localSourcePrefs?.edit(commit = true) { clear() } }
+                runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
                 return true
@@ -1271,6 +1276,10 @@ object Preferences {
             val epoch = runCatching {
                 remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH)
             }.getOrDefault(INITIAL_EPOCH) + 1
+            val nativeRevision = android.os.SystemClock.elapsedRealtimeNanos().coerceAtLeast(1)
+            val nativeReset = requireNotNull(NativeRuleStateSnapshot.read {
+                restored + mapOf(KEY_NATIVE_RULE_REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch)
+            }) { "Invalid native settings in backup" }
             val currentKeys = buildSet {
                 runCatching { remotePrefs.all.keys }.getOrDefault(emptySet())
                     .filterNot(::isRuntimeKey)
@@ -1280,25 +1289,14 @@ object Preferences {
                     .forEach(::add)
             }
 
-            // Snapshot for the rollback below: commitRemoteMutation applies the edits to the
-            // in-memory map even when the disk commit fails.
-            val previous = runCatching { HashMap(remotePrefs.all) }.getOrNull()
-
-            val committed = commitRemoteMutation {
+            val committed = commitRemoteMutation(nativeReset) {
                 currentKeys.forEach(::remove)
                 restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                 putLong(KEY_PREFS_EPOCH, epoch)
+                putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
             }
             if (!committed) {
-                // A failed restore must not leave a half-applied configuration live in this process
-                // until the next restart: put the captured values back and drop the memo map.
-                runCatching {
-                    remotePrefs.edit(commit = true) {
-                        previous?.forEach { (key, value) ->
-                            if (value != null) putSharedPreferenceValue(key, value)
-                        }
-                    }
-                }.onFailure { DebugLog.w("Preferences", "restore rollback failed", it) }
+                // The serialized transaction restores the captured map on rejection.
                 memoClear()
                 error("Unable to write restored settings")
             }
@@ -1308,6 +1306,7 @@ object Preferences {
                     currentKeys.forEach(::remove)
                     restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                     putLong(KEY_PREFS_EPOCH, epoch)
+                    putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
             }
             val cache = getLocalCache()
@@ -1437,11 +1436,20 @@ object Preferences {
         localSourcePrefs?.let { remotePrefs = it; isLocalOnly = true }
     }
 
-    private fun write(block: SharedPreferences.Editor.() -> Unit) {
+    private val nativeMirrorLock = Any()
+
+    private fun write(nativeMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
+            val nativeChange = nativeMutation != null
             if (!isInitialized) return
             val local = localSourcePrefs
-            runCatching { local?.edit { block() } }
+            val revision = if (nativeChange) runCatching {
+                NativeSnapshotLedger.nextRevision(maxOf(remotePrefs.getLong(KEY_NATIVE_RULE_REVISION, 0),
+                    local?.getLong(KEY_NATIVE_RULE_REVISION, 0) ?: 0), android.os.SystemClock.elapsedRealtimeNanos())
+            }.onFailure { DebugLog.e("NativeRules", "native settings commit identity invalid", it) }.getOrNull() ?: return else 0
+            runCatching { synchronized(nativeMirrorLock) {
+                local?.edit { block(); if (nativeChange) putLong(KEY_NATIVE_RULE_REVISION, revision) }
+            } }
                 .onFailure { DebugLog.e("Preferences", "local settings write failed", it) }
             if (isLocalOnly || local === remotePrefs) return
             serializedWriter.execute {
@@ -1452,11 +1460,37 @@ object Preferences {
                 // blocking commit makes flush() honest: once this queue is drained, every setting that
                 // was written is already visible to the hooked processes that read the daemon copy.
                 runCatching {
+                    val snapshot = nativeMutation?.let { NativeRuleSignal.prepareMutation(it.first, it.second, revision) }
                     val editor = remotePrefs.edit()
                     block(editor)
+                    // Commit the entire native subset atomically, so a prior rejected editor's
+                    // shadow values cannot hitchhike into this acknowledged transaction.
+                    if (snapshot != null) {
+                        editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
+                        editor.putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
+                        editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                        editor.putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
+                        editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
+                    }
                     val committed = editor.commit()
                     if (!committed) {
                         DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
+                    } else if (snapshot != null) {
+                        NativeRuleSignal.acknowledge(snapshot)
+                        // Do not overwrite newer app-local edits already queued behind this one.
+                        synchronized(nativeMirrorLock) {
+                            if (local != null && NativeRuleMutation.canMirror(snapshot,
+                                    local.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH),
+                                    local.getLong(KEY_NATIVE_RULE_REVISION, 0))) {
+                                local.edit {
+                                    putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
+                                    putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
+                                    putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                                    putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
+                                    putLong(KEY_PREFS_EPOCH, snapshot.epoch)
+                                }
+                            }
+                        }
                     }
                 }.onFailure { t ->
                     DebugLog.w("Preferences", "remote pref write failed; retrying on next write", t)
@@ -1467,17 +1501,50 @@ object Preferences {
 
     /** Applies one remote mutation after all previously queued writes and waits for its result. */
     @Suppress("UseKtx")
-    private fun commitRemoteMutation(block: SharedPreferences.Editor.() -> Unit): Boolean {
+    private fun commitRemoteMutation(nativeSnapshot: NativeRuleStateSnapshot? = null,
+        block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
-        fun commit(): Boolean = try {
-            val editor = remotePrefs.edit()
-            block(editor)
-            editor.commit().also {
-                if (!it) DebugLog.w("Preferences", "settings mutation commit rejected")
+        fun commit(): Boolean {
+            var previous: Map<String, *>? = null
+            var previousNative: NativeRuleStateSnapshot? = null
+            fun rollback() {
+                val values = previous ?: return
+                runCatching {
+                    val editor = remotePrefs.edit().clear()
+                    values.forEach { (key, value) ->
+                        if (value != null) editor.putSharedPreferenceValue(key, value)
+                    }
+                    previousNative?.let {
+                        editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, it.hidden)
+                        editor.putInt(KEY_OPENED_FOLDER_COLUMNS, it.columns)
+                        editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, it.contextualSearch)
+                        editor.putLong(KEY_NATIVE_RULE_REVISION, it.revision)
+                        editor.putLong(KEY_PREFS_EPOCH, it.epoch)
+                    }
+                    check(editor.commit()) { "settings mutation rollback rejected" }
+                }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
             }
-        } catch (t: Exception) {
-            DebugLog.e("Preferences", "settings mutation failed", t)
-            false
+            return try {
+                // Capture on the writer, after older queued commits. SharedPreferences editors
+                // can mutate their live map even when commit fails; both clear and restore must
+                // remove newly introduced keys and recover the whole prior configuration.
+                if (nativeSnapshot != null) {
+                    previous = HashMap(remotePrefs.all)
+                    previousNative = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledged()
+                }
+                val editor = remotePrefs.edit()
+                block(editor)
+                editor.commit().also {
+                    if (!it) {
+                        DebugLog.w("Preferences", "settings mutation commit rejected")
+                        rollback()
+                    } else if (nativeSnapshot != null && !isLocalOnly) NativeRuleSignal.acknowledge(nativeSnapshot)
+                }
+            } catch (t: Exception) {
+                DebugLog.e("Preferences", "settings mutation failed", t)
+                rollback()
+                false
+            }
         }
         val local = localSourcePrefs
         if (isLocalOnly || local === remotePrefs) return commit()
@@ -1513,9 +1580,19 @@ object Preferences {
         runCatching { latch.await(3, TimeUnit.SECONDS) }
     }
 
-    fun initLocalCache(context: Context) {
+    fun initLocalCache(context: Context): Boolean {
+        val result = com.takekazex.hypertweak.hook.base.OptionalAppCache.open(
+            directory = { context.dataDir },
+            create = { context.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE) }
+        )
+        val cache = result.onFailure {
+            DebugLog.w("Preferences", "host storage cache unavailable; using remote preferences", it)
+        }.getOrNull() ?: return false
+        // Publish a complete, usable pair only. A provider's system context must not displace a
+        // valid application cache, or prevent package-ready consumers from being registered.
         cachedAppContext = context
-        localCachePrefs = context.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE)
+        localCachePrefs = cache
+        return true
     }
 
     /**
@@ -1526,23 +1603,13 @@ object Preferences {
     private fun resolveAppContext(): Context? {
         cachedAppContext?.let { return it }
         val ctx = runCatching { EzXposed.appContextOrNull }.getOrNull()
-        if (ctx != null) cachedAppContext = ctx
         return ctx
     }
 
     private fun getLocalCache(): SharedPreferences? {
         localCachePrefs?.let { return it }
         val ctx = runCatching { resolveAppContext() }.getOrNull() ?: return null
-        // Guard contexts that cannot host SharedPreferences. In system_server the only context
-        // reachable through EzXposed.appContextOrNull is the `android` system context, which has no
-        // data directory, so getSharedPreferences throws "No data directory found for package
-        // android". Hookers in system_server must read their gates through the daemon's remote
-        // prefs, so the per-process cache is only a fallback for real app processes — treat an
-        // unusable context as "no cache" rather than crashing every preference read and aborting
-        // the whole system_server hook dispatch (dispatchSystemServerHookers/onPackageLoaded).
-        return runCatching {
-            ctx.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE).also { localCachePrefs = it }
-        }.getOrNull()
+        return if (initLocalCache(ctx)) localCachePrefs else null
     }
 
     /** True when the remote prefs channel is unavailable and [getLocalCache] is the only source. */
@@ -1678,12 +1745,12 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write { putBoolean(key, value) }
+        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write { putInt(key, value) }
+        write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null) { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {

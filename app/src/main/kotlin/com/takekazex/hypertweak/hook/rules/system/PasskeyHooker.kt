@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.UserHandle
 import android.provider.Settings
-import android.util.Log
 import android.view.View
 import android.widget.CompoundButton
 import androidx.core.net.toUri
@@ -46,7 +45,7 @@ object PasskeyHooker : StaticHooker() {
             try {
                 hookSystemServer()
             } catch (t: Throwable) {
-                Log.e(TAG, "Error hooking system service", t)
+                DebugLog.e(TAG, "Error hooking system service", t)
             }
             return
         }
@@ -58,7 +57,7 @@ object PasskeyHooker : StaticHooker() {
                 isAccessible = true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "find IS_INTERNATIONAL_BUILD failed", e)
+            DebugLog.e(TAG, "find IS_INTERNATIONAL_BUILD failed", e)
         }
 
         val appInfo = hookParam.appInfo ?: return
@@ -71,21 +70,21 @@ object PasskeyHooker : StaticHooker() {
                 try {
                     hookSettings(cacheDir, apkPath)
                 } catch (t: Throwable) {
-                    Log.e(TAG, "Error hooking Settings", t)
+                    DebugLog.e(TAG, "Error hooking Settings", t)
                 }
             }
             "com.miui.securitycenter" -> {
                 try {
                     hookSecurityCenter(apkPath)
                 } catch (t: Throwable) {
-                    Log.e(TAG, "Error hooking SecurityCenter", t)
+                    DebugLog.e(TAG, "Error hooking SecurityCenter", t)
                 }
             }
             "com.xiaomi.scanner" -> {
                 try {
                     hookScanner()
                 } catch (t: Throwable) {
-                    Log.e(TAG, "Error hooking Scanner", t)
+                    DebugLog.e(TAG, "Error hooking Scanner", t)
                 }
             }
         }
@@ -172,7 +171,7 @@ object PasskeyHooker : StaticHooker() {
                             }
                         }
                     }.onFailure { t ->
-                        Log.e(TAG, "Failed to override oem CredMan UI component", t)
+                        DebugLog.e(TAG, "Failed to override oem CredMan UI component", t)
                     }
                 }
                 chain.proceed()
@@ -208,19 +207,28 @@ object PasskeyHooker : StaticHooker() {
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
-            logMissingQueries = false, // Optional: activity launch and switch-commit fallbacks remain available.
             queries = mapOf("OnCombiPreferenceClickListener" to { bridge ->
                 val onLeftSideClickedMatcher = org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                     .name("onLeftSideClicked")
                     .paramCount(0)
-                    .addInvoke("Lcom/android/settings/applications/credentials/CombinedProviderInfo;->launchSettingsActivityIntent(Landroid/content/Context;Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)V")
+                    .returnType(Void.TYPE)
+                    .addInvoke(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                        .declaredClass("com.android.settings.applications.credentials.CombinedProviderInfo")
+                        .name("launchSettingsActivityIntent")
+                        .paramTypes(Context::class.java, CharSequence::class.java, CharSequence::class.java,
+                            Int::class.javaPrimitiveType!!)
+                        .returnType(Boolean::class.javaPrimitiveType!!))
                 
                 bridge.findClass(org.luckypray.dexkit.query.FindClass.create()
                     .searchPackages("com.android.settings.applications.credentials")
                     .matcher(org.luckypray.dexkit.query.matchers.ClassMatcher.create().methods(
                         org.luckypray.dexkit.query.matchers.MethodsMatcher.create().add(onLeftSideClickedMatcher)
                     ))
-                ).getOrNull(0)?.name
+                ).singleOrNull()?.name
+            }),
+            validators = mapOf("OnCombiPreferenceClickListener" to { type ->
+                type.declaredMethods.count { it.name == "onLeftSideClicked" &&
+                    it.parameterCount == 0 && it.returnType == Void.TYPE } == 1
             })
         )
 

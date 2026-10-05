@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.googleapp
 
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.BooleanArgumentOverride
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -273,17 +274,16 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         enableNativeHint(chain, targets)
 
     private fun enableNativeHint(chain: XposedInterface.Chain, target: Targets?): Any? {
-        if (target != null && featureEnabled()) {
-            // dsnc/doqf keep the AIM switches as the boolean tail immediately before their
-            // Executor dependency. Set the arguments before final fields are assigned; mutating a
-            // final field after construction is not reliable on ART.
-            HookFailurePolicy.open(TAG, "constructor boolean arguments", Unit) {
-                for (index in target.aimBooleanParameterIndices) {
-                    if (index in chain.args.indices) chain.args[index] = true
+        val replacements = if (target != null && target.modelConstructor == chain.executable && featureEnabled()) {
+            HookFailurePolicy.open(TAG, "constructor boolean argument contract", null as Array<Any?>?) {
+                BooleanArgumentOverride.copy(target.modelConstructor.parameterTypes, chain.args,
+                    target.aimBooleanParameterIndices).also {
+                    if (it == null) DebugLog.w(TAG, "AIM constructor argument contract changed; preserving native arguments")
                 }
             }
-        }
-        val result = chain.proceed()
+        } else null
+        // Proceed exactly once and let the host's own constructor exception propagate normally.
+        val result = if (replacements != null) chain.proceed(replacements) else chain.proceed()
         if (target == null || target.modelConstructor != chain.executable || !featureEnabled()) {
             return result
         }

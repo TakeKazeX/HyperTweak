@@ -1454,4 +1454,13 @@
     <string name="home_hot_reload_result_states">%1$d succeeded · %2$d failed · %3$d exited · %4$d in progress</string>
     <string name="home_hot_reload_process_exited">Process exited; the next launch loads the updated module</string>
     <string name="home_hot_reload_process_pending">Reload already in progress</string>
+
+    <string name="native_update_description">Checks the loaded native code. If an update is needed, refreshes the launcher without rebooting the phone. Requires root; update the Java hooks first.</string>
+    <string name="native_update_action">Update launcher native code</string>
+    <string name="native_update_running">Updating launcher native code…</string>
+    <string name="native_update_current">The loaded native code is current.</string>
+    <string name="native_update_success">The new launcher has loaded and initialized the updated native code.</string>
+    <string name="native_update_failed">Native update did not complete. See the app log for details; the previous APK is retained when available.</string>
+    <string name="native_update_rollback">Restore previous module (keeps settings)</string>
+    <string name="native_update_rollback_requested">Module restoration requested. Reopen the app to check the result.</string>
 </resources>

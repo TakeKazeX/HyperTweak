@@ -12,6 +12,8 @@ class HyperTweakApp : Application() {
         super.onCreate()
 
         DebugLog.setProcessTag("app")
+        com.takekazex.hypertweak.hook.NativeRuleSignal.attach(this)
+        com.takekazex.hypertweak.hook.NativeUpgradeManager.restore(this)
         // Init connection to LSPosed preferences as early as possible
         XposedServiceManager.init()
 

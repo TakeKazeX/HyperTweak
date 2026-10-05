@@ -1448,4 +1448,13 @@
     <string name="home_hot_reload_result_states">%1$d 成功 · %2$d 失败 · %3$d 已退出 · %4$d 正在替换</string>
     <string name="home_hot_reload_process_exited">进程已退出，下次启动将加载新模块</string>
     <string name="home_hot_reload_process_pending">框架正在替换</string>
+
+    <string name="native_update_description">核对桌面已加载的 native 代码；需要更新时会刷新桌面，无需重启手机。需要 Root，请先更新 Java Hook。</string>
+    <string name="native_update_action">更新桌面 native</string>
+    <string name="native_update_running">正在更新桌面 native…</string>
+    <string name="native_update_current">已加载的 native 代码无需更新。</string>
+    <string name="native_update_success">新桌面进程已加载并初始化更新后的 native。</string>
+    <string name="native_update_failed">native 更新未完成。详情见应用日志；可用的旧 APK 已保留。</string>
+    <string name="native_update_rollback">恢复之前的模块（保留设置）</string>
+    <string name="native_update_rollback_requested">已请求恢复模块，请重新打开应用检查结果。</string>
 </resources>

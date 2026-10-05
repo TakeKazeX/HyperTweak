@@ -5,6 +5,7 @@
 #include "folder_columns_rule.h"
 #include "dart_rule_support.h"
 #include "native_store.h"
+#include "native_runtime_identity.h"
 #include "logging.h"
 #include <dlfcn.h>
 #include <errno.h>
@@ -14,6 +15,8 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern "C" void HyperTweakSetContextualSearchLongPress(bool enabled);
 extern "C" bool HyperTweakIsLauncherProcess();
@@ -46,6 +49,34 @@ void* g_dart_handle = nullptr;
 uint32_t g_worker_state = 0u;
 int g_wakeup = -1;
 const char* volatile g_source = "waiting_for_systemui";
+bool g_runtime_initialized = false;
+uint32_t g_identity_pid = 0u;
+
+void PublishRuntimeIdentity() {
+#ifdef HYPERTWEAK_NATIVE_VERSION
+    if (!HyperTweakIsLauncherProcess() || getuid() < 10000u) return;
+    pthread_mutex_lock(&g_settings_lock);
+    if (g_runtime_initialized && g_identity_pid != static_cast<uint32_t>(getpid())) {
+        char stat[2048]{};
+        FILE* source = fopen("/proc/self/stat", "re");
+        if (source != nullptr) { (void)fgets(stat, sizeof(stat), source); fclose(source); }
+        char* field = strrchr(stat, ')');
+        if (field != nullptr) {
+            ++field;
+            for (unsigned index = 3u; index < 22u; ++index) {
+                while (*field == ' ') ++field;
+                while (*field != '\0' && *field != ' ') ++field;
+            }
+        }
+        const uint64_t start_ticks = field != nullptr ? strtoull(field, nullptr, 10) : 0u;
+        const auto identity = RuntimeIdentity(HYPERTWEAK_NATIVE_VERSION, getpid(), start_ticks);
+        if (start_ticks != 0u && WriteNativeRecord("runtime_identity", &identity, sizeof(identity))) {
+            g_identity_pid = getpid();
+        } else LogWarn("native runtime identity persistence failed");
+    }
+    pthread_mutex_unlock(&g_settings_lock);
+#endif
+}
 
 void ApplySettings(const SettingsRecord& record) {
     SetClearButtonHidden(record.hidden != 0u);
@@ -54,6 +85,9 @@ void ApplySettings(const SettingsRecord& record) {
 }
 bool Prepare() {
     NativeRuleLibraryQuery internal_query;
+    // Specialization may have still been root at native_init. Existing event-driven work can
+    // publish the acknowledgement once the real app uid/data directory is available.
+    PublishRuntimeIdentity();
     pthread_mutex_lock(&g_settings_lock);
     if (!g_received_settings && !g_bootstrap_read) {
         g_bootstrap_read = true; // A missing file is not a reason to poll storage.
@@ -117,6 +151,12 @@ void* Run(void*) {
 }
 }
 const char* NativeRuleRuntimeSource() { return __atomic_load_n(&g_source, __ATOMIC_ACQUIRE); }
+void MarkNativeRuntimeInitialized() {
+    pthread_mutex_lock(&g_settings_lock);
+    g_runtime_initialized = true;
+    pthread_mutex_unlock(&g_settings_lock);
+    PublishRuntimeIdentity();
+}
 void* NativeRuleCurrentDartHandle() {
     pthread_mutex_lock(&g_settings_lock);
     void* handle = g_dart_handle;
@@ -216,6 +256,8 @@ void ResetNativeRuleRuntimeAfterFork() {
     g_gate = NativeRulePreparationGate{};
     g_native_rule_query_depth = 0u;
     g_systemui_revision = 0;
+    g_runtime_initialized = false;
+    g_identity_pid = 0u;
     ResetDartRulePreparationAfterFork();
 }
 void PrepareNativeRulesForFork() { pthread_mutex_lock(&g_settings_lock); LockDartRulePreparationForFork(); }

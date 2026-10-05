@@ -82,15 +82,12 @@ object CircleToSearchGestureHooker : StaticHooker() {
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
         action = {
-            applyAlignmentInternal(logFailure = false) &&
-                installSettingObserver(logFailure = false)
+            initializeSettings(logFailure = false)
         }
     )
 
     override fun onHook() {
-        val aligned = applyAlignmentInternal(logFailure = true)
-        val observed = installSettingObserver(logFailure = true)
-        if (!aligned || !observed) startupRetry.schedule()
+        if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
     override fun onPrepareHotReload() {
@@ -106,20 +103,17 @@ object CircleToSearchGestureHooker : StaticHooker() {
 
     /** Aligns the gesture-line action with the switch: applied while on, restored while off. */
     fun applyAlignment() {
-        if (!applyAlignmentInternal(logFailure = true)) startupRetry.schedule()
+        if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
     private fun applyAlignmentInternal(logFailure: Boolean): Boolean {
+        if (!SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
-        if (!isCircleToSearchLongPressEnabled()) {
-            restore(context)
-            return true
-        }
         return runCatching {
-            align(context)
+            if (isCircleToSearchLongPressEnabled()) align(context) else restore(context)
             true
         }.onFailure {
-            if (logFailure) {
+            if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not align $SETTING_NAV_LONG_PRESS", it)
             } else {
                 DebugLog.d(SCOPE, "gesture setting alignment still waiting for system services")
@@ -131,12 +125,14 @@ object CircleToSearchGestureHooker : StaticHooker() {
         Preferences.contextualSearchLongPress()
 
     private fun align(context: Context) {
-        val current = readSetting(context)
+        val current = Settings.Secure.getString(context.contentResolver, SETTING_NAV_LONG_PRESS)
         // Already the right value: change nothing and claim nothing, so switching the feature off
         // never "restores" a value this hooker did not set.
         if (current == DESIRED_NAV_LONG_PRESS) return
         rememberBackupIfNeeded(context, current)
-        writeSetting(context, DESIRED_NAV_LONG_PRESS)
+        check(Settings.Secure.putString(context.contentResolver, SETTING_NAV_LONG_PRESS, DESIRED_NAV_LONG_PRESS)) {
+            "gesture setting alignment write rejected"
+        }
         DebugLog.i(
             SCOPE,
             "$SETTING_NAV_LONG_PRESS '$current' -> '$DESIRED_NAV_LONG_PRESS' " +
@@ -153,9 +149,10 @@ object CircleToSearchGestureHooker : StaticHooker() {
     private fun restore(context: Context) {
         if (!SecureSettingStore.has(context, BACKUP_NAV_LONG_PRESS)) return
         val previous = SecureSettingStore.read(context, BACKUP_NAV_LONG_PRESS)
-        if (SecureSettingStore.restore(context, BACKUP_NAV_LONG_PRESS, SETTING_NAV_LONG_PRESS)) {
-            DebugLog.i(SCOPE, "$SETTING_NAV_LONG_PRESS restored to '$previous'")
+        check(SecureSettingStore.restore(context, BACKUP_NAV_LONG_PRESS, SETTING_NAV_LONG_PRESS)) {
+            "gesture setting restore incomplete; original retained for retry"
         }
+        DebugLog.i(SCOPE, "$SETTING_NAV_LONG_PRESS restored to '$previous'")
     }
 
     /**
@@ -163,15 +160,25 @@ object CircleToSearchGestureHooker : StaticHooker() {
      * value: the hooker changed nothing, so switching the feature off must change nothing either.
      */
     private fun rememberBackupIfNeeded(context: Context, current: String?) {
-        SecureSettingStore.recordIfAbsent(context, BACKUP_NAV_LONG_PRESS, current)
+        check(SecureSettingStore.recordIfAbsent(context, BACKUP_NAV_LONG_PRESS, current)) {
+            "gesture setting backup not persisted"
+        }
     }
 
     /**
      * Re-applies when something else moves the key, which the switch's owner is expected to undo.
      * Our own write settles immediately (the value already equals the target), so this cannot loop.
      */
+    private fun initializeSettings(logFailure: Boolean): Boolean {
+        if (!SystemServiceReadiness.contentReady()) return false
+        // Bind observers before changing live settings; never report readiness for half an operation.
+        if (!installSettingObserver(logFailure)) return false
+        return applyAlignmentInternal(logFailure)
+    }
+
     private fun installSettingObserver(logFailure: Boolean): Boolean {
         if (observerInstalled) return true
+        if (!SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
@@ -186,10 +193,11 @@ object CircleToSearchGestureHooker : StaticHooker() {
             )
             settingObserver = observer
             observerInstalled = true
+            DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {
             runCatching { context.contentResolver.unregisterContentObserver(observer) }
-            if (logFailure) {
+            if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not observe $SETTING_NAV_LONG_PRESS", it)
             } else {
                 DebugLog.d(SCOPE, "gesture setting observer still waiting for system services")
@@ -199,19 +207,6 @@ object CircleToSearchGestureHooker : StaticHooker() {
 
     // ─── Platform access ──────────────────────────────────────────────────────
 
-    private fun readSetting(context: Context): String? =
-        runCatching { Settings.Secure.getString(context.contentResolver, SETTING_NAV_LONG_PRESS) }
-            .getOrNull()
-            ?.takeIf { it.isNotEmpty() }
-
-    private fun writeSetting(context: Context, value: String?) {
-        Settings.Secure.putString(context.contentResolver, SETTING_NAV_LONG_PRESS, value)
-    }
-
-    /**
-     * system_server's own context; it has no Application, so `getSystemContext()` is the usable
-     * one (the hooker runs in system_server, not in the module app).
-     */
     private fun systemContext(): Context? = runCatching {
         val activityThread = Class.forName("android.app.ActivityThread")
         val thread = activityThread.getMethod("currentActivityThread").invoke(null) ?: return null

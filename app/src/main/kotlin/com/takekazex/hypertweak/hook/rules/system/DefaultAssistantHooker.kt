@@ -117,15 +117,12 @@ object DefaultAssistantHooker : StaticHooker() {
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
         action = {
-            applyAlignmentInternal(logFailure = false) &&
-                installSettingObserver(logFailure = false)
+            initializeSettings(logFailure = false)
         }
     )
 
     override fun onHook() {
-        val aligned = applyAlignmentInternal(logFailure = true)
-        val observed = installSettingObserver(logFailure = true)
-        if (!aligned || !observed) startupRetry.schedule()
+        if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
     override fun onPrepareHotReload() {
@@ -147,20 +144,17 @@ object DefaultAssistantHooker : StaticHooker() {
      * action is the default assistant, restored otherwise. Safe to call repeatedly.
      */
     fun applyAlignment() {
-        if (!applyAlignmentInternal(logFailure = true)) startupRetry.schedule()
+        if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
     private fun applyAlignmentInternal(logFailure: Boolean): Boolean {
-        if (!isDefaultAssistantAction()) {
-            restore()
-            return true
-        }
+        if (!SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
         return runCatching {
-            align(context)
+            if (isDefaultAssistantAction()) align(context) else restore()
             true
         }.onFailure {
-            if (logFailure) {
+            if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not align the assistant setting", it)
             } else {
                 DebugLog.d(SCOPE, "assistant setting alignment still waiting for system services")
@@ -318,8 +312,8 @@ object DefaultAssistantHooker : StaticHooker() {
         if (voiceService != null && isVoiceServiceUsable(context, voiceService)) {
             val desired = voiceService.flattenToShortString()
             rememberBackupIfNeeded(context)
-            Settings.Secure.putString(context.contentResolver, SETTING_ASSISTANT, desired)
-            Settings.Secure.putString(context.contentResolver, SETTING_VOICE_SERVICE, desired)
+            check(Settings.Secure.putString(context.contentResolver, SETTING_ASSISTANT, desired)) { "assistant alignment write rejected" }
+            check(Settings.Secure.putString(context.contentResolver, SETTING_VOICE_SERVICE, desired)) { "voice-service alignment write rejected" }
             DebugLog.i(SCOPE, "aligned assistant + voice service to $desired")
             return
         }
@@ -338,7 +332,7 @@ object DefaultAssistantHooker : StaticHooker() {
         // Activity form: `assistant` names it and the active voice service is left as it is, so a
         // device-wide voice service (XiaoAI here) keeps its role. AssistManager's else-branch then
         // renders the assist intent against this activity.
-        Settings.Secure.putString(context.contentResolver, SETTING_ASSISTANT, desired)
+        check(Settings.Secure.putString(context.contentResolver, SETTING_ASSISTANT, desired)) { "assistant alignment write rejected" }
         DebugLog.i(SCOPE, "aligned assistant to activity $desired (no usable voice service)")
     }
 
@@ -395,6 +389,7 @@ object DefaultAssistantHooker : StaticHooker() {
             SecureSettingStore.restore(context, BACKUP_ASSISTANT, SETTING_ASSISTANT)
         val restoredService =
             SecureSettingStore.restore(context, BACKUP_VOICE, SETTING_VOICE_SERVICE)
+        check(restoredAssistant && restoredService) { "assistant restore incomplete; originals retained for retry" }
         DebugLog.i(
             SCOPE,
             "restored assistant='$previousAssistant' (applied=$restoredAssistant) " +
@@ -404,16 +399,27 @@ object DefaultAssistantHooker : StaticHooker() {
 
     /** Records both originals once, before either write. */
     private fun rememberBackupIfNeeded(context: Context) {
-        SecureSettingStore.recordIfAbsent(context, BACKUP_ASSISTANT, currentAssistantSetting(context))
-        SecureSettingStore.recordIfAbsent(context, BACKUP_VOICE, currentVoiceServiceSetting(context))
+        val assistant = Settings.Secure.getString(context.contentResolver, SETTING_ASSISTANT)
+        val voice = Settings.Secure.getString(context.contentResolver, SETTING_VOICE_SERVICE)
+        check(SecureSettingStore.recordIfAbsent(context, BACKUP_ASSISTANT, assistant)) { "assistant backup not persisted" }
+        check(SecureSettingStore.recordIfAbsent(context, BACKUP_VOICE, voice)) { "voice-service backup not persisted" }
     }
 
     /**
      * AOSP rewrites `assistant` whenever the ASSISTANT role changes, so re-apply when the value
      * this hooker depends on moves.
      */
+    private fun initializeSettings(logFailure: Boolean): Boolean {
+        if (!SystemServiceReadiness.contentReady()) return false
+        if (isDefaultAssistantAction() && !SystemServiceReadiness.available("role")) return false
+        // Bind observers before changing live settings; never report readiness for half an operation.
+        if (!installSettingObserver(logFailure)) return false
+        return applyAlignmentInternal(logFailure)
+    }
+
     private fun installSettingObserver(logFailure: Boolean): Boolean {
         if (observerInstalled) return true
+        if (!SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
         val observer = object : android.database.ContentObserver(
             android.os.Handler(android.os.Looper.getMainLooper())
@@ -435,10 +441,11 @@ object DefaultAssistantHooker : StaticHooker() {
             )
             settingObserver = observer
             observerInstalled = true
+            DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {
             runCatching { context.contentResolver.unregisterContentObserver(observer) }
-            if (logFailure) {
+            if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not observe the assistant setting", it)
             } else {
                 DebugLog.d(SCOPE, "assistant setting observer still waiting for system services")

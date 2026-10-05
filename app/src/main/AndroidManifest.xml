@@ -99,6 +99,12 @@
             android:resource="@array/xposed_scope"/>
 
         <!-- Main Activity -->
+        <receiver android:name="com.takekazex.hypertweak.hook.NativeRuleSyncReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.takekazex.hypertweak.action.NATIVE_SETTINGS_REQUEST" />
+            </intent-filter>
+        </receiver>
         <activity
             android:name="com.takekazex.hypertweak.MainActivity"
             android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection|colorMode|fontWeightAdjustment|fontScale"

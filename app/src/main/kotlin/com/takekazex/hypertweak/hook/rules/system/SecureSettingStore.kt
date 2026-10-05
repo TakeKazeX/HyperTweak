@@ -31,9 +31,6 @@ import android.provider.Settings
  */
 object SecureSettingStore {
     private const val PREFIX = "hypertweak_backup_"
-    /** Distinguishes an original null/empty setting from a backup that was never recorded. */
-    private const val ABSENT_VALUE = "__hypertweak_absent__"
-
     /** `Settings.Secure.assistant` as this module found it, before aligning it. */
     const val ASSISTANT = "${PREFIX}assistant"
 
@@ -43,47 +40,15 @@ object SecureSettingStore {
     /** `Settings.Secure.NavLongPress` as this module found it. */
     const val NAV_LONG_PRESS = "${PREFIX}nav_long_press"
 
-    /** True when a backup for [key] exists, i.e. this module owns the live setting. */
-    fun has(context: Context, key: String): Boolean = raw(context, key).getOrNull() != null
+    private fun transaction(context: Context) = SettingBackupTransaction(
+        read = { Settings.Secure.getString(context.contentResolver, it) },
+        write = { key, value -> Settings.Secure.putString(context.contentResolver, key, value) }
+    )
 
-    /** The recorded original, or null when nothing was recorded. */
-    fun read(context: Context, key: String): String? =
-        raw(context, key)
-            .getOrNull()
-            ?.takeIf { it.isNotEmpty() }
-            ?.takeUnless { it == ABSENT_VALUE }
-
-    /** Records the original once. Never overwrites an existing backup of the same key. */
-    fun recordIfAbsent(context: Context, key: String, value: String?) {
-        if (has(context, key)) return
-        // Keep an explicit marker for an empty original. Otherwise a missing backup is
-        // indistinguishable from an original null and disabling the feature cannot restore it.
-        runCatching {
-            Settings.Secure.putString(
-                context.contentResolver,
-                key,
-                value?.takeIf { it.isNotEmpty() } ?: ABSENT_VALUE
-            )
-        }
-    }
-
-    /** Puts the recorded original back into [liveKey] and clears the backup slot. */
-    fun restore(context: Context, backupKey: String, liveKey: String): Boolean {
-        val original = raw(context, backupKey).getOrNull() ?: return false
-        return runCatching {
-            Settings.Secure.putString(
-                context.contentResolver,
-                liveKey,
-                original.takeUnless { it == ABSENT_VALUE }
-            )
-            // Cleared only after the live value is written, so a failure here cannot lose the
-            // original: the next attempt still finds it.
-            Settings.Secure.putString(context.contentResolver, backupKey, null)
-            true
-        }.getOrElse { false }
-    }
-
-    private fun raw(context: Context, key: String): Result<String?> = runCatching {
-        Settings.Secure.getString(context.contentResolver, key)
-    }
+    // Callers isolate exceptions at the alignment/recovery boundary. A provider read failure must
+    // propagate there rather than masquerading as an unset original setting.
+    fun has(context: Context, key: String): Boolean = transaction(context).has(key)
+    fun read(context: Context, key: String): String? = transaction(context).original(key)
+    fun recordIfAbsent(context: Context, key: String, value: String?): Boolean = transaction(context).record(key, value)
+    fun restore(context: Context, backupKey: String, liveKey: String): Boolean = transaction(context).restore(backupKey, liveKey)
 }

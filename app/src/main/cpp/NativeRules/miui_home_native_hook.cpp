@@ -5230,5 +5230,6 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
     Log(ANDROID_LOG_INFO,
         "LSPosed native hook initialized in MiuiHome HYOS child");
     BackfillLoadedLibraries();
+    if (launcher_process) hypertweak::native::MarkNativeRuntimeInitialized();
     return OnLsposedLibraryLoaded;
 }

@@ -126,6 +126,7 @@ import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppL
 import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
+import com.takekazex.hypertweak.hook.rules.system.SystemServerReadinessHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -154,13 +155,19 @@ class HookEntry : XposedModule() {
     private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
     private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
     private val preferenceRetryGeneration = AtomicLong(0L)
-    private val nativeRuleStatePublisher by lazy { NativeRuleStatePublisher() }
+    @Volatile private var nativeRuleStatePublisher: NativeRuleStatePublisher? = null
+    @Volatile private var nativeGenerationRetired = false
+    @Synchronized private fun nativePublisher(): NativeRuleStatePublisher? {
+        if (nativeGenerationRetired || processName != "com.android.systemui") return null
+        return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
+    }
     @Volatile private var nativeSettingsSource: SharedPreferences? = null
     @Volatile private var nativeSettingsReady = false
     private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON ||
             key == Preferences.KEY_OPENED_FOLDER_COLUMNS ||
-            key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == "prefs_epoch") {
+            key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS ||
+            key == Preferences.KEY_NATIVE_RULE_REVISION || key == "prefs_epoch") {
             // A change notification must bypass the normal short-lived read memo.
             Preferences.invalidateRuntimeReadCache()
             publishNativeRuleSwitches()
@@ -197,14 +204,13 @@ class HookEntry : XposedModule() {
             preferenceRetryGeneration.incrementAndGet()
             // Initialize EzXposed with the module interface
             EzXposed.initOnModuleLoaded(this, param)
+            NativeRules.bindProcess(processName)
             DebugLog.setProcessTag(processName)
             DebugLog.bindXposed(this)
             initPreferences()
             DebugLog.ensureSession()
             DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
-            // The native payload is injected before this callback runs. Record what it reports for
-            // this process so a packaging or injection failure shows up in the module log without a
-            // separate logcat capture.
+            // Status inspection is passive; only launcher rule publication may bind the JNI bridge.
             DebugLog.d("NativeRules", NativeRules.describe())
             publishNativeRuleSwitches()
         } catch (t: Throwable) {
@@ -314,7 +320,8 @@ class HookEntry : XposedModule() {
                 isSystemServer = isSystemServer,
                 systemServerClassLoader = systemServerClassLoader,
                 packages = packageStates.values,
-                hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() }
+                hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() } +
+                    mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot())
             )
             if (processName == "com.android.systemui") {
                 com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
@@ -326,7 +333,9 @@ class HookEntry : XposedModule() {
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
             detachNativeSettingsListener()
             nativeSettingsReady = false
-            if (processName == "com.android.systemui") nativeRuleStatePublisher.close()
+            nativeGenerationRetired = true
+            nativeRuleStatePublisher?.close()
+            nativeRuleStatePublisher = null
             DebugLog.prepareForHotReload()
         }.onFailure { t ->
             DexKitManager.cancelHotReloadPreparation()
@@ -346,14 +355,17 @@ class HookEntry : XposedModule() {
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
+        nativeGenerationRetired = false
         preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
+        NativeRules.bindProcess(processName)
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
+        val restoredState = HotReloadState.restore(param.savedInstanceState)
+        nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
         initPreferences()
         publishNativeRuleSwitches()
         DebugLog.ensureSession()
-        val restoredState = HotReloadState.restore(param.savedInstanceState)
         val oldHandles = HotReloadHandleStore(param.oldHookHandles)
         val oldHandleIds = oldHandles.ids
         DebugLog.d(
@@ -437,6 +449,9 @@ class HookEntry : XposedModule() {
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
         retryHookersAfterHotReload()
+        // Publication requires the restored host context. The early hot-reload callback runs
+        // before package snapshots are restored and cannot be its only recovery boundary.
+        publishNativeRuleSwitches()
         if (!isSystemServer && processName == "com.android.systemui") {
             val context = restoredState.packages.firstOrNull { it.packageName == processName }?.appContext
             if (context != null) {
@@ -580,7 +595,7 @@ class HookEntry : XposedModule() {
 
     /** Cold startup and hot reload must publish the same host environment to every consumer. */
     private fun onSystemUiContextReady(context: Context) {
-        if (nativeSettingsReady) nativeRuleStatePublisher.attach(context)
+        nativePublisher()?.attach(context)
         ProxyLaunchHooker.register(context)
         ExtendUnlockHooker.syncTrustAgent(context)
         StackedSignalHooker.onPackageReady(context)
@@ -693,14 +708,16 @@ class HookEntry : XposedModule() {
     private fun publishNativeRuleSwitches() {
         // An unavailable daemon must not overwrite the last good native snapshot
         // with default values during boot. The successful bind/retry publishes it.
-        if (!nativeSettingsReady) return
+        if (nativeGenerationRetired) return
         if (processName == "com.android.systemui") {
             val context = packageStates[processName]?.appContext
-            if (context != null) nativeRuleStatePublisher.attach(context)
-            nativeRuleStatePublisher.publish()
+                ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+            val publisher = nativePublisher() ?: return
+            if (context != null) publisher.attach(context)
+            publisher.publish()
             return
         }
-        if (processName != LAUNCHER_PACKAGE) return
+        if (!nativeSettingsReady || processName != LAUNCHER_PACKAGE) return
         runCatching {
             NativeRules.applyRuleSwitches(
                 hideRecentsClearButton = Preferences.hideRecentsClearButton(),
@@ -739,6 +756,7 @@ class HookEntry : XposedModule() {
             isSystemServer = true,
             appContext = null
         )
+        attachHooker(SystemServerReadinessHooker, classLoader, ctx, replacementHandles)
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)

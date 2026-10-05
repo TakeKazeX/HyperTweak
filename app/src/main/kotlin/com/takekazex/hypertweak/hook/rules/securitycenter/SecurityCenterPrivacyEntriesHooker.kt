@@ -3,8 +3,8 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
-import android.app.job.JobParameters
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -39,21 +39,20 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     private const val BEAUTY_FACE_CATEGORY_KEY = "category_key_beauty_face"
     private const val BEAUTY_PRIVACY_CATEGORY_KEY = "category_key_beauty_privacy"
 
-    private const val BEAUTY_UTILS_CLASS = "s8.i"
     private const val BEAUTY_MANAGE_FRAGMENT_CLASS =
         "com.miui.gamebooster.beauty.BeautyManageFragment"
-    private const val COMMON_FUNCTION_INTENT_GATE = "com.miui.common.utils.v0"
     private const val FUNCTION_CARD_MODEL_CLASS = "com.miui.common.card.models.FunctionCardModel"
-    private const val COMMON_FUNCTION_LIST_CLASS = "bk.e"
     private const val GRID_FUNCTION_DATA_CLASS = "com.miui.common.card.GridFunctionData"
     private const val GRID_FUNCTION_DATA_SOURCE_CLASS =
         "com.miui.common.card.GridFunctionData\$DataSource"
-    private const val ANTI_PEEPING_SUPPORT_CLASS = "t3.g"
     private const val FRONT_ASSISTANT_ACTION = "com.miui.gamebooster.action.ACCESS_FRONT_ASSISTANT"
     private const val FRONT_ASSISTANT_ACTION_URI =
         "#Intent;action=$FRONT_ASSISTANT_ACTION;end"
 
-    private val beautyManageUiGateActive = ThreadLocal.withInitial { false }
+    @Volatile private var supportedAntiPeepingModes: Set<Int> = emptySet()
+    private var resolver: SecurityCenterPrivacyResolver? = null
+
+    private val beautyManageUiGateActive = ThreadActivation()
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -62,25 +61,32 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             return
         }
 
-        val selectedAntiPeepingMode = antiPeepingMode()
-        if (selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-            hookAntiPeepingCapabilityGates()
+        resolver = runCatching {
+            SecurityCenterPrivacyResolver(requireNotNull(hookParam.appInfo?.sourceDir), classLoader)
+        }.onFailure { DebugLog.w(TAG, "native privacy semantic index unavailable", it) }.getOrNull()
+        try {
+            val selectedAntiPeepingMode = antiPeepingMode()
+            if (selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+                hookAntiPeepingCapabilityGates()
+            }
+
+            if (!hookParam.isMainProcess) return
+
+            hookPreferenceVisibility()
+            hookPreferenceRemoval()
+            if (isFrontCameraAssistantEnabled()) {
+                hookFrontAssistantAction()
+                hookFrontAssistantFunctionCardGates()
+                hookBeautyManageEntry()
+            }
+
+            DebugLog.i(
+                TAG,
+                "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode"
+            )
+        } finally {
+            resolver = null // Installed hooks capture only reflected targets, not the whole APK index.
         }
-
-        if (!hookParam.isMainProcess) return
-
-        hookPreferenceVisibility()
-        hookPreferenceRemoval()
-        if (isFrontCameraAssistantEnabled()) {
-            hookFrontAssistantAction()
-            hookFrontAssistantFunctionCardGates()
-            hookBeautyManageEntry()
-        }
-
-        DebugLog.i(
-            TAG,
-            "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode"
-        )
     }
 
     private fun hasAnyFeatureEnabled(): Boolean =
@@ -177,7 +183,8 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     private fun visibilityOverride(key: String): Boolean? {
-        val antiPeeping = antiPeepingMode()
+        val antiPeeping = antiPeepingMode().takeIf { it in supportedAntiPeepingModes }
+            ?: Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
         return when (key) {
             PRIVACY_CALL_KEY -> true.takeIf { isPrivacyCallEnabled() }
             PRIVACY_PROTECTION_CATEGORY_KEY ->
@@ -233,185 +240,39 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
 
     /** Applies the selected version to Security Center's shared V1/V2 support gates. */
     private fun hookAntiPeepingCapabilityGates() {
-        val supportClass = ANTI_PEEPING_SUPPORT_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, ANTI_PEEPING_SUPPORT_CLASS, "class not found")
+        val profile = resolver ?: return
+        val v1 = profile.antiPeepingV1()
+        val v2 = profile.antiPeepingV2()
+        supportedAntiPeepingModes = buildSet {
+            if (v1 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V1)
+            if (v2 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V2)
+        }
+        if (antiPeepingMode() !in supportedAntiPeepingModes) {
+            DebugLog.w(TAG, "selected anti-peeping capability unavailable; preserving native gates")
             return
         }
-        hookAntiPeepingCapabilityGate(
-            supportClass = supportClass,
-            methodName = "j",
-            selectedMode = Preferences.SECURITY_CENTER_ANTI_PEEPING_V1,
-            hookKey = "security_center_anti_peeping_v1_capability"
-        )
-        hookAntiPeepingCapabilityGate(
-            supportClass = supportClass,
-            methodName = "k",
-            selectedMode = Preferences.SECURITY_CENTER_ANTI_PEEPING_V2,
-            hookKey = "security_center_anti_peeping_v2_capability"
-        )
-        deoptimizeAntiPeepingFlowCallers()
-    }
-
-    /** Prevents ART from keeping an inlined stock-false capability result in entry/lifecycle code. */
-    private fun deoptimizeAntiPeepingFlowCallers() {
-        when (antiPeepingMode()) {
-            Preferences.SECURITY_CENTER_ANTI_PEEPING_V1 -> {
-                deoptimizeTargetMethod("com.miui.antipeeping.common.c", "q")
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v1.ui.activity.AntiPeepingSplashActivity",
-                    "onCreate",
-                    Bundle::class.java
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v1.ui.activity.AntiPeepingActivity",
-                    "onCreate",
-                    Bundle::class.java
-                )
-                "miui.process.ForegroundInfo".toClassOrNull()?.let { foregroundInfo ->
-                    deoptimizeTargetMethod(
-                        "nf.x\$a",
-                        "onForegroundInfoChanged",
-                        foregroundInfo
-                    )
-                }
-                deoptimizeTargetMethod("nf.x\$g", "onReceive", Context::class.java, Intent::class.java)
-                deoptimizeTargetMethod("nf.x", "H0")
-            }
-
-            Preferences.SECURITY_CENTER_ANTI_PEEPING_V2 -> {
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.ui.PeepProtectionIntroActivity",
-                    "onCreate",
-                    Bundle::class.java
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.ui.PeepProtectionMainActivity",
-                    "onCreate",
-                    Bundle::class.java
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.ui.PeepProtectionTileService",
-                    "onClick"
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.ui.PeepProtectionTileService",
-                    "onStartListening"
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.provider.PeepProtectionRemoteProvider",
-                    "onCreate"
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.provider.PeepProtectionRemoteProvider",
-                    "handleToggle",
-                    Context::class.java,
-                    Bundle::class.java
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.provider.PeepProtectionPageProvider",
-                    "onCreate"
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.provider.PeepProtectionPageProvider",
-                    "call",
-                    String::class.java,
-                    String::class.java,
-                    Bundle::class.java
-                )
-                deoptimizeTargetMethod(
-                    "com.miui.antipeeping.v2.provider.PeepProtectionPageProvider",
-                    "syncTileComponentsState",
-                    Context::class.java
-                )
-                deoptimizeTargetMethod("z3.p", "i")
-                deoptimizeTargetMethod("z3.f", "b", Context::class.java)
-                deoptimizeTargetMethod("z3.a", "a", Context::class.java)
-                deoptimizeTargetMethod("z3.e", "onReceive", Context::class.java, Intent::class.java)
-                if (hookParam.isMainProcess) {
-                    deoptimizeTargetMethod("com.miui.securitycenter.Application", "onCreate")
-                }
-            }
-        }
-
-        if (!hookParam.isMainProcess) {
-            deoptimizeTargetMethod(
-                "com.miui.securitycenter.service.ConnectivityChangeJobService2",
-                "onStartJob",
-                JobParameters::class.java
-            )
-            deoptimizeTargetMethod(
-                "com.miui.securitycenter.service.ConnectivityChangeJobService2\$e",
-                "run"
-            )
-        }
-    }
-
-    private fun deoptimizeTargetMethod(
-        className: String,
-        methodName: String,
-        vararg parameterTypes: Class<*>
-    ) {
-        val targetClass = className.toClassOrNull() ?: return
-        CompatibleMethodResolver.find(
-            targetClass,
-            methodName,
-            parameterTypes = parameterTypes.toList()
-        )?.let(::deoptimize)
-    }
-
-    private fun hookAntiPeepingCapabilityGate(
-        supportClass: Class<*>,
-        methodName: String,
-        selectedMode: Int,
-        hookKey: String
-    ) {
-        val method = CompatibleMethodResolver.find(
-            supportClass,
-            methodName,
-            returnType = Boolean::class.javaPrimitiveType,
-            parameterTypes = emptyList()
-        )?.takeIf { Modifier.isStatic(it.modifiers) } ?: run {
-            DebugLog.hookSkipped(TAG, "$ANTI_PEEPING_SUPPORT_CLASS#$methodName()", "method not uniquely resolved")
-            return
-        }
-
-        runCatching {
-            deoptimize(method)
-            method.hook(hookKey) {
-                before { param ->
-                    HookFailurePolicy.open(TAG, "$ANTI_PEEPING_SUPPORT_CLASS#$methodName", Unit) {
-                        val mode = antiPeepingMode()
-                        if (mode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-                            param.result = mode == selectedMode
+        listOf(v1 to Preferences.SECURITY_CENTER_ANTI_PEEPING_V1,
+            v2 to Preferences.SECURITY_CENTER_ANTI_PEEPING_V2).forEach { (method, selectedMode) ->
+            if (method == null) return@forEach
+            runCatching {
+                profile.callers(method).forEach(::deoptimize)
+                method.hook("security_center_anti_peeping_capability_$selectedMode") {
+                    before { param ->
+                        HookFailurePolicy.open(TAG, "native anti-peeping capability", Unit) {
+                            val mode = antiPeepingMode()
+                            if (mode in supportedAntiPeepingModes) {
+                                param.result = mode == selectedMode
+                            }
                         }
                     }
                 }
-            }
-        }.onFailure {
-            DebugLog.hookFailed(TAG, "$ANTI_PEEPING_SUPPORT_CLASS#$methodName()", it)
+            }.onFailure { DebugLog.hookFailed(TAG, "anti-peeping mode=$selectedMode", it) }
         }
     }
 
     /** Lets Security Center's native function-card filter retain the front-camera assistant item. */
     private fun hookFrontAssistantAction() {
-        val actionGateClass = COMMON_FUNCTION_INTENT_GATE.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, COMMON_FUNCTION_INTENT_GATE, "class not found")
-            return
-        }
-        val isSupportedAction = CompatibleMethodResolver.find(
-            actionGateClass,
-            "i",
-            returnType = Boolean::class.javaPrimitiveType,
-            parameterTypes = listOf(String::class.java)
-        )?.takeIf { Modifier.isStatic(it.modifiers) } ?: run {
-            DebugLog.hookSkipped(
-                TAG,
-                "$COMMON_FUNCTION_INTENT_GATE#i(String)",
-                "intent support predicate not uniquely resolved"
-            )
-            return
-        }
-
+        val isSupportedAction = resolver?.frontAction() ?: return
         runCatching {
             deoptimize(isSupportedAction)
             isSupportedAction.hook("security_center_front_assistant_native_entry") {
@@ -425,7 +286,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
                 }
             }
         }.onFailure {
-            DebugLog.hookFailed(TAG, "$COMMON_FUNCTION_INTENT_GATE front assistant entry", it)
+            DebugLog.hookFailed(TAG, "native front assistant entry", it)
         }
     }
 
@@ -479,23 +340,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      * native slots are full; preserve all user-pinned functions.
      */
     private fun hookFrontAssistantCommonFunctionFallback() {
-        val listBuilder = COMMON_FUNCTION_LIST_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, COMMON_FUNCTION_LIST_CLASS, "class not found")
-            return
-        }
-        val buildNewCommonFunctions = CompatibleMethodResolver.find(
-            listBuilder,
-            "d",
-            returnType = List::class.java,
-            parameterTypes = listOf(Context::class.java, List::class.java)
-        )?.takeIf { Modifier.isStatic(it.modifiers) } ?: run {
-            DebugLog.hookSkipped(
-                TAG,
-                "$COMMON_FUNCTION_LIST_CLASS#d(Context,List)",
-                "native common-function builder not uniquely resolved"
-            )
-            null
-        }
+        val buildNewCommonFunctions = resolver?.commonFunctions()
 
         if (buildNewCommonFunctions != null) {
             runCatching {
@@ -510,24 +355,11 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
                     }
                 }
             }.onFailure {
-                DebugLog.hookFailed(TAG, "$COMMON_FUNCTION_LIST_CLASS#d(Context,List)", it)
+                DebugLog.hookFailed(TAG, "native common function list", it)
             }
         }
 
-        val commonCardClass = "com.miui.common.card.models.CommonlyUsedFunctionCardModel".toClassOrNull()
-        if (commonCardClass == null) {
-            DebugLog.hookSkipped(TAG, "CommonlyUsedFunctionCardModel", "class not found")
-            return
-        }
-        val buildLegacyCommonFunctions = CompatibleMethodResolver.find(
-            listBuilder,
-            "b",
-            returnType = commonCardClass,
-            parameterTypes = listOf(Context::class.java)
-        )?.takeIf { Modifier.isStatic(it.modifiers) } ?: run {
-            DebugLog.hookSkipped(TAG, "$COMMON_FUNCTION_LIST_CLASS#b(Context)", "native common-function builder not uniquely resolved")
-            return
-        }
+        val buildLegacyCommonFunctions = resolver?.legacyCommonCard() ?: return
 
         runCatching {
             deoptimize(buildLegacyCommonFunctions)
@@ -545,7 +377,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
                 }
             }
         }.onFailure {
-            DebugLog.hookFailed(TAG, "$COMMON_FUNCTION_LIST_CLASS#b(Context)", it)
+            DebugLog.hookFailed(TAG, "native common function card", it)
         }
     }
 
@@ -651,35 +483,9 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      * calls from BeautyView, service code, and actual camera operation keep the vendor result.
      */
     private fun hookBeautyManageEntry() {
-        val beautyUtils = BEAUTY_UTILS_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, BEAUTY_UTILS_CLASS, "class not found")
-            return
-        }
-        val supportBeauty = CompatibleMethodResolver.find(
-            beautyUtils,
-            "M",
-            returnType = Boolean::class.javaPrimitiveType,
-            parameterTypes = emptyList()
-        )?.takeIf { Modifier.isStatic(it.modifiers) } ?: run {
-            DebugLog.hookSkipped(TAG, "$BEAUTY_UTILS_CLASS#M()", "support predicate not uniquely resolved")
-            return
-        }
-        val beautyManageFragment = BEAUTY_MANAGE_FRAGMENT_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, BEAUTY_MANAGE_FRAGMENT_CLASS, "class not found")
-            return
-        }
-        val onCreatePreferences = CompatibleMethodResolver.find(
-            beautyManageFragment,
-            "onCreatePreferences",
-            parameterTypes = listOf(Bundle::class.java, String::class.java)
-        ) ?: run {
-            DebugLog.hookSkipped(
-                TAG,
-                "$BEAUTY_MANAGE_FRAGMENT_CLASS#onCreatePreferences(Bundle,String)",
-                "method not found"
-            )
-            return
-        }
+        val profile = resolver ?: return
+        val onCreatePreferences = profile.beautyEntry() ?: return
+        val supportBeauty = profile.beautySupport() ?: return
 
         runCatching {
             // The support call is in this virtual screen initializer. Deoptimize both sides so the
@@ -687,17 +493,15 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             deoptimize(supportBeauty)
             deoptimize(onCreatePreferences)
             onCreatePreferences.hook("security_center_beauty_manage_ui_scope") {
-                before {
-                    if (isFrontCameraAssistantEnabled()) beautyManageUiGateActive.set(true)
-                }
-                after {
-                    beautyManageUiGateActive.remove()
+                intercept { chain ->
+                    if (!isFrontCameraAssistantEnabled()) chain.proceed()
+                    else beautyManageUiGateActive.within { chain.proceed() }
                 }
             }
             supportBeauty.hook("security_center_beauty_manage_ui_capability") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "beauty manage UI support gate", Unit) {
-                        if (isFrontCameraAssistantEnabled() && beautyManageUiGateActive.get() == true) {
+                        if (isFrontCameraAssistantEnabled() && beautyManageUiGateActive.active) {
                             param.result = true
                         }
                     }

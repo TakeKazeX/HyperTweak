@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.ui.page
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +25,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.HotReloadOutcome
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.hook.NativeUpgradeManager
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -53,12 +57,17 @@ internal fun HotReloadDialog(
     // An unbound service and "genuinely nothing stale" both produce an empty target list, so the
     // empty state has to name which one it is instead of claiming there is nothing to reload.
     val service by XposedServiceManager.serviceFlow.collectAsState()
+    val nativeBusy by NativeUpgradeManager.busy.collectAsState()
+    val nativeReport by NativeUpgradeManager.report.collectAsState()
+    val context = LocalContext.current
+    val contentHeight = (LocalConfiguration.current.screenHeightDp * 0.65f).dp
 
     OverlayDialog(
         show = show,
         title = stringResource(R.string.home_hot_reload_title),
         onDismissRequest = onDismissRequest,
         content = {
+            Column(Modifier.fillMaxWidth().heightIn(max = contentHeight).verticalScroll(rememberScrollState())) {
             Text(
                 text = stringResource(R.string.home_hot_reload_question),
                 color = MiuixTheme.colorScheme.onSurface,
@@ -103,9 +112,35 @@ internal fun HotReloadDialog(
                         onHotReload()
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading,
+                    enabled = !hotReloading && !nativeBusy,
                     colors = ButtonDefaults.textButtonColorsPrimary()
                 )
+                Text(
+                    text = stringResource(R.string.native_update_description),
+                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                    fontSize = 13.sp, lineHeight = 18.sp
+                )
+                TextButton(
+                    text = stringResource(if (nativeBusy) R.string.native_update_running else R.string.native_update_action),
+                    onClick = { NativeUpgradeManager.activate(context) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    enabled = !hotReloading && !nativeBusy && service != null
+                )
+                nativeReport?.let { report ->
+                    Text(text = stringResource(when (report.state) {
+                        NativeUpgradeManager.State.CHECKING -> R.string.native_update_running
+                        NativeUpgradeManager.State.CURRENT -> R.string.native_update_current
+                        NativeUpgradeManager.State.UPDATED -> R.string.native_update_success
+                        NativeUpgradeManager.State.FAILED -> R.string.native_update_failed
+                        NativeUpgradeManager.State.ROLLBACK_REQUESTED -> R.string.native_update_rollback_requested
+                    }), color = MiuixTheme.colorScheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp)
+                }
+                if (NativeUpgradeManager.canRollback()) {
+                    TextButton(text = stringResource(R.string.native_update_rollback),
+                        onClick = { NativeUpgradeManager.rollback(context) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        enabled = !hotReloading && !nativeBusy)
+                }
                 TextButton(
                     text = stringResource(R.string.home_restart_scope),
                     onClick = {
@@ -113,14 +148,15 @@ internal fun HotReloadDialog(
                         onRestartScopes()
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading
+                    enabled = !hotReloading && !nativeBusy
                 )
                 TextButton(
                     text = stringResource(R.string.home_cancel),
                     onClick = onDismissRequest,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading
+                    enabled = !hotReloading && !nativeBusy
                 )
+            }
             }
         }
     )

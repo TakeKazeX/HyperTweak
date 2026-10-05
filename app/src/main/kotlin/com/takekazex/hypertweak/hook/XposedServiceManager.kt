@@ -51,6 +51,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             // after observing the flow update, so RemotePreferences must be ready first.
             val remotePrefs = service.getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
+            NativeRuleSignal.bind(remotePrefs)
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
             Preferences.noteRemoteBackendUnavailable()
