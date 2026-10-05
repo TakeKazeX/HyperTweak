@@ -1483,4 +1483,6 @@
     <string name="native_update_rollback_requested">已请求恢复模块，请重新打开应用检查结果。</string>
     <string name="settings_assistant_android_widgets_title">允许安卓小部件移入负一屏</string>
     <string name="settings_assistant_android_widgets_summary">解除安卓小部件移入负一屏的尺寸限制，并显示原生安卓小部件添加入口。</string>
+    <string name="settings_notification_absolute_time_title">通知显示具体时间</string>
+    <string name="settings_notification_absolute_time_summary">原生样式通知在前 30 秒显示“现在”，之后显示具体时刻，跨日时附带日期</string>
 </resources>

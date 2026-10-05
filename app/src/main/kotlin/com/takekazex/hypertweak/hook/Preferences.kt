@@ -118,6 +118,7 @@ object Preferences {
 
     /** Restores framework notification typefaces after MIUI's notification styling runs. */
     const val KEY_NOTIFICATION_FONT_WEIGHT = "notification_font_weight"
+    const val KEY_NOTIFICATION_ABSOLUTE_TIME = "notification_absolute_time"
 
     /**
      * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by

@@ -1489,4 +1489,6 @@
     <string name="native_update_rollback_requested">Module restoration requested. Reopen the app to check the result.</string>
     <string name="settings_assistant_android_widgets_title">Allow Android widgets in Personal assistant</string>
     <string name="settings_assistant_android_widgets_summary">Remove Android widget size restrictions and show the native add entry in Personal assistant.</string>
+    <string name="settings_notification_absolute_time_title">Show Exact Notification Time</string>
+    <string name="settings_notification_absolute_time_summary">Native notifications show Now for the first 30 seconds, then the time with a date when needed</string>
 </resources>

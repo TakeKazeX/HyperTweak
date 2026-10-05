@@ -15,6 +15,7 @@ internal object NotificationContentHotReloadRecovery {
         var refreshed = 0
         views.forEach { view ->
             runCatching {
+                NotificationAbsoluteTimeHooker.recoverExistingView(view)
                 NotificationFontWeightHooker.recoverHybrid(view)
                 NotificationMonetTextColorHooker.recoverHybrid(view)
                 if (view.javaClass.name != "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow") return@runCatching

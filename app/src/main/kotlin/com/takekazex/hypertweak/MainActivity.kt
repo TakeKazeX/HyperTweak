@@ -84,6 +84,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),
+    Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
@@ -344,6 +345,9 @@ class MainActivity : ComponentActivity() {
                     Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
                 )
             }
+            var notificationAbsoluteTime by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false))
+            }
             var notificationFontWeight by remember {
                 mutableStateOf(
                     Preferences.getBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, false)
@@ -525,6 +529,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
                     Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
                     Preferences.KEY_NOTIFICATION_FONT_WEIGHT -> notificationFontWeight
+                    Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME -> notificationAbsoluteTime
                     Preferences.KEY_HIDE_GESTURE_BAR -> hideGestureBar
                     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
                     Preferences.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
@@ -834,6 +839,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR,
                         false
                     )
+                    notificationAbsoluteTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
                     notificationFontWeight = Preferences.getBoolean(
                         Preferences.KEY_NOTIFICATION_FONT_WEIGHT,
                         false
@@ -1139,6 +1145,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
                         notificationMonetTextColor = checked
                         Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
+                    },
+                    notificationAbsoluteTime = notificationAbsoluteTime,
+                    onNotificationAbsoluteTimeChange = { checked ->
+                        markTweaked(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, checked)
+                        notificationAbsoluteTime = checked
+                        Preferences.putBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, checked)
                     },
                     notificationFontWeight = notificationFontWeight,
                     onNotificationFontWeightChange = { checked ->

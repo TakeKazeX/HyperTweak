@@ -133,6 +133,8 @@ fun HyperTweakNavContainer(
     onNotificationMonetTextColorChange: (Boolean) -> Unit,
     notificationFontWeight: Boolean,
     onNotificationFontWeightChange: (Boolean) -> Unit,
+    notificationAbsoluteTime: Boolean,
+    onNotificationAbsoluteTimeChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     sliderShowPercentage: Boolean,
@@ -526,6 +528,8 @@ fun HyperTweakNavContainer(
                 onNotificationMonetTextColorChange = onNotificationMonetTextColorChange,
                 notificationFontWeight = notificationFontWeight,
                 onNotificationFontWeightChange = onNotificationFontWeightChange,
+                notificationAbsoluteTime = notificationAbsoluteTime,
+                onNotificationAbsoluteTimeChange = onNotificationAbsoluteTimeChange,
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {

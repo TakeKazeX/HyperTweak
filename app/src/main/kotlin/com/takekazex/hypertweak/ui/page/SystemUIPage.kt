@@ -87,6 +87,8 @@ fun SystemUIPage(
     onNotificationMonetTextColorChange: (Boolean) -> Unit,
     notificationFontWeight: Boolean,
     onNotificationFontWeightChange: (Boolean) -> Unit,
+    notificationAbsoluteTime: Boolean,
+    onNotificationAbsoluteTimeChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -380,6 +382,12 @@ fun SystemUIPage(
                             onCheckedChange = onNotificationMonetTextColorChange,
                             title = stringResource(R.string.settings_notification_monet_text_color_title),
                             summary = stringResource(R.string.settings_notification_monet_text_color_summary)
+                        )
+                        SwitchPreference(
+                            checked = notificationAbsoluteTime,
+                            onCheckedChange = onNotificationAbsoluteTimeChange,
+                            title = stringResource(R.string.settings_notification_absolute_time_title),
+                            summary = stringResource(R.string.settings_notification_absolute_time_summary)
                         )
                         SwitchPreference(
                             checked = notificationFontWeight,
