@@ -112,6 +112,7 @@ import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
+import com.takekazex.hypertweak.hook.rules.personalassistant.AndroidWidgetPickerHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
@@ -167,6 +168,7 @@ class HookEntry : XposedModule() {
         if (key == null || key == Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON ||
             key == Preferences.KEY_OPENED_FOLDER_COLUMNS ||
             key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS ||
+            key == Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT ||
             key == Preferences.KEY_NATIVE_RULE_REVISION || key == "prefs_epoch") {
             // A change notification must bypass the normal short-lived read memo.
             Preferences.invalidateRuntimeReadCache()
@@ -722,7 +724,8 @@ class HookEntry : XposedModule() {
             NativeRules.applyRuleSwitches(
                 hideRecentsClearButton = Preferences.hideRecentsClearButton(),
                 openedFolderColumns = Preferences.openedFolderColumns(),
-                contextualSearchLongPress = Preferences.contextualSearchLongPress()
+                contextualSearchLongPress = Preferences.contextualSearchLongPress(),
+                assistantWidgets = Preferences.allowAndroidWidgetsToAssistant()
             )
         }.onFailure { t ->
             DebugLog.w("HookEntry", "native rule switch publish failed", t)
@@ -1000,6 +1003,7 @@ class HookEntry : XposedModule() {
                 // 机型伪装: rewrites phoneModel/phoneDevice in the assistant's request environment
                 // so Xiaomi's server delivers the 澎湃G1-gated "智能测算" MAML suit (精准电量).
                 attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AndroidWidgetPickerHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.camera" -> CameraDexIndex.withSession(appInfo?.sourceDir) {
                 // Runs before Camera.onCreate; the after-hook preserves model-config initialization

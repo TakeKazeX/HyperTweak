@@ -29,6 +29,20 @@ class NativeRuleMutationTest {
         assertFalse(NativeRuleMutation.canMirror(committed, 3, 13))
         assertFalse(NativeRuleMutation.canMirror(committed, 4, 12))
     }
+    @Test fun `widget toggle is retained across later independent commits but rejected shadow is discarded`() {
+        val ack = NativeSnapshotLedger()
+        val base = NativeRuleStateSnapshot(false, 4, false, 1, 1)
+        ack.offer(base)
+        val failed = NativeRuleMutation.apply(base, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, true, 2)
+        assertTrue(failed.assistantWidgets)
+        val next = NativeRuleMutation.apply(ack.latest()!!, Preferences.KEY_OPENED_FOLDER_COLUMNS, 5, 3)
+        assertFalse(next.assistantWidgets)
+        ack.offer(next)
+        ack.offer(NativeRuleMutation.apply(ack.latest()!!, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, true, 4))
+        ack.offer(NativeRuleMutation.apply(ack.latest()!!, Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, true, 5))
+        assertTrue(ack.latest()!!.assistantWidgets)
+        assertTrue(ack.latest()!!.hidden)
+    }
     @Test fun `unsupported native values cannot create a publication candidate`() {
         val base = NativeRuleStateSnapshot(false, 4, false)
         assertThrows(IllegalArgumentException::class.java) {

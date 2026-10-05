@@ -37,13 +37,17 @@ bool ClearButtonHiddenRequested() { return hidden.load(); }
 int32_t FolderColumnsRequested() { return columns.load(); }
 bool ApplyClearButtonRule(void*) { return true; }
 bool ApplyFolderColumnsRule(void*) { return true; }
+void SetAssistantWidgetAllowed(bool) {}
+bool AssistantWidgetAllowedRequested() { return false; }
+bool ApplyAssistantWidgetRule(void*) { return true; }
+const char* AssistantWidgetRuleReason() { return "disabled"; }
 const char* ClearButtonRuleReason() { return "installed"; }
 const char* FolderColumnsRuleReason() { return "installed"; }
 void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);

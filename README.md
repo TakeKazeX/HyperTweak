@@ -23,6 +23,8 @@
 
 **HyperTweak** is a customized Xposed module for Xiaomi HyperOS. Built on native **libxposed (API 102)**, its main interface is written using the modern **Miuix UI** Compose framework, providing a system-level visual texture and smooth interaction experience that fits perfectly with HyperOS.
 
+OS4 experimental launcher controls include **Allow Android widgets in Personal assistant**, which supports dragging ordinary Android widgets from the home screen and adding them through the assistant’s classic-widget catalog entry, using native binding, configuration and persistence with ordinary-widget size eligibility restrictions removed and final placement owned by the native layout.
+
 ---
 
 ## ✨ Core Features

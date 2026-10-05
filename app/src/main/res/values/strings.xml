@@ -1463,4 +1463,6 @@
     <string name="native_update_failed">Native update did not complete. See the app log for details; the previous APK is retained when available.</string>
     <string name="native_update_rollback">Restore previous module (keeps settings)</string>
     <string name="native_update_rollback_requested">Module restoration requested. Reopen the app to check the result.</string>
+    <string name="settings_assistant_android_widgets_title">Allow Android widgets in Personal assistant</string>
+    <string name="settings_assistant_android_widgets_summary">Remove Android widget size restrictions and show the native add entry in Personal assistant.</string>
 </resources>

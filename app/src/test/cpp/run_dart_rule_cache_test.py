@@ -13,7 +13,7 @@ snapshot = args.snapshot.resolve(strict=True)
 repository = Path(__file__).resolve().parents[4]
 native = repository / 'app/src/main/cpp/NativeRules'
 sources = ['dart_rule_support.cpp', 'dart_resolution_cache.cpp', 'dart_image.cpp',
-           'dart_targets.cpp', 'clear_button_rule.cpp', 'folder_columns_rule.cpp']
+           'dart_targets.cpp', 'clear_button_rule.cpp', 'folder_columns_rule.cpp', 'assistant_widget_rule.cpp']
 with tempfile.TemporaryDirectory(prefix='hypertweak-native-cache-') as output:
     binary = Path(output) / 'native-rule-cache-test'
     subprocess.run([args.compiler, '-std=c++17', '-O2', '-Wall', '-Wextra', '-Werror',

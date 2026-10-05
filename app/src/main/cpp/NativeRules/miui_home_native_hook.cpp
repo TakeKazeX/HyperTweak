@@ -1,6 +1,8 @@
 #include "lsposed_hook_backend.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
+#include "assistant_widget_rule.h"
+#include "native_rule_settings_dispatch.h"
 #include "dart_runtime_resolver.h"
 #include "dart_state_publication.h"
 #include "launcher_profiles.h"
@@ -610,6 +612,7 @@ void ResetDartStateOwnerAfterFork() {
     ResetDartStateOwnerForProcess(static_cast<int32_t>(getpid()));
     hypertweak::native::ResetClearButtonStateAfterFork();
     hypertweak::native::ResetFolderColumnsStateAfterFork();
+    hypertweak::native::ResetAssistantWidgetStateAfterFork();
 }
 
 bool EnsureDartStateOwnerForCurrentProcess() {
@@ -1416,39 +1419,56 @@ void HookBroadcastReceiverOnReceive(void* receiver, void* context, void* intent)
 void* g_native_rule_receiver_original = nullptr;
 uint32_t g_native_rule_bridge_state = 0u;
 
-bool ObserveNativeRuleSettingsIntent(void* intent) {
+uint32_t g_native_rule_dispatch_count = 0u;
+uint32_t g_native_rule_carrier_count = 0u;
+uint32_t g_native_rule_capture_rejections = 0u;
+bool RejectNativeRuleSnapshot(uint32_t stage) {
+    const uint32_t bit = uint32_t{1} << stage;
+    if ((__atomic_fetch_or(&g_native_rule_capture_rejections, bit, __ATOMIC_RELAXED) & bit) == 0u) {
+        __android_log_print(ANDROID_LOG_WARN, kLogTag, "native settings capture rejected stage=%u", stage);
+    }
+    return false;
+}
+bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRuleSettingsSnapshot* output) {
+    __atomic_fetch_add(&g_native_rule_dispatch_count, uint32_t{1}, __ATOMIC_RELAXED);
+    if (!HyperTweakIsLauncherProcess() || output == nullptr) return false;
+    hypertweak::native::NativeRuleLibraryQuery internal;
     if (intent == nullptr || !IntentActionEquals(intent, kArbiterStateCarrierAction)) return false;
+    __atomic_fetch_add(&g_native_rule_carrier_count, uint32_t{1}, __ATOMIC_RELAXED);
     const auto get_sender = ResolveLauncherSymbol<IntentGetSenderPackageFn>("Intent_get_sender_package_name");
     const auto get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>("Intent_get_extras");
-    if (get_sender == nullptr || get_extras == nullptr) return false;
-    const auto sender = get_sender(intent);
-    if (sender.tag != 0u || sender.data == nullptr || sender.length != ConstStringLength(kSystemUiPackage) ||
-        memcmp(sender.data, kSystemUiPackage, sender.length) != 0) return false;
+    if (get_sender == nullptr || get_extras == nullptr) return RejectNativeRuleSnapshot(1u);
     void* extras = get_extras(intent);
     int32_t schema = 0, uid = -1, columns = 3;
+    // The carrier is also used by Xiaomi and the input arbiter. Missing module
+    // schema is normal and must not produce rejection logs for unrelated state.
+    if (!ReadNativeI32(extras, "hypertweak_rule_schema", &schema)) return false;
+    if (schema != 3) return RejectNativeRuleSnapshot(2u);
+    const auto sender = get_sender(intent);
+    if (sender.tag != 0u || sender.data == nullptr || sender.length != ConstStringLength(kSystemUiPackage) ||
+        memcmp(sender.data, kSystemUiPackage, sender.length) != 0) return RejectNativeRuleSnapshot(3u);
+    if (!ReadNativeI32(extras, "sender_uid", &uid) || !VerifySystemUiUid(uid)) return RejectNativeRuleSnapshot(4u);
     int64_t revision = 0;
-    bool hidden = false, contextual = false;
-    if (!ReadNativeI32(extras, "hypertweak_rule_schema", &schema) || schema != 2 ||
-        !ReadNativeI32(extras, "sender_uid", &uid) || !VerifySystemUiUid(uid) ||
-        !ReadNativeI64(extras, "hypertweak_rule_revision", &revision) || revision <= 0 ||
+    bool hidden = false, contextual = false, widgets = false;
+    if (!ReadNativeI64(extras, "hypertweak_rule_revision", &revision) || revision <= 0 ||
         !ReadNativeBool(extras, "hypertweak_rule_hide_clear", &hidden) ||
         !ReadNativeI32(extras, "hypertweak_rule_folder_columns", &columns) ||
-        !ReadNativeBool(extras, "hypertweak_rule_contextual_search", &contextual)) return false;
-    return hypertweak::native::ReceiveNativeRuleSettings(hidden, columns, contextual, revision);
+        !ReadNativeBool(extras, "hypertweak_rule_contextual_search", &contextual) ||
+        !ReadNativeBool(extras, "hypertweak_rule_assistant_widgets", &widgets)) return RejectNativeRuleSnapshot(5u);
+    *output = {hidden, columns, contextual, widgets, revision};
+    return true;
+}
+void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
+    if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
+            snapshot.contextual, snapshot.revision, snapshot.widgets)) {
+        hypertweak::native::ApplyPreparedNativeRules();
+    }
 }
 void HookNativeRuleReceiverDispatch(void* receiver, void* context, void* intent) {
     const auto original = reinterpret_cast<BroadcastReceiverOnReceiveFn>(
             __atomic_load_n(&g_native_rule_receiver_original, __ATOMIC_ACQUIRE));
-    if (original == nullptr) return;
-    // Xiaomi and any upstream receiver observer always get the unchanged call first.
-    original(receiver, context, intent);
-    if (!HyperTweakIsLauncherProcess()) return;
-    bool accepted = false;
-    {
-        hypertweak::native::NativeRuleLibraryQuery internal;
-        accepted = ObserveNativeRuleSettingsIntent(intent);
-    }
-    if (accepted) hypertweak::native::ApplyPreparedNativeRules();
+    hypertweak::native::DispatchNativeRuleSettings(receiver, context, intent,
+            CaptureNativeRuleSettingsIntent, original, AcceptNativeRuleSettings);
 }
 void TryInstallNativeRuleSettingsBridge() {
     if (!IsLauncherHookProcess() || AtomicLoad(&g_native_rule_bridge_state) == 3u) return;
@@ -3382,6 +3402,7 @@ void* HookLauncherDlopenForSlot(
         hypertweak::native::ObserveNativeRuleDartLibrary(result);
         hypertweak::native::OnClearButtonLibraryLoaded(filename, result);
         hypertweak::native::OnFolderColumnsLibraryLoaded(filename, result);
+        hypertweak::native::OnAssistantWidgetLibraryLoaded(filename, result);
     }
     return result;
 }
@@ -3447,6 +3468,8 @@ void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
             g_dart_app_handle);
     hypertweak::native::MaintainFolderColumnsRuleOnActionDown(
             g_dart_app_handle);
+    hypertweak::native::MaintainAssistantWidgetRuleOnActionDown(
+            hypertweak::native::NativeRuleCurrentDartHandle());
 }
 
 int32_t HookMotionGetActionForSlot(void* event, uint32_t slot_index,
@@ -5076,6 +5099,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
         IsLauncherLibraryPath(name))) TryInstallNativeRuleSettingsBridge();
     hypertweak::native::OnClearButtonLibraryLoaded(name, handle);
     hypertweak::native::OnFolderColumnsLibraryLoaded(name, handle);
+    hypertweak::native::OnAssistantWidgetLibraryLoaded(name, handle);
     TryInstallArbiterBridge();
 }
 
@@ -5212,6 +5236,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
     }
     hypertweak::native::RefreshClearButtonConfig();
     hypertweak::native::RefreshFolderColumnsConfig();
+    hypertweak::native::RefreshAssistantWidgetConfig();
     RefreshContextualSearchConfig();
     uint32_t atfork_expected = 0u;
     if (__atomic_compare_exchange_n(

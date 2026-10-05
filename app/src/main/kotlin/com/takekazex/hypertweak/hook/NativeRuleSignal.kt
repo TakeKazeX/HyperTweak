@@ -31,13 +31,14 @@ internal object NativeRuleProtocol {
     fun encode(snapshot: NativeRuleStateSnapshot): Intent = Intent(CHANGED).setPackage(SYSTEM_UI)
         .putExtra("hidden", snapshot.hidden).putExtra("columns", snapshot.columns)
         .putExtra("contextual", snapshot.contextualSearch).putExtra("revision", snapshot.revision)
-        .putExtra("epoch", snapshot.epoch)
+        .putExtra("epoch", snapshot.epoch).putExtra("assistant_widgets", snapshot.assistantWidgets)
     fun decode(intent: Intent): NativeRuleStateSnapshot? = runCatching {
         val extras = intent.extras ?: return null
         @Suppress("DEPRECATION")
         val values = mapOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to extras.get("hidden"),
             Preferences.KEY_OPENED_FOLDER_COLUMNS to extras.get("columns"),
             Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to extras.get("contextual"),
+            Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to extras.get("assistant_widgets"),
             Preferences.KEY_NATIVE_RULE_REVISION to extras.get("revision"), "prefs_epoch" to extras.get("epoch"))
         if (values.values.any { it == null }) return null
         NativeRuleStateSnapshot.read { values }

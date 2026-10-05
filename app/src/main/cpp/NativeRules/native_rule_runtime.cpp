@@ -3,6 +3,7 @@
 #include "native_rule_events.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
+#include "assistant_widget_rule.h"
 #include "dart_rule_support.h"
 #include "native_store.h"
 #include "native_runtime_identity.h"
@@ -26,12 +27,12 @@ struct SettingsRecord {
     uint32_t schema;
     uint32_t hidden;
     int32_t columns;
-    uint32_t contextual_search;
+    uint32_t options; // bit 0 contextual search, bit 1 Android widgets
     uint32_t checksum;
 };
 uint32_t Checksum(const SettingsRecord& record) {
     return 0x48545231u ^ record.schema ^ (record.hidden << 8u) ^
-           (static_cast<uint32_t>(record.columns) << 16u) ^ (record.contextual_search << 24u);
+           (static_cast<uint32_t>(record.columns) << 16u) ^ (record.options << 24u);
 }
 uint64_t Now() {
     timespec time{};
@@ -81,7 +82,8 @@ void PublishRuntimeIdentity() {
 void ApplySettings(const SettingsRecord& record) {
     SetClearButtonHidden(record.hidden != 0u);
     SetFolderColumns(record.columns);
-    HyperTweakSetContextualSearchLongPress(record.contextual_search != 0u);
+    HyperTweakSetContextualSearchLongPress((record.options & 1u) != 0u);
+    SetAssistantWidgetAllowed((record.options & 2u) != 0u);
 }
 bool Prepare() {
     NativeRuleLibraryQuery internal_query;
@@ -93,8 +95,10 @@ bool Prepare() {
         g_bootstrap_read = true; // A missing file is not a reason to poll storage.
         SettingsRecord record{};
         if (ReadNativeRecord("settings", &record, sizeof(record)) &&
-            record.schema == 1u && record.hidden <= 1u && record.contextual_search <= 1u &&
+            (record.schema == 1u || record.schema == 2u) && record.hidden <= 1u &&
+            record.options <= (record.schema == 1u ? 1u : 3u) &&
             record.columns >= 3 && record.columns <= 5 && record.checksum == Checksum(record)) {
+            if (record.schema == 1u) { record.schema = 2u; record.checksum = Checksum(record); g_settings_dirty = true; }
             g_settings = record;
             ApplySettings(record);
             __atomic_store_n(&g_source, "snapshot_restored", __ATOMIC_RELEASE);
@@ -109,9 +113,10 @@ bool Prepare() {
     }
     const bool clear = ClearButtonHiddenRequested();
     const bool folder = FolderColumnsRequested() != 3;
+    const bool widgets = AssistantWidgetAllowedRequested();
     void* handle = g_dart_handle;
     pthread_mutex_unlock(&g_settings_lock);
-    if (!clear && !folder) return true;
+    if (!clear && !folder && !widgets) return true;
     if (handle == nullptr) {
         // Fallback for an AOT image loaded before our observer. Keep this one
         // reference for the process lifetime; ready inputs never repeat dlopen.
@@ -122,7 +127,7 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    return PrepareDartRuleTargets(handle, clear, folder);
+    return PrepareDartRuleTargets(handle, clear, folder, widgets);
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
@@ -171,7 +176,7 @@ void ObserveNativeRuleDartLibrary(void* handle) {
     pthread_mutex_unlock(&g_settings_lock);
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
 }
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision) {
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets) {
     if (!HyperTweakIsLauncherProcess() || columns < 3 || columns > 5 || revision < 0) return false;
     pthread_mutex_lock(&g_settings_lock);
     // JNI remains a fallback. The authenticated SystemUI publisher owns live
@@ -180,10 +185,11 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
         pthread_mutex_unlock(&g_settings_lock);
         return false;
     }
-    SettingsRecord next{1u, hidden ? 1u : 0u, columns, contextual_search ? 1u : 0u, 0u};
+    SettingsRecord next{2u, hidden ? 1u : 0u, columns,
+        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u), 0u};
     next.checksum = Checksum(next);
     const bool changed = !g_received_settings || next.hidden != g_settings.hidden ||
-                         next.columns != g_settings.columns || next.contextual_search != g_settings.contextual_search;
+                         next.columns != g_settings.columns || next.options != g_settings.options;
     if (revision > 0 && revision == g_systemui_revision && changed) {
         pthread_mutex_unlock(&g_settings_lock);
         return false;
@@ -196,24 +202,26 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
         g_settings_dirty = true;
         ApplySettings(next);
         g_gate.Changed();
-        LogInfo("native settings received revision=%lld hidden=%u columns=%d source=%s",
-                static_cast<long long>(revision), next.hidden, next.columns,
+        LogInfo("native settings received revision=%lld hidden=%u columns=%d widgets=%u source=%s",
+                static_cast<long long>(revision), next.hidden, next.columns, (next.options >> 1u) & 1u,
                 revision > 0 ? "SystemUI" : "JNI");
     }
     pthread_mutex_unlock(&g_settings_lock);
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
     return true;
 }
-void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search) {
-    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0);
+void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets) {
+    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0, assistant_widgets);
 }
 void ApplyPreparedNativeRules() {
     if (!HyperTweakIsLauncherProcess() || NativeRuleLibraryQueryActive()) return;
     void* handle = NativeRuleCurrentDartHandle();
     ApplyClearButtonRule(handle);
     ApplyFolderColumnsRule(handle);
+    ApplyAssistantWidgetRule(handle);
     const bool missing = strcmp(ClearButtonRuleReason(), "dart_preparation_pending") == 0 ||
-                         strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0;
+                         strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0 ||
+                         strcmp(AssistantWidgetRuleReason(), "dart_preparation_pending") == 0;
     if (missing) {
         pthread_mutex_lock(&g_settings_lock);
         if (!g_gate.needed) g_gate.Changed(); // Same handle, new image identity.

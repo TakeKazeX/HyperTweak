@@ -132,6 +132,7 @@ TargetResult ResolveTarget(const Image& image, const TargetSpec& spec);
 // this same list, so an offline verdict matches the device's.
 extern const TargetSpec kRecentsClearButtonTarget;
 extern const TargetSpec kFolderColumnsTarget;
+extern const TargetSpec kAssistantWidgetTarget;
 
 extern const TargetSpec* const kTargetSpecs[];
 extern const size_t kTargetSpecCount;

@@ -78,6 +78,7 @@ fun ExperimentalFeaturesPage(
     var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
     var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
     var hideRecentsClearButton by remember { mutableStateOf(Preferences.hideRecentsClearButton()) }
+    var assistantWidgets by remember { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
     Scaffold(topBar = {
         TopAppBar(
@@ -208,6 +209,17 @@ fun ExperimentalFeaturesPage(
                         summary = stringResource(R.string.settings_recents_clear_button_summary)
                     )
                     if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = assistantWidgets,
+                            onCheckedChange = {
+                                assistantWidgets = it
+                                Preferences.putBoolean(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
+                                NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns,
+                                    assistantWidgets = it)
+                            },
+                            title = stringResource(R.string.settings_assistant_android_widgets_title),
+                            summary = stringResource(R.string.settings_assistant_android_widgets_summary)
+                        )
                         OverlayDropdownPreference(
                             title = stringResource(R.string.settings_opened_folder_columns_title),
                             summary = stringResource(R.string.settings_opened_folder_columns_summary),

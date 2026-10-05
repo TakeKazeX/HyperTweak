@@ -83,14 +83,16 @@ object NativeRules {
     fun applyRuleSwitches(
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int,
-        contextualSearchLongPress: Boolean
+        contextualSearchLongPress: Boolean,
+        assistantWidgets: Boolean
     ): Boolean {
         if (!ensureLoaded()) return false
         return try {
             nativeApplyRuleSwitches(
                 hideRecentsClearButton,
                 openedFolderColumns,
-                contextualSearchLongPress
+                contextualSearchLongPress,
+                assistantWidgets
             )
             true
         } catch (t: Throwable) {
@@ -106,6 +108,7 @@ object NativeRules {
     private external fun nativeApplyRuleSwitches(
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int,
-        contextualSearchLongPress: Boolean
+        contextualSearchLongPress: Boolean,
+        assistantWidgets: Boolean
     )
 }

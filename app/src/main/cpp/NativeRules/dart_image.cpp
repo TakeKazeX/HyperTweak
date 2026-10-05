@@ -331,7 +331,8 @@ bool IsDartPrologue(const Image& image, uintptr_t offset) {
     if ((frame & 0x1fu) != 29u) return false;                // Rt  = x29
     if (((frame >> 10u) & 0x1fu) != 30u) return false;       // Rt2 = x30
     if (((frame >> 5u) & 0x1fu) != kDartStackPointerRegister) return false;
-    const int64_t immediate = static_cast<int64_t>((frame >> 15u) & 0x7fu);
+    const int64_t encoded = static_cast<int64_t>((frame >> 15u) & 0x7fu);
+    const int64_t immediate = (encoded & 0x40) != 0 ? encoded - 0x80 : encoded;
     if (immediate >= 0) return false;  // pre-index decrement
     if (!ReadInsn(image, offset + 4u, &restore)) return false;
     // mov x29, x15  ==  orr x29, xzr, x15

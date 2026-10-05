@@ -1066,6 +1066,9 @@ object Preferences {
     const val MIN_OPENED_FOLDER_COLUMNS = 3
     const val MAX_OPENED_FOLDER_COLUMNS = 5
 
+    /** Allow ordinary AppWidget providers through the OS4 native drag eligibility gate. */
+    const val KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT = "allow_android_widgets_to_assistant"
+
     /**
      * 长按底部手势指示器启动圈定即搜. The launcher's own long-press terminal is replaced by the
      * native payload so the gesture starts Circle to Search instead of Xiaomi's route, which
@@ -1102,6 +1105,8 @@ object Preferences {
             !getBoolean(KEY_ICON_STACKED_TYPE_HIDE_WIFI, false)
         else -> false
     }
+
+    fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
 
     fun contextualSearchLongPress(): Boolean = getBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
 
@@ -1469,6 +1474,7 @@ object Preferences {
                         editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
                         editor.putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
                         editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                        editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
                         editor.putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
@@ -1486,6 +1492,7 @@ object Preferences {
                                     putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
                                     putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
                                     putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                                    putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
                                     putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                                     putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                                 }
@@ -1518,6 +1525,7 @@ object Preferences {
                         editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, it.hidden)
                         editor.putInt(KEY_OPENED_FOLDER_COLUMNS, it.columns)
                         editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, it.contextualSearch)
+                        editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it.assistantWidgets)
                         editor.putLong(KEY_NATIVE_RULE_REVISION, it.revision)
                         editor.putLong(KEY_PREFS_EPOCH, it.epoch)
                     }
@@ -1745,7 +1753,7 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS) key to value else null) { putBoolean(key, value) }
+        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {

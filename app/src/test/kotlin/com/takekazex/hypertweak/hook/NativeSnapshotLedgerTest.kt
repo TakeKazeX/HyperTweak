@@ -24,6 +24,7 @@ class NativeSnapshotLedgerTest {
         val current = NativeRuleStateSnapshot(false, 4, true, 1, 1)
         assertTrue(ledger.offer(current)); assertTrue(ledger.offer(current))
         assertFalse(ledger.offer(current.copy(hidden = true)))
+        assertFalse(ledger.offer(current.copy(assistantWidgets = true)))
     }
     @Test fun `commit order survives a lower clock and cannot overflow`() {
         assertEquals(901, NativeSnapshotLedger.nextRevision(900, 1))
@@ -35,10 +36,11 @@ class NativeSnapshotLedgerTest {
             mapOf(Preferences.KEY_NATIVE_RULE_REVISION to value)
         })
         assertNull(NativeRuleStateSnapshot.read { mapOf(Preferences.KEY_OPENED_FOLDER_COLUMNS to 6) })
+        assertNull(NativeRuleStateSnapshot.read { mapOf(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to 1) })
     }
     @Test fun `replacement generation retains authority using framework transferable values`() {
         val previous = NativeSnapshotLedger()
-        val committed = NativeRuleStateSnapshot(true, 5, true, 100, 3)
+        val committed = NativeRuleStateSnapshot(true, 5, true, 100, 3, assistantWidgets = true)
         previous.offer(committed)
         val replacement = NativeSnapshotLedger()
         replacement.restore(previous.save())

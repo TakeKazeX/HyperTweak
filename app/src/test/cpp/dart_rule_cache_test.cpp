@@ -4,6 +4,7 @@
 #include "dart_rule_support.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
+#include "assistant_widget_rule.h"
 #include <assert.h>
 #include <fstream>
 #include <iterator>
@@ -56,6 +57,11 @@ extern "C" void HyperTweakFolderPreviewIconColumnsHook() {}
 extern "C" void HyperTweakFolderPreviewItemsMaxCountHook() {}
 extern "C" void HyperTweakFolderPreviewSetItemsHook() {}
 extern "C" void HyperTweakFolderOpenHook() {}
+extern "C" void HyperTweakAssistantWidgetGateHook() {}
+extern "C" uintptr_t hypertweak_assistant_widget_reject;
+extern "C" uintptr_t hypertweak_assistant_widget_accepted;
+extern "C" uintptr_t hypertweak_assistant_widget_field;
+extern "C" uint32_t hypertweak_assistant_widget_cid;
 namespace hypertweak::native {
 void* NativeRuleCurrentDartHandle() { return reinterpret_cast<void*>(1); }
 void LogInfo(const char*, ...) {}
@@ -196,5 +202,28 @@ int main(int argc, char** argv) {
     // Only the passive on-open boundary remains to restore the native static
     // after disable; the feature's grid/preview hooks have all been removed.
     assert(hooks.size() == 1u);
+    SetAssistantWidgetAllowed(true);
+    assert(!ApplyAssistantWidgetRule(reinterpret_cast<void*>(1))); // no input scan
+    assert(PrepareDartRuleTargets(reinterpret_cast<void*>(1), false, false, true));
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)));
+    const uintptr_t widget = AssistantWidgetTargetAddress();
+    assert(widget == reinterpret_cast<uintptr_t>(snapshot.data()) + 0xc9bd18);
+    assert(hypertweak_assistant_widget_reject == reinterpret_cast<uintptr_t>(snapshot.data()) + 0xc9bdc0);
+    assert(hypertweak_assistant_widget_accepted == widget + 28);
+    assert(hypertweak_assistant_widget_field == 0xfb && hypertweak_assistant_widget_cid == 0x7f1);
+    const unsigned before = installs;
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && installs == before);
+    auto* widget_bytes = reinterpret_cast<uint8_t*>(widget);
+    widget_bytes[0] ^= 1u;
+    SetAssistantWidgetAllowed(false);
+    assert(!ApplyAssistantWidgetRule(reinterpret_cast<void*>(1))); // another owner preserved
+    widget_bytes[0] ^= 1u;
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && hooks.size() == 1u);
+    SetAssistantWidgetAllowed(true);
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)));
+    memcpy(widget_bytes, hooks.at(reinterpret_cast<void*>(widget)).data(), 16u);
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && installs == before + 2u);
+    SetAssistantWidgetAllowed(false);
+    assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && hooks.size() == 1u);
     puts("PASS: cache identity/corruption/bounds/relocation, readiness, input deferral, idempotent apply, remap repair, and foreign-hook preservation");
 }

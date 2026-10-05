@@ -1457,4 +1457,6 @@
     <string name="native_update_failed">native 更新未完成。详情见应用日志；可用的旧 APK 已保留。</string>
     <string name="native_update_rollback">恢复之前的模块（保留设置）</string>
     <string name="native_update_rollback_requested">已请求恢复模块，请重新打开应用检查结果。</string>
+    <string name="settings_assistant_android_widgets_title">允许安卓小部件移入负一屏</string>
+    <string name="settings_assistant_android_widgets_summary">解除安卓小部件移入负一屏的尺寸限制，并显示原生安卓小部件添加入口。</string>
 </resources>

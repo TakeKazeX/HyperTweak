@@ -36,7 +36,8 @@ object NativeRuleConfig {
         context: Context,
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int = Preferences.openedFolderColumns(),
-        contextualSearchLongPress: Boolean = Preferences.contextualSearchLongPress()
+        contextualSearchLongPress: Boolean = Preferences.contextualSearchLongPress(),
+        assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant()
     ) {
         val contents = buildString {
             append(KEY_HIDE_RECENTS_CLEAR)
@@ -51,6 +52,10 @@ object NativeRuleConfig {
                     Preferences.MAX_OPENED_FOLDER_COLUMNS
                 )
             )
+            append('\n')
+            append(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT)
+            append('=')
+            append(if (assistantWidgets) '1' else '0')
             append('\n')
             append(KEY_CONTEXTUAL_SEARCH_LONG_PRESS)
             append('=')

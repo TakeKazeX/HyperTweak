@@ -24,6 +24,21 @@ python3 app/src/test/cpp/run_dart_rule_cache_test.py /absolute/path/to/verified/
 
 It covers cache identity and corruption, relocation, readiness/input deferral, repeated application, remap recovery, preservation of another owner's patch, and the event-generation gate including self-generated library notifications. The executable and compiler output are temporary; target artifacts remain outside the repository.
 
+For assistant-widget target or shim changes, compile `assistant_widget_target_test.cpp`
+with `dart_image.cpp` / `dart_targets.cpp` against the verified snapshot, and execute
+the actual production assembly offline with `run_assistant_widget_abi_test.py <NDK-clang>`
+(Unicorn and pyelftools). The tests cover shifted field/CID operands, mismatched
+serialization, branch/size contracts, ambiguous candidates, native flag preservation,
+Dart registers/SP and NZCV, ordinary-widget size bypass, native-success receiver restoration and unchanged MIUI/card paths. The shared cache harness includes this rule's disable,
+remap and foreign-hook ownership checks. Actual widget binding, placement, RemoteViews
+updates and restart restoration remain manual device acceptance.
+
+For assistant catalog changes, set `PERSONAL_ASSISTANT_APK` to the verified
+assistant APK when running `:app:testDebugUnitTest`; the target-bytecode test
+checks the independent native footer lifecycle, both catalog producers, navigator, model, cell geometry and native Miuix chooser contracts. Native receiver dispatch changes also require the host
+`native_rule_settings_dispatch_test.cpp` under ASan/UBSan, which covers an original
+receiver consuming its Intent and ensures capture precedes forwarding.
+
 For native broadcast owned-string allocation/cleanup changes, run
 `python3 app/src/test/cpp/run_owned_rstring_test.py`. It compiles the production
 allocation and pre-setter branch with malloc failure injection and consuming

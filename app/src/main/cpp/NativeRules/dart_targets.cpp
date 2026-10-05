@@ -332,6 +332,152 @@ constexpr uint8_t kFolderOpenMask[] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 };
 
+
+// Only compiler operands are masked: object-field displacement, CID, pool
+// displacement and branch/call distances are derived from the current image.
+constexpr uint32_t kWidgetGateWords[] = {
+    0xb84fb040u, 0x8b1c8000u, 0x37200500u, 0xaa0403e1u,
+    0xaa0603e2u, 0x94000000u, 0x37200480u,
+    0xf84003a0u, 0xf84003a2u, 0xaa0003e1u,
+};
+constexpr uint32_t kWidgetGateMasks[] = {
+    0xffe00fffu, 0xffffffffu, 0xfff8001fu, 0xffffffffu,
+    0xffffffffu, 0xfc000000u, 0xfff8001fu,
+    0xffe00fffu, 0xffe00fffu, 0xffffffffu,
+};
+const BytePattern kWidgetGatePattern = {
+    reinterpret_cast<const uint8_t*>(kWidgetGateWords),
+    reinterpret_cast<const uint8_t*>(kWidgetGateMasks), sizeof(kWidgetGateWords)};
+
+bool DecodeWidgetReject(uintptr_t pc, uint32_t word, uintptr_t* target) {
+    if ((word & 0xfff8001fu) != 0x37200000u) return false;
+    int32_t displacement = static_cast<int32_t>((word >> 5u) & 0x3fffu);
+    if ((displacement & 0x2000) != 0) displacement -= 0x4000;
+    const intptr_t address = static_cast<intptr_t>(pc) + displacement * 4;
+    if (address < 0) return false;
+    *target = static_cast<uintptr_t>(address);
+    return true;
+}
+
+bool IsWidgetSpanContract(const Image& image, uintptr_t offset) {
+    if (!IsDartPrologue(image, offset)) return false;
+    // The helper compares both dimensions with 1, widths 2/4 and height 3,
+    // then inverts a Dart bool and restores its frame. No operand address is
+    // pinned, and the shared helper itself is never overridden.
+    const uint32_t comparisons[] = {0xf100043fu, 0xf100045fu,
+        0xf100083fu, 0xf100103fu, 0xf1000c3fu};
+    bool found[5]{};
+    bool inverted = false;
+    for (size_t delta = 0u; delta < 384u; delta += 4u) {
+        uint32_t w = 0u;
+        if (!ReadInsn(image, offset + delta, &w)) return false;
+        for (size_t i = 0u; i < 5u; ++i) found[i] |= w == comparisons[i];
+        inverted |= w == 0xd27c0020u; // eor x0, x1, #0x10
+        if (w == kDartReturn && inverted) {
+            for (bool present : found) if (!present) return false;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Find the type=AppWidget serializer contract, not an obfuscated Dart class.
+// A CID test selects widget_type=SMI(1), widget_id, then the same boolean
+// field used by the eligibility gate. Pool keys relocate between snapshots.
+bool FindWidgetSerializer(const Image& image, uint32_t field,
+                          uintptr_t* offset, uint32_t* count) {
+    *count = 0u;
+    for (size_t n = 0u; n < image.load_count; ++n) {
+        const auto& seg = image.loads[n];
+        if ((seg.flags & (kFlagRead | kFlagExec)) != (kFlagRead | kFlagExec)) continue;
+        for (uintptr_t pc = seg.start; pc + 88u <= seg.end; pc += 4u) {
+            uint32_t w[22]{};
+            if (!ReadInsns(image, pc, w, 22u)) break;
+            PoolRef type{}, id{}, flag{};
+            if ((w[0] & 0xffc003ffu) != 0xf100003fu || // cmp x1, #CID
+                (w[1] & 0xff00001fu) != 0x54000001u || // b.ne
+                !DecodePoolRef(w[3], w[4], &type) || type.dest_reg != 2u ||
+                w[5] != 0xd2800043u || !IsBl(w[6]) || // widget_type=SMI(1)
+                !DecodePoolRef(w[12], w[13], &id) || id.dest_reg != 2u || !IsBl(w[14]) ||
+                (w[16] & 0xffe00fffu) != 0xb8400003u ||
+                ((w[16] >> 12u) & 0x1ffu) != field || w[17] != 0x8b1c8063u ||
+                !DecodePoolRef(w[19], w[20], &flag) || flag.dest_reg != 2u || !IsBl(w[21])) continue;
+            uintptr_t type_writer = 0u, id_writer = 0u, bool_writer = 0u;
+            if (!DecodeBlTarget(pc + 24u, w[6], &type_writer) ||
+                !DecodeBlTarget(pc + 56u, w[14], &id_writer) ||
+                !DecodeBlTarget(pc + 84u, w[21], &bool_writer) ||
+                type_writer != id_writer || type_writer == bool_writer) continue;
+            const uint32_t cid = (w[0] >> 10u) & 0xfffu;
+            if (cid == 0u) continue;
+            ++*count;
+            *offset = pc;
+        }
+    }
+    return *count == 1u;
+}
+
+struct WidgetFamily { uintptr_t gate; uintptr_t serializer; uint32_t count; };
+WidgetFamily FindWidgetFamily(const Image& image) {
+    WidgetFamily result{};
+    uintptr_t candidates[32]{};
+    size_t stored = 0u;
+    uint32_t total = 0u;
+    if (!CollectBytes(image, kWidgetGatePattern, candidates, 32u, &stored, &total) || total > stored) return result;
+    for (size_t i = 0u; i < stored; ++i) {
+        const uintptr_t gate = candidates[i];
+        uint32_t w[7]{};
+        uintptr_t reject = 0u, second_reject = 0u, span = 0u;
+        if (!ReadInsns(image, gate, w, 7u) ||
+            !DecodeWidgetReject(gate + 8u, w[2], &reject) ||
+            !DecodeWidgetReject(gate + 24u, w[6], &second_reject) || reject != second_reject ||
+            reject <= gate + 28u || reject > gate + 512u ||
+            !Contains(image, reject, 16u, kFlagRead | kFlagExec) ||
+            !DecodeBlTarget(gate + 20u, w[5], &span) || !IsWidgetSpanContract(image, span)) continue;
+        // Skipping the two eligibility checks must land on the native success
+        // block that restores its own receivers from the Dart frame.
+        uint32_t success[3]{};
+        if (!ReadInsns(image, gate + 28u, success, 3u) ||
+            (success[0] & 0xffe00fffu) != 0xf84003a0u ||
+            (success[1] & 0xffe00fffu) != 0xf84003a2u ||
+            success[2] != 0xaa0003e1u) continue;
+        uintptr_t serializer = 0u;
+        uint32_t serializers = 0u;
+        if (!FindWidgetSerializer(image, (w[0] >> 12u) & 0x1ffu, &serializer, &serializers)) continue;
+        // Success records the selected object before logging and a true return.
+        const uint8_t state_store[] = {0x20, 0x70, 0x03, 0xb8}; // stur w0,[x1,#0x37]
+        const uint8_t state_mask[] = {0xff, 0x0f, 0xe0, 0xff};
+        uintptr_t success_store = 0u;
+        if (!FindBytesForward(image, gate + 28u, reject - gate - 28u,
+                {state_store, state_mask, sizeof(state_store)}, &success_store)) continue;
+        ++result.count;
+        result.gate = gate;
+        result.serializer = serializer;
+    }
+    return result;
+}
+bool FindWidgetGate(const Image& image, uintptr_t* out, uint32_t* count) {
+    const auto family = FindWidgetFamily(image);
+    *count = family.count;
+    if (family.count != 1u) return false;
+    *out = family.gate;
+    return true;
+}
+bool FindWidgetType(const Image& image, uintptr_t* out, uint32_t* count) {
+    const auto family = FindWidgetFamily(image);
+    *count = family.count;
+    if (family.count != 1u) return false;
+    *out = family.serializer;
+    return true;
+}
+constexpr uint32_t kWidgetTypeWord = 0xf100003fu;
+constexpr uint32_t kWidgetTypeMask = 0xffc003ffu;
+const SiteSpec kAssistantWidgetSites[] = {
+    {"widget_eligibility", {nullptr, nullptr, 0u}, FindWidgetGate, true, kWidgetGatePattern, 0u},
+    {"app_widget_type", {nullptr, nullptr, 0u}, FindWidgetType, true,
+     {reinterpret_cast<const uint8_t*>(&kWidgetTypeWord),
+      reinterpret_cast<const uint8_t*>(&kWidgetTypeMask), 4u}, 0u},
+};
+
 constexpr SiteSpec kClearButtonSites[] = {
     {"insert_overlay",
      {kInsertClearButtonOverlayPrologue, nullptr,
@@ -395,9 +541,14 @@ const TargetSpec kFolderColumnsTarget = {
     "folder_columns", "libapp.so", kFolderColumnsSites,
     sizeof(kFolderColumnsSites) / sizeof(kFolderColumnsSites[0])};
 
+const TargetSpec kAssistantWidgetTarget = {
+    "assistant_android_widgets", "libapp.so", kAssistantWidgetSites,
+    sizeof(kAssistantWidgetSites) / sizeof(kAssistantWidgetSites[0])};
+
 const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
     &kFolderColumnsTarget,
+    &kAssistantWidgetTarget,
 };
 
 const size_t kTargetSpecCount =

@@ -7,6 +7,7 @@
 // JNI_OnLoad/RegisterNatives is needed.
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
+#include "assistant_widget_rule.h"
 #include "native_config.h"
 #include "native_rule_runtime.h"
 
@@ -21,7 +22,8 @@ jstring BuildStatus(JNIEnv* env) {
     char buffer[kStatusBufferSize];
     snprintf(buffer, sizeof(buffer),
              "clearButton=%s/%s target=0x%zx hits=%u "
-             "folderColumns=%d/%s target=0x%zx hits=%u config=%s source=%s",
+             "folderColumns=%d/%s target=0x%zx hits=%u "
+             "assistantWidgets=%d/%s target=0x%zx hits=%u config=%s source=%s",
              hypertweak::native::ClearButtonHiddenRequested() ? "hide" : "keep",
              hypertweak::native::ClearButtonRuleReason(),
              static_cast<size_t>(hypertweak::native::ClearButtonTargetAddress()),
@@ -30,6 +32,10 @@ jstring BuildStatus(JNIEnv* env) {
              hypertweak::native::FolderColumnsRuleReason(),
              static_cast<size_t>(hypertweak::native::FolderColumnsTargetAddress()),
              hypertweak::native::FolderColumnsHookHits(),
+             hypertweak::native::AssistantWidgetAllowedRequested() ? 1 : 0,
+             hypertweak::native::AssistantWidgetRuleReason(),
+             static_cast<size_t>(hypertweak::native::AssistantWidgetTargetAddress()),
+             hypertweak::native::AssistantWidgetHookHits(),
              hypertweak::native::ConfigChannelPath(),
              hypertweak::native::NativeRuleRuntimeSource());
     return env->NewStringUTF(buffer);
@@ -60,10 +66,10 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeStatus(JNIEnv* env, jobject
 extern "C" JNIEXPORT void JNICALL
 Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
         JNIEnv* env, jobject thiz, jboolean hide_recents_clear, jint folder_columns,
-        jboolean contextual_search_long_press) {
+        jboolean contextual_search_long_press, jboolean assistant_widgets) {
     (void)env;
     (void)thiz;
     hypertweak::native::UpdateNativeRuleSettings(
             hide_recents_clear == JNI_TRUE, static_cast<int32_t>(folder_columns),
-            contextual_search_long_press == JNI_TRUE);
+            contextual_search_long_press == JNI_TRUE, assistant_widgets == JNI_TRUE);
 }

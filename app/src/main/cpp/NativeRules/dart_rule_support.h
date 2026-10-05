@@ -71,7 +71,7 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
                       DartResolution* out);
 
 // Preparation runs off the input thread; Apply only consumes published results.
-bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns);
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets = false);
 void InvalidateFailedDartRuleTargets();
 void ResetDartRulePreparationAfterFork();
 void LockDartRulePreparationForFork();

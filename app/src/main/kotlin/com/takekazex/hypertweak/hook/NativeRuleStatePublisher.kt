@@ -92,18 +92,19 @@ internal class NativeRuleStatePublisher {
     private fun send(context: Context, snapshot: NativeRuleStateSnapshot, revision: Long) {
         runCatching {
             val intent = Intent("com.android.systemui.fsgesture").setPackage("com.miui.home")
-                .putExtra("hypertweak_rule_schema", 2)
+                .putExtra("hypertweak_rule_schema", 3)
                 .putExtra("hypertweak_rule_revision", revision)
                 .putExtra("hypertweak_rule_hide_clear", snapshot.hidden)
                 .putExtra("hypertweak_rule_folder_columns", snapshot.columns)
                 .putExtra("hypertweak_rule_contextual_search", snapshot.contextualSearch)
+                .putExtra("hypertweak_rule_assistant_widgets", snapshot.assistantWidgets)
                 .putExtra("sender_uid", Process.myUid())
             NativeRuleProtocol.send(context, intent)
             if (forwarded != snapshot) {
                 forwarded = snapshot
-                DebugLog.i("NativeRules", "native settings forwarded commit=${snapshot.revision} epoch=${snapshot.epoch} columns=${snapshot.columns} hidden=${snapshot.hidden}")
+                DebugLog.i("NativeRules", "native settings forwarded commit=${snapshot.revision} epoch=${snapshot.epoch} columns=${snapshot.columns} hidden=${snapshot.hidden} widgets=${snapshot.assistantWidgets}")
             }
-            DebugLog.d("NativeRules", "published native settings revision=$revision columns=${snapshot.columns} hidden=${snapshot.hidden} commit=${snapshot.revision}")
+            DebugLog.d("NativeRules", "published native settings revision=$revision columns=${snapshot.columns} hidden=${snapshot.hidden} widgets=${snapshot.assistantWidgets} commit=${snapshot.revision}")
         }.onFailure { DebugLog.w("NativeRules", "native settings broadcast failed", it) }
     }
 
