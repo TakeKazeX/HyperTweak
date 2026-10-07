@@ -621,10 +621,16 @@ fun HyperTweakNavContainer(
             ExperimentalFeaturesPage(
                 onBack = { if (backStack.size > 1) backStack.removeLast() },
                 onNavigateToGlassTuner = { backStack.add(Route.GlassTuner) },
+                onNavigateToDockBackground = { backStack.add(Route.DockBackground) },
                 onNavigateToControlCenterCorner = { backStack.add(Route.ControlCenterCorner) },
                 onNavigateToControlCenterResize = { backStack.add(Route.ControlCenterResize) },
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange
+            )
+        }
+        entry<Route.DockBackground> {
+            com.takekazex.hypertweak.ui.page.DockBackgroundPage(
+                onBack = { if (backStack.size > 1) backStack.removeLast() }
             )
         }
         entry<Route.PowerSave> {

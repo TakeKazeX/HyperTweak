@@ -545,10 +545,13 @@ const TargetSpec kAssistantWidgetTarget = {
     "assistant_android_widgets", "libapp.so", kAssistantWidgetSites,
     sizeof(kAssistantWidgetSites) / sizeof(kAssistantWidgetSites[0])};
 
+#include "dock_frame_target.inc"
+
 const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
     &kFolderColumnsTarget,
     &kAssistantWidgetTarget,
+    &kDockFrameTarget,
 };
 
 const size_t kTargetSpecCount =

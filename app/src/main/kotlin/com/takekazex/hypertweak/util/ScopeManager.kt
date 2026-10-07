@@ -94,7 +94,9 @@ object ScopeManager {
         val live = currentScope() ?: return null
         val launcherNeeded = Preferences.hideRecentsClearButton() ||
             Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS ||
-            Preferences.contextualSearchLongPress()
+            Preferences.contextualSearchLongPress() ||
+            (PlatformLevel.isOs4 && com.takekazex.hypertweak.dock.DockConfig.decode(Preferences.getString(
+                com.takekazex.hypertweak.dock.DockConfig.KEY, com.takekazex.hypertweak.dock.DockConfig().encode()))?.enabled == true)
         return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {
             ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
         } else {

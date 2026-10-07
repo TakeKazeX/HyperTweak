@@ -1,0 +1,15 @@
+<resources>
+    <string name="dock_title">Dock background</string>
+    <string name="dock_summary">Native soft glass or clear frosted material, following the system theme</string>
+    <string name="dock_material">Material style</string>
+    <string name="dock_glass">Soft glass</string>
+    <string name="dock_frosted">Clear frosted</string>
+    <string name="dock_preview_icons">Sample icons stay in place while you adjust the background. The desktop follows the system theme.</string>
+    <string name="dock_geometry">Background dimensions</string>
+    <string name="dock_height">Height</string>
+    <string name="dock_horizontal">Horizontal margin</string>
+    <string name="dock_bottom">Bottom margin</string>
+    <string name="dock_radius">Corner radius</string>
+    <string name="dock_reset">Reset dimensions</string>
+    <string name="dock_save_failed">Could not save Dock settings. Previous settings were retained.</string>
+</resources>

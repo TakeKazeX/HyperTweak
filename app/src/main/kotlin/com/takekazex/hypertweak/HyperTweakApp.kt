@@ -21,6 +21,7 @@ class HyperTweakApp : Application() {
         val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
+        com.takekazex.hypertweak.dock.DockSettingsSignal.attach(this)
         DebugLog.ensureSession()
 
         // Republish the native rule flags on every start so the launcher-side payload sees the

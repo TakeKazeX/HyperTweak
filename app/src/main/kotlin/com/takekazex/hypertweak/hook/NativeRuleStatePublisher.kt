@@ -15,6 +15,11 @@ internal class NativeRuleStatePublisher {
     private val handler = Handler(Looper.getMainLooper())
     private val token = Any()
     private var context: Context? = null
+    private var dockPort = 0
+    private var dockToken0 = 0L
+    private var dockToken1 = 0L
+    private var dockOfferVersion = 0L
+    private var dockEndpointKnown = false
     private var revision = 0L
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
@@ -26,6 +31,19 @@ internal class NativeRuleStatePublisher {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (closed) return
+            if (intent.action == com.takekazex.hypertweak.dock.DockFrameChannel.OFFER) {
+                if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, "android") || sentFromUid != Process.SYSTEM_UID) return
+                val port = intent.getIntExtra("port", -1)
+                val t0 = intent.getLongExtra("token0", 0)
+                val t1 = intent.getLongExtra("token1", 0)
+                val version = intent.getLongExtra("version", 0)
+                if (version <= dockOfferVersion || port !in 0..65535 || (port != 0 && (t0 == 0L || t1 == 0L))) return
+                dockEndpointKnown = true
+                dockOfferVersion = version
+                dockPort = port; dockToken0 = t0; dockToken1 = t1
+                publish() // The same endpoint offer also rebinds a newly started launcher process.
+                return
+            }
             if (intent.action == NativeRuleProtocol.CHANGED) {
                 if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.MODULE)) return
                 val snapshot = NativeRuleProtocol.decode(intent) ?: run {
@@ -54,11 +72,15 @@ internal class NativeRuleStatePublisher {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
                     addAction(Intent.ACTION_USER_UNLOCKED)
                     addAction(NativeRuleProtocol.CHANGED)
+                    addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
                 }, Context.RECEIVER_EXPORTED)
                 receiverRegistered = true
             }.onFailure { DebugLog.w("NativeRules", "boot settings publisher registration failed", it) }
             DebugLog.i("NativeRules", "SystemUI native settings publisher attached observer=$receiverRegistered")
             requestSnapshot(application)
+            runCatching { NativeRuleProtocol.send(application,
+                Intent(com.takekazex.hypertweak.dock.DockFrameChannel.REQUEST).setPackage("android")) }
+                .onFailure { DebugLog.w("DockMotion", "channel resync request failed", it) }
             publish()
         }
     }
@@ -99,6 +121,10 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_contextual_search", snapshot.contextualSearch)
                 .putExtra("hypertweak_rule_assistant_widgets", snapshot.assistantWidgets)
                 .putExtra("sender_uid", Process.myUid())
+            if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)
+                .putExtra("hypertweak_rule_dock_port", dockPort)
+                .putExtra("hypertweak_rule_dock_token0", dockToken0)
+                .putExtra("hypertweak_rule_dock_token1", dockToken1)
             NativeRuleProtocol.send(context, intent)
             if (forwarded != snapshot) {
                 forwarded = snapshot

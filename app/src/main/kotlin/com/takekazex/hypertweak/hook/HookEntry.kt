@@ -454,6 +454,7 @@ class HookEntry : XposedModule() {
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
         retryHookersAfterHotReload()
+        if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.recoverExistingWindows()
         // Publication requires the restored host context. The early hot-reload callback runs
         // before package snapshots are restored and cannot be its only recovery boundary.
         publishNativeRuleSwitches()
@@ -743,6 +744,7 @@ class HookEntry : XposedModule() {
         return try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
+            if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.bindPreferences(remotePrefs)
             bindNativeSettingsListener(remotePrefs)
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
             nativeSettingsReady = true
@@ -766,6 +768,7 @@ class HookEntry : XposedModule() {
             appContext = null
         )
         attachHooker(SystemServerReadinessHooker, classLoader, ctx, replacementHandles)
+        attachHooker(com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker, classLoader, ctx, replacementHandles)
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)

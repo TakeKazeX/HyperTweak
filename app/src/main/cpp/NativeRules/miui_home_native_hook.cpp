@@ -5,6 +5,7 @@
 #include "native_rule_settings_dispatch.h"
 #include "dart_runtime_resolver.h"
 #include "dart_state_publication.h"
+#include "dock_frame_rule.h"
 #include "launcher_profiles.h"
 #include "native_config.h"
 #include "native_rule_runtime.h"
@@ -1456,11 +1457,21 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
         !ReadNativeBool(extras, "hypertweak_rule_contextual_search", &contextual) ||
         !ReadNativeBool(extras, "hypertweak_rule_assistant_widgets", &widgets)) return RejectNativeRuleSnapshot(5u);
     *output = {hidden, columns, contextual, widgets, revision};
+    bool channel = false;
+    if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
+        if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
+            !ReadNativeI64(extras, "hypertweak_rule_dock_token0", &output->dock_token0) ||
+            !ReadNativeI64(extras, "hypertweak_rule_dock_token1", &output->dock_token1) ||
+            output->dock_port < 0 || output->dock_port > 65535 ||
+            (output->dock_port != 0 && (output->dock_token0 == 0 || output->dock_token1 == 0))) return RejectNativeRuleSnapshot(6u);
+        output->dock_channel = true;
+    }
     return true;
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
             snapshot.contextual, snapshot.revision, snapshot.widgets)) {
+        if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
     }
 }

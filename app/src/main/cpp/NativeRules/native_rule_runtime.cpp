@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "native_rule_runtime.h"
+#include "dock_frame_rule.h"
 #include "native_rule_events.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
@@ -116,7 +117,8 @@ bool Prepare() {
     const bool widgets = AssistantWidgetAllowedRequested();
     void* handle = g_dart_handle;
     pthread_mutex_unlock(&g_settings_lock);
-    if (!clear && !folder && !widgets) return true;
+    const bool dock = DockFrameRequested();
+    if (!clear && !folder && !widgets && !dock) return true;
     if (handle == nullptr) {
         // Fallback for an AOT image loaded before our observer. Keep this one
         // reference for the process lifetime; ready inputs never repeat dlopen.
@@ -127,7 +129,7 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    return PrepareDartRuleTargets(handle, clear, folder, widgets);
+    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock);
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
@@ -219,6 +221,7 @@ void ApplyPreparedNativeRules() {
     ApplyClearButtonRule(handle);
     ApplyFolderColumnsRule(handle);
     ApplyAssistantWidgetRule(handle);
+    (void)ApplyDockFrameRule(handle);
     const bool missing = strcmp(ClearButtonRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(AssistantWidgetRuleReason(), "dart_preparation_pending") == 0;
@@ -254,7 +257,12 @@ void RequestNativeRulePreparation() {
     const int fd = __atomic_load_n(&g_wakeup, __ATOMIC_ACQUIRE);
     if (fd >= 0) (void)write(fd, &event, sizeof(event));
 }
+void NotifyDockFramePreparation() {
+    pthread_mutex_lock(&g_settings_lock); g_gate.Changed(); pthread_mutex_unlock(&g_settings_lock);
+    InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation();
+}
 void ResetNativeRuleRuntimeAfterFork() {
+    ResetDockFrameAfterFork();
     if (g_wakeup >= 0) close(g_wakeup);
     g_wakeup = -1;
     g_worker_state = 0u;

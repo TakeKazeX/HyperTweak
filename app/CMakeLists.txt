@@ -48,6 +48,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/logging.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_image.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_targets.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/dock_frame_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/dock_frame_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/dart_rule_support.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_resolution_cache.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/native_store.cpp"

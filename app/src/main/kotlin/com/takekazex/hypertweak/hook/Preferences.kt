@@ -1325,6 +1325,7 @@ object Preferences {
                 runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
+                com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
                 return true
             }
         }
@@ -1404,6 +1405,7 @@ object Preferences {
                 }
             }
             memoClear()
+            com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
             return restored.size
         }
     }
@@ -1905,6 +1907,43 @@ object Preferences {
         memoInvalidate(key)
         write { putString(key, value) }
     }
+
+    /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
+    fun commitDockBackground(value: String): Boolean {
+        if (com.takekazex.hypertweak.dock.DockConfig.decode(value) == null || !isInitialized) return false
+        val key = com.takekazex.hypertweak.dock.DockConfig.KEY
+        fun commit(): Boolean = synchronized(settingsMutationLock) {
+            val previous = remotePrefs.getString(key, null)
+            try {
+                if (!remotePrefs.edit().putString(key, value).commit()) {
+                    val restore = remotePrefs.edit()
+                    if (previous == null) restore.remove(key) else restore.putString(key, previous)
+                    check(restore.commit()) { "Dock settings rollback rejected" }
+                    false
+                } else {
+                    localSourcePrefs?.takeIf { it !== remotePrefs }?.edit(commit = true) { putString(key, value) }
+                    memoInvalidate(key)
+                    com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
+                    DebugLog.i("DockBackground", "settings committed $value")
+                    true
+                }
+            } catch (error: Exception) {
+                runCatching {
+                    val restore = remotePrefs.edit()
+                    if (previous == null) restore.remove(key) else restore.putString(key, previous)
+                    check(restore.commit()) { "Dock settings rollback rejected" }
+                }.onFailure { DebugLog.w("DockBackground", "settings rollback failed", it) }
+                DebugLog.w("DockBackground", "settings commit failed", error)
+                false
+            }
+        }
+        return if (isLocalOnly || localSourcePrefs === remotePrefs) commit()
+        else runCatching { serializedWriter.submit<Boolean> { commit() }.get() }
+            .onFailure { DebugLog.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
+    }
+
+    fun observeDockBackground(listener: SharedPreferences.OnSharedPreferenceChangeListener): SharedPreferences? =
+        if (!isInitialized) null else remotePrefs.also { it.registerOnSharedPreferenceChangeListener(listener) }
 
     /**
      * Writes a string and waits for the remote preferences commit to finish. This is used for

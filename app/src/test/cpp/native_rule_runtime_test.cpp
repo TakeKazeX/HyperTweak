@@ -36,6 +36,9 @@ void SetFolderColumns(int32_t value) { columns.store(value); }
 bool ClearButtonHiddenRequested() { return hidden.load(); }
 int32_t FolderColumnsRequested() { return columns.load(); }
 bool ApplyClearButtonRule(void*) { return true; }
+bool DockFrameRequested() { return false; }
+bool ApplyDockFrameRule(void*) { return true; }
+void ResetDockFrameAfterFork() {}
 bool ApplyFolderColumnsRule(void*) { return true; }
 void SetAssistantWidgetAllowed(bool) {}
 bool AssistantWidgetAllowedRequested() { return false; }
@@ -47,7 +50,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);

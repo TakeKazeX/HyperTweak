@@ -55,6 +55,9 @@
         <package android:name="com.miui.mediaeditor" />
         <package android:name="com.miui.personalassistant" />
         <package android:name="com.android.camera" />
+        <package android:name="com.android.contacts" />
+        <package android:name="com.android.mms" />
+        <package android:name="com.android.browser" />
         <package android:name="com.xiaomi.xmsf" />
         <package android:name="com.android.providers.downloads" />
         <package android:name="com.android.providers.downloads.ui" />
@@ -143,6 +146,14 @@
         <provider
             android:name="com.takekazex.hypertweak.BatteryInfoProvider"
             android:authorities="com.takekazex.hypertweak.batteryprovider"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            tools:ignore="ExportedContentProvider" />
+
+        <!-- Lifecycle-managed native background SurfacePackages; create/release require system UID. -->
+        <provider
+            android:name="com.takekazex.hypertweak.dock.DockSurfaceProvider"
+            android:authorities="com.takekazex.hypertweak.dock"
             android:exported="true"
             android:grantUriPermissions="false"
             tools:ignore="ExportedContentProvider" />

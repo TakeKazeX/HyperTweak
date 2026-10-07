@@ -133,8 +133,15 @@ TargetResult ResolveTarget(const Image& image, const TargetSpec& spec);
 extern const TargetSpec kRecentsClearButtonTarget;
 extern const TargetSpec kFolderColumnsTarget;
 extern const TargetSpec kAssistantWidgetTarget;
+extern const TargetSpec kDockFrameTarget;
+struct DockTickLayout { uintptr_t site; int receiver, scale, y, value; };
+bool DecodeDockTickLayout(const Image&, uintptr_t, DockTickLayout*);
+struct DockFrameLayout { uintptr_t begin, visible, hidden[2]; int alpha, offset, scale, origin; uint32_t pool, double_cid; };
+bool DecodeDockFrameLayout(const Image&, uintptr_t, DockFrameLayout*);
 
 extern const TargetSpec* const kTargetSpecs[];
 extern const size_t kTargetSpecCount;
 
 }  // namespace hypertweak::native::dart
+
+namespace hypertweak::native::dart { bool DecodeDockEditingPool(const Image&, uintptr_t, uint32_t*); }

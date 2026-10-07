@@ -232,13 +232,14 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
     return true;
 }
 
-bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets) {
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame) {
     g_allow_scan = true;
     DartResolution result{};
     bool success = true;
     if (clear_button) success = ResolveDartSites(handle, dart::kRecentsClearButtonTarget, &result);
     if (folder_columns) success = ResolveDartSites(handle, dart::kFolderColumnsTarget, &result) && success;
     if (assistant_widgets) success = ResolveDartSites(handle, dart::kAssistantWidgetTarget, &result) && success;
+    if (dock_frame) success = ResolveDartSites(handle, dart::kDockFrameTarget, &result) && success;
     g_allow_scan = false;
     return success;
 }

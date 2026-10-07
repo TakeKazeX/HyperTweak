@@ -1,0 +1,15 @@
+<resources>
+    <string name="dock_title">Dock 背景</string>
+    <string name="dock_summary">原生柔光玻璃或清透磨砂，跟随系统亮暗模式</string>
+    <string name="dock_material">材质风格</string>
+    <string name="dock_glass">柔光玻璃</string>
+    <string name="dock_frosted">清透磨砂</string>
+    <string name="dock_preview_icons">调节背景时示例图标保持原位。实际桌面跟随系统亮暗模式。</string>
+    <string name="dock_geometry">背景尺寸</string>
+    <string name="dock_height">高度</string>
+    <string name="dock_horizontal">水平边距</string>
+    <string name="dock_bottom">底部边距</string>
+    <string name="dock_radius">圆角</string>
+    <string name="dock_reset">重置尺寸</string>
+    <string name="dock_save_failed">Dock 设置保存失败，已保留原设置。</string>
+</resources>

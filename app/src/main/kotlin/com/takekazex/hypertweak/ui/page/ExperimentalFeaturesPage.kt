@@ -61,6 +61,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun ExperimentalFeaturesPage(
     onBack: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
+    onNavigateToDockBackground: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
     ccEditEnabled: Boolean,
@@ -209,6 +210,8 @@ fun ExperimentalFeaturesPage(
                         summary = stringResource(R.string.settings_recents_clear_button_summary)
                     )
                     if (PlatformLevel.isOs4) {
+                        ArrowPreference(title = stringResource(R.string.dock_title),
+                            summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
                         SwitchPreference(
                             checked = assistantWidgets,
                             onCheckedChange = {

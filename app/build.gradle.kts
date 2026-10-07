@@ -229,6 +229,7 @@ dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
     compileOnly(project(":hidden-api"))
     implementation("io.github.libxposed:service:102.0.0")
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     // EzHookTool
     implementation("io.github.lingqiqi5211.ezhooktool:core:1.2.2")
