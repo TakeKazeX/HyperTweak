@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.module
 
 internal object SettingsHeaderPlacement {
-    fun before(anchorIndex: Int, listSize: Int): Int {
-        if (anchorIndex < 0) return minOf(2, listSize)
-        return anchorIndex.coerceAtMost(listSize)
+    /** No guessed placement: join only a native anchor that exists in the current header list. */
+    fun after(anchorIndex: Int, listSize: Int): Int {
+        require(anchorIndex in 0 until listSize)
+        return anchorIndex + 1
     }
 }

@@ -4,12 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SettingsHeaderPlacementTest {
-    @Test fun insertsBeforeWifiAnchor() {
-        assertEquals(3, SettingsHeaderPlacement.before(anchorIndex = 3, listSize = 8))
+    @Test fun insertsImmediatelyAfterMyDevice() {
+        assertEquals(2, SettingsHeaderPlacement.after(anchorIndex = 1, listSize = 8))
     }
 
-    @Test fun usesStableFallbackForMissingAnchor() {
-        assertEquals(2, SettingsHeaderPlacement.before(anchorIndex = -1, listSize = 8))
-        assertEquals(1, SettingsHeaderPlacement.before(anchorIndex = -1, listSize = 1))
+    @Test fun appendsWhenMyDeviceIsTheLastHeader() {
+        assertEquals(1, SettingsHeaderPlacement.after(anchorIndex = 0, listSize = 1))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun refusesToGuessWhenTheNativeAnchorIsMissing() {
+        SettingsHeaderPlacement.after(anchorIndex = -1, listSize = 8)
     }
 }

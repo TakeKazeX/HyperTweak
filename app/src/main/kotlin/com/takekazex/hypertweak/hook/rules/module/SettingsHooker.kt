@@ -92,11 +92,22 @@ object SettingsHooker : StaticHooker() {
                 }
 
                 try {
-                    // Check if already injected
-                    val alreadyInjected = list.any { head ->
+                    // Rebuild placement on every native list update, including existing hosts
+                    // after hot reload. An entry from the previous layout must not retain group 0.
+                    list.removeAll { head ->
                         head?.let { headerField(it.javaClass, "id")?.get(it) } == HEADER_ID
                     }
-                    if (alreadyInjected) return@after
+                    val myDeviceId = ResourceLookup.identifier(
+                        activity.resources, "my_device", "id", "com.android.settings",
+                    ).toLong()
+                    if (myDeviceId == 0L) return@after
+                    val targetIndex = list.indexOfFirst { head ->
+                        head?.let { (headerField(it.javaClass, "id")?.get(it) as? Number)?.toLong() } == myDeviceId
+                    }
+                    if (targetIndex < 0) return@after
+                    val anchor = list[targetIndex] ?: return@after
+                    val anchorGroup = headerField(anchor.javaClass, "groupId")?.get(anchor) as? Int
+                        ?: return@after
 
                     // Instantiate new Header object
                     val headerCtor = clzHeader?.let { type ->
@@ -108,6 +119,10 @@ object SettingsHooker : StaticHooker() {
 
                     if (header != null) {
                         headerField(header.javaClass, "id")?.set(header, HEADER_ID)
+                        // ProxyHeaderViewAdapter.getItemViewGroup reads this native field to join
+                        // adjacent rows into a card. Copy the actual group instead of hardcoding it.
+                        val groupField = headerField(header.javaClass, "groupId") ?: return@after
+                        groupField.setInt(header, anchorGroup)
 
                         val intent = Intent().apply {
                             putExtra("isDisplayHomeAsUpEnabled", true)
@@ -124,37 +139,7 @@ object SettingsHooker : StaticHooker() {
                         }
                         header.javaClass.getDeclaredField("extras").apply { isAccessible = true }.set(header, bundle)
 
-                        // Find "wifi_settings" and keep the module entry immediately before it.
-                        var targetIndex = -1
-                        val wifiSettingsId = try {
-                            ResourceLookup.identifier(activity.resources, "wifi_settings", "id", "com.android.settings").toLong()
-                        } catch (t: Throwable) {
-                            0L
-                        }
-
-                        for (i in list.indices) {
-                            val head = list[i] ?: continue
-                            try {
-                                val idField = headerField(head.javaClass, "id")
-                                val id = (idField?.get(head) as? Number)?.toLong() ?: -1L
-                                if (wifiSettingsId != 0L && id == wifiSettingsId) {
-                                    targetIndex = i
-                                    break
-                                }
-
-                                val intentField = headerField(head.javaClass, "intent")
-                                val headIntent = intentField?.get(head) as? Intent
-                                if (headIntent?.action == "android.settings.WIFI_SETTINGS" ||
-                                    headIntent?.component?.className?.contains("WifiSettings", ignoreCase = true) == true) {
-                                    targetIndex = i
-                                    break
-                                }
-                            } catch (t: Throwable) {
-                                // Ignore
-                            }
-                        }
-
-                        list.add(SettingsHeaderPlacement.before(targetIndex, list.size), header)
+                        list.add(SettingsHeaderPlacement.after(targetIndex, list.size), header)
                     }
                 } catch (t: Throwable) {
                     // Ignore
