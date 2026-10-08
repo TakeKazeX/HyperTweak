@@ -247,3 +247,23 @@ dependencies {
     // Full SVG 1.1/Tiny parser and renderer for imported signal artwork.
     implementation("com.caverock:androidsvg-aar:1.4")
 }
+
+// Credits follow the same declarations that feed compilation; translations contain no versions.
+val creditedLibraries = mapOf(
+    "CREDIT_LIBXPOSED_VERSION" to "io.github.libxposed:api",
+    "CREDIT_EZHOOKTOOL_VERSION" to "io.github.lingqiqi5211.ezhooktool:core",
+    "CREDIT_DEXKIT_VERSION" to "org.luckypray:dexkit",
+    "CREDIT_DEXLIB2_VERSION" to "org.smali:dexlib2",
+    "CREDIT_HIDDEN_API_BYPASS_VERSION" to "org.lsposed.hiddenapibypass:hiddenapibypass",
+    "CREDIT_MIUIX_VERSION" to "top.yukonga.miuix.kmp:miuix-ui",
+)
+val declaredLibraries = listOf("implementation", "compileOnly")
+    .flatMap { configurations.getByName(it).dependencies }
+    .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+    .associateBy { "${it.group}:${it.name}" }
+creditedLibraries.forEach { (field, coordinate) ->
+    val version = requireNotNull(declaredLibraries[coordinate]?.version) {
+        "Missing declared dependency version for credits: $coordinate"
+    }
+    android.defaultConfig.buildConfigField("String", field, "\"$version\"")
+}

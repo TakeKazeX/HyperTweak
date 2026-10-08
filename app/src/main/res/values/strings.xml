@@ -202,11 +202,11 @@
     <string name="credits_aospinstaller_desc">AOSP installer restoration approach by tehcneko · GPL-3.0</string>
     <string name="credits_back">Back</string>
     <string name="credits_backgesture_desc">MiuiHome native launcher hook framework by wxxsfxyzm · Apache-2.0</string>
-    <string name="credits_dexkit_desc">Powerful Dex analysis tool for finding hook points dynamically · v2.2.0</string>
-    <string name="credits_dexlib2_desc">DEX instruction and control-flow analysis · v2.5.2 · BSD-3-Clause</string>
-    <string name="credits_ezhook_desc">Kotlin Xposed helper library by lingqiqi5211 · v1.2.1</string>
+    <string name="credits_dexkit_desc">Powerful Dex analysis tool for finding hook points dynamically · v%1$s</string>
+    <string name="credits_dexlib2_desc">DEX instruction and control-flow analysis · v%1$s · BSD-3-Clause</string>
+    <string name="credits_ezhook_desc">Kotlin Xposed helper library by lingqiqi5211 · v%1$s</string>
     <string name="credits_fcm_desc">Google Push / FCM Live implementation by howard20181</string>
-    <string name="credits_hiddenapibypass_desc">Bypass restrictions on non-SDK interfaces in Android 9+</string>
+    <string name="credits_hiddenapibypass_desc">Bypass restrictions on non-SDK interfaces in Android 9+ · v%1$s</string>
     <string name="credits_highlighticons_desc">App shortcut icons by @GotohHitoriBocchi0221</string>
     <string name="credits_hydtrust_desc">Extend Unlock trust state repair by StevenWin818 · GPL-3.0</string>
     <string name="credits_hyperceiler_desc">AICR browser hook and DexKit obfuscation fix reference · AGPL-3.0</string>
@@ -215,9 +215,9 @@
     <string name="credits_hyperorch_desc">Base logic for fingerprint icon drawing bypass</string>
     <string name="credits_hyperpasskey_desc">Unlock Google Passkey / Credential Manager by howard20181</string>
     <string name="credits_installerx_desc">Inspiration for theme configuration and UI/UX layout design</string>
-    <string name="credits_libxposed_desc">Native Xposed API 102 framework · v102.0.0</string>
+    <string name="credits_libxposed_desc">Native Xposed API 102 framework · v%1$s</string>
     <string name="credits_lsposed_desc">Mainstream Xposed framework implementation</string>
-    <string name="credits_miuix_desc">Modern HyperOS style Compose components · v0.9.3</string>
+    <string name="credits_miuix_desc">Modern HyperOS style Compose components · v%1$s</string>
     <string name="credits_miuix_title">Miuix UI (top.yukonga.miuix.kmp)</string>
     <string name="credits_title">Credits</string>
     <string name="credits_xiaomihelper_desc">References for Settings preference injection</string>

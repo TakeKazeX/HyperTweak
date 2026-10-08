@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.BuildConfig
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -62,7 +64,7 @@ fun CreditsPage(
                 ) {
                     ArrowPreference(
                         title = "libxposed",
-                        summary = stringResource(R.string.credits_libxposed_desc),
+                        summary = stringResource(R.string.credits_libxposed_desc, BuildConfig.CREDIT_LIBXPOSED_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/libxposed/api") }
                     )
                     ArrowPreference(
@@ -72,27 +74,27 @@ fun CreditsPage(
                     )
                     ArrowPreference(
                         title = "EzHookTool",
-                        summary = stringResource(R.string.credits_ezhook_desc),
+                        summary = stringResource(R.string.credits_ezhook_desc, BuildConfig.CREDIT_EZHOOKTOOL_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/lingqiqi5211/EzHookTool") }
                     )
                     ArrowPreference(
                         title = "DexKit",
-                        summary = stringResource(R.string.credits_dexkit_desc),
+                        summary = stringResource(R.string.credits_dexkit_desc, BuildConfig.CREDIT_DEXKIT_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/LuckyPray/DexKit") }
                     )
                     ArrowPreference(
                         title = "dexlib2",
-                        summary = stringResource(R.string.credits_dexlib2_desc),
+                        summary = stringResource(R.string.credits_dexlib2_desc, BuildConfig.CREDIT_DEXLIB2_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/JesusFreke/smali/tree/master/dexlib2") }
                     )
                     ArrowPreference(
                         title = "HiddenApiBypass",
-                        summary = stringResource(R.string.credits_hiddenapibypass_desc),
+                        summary = stringResource(R.string.credits_hiddenapibypass_desc, BuildConfig.CREDIT_HIDDEN_API_BYPASS_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/LSPosed/AndroidHiddenApiBypass") }
                     )
                     ArrowPreference(
                         title = stringResource(R.string.credits_miuix_title),
-                        summary = stringResource(R.string.credits_miuix_desc),
+                        summary = stringResource(R.string.credits_miuix_desc, BuildConfig.CREDIT_MIUIX_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/compose-miuix-ui/miuix") }
                     )
                     ArrowPreference(

@@ -202,11 +202,11 @@
     <string name="credits_aospinstaller_desc">tehcneko 的 AOSP 安装器恢复方案 · GPL-3.0</string>
     <string name="credits_back">返回</string>
     <string name="credits_backgesture_desc">wxxsfxyzm 的 MiuiHome 原生桌面钩子框架 · Apache-2.0</string>
-    <string name="credits_dexkit_desc">强大的 Dex 分析工具，用于动态查找 Hook 点 · v2.2.0</string>
-    <string name="credits_dexlib2_desc">DEX 指令与控制流分析 · v2.5.2 · BSD-3-Clause</string>
-    <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v1.2.1</string>
+    <string name="credits_dexkit_desc">强大的 Dex 分析工具，用于动态查找 Hook 点 · v%1$s</string>
+    <string name="credits_dexlib2_desc">DEX 指令与控制流分析 · v%1$s · BSD-3-Clause</string>
+    <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v%1$s</string>
     <string name="credits_fcm_desc">howard20181 的 Google 推送 / FCM Live 实现</string>
-    <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制</string>
+    <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制 · v%1$s</string>
     <string name="credits_highlighticons_desc">@GotohHitoriBocchi0221 的应用快捷方式图标</string>
     <string name="credits_hydtrust_desc">StevenWin818 的扩展解锁信任状态修复 · GPL-3.0</string>
     <string name="credits_hyperceiler_desc">AI 引擎浏览器 Hook 与 DexKit 混淆修复参考 · AGPL-3.0</string>
@@ -215,9 +215,9 @@
     <string name="credits_hyperorch_desc">指纹图标绘制绕过的基础逻辑</string>
     <string name="credits_hyperpasskey_desc">howard20181 的 Google 通行密钥 / 凭据管理器解锁</string>
     <string name="credits_installerx_desc">主题配置与 UI/UX 布局设计的灵感来源</string>
-    <string name="credits_libxposed_desc">原生 Xposed API 102 框架 · v102.0.0</string>
+    <string name="credits_libxposed_desc">原生 Xposed API 102 框架 · v%1$s</string>
     <string name="credits_lsposed_desc">主流 Xposed 框架实现</string>
-    <string name="credits_miuix_desc">现代 HyperOS 风格 Compose 组件 · v0.9.3</string>
+    <string name="credits_miuix_desc">现代 HyperOS 风格 Compose 组件 · v%1$s</string>
     <string name="credits_miuix_title">Miuix UI（top.yukonga.miuix.kmp）</string>
     <string name="credits_title">致谢</string>
     <string name="credits_xiaomihelper_desc">Settings 偏好注入参考</string>

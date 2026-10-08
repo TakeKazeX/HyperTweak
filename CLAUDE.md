@@ -43,6 +43,10 @@ landscape actions sit to the right of the list; portrait limits the list to half
 and keeps actions below it. HotReloadDialog scrolls details within native WindowDialog bounds
 while keeping footer actions outside the scroll area. Scope choices are saveable.
 
+CreditsPage formats library versions from BuildConfig fields generated in app/build.gradle.kts
+from the declared implementation/compileOnly dependencies. Keep translations version-free; add a
+coordinate mapping when crediting another compiled library.
+
 ## Logging
 
 `util/DebugLog.kt` owns severity, bounded dispatch and counted repeat suppression. `LogRecord`/`LogCodec` is the shared wire format; errors retain stack traces and expected preference/process skips use DEBUG. Detailed hook registration, target resolution and high-frequency rendering diagnostics belong at DEBUG; INFO describes meaningful runtime state changes. Do not classify severity from words inside a message, and do not silently swallow failures at shared resolver, persistence or system-callback boundaries.
