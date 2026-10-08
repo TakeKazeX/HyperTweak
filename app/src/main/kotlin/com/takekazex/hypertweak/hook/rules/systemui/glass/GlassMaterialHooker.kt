@@ -57,7 +57,8 @@ object GlassMaterialHooker : StaticHooker() {
         "combined_blur_max_radius",
         "modal_glass_blur_max_radius",
         "notification_glass_small_blur_max_radius",
-        "notification_glass_big_blur_max_radius"
+        "notification_glass_big_blur_max_radius",
+        "notification_glass_small_blur_max_radius_heads_up_extra"
     )
 
     /** Dim scrim color behind the blurred surfaces; its alpha scales like the blend colors. */
@@ -84,7 +85,9 @@ object GlassMaterialHooker : StaticHooker() {
         "media_notification_element_blend_shade_color_2",
         "media_notification_element_blend_shade_color_3",
         "notification_element_blend_shade_color_1",
-        "notification_element_blend_shade_color_2"
+        "notification_element_blend_shade_color_2",
+        "notification_element_blend_headsUp_color_1",
+        "notification_element_blend_headsUp_color_2"
     )
 
     private enum class Kind { BLEND_ARRAY, RADIUS_DIMEN, DIM_COLOR, SOLID_BG_COLOR, CARD_SHADE_COLOR }
