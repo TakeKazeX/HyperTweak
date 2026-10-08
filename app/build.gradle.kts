@@ -205,7 +205,7 @@ tasks.register("printBaseVersion") {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")
     
     // Compose Runtime & UI
@@ -223,7 +223,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.3")
     implementation("androidx.navigation3:navigation3-runtime:1.1.7")
-    implementation("androidx.navigationevent:navigationevent:1.1.2")
+    implementation("androidx.navigationevent:navigationevent:1.2.0")
 
     // libxposed
     compileOnly("io.github.libxposed:api:102.0.0")
@@ -236,7 +236,7 @@ dependencies {
     implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.2.2")
 
     // DexKit
-    implementation("org.luckypray:dexkit:2.2.0")
+    implementation("org.luckypray:dexkit:2.3.0")
     // Read operands/control flow at semantic camera call sites; DexKit exposes opcodes only.
     implementation("org.smali:dexlib2:2.5.2")
 
