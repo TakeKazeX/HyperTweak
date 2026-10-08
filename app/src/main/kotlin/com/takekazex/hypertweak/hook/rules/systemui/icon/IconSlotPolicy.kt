@@ -106,13 +106,34 @@ object IconSlotPolicy {
         "single_mobile_sim2"
     )
 
-    /** Native network fallbacks alone use the carrier-height row; status indicators stay by the battery. */
-    val CONTROL_CENTER_NETWORK_ROW_SLOTS: Set<String> = linkedSetOf(
+    /** Networks and the requested alarm/hotspot/location/NFC indicators stay in the upper row. */
+    val CONTROL_CENTER_UPPER_ROW_SLOTS: Set<String> = linkedSetOf(
         "mobile", "demo_mobile", "stacked_mobile", SLOT_WIFI, SLOT_DEMO_WIFI,
+        "network_speed", "airplane", "ethernet", "no_sim",
+        "alarm_clock", "hotspot", "location", "gps", "nfc",
         *SIGNAL_SLOTS.toTypedArray()
     )
 
-    fun isTwoLineNetworkSlot(slot: String): Boolean = slot in CONTROL_CENTER_NETWORK_ROW_SLOTS
+    fun controlCenterRow(slot: String, overrides: Set<String> = emptySet()): Int {
+        val first = "1:$slot" in overrides
+        val second = "2:$slot" in overrides
+        return if (first != second) { if (first) 1 else 2 }
+            else if (slot in CONTROL_CENTER_UPPER_ROW_SLOTS) 1 else 2
+    }
+
+    fun withControlCenterRow(overrides: Set<String>, slot: String, row: Int): Set<String> {
+        require(row in 1..2)
+        val next = overrides.filterNot { it == "1:$slot" || it == "2:$slot" }.toMutableSet()
+        if (row != controlCenterRow(slot)) next += "$row:$slot"
+        return next
+    }
+
+    fun isTwoLineUpperSlot(slot: String, overrides: Set<String> = emptySet()): Boolean =
+        controlCenterRow(slot, overrides) == 1
+
+    /** Each slot has exactly one motion owner; migrated left icons never enter the row overlay. */
+    fun ownsLowerRowMotion(slot: String, leftOwnedSlots: Set<String>, overrides: Set<String> = emptySet()): Boolean =
+        !isTwoLineUpperSlot(slot, overrides) && slot !in leftOwnedSlots
 
     val MODULE_SLOTS: List<String> = SIGNAL_SLOTS
 

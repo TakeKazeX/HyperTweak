@@ -44,11 +44,13 @@ object ControlCenterHeaderHooker : StaticHooker() {
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
 
-    /** True only when the compact two-row header is supported by this display configuration. */
-    fun secondRowStatusIconsEnabled(context: Context): Boolean =
+    /** Configured visibility is retained across rotation; only two-row geometry is portrait-only. */
+    fun twoLineConfigured(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false) &&
-            supportsCompactLayout(context)
+            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+
+    fun secondRowStatusIconsEnabled(context: Context): Boolean =
+        twoLineConfigured() && supportsCompactLayout(context)
 
     private class DateState(var policy: Int, val visibility: Int)
     private class LayoutState(view: View) {

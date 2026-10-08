@@ -694,6 +694,7 @@ object Preferences {
     const val KEY_CC_CARRIER_LEFT = "systemui_cc_carrier_left"
     const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
     const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
+    const val KEY_CC_ICON_ROW_OVERRIDES = "systemui_cc_icon_row_overrides"
     const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"
     const val KEY_CC_CARRIER_SHOW_BADGE = "systemui_cc_carrier_show_badge"
     const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"

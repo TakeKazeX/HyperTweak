@@ -1491,4 +1491,9 @@
     <string name="settings_assistant_android_widgets_summary">Remove Android widget size restrictions and show the native add entry in Personal assistant.</string>
     <string name="settings_notification_absolute_time_title">Show Exact Notification Time</string>
     <string name="settings_notification_absolute_time_summary">Native notifications show Now for the first 30 seconds, then the time with a date when needed</string>
+    <string name="icon_cc_rows_title">Control Center Icon Rows</string>
+    <string name="icon_cc_rows_entry_summary">Choose the first or second row for each status icon</string>
+    <string name="icon_cc_rows_summary">Applies to the two-line layout. Battery stays in the first row; hidden and left-placed icons retain their settings. Restart SystemUI after changes.</string>
+    <string name="icon_cc_row_first">First row</string>
+    <string name="icon_cc_row_second">Second row</string>
 </resources>

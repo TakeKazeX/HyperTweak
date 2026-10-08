@@ -1485,4 +1485,9 @@
     <string name="settings_assistant_android_widgets_summary">解除安卓小部件移入负一屏的尺寸限制，并显示原生安卓小部件添加入口。</string>
     <string name="settings_notification_absolute_time_title">通知显示具体时间</string>
     <string name="settings_notification_absolute_time_summary">原生样式通知在前 30 秒显示“现在”，之后显示具体时刻，跨日时附带日期</string>
+    <string name="icon_cc_rows_title">控制中心图标分排</string>
+    <string name="icon_cc_rows_entry_summary">选择各个状态图标显示在第一排或第二排</string>
+    <string name="icon_cc_rows_summary">双层布局下生效，电池固定第一排；隐藏和左置仍沿用原设置。修改后需重启系统界面。</string>
+    <string name="icon_cc_row_first">第一排</string>
+    <string name="icon_cc_row_second">第二排</string>
 </resources>

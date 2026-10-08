@@ -19,7 +19,7 @@ import kotlin.math.abs
  * source view is drawn directly so its StatusBarIconView tint/scale/drawable pipeline is retained;
  * no bitmap snapshot or second host child is introduced.
  */
-internal class LeftPanelMotion {
+internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var host: ViewGroup? = null
     private var source: View? = null
     private var target: View? = null
@@ -38,7 +38,7 @@ internal class LeftPanelMotion {
     private val layer = object : Drawable() {
         override fun draw(canvas: Canvas) {
             val view = source
-            if (view == null || drawFailed || layerAlpha <= 0 || drawWidth <= 0f || drawHeight <= 0f ||
+            if (view == null || drawFailed || (layerAlpha <= 0 && frameReady) || drawWidth <= 0f || drawHeight <= 0f ||
                 view.width <= 0 || view.height <= 0
             ) return
 
@@ -48,12 +48,14 @@ internal class LeftPanelMotion {
                 PanelSourceGlyph.draw(canvas, view, drawWidth, drawHeight, layerAlpha)
                 if (!frameReady) {
                     frameReady = true
-                    host?.postInvalidateOnAnimation()
+                    notifyFrameState(view)
                 }
             } catch (error: Throwable) {
                 drawFailed = true
                 frameReady = false
                 restoreTarget()
+                // Restore the module-owned source on failure without starting a retry loop.
+                view.alpha = 1f
                 host?.postInvalidateOnAnimation()
                 DebugLog.w("IconTuner", "left icon transition drawing failed", error)
             } finally {
@@ -143,12 +145,22 @@ internal class LeftPanelMotion {
         centerY = DuoPanelGeometry.mix(sourceY, targetY, clamped) - location[1]
         drawWidth = DuoPanelGeometry.mix(source.width.toFloat(), target.width.toFloat(), clamped)
         drawHeight = DuoPanelGeometry.mix(source.height.toFloat(), target.height.toFloat(), clamped)
-        layerAlpha = DuoPanelGeometry.overlayAlpha(clamped)
+        // Validate drawing in a transparent first frame. Until that succeeds only the source
+        // clone is visible; then the owner masks it and exposes this layer in one UI update.
+        layerAlpha = if (ready) DuoPanelGeometry.overlayAlpha(clamped) else 0
         layer.setBounds(0, 0, root.width, root.height)
         // The source view may have received a new StatusBarIcon payload without changing geometry.
         // Invalidate every host progress update so the overlay always draws the current glyph.
         layer.invalidateSelf()
         return ready
+    }
+
+    private fun notifyFrameState(view: View) {
+        val owner = host ?: return
+        owner.post {
+            if (host === owner && source === view) onFrameStateChanged()
+        }
+        owner.postInvalidateOnAnimation()
     }
 
     private fun centerOnScreen(view: View) {

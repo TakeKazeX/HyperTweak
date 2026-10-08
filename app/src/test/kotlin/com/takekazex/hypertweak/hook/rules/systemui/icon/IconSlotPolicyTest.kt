@@ -32,18 +32,53 @@ class IconSlotPolicyTest {
     }
 
     @Test
-    fun twoLineKeepsEveryNonNetworkIndicatorBesideTheBattery() {
+    fun twoLineKeepsRequestedStatusExceptionsAboveOtherIndicators() {
         val networkSlots = IconSlotCatalog.slots
-            .filter(IconSlotPolicy::isTwoLineNetworkSlot)
+            .filter { IconSlotPolicy.isTwoLineUpperSlot(it) }
             .toSet()
         assertEquals(setOf(
             "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2",
-            "mobile", "demo_mobile", "wifi", "demo_wifi"
+            "mobile", "demo_mobile", "wifi", "demo_wifi", "network_speed", "airplane", "ethernet", "no_sim", "alarm_clock", "hotspot", "location", "gps", "nfc"
         ), networkSlots)
-        for (slot in listOf("zen", "quiet", "mute", "volume", "alarm_clock", "hotspot",
-                "network_speed", "bluetooth", "nfc", "vpn", "future_indicator")) {
-            assertFalse("$slot belongs beside the battery", IconSlotPolicy.isTwoLineNetworkSlot(slot))
+        for (slot in listOf("zen", "quiet", "mute", "volume", "bluetooth", "headset", "wireless_headset", "vpn", "future_indicator")) {
+            assertFalse("$slot belongs in the lower row", IconSlotPolicy.isTwoLineUpperSlot(slot))
         }
+    }
+
+    @Test
+    fun leftIconsHaveOneMotionOwnerAndUnmigratedSlotsStayWithTheRow() {
+        val leftOwned = setOf("zen", "mute")
+        for (slot in leftOwned) assertFalse(IconSlotPolicy.ownsLowerRowMotion(slot, leftOwned))
+        assertTrue(IconSlotPolicy.ownsLowerRowMotion("bluetooth", leftOwned))
+        // Requested left placement that did not build a clone must retain the normal path.
+        assertTrue(IconSlotPolicy.ownsLowerRowMotion("zen", emptySet()))
+        for (slot in listOf("alarm_clock", "hotspot", "location", "gps", "nfc", "wifi", "mobile")) {
+            assertFalse(IconSlotPolicy.ownsLowerRowMotion(slot, emptySet()))
+        }
+    }
+
+    @Test
+    fun customRowsDriveBothPlacementAndSingleMotionOwnership() {
+        var entries = setOf("2:future_indicator", "unrecognized")
+        entries = IconSlotPolicy.withControlCenterRow(entries, "bluetooth", 1)
+        entries = IconSlotPolicy.withControlCenterRow(entries, "alarm_clock", 2)
+        assertTrue(IconSlotPolicy.isTwoLineUpperSlot("bluetooth", entries))
+        assertFalse(IconSlotPolicy.ownsLowerRowMotion("bluetooth", emptySet(), entries))
+        assertFalse(IconSlotPolicy.isTwoLineUpperSlot("alarm_clock", entries))
+        assertTrue(IconSlotPolicy.ownsLowerRowMotion("alarm_clock", emptySet(), entries))
+        assertFalse(IconSlotPolicy.ownsLowerRowMotion("alarm_clock", setOf("alarm_clock"), entries))
+        assertTrue("2:future_indicator" in entries && "unrecognized" in entries)
+        entries = IconSlotPolicy.withControlCenterRow(entries, "alarm_clock", 1)
+        assertFalse("2:alarm_clock" in entries || "1:alarm_clock" in entries)
+        assertTrue(IconSlotPolicy.isTwoLineUpperSlot("alarm_clock", entries))
+    }
+
+    @Test
+    fun conflictingOrMalformedRowsKeepTheDefaultWithoutMovingOtherSlots() {
+        val entries = setOf("1:bluetooth", "2:bluetooth", "3:wifi", "1:")
+        assertEquals(2, IconSlotPolicy.controlCenterRow("bluetooth", entries))
+        assertEquals(1, IconSlotPolicy.controlCenterRow("wifi", entries))
+        assertEquals(2, IconSlotPolicy.controlCenterRow("wireless_headset", entries))
     }
 
     @Test

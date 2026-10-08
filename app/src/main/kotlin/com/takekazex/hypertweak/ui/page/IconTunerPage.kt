@@ -124,7 +124,7 @@ private fun TunerSwitch(
 }
 
 @Composable
-fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
+fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavigateToIconRows: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -428,6 +428,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit) {
                 ccShowBadge = pref(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true),
                 ccBadgeOne = pref(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
                 ccBadgeTwo = pref(Preferences.KEY_CC_CARRIER_BADGE_TWO, "2"),
+                onNavigateToIconRows = onNavigateToIconRows,
                 onChange = { key, value -> changed(key, value) }
                         )
                         SlotsSection(
@@ -1014,6 +1015,7 @@ private fun CarrierSection(
     ccShowBadge: Boolean,
     ccBadgeOne: String,
     ccBadgeTwo: String,
+    onNavigateToIconRows: () -> Unit,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_carrier_title))
@@ -1037,6 +1039,11 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_two_line_summary),
                 enabled = ccHideDate
             ) { onChange(Preferences.KEY_CC_CARRIER_TWO_LINE, it) }
+            ArrowPreference(
+                title = stringResource(R.string.icon_cc_rows_title),
+                summary = stringResource(R.string.icon_cc_rows_entry_summary),
+                onClick = onNavigateToIconRows
+            )
             TunerSwitch(
                 ccShowBadge,
                 stringResource(R.string.icon_cc_carrier_show_badge),

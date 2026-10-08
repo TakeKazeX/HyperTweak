@@ -767,7 +767,9 @@ object LeftContainerHooker : StaticHooker() {
                 return@forEach
             }
 
-            val motion = panelMotions[slot] ?: LeftPanelMotion().also { panelMotions[slot] = it }
+            val motion = panelMotions[slot] ?: LeftPanelMotion {
+                if (!retiring) applyHandoverGuarded(panelProgress)
+            }.also { panelMotions[slot] = it }
             val ready = motion.update(root, clone, target, clamped, parkedTargetAlpha)
             usedSlots += slot
 

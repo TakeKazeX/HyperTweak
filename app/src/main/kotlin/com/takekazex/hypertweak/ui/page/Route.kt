@@ -21,6 +21,7 @@ sealed interface Route : NavKey {
     data object GoogleServices : Route
     data object IconTuner : Route
     data object IconOrder : Route
+    data object ControlCenterIconRows : Route
     data object GlassTuner : Route
     data object DockBackground : Route
     data object ExperimentalFeatures : Route
@@ -62,6 +63,7 @@ val Route.saveKey: String
         Route.GoogleServices -> "GoogleServices"
         Route.IconTuner -> "IconTuner"
         Route.IconOrder -> "IconOrder"
+        Route.ControlCenterIconRows -> "ControlCenterIconRows"
         Route.GlassTuner -> "GlassTuner"
         Route.DockBackground -> "DockBackground"
         Route.CameraWatermark -> "CameraWatermark"
@@ -98,6 +100,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "GoogleServices" -> Route.GoogleServices
     "IconTuner" -> Route.IconTuner
     "IconOrder" -> Route.IconOrder
+    "ControlCenterIconRows" -> Route.ControlCenterIconRows
     "GlassTuner" -> Route.GlassTuner
     "DockBackground" -> Route.DockBackground
     "CameraWatermark" -> Route.CameraWatermark

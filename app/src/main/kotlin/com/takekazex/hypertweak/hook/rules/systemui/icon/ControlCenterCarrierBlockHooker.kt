@@ -222,6 +222,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val keyguardSeparator: View?
     ) {
         val orientation = layout.orientation
+        val minimumHeight = layout.minimumHeight
         val gravity = layout.gravity
         val separatorState = separator?.let(::ViewState)
         val keyguardSeparatorState = keyguardSeparator?.let(::ViewState)
@@ -832,8 +833,43 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     fun ownsRow(row: ViewGroup?): Boolean = row != null && rowIndex.containsKey(row) &&
         ownsLayout(row.parent as? ViewGroup)
 
-    fun firstRowCenter(layout: ViewGroup): Int = blocks[layout]?.rows
-        ?.firstOrNull { it.row.isVisible }?.row?.let { it.top + it.measuredHeight / 2 } ?: 0
+    internal fun rowGeometry(layout: ViewGroup): TwoRowIconLayout.Geometry? {
+        val block = blocks[layout]?.takeIf { it.compact } ?: return null
+        val measured = block.rows.filter { it.row.isVisible }.map { it.row.measuredHeight }
+        val rowHeight = maxOf(iconHeightPx(layout.context),
+            block.rows.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
+        return TwoRowIconLayout.geometry(measured, rowHeight, (3 * layout.resources.displayMetrics.density).roundToInt(),
+            layout.paddingTop, layout.paddingBottom)
+    }
+
+    fun firstRowCenter(layout: ViewGroup): Int = rowGeometry(layout)?.firstCenter?.roundToInt() ?: 0
+
+    private fun updateRowGeometry(block: Block) {
+        if (!block.compact) return
+        val gravity = Gravity.START or Gravity.TOP
+        if (block.layout.gravity != gravity) block.layout.gravity = gravity
+        val gap = (3 * block.layout.resources.displayMetrics.density).roundToInt()
+        val margins = TwoRowIconLayout.visibleRowMargins(block.rows.filter { it.row.isVisible }.map { it.slot }, gap)
+        block.rows.forEach { parts ->
+            if (parts.row.isVisible) {
+                val params = parts.row.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
+                val margin = margins.getValue(parts.slot)
+                if (params.topMargin != margin) { params.topMargin = margin; parts.row.layoutParams = params }
+            }
+        }
+        val geometry = rowGeometry(block.layout) ?: return
+        val height = maxOf(block.minimumHeight, geometry.minimumHeight)
+        if (block.layout.minimumHeight != height) block.layout.minimumHeight = height
+        val visible = block.rows.filter { it.row.isVisible && it.row.isLaidOut && it.row.height > 0 }
+        val tops = TwoRowIconLayout.carrierRowTops(visible.map { it.slot to it.row.height }, geometry)
+        visible.forEach { parts ->
+            val row = parts.row
+            val top = tops.getValue(parts.slot)
+            // Align actual carrier bounds as well as header constraints. A hidden SIM must not
+            // leave the surviving row centered inside the reserved two-row canvas.
+            if (row.top != top) row.layout(row.left, top, row.right, top + row.height)
+        }
+    }
 
     /** Duo asks about this exact expanded container, never a global signal preference. */
     fun ownsNetworkContainer(container: Any): Boolean = maskedContainers[container]?.active == true
@@ -991,7 +1027,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         ControlCenterHeaderHooker.ensureCompactCarrierVisible(block.layout)
         block.layout.orientation = LinearLayout.VERTICAL
-        block.layout.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        block.layout.gravity = Gravity.START or Gravity.TOP
         collapse(block.separator)
         collapse(block.keyguardSeparator)
         // Cancel any horizontal budget queued before we acquired this layout.
@@ -1041,6 +1077,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private fun restoreBlockStyle(block: Block) {
         block.layout.orientation = block.orientation
+        block.layout.minimumHeight = block.minimumHeight
         block.layout.gravity = block.gravity
         block.separator?.let { block.separatorState?.restore(it) }
         block.keyguardSeparator?.let { block.keyguardSeparatorState?.restore(it) }
@@ -1121,6 +1158,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.observer = block.layout.viewTreeObserver
         block.preDraw = ViewTreeObserver.OnPreDrawListener {
             runCatching {
+                updateRowGeometry(block)
                 ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
                 syncMask(block)
                 if (!shadeSwitching && panelVisible && progress > 0f && progress < 1f) {
@@ -1177,8 +1215,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         )
         blocks.values.toList().forEach { block ->
             if (!block.layout.isAttachedToWindow) return@forEach
-            if (block.compact) block.rows.forEach { parts -> renderRow(parts, rows) }
-            else releaseMask(block)
+            if (block.compact) {
+                block.rows.forEach { parts -> renderRow(parts, rows) }
+                updateRowGeometry(block)
+                ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
+            } else releaseMask(block)
         }
     }
 
@@ -1432,8 +1473,18 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private fun drawHandover(clamped: Float) {
         val used = HashSet<View>()
         val sources = HashSet<View>()
+        var lowerRowUpdated = false
         for (block in blocks.values.toList()) {
             if (!block.compact || !block.layout.isShown) continue
+            val header = block.layout.parent as? ViewGroup
+            val realRow = header?.findViewById<ViewGroup>(statusBarId)
+            val fakeRow = header?.findViewById<ViewGroup>(fakeStatusBarId)
+            val realIcons = realRow?.let { findStatusContainer(it) as? ViewGroup }
+            val fakeIcons = fakeRow?.let { findStatusContainer(it) as? ViewGroup }
+            if (realIcons != null && fakeIcons != null && fakeRow != null) {
+                IconPositionHooker.updateLowerRowHandover(realIcons, fakeIcons, fakeRow.alpha, clamped)
+                lowerRowUpdated = true
+            } else IconPositionHooker.clearLowerRowHandover()
             for (parts in block.rows) {
                 val model = parts.model ?: continue
                 val entries = ArrayList<Pair<ImageView, View?>>(2)
@@ -1465,6 +1516,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 }
             }
         }
+        if (!lowerRowUpdated) IconPositionHooker.clearLowerRowHandover()
         motions.entries.removeIf { (view, motion) ->
             if (view in used) false else {
                 motion.clear()
@@ -1480,6 +1532,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun releaseHandover() {
+        IconPositionHooker.clearLowerRowHandover()
         motions.forEach { (view, motion) ->
             motion.clear()
             rowIndex[view.parent]?.networkFade?.lease(view as ImageView, false)

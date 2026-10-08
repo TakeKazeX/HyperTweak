@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -49,7 +50,9 @@ object IconPositionHooker : StaticHooker() {
         val visibleState: Field,
         val hiddenBySpace: Field,
         val inIslandState: Field,
-        val gone: Field
+        val gone: Field,
+        val translationX: Field,
+        val layoutTranslationX: Field
     )
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -74,20 +77,25 @@ object IconPositionHooker : StaticHooker() {
     private val networkSlotFields = HashMap<Class<*>, Field?>()
     private val networkVisibleStateFields = HashMap<Class<*>, Field?>()
     private val clipStates = WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()
-    private val rowTranslations = WeakHashMap<View, TranslationState>()
+    private var rowOverrides: Set<String> = emptySet()
+    private val rowLayoutOwners = WeakHashMap<ViewGroup, Boolean>()
+    private class LowerRowMotion(val source: View) {
+        val motion = CarrierTypeMotion()
+        var savedAlpha = source.alpha
+        var appliedAlpha = source.alpha
+        fun restore() {
+            motion.clear()
+            if (abs(source.alpha - appliedAlpha) < .001f) source.alpha = savedAlpha
+        }
+    }
+    private val lowerRowMotions = IdentityHashMap<View, LowerRowMotion>()
     private val lastRestoredOverflow = WeakHashMap<ViewGroup, Set<String>>()
     private val iconVisibleGetters = HashMap<Class<*>, Method?>()
     private val iconBlockedGetters = HashMap<Class<*>, Method?>()
     private val removeFlagGetters = HashMap<Class<*>, Method?>()
     private val networkSpeedWidthGetters = HashMap<Class<*>, Method?>()
     private val batteryLayoutFields = HashMap<Class<*>, Field?>()
-    private val hostStateTranslationFields = HashMap<Class<*>, Field?>()
-    private var hostTranslationResetMethod: Method? = null
-    private var hostTranslationTagId = 0
     private val activeHostLayouts = ThreadLocal<ArrayDeque<ViewGroup>>()
-    private val pendingPlacements = java.util.Collections.newSetFromMap(
-        WeakHashMap<ViewGroup, Boolean>()
-    )
     private var originalSlotOrder = emptyList<String>()
     private var slotsField: Field? = null
     private var slotNameField: Field? = null
@@ -95,20 +103,6 @@ object IconPositionHooker : StaticHooker() {
     private var layoutFromField: Field? = null
     private var slotConstructor: Constructor<*>? = null
     private val slotGetters = HashMap<Class<*>, Method?>()
-
-    private class TranslationState(
-        var hostX: Float,
-        var appliedX: Float,
-        var originalY: Float,
-        var appliedY: Float
-    )
-
-    private data class RowPlacement(
-        val view: View,
-        val slot: String,
-        val state: TranslationState,
-        val childIndex: Int
-    )
 
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
         mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
@@ -163,9 +157,10 @@ object IconPositionHooker : StaticHooker() {
             restoring = true
             maskOwners.clear()
             try {
-                pendingPlacements.clear()
                 lastRestoredOverflow.clear()
-                restoreRowTranslations()
+                clearLowerRowHandover()
+                rowLayoutOwners.keys.toList().forEach { it.requestLayout() }
+                rowLayoutOwners.clear()
                 clipStates.forEach { (group, flags) ->
                     if (!group.clipChildren) group.clipChildren = flags.first
                     if (!group.clipToPadding) group.clipToPadding = flags.second
@@ -186,6 +181,7 @@ object IconPositionHooker : StaticHooker() {
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
+        rowOverrides = Preferences.getStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
         networkVisibility.clear()
@@ -196,9 +192,6 @@ object IconPositionHooker : StaticHooker() {
         removeFlagGetters.clear()
         networkSpeedWidthGetters.clear()
         batteryLayoutFields.clear()
-        hostStateTranslationFields.clear()
-        hostTranslationResetMethod = null
-        hostTranslationTagId = 0
         listOf(
             "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView",
             "com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView"
@@ -354,21 +347,14 @@ object IconPositionHooker : StaticHooker() {
                             activeHostLayouts.set(it)
                         }
                         stack.addLast(container)
+                        rowLayoutOwners[container] = true
                     }
-                    runCatching { restoreHostTranslationsForLayout(container) }
-                        .onFailure { DebugLog.w(TAG, "host icon X restore failed", it) }
                 }
                 after { param ->
                     val container = param.thisObject as? ViewGroup ?: return@after
                     val active = activeHostLayouts.get()
                     if (active?.peekLast() === container) active.removeLast()
                     if (active?.isEmpty() == true) activeHostLayouts.remove()
-                    // The host has already applied the corrected visibility state. Place its
-                    // children in the same layout turn, then reconcile final sibling geometry.
-                    runCatching { applyControlCenterRowPlacement(container) }
-                        .onFailure { DebugLog.w(TAG, "immediate row placement failed", it) }
-                    runCatching { scheduleControlCenterRowPlacement(container) }
-                        .onFailure { DebugLog.w(TAG, "deferred row placement failed", it) }
                 }
             }
         }
@@ -384,10 +370,13 @@ object IconPositionHooker : StaticHooker() {
             val hiddenBySpace = findField(state, "hiddenBySpace")
             val inIslandState = findField(state, "inIslandState")
             val gone = findField(state, "gone")
+            val translationX = findField(state, "translationX")
+            val layoutTranslationX = findField(state, "layoutTranslationX")
             if (layoutStates == null || view == null || visibleState == null ||
-                hiddenBySpace == null || inIslandState == null || gone == null
+                hiddenBySpace == null || inIslandState == null || gone == null ||
+                translationX == null || layoutTranslationX == null
             ) null else HostRowStateAccess(
-                layoutStates, view, visibleState, hiddenBySpace, inIslandState, gone
+                layoutStates, view, visibleState, hiddenBySpace, inIslandState, gone, translationX, layoutTranslationX
             )
         }
         val method = containerClass.findMethodOrNull { name("enableAnimation\$1"); noParams() }
@@ -400,8 +389,10 @@ object IconPositionHooker : StaticHooker() {
             after { param ->
                 val container = param.thisObject as? ViewGroup ?: return@after
                 if (activeHostLayouts.get()?.peekLast() !== container) return@after
-                runCatching { restoreTwoLineOverflowStates(container, access) }
-                    .onFailure { DebugLog.w(TAG, "two-line overflow state failed", it) }
+                runCatching {
+                    restoreTwoLineOverflowStates(container, access)
+                    prepareControlCenterRows(container, access)
+                }.onFailure { DebugLog.w(TAG, "two-line host state failed", it) }
             }
         }
         DebugLog.hookRegistered(TAG, "two-line host overflow state")
@@ -530,7 +521,7 @@ object IconPositionHooker : StaticHooker() {
             IconSlotPolicy.ownsTwoLineControlCenterRow(
                 runCatching { layoutFromField?.getInt(container) }.getOrNull()
             ) &&
-            ((container as? View)?.context?.let(ControlCenterHeaderHooker::secondRowStatusIconsEnabled) == true)
+            ControlCenterHeaderHooker.twoLineConfigured()
         ) {
             IconSlotPolicy.blockedForTwoLineControlCenter(options.policy)
         } else {
@@ -689,88 +680,98 @@ object IconPositionHooker : StaticHooker() {
         group.clipToPadding = false
     }
 
-    /**
-     * Place each native status icon against the carrier block's real two-row geometry. The host has
-     * both a real and a fake control-center row, and their constraint updates can arrive in either
-     * order during a hot reload; deriving screen-space centers avoids depending on which row was
-     * anchored first.
-     */
-    private fun applyControlCenterRowPlacement(container: ViewGroup) {
-        if (retiring) return
-        if (container.javaClass.name != CONTAINER_CLASS) return
-        if (!ControlCenterHeaderHooker.secondRowStatusIconsEnabled(container.context)) {
-            restoreRowTranslations(container)
-            return
+    /** Reuse the existing carrier expansion clock and source drawing for lower status icons. */
+    internal fun updateLowerRowHandover(real: ViewGroup, fake: ViewGroup, appearanceAlpha: Float, progress: Float) {
+        if (retiring || !ownsTwoLineLayout(real)) { clearLowerRowHandover(); return }
+        val root = real.rootView as? ViewGroup ?: return
+        val sources = HashMap<String, View>()
+        for (index in 0 until fake.childCount) {
+            val view = fake.getChildAt(index)
+            val slot = slotOf(view) ?: continue
+            if (isHostLayoutVisible(view, slot, fake)) sources[slot] = view
         }
-        // During a shade switch a host row can be detached/re-attached or temporarily move out of
-        // the control-center header. Keep the last module placement until the host has settled;
-        // restoring here makes the next frame start a second animation from the top row.
-        val layoutFrom = runCatching { layoutFromField?.getInt(container) }.getOrNull()
-        if (!IconSlotPolicy.ownsTwoLineControlCenterRow(layoutFrom)) {
-            restoreRowTranslations(container)
-            return
+        val used = HashSet<View>()
+        val leftOwned = LeftContainerHooker.homeOwnedSlots()
+        for (index in 0 until real.childCount) {
+            val target = real.getChildAt(index)
+            val slot = slotOf(target) ?: continue
+            if (!IconSlotPolicy.ownsLowerRowMotion(slot, leftOwned, rowOverrides) || !isHostLayoutVisible(target, slot, real)) continue
+            val source = sources[slot] ?: continue
+            if (lowerRowMotions[target]?.source !== source) lowerRowMotions.remove(target)?.restore()
+            val state = lowerRowMotions.getOrPut(target) { LowerRowMotion(source) }
+            if (abs(source.alpha - state.appliedAlpha) > .001f) state.savedAlpha = source.alpha
+            val ready = state.motion.update(root, source, target, progress, appearanceAlpha)
+            state.appliedAlpha = if (ready) 0f else state.savedAlpha
+            if (source.alpha != state.appliedAlpha) source.alpha = state.appliedAlpha
+            used += target
         }
-        if (!isControlCenterContainer(container) || container.height <= 0) return
+        lowerRowMotions.entries.removeIf { (target, state) ->
+            if (target in used) false else { state.restore(); true }
+        }
+    }
+
+    internal fun clearLowerRowHandover() {
+        lowerRowMotions.values.forEach { it.restore() }
+        lowerRowMotions.clear()
+    }
+
+    /** Publish row targets before the host applies/animates its NewStatusIconState objects. */
+    private fun prepareControlCenterRows(container: ViewGroup, access: HostRowStateAccess) {
+        if (retiring || !ownsTwoLineLayout(container) || container.height <= 0) return
+        val centers = controlCenterRowCenters(container) ?: return
+        val battery = effectiveBattery(container, centers) ?: return
+        val states = access.layoutStates.get(container) as? List<*> ?: return
+        val nativeStates = IdentityHashMap<View, Any>()
+        for (raw in states) {
+            val state = raw ?: continue
+            val view = access.view.get(state) as? View ?: continue
+            if (view.parent === container) nativeStates[view] = state
+        }
+        val items = ArrayList<TwoRowIconLayout.Item>()
+        val children = HashMap<Int, Pair<View, Any>>()
+        for (index in 0 until container.childCount) {
+            val view = container.getChildAt(index)
+            val slot = slotOf(view) ?: continue
+            val state = nativeStates[view] ?: continue
+            // Use the final host visibility model, including explicit masks and remove state.
+            // An appearance fade must not collapse either row's horizontal positions.
+            if (access.gone.getBoolean(state) || access.visibleState.getInt(state) != 0 ||
+                !isHostLayoutVisible(view, slot, container)) continue
+            val removing = removeFlagGetters.getOrPut(view.javaClass) {
+                findNoArgMethod(view.javaClass, "getRemoveFlag")
+            }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: false
+            if (removing) continue
+            items += TwoRowIconLayout.Item(index, occupiedWidth(view), IconSlotPolicy.isTwoLineUpperSlot(slot, rowOverrides))
+            children[index] = view to state
+        }
+        val containerLocation = IntArray(2)
+        val batteryLocation = IntArray(2)
+        container.getLocationOnScreen(containerLocation)
+        battery.getLocationOnScreen(batteryLocation)
+        val spacingId = container.resources.getIdentifier("status_bar_system_icon_spacing", "dimen", "com.android.systemui")
+        val spacing = if (spacingId != 0) container.resources.getDimensionPixelSize(spacingId).toFloat() else 0f
+        val positions = TwoRowIconLayout.positions(items,
+            upperRight = batteryLocation[0] - containerLocation[0].toFloat(),
+            lowerRight = batteryLocation[0] + battery.width - containerLocation[0].toFloat(),
+            spacing = spacing, rtl = container.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         disableClipping(container)
         var parent = container.parent as? ViewGroup
         while (parent != null) {
             disableClipping(parent)
-            if (parent.javaClass.name == CONTROL_CENTER_ROW_CLASS ||
-                parent.javaClass.name == CONTROL_CENTER_FAKE_ROW_CLASS) break
+            if (parent.javaClass.name == CONTROL_CENTER_ROW_CLASS) break
             parent = parent.parent as? ViewGroup
         }
-
-        val rowCenters = controlCenterRowCenters(container)
-        if (rowCenters == null) return
-        val battery = effectiveBattery(container, rowCenters)
-        val containerLocation = IntArray(2)
-        container.getLocationOnScreen(containerLocation)
-        val placements = ArrayList<RowPlacement>(container.childCount)
-        for (index in 0 until container.childCount) {
-            val child = container.getChildAt(index) ?: continue
-            val slot = slotOf(child) ?: continue
-            val state = rowTranslations[child] ?: TranslationState(
-                hostX = child.translationX,
-                appliedX = child.translationX,
-                originalY = child.translationY,
-                appliedY = child.translationY
-            ).also { rowTranslations[child] = it }
-            captureHostTranslation(child, state)
-            placements += RowPlacement(child, slot, state, index)
-        }
-        val rowX = rowHorizontalPlacements(container, battery, placements)
-        placements.forEach { placement ->
-            val child = placement.view
-            val slot = placement.slot
-            val state = placement.state
-            val baseCenter = containerLocation[1] + child.top + child.height / 2f + state.originalY
-            val targetCenter = if (IconSlotPolicy.isTwoLineNetworkSlot(slot)) {
-                rowCenters.second
-            } else {
-                rowCenters.first
-            }
-            val desiredY = state.originalY + targetCenter - baseCenter
-            val desiredX = rowX[child] ?: state.appliedX
-            applyHostHorizontalState(child, desiredX)
-            if (abs(child.translationY - desiredY) > .01f) child.translationY = desiredY
-            state.appliedX = desiredX
-            state.appliedY = desiredY
-        }
-    }
-
-    /** Coalesce repeated host layouts into one final main-thread placement for this container. */
-    private fun scheduleControlCenterRowPlacement(container: ViewGroup) {
-        if (!pendingPlacements.add(container)) return
-        mainHandler.post {
-            try {
-                if (!retiring && !restoring && container.isAttachedToWindow) {
-                    applyControlCenterRowPlacement(container)
-                }
-            } catch (error: Throwable) {
-                DebugLog.w(TAG, "control-center row placement failed", error)
-            } finally {
-                pendingPlacements.remove(container)
-            }
+        for (item in items) {
+            val (view, state) = children.getValue(item.index)
+            val x = positions.getValue(item.index)
+            // X belongs to the native Folme state. Do not snap the child or cancel its animator.
+            access.translationX.setFloat(state, x)
+            access.layoutTranslationX.setFloat(state, x)
+            // The host state has no Y property. Use final child bounds within this layout pass;
+            // QS_FAKE remains one row and native appearance/expansion still owns the movement.
+            val center = if (item.upper) centers.first else centers.second
+            val top = (center - containerLocation[1] - view.height / 2f).toInt()
+            view.layout(view.left, top, view.right, top + view.height)
         }
     }
 
@@ -802,21 +803,8 @@ object IconPositionHooker : StaticHooker() {
         val carrier = header.findViewById<View>(carrierId) as? ViewGroup ?: return null
         val carrierLocation = IntArray(2)
         carrier.getLocationOnScreen(carrierLocation)
-        val rowCenters = (0 until carrier.childCount).mapNotNull { index ->
-            val child = carrier.getChildAt(index)
-            if (child.javaClass.name !=
-                "com.android.systemui.controlcenter.shade.ControlCenterCarrierText" ||
-                child.visibility != View.VISIBLE || child.height <= 0
-            ) {
-                null
-            } else {
-                carrierLocation[1] + child.top + child.height / 2f
-            }
-        }
-        if (rowCenters.isEmpty()) return null
-        val first = rowCenters.first()
-        val second = rowCenters.getOrNull(1) ?: (first + carrier.height.coerceAtLeast(container.height))
-        return first to second
+        val geometry = ControlCenterCarrierBlockHooker.rowGeometry(carrier) ?: return null
+        return (carrierLocation[1] + geometry.firstCenter) to (carrierLocation[1] + geometry.secondCenter)
     }
 
     /** Current layout owner: native battery, or DuoView while Duo borrows mBattery. */
@@ -848,131 +836,6 @@ object IconPositionHooker : StaticHooker() {
             return null
         }
         return battery
-    }
-
-    /** Independently packs row 1 and row 2 so neither row reserves the other row's slots. */
-    private fun rowHorizontalPlacements(
-        container: ViewGroup,
-        battery: View?,
-        placements: List<RowPlacement>
-    ): Map<View, Float> {
-        battery ?: return emptyMap()
-        val visible = placements.filter { isHostLayoutVisible(it.view, it.slot, container) }
-        if (visible.isEmpty()) return emptyMap()
-        val firstRow = visible.filterNot { IconSlotPolicy.isTwoLineNetworkSlot(it.slot) }
-        val secondRow = visible.filter { IconSlotPolicy.isTwoLineNetworkSlot(it.slot) }
-        val containerLocation = IntArray(2)
-        val batteryLocation = IntArray(2)
-        container.getLocationOnScreen(containerLocation)
-        battery.getLocationOnScreen(batteryLocation)
-        val spacingId = container.resources.getIdentifier(
-            "status_bar_system_icon_spacing", "dimen", "com.android.systemui"
-        )
-        val spacing = if (spacingId != 0) {
-            container.resources.getDimensionPixelSize(spacingId).toFloat()
-        } else {
-            0f
-        }
-        val result = IdentityHashMap<View, Float>()
-        placeRowFromRight(
-            firstRow,
-            batteryLocation[0] - containerLocation[0].toFloat(),
-            spacing,
-            result
-        )
-        placeRowFromRight(
-            secondRow,
-            batteryLocation[0] + battery.width - containerLocation[0].toFloat(),
-            spacing,
-            result
-        )
-        return result
-    }
-
-    private fun placeRowFromRight(
-        row: List<RowPlacement>,
-        rightEdge: Float,
-        spacing: Float,
-        result: MutableMap<View, Float>
-    ) {
-        var cursor = rightEdge
-        val ordered = row.sortedBy { it.childIndex }
-        (if (ordered.firstOrNull()?.view?.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
-            ordered
-        } else {
-            ordered.asReversed()
-        })
-            .forEach { placement ->
-            cursor -= occupiedWidth(placement.view)
-            result[placement.view] = cursor
-            cursor -= spacing
-        }
-    }
-
-    /** Keep the host's layout state native; only the child view receives the second-row position. */
-    private fun applyHostHorizontalState(view: View, desiredX: Float) {
-        val viewChanged = abs(view.translationX - desiredX) > .01f
-        if (!viewChanged && !hasHostTranslationAnimation(view)) return
-        snapHostTranslation(view, desiredX)
-    }
-
-    /** Read the host target after onLayout, before the module applies its visual X. */
-    private fun captureHostTranslation(view: View, state: TranslationState) {
-        val tagId = view.resources.getIdentifier(
-            "status_bar_view_state_tag", "id", "com.android.systemui"
-        )
-        val hostState = if (tagId != 0) view.getTag(tagId) else null
-        val hostX = hostState?.let {
-            hostStateTranslationFields.getOrPut(it.javaClass) { findField(it.javaClass, "translationX") }
-                ?.let { field -> runCatching { field.getFloat(hostState) }.getOrNull() }
-        }
-        if (hostX != null) state.hostX = hostX
-    }
-
-    /** Restore the native X before MiuiStatusIconContainer.initFrom() reads the child. */
-    private fun restoreHostTranslationsForLayout(container: ViewGroup) {
-        for (index in 0 until container.childCount) {
-            val child = container.getChildAt(index)
-            val state = rowTranslations[child] ?: continue
-            if (abs(child.translationX - state.hostX) > .01f || hasHostTranslationAnimation(child)) {
-                snapHostTranslation(child, state.hostX)
-            }
-        }
-    }
-
-    private fun hasHostTranslationAnimation(view: View): Boolean {
-        val tagId = hostTranslationTagId(view)
-        return tagId != 0 && view.getTag(tagId) != null
-    }
-
-    /** Cancel the host's X Folme target before applying the module-owned coordinate. */
-    private fun snapHostTranslation(view: View, target: Float) {
-        val current = view.translationX
-        if (abs(current - target) <= .01f && !hasHostTranslationAnimation(view)) return
-        runCatching {
-            val reset = hostTranslationResetMethod ?: run {
-                val type = classLoader.loadClass(
-                    "com.android.systemui.statusbar.anim.MiuiStatusBarFolmeViewState"
-                )
-                type.getDeclaredMethod("resetToTranslationX", Float::class.javaPrimitiveType, View::class.java)
-                    .apply { isAccessible = true }
-                    .also { hostTranslationResetMethod = it }
-            }
-            reset.invoke(null, target - current, view)
-        }.onFailure {
-            DebugLog.w(TAG, "host icon translation reset failed", it)
-        }
-        hostTranslationTagId(view).takeIf { it != 0 }?.let { view.setTag(it, null) }
-        if (abs(view.translationX - target) > .01f) view.translationX = target
-    }
-
-    private fun hostTranslationTagId(view: View): Int {
-        if (hostTranslationTagId == 0) {
-            hostTranslationTagId = view.resources.getIdentifier(
-                "folme_translation_x_animator_tag", "id", "com.android.systemui"
-            )
-        }
-        return hostTranslationTagId
     }
 
     private fun isHostLayoutVisible(view: View, slot: String, container: ViewGroup): Boolean {
@@ -1016,17 +879,6 @@ object IconPositionHooker : StaticHooker() {
             current = current.superclass
         }
         return null
-    }
-
-    private fun restoreRowTranslations(container: ViewGroup? = null) {
-        val iterator = rowTranslations.entries.iterator()
-        while (iterator.hasNext()) {
-            val (view, state) = iterator.next()
-            if (container != null && view.parent !== container) continue
-            snapHostTranslation(view, state.hostX)
-            if (abs(view.translationY - state.appliedY) <= .01f) view.translationY = state.originalY
-            iterator.remove()
-        }
     }
 
     private fun slotOf(view: View): String? {
