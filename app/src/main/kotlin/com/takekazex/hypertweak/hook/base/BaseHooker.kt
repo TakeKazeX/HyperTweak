@@ -7,6 +7,7 @@ import io.github.lingqiqi5211.ezhooktool.core.findAllConstructors
 import io.github.lingqiqi5211.ezhooktool.core.query.ConstructorQuery
 import io.github.lingqiqi5211.ezhooktool.core.query.FieldQuery
 import io.github.lingqiqi5211.ezhooktool.core.query.MethodQuery
+import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.createHook
 import java.lang.reflect.Constructor
@@ -319,24 +320,11 @@ sealed class BaseHooker {
 
     /**
      * Undo AOT inlining of [executable] so hooks on small or private methods actually fire.
-     * Resolved reflectively because `deoptimize` is not on the [XposedModule] type this module
-     * compiles against on every API level.
+     * EzHookTool preserves the framework's Boolean result and exposes exceptions for logging.
      */
     fun deoptimize(executable: Executable): Boolean {
         return runCatching {
-            var clazz: Class<*>? = module.javaClass
-            var deoptimizeMethod: Method? = null
-            while (clazz != null) {
-                try {
-                    deoptimizeMethod = clazz.getDeclaredMethod("deoptimize", Executable::class.java)
-                    break
-                } catch (_: NoSuchMethodException) {
-                    clazz = clazz.superclass
-                }
-            }
-            deoptimizeMethod?.apply {
-                isAccessible = true
-            }?.invoke(module, executable) as? Boolean ?: false
+            EzXposed.deoptimizeOrThrow(executable)
         }.onFailure { t ->
             DebugLog.w(hookerName, "failed to deoptimize ${formatExecutable(executable)}", t)
         }.getOrDefault(false)

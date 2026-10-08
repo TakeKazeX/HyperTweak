@@ -232,8 +232,8 @@ dependencies {
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.2.2")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.2.2")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.0")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.3.0")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.3.0")

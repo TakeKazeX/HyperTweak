@@ -127,6 +127,8 @@ private class BatteryMonitor(private val context: Context) {
 
     @Synchronized
     fun register() {
+        check(!closed) { "Cannot register a closed battery monitor" }
+        if (receiverRegistered) return
         ContextCompat.registerReceiver(
             context, receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED).apply {
                 addAction(Intent.ACTION_POWER_CONNECTED)
@@ -159,14 +161,27 @@ private class BatteryMonitor(private val context: Context) {
 
     @Synchronized
     fun close() {
+        if (closed) return
         closed = true
         handler.removeCallbacksAndMessages(null)
-        if (receiverRegistered) HookFailurePolicy.open(TAG, "unregister battery receiver", Unit) {
-            context.unregisterReceiver(receiver)
+        if (receiverRegistered) {
+            receiverRegistered = false
+            HookFailurePolicy.open(TAG, "unregister battery receiver", Unit) {
+                try {
+                    context.unregisterReceiver(receiver)
+                } catch (_: IllegalArgumentException) {
+                    // Context may already have released its registrations during host teardown.
+                    DebugLog.d(TAG, "battery receiver already unregistered")
+                }
+            }
         }
-        if (observerRegistered) HookFailurePolicy.open(TAG, "unregister settings observer", Unit) {
-            context.contentResolver.unregisterContentObserver(settingsObserver)
+        if (observerRegistered) {
+            observerRegistered = false
+            HookFailurePolicy.open(TAG, "unregister settings observer", Unit) {
+                context.contentResolver.unregisterContentObserver(settingsObserver)
+            }
         }
+        observedUserId = null
         thread.quitSafely()
     }
 
