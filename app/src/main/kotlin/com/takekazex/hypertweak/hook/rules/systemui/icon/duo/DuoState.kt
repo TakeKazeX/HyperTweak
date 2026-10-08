@@ -41,7 +41,9 @@ data class DuoContent(
     val cellularSignalLevels: List<Int> = listOf(mobileLevel),
     val cellularSignalRows: List<DuoSignalRow> = emptyList(),
     val activeDataSubId: Int? = null
-)
+) {
+    val hollowCellularSignal: Boolean get() = noInternet && wifiLevel == null && !airplaneMode
+}
 
 object DuoPolicy {
     fun leadingPercent(surface: DuoSurface, style: DuoExpandedStyle, requested: Boolean): Boolean =
@@ -95,12 +97,17 @@ object DuoPolicy {
             (network.transport == DuoTransport.VPN && network.wifiDefault == false && sub.dataConnected == true)
         val label = if (cellular) {
             // Only render bounded, host-provided labels; don't invent 5G from radio strength.
-            sub.networkType?.trim()?.takeIf { it.isNotEmpty() && it.length <= 8 && it.none(Char::isISOControl) }
-                ?: return null
+            val hostLabel = sub.networkType?.trim()?.takeIf {
+                it.isNotEmpty() && it.length <= 8 && it.none(Char::isISOControl)
+            }
+            if (hostLabel == null && network.validated) return null
+            hostLabel
         } else null
-        // NO_SERVICE is a supported model: when there is no default data network, keep Duo and
-        // let the drawable render its no-service treatment instead of falling back to native.
-        if (!wifi && label == null && !noService) return null
+        val noDefaultNetwork = network.transport == DuoTransport.NONE
+        // A lost default route is known offline even if the SIM still has radio service.
+        // Keep Duo's hollow cellular glyph instead of returning to the native warning icon.
+        if (!wifi && label == null && !noService && !noDefaultNetwork &&
+            !(cellular && !network.validated)) return null
         // Match the host's single/stacked signal family. Unknown and satellite rows are omitted;
         // more than two rows cannot be represented faithfully by the Duo glyph.
         if (mobile.rows.size > MobileSignalState.MAX_RENDER_ROWS) return null
@@ -108,7 +115,7 @@ object DuoPolicy {
             .filter { it.originalVisible && it.supportsReplacement }
             .map { DuoSignalRow(it.subId, slotOf(it.subId), it.renderLevel) }
             .toList())
-        val noInternet = !network.validated && (wifi || cellular)
+        val noInternet = (!network.validated && (wifi || cellular)) || noDefaultNetwork
         return DuoContent(
             battery, wifiLevel, label, sub.normalizedLevel,
             noService, noInternet,

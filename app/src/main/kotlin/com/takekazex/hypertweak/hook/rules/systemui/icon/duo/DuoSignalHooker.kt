@@ -95,7 +95,7 @@ object DuoSignalHooker : StaticHooker() {
         val stacked: IconSvgRenderer.Document
     )
     private var cellularSignalAssets: CellularSignalAssets? = null
-    private val aodCellularPictures = LinkedHashMap<List<Int>, Picture>()
+    private val aodCellularPictures = LinkedHashMap<Pair<List<Int>, Boolean>, Picture>()
     // Only applicationContext is retained, for restoring the host flow after a reload.
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var wifiContext: Context? = null
@@ -650,14 +650,15 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun renderAodCellularSignal(context: Context, content: DuoContent): Picture? {
         if (content.airplaneMode || content.wifiLevel != null ||
-            (content.networkLabel == null && !content.noService)) return null
+            (content.networkLabel == null && !content.noService && !content.hollowCellularSignal)) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
+        val key = levels to content.hollowCellularSignal
         synchronized(aodCellularPictures) {
-            aodCellularPictures[levels]?.let { return it }
+            aodCellularPictures[key]?.let { return it }
             val picture = renderCellularSignal(context, content) ?: return null
             if (aodCellularPictures.size >= 32) aodCellularPictures.remove(aodCellularPictures.keys.first())
-            aodCellularPictures[levels] = picture
+            aodCellularPictures[key] = picture
             return picture
         }
     }
@@ -693,12 +694,13 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun renderCellularSignal(context: Context, content: DuoContent): Picture? {
         if (content.airplaneMode || content.wifiLevel != null ||
-            (content.networkLabel == null && !content.noService)) return null
+            (content.networkLabel == null && !content.noService && !content.hollowCellularSignal)) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
         val assets = loadCellularSignalAssets(context) ?: return null
         return runCatching {
-            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels)
+            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
+                hollow = content.hollowCellularSignal)
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
@@ -925,9 +927,9 @@ object DuoSignalHooker : StaticHooker() {
                     append(", Airplane mode")
                 } else {
                     append(", ")
-                    append(content.networkLabel ?: "Wi-Fi ${content.wifiLevel}/4")
+                    append(content.networkLabel ?: content.wifiLevel?.let { "Wi-Fi $it/4" } ?: "Cellular")
                     append(", SIM ${if (content.noService) "0" else content.mobileLevel}/4")
-                    if (content.noInternet) append(", !")
+                    if (content.noInternet) append(", No internet")
                 }
             }
             // Charging animates the retained battery into the island (alpha/scale/translation).

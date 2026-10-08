@@ -45,17 +45,7 @@ internal class LeftPanelMotion {
             val outerSave = canvas.save()
             try {
                 canvas.translate(centerX - drawWidth / 2f, centerY - drawHeight / 2f)
-                canvas.scale(drawWidth / view.width, drawHeight / view.height)
-                if (layerAlpha >= 255) {
-                    view.draw(canvas)
-                } else {
-                    @Suppress("DEPRECATION")
-                    val alphaSave = canvas.saveLayerAlpha(
-                        0f, 0f, view.width.toFloat(), view.height.toFloat(), layerAlpha
-                    )
-                    view.draw(canvas)
-                    canvas.restoreToCount(alphaSave)
-                }
+                PanelSourceGlyph.draw(canvas, view, drawWidth, drawHeight, layerAlpha)
                 if (!frameReady) {
                     frameReady = true
                     host?.postInvalidateOnAnimation()

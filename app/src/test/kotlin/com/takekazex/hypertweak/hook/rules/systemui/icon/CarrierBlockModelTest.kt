@@ -340,15 +340,19 @@ class CarrierBlockModelTest {
     }
 
     @Test
-    fun handoverFollowsTheHostProgressAndHandsOverInTheLastQuarter() {
+    fun handoverTravelAndNativeAppearanceHaveIndependentClocks() {
         assertEquals(0f, CarrierHandover.travel(0f), 0f)
         assertEquals(0.5f, CarrierHandover.travel(0.5f), 0f)
         assertEquals(1f, CarrierHandover.travel(2f), 0f)
 
-        assertEquals(1f, CarrierHandover.overlayFraction(0.5f), 0f)
-        assertEquals(0f, CarrierHandover.overlayFraction(1f), 0f)
-        assertEquals(0f, CarrierHandover.destinationAlpha(0.5f), 0f)
-        assertEquals(1f, CarrierHandover.destinationAlpha(1f), 0f)
+        // Dragging almost to the endpoint must retain the status-bar glyph while the native
+        // fake row is still opaque. Only the separate appearance animation may fade it.
+        assertEquals(0.95f, CarrierHandover.travel(0.95f), 0f)
+        assertEquals(1f, CarrierHandover.overlayFraction(1f), 0f)
+        assertEquals(0.4f, CarrierHandover.overlayFraction(0.4f), 0f)
+        assertEquals(0f, CarrierHandover.overlayFraction(0f), 0f)
+        assertEquals(1f, CarrierHandover.overlayFraction(2f), 0f)
+        assertEquals(0f, CarrierHandover.overlayFraction(-1f), 0f)
         assertTrue(CarrierHandover.handedOver(0.5f))
         assertFalse(CarrierHandover.handedOver(0f))
         assertFalse(CarrierHandover.handedOver(1f))

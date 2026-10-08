@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import android.graphics.Color
 import android.graphics.Picture
 import android.graphics.RectF
 import android.view.View
@@ -90,6 +89,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         }
         if (endpoints.any { it == null }) { clearLayers(); return }
         val drawable = source.drawable ?: run { clearLayers(); return }
+        val appearance = fakeRow?.takeIf { it.isAttachedToWindow } ?: run { clearLayers(); return }
         var allReady = true
         val used = rows.map { it.subId }.toSet()
         motions.keys.toList().filter { it !in used }.forEach(::release)
@@ -113,9 +113,11 @@ internal class StackedPanelMotion(private val callback: Any) {
             val originY = sourceBounds.top
             sourceBounds.top = originY + height * top
             sourceBounds.bottom = originY + height * bottom
-            val tint = (read(source, "mDrawableColor") as? Int)?.takeIf { it != 0 } ?: Color.WHITE
+            // Replay this SIM's region of the bound home icon. mDrawableColor is not the
+            // module bitmap's actual ImageView filter, so reconstructing a tint here is lossy.
             val ready = motions.getOrPut(row.subId) { SignalRowMotion() }.update(host, source,
-                sourceBounds, target, commands, crop, tint, progress)
+                sourceBounds, target, commands, crop, color = 0, progress = progress,
+                sourceGlyph = source, sourceAppearanceAlpha = appearance.alpha)
             allReady = allReady && ready
         }
         if (allReady) {

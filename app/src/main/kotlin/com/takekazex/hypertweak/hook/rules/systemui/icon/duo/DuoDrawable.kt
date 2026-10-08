@@ -88,7 +88,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         val side = min(bounds.width(), bounds.height()).toFloat()
         if (side <= 0f) return
         val cellular = !networkOnly && !batteryOnly && state.wifiLevel == null &&
-            (state.networkLabel != null || state.noService)
+            (state.networkLabel != null || state.noService || state.hollowCellularSignal)
         val compactRing = !networkOnly
         val save = canvas.save()
         try {
@@ -134,7 +134,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
                 state.wifiLevel != null && !hideSignalDots) {
                 drawSignalDots(canvas, state)
             }
-            if (!hideNetwork && !batteryOnly && state.noInternet) drawNoInternet(canvas, cellular)
         } finally {
             canvas.restoreToCount(save)
         }
@@ -457,14 +456,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         }
     }
 
-    private fun drawNoInternet(canvas: Canvas, cellular: Boolean) {
-        paint.style = Paint.Style.FILL
-        colorOf(foreground)
-        paint.textSize = NO_INTERNET_TEXT_SIZE
-        canvas.drawText("!", if (cellular) CELLULAR_NO_INTERNET_X else 23.6f,
-            if (cellular) CELLULAR_NO_INTERNET_Y else 13.8f, paint)
-    }
-
     private fun colorOf(value: Int, fraction: Float = 1f) {
         paint.color = value
         paint.alpha = (Color.alpha(value) * opacity / 255f * fraction.coerceIn(0f, 1f))
@@ -525,8 +516,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         const val COMPACT_RING_CENTER_Y = 14.8f
         const val CELL_SIGNAL_SIZE = 18f
         const val CELL_SIGNAL_CENTER_Y = 15.0f
-        const val CELLULAR_NO_INTERNET_X = 25.5f
-        const val CELLULAR_NO_INTERNET_Y = 7.5f
 
         const val SIGNAL_BAR_LEFT = 8.1f
         const val SIGNAL_BAR_PITCH = 4.0f
@@ -544,7 +533,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         const val BATTERY_TERMINAL_HEIGHT = 3.2f
         const val FALLBACK_BATTERY_RATIO = 1.8f
 
-        const val NO_INTERNET_TEXT_SIZE = 6.2f
 
         const val SIGNAL_DOT_COUNT = 4
         const val SIGNAL_DOT_RADIUS = 1.35f

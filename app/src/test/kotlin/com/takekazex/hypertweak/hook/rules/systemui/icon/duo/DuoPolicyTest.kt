@@ -93,6 +93,35 @@ class DuoPolicyTest {
         assertEquals(4, result.mobileLevel)
     }
 
+    @Test fun systemWifiFallbackUsesCellularEvenWithStaleWifiState() {
+        val wifi = DuoNetwork(DuoTransport.WIFI, false, 4, true)
+        assertFalse(DuoPolicy.content(battery, mobile(), wifi)!!.hollowCellularSignal)
+        val fallback = DuoPolicy.content(battery, mobile(), wifi.copy(
+            transport = DuoTransport.CELLULAR, validated = true))!!
+        assertNull(fallback.wifiLevel)
+        assertEquals("5G-A", fallback.networkLabel)
+        assertFalse(fallback.hollowCellularSignal)
+        assertEquals(listOf(4, 1), fallback.cellularSignalLevels)
+    }
+
+    @Test fun unreachableCellularUsesHollowSignalAndRecoversRealLevels() {
+        val unreachable = DuoPolicy.content(battery, mobile(), cellular.copy(validated = false))!!
+        assertTrue(unreachable.hollowCellularSignal)
+        assertEquals("5G-A", unreachable.networkLabel)
+        assertEquals(listOf(4, 1), unreachable.cellularSignalLevels)
+        val withoutType = DuoPolicy.content(battery,
+            mobile().reduce(MobileSignalEvent.NetworkType(11, null)), cellular.copy(validated = false))!!
+        assertTrue(withoutType.hollowCellularSignal)
+        assertNull(withoutType.networkLabel)
+        val lost = DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.NONE, wifiLevel = 4))!!
+        assertNull(lost.wifiLevel)
+        assertNull(lost.networkLabel)
+        assertTrue(lost.hollowCellularSignal)
+        val recovered = DuoPolicy.content(battery, mobile(), cellular)!!
+        assertFalse(recovered.hollowCellularSignal)
+        assertEquals(unreachable.cellularSignalRows, recovered.cellularSignalRows)
+    }
+
     @Test fun wifiDotsRetainTheActiveDataSimForTheirHandoff() {
         val wifi = DuoNetwork(DuoTransport.WIFI, true, 4)
         val before = DuoPolicy.content(battery, mobile(), wifi)!!
@@ -107,7 +136,7 @@ class DuoPolicyTest {
         // Wi-Fi transport without a host level means the host model is not ready yet.
         assertNull(DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.WIFI, true)))
         // A radio strength value cannot invent a default route.
-        for (type in listOf(DuoTransport.NONE, DuoTransport.UNKNOWN, DuoTransport.OTHER)) {
+        for (type in listOf(DuoTransport.UNKNOWN, DuoTransport.OTHER)) {
             assertNull(DuoPolicy.content(battery, mobile(), DuoNetwork(type, true, 4)))
         }
     }
@@ -128,7 +157,7 @@ class DuoPolicyTest {
         val offline = mobile().reduce(MobileSignalEvent.InService(11, false))
         val noService = DuoPolicy.content(battery, offline, DuoNetwork(DuoTransport.NONE, false))!!
         assertTrue(noService.noService)
-        assertFalse(noService.noInternet)
+        assertTrue(noService.hollowCellularSignal)
     }
 
     @Test fun vpnUsesHostDefaultRouteRatherThanWifiAssociation() {

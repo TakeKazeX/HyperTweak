@@ -1405,9 +1405,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     /**
      * Carries the trailing network glyph through the same hand-over as Duo's middle Wi-Fi layer:
-     * an overlay follows the host's expansion fraction from the collapsed status row into the label
-     * row, and the label's own glyph fades in during the last quarter. The collapsed copy is
-     * alpha-suppressed only after the overlay has produced a frame.
+     * expansion moves the native status-bar source into the label row. Appearance opacity follows
+     * the host fake-row/carrier-layout crossfade, preserving the source palette while dragging.
+     * The source copy is alpha-suppressed only after the overlay has produced a frame.
      */
     private fun applyHandover(value: Float) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -1436,18 +1436,16 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             if (!block.compact || !block.layout.isShown) continue
             for (parts in block.rows) {
                 val model = parts.model ?: continue
-                val tint = parts.carrierText.currentTextColor
-                val entries = ArrayList<Pair<ImageView, Pair<View?, Bitmap>>>(2)
-                parts.wifiBitmap?.takeIf { parts.wifiReady }?.let { bitmap ->
-                    entries += parts.wifi to (sourceGlyph(block, wifi = true, subId = null) to bitmap)
+                val entries = ArrayList<Pair<ImageView, View?>>(2)
+                parts.wifiBitmap?.takeIf { parts.wifiReady }?.let {
+                    entries += parts.wifi to sourceGlyph(block, wifi = true, subId = null)
                 }
                 // A suppressed type stays out of the hand-over: its glyph is faded out on purpose,
                 // and the overlay would otherwise draw it at full alpha while the panel opens.
-                parts.typeBitmap?.takeIf { parts.cellularReady && !parts.typeSuppressed }?.let { bitmap ->
-                    entries += parts.type to (sourceGlyph(block, wifi = false, subId = model.subId) to bitmap)
+                parts.typeBitmap?.takeIf { parts.cellularReady && !parts.typeSuppressed }?.let {
+                    entries += parts.type to sourceGlyph(block, wifi = false, subId = model.subId)
                 }
-                for ((target, glyph) in entries) {
-                    val (source, bitmap) = glyph
+                for ((target, source) in entries) {
                     if (target in duoTargets || target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
                     if (source == null) {
                         motions.remove(target)?.clear()
@@ -1457,10 +1455,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     val root = target.rootView as? ViewGroup ?: continue
                     val motion = motions[target] ?: CarrierTypeMotion().also { motions[target] = it }
                     parts.networkFade.lease(target, true)
-                    val ready = motion.update(root, source, target, bitmap, tint, clamped)
+                    val ready = motion.update(root, source, target, clamped, sourceAppearanceAlpha(source))
                     used += target
                     sources += source
-                    target.alpha = if (ready) CarrierHandover.destinationAlpha(clamped) else 1f
+                    // The carrier layout already receives the native appearance fade. A second
+                    // progress-based fade would switch palettes while the finger is still moving.
+                    target.alpha = 1f
                     suppressEndpoint(source, ready)
                 }
             }
@@ -1511,15 +1511,19 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         ) {
             glyphIn(fakeRow, wifi, subId)?.let { return it }
         }
-        // At rest the fake row is gone and the real row owns the glyph, so this is the row a settle
-        // ramp has to travel from.
-        val realRow = if (statusBarId != 0) {
-            header.findViewById<View>(statusBarId) as? ViewGroup
-        } else {
-            null
+        // The expanded row has its own palette. If the status-bar mirror is unavailable,
+        // leave the native appearance transition in charge instead of inventing a source color.
+        return null
+    }
+
+    /** The fake row is the native color/opacity owner during the drag, even when alpha-masked. */
+    private fun sourceAppearanceAlpha(source: View): Float {
+        var parent = source.parent as? View
+        while (parent != null) {
+            if (parent.id == fakeStatusBarId) return parent.alpha
+            parent = parent.parent as? View
         }
-        if (realRow == null || !realRow.isAttachedToWindow) return null
-        return glyphIn(realRow, wifi, subId)
+        return 1f
     }
 
     private fun glyphIn(row: ViewGroup, wifi: Boolean, subId: Int?): View? {
