@@ -3,6 +3,8 @@
 
 package com.takekazex.hypertweak.ui.liquid
 
+// Adapted from Kyant0/AndroidLiquidGlass — https://github.com/Kyant0/AndroidLiquidGlass (Apache 2.0).
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.MutatorMutex
@@ -26,7 +28,6 @@ import androidx.compose.ui.util.fastFirstOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -42,6 +43,7 @@ internal class DampedDragAnimation(
     val canDrag: (Offset) -> Boolean = { true },
     val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     val onDragStopped: DampedDragAnimation.() -> Unit,
+    val onDragCancelled: DampedDragAnimation.() -> Unit = onDragStopped,
     val onDrag: DampedDragAnimation.(size: IntSize, dragAmount: Offset) -> Unit,
 ) {
 
@@ -86,7 +88,7 @@ internal class DampedDragAnimation(
                 release()
             },
             onDragCancel = {
-                onDragStopped()
+                onDragCancelled()
                 release()
             },
         ) { change, dragAmount ->
@@ -115,9 +117,7 @@ internal class DampedDragAnimation(
             withFrameMillis { }
             if (value != targetValue) {
                 val threshold = (valueRange.endInclusive - valueRange.start) * 0.025f
-                snapshotFlow { valueAnimation.value }
-                    .filter { abs(it - valueAnimation.targetValue) < threshold }
-                    .first()
+                snapshotFlow { valueAnimation.value }.first { abs(it - valueAnimation.targetValue) < threshold }
             }
             launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
             launch { scaleXAnimation.animateTo(initialScale, scaleXAnimationSpec) }
@@ -131,30 +131,6 @@ internal class DampedDragAnimation(
             valueAnimation.animateTo(targetValue, valueAnimationSpec) { updateVelocity() }
         }
     }
-
-    fun snapToValue(value: Float) {
-        animationScope.launch {
-            mutatorMutex.mutate {
-                val targetValue = value.coerceIn(valueRange)
-                valueAnimation.snapTo(targetValue)
-                if (velocity != 0f) {
-                    velocityAnimation.snapTo(0f)
-                }
-            }
-        }
-    }
-
-    fun updatePressProgress(progress: Float) {
-        animationScope.launch {
-            mutatorMutex.mutate {
-                pressProgressAnimation.snapTo(progress)
-                val targetScale = initialScale + (pressedScale - initialScale) * progress
-                scaleXAnimation.snapTo(targetScale)
-                scaleYAnimation.snapTo(targetScale)
-            }
-        }
-    }
-
 
     fun animateToValue(value: Float) {
         animationScope.launch {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.effect.appTextureBlur
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.update.UpdateManager
@@ -36,9 +37,9 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import com.takekazex.hypertweak.ui.effect.AppSmallTopAppBar as SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -95,6 +96,9 @@ fun AboutPage(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
+        // Sample the unfiltered animated background. Capturing the full page would feed the
+        // already blurred project card into a second, differently sized top-bar blur.
+        topBarBackdrop = localBackdrop,
         topBar = {
             AboutTopBar(
                 scrollProgressProvider = { scrollProgress },
@@ -330,7 +334,7 @@ fun AboutPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp)
-                                .textureBlur(
+                                .appTextureBlur(
                                     backdrop = localBackdrop,
                                     shape = RoundedCornerShape(16.dp),
                                     blurRadius = 25f,
@@ -385,6 +389,7 @@ private fun AboutTopBar(
     SmallTopAppBar(
         title = stringResource(R.string.about_title),
         scrollBehavior = topAppBarScrollBehavior,
+        blurEnabled = scrollProgress == 1f,
         color = MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f),
         titleColor = MiuixTheme.colorScheme.onSurface.copy(
             alpha = ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)

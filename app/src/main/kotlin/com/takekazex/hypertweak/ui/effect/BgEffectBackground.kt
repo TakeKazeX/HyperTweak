@@ -3,12 +3,17 @@
 
 package com.takekazex.hypertweak.ui.effect
 
+import androidx.lifecycle.compose.currentStateAsState
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -54,6 +59,12 @@ fun BgEffectBackground(
     alpha: () -> Float = { 1f },
     content: @Composable (BoxScope.() -> Unit),
 ) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val resumed by lifecycleOwner.lifecycle.currentStateAsState()
+    val inForeground = resumed.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    val alphaProvider = rememberUpdatedState(alpha)
+    val visible by remember { derivedStateOf { alphaProvider.value() > 0f } }
+    val playing = dynamicBackground && effectBackground && inForeground && visible
     val shaderSupported = remember { isRuntimeShaderSupported() }
     if (!shaderSupported) {
         Box(modifier = modifier, content = content)
@@ -73,8 +84,8 @@ fun BgEffectBackground(
 
         val colorStage = remember { Animatable(0f) }
 
-        LaunchedEffect(dynamicBackground, preset) {
-            if (!dynamicBackground) return@LaunchedEffect
+        LaunchedEffect(playing, preset) {
+            if (!playing) return@LaunchedEffect
             val animatesColors = preset.colors1 !== preset.colors2 || preset.colors2 !== preset.colors3
             if (!animatesColors) return@LaunchedEffect
 
@@ -101,7 +112,7 @@ fun BgEffectBackground(
                     surface = surface,
                     effectBackground = effectBackground,
                     isFullSize = isFullSize,
-                    playing = dynamicBackground,
+                    playing = playing,
                     colorStage = { colorStage.value },
                     alpha = alpha,
                 ),

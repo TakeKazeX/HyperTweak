@@ -1490,4 +1490,9 @@
     <string name="icon_cc_rows_summary">双层布局下生效，电池固定第一排；隐藏和左置仍沿用原设置。修改后需重启系统界面。</string>
     <string name="icon_cc_row_first">第一排</string>
     <string name="icon_cc_row_second">第二排</string>
+    <string name="appearance_global_blur">全局模糊</string>
+    <string name="appearance_blur_off">关闭模糊</string>
+    <string name="appearance_blur_uniform">模糊</string>
+    <string name="appearance_blur_progressive">渐进性模糊</string>
+    <string name="restart_scope_loading">正在加载作用域…</string>
 </resources>

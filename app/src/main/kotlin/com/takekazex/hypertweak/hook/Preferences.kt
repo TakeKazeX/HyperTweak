@@ -267,6 +267,7 @@ object Preferences {
      * × 1 row) instead of the small tile view.
      */
     const val KEY_CC_TILE_CARD_SPECS = "systemui_control_center_tile_card_specs"
+    const val KEY_APP_BLUR_MODE = "app_blur_mode"
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"

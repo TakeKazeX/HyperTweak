@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
+
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -34,6 +37,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AppearancePage(
+    appBlurMode: Int,
+    onAppBlurModeChange: (Int) -> Unit,
     onBack: () -> Unit,
     themeMode: Int,
     onThemeModeChange: (Int) -> Unit,
@@ -234,6 +239,16 @@ fun AppearancePage(
 
             SmallTitle(stringResource(R.string.appearance_display))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.appearance_global_blur),
+                    items = listOf(
+                        stringResource(R.string.appearance_blur_off),
+                        stringResource(R.string.appearance_blur_uniform),
+                        stringResource(R.string.appearance_blur_progressive),
+                    ),
+                    selectedIndex = appBlurMode.coerceIn(0, 2),
+                    onSelectedIndexChange = onAppBlurModeChange,
+                )
                 var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
                 var expanded by remember { mutableStateOf(false) }
                 ArrowPreference(

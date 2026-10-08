@@ -11,22 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.navigation3.runtime.NavEntryDecorator
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.scene.SinglePaneSceneStrategy
-import androidx.navigation3.scene.SceneInfo
-import androidx.navigation3.scene.rememberSceneState
-import androidx.navigation3.ui.NavDisplay
-import androidx.navigation3.ui.defaultPopTransitionSpec
-import androidx.navigation3.ui.defaultPredictivePopTransitionSpec
-import androidx.navigation3.ui.defaultTransitionSpec
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberDecoratedNavEntries
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.NavigationEventTransitionState
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
-import androidx.navigationevent.compose.NavigationEventState
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.saveKey
 import com.takekazex.hypertweak.ui.page.routeFromSaveKey
@@ -62,17 +46,19 @@ import com.takekazex.hypertweak.ui.page.AppearancePage
 import com.takekazex.hypertweak.ui.page.ScopePromptsPage
 import com.takekazex.hypertweak.ui.page.BackupRestorePage
 import com.takekazex.hypertweak.ui.page.UpdatePage
-import com.takekazex.hypertweak.ui.effect.scalePredictiveBackDecorator
-import com.takekazex.hypertweak.ui.effect.PredictiveBackAnimState
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.update.UpdateManager
+import top.yukonga.miuix.kmp.nav.core.*
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
+import com.takekazex.hypertweak.ui.effect.scaleBackTransition
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import kotlinx.coroutines.launch
 
 @Composable
 fun HyperTweakNavContainer(
+    appBlurMode: Int,
+    onAppBlurModeChange: (Int) -> Unit,
     // Theme & Navigation States
     themeMode: Int,
     onThemeModeChange: (Int) -> Unit,
@@ -224,56 +210,41 @@ fun HyperTweakNavContainer(
     updateManager: UpdateManager,
     snackbarHostState: SnackbarHostState
 ) {
-    val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
+    val mainPagerState = com.takekazex.hypertweak.ui.liquid.rememberMainPagerState(pagerState)
+    LaunchedEffect(mainPagerState.pagerState.currentPage) {
+        mainPagerState.syncPage()
+    }
     // Persist the back stack across process death: routes are data objects, so serialize them to
     // their stable keys and rebuild the observable list on restore. Falls back to [Route.Main] if
     // nothing (or only unknown keys) was saved, keeping the same initial entry as a fresh launch.
     val backStack = rememberSaveable(
         saver = listSaver(
-            save = { stack -> stack.map { it.saveKey } },
+            save = { stack -> stack.map { (it as Route).saveKey } },
             restore = { keys ->
-                keys.mapNotNull(::routeFromSaveKey)
+                keys.mapNotNull { routeFromSaveKey(it) as NavKey? }
                     .ifEmpty { listOf(Route.Main) }
                     .toMutableStateList()
             }
         )
-    ) { mutableStateListOf<Route>(Route.Main) }
+    ) { mutableStateListOf<NavKey>(Route.Main) }
 
-    val isPagerBackHandlerEnabled by remember(backStack, pagerState.currentPage) {
+    val navController = remember(backStack) { NavController(backStack) }
+
+    val isPagerBackHandlerEnabled by remember(backStack, mainPagerState.selectedPage) {
         derivedStateOf {
-            backStack.lastOrNull() is Route.Main && backStack.size == 1 && pagerState.currentPage != 0
+            backStack.lastOrNull() is Route.Main && backStack.size == 1 && mainPagerState.selectedPage != 0
         }
     }
 
-    val navEventState = rememberNavigationEventState(NavigationEventInfo.None)
-
-    val firstBackCompleted: () -> Unit = {
-        android.util.Log.d("HyperTweak", "First back completed. Pager scrolling to 0.")
-        coroutineScope.launch {
-            pagerState.scrollToPage(0)
-        }
+    BackHandler(enabled = isPagerBackHandlerEnabled) {
+        mainPagerState.animateToPage(0)
     }
 
-    NavigationBackHandler(
-        state = navEventState,
-        isBackEnabled = isPagerBackHandlerEnabled,
-        onBackCompleted = firstBackCompleted
-    )
-
-    // Scale predictive back states
-    var exitingPageKey by remember { mutableStateOf<String?>(null) }
-    val exitAnimatable = remember { Animatable(0f) }
-    // Non-Compose-state ref — avoids recomposition racing when navigating back
-    // during an active enter transition (matches InstallerX's approach)
-    val predictiveBackAnimState = remember { PredictiveBackAnimState() }
-
-    var gestureState: NavigationEventState<SceneInfo<Route>>? = null
-
-    val entryProvider = entryProvider<Route> {
+    val entryProvider: NavEntryBuilder.() -> Unit = {
         entry<Route.Main> {
             MainPagerScreen(
-                pagerState = pagerState,
+                mainPagerState = mainPagerState,
                 useFloatingBottomBar = useFloatingBottomBar,
                 floatingBarStyle = floatingBarStyle,
                 backdrop = backdrop,
@@ -286,13 +257,13 @@ fun HyperTweakNavContainer(
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemUi = {
-                    backStack.add(Route.SystemUi)
+                    navController.push(Route.SystemUi)
                 },
                 onNavigateToDownloadManager = {
-                    backStack.add(Route.DownloadManager)
+                    navController.push(Route.DownloadManager)
                 },
                 onNavigateToSecurityCenter = {
-                    backStack.add(Route.SecurityCenter)
+                    navController.push(Route.SecurityCenter)
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
@@ -339,49 +310,49 @@ fun HyperTweakNavContainer(
                 pageScale = pageScale,
                 onPageScaleChange = onPageScaleChange,
                 onNavigateToAbout = {
-                    backStack.add(Route.About)
+                    navController.push(Route.About)
                 },
                 onNavigateToAppearance = {
-                    backStack.add(Route.Appearance)
+                    navController.push(Route.Appearance)
                 },
                 onNavigateToScopePrompts = {
-                    backStack.add(Route.ScopePrompts)
+                    navController.push(Route.ScopePrompts)
                 },
                 onNavigateToBackupRestore = {
-                    backStack.add(Route.BackupRestore)
+                    navController.push(Route.BackupRestore)
                 },
                 onNavigateToHiddenFeatures = {
-                    backStack.add(Route.HiddenFeatures)
+                    navController.push(Route.HiddenFeatures)
                 },
                 onNavigateToAppShortcuts = {
-                    backStack.add(Route.AppShortcuts)
+                    navController.push(Route.AppShortcuts)
                 },
                 onNavigateToAospRestore = {
-                    backStack.add(Route.AospRestore)
+                    navController.push(Route.AospRestore)
                 },
                 onNavigateToGoogleServices = {
-                    backStack.add(Route.GoogleServices)
+                    navController.push(Route.GoogleServices)
                 },
                 onNavigateToIconTuner = {
-                    backStack.add(Route.IconTuner)
+                    navController.push(Route.IconTuner)
                 },
                 onNavigateToGlassTuner = {
-                    backStack.add(Route.GlassTuner)
+                    navController.push(Route.GlassTuner)
                 },
                 onNavigateToCameraWatermark = {
-                    backStack.add(Route.CameraWatermark)
+                    navController.push(Route.CameraWatermark)
                 },
                 onNavigateToExperimentalFeatures = {
-                    backStack.add(Route.ExperimentalFeatures)
+                    navController.push(Route.ExperimentalFeatures)
                 },
                 onNavigateToControlCenterCorner = {
-                    backStack.add(Route.ControlCenterCorner)
+                    navController.push(Route.ControlCenterCorner)
                 },
                 onNavigateToControlCenterResize = {
-                    backStack.add(Route.ControlCenterResize)
+                    navController.push(Route.ControlCenterResize)
                 },
                 onNavigateToBatteryInfo = {
-                    backStack.add(Route.BatteryInfo)
+                    navController.push(Route.BatteryInfo)
                 },
                 onHotReload = onHotReload,
                 onRestartAllScopes = onRestartAllScopes,
@@ -393,7 +364,9 @@ fun HyperTweakNavContainer(
         }
         entry<Route.Appearance> {
             AppearancePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                appBlurMode = appBlurMode,
+                onAppBlurModeChange = onAppBlurModeChange,
+                onBack = { navController.pop() },
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,
@@ -418,12 +391,12 @@ fun HyperTweakNavContainer(
         }
         entry<Route.ScopePrompts> {
             ScopePromptsPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.BackupRestore> {
             BackupRestorePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onBack = { navController.pop() },
                 onClearAllSettings = onClearAllSettings,
                 onSettingsRestored = onSettingsRestored
             )
@@ -431,90 +404,90 @@ fun HyperTweakNavContainer(
         entry<Route.About> {
             AboutPage(
                 onBack = {
-                    if (backStack.size > 1) backStack.removeLast()
+                    navController.pop()
                 },
                 onViewSourceCode = onViewSourceCode,
                 onJoinTelegramGroup = onJoinTelegramGroup,
                 onNavigateToCredits = {
-                    backStack.add(Route.Credits)
+                    navController.push(Route.Credits)
                 },
                 onNavigateToDebug = {
-                    backStack.add(Route.Debug)
+                    navController.push(Route.Debug)
                 },
                 onNavigateToUpdate = {
-                    backStack.add(Route.Update)
+                    navController.push(Route.Update)
                 },
                 updateManager = updateManager
             )
         }
         entry<Route.Update> {
             UpdatePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onBack = { navController.pop() },
                 manager = updateManager
             )
         }
         entry<Route.Credits> {
             CreditsPage(
                 onBack = {
-                    if (backStack.size > 1) backStack.removeLast()
+                    navController.pop()
                 }
             )
         }
         entry<Route.HiddenFeatures> {
             HiddenFeaturesPage(
                 onBack = {
-                    if (backStack.size > 1) backStack.removeLast()
+                    navController.pop()
                 },
                 onNavigateToDeveloperSettings = {
-                    backStack.add(Route.DeveloperSettings)
+                    navController.push(Route.DeveloperSettings)
                 }
             )
         }
         entry<Route.AppShortcuts> {
             AppShortcutsPage(
                 onBack = {
-                    if (backStack.size > 1) backStack.removeLast()
+                    navController.pop()
                 },
                 onShortcutsChanged = onShortcutsChanged
             )
         }
         entry<Route.AospRestore> {
             AospRestorePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToAospIme = { backStack.add(Route.AospIme) },
+                onBack = { navController.pop() },
+                onNavigateToAospIme = { navController.push(Route.AospIme) },
                 settingsGlobalInterface = settingsGlobalInterface,
                 onSettingsGlobalInterfaceChange = onSettingsGlobalInterfaceChange
             )
         }
         entry<Route.SecurityCenter> {
             SecurityCenterPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToPowerSave = { backStack.add(Route.PowerSave) }
+                onBack = { navController.pop() },
+                onNavigateToPowerSave = { navController.push(Route.PowerSave) }
             )
         }
         entry<Route.AospIme> {
             AospImePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.IconTuner> {
             IconTunerPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToIconOrder = { backStack.add(Route.IconOrder) },
-                onNavigateToIconRows = { backStack.add(Route.ControlCenterIconRows) }
+                onBack = { navController.pop() },
+                onNavigateToIconOrder = { navController.push(Route.IconOrder) },
+                onNavigateToIconRows = { navController.push(Route.ControlCenterIconRows) }
             )
         }
         entry<Route.ControlCenterIconRows> {
-            ControlCenterIconRowsPage(onBack = { if (backStack.size > 1) backStack.removeLast() })
+            ControlCenterIconRowsPage(onBack = { navController.pop() })
         }
         entry<Route.IconOrder> {
             IconOrderPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.SystemUi> {
             SystemUIPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onBack = { navController.pop() },
                 immediateMonetRefresh = immediateMonetRefresh,
                 onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,
                 aodFullscreen = aodFullscreen,
@@ -538,10 +511,10 @@ fun HyperTweakNavContainer(
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {
-                    backStack.add(Route.ChargingDetail)
+                    navController.push(Route.ChargingDetail)
                 },
                 onNavigateToLockscreenBottomText = {
-                    backStack.add(Route.LockscreenBottomText)
+                    navController.push(Route.LockscreenBottomText)
                 },
                 lockscreenAllNotifications = lockscreenAllNotifications,
                 onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
@@ -564,25 +537,25 @@ fun HyperTweakNavContainer(
                 contextualSearchLongPress = contextualSearchLongPress,
                 onContextualSearchLongPressChange = onContextualSearchLongPressChange,
                 onNavigateToNotificationHeader = {
-                    backStack.add(Route.NotificationHeader)
+                    navController.push(Route.NotificationHeader)
                 },
                 onNavigateToIconTuner = {
-                    backStack.add(Route.IconTuner)
+                    navController.push(Route.IconTuner)
                 },
-                onNavigateToAodIcons = { backStack.add(Route.AodIcons) }
+                onNavigateToAodIcons = { navController.push(Route.AodIcons) }
             )
         }
         entry<Route.AodIcons> {
-            AodIconsPage(onBack = { if (backStack.size > 1) backStack.removeLast() })
+            AodIconsPage(onBack = { navController.pop() })
         }
         entry<Route.NotificationHeader> {
             NotificationHeaderPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.DownloadManager> {
             DownloadManagerPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onBack = { navController.pop() },
                 blockDownloadXlLogDir = blockDownloadXlLogDir,
                 onBlockDownloadXlLogDirChange = onBlockDownloadXlLogDirChange,
                 alwaysShowFullLink = downloadAlwaysShowFullLink,
@@ -595,17 +568,17 @@ fun HyperTweakNavContainer(
         }
         entry<Route.GlassTuner> {
             GlassTunerPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.CameraWatermark> {
             CameraWatermarkUnlockPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.GoogleServices> {
             GoogleServicesPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
+                onBack = { navController.pop() },
                 showGoogleServicesInSettings = showGoogleServicesInSettings,
                 onShowGoogleServicesInSettingsChange = onShowGoogleServicesInSettingsChange,
                 removeGms = removeGms,
@@ -624,49 +597,49 @@ fun HyperTweakNavContainer(
         }
         entry<Route.ExperimentalFeatures> {
             ExperimentalFeaturesPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToGlassTuner = { backStack.add(Route.GlassTuner) },
-                onNavigateToDockBackground = { backStack.add(Route.DockBackground) },
-                onNavigateToControlCenterCorner = { backStack.add(Route.ControlCenterCorner) },
-                onNavigateToControlCenterResize = { backStack.add(Route.ControlCenterResize) },
+                onBack = { navController.pop() },
+                onNavigateToGlassTuner = { navController.push(Route.GlassTuner) },
+                onNavigateToDockBackground = { navController.push(Route.DockBackground) },
+                onNavigateToControlCenterCorner = { navController.push(Route.ControlCenterCorner) },
+                onNavigateToControlCenterResize = { navController.push(Route.ControlCenterResize) },
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange
             )
         }
         entry<Route.DockBackground> {
             com.takekazex.hypertweak.ui.page.DockBackgroundPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.PowerSave> {
             PowerSavePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.ChargingDetail> {
             ChargingDetailPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.LockscreenBottomText> {
             LockscreenBottomTextPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.ControlCenterCorner> {
             ControlCenterCornerPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.ControlCenterResize> {
             ControlCenterResizePage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.Debug> {
             DebugPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() },
-                onNavigateToLogs = { backStack.add(Route.DebugLogs) },
+                onBack = { navController.pop() },
+                onNavigateToLogs = { navController.push(Route.DebugLogs) },
                 hotReloading = hotReloading,
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
@@ -676,157 +649,38 @@ fun HyperTweakNavContainer(
         }
         entry<Route.DeveloperSettings> {
             DeveloperSettingsPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
         entry<Route.DebugLogs> {
             LogsPage(
                 onBack = {
-                    if (backStack.size > 1) backStack.removeLast()
+                    navController.pop()
                 }
             )
         }
         entry<Route.BatteryInfo> {
             BatteryInfoPage(
-                onBack = { if (backStack.size > 1) backStack.removeLast() }
+                onBack = { navController.pop() }
             )
         }
     }
 
-    val entryDecorators = listOf(
-        rememberSaveableStateHolderNavEntryDecorator<Route>(),
-        NavEntryDecorator<Route>(
-            onPop = { key ->
-                if (exitingPageKey == key.toString()) {
-                    exitingPageKey = null
-                }
-            }
-        ) { content ->
-            val decoratedModifier = if (predictiveBackStyle == 2) {
-                Modifier.scalePredictiveBackDecorator(
-                    transitionState = gestureState?.transitionState,
-                    contentPageKey = content.contentKey,
-                    currentPageKey = backStack.lastOrNull(),
-                    exitFollowGesture = predictiveBackFollowGesture,
-                    exitingPageKey = exitingPageKey,
-                    exitProgress = exitAnimatable.value,
-                    animState = predictiveBackAnimState
-                )
-            } else {
-                Modifier
-            }
-            Box(modifier = decoratedModifier) {
-                content.Content()
-            }
-        }
-    )
-
-    val entries = rememberDecoratedNavEntries(
-        backStack = backStack,
-        entryDecorators = entryDecorators,
-        entryProvider = entryProvider
-    )
-
-    val onBack: (() -> Unit) -> Unit = { callBack ->
-        coroutineScope.launch {
-            val isPredictiveInProgress = gestureState?.transitionState is NavigationEventTransitionState.InProgress
-            // Gate exitingPageKey exactly like InstallerX:
-            // only trigger the exit slide animation when a real predictive gesture was actually running
-            if (predictiveBackStyle == 2 && isPredictiveInProgress && predictiveBackAnimState.inPredictiveBackAnimation) {
-                exitingPageKey = backStack.lastOrNull()?.toString()
-                exitAnimatable.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(
-                        durationMillis = 200,
-                        easing = FastOutSlowInEasing
-                    )
-                )
-                exitAnimatable.snapTo(0f)
-            }
-            callBack()
-            if (backStack.size > 1) {
-                backStack.removeLast()
-            }
-        }
+    val scaleTransition = remember(predictiveBackFollowGesture) {
+        scaleBackTransition(predictiveBackFollowGesture)
     }
-
-    val sceneState = rememberSceneState(
-        entries = entries,
-        sceneStrategies = listOf(SinglePaneSceneStrategy()),
-        sceneDecoratorStrategies = emptyList(),
-        sharedTransitionScope = null,
-        onBack = { onBack {} }
-    )
-
-    val currentInfo = SceneInfo(sceneState.currentScene)
-    val previousSceneInfos = sceneState.previousScenes.map { SceneInfo(it) }
-    gestureState = rememberNavigationEventState(
-        currentInfo = currentInfo,
-        backInfo = previousSceneInfos
-    )
-
-    // Standard BackHandler to definitively intercept back on sub-pages
-    BackHandler(enabled = backStack.size > 1 && predictiveBackStyle == 0) {
-        android.util.Log.d("HyperTweak", "BackHandler fired. backStack size = ${backStack.size}")
-        onBack {}
-    }
-
-    NavigationBackHandler(
-        state = gestureState,
-        isBackEnabled = backStack.size > 1 && predictiveBackStyle != 0,
-        onBackCompleted = { callBack ->
-            android.util.Log.d("HyperTweak", "Second NavigationBackHandler completed. backStack size = ${backStack.size}")
-            onBack(callBack)
-        },
-        onBackCancelled = { callBack ->
-            callBack()
-        }
-    )
-
     NavDisplay(
-        sceneState = sceneState,
-        navigationEventState = gestureState,
-        transitionSpec = {
-            if (predictiveBackStyle == 2) {
-                ContentTransform(
-                    targetContentEnter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                    initialContentExit = slideOutHorizontally(targetOffsetX = { -it / 4 }) + fadeOut(),
-                    sizeTransform = null
-                )
-            } else {
-                defaultTransitionSpec<Route>().invoke(this)
-            }
+        backStack = backStack,
+        onBack = { navController.pop() },
+        transition = when (predictiveBackStyle) {
+            0 -> NavTransitions.None
+            2 -> scaleTransition
+            else -> NavTransitions.MiuixDefault
         },
-        predictivePopTransitionSpec = { swipeEdge ->
-            if (predictiveBackStyle == 2 || predictiveBackStyle == 0) {
-                ContentTransform(
-                    targetContentEnter = EnterTransition.None,
-                    initialContentExit = ExitTransition.None,
-                    sizeTransform = null
-                )
-            } else {
-                defaultPredictivePopTransitionSpec<Route>().invoke(this, swipeEdge)
-            }
-        },
-        popTransitionSpec = {
-            if (predictiveBackStyle == 2) {
-                // If it's finishing a predictive back gesture, return None to avoid the double transition jump.
-                if (exitingPageKey != null) {
-                    ContentTransform(
-                        targetContentEnter = EnterTransition.None,
-                        initialContentExit = ExitTransition.None,
-                        sizeTransform = null
-                    )
-                } else {
-                    ContentTransform(
-                        targetContentEnter = slideInHorizontally(initialOffsetX = { -it / 4 }) + fadeIn(),
-                        initialContentExit = scaleOut(targetScale = 0.9f) + fadeOut(),
-                        sizeTransform = null
-                    )
-                }
-            } else {
-                defaultPopTransitionSpec<Route>().invoke(this)
-            }
-        }
+        effects = if (predictiveBackStyle == 0) NavDisplayEffects.None else NavDisplayEffects(
+            cornerClipRadius = rememberNavSystemCornerRadius(),
+            cornerClipMode = if (predictiveBackStyle == 2) NavCornerClipMode.All else NavCornerClipMode.Leading,
+        ),
+        content = entryProvider,
     )
 }

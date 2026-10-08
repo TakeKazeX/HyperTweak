@@ -1,19 +1,24 @@
 package com.takekazex.hypertweak.ui.page
 
+import top.yukonga.miuix.kmp.utils.pagerGestureOverride
+import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
+import top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
+
+import com.takekazex.hypertweak.ui.effect.appTextureBlur
+import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
+import com.takekazex.hypertweak.ui.effect.AppBlurMode
+import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
@@ -35,14 +40,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import com.takekazex.hypertweak.R
-import top.yukonga.miuix.kmp.basic.Scaffold
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
@@ -52,7 +56,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun MainPagerScreen(
-    pagerState: PagerState,
+    mainPagerState: com.takekazex.hypertweak.ui.liquid.MainPagerState,
     useFloatingBottomBar: Boolean,
     floatingBarStyle: Int,
     backdrop: LayerBackdrop,
@@ -133,7 +137,7 @@ fun MainPagerScreen(
     appLanguage: Int,
     onAppLanguageChange: (Int) -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val pagerState = mainPagerState.pagerState
     val contentReady = rememberContentReady()
     val isDark = isSystemInDarkTheme()
     val floatingBarShape = RoundedCornerShape(top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults.CornerRadius)
@@ -155,19 +159,16 @@ fun MainPagerScreen(
                     )
                     IosLiquidGlassNavigationBar(
                         items = items,
-                        pagerState = pagerState,
-                        onItemClick = { index ->
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(index)
-                            }
-                        },
-                        backdrop = backdrop,
-                        isBlurActive = true
+                        selectedIndex = mainPagerState.selectedPage,
+                        onItemClick = mainPagerState::animateToPage,
+                        isBlurActive = LocalAppBlurMode.current != AppBlurMode.Off,
+                        backdrop = backdrop
                     )
                 } else {
                     FloatingNavigationBar(
-                        modifier = Modifier.textureBlur(
+                        modifier = Modifier.appTextureBlur(
                             backdrop = backdrop,
+                            gradient = ProgressiveBlur.Bottom,
                             shape = floatingBarShape,
                             blurRadius = 25f,
                             colors = BlurDefaults.blurColors(
@@ -180,33 +181,27 @@ fun MainPagerScreen(
                         color = Color.Transparent,
                     ) {
                         MyFloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 0,
+                            selected = mainPagerState.selectedPage == 0,
                             onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(0)
-                                }
+                                mainPagerState.animateToPage(0)
                             },
                             icon = Icons.Rounded.Home,
                             label = stringResource(R.string.main_tab_home),
                             iconSize = 32.dp
                         )
                         MyFloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 1,
+                            selected = mainPagerState.selectedPage == 1,
                             onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(1)
-                                }
+                                mainPagerState.animateToPage(1)
                             },
                             icon = Icons.Rounded.Extension,
                             label = stringResource(R.string.main_tab_tweaks),
                             iconSize = 28.0.dp
                         )
                         MyFloatingNavigationBarItem(
-                            selected = pagerState.currentPage == 2,
+                            selected = mainPagerState.selectedPage == 2,
                             onClick = {
-                                coroutineScope.launch {
-                                    pagerState.scrollToPage(2)
-                                }
+                                mainPagerState.animateToPage(2)
                             },
                             icon = Icons.Rounded.Settings,
                             label = stringResource(R.string.main_tab_settings),
@@ -218,8 +213,9 @@ fun MainPagerScreen(
                 NavigationBar(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .textureBlur(
+                        .appTextureBlur(
                             backdrop = backdrop,
+                            gradient = ProgressiveBlur.Bottom,
                             shape = RectangleShape,
                             blurRadius = 25f,
                             colors = BlurDefaults.blurColors(
@@ -231,33 +227,27 @@ fun MainPagerScreen(
                     color = Color.Transparent
                 ) {
                     MyNavigationBarItem(
-                        selected = pagerState.currentPage == 0,
+                        selected = mainPagerState.selectedPage == 0,
                         onClick = {
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(0)
-                            }
+                            mainPagerState.animateToPage(0)
                         },
                         icon = Icons.Rounded.Home,
                         label = stringResource(R.string.main_tab_home),
                         iconSize = 30.dp
                     )
                     MyNavigationBarItem(
-                        selected = pagerState.currentPage == 1,
+                        selected = mainPagerState.selectedPage == 1,
                         onClick = {
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(1)
-                            }
+                            mainPagerState.animateToPage(1)
                         },
                         icon = Icons.Rounded.Extension,
                         label = stringResource(R.string.main_tab_tweaks),
                         iconSize = 26.0.dp
                     )
                     MyNavigationBarItem(
-                        selected = pagerState.currentPage == 2,
+                        selected = mainPagerState.selectedPage == 2,
                         onClick = {
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(2)
-                            }
+                            mainPagerState.animateToPage(2)
                         },
                         icon = Icons.Rounded.Settings,
                         label = stringResource(R.string.main_tab_settings),
@@ -267,11 +257,17 @@ fun MainPagerScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+        Box(modifier = Modifier.fillMaxSize().then(
+            if (LocalAppBlurMode.current != AppBlurMode.Off) Modifier.layerBackdrop(backdrop) else Modifier
+        )) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = true,
+                modifier = Modifier.fillMaxSize().pagerGestureOverride(
+                    pagerState = pagerState,
+                    mode = PagerInterceptionMode.CrossAxisInterceptor,
+                ),
+                userScrollEnabled = false,
+                pageNestedScrollConnection = PagerGestureNestedScrollConnection,
                 // 1 keeps the adjacent tab pre-composed for a smooth swipe without keeping ALL three
                 // tabs alive: with 2, Home's scope-prompt scans kept running while the user sat on
                 // the Tweaks/Settings tabs.
@@ -382,23 +378,14 @@ fun RowScope.MyNavigationBarItem(
     modifier: Modifier = Modifier,
     iconSize: Dp? = null,
     enabled: Boolean = true,
+    selectedContentColor: Color = MiuixTheme.colorScheme.onSurfaceContainer,
+    unselectedContentColor: Color = MiuixTheme.colorScheme.onSurfaceContainer,
 ) {
     val itemHeight = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.ItemHeight
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val onSurfaceContainerColor = MiuixTheme.colorScheme.onSurfaceContainer
-    val tint = when {
-        isPressed -> if (selected) {
-            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.SelectedPressedAlpha)
-        } else {
-            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedPressedAlpha)
-        }
-
-        selected -> onSurfaceContainerColor
-
-        else -> onSurfaceContainerColor.copy(top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedAlpha)
-    }
+    val tint = navigationItemTint(selected, isPressed, selectedContentColor, unselectedContentColor)
     val fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
     val mode = top.yukonga.miuix.kmp.basic.LocalNavigationBarDisplayMode.current
 
@@ -516,22 +503,13 @@ fun MyFloatingNavigationBarItem(
     modifier: Modifier = Modifier,
     iconSize: Dp? = null,
     enabled: Boolean = true,
+    selectedContentColor: Color = MiuixTheme.colorScheme.onSurfaceContainer,
+    unselectedContentColor: Color = MiuixTheme.colorScheme.onSurfaceContainer,
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val onSurfaceContainerColor = MiuixTheme.colorScheme.onSurfaceContainer
-    val tint = when {
-        isPressed -> if (selected) {
-            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.SelectedPressedAlpha)
-        } else {
-            onSurfaceContainerColor.copy(alpha = top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.UnselectedPressedAlpha)
-        }
-
-        selected -> onSurfaceContainerColor
-
-        else -> onSurfaceContainerColor.copy(top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.UnselectedAlpha)
-    }
+    val tint = navigationItemTint(selected, isPressed, selectedContentColor, unselectedContentColor)
 
     val customIconSize = iconSize ?: top.yukonga.miuix.kmp.basic.FloatingNavigationBarDefaults.IconSize
 
@@ -564,4 +542,21 @@ fun MyFloatingNavigationBarItem(
             )
         }
     }
+}
+
+/** Matches Miuix 0.9.4: interaction opacity multiplies the supplied color's alpha. */
+internal fun navigationItemTint(
+    selected: Boolean,
+    pressed: Boolean,
+    selectedColor: Color,
+    unselectedColor: Color,
+): Color {
+    val color = if (selected) selectedColor else unselectedColor
+    val opacity = when {
+        pressed && selected -> top.yukonga.miuix.kmp.basic.NavigationBarDefaults.SelectedPressedAlpha
+        pressed -> top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedPressedAlpha
+        selected -> 1f
+        else -> top.yukonga.miuix.kmp.basic.NavigationBarDefaults.UnselectedAlpha
+    }
+    return color.copy(alpha = color.alpha * opacity)
 }

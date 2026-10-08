@@ -7,6 +7,9 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -17,6 +20,8 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
+import com.takekazex.hypertweak.ui.effect.AppBlurMode
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
@@ -289,6 +294,7 @@ class MainActivity : ComponentActivity() {
             }
 
             // Theme settings states
+            var appBlurMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_APP_BLUR_MODE, 1).coerceIn(0, 2)) }
             var themeMode by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_THEME_MODE, 0)) }
             var useMonet by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_USE_MONET, false)) }
             var seedColorHex by remember {
@@ -794,6 +800,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 fun reloadAllPreferences() {
+                    appBlurMode = Preferences.getInt(Preferences.KEY_APP_BLUR_MODE, 1).coerceIn(0, 2)
                     themeMode = Preferences.getInt(Preferences.KEY_THEME_MODE, 0)
                     useMonet = Preferences.getBoolean(Preferences.KEY_USE_MONET, false)
                     seedColorHex = Preferences.getInt(
@@ -951,6 +958,12 @@ class MainActivity : ComponentActivity() {
             }
 
                     CompositionLocalProvider(
+                        // A localized ConfigurationContext is not an Activity. Keep Activity-owned
+                        // launchers and back dispatch available to navigation entries and windows.
+                        LocalActivity provides this@MainActivity,
+                        LocalActivityResultRegistryOwner provides this@MainActivity,
+                        LocalOnBackPressedDispatcherOwner provides this@MainActivity,
+                        LocalAppBlurMode provides AppBlurMode.entries[appBlurMode],
                         LocalContext provides localizedContext,
                         LocalDensity provides density,
                         LocalRestartScopeRequest provides ::requestRestartScopes,
@@ -964,6 +977,11 @@ class MainActivity : ComponentActivity() {
                     }
 
                     HyperTweakNavContainer(
+                    appBlurMode = appBlurMode,
+                    onAppBlurModeChange = { mode ->
+                        appBlurMode = mode.coerceIn(0, 2)
+                        Preferences.putInt(Preferences.KEY_APP_BLUR_MODE, appBlurMode)
+                    },
                     themeMode = themeMode,
                     onThemeModeChange = { mode ->
                         themeMode = mode

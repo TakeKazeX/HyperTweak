@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
+
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest

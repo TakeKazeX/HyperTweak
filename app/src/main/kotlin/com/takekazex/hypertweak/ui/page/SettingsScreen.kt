@@ -8,15 +8,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -26,12 +25,6 @@ import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
 import androidx.compose.ui.res.stringResource
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.textureBlur
-import com.takekazex.hypertweak.ui.effect.rememberContentReady
 
 @Composable
 fun SettingsScreenContent(
@@ -54,29 +47,11 @@ fun SettingsScreenContent(
     onAppLanguageChange: (Int) -> Unit
 ) {
     val context = LocalContext.current
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val topBarBackdrop = rememberLayerBackdrop {
-        drawRect(surfaceColor)
-        drawContent()
-    }
-    val contentReady = rememberContentReady()
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = stringResource(R.string.settings_settings),
-                modifier = if (contentReady) {
-                    Modifier.textureBlur(
-                        backdrop = topBarBackdrop,
-                        shape = RectangleShape,
-                        blurRadius = 25f,
-                        colors = BlurDefaults.blurColors(blendColors = listOf(
-                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f))
-                        ))
-                    )
-                } else {
-                    Modifier
-                },
                 color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior
             )
@@ -86,7 +61,6 @@ fun SettingsScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState()),

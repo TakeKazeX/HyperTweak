@@ -207,7 +207,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")
-    
+
     // Compose Runtime & UI
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.ui:ui-graphics:1.12.1")
@@ -217,13 +217,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
     // Miuix UI & Preferences
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.3")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.3")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.3")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.3")
-    implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.3")
-    implementation("androidx.navigation3:navigation3-runtime:1.1.7")
-    implementation("androidx.navigationevent:navigationevent:1.2.0")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4")
+    implementation("androidx.navigationevent:navigationevent-compose:1.2.0")
 
     // libxposed
     compileOnly("io.github.libxposed:api:102.0.0")
@@ -247,9 +246,4 @@ dependencies {
 
     // Full SVG 1.1/Tiny parser and renderer for imported signal artwork.
     implementation("com.caverock:androidsvg-aar:1.4")
-}
-
-configurations.all {
-    exclude(group = "androidx.navigationevent", module = "navigationevent-compose")
-    exclude(group = "androidx.navigationevent", module = "navigationevent-compose-android")
 }

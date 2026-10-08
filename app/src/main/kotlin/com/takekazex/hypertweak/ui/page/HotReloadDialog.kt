@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,7 +30,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -60,14 +59,14 @@ internal fun HotReloadDialog(
     val nativeBusy by NativeUpgradeManager.busy.collectAsState()
     val nativeReport by NativeUpgradeManager.report.collectAsState()
     val context = LocalContext.current
-    val contentHeight = (LocalConfiguration.current.screenHeightDp * 0.65f).dp
 
-    OverlayDialog(
+    WindowDialog(
         show = show,
         title = stringResource(R.string.home_hot_reload_title),
         onDismissRequest = onDismissRequest,
         content = {
-            Column(Modifier.fillMaxWidth().heightIn(max = contentHeight).verticalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())) {
             Text(
                 text = stringResource(R.string.home_hot_reload_question),
                 color = MiuixTheme.colorScheme.onSurface,
@@ -141,20 +140,21 @@ internal fun HotReloadDialog(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         enabled = !hotReloading && !nativeBusy)
                 }
-                TextButton(
-                    text = stringResource(R.string.home_restart_scope),
-                    onClick = {
-                        onDismissRequest()
-                        onRestartScopes()
-                    },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy
-                )
+            }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 TextButton(
                     text = stringResource(R.string.home_cancel),
                     onClick = onDismissRequest,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    enabled = !hotReloading && !nativeBusy,
+                )
+                TextButton(
+                    text = stringResource(R.string.home_restart_scope),
+                    onClick = { onDismissRequest(); onRestartScopes() },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    enabled = !hotReloading && !nativeBusy,
                 )
             }
             }

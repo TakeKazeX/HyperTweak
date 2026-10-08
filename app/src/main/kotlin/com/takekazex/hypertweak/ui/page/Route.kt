@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
-import androidx.navigation3.runtime.NavKey
+import top.yukonga.miuix.kmp.nav.core.NavKey
 
 sealed interface Route : NavKey {
     data object Main : Route

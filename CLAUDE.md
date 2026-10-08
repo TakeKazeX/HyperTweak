@@ -14,6 +14,35 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns lifecycle/resolution; `DexKitManager` resolves and caches obfuscated targets.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
+Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.
+`NavController` centralizes push/pop while `Route.saveKey` keeps the restored stack stable across
+updates; Miuix owns gesture cancellation,
+settling and entry state. `ui/effect/ScalePredictiveBack.kt` supplies the optional scale transition.
+The app's global blur preference is `Preferences.KEY_APP_BLUR_MODE` (0 off, 1 uniform, 2 progressive).
+`ui/effect/AppScaffold.kt` captures each page's content for its top bar; About supplies its raw
+animated backdrop to avoid sampling the already blurred project card. Its expanded top bar stays
+transparent, enabling global top-bar blur only after the logo/title has fully collapsed. Top bars
+respect explicit transparent colors in the unblurred state. `AppBlur.kt` applies the
+same policy to existing card and navigation-bar blur. Progressive mode uses Miuix's native
+`progressiveTextureBlur` / `progressiveBlur` pipeline, with top and bottom gradients as appropriate.
+The shared `CenteredDialog` delegates to Miuix's centered `WindowDialog`. MainPager uses the
+cross-axis Pager gesture driver and spring tab navigation; the liquid indicator follows Pager
+selection without redispatching tab clicks. Liquid rendering and its six auxiliary files follow
+Miuix v0.9.4 at `39c40f99844227b853f0049a0933b1f3ae6c00ba`: auxiliary algorithms and indicator
+input/animation are copied unchanged apart from package names. The complete upstream MainPagerState
+also owns tab selection, page navigation and root-page back, with the upstream syncPage effect.
+Local renderer adaptations are theme wiring and the centered 80%-width pill (maximum constraint
+340dp). Global blur Off stops backdrop capture and selects upstream's solid fallback; both enabled
+modes use the fixed upstream uniform glass chain. About's background animation pauses when transparent,
+covered or when its lifecycle is not resumed.
+MainActivity explicitly provides Activity, ActivityResultRegistry and back-dispatch owners before
+replacing LocalContext with the localized ConfigurationContext. Navigation entries and separate
+dialog windows need these owners for document/image pickers and system back dispatch.
+RestartScopeDialog follows the native WideWindowDialog example (560dp landscape maximum):
+landscape actions sit to the right of the list; portrait limits the list to half the window height
+and keeps actions below it. HotReloadDialog scrolls details within native WindowDialog bounds
+while keeping footer actions outside the scroll area. Scope choices are saveable.
+
 ## Logging
 
 `util/DebugLog.kt` owns severity, bounded dispatch and counted repeat suppression. `LogRecord`/`LogCodec` is the shared wire format; errors retain stack traces and expected preference/process skips use DEBUG. Detailed hook registration, target resolution and high-frequency rendering diagnostics belong at DEBUG; INFO describes meaningful runtime state changes. Do not classify severity from words inside a message, and do not silently swallow failures at shared resolver, persistence or system-callback boundaries.

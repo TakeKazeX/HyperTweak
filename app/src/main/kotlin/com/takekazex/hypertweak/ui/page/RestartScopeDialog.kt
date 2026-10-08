@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -26,7 +27,11 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
+import top.yukonga.miuix.kmp.layout.DialogDefaults
+import top.yukonga.miuix.kmp.basic.VerticalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -81,13 +86,14 @@ fun RestartScopeDialog(
     val automaticallySelectedPackages = remember(initialSelection) {
         initialSelection.toPackageSet()
     }
-    val scopeApps by produceState(
-        initialValue = emptyList<String>(),
+    val scopeApps by produceState<List<String>?>(
+        initialValue = null,
         candidatePackages,
         automaticallySelectedPackages,
         show
     ) {
         if (!show) return@produceState
+        value = null
         value = withContext(Dispatchers.IO) {
             val baseOrder = candidatePackages.sorted()
             smartRestartScopeOrder(
@@ -98,102 +104,108 @@ fun RestartScopeDialog(
         }
     }
 
-    var selectedPackages by remember(show, initialSelection) {
+    var selectedPackages by rememberSaveable(show, initialSelection) {
         mutableStateOf(initialSelection.toPackageSet())
     }
 
-    OverlayDialog(
-        show = show,
-        title = stringResource(R.string.restart_scoped_apps_title),
-        onDismissRequest = onDismissRequest,
-        content = {
-            if (!initialSelection.isEmpty()) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    colors = CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.primaryContainer,
-                        contentColor = MiuixTheme.colorScheme.onPrimaryContainer
-                    ),
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.restart_detected_tweaks_note),
-                        color = MiuixTheme.colorScheme.onPrimaryContainer,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-
-            if (scopeApps.isNotEmpty()) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 360.dp),
-                    ) {
-                        items(scopeApps, key = { it }) { pkg ->
-                            AppRestartPreference(
-                                packageName = pkg,
-                                checked = pkg in selectedPackages,
-                                onCheckedChange = { checked ->
-                                    selectedPackages = if (checked) {
-                                        selectedPackages + pkg
-                                    } else {
-                                        selectedPackages - pkg
-                                    }
-                                }
+    // Follow Miuix's WideWindowDialog example: a native window with a wider landscape
+    // container, list on the left and actions on the right. Lazy lists cannot use intrinsic size.
+    val windowSize = LocalWindowInfo.current.containerDpSize
+    val isLandscape = windowSize.width > windowSize.height
+    val listHeight = if (isLandscape) windowSize.height * 0.45f else windowSize.height * 0.5f
+    val scopeList: @Composable (Modifier) -> Unit = { modifier ->
+        Card(modifier) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = listHeight)) {
+                if (!initialSelection.isEmpty()) {
+                    item(key = "detected_changes") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            colors = CardDefaults.defaultColors(
+                                color = MiuixTheme.colorScheme.primaryContainer,
+                                contentColor = MiuixTheme.colorScheme.onPrimaryContainer,
+                            ),
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.restart_detected_tweaks_note),
+                                color = MiuixTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
                             )
                         }
                     }
                 }
-            } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.restart_scope_no_apps),
-                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
+                val packages = scopeApps
+                if (packages == null || packages.isEmpty()) {
+                    item(key = "scope_status") {
+                        Text(
+                            text = stringResource(
+                                if (packages == null) R.string.restart_scope_loading else R.string.restart_scope_no_apps,
+                            ),
+                            modifier = Modifier.padding(16.dp),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                } else {
+                    items(packages, key = { it }) { pkg ->
+                        AppRestartPreference(
+                            packageName = pkg,
+                            checked = pkg in selectedPackages,
+                            onCheckedChange = { checked ->
+                                selectedPackages = if (checked) selectedPackages + pkg else selectedPackages - pkg
+                            },
+                        )
+                    }
                 }
             }
+        }
+    }
+    val cancelButton: @Composable (Modifier) -> Unit = { modifier ->
+        TextButton(
+            text = stringResource(R.string.restart_cancel),
+            onClick = onDismissRequest,
+            modifier = modifier.heightIn(min = 48.dp),
+        )
+    }
+    val confirmButton: @Composable (Modifier) -> Unit = { modifier ->
+        TextButton(
+            text = stringResource(R.string.restart_button),
+            onClick = {
+                onConfirm(RestartScopeSelection.fromPackageSet(selectedPackages))
+                onDismissRequest()
+            },
+            modifier = modifier.heightIn(min = 48.dp),
+            enabled = selectedPackages.isNotEmpty(),
+            colors = ButtonDefaults.textButtonColorsPrimary(),
+        )
+    }
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TextButton(
-                    text = stringResource(R.string.restart_button),
-                    onClick = {
-                        onConfirm(RestartScopeSelection.fromPackageSet(selectedPackages))
-                        onDismissRequest()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-                TextButton(
-                    text = stringResource(R.string.restart_cancel),
-                    onClick = onDismissRequest,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                )
+    WindowDialog(
+        show = show,
+        title = stringResource(R.string.restart_scoped_apps_title),
+        maxWidth = if (isLandscape) 560.dp else DialogDefaults.MaxWidth,
+        onDismissRequest = onDismissRequest,
+    ) {
+        if (isLandscape) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                scopeList(Modifier.weight(1f))
+                VerticalDivider(Modifier.height(listHeight).padding(horizontal = 20.dp))
+                Column(Modifier.width(140.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    confirmButton(Modifier.fillMaxWidth())
+                    cancelButton(Modifier.fillMaxWidth())
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                scopeList(Modifier.fillMaxWidth().weight(1f, fill = false))
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    cancelButton(Modifier.weight(1f))
+                    confirmButton(Modifier.weight(1f))
+                }
             }
         }
-    )
+    }
 }
 
 @Composable

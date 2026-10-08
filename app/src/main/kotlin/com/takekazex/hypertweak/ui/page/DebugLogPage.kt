@@ -43,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -56,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.LogRecord
 import com.takekazex.hypertweak.util.LogRepository
@@ -68,15 +66,10 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Copy
@@ -128,12 +121,6 @@ fun LogsPage(
 ) {
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior()
-    val contentReady = rememberContentReady()
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val topBarBackdrop = rememberLayerBackdrop {
-        drawRect(surfaceColor)
-        drawContent()
-    }
     // Reading (up to ~0.5MB of prefs) and parsing (regex per line + sort) are too heavy for
     // composition on the main thread, so run them once off-thread and show a loading placeholder.
     var entries by remember { mutableStateOf<List<DebugLogEntry>>(emptyList()) }
@@ -208,18 +195,6 @@ fun LogsPage(
         topBar = {
             TopAppBar(
                 title = stringResource(R.string.logs_title),
-                modifier = if (contentReady) {
-                    Modifier.textureBlur(
-                        backdrop = topBarBackdrop,
-                        shape = RectangleShape,
-                        blurRadius = 25f,
-                        colors = BlurDefaults.blurColors(
-                            blendColors = listOf(
-                                BlendColorEntry(color = surfaceColor.copy(alpha = 0.8f))
-                            )
-                        )
-                    )
-                } else Modifier,
                 color = Color.Transparent,
                 scrollBehavior = topAppBarScrollBehavior,
                 navigationIcon = {
@@ -237,7 +212,7 @@ fun LogsPage(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .then(if (contentReady) Modifier.layerBackdrop(topBarBackdrop) else Modifier)
+
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                 .overScrollVertical(),
             contentPadding = innerPadding

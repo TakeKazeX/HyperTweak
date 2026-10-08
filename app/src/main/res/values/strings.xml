@@ -1496,4 +1496,9 @@
     <string name="icon_cc_rows_summary">Applies to the two-line layout. Battery stays in the first row; hidden and left-placed icons retain their settings. Restart SystemUI after changes.</string>
     <string name="icon_cc_row_first">First row</string>
     <string name="icon_cc_row_second">Second row</string>
+    <string name="appearance_global_blur">Global blur</string>
+    <string name="appearance_blur_off">Off</string>
+    <string name="appearance_blur_uniform">Blur</string>
+    <string name="appearance_blur_progressive">Progressive blur</string>
+    <string name="restart_scope_loading">Loading application scope…</string>
 </resources>
