@@ -131,6 +131,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                         ArrowPreference(
                             title = stringResource(R.string.charging_restart_title),
                             summary = stringResource(R.string.charging_restart_summary),
+                            enabled = !restartInProgress(com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true)),
                             onClick = {
                                 // Push the prefs through to the daemon before SystemUI comes
                                 // back — its onHook reads them at plugin load time.
@@ -138,12 +139,12 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                                 com.takekazex.hypertweak.util.RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true)
+                                    selection = com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) restartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(
-                                    com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true)
-                                )
-                                restartPending = false
                             }
                         )
                     }

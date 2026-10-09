@@ -58,6 +58,7 @@ internal fun HotReloadDialog(
     val service by XposedServiceManager.serviceFlow.collectAsState()
     val nativeBusy by NativeUpgradeManager.busy.collectAsState()
     val nativeReport by NativeUpgradeManager.report.collectAsState()
+    val runningPackages by com.takekazex.hypertweak.util.RestartUtils.runningPackages.collectAsState()
     val context = LocalContext.current
 
     WindowDialog(
@@ -111,7 +112,7 @@ internal fun HotReloadDialog(
                         onHotReload()
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy,
+                    enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty(),
                     colors = ButtonDefaults.textButtonColorsPrimary()
                 )
                 Text(
@@ -123,7 +124,7 @@ internal fun HotReloadDialog(
                     text = stringResource(if (nativeBusy) R.string.native_update_running else R.string.native_update_action),
                     onClick = { NativeUpgradeManager.activate(context) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy && service != null
+                    enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty() && service != null
                 )
                 nativeReport?.let { report ->
                     Text(text = stringResource(when (report.state) {
@@ -138,7 +139,7 @@ internal fun HotReloadDialog(
                     TextButton(text = stringResource(R.string.native_update_rollback),
                         onClick = { NativeUpgradeManager.rollback(context) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        enabled = !hotReloading && !nativeBusy)
+                        enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty())
                 }
             }
             }
@@ -148,13 +149,13 @@ internal fun HotReloadDialog(
                     text = stringResource(R.string.home_cancel),
                     onClick = onDismissRequest,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy,
+                    enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty(),
                 )
                 TextButton(
                     text = stringResource(R.string.home_restart_scope),
                     onClick = { onDismissRequest(); onRestartScopes() },
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    enabled = !hotReloading && !nativeBusy,
+                    enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty(),
                 )
             }
             }

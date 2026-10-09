@@ -1420,8 +1420,7 @@ class MainActivity : ComponentActivity() {
                         // Push every queued setting to the daemon before the scoped processes die;
                         // their hookers read the daemon copy at (re)load time.
                         Preferences.flush()
-                        RestartUtils.restartScope(this@MainActivity, coroutineScope, selection)
-                        clearRestartedScopes(selection)
+                        RestartUtils.restartScope(this@MainActivity, coroutineScope, selection, ::clearRestartedScopes)
                     },
                     onHotReload = {
                         // Hot reload re-attaches the module to the already running stale targets;
@@ -1434,9 +1433,8 @@ class MainActivity : ComponentActivity() {
                             Preferences.flush()
                             val allScopes = currentRestartableScopes(this@MainActivity)
                             RestartUtils
-                                .restartScope(this@MainActivity, coroutineScope, allScopes)
+                                .restartScope(this@MainActivity, coroutineScope, allScopes, ::clearRestartedScopes)
                                 .join()
-                            clearRestartedScopes(allScopes)
                             // Refresh after the restart completes so a previously stale warning
                             // disappears without requiring a second app launch.
                             XposedServiceManager.refreshHotReloadTargets()

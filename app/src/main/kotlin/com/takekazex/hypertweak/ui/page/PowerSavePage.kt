@@ -225,6 +225,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             stringResource(R.string.restart_scope_security).takeIf { securityRestartPending },
                             stringResource(R.string.restart_scope_system_ui).takeIf { systemUiRestartPending },
                         ).joinToString(", "),
+                        enabled = !restartInProgress(restartScopes),
                         onClick = {
                             Preferences.flush()
                             val selection = restartScopes
@@ -232,10 +233,12 @@ fun PowerSavePage(onBack: () -> Unit) {
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = selection,
+                                onCompleted = { completed ->
+                                    handleRestartedScopes(completed)
+                                    if (completed.securityCenter) securityRestartPending = false
+                                    if (completed.systemUi) systemUiRestartPending = false
+                                },
                             )
-                            handleRestartedScopes(selection)
-                            securityRestartPending = false
-                            systemUiRestartPending = false
                         }
                     )
                 }

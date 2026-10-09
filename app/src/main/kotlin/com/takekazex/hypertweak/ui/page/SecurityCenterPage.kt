@@ -402,16 +402,19 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                             }
                         ),
                         summary = stringResource(R.string.aosp_restart_security_center_summary),
+                        enabled = !restartInProgress(restartSelection),
                         onClick = {
                             Preferences.flush()
                             RestartUtils.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
-                                selection = restartSelection
+                                selection = restartSelection,
+                                onCompleted = { completed ->
+                                    handleRestartedScopes(completed)
+                                    if (completed.systemUi) systemUiRestartPending = false
+                                    if (completed.securityCenter) securityCenterRestartPending = false
+                                },
                             )
-                            handleRestartedScopes(restartSelection)
-                            systemUiRestartPending = false
-                            securityCenterRestartPending = false
                         }
                     )
                 }

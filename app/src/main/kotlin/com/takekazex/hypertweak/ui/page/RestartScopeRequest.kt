@@ -1,6 +1,10 @@
 package com.takekazex.hypertweak.ui.page
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.RestartScopeSelection
 
 /**
@@ -14,3 +18,10 @@ val LocalRestartScopeRequest = staticCompositionLocalOf<(RestartScopeSelection) 
 
 /** Clears the shared Home reminder after an explicit page-level restart completes. */
 val LocalRestartScopeHandled = staticCompositionLocalOf<(RestartScopeSelection) -> Unit> { {} }
+
+/** Every page observes the shared execution state, including requests started on another page. */
+@Composable
+internal fun restartInProgress(selection: RestartScopeSelection): Boolean {
+    val running by RestartUtils.runningPackages.collectAsState()
+    return selection.toPackageSet().any { it in running }
+}

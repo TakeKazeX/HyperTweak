@@ -448,6 +448,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     ArrowPreference(
                         title = stringResource(R.string.icon_restart_systemui),
                         summary = stringResource(R.string.icon_restart_systemui_summary),
+                        enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                         onClick = {
                             // The remote (LSPosed daemon) copy is written asynchronously; make
                             // sure SystemUI starts after the daemon has the latest values.
@@ -455,10 +456,12 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             RestartUtils.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
-                                selection = RestartScopeSelection(systemUi = true)
+                                selection = RestartScopeSelection(systemUi = true),
+                                onCompleted = { completed ->
+                                    handleRestartedScopes(completed)
+                                    if (completed.systemUi) systemUiRestartPending = false
+                                },
                             )
-                            handleRestartedScopes(RestartScopeSelection(systemUi = true))
-                            systemUiRestartPending = false
                         }
                     )
                 }

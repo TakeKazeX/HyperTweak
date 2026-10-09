@@ -68,6 +68,7 @@ fun RestartScopeDialog(
     onDismissRequest: () -> Unit,
     onConfirm: (RestartScopeSelection) -> Unit
 ) {
+    val runningPackages by com.takekazex.hypertweak.util.RestartUtils.runningPackages.collectAsState()
     val context = LocalContext.current
     val service by XposedServiceManager.serviceFlow.collectAsState()
     val fallbackScope = remember(context) { ScopeManager.declaredRestartableScope(context) }
@@ -175,7 +176,7 @@ fun RestartScopeDialog(
                 onDismissRequest()
             },
             modifier = modifier.heightIn(min = 48.dp),
-            enabled = selectedPackages.isNotEmpty(),
+            enabled = selectedPackages.isNotEmpty() && selectedPackages.none { it in runningPackages },
             colors = ButtonDefaults.textButtonColorsPrimary(),
         )
     }

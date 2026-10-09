@@ -330,15 +330,18 @@ fun SystemUIPage(
                         ArrowPreference(
                             title = stringResource(R.string.settings_notification_restart_settings_title),
                             summary = stringResource(R.string.settings_notification_restart_settings_summary),
+                            enabled = !restartInProgress(restartSelection),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = restartSelection
+                                    selection = restartSelection,
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.settings) notifSettingsRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(restartSelection)
-                                notifSettingsRestartPending = false
                             }
                         )
                     }
@@ -347,15 +350,18 @@ fun SystemUIPage(
                         ArrowPreference(
                             title = stringResource(R.string.aosp_restart_system_ui),
                             summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            enabled = !restartInProgress(restartSelection),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = restartSelection
+                                    selection = restartSelection,
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) notifSystemUiRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(restartSelection)
-                                notifSystemUiRestartPending = false
                             }
                         )
                     }
@@ -419,15 +425,18 @@ fun SystemUIPage(
                         ArrowPreference(
                             title = stringResource(R.string.aosp_restart_system_ui),
                             summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            enabled = !restartInProgress(restartSelection),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = restartSelection
+                                    selection = restartSelection,
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) freeformBlurRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(restartSelection)
-                                freeformBlurRestartPending = false
                             }
                         )
                     }

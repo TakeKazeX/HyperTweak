@@ -123,15 +123,18 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         ArrowPreference(
                             title = stringResource(R.string.bottom_text_restart_title),
                             summary = stringResource(R.string.bottom_text_restart_summary),
+                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true)
+                                    selection = RestartScopeSelection(systemUi = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) systemUiRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
-                                systemUiRestartPending = false
                             }
                         )
                     }

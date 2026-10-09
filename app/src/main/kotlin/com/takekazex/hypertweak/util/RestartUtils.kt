@@ -1,98 +1,74 @@
 package com.takekazex.hypertweak.util
 
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 object RestartUtils {
-    /**
-     * Restarts packages that have no fixed [RestartScopeSelection] field, such as user-selected
-     * input methods or targets discovered from the live LSPosed scope. The in-process receiver is
-     * registered from [com.takekazex.hypertweak.hook.HookEntry] for every hooked package.
-     *
-     * Returns the launched [Job]; callers that must sequence work after the restart can `join()` it.
-     */
+    // A page leaving composition must not cancel a restart that has already reached Root.
+    private val operations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val flights = RestartFlights()
+    val runningPackages get() = flights.running
+
     fun forceStopPackages(
         context: Context,
         coroutineScope: CoroutineScope,
-        packages: Set<String>
-    ): Job {
-        val normalized = restartablePackages(packages)
-        if (normalized.isEmpty()) return SupervisorJob().apply { complete() }
-        return coroutineScope.launch {
-            withContext(Dispatchers.IO) {
-                RestartHistory.record(context, normalized)
-            }
-            val intent = Intent(RestartProtocol.ACTION).apply {
-                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra(RestartProtocol.EXTRA_PACKAGES, normalized.toTypedArray())
-            }
-            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
-            // system apps never will. Senders are already restricted by the receivers' permission.
-            runCatching { context.sendBroadcast(intent) }
+        packages: Set<String>,
+        onCompleted: (Set<String>) -> Unit = {},
+    ): Job = request(context, coroutineScope, packages, onCompleted)
 
-            val rootSuccess = forceStopViaRoot(normalized)
-            withContext(Dispatchers.Main) {
-                val message = if (rootSuccess) {
-                    "Restarted ${normalized.size} app(s) via Root"
-                } else {
-                    "Broadcast sent to restart ${normalized.size} app(s)"
-                }
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    /** Restarts the selected fixed and dynamically discovered scope packages. */
     fun restartScope(
         context: Context,
         coroutineScope: CoroutineScope,
-        selection: RestartScopeSelection
+        selection: RestartScopeSelection,
+        onCompleted: (RestartScopeSelection) -> Unit = {},
+    ): Job = request(context, coroutineScope, selection.toPackageSet()) {
+        onCompleted(RestartScopeSelection.fromPackageSet(it))
+    }
+
+    private fun request(
+        context: Context,
+        coroutineScope: CoroutineScope,
+        targets: Set<String>,
+        onCompleted: (Set<String>) -> Unit,
     ): Job {
-        val packages = restartablePackages(selection.toPackageSet())
+        val packages = restartablePackages(targets)
         if (packages.isEmpty()) return SupervisorJob().apply { complete() }
-
-        return coroutineScope.launch {
-            withContext(Dispatchers.IO) {
-                RestartHistory.record(context, packages)
-            }
-            val intent = Intent(RestartProtocol.ACTION).apply {
-                addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                putExtra(RestartProtocol.EXTRA_SYSTEM_UI, RestartScopeSelection.PACKAGE_SYSTEM_UI in packages)
-                putExtra(RestartProtocol.EXTRA_MIUI_HOME, RestartScopeSelection.PACKAGE_MIUI_HOME in packages)
-                putExtra(RestartProtocol.EXTRA_SETTINGS, RestartScopeSelection.PACKAGE_SETTINGS in packages)
-                putExtra(RestartProtocol.EXTRA_AOD, RestartScopeSelection.PACKAGE_AOD in packages)
-                putExtra(RestartProtocol.EXTRA_SECURITY_CENTER, RestartScopeSelection.PACKAGE_SECURITY_CENTER in packages)
-                putExtra(RestartProtocol.EXTRA_SCANNER, RestartScopeSelection.PACKAGE_SCANNER in packages)
-                putExtra(RestartProtocol.EXTRA_MILINK, RestartScopeSelection.PACKAGE_MILINK in packages)
-                putExtra(RestartProtocol.EXTRA_BLUETOOTH, RestartScopeSelection.PACKAGE_BLUETOOTH in packages)
-                putExtra(RestartProtocol.EXTRA_POWERKEEPER, RestartScopeSelection.PACKAGE_POWERKEEPER in packages)
-                putExtra(RestartProtocol.EXTRA_GMS, RestartScopeSelection.PACKAGE_GMS in packages)
-                putExtra(RestartProtocol.EXTRA_XMSF, RestartScopeSelection.PACKAGE_XMSF in packages)
-                putExtra(
-                    RestartProtocol.EXTRA_PACKAGES,
-                    selection.additionalPackages.filter { it in packages }.toTypedArray()
-                )
-            }
-            // No receiver permission: that argument demands the *receiver* hold it, and the hooked
-            // system apps never will. Senders are already restricted by the receivers' permission.
-            runCatching { context.sendBroadcast(intent) }
-
-            val rootSuccess = forceStopViaRoot(packages)
-            withContext(Dispatchers.Main) {
-                val targets = packages.joinToString(", ")
-                if (rootSuccess) {
-                    Toast.makeText(context, "Restarted $targets via Root", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Broadcast sent to restart $targets", Toast.LENGTH_SHORT).show()
+        val appContext = context.applicationContext ?: context
+        // Claims happen synchronously, before launching observers, so simultaneous clicks share work.
+        val pending = packages.associateWith { pkg ->
+            flights.getOrStart(pkg) {
+                operations.async {
+                    val success = runCatching {
+                        Preferences.flush()
+                        restartViaRoot(pkg)
+                    }.onFailure { DebugLog.e("RestartUtils", "restart failed target=$pkg", it) }
+                        .getOrDefault(false)
+                    if (success) runCatching { RestartHistory.record(appContext, setOf(pkg)) }
+                        .onFailure { DebugLog.w("RestartUtils", "restart history unavailable", it) }
+                    success
                 }
+            }
+        }
+        return coroutineScope.launch {
+            val completed = pending.filterValues { it.await() }.keys
+            withContext(Dispatchers.Main) {
+                if (completed.isNotEmpty()) onCompleted(completed)
+                val message = if (completed.size == packages.size) {
+                    appContext.getString(R.string.restart_completed)
+                } else {
+                    appContext.getString(R.string.restart_failed)
+                }
+                Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -135,34 +111,21 @@ object RestartUtils {
         )
     }
 
-    private suspend fun forceStopViaRoot(packages: Set<String>): Boolean = withContext(Dispatchers.IO) {
+    private fun restartViaRoot(packageName: String): Boolean {
+        val script = RestartRootScript.forPackage(packageName)
+        // One channel only. A timeout or ambiguous exit never triggers a second broadcast kill.
+        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", script))
         try {
-            val process = Runtime.getRuntime().exec("su")
-            process.outputStream.bufferedWriter().use { writer ->
-                if (RestartScopeSelection.PACKAGE_SYSTEM_UI in packages) {
-                    // SystemUI may have more than one process, so match the process name as before.
-                    writer.write("pkill -f ${RestartScopeSelection.PACKAGE_SYSTEM_UI}\n")
-                }
-                packages
-                    .filterNot { it == RestartScopeSelection.PACKAGE_SYSTEM_UI }
-                    .forEach { writer.write("am force-stop $it\n") }
-                writer.write("exit\n")
-                writer.flush()
+            if (!process.waitFor(150, TimeUnit.SECONDS)) {
+                DebugLog.e("RestartUtils", "root restart timed out target=$packageName")
+                return false
             }
-            val completed = process.waitFor(8, TimeUnit.SECONDS)
-            if (!completed) {
-                process.destroyForcibly()
-                DebugLog.e("RestartUtils", "root restart timed out")
-                false
-            } else {
-                val stderr = process.errorStream.bufferedReader().use { it.readText() }
-                if (stderr.isNotBlank()) DebugLog.e("RestartUtils", "root stderr: $stderr")
-                DebugLog.d("RestartUtils", "root restart exit=${process.exitValue()}")
-                process.exitValue() == 0
-            }
-        } catch (e: Exception) {
-            DebugLog.e("RestartUtils", "root restart failed", e)
-            false
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val errors = process.errorStream.bufferedReader().use { it.readText() }
+            DebugLog.i("RestartUtils", "target=$packageName exit=${process.exitValue()} $output $errors")
+            return process.exitValue() == 0 && output.lineSequence().any { it == "HT_RESTART_OK" }
+        } finally {
+            process.destroy()
         }
     }
 

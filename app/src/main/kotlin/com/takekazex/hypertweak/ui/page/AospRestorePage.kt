@@ -202,15 +202,18 @@ fun AospRestorePage(
                         ArrowPreference(
                             title = stringResource(R.string.aosp_restart_system_ui),
                             summary = stringResource(R.string.aosp_restart_system_ui_summary),
+                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true)
+                                    selection = RestartScopeSelection(systemUi = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) systemUiRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
-                                systemUiRestartPending = false
                             }
                         )
                     }
@@ -247,15 +250,18 @@ fun AospRestorePage(
                         ArrowPreference(
                             title = stringResource(R.string.aosp_restart_security_center),
                             summary = stringResource(R.string.aosp_restart_security_center_summary),
+                            enabled = !restartInProgress(restartSelection),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = restartSelection
+                                    selection = restartSelection,
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.securityCenter) securityCenterRestartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(restartSelection)
-                                securityCenterRestartPending = false
                             }
                         )
                     }

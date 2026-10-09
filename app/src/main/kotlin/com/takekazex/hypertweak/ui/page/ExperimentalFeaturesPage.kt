@@ -254,15 +254,16 @@ fun ExperimentalFeaturesPage(
                         ArrowPreference(
                             title = stringResource(R.string.settings_opened_folder_restart_title),
                             summary = stringResource(R.string.settings_opened_folder_restart_summary),
+                            enabled = !restartInProgress(RestartScopeSelection(miuiHome = true)),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(miuiHome = true)
-                                )
-                                handleRestartedScopes(
-                                    RestartScopeSelection(miuiHome = true)
+                                    selection = RestartScopeSelection(miuiHome = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                    },
                                 )
                             }
                         )

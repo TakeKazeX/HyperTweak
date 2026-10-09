@@ -164,15 +164,18 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         ArrowPreference(
                             title = stringResource(R.string.notification_header_restart_title),
                             summary = stringResource(R.string.notification_header_restart_summary),
+                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
                                 Preferences.flush()
                                 RestartUtils.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true)
+                                    selection = RestartScopeSelection(systemUi = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) restartPending = false
+                                    },
                                 )
-                                handleRestartedScopes(RestartScopeSelection(systemUi = true))
-                                restartPending = false
                             }
                         )
                     }

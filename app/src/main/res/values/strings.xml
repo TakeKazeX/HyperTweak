@@ -1501,4 +1501,6 @@
     <string name="appearance_blur_uniform">Blur</string>
     <string name="appearance_blur_progressive">Progressive blur</string>
     <string name="restart_scope_loading">Loading application scope…</string>
+    <string name="restart_completed">Selected apps restarted.</string>
+    <string name="restart_failed">Restart could not be confirmed. Pending settings have been kept; check Root access and try again.</string>
 </resources>

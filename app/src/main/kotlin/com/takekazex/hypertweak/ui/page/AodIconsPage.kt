@@ -221,15 +221,18 @@ fun AodIconsPage(onBack: () -> Unit) {
                     ArrowPreference(
                         title = stringResource(R.string.aod_icons_restart_title),
                         summary = stringResource(R.string.aod_icons_restart_summary),
+                        enabled = !restartInProgress(systemUiScope),
                         onClick = {
                             Preferences.flush()
                             RestartUtils.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
-                                selection = systemUiScope
+                                selection = systemUiScope,
+                                onCompleted = { completed ->
+                                    handleRestartedScopes(completed)
+                                    if (completed.systemUi) systemUiRestartPending = false
+                                },
                             )
-                            handleRestartedScopes(systemUiScope)
-                            systemUiRestartPending = false
                         }
                     )
                 }
