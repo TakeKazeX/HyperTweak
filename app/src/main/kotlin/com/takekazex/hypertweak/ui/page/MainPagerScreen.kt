@@ -68,6 +68,7 @@ fun MainPagerScreen(
     pendingRestartScopes: RestartScopeSelection,
     paModelSpoofEnabled: Boolean,
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
+    onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
@@ -300,6 +301,7 @@ fun MainPagerScreen(
                         if (isCurrent || contentReady) {
                             TweaksScreenContent(
                                 padding = padding,
+                                onNavigateToSystemLauncher = onNavigateToSystemLauncher,
                                 onNavigateToSystemUi = onNavigateToSystemUi,
                                 onNavigateToDownloadManager = onNavigateToDownloadManager,
                                 onNavigateToSecurityCenter = onNavigateToSecurityCenter,

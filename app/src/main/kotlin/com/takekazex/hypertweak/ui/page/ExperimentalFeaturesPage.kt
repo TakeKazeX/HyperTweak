@@ -16,23 +16,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.PlatformLevel
-import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,7 +38,6 @@ import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -61,33 +54,16 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun ExperimentalFeaturesPage(
     onBack: () -> Unit,
     onNavigateToGlassTuner: () -> Unit,
-    onNavigateToDockBackground: () -> Unit,
     onNavigateToControlCenterCorner: () -> Unit,
     onNavigateToControlCenterResize: () -> Unit,
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit
 ) {
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
-    // These controls are self-contained on this second-level page instead of threading another
-    // callback through the navigation layer for each one. Most hook settings are read live; the
-    // launcher AOT controls apply at the next safe native input boundary.
     var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
     var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
     var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
-    var hideRecentsClearButton by remember { mutableStateOf(Preferences.hideRecentsClearButton()) }
-    var assistantWidgets by remember { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
-    var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
-    var backGestureEnabled by remember { mutableStateOf(Preferences.backGestureEnabled()) }
-    var hyperosIndicator by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
-    var hyperosHaptics by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
-    var enhancedHaptics by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
-    var slideAnimation by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
-    var crossActivityWallpaper by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
-    var crossTaskWallpaper by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.experimental_features_title),
@@ -161,83 +137,6 @@ fun ExperimentalFeaturesPage(
             // These act on the next Settings UI refresh in the same process; the toggles force the
             // Settings-side capability checks only — runtime sensor gates in system_server are
             // separate (see docs/FEATURE_DETAIL.md).
-            if (PlatformLevel.isOs4) {
-                SmallTitle(stringResource(R.string.back_gesture_section))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        SwitchPreference(
-                            title = stringResource(R.string.back_gesture_enabled_title),
-                            summary = stringResource(R.string.back_gesture_enabled_summary),
-                            checked = backGestureEnabled,
-                            onCheckedChange = {
-                                backGestureEnabled = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, it)
-                            }
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.back_indicator_style_title),
-                            items = listOf("AOSP", "HyperOS"),
-                            selectedIndex = if (hyperosIndicator) 1 else 0,
-                            enabled = backGestureEnabled,
-                            onSelectedIndexChange = {
-                                hyperosIndicator = it == 1
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, hyperosIndicator)
-                            }
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.haptic_feedback_effect_title),
-                            items = listOf("AOSP", "HyperOS"),
-                            selectedIndex = if (hyperosHaptics) 1 else 0,
-                            enabled = backGestureEnabled,
-                            onSelectedIndexChange = {
-                                hyperosHaptics = it == 1
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, hyperosHaptics)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.hyperos_haptics_enhanced_title),
-                            summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
-                            checked = enhancedHaptics,
-                            enabled = backGestureEnabled && hyperosHaptics,
-                            onCheckedChange = {
-                                enhancedHaptics = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.hyperos_slide_animation_title),
-                            summary = stringResource(R.string.hyperos_slide_animation_summary),
-                            checked = slideAnimation,
-                            enabled = backGestureEnabled,
-                            onCheckedChange = {
-                                slideAnimation = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.back_cross_activity_wallpaper_title),
-                            summary = stringResource(R.string.back_cross_activity_wallpaper_summary),
-                            checked = crossActivityWallpaper,
-                            enabled = backGestureEnabled,
-                            onCheckedChange = {
-                                crossActivityWallpaper = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.back_cross_task_wallpaper_title),
-                            summary = stringResource(R.string.back_cross_task_wallpaper_summary),
-                            checked = crossTaskWallpaper,
-                            enabled = backGestureEnabled,
-                            onCheckedChange = {
-                                crossTaskWallpaper = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)
-                            }
-                        )
-                    }
-                }
-            }
-
             SmallTitle(stringResource(R.string.settings_unlock_visual_perception_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
@@ -272,86 +171,6 @@ fun ExperimentalFeaturesPage(
                         title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
                         summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)
                     )
-                }
-            }
-
-            // Both controls affect Xiaomi System Launcher, so keep their native payload settings
-            // together. Opened-folder columns are available only on OS4; recents clearing exists on
-            // every supported launcher build.
-            SmallTitle(stringResource(R.string.settings_launcher_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = hideRecentsClearButton,
-                        onCheckedChange = {
-                            hideRecentsClearButton = it
-                            Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
-                            // Preferences delivers the live snapshot to the launcher; keep the
-                            // legacy file as an inspectable diagnostic copy.
-                            NativeRuleConfig.publish(context, it, openedFolderColumns)
-                        },
-                        title = stringResource(R.string.settings_recents_clear_button_title),
-                        summary = stringResource(R.string.settings_recents_clear_button_summary)
-                    )
-                    if (PlatformLevel.isOs4) {
-                        ArrowPreference(title = stringResource(R.string.dock_title),
-                            summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
-                        SwitchPreference(
-                            checked = assistantWidgets,
-                            onCheckedChange = {
-                                assistantWidgets = it
-                                Preferences.putBoolean(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
-                                NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns,
-                                    assistantWidgets = it)
-                            },
-                            title = stringResource(R.string.settings_assistant_android_widgets_title),
-                            summary = stringResource(R.string.settings_assistant_android_widgets_summary)
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.settings_opened_folder_columns_title),
-                            summary = stringResource(R.string.settings_opened_folder_columns_summary),
-                            items = listOf(
-                                stringResource(R.string.settings_opened_folder_columns_default),
-                                stringResource(R.string.settings_opened_folder_columns_four),
-                                stringResource(R.string.settings_opened_folder_columns_five)
-                            ),
-                            selectedIndex = (
-                                openedFolderColumns - Preferences.DEFAULT_OPENED_FOLDER_COLUMNS
-                            ).coerceIn(0, 2),
-                            onSelectedIndexChange = { index ->
-                                openedFolderColumns =
-                                    (Preferences.DEFAULT_OPENED_FOLDER_COLUMNS + index).coerceIn(
-                                        Preferences.MIN_OPENED_FOLDER_COLUMNS,
-                                        Preferences.MAX_OPENED_FOLDER_COLUMNS
-                                    )
-                                Preferences.putInt(
-                                    Preferences.KEY_OPENED_FOLDER_COLUMNS,
-                                    openedFolderColumns
-                                )
-                                NativeRuleConfig.publish(
-                                    context,
-                                    hideRecentsClearButton,
-                                    openedFolderColumns
-                                )
-                            }
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_opened_folder_restart_title),
-                            summary = stringResource(R.string.settings_opened_folder_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(miuiHome = true)),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(miuiHome = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                    },
-                                )
-                            }
-                        )
-                    }
                 }
             }
 

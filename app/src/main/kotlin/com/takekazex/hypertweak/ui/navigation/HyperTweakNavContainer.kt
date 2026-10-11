@@ -256,6 +256,7 @@ fun HyperTweakNavContainer(
                 pendingRestartScopes = pendingRestartScopes,
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
+                onNavigateToSystemLauncher = { navController.push(Route.SystemLauncher) },
                 onNavigateToSystemUi = {
                     navController.push(Route.SystemUi)
                 },
@@ -599,11 +600,16 @@ fun HyperTweakNavContainer(
             ExperimentalFeaturesPage(
                 onBack = { navController.pop() },
                 onNavigateToGlassTuner = { navController.push(Route.GlassTuner) },
-                onNavigateToDockBackground = { navController.push(Route.DockBackground) },
                 onNavigateToControlCenterCorner = { navController.push(Route.ControlCenterCorner) },
                 onNavigateToControlCenterResize = { navController.push(Route.ControlCenterResize) },
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange
+            )
+        }
+        entry<Route.SystemLauncher> {
+            com.takekazex.hypertweak.ui.page.SystemLauncherPage(
+                onBack = { navController.pop() },
+                onNavigateToDockBackground = { navController.push(Route.DockBackground) }
             )
         }
         entry<Route.DockBackground> {

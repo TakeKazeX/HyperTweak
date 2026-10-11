@@ -45,6 +45,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun TweaksScreenContent(
     padding: PaddingValues,
+    onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
@@ -120,6 +121,18 @@ fun TweaksScreenContent(
                             )
                         },
                         onClick = onNavigateToAospRestore
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_launcher_section),
+                        summary = stringResource(R.string.settings_launcher_summary),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = "com.miui.home",
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.settings_launcher_section)
+                            )
+                        },
+                        onClick = onNavigateToSystemLauncher
                     )
                     ArrowPreference(
                         title = stringResource(R.string.settings_system_ui),

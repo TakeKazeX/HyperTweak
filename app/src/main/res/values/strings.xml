@@ -1291,6 +1291,7 @@
     <string name="power_save_override_section_apply">Apply</string>
     <string name="power_save_override_restart_title">Restart affected apps</string>
     <string name="settings_launcher_section">System Launcher</string>
+    <string name="settings_launcher_summary">Launcher layout and back gestures</string>
     <string name="settings_recents_clear_button_title">Hide recent-apps cleanup button</string>
     <string name="settings_recents_clear_button_summary">Hide the cleanup button; reopen recent apps to apply</string>
     <string name="settings_opened_folder_columns_title">App columns in opened folders</string>
