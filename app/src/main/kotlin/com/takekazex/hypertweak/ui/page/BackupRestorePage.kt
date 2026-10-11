@@ -53,7 +53,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -206,7 +205,7 @@ fun BackupRestorePage(
         }
     }
 
-    WindowDialog(
+    AppWindowDialog(
         show = showClearDialog,
         title = stringResource(R.string.settings_clear_all_settings),
         summary = stringResource(R.string.settings_clear_all_dialog_summary),
@@ -232,7 +231,7 @@ fun BackupRestorePage(
         }
     )
 
-    WindowDialog(
+    AppWindowDialog(
         show = showClearConfirmationDialog,
         title = stringResource(R.string.settings_clear_all_settings),
         summary = stringResource(R.string.settings_clear_all_dialog_second_summary),

@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -122,7 +123,7 @@ fun UpdatePage(
     var freedBytes by remember { mutableStateOf<Long?>(null) }
     var downloadedBytes by remember { mutableLongStateOf(manager.downloadedBytes()) }
 
-    val isChinese = remember { Locale.getDefault().language.equals("zh", ignoreCase = true) }
+    val isChinese = LocalConfiguration.current.locales[0].language.equals("zh", ignoreCase = true)
     val releaseInfo = state.releaseInfo
     // Include the state class: a completed download changes Available -> AwaitingUnknownSources or
     // Error without changing the release key, and that transition must immediately reveal Install.
@@ -829,7 +830,7 @@ private fun NoticeRow(message: String) {
 @Composable
 internal fun UpdateAvailablePrompt(manager: UpdateManager) {
     val state by manager.state.collectAsState()
-    val isChinese = remember { Locale.getDefault().language.equals("zh", ignoreCase = true) }
+    val isChinese = LocalConfiguration.current.locales[0].language.equals("zh", ignoreCase = true)
 
     var promptedKey by remember { mutableStateOf<String?>(null) }
     var dismissed by remember { mutableStateOf(false) }

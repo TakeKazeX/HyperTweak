@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.backgesture.hooks.miuihome;
 import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences;
 
 import android.annotation.SuppressLint;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HostDisplayCompat;
 import android.app.BroadcastOptions;
 import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
@@ -4109,13 +4110,14 @@ public abstract class MiuiHomeHookRuntime extends MiuiHomeReturnHomeRuntime {
         }
     }
 
+    // HyperTweak: the trigger region needs the upstream full logical display height,
+    // including rotation/partition handling, rather than the current launcher window height.
+    @SuppressWarnings("deprecation")
     protected int readMiuiHomeGestureDisplayHeight(View stub) {
         try {
             Display display = stub.getDisplay();
             if (display == null) {
-                WindowManager windowManager = stub.getContext().getSystemService(
-                        WindowManager.class);
-                display = windowManager == null ? null : windowManager.getDefaultDisplay();
+                display = HostDisplayCompat.getDisplay(stub.getContext());
             }
             if (display != null) {
                 DisplayMetrics metrics = new DisplayMetrics();

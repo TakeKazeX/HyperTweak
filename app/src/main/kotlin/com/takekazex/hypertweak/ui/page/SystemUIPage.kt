@@ -111,6 +111,8 @@ fun SystemUIPage(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
+    contextualSearchHaptics: Boolean,
+    onContextualSearchHapticsChange: (Boolean) -> Unit,
     contextualSearchLongPress: Boolean,
     onContextualSearchLongPressChange: (Boolean) -> Unit,
     onNavigateToNotificationHeader: () -> Unit,
@@ -636,6 +638,15 @@ fun SystemUIPage(
                         title = stringResource(R.string.tweaks_cts_long_press_title),
                         summary = stringResource(R.string.tweaks_cts_long_press_summary)
                     )
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = contextualSearchHaptics,
+                            onCheckedChange = onContextualSearchHapticsChange,
+                            title = stringResource(R.string.tweaks_cts_haptics_title),
+                            summary = stringResource(R.string.tweaks_cts_haptics_summary),
+                            enabled = contextualSearchLongPress
+                        )
+                    }
                     OverlayDropdownPreference(
                         title = stringResource(R.string.tweaks_power_button_action_title),
                         summary = stringResource(R.string.tweaks_power_button_action_summary),

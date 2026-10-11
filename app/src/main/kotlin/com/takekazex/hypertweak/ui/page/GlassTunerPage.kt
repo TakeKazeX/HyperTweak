@@ -58,7 +58,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
@@ -672,7 +671,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     val importingPreset = pendingPresetImport
     if (importingPreset != null) {
-        Dialog(
+        AppDialog(
             onDismissRequest = {
                 DebugLog.i("GlassTuner", "preset import confirmation cancelled")
                 pendingPresetImport = null
@@ -717,7 +716,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     val deletingPreset = presetToDelete
     if (deletingPreset != null) {
-        Dialog(
+        AppDialog(
             onDismissRequest = {
                 DebugLog.i("GlassTuner", "preset delete confirmation dismissed")
                 presetToDelete = null
@@ -771,7 +770,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     val renamingPreset = presetToRename
     if (renamingPreset != null) {
-        Dialog(
+        AppDialog(
             onDismissRequest = {
                 DebugLog.i("GlassTuner", "preset rename dismissed")
                 presetToRename = null

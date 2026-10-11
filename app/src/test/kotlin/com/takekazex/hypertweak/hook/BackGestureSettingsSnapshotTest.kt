@@ -32,7 +32,7 @@ class BackGestureSettingsSnapshotTest {
 
     @Test fun `reset and imported configuration replace all switches in a new epoch`() {
         val ledger = BackGestureSettingsLedger()
-        val old = baseline().copy(values = List(7) { true }, revision = 900, epoch = 1)
+        val old = baseline().copy(values = List(BackGestureSettingsSnapshot.KEYS.size) { true }, revision = 900, epoch = 1)
         ledger.offer(old)
         val reset = baseline().copy(epoch = 2)
         assertTrue(ledger.offer(reset))
@@ -57,9 +57,31 @@ class BackGestureSettingsSnapshotTest {
         val committed = baseline().mutate(indicator, true, 1).mutate(indicator, false, 2)
         val replacement = BackGestureSettingsLedger()
         assertTrue(replacement.offer(requireNotNull(BackGestureSettingsSnapshot.restore(committed.save()))))
-        assertFalse(replacement.offer(committed.copy(revision = 1, values = List(7) { true })))
+        assertFalse(replacement.offer(committed.copy(revision = 1, values = List(BackGestureSettingsSnapshot.KEYS.size) { true })))
         assertEquals(committed, replacement.latest())
         assertNull(BackGestureSettingsSnapshot.restore(arrayOf<Any>(2L, 0L, false)))
+    }
+
+    @Test fun `contextual search haptics remain live across disable reset and hot reload`() {
+        val key = Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS
+        val enabled = baseline().mutate(key, true, 1)
+        val disabled = enabled.mutate(key, false, 2)
+        val ledger = BackGestureSettingsLedger()
+        assertTrue(ledger.offer(requireNotNull(BackGestureSettingsSnapshot.restore(disabled.save()))))
+        assertFalse(ledger.offer(enabled))
+        assertEquals(false, ledger.latest()!!.value(key))
+        assertTrue(ledger.offer(baseline().copy(epoch = 1)))
+        assertFalse(ledger.offer(enabled.copy(revision = 999)))
+        assertEquals(false, ledger.latest()!!.value(key))
+    }
+
+    @Test fun `older seven-flag hot reload state preserves identity and opts out of haptics`() {
+        val old = arrayOf<Any>(25L, 3L, true, false, false, false, true, false, true)
+        val restored = requireNotNull(BackGestureSettingsSnapshot.restore(old))
+        assertEquals(25L, restored.revision)
+        assertEquals(3L, restored.epoch)
+        assertEquals(true, restored.value(slide))
+        assertEquals(false, restored.value(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS))
     }
 
     @Test fun `malformed settings and negative identities cannot silently become defaults`() {

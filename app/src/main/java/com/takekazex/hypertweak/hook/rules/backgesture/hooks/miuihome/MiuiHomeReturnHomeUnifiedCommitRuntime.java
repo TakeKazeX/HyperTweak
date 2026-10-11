@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.miuihome;
 
 import android.content.Context;
+import android.view.Display;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HostDisplayCompat;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HostEnumResolver;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.IBinder;
@@ -8,7 +11,6 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.SurfaceControl;
 import android.view.View;
-import android.view.WindowManager;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
@@ -2030,9 +2032,6 @@ abstract class MiuiHomeReturnHomeUnifiedCommitRuntime
             clip.setAccessible(true);
             gestureAnimExecutor.setAccessible(true);
             coordinateTransform.setAccessible(true);
-            Class<? extends Enum> enumClass =
-                    (Class<? extends Enum>) animTypeClass.asSubclass(
-                            Enum.class);
 
             nativeTargetSetConstructor = targetSet;
             nativeWindowAnimParamsConstructor = windowParams;
@@ -2041,9 +2040,10 @@ abstract class MiuiHomeReturnHomeUnifiedCommitRuntime
             nativeClipAnimationHelperConstructor = clip;
             nativeGestureAnimExecutorMethod = gestureAnimExecutor;
             nativeCoordinateTransformMethod = coordinateTransform;
-            nativeCloseToDragType = Enum.valueOf(
-                    enumClass, "CLOSE_TO_DRAG");
-            nativeAppToAppType = Enum.valueOf(enumClass, "APP_TO_APP");
+            // HyperTweak: resolve constants by their enum names without a raw generic cast.
+            nativeCloseToDragType = HostEnumResolver.valueOf(
+                    animTypeClass, "CLOSE_TO_DRAG");
+            nativeAppToAppType = HostEnumResolver.valueOf(animTypeClass, "APP_TO_APP");
         }
 
         protected void executeOnNativeGestureAnimationOwner(Runnable runnable)
@@ -2221,12 +2221,9 @@ abstract class MiuiHomeReturnHomeUnifiedCommitRuntime
                         : getCurrentDisplayRotation.invoke(launcher);
                 int launcherRotation = launcherRotationObject instanceof Number
                         ? ((Number) launcherRotationObject).intValue() : -1;
-                WindowManager windowManager = launcher instanceof Context
-                        ? (WindowManager) ((Context) launcher).getSystemService(
-                        Context.WINDOW_SERVICE) : null;
-                int homeRotation = windowManager == null
-                        || windowManager.getDefaultDisplay() == null
-                        ? -1 : windowManager.getDefaultDisplay().getRotation();
+                Display homeDisplay = launcher instanceof Context
+                        ? HostDisplayCompat.getDisplay((Context) launcher) : null;
+                int homeRotation = homeDisplay == null ? -1 : homeDisplay.getRotation();
                 Object homeBoundsObject = launcher == null ? null
                         : getRootViewRect.invoke(launcher);
                 Rect homeBounds = homeBoundsObject instanceof Rect

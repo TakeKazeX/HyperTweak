@@ -1086,6 +1086,8 @@
     <string name="tweaks_passkey_title">启用 Google 通行密钥</string>
     <string name="tweaks_power_button_action_follow_system">跟随系统</string>
     <string name="tweaks_power_button_action_summary">长按电源键执行所选操作</string>
+    <string name="tweaks_cts_haptics_title">触发震动</string>
+    <string name="tweaks_cts_haptics_summary">长按手势条成功启动圈定即搜后提供触感反馈</string>
     <string name="tweaks_power_button_action_title">长按电源键</string>
     <string name="tweaks_quick_share_summary">在国行系统上使用 Quick Share</string>
     <string name="tweaks_quick_share_title">启用快速分享</string>

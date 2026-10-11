@@ -27,7 +27,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.basic.VerticalDivider
 import androidx.compose.ui.Alignment
@@ -181,7 +180,7 @@ fun RestartScopeDialog(
         )
     }
 
-    WindowDialog(
+    AppWindowDialog(
         show = show,
         title = stringResource(R.string.restart_scoped_apps_title),
         maxWidth = if (isLandscape) 560.dp else DialogDefaults.MaxWidth,
@@ -221,7 +220,7 @@ fun AppRestartPreference(
     // Label and icon are both PackageManager binder calls, and the icon additionally rasterizes a
     // bitmap; resolve them off the main thread. Seed the label with the offline fallback so the row
     // renders its correct name immediately, then fill in the resolved label and icon once ready.
-    val appName by produceState(initialValue = fallbackAppName(context, packageName), packageName) {
+    val appName by produceState(initialValue = fallbackAppName(context, packageName), context, packageName) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 val pm = context.packageManager

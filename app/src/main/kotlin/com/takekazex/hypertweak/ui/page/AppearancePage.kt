@@ -67,7 +67,7 @@ fun AppearancePage(
     val resolvedSeed = if (seedColorHex == 0) systemAccent else seedColorHex
     val darkPreview = isEffectivelyDark(themeMode, isSystemInDarkTheme())
     val customSeed = seedColorHex !in presetAccentColors
-    val accentLabels = remember(seedColorHex, customSeed) {
+    val accentLabels = remember(context, seedColorHex, customSeed) {
         buildList {
             addAll(presetAccentLabels.map { context.getString(it) })
             if (customSeed) {

@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.layout.DialogDefaults
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /** Shared centered presentation, including Miuix's window back-event bridge and dismissal. */
 @Composable
@@ -20,7 +19,7 @@ fun CenteredDialog(
     onDismissRequest: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    WindowDialog(
+    AppWindowDialog(
         show = show,
         title = title,
         summary = summary,

@@ -159,6 +159,8 @@ fun HyperTweakNavContainer(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
+    contextualSearchHaptics: Boolean,
+    onContextualSearchHapticsChange: (Boolean) -> Unit,
     contextualSearchLongPress: Boolean,
     onContextualSearchLongPressChange: (Boolean) -> Unit,
     unlockPasskey: Boolean,
@@ -539,6 +541,8 @@ fun HyperTweakNavContainer(
                 onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
                 powerButtonAction = powerButtonAction,
                 onPowerButtonActionChange = onPowerButtonActionChange,
+                contextualSearchHaptics = contextualSearchHaptics,
+                onContextualSearchHapticsChange = onContextualSearchHapticsChange,
                 contextualSearchLongPress = contextualSearchLongPress,
                 onContextualSearchLongPressChange = onContextualSearchLongPressChange,
                 onNavigateToNotificationHeader = {

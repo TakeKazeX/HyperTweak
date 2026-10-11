@@ -1089,6 +1089,8 @@
     <string name="tweaks_passkey_title">Enable Google passkeys</string>
     <string name="tweaks_power_button_action_follow_system">Follow system</string>
     <string name="tweaks_power_button_action_summary">Run the selected action on a long press of the power button</string>
+    <string name="tweaks_cts_haptics_title">Vibrate on trigger</string>
+    <string name="tweaks_cts_haptics_summary">Provide haptic feedback after a long press successfully starts Circle to Search</string>
     <string name="tweaks_power_button_action_title">Power Button Long Press</string>
     <string name="tweaks_quick_share_summary">Use Quick Share on China ROMs</string>
     <string name="tweaks_quick_share_title">Enable Quick Share</string>

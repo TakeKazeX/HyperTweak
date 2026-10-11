@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences;
+import com.takekazex.hypertweak.hook.Preferences;
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore;
 
 import android.annotation.SuppressLint;
@@ -23,6 +24,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.VibrationEffect;
+import android.os.VibrationAttributes;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Log;
@@ -179,18 +181,9 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
 
     protected boolean isContextualSearchHapticsEnabled() {
         try {
-            SharedPreferences preferences = contextualSearchPreferences;
-            if (preferences == null) {
-                synchronized (this) {
-                    preferences = contextualSearchPreferences;
-                    if (preferences == null) {
-                        preferences = getRemotePreferences(PredictiveBackPreferences.GROUP);
-                        contextualSearchPreferences = preferences;
-                    }
-                }
-            }
-            return preferences.getBoolean(
-                    PredictiveBackPreferences.KEY_CONTEXTUAL_SEARCH_HAPTICS,
+            // HyperTweak: consume the acknowledged live snapshot, including hot reload/reset.
+            return Preferences.INSTANCE.backGestureBoolean(
+                    Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS,
                     PredictiveBackPreferences.DEFAULT_CONTEXTUAL_SEARCH_HAPTICS);
         } catch (Throwable throwable) {
             moduleLog(Log.WARN, TAG,
@@ -216,7 +209,8 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                     .setFlags(128)
                     .build();
             vibrator.vibrate(VibrationEffect.createPredefined(
-                    VibrationEffect.EFFECT_CLICK), attributes);
+                    VibrationEffect.EFFECT_CLICK),
+                    new VibrationAttributes.Builder(attributes).build());
             moduleLog(Log.INFO, TAG, "Played contextual-search trigger haptic");
             return true;
         } catch (Throwable throwable) {
@@ -1702,6 +1696,9 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
             return true;
         }
 
+        // HyperTweak: this runs in privileged SystemUI and queries tasks on the owning display.
+        // UsageStats is not an equivalent source of current RunningTaskInfo/topActivity.
+        @SuppressWarnings("deprecation")
         protected ComponentName findTopActivity() {
             try {
                 ActivityManager activityManager = context.getSystemService(ActivityManager.class);

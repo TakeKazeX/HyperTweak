@@ -30,7 +30,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -61,7 +60,7 @@ internal fun HotReloadDialog(
     val runningPackages by com.takekazex.hypertweak.util.RestartUtils.runningPackages.collectAsState()
     val context = LocalContext.current
 
-    WindowDialog(
+    AppWindowDialog(
         show = show,
         title = stringResource(R.string.home_hot_reload_title),
         onDismissRequest = onDismissRequest,

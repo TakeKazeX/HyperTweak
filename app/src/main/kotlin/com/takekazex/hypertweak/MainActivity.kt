@@ -41,6 +41,8 @@ import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.LocaleHelper
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalContext
 
 internal fun getSystemAccentColor(context: Context): Int {
@@ -263,6 +265,13 @@ class MainActivity : ComponentActivity() {
         updateManager = UpdateManager(this)
 
         setContent {
+            var appLanguage by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
+            val context = LocalContext.current
+            val configuration = LocalConfiguration.current
+            val localizedContext = remember(context, appLanguage, configuration) {
+                LocaleHelper.getLocalizedContext(context, appLanguage)
+            }
+            val noticeContext by rememberUpdatedState(localizedContext)
             val snackbarHostState = remember { SnackbarHostState() }
 
             // Package replacement kills the installing process, so the outcome of an update is
@@ -285,9 +294,9 @@ class MainActivity : ComponentActivity() {
                 updateManager.startAutoCheck()
                 if (notice != null) {
                     val message = if (notice.versionCode != null) {
-                        getString(R.string.update_completion_snackbar, notice.versionName, notice.versionCode)
+                        noticeContext.getString(R.string.update_completion_snackbar, notice.versionName, notice.versionCode)
                     } else {
-                        getString(R.string.update_completion_snackbar_legacy, notice.versionName)
+                        noticeContext.getString(R.string.update_completion_snackbar_legacy, notice.versionName)
                     }
                     snackbarHostState.showSnackbar(message)
                 }
@@ -310,7 +319,6 @@ class MainActivity : ComponentActivity() {
             var predictiveBackFollowGesture by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, true)) }
             var allowLandscape by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_LANDSCAPE, false)) }
             var pageScale by remember { mutableFloatStateOf(Preferences.getFloat(Preferences.KEY_PAGE_SCALE, 1.0f)) }
-            var appLanguage by remember { mutableIntStateOf(Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) }
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
             val staleTargets by XposedServiceManager.staleTargetsFlow.collectAsState()
@@ -372,6 +380,9 @@ class MainActivity : ComponentActivity() {
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
             var powerButtonAction by remember {
                 mutableIntStateOf(Preferences.powerButtonAction())
+            }
+            var contextualSearchHaptics by remember {
+                mutableStateOf(Preferences.getBoolean(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS, false))
             }
             var contextualSearchLongPress by remember {
                 mutableStateOf(Preferences.contextualSearchLongPress())
@@ -454,7 +465,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val context = androidx.compose.ui.platform.LocalContext.current
             val localPrefs = remember { getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE) }
             val bootToken = remember { currentBootToken() }
             val lastActive = remember { localPrefs.getBoolean("last_known_module_activated", false) }
@@ -872,6 +882,7 @@ class MainActivity : ComponentActivity() {
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     powerButtonAction = Preferences.powerButtonAction()
                     contextualSearchLongPress = Preferences.contextualSearchLongPress()
+                    contextualSearchHaptics = Preferences.getBoolean(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS, false)
                     hideLauncherIcon = Preferences.getBoolean(Preferences.KEY_HIDE_LAUNCHER_ICON, false)
                     sliderShowPercentage = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
                     sliderSamePercentageStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
@@ -953,9 +964,6 @@ class MainActivity : ComponentActivity() {
             val density = remember(systemDensity, pageScale) {
                 Density(systemDensity.density * pageScale, systemDensity.fontScale)
             }
-            val localizedContext = remember(context, appLanguage) {
-                LocaleHelper.getLocalizedContext(context, appLanguage)
-            }
 
                     CompositionLocalProvider(
                         // A localized ConfigurationContext is not an Activity. Keep Activity-owned
@@ -965,6 +973,8 @@ class MainActivity : ComponentActivity() {
                         LocalOnBackPressedDispatcherOwner provides this@MainActivity,
                         LocalAppBlurMode provides AppBlurMode.entries[appBlurMode],
                         LocalContext provides localizedContext,
+                        LocalConfiguration provides localizedContext.resources.configuration,
+                        LocalResources provides localizedContext.resources,
                         LocalDensity provides density,
                         LocalRestartScopeRequest provides ::requestRestartScopes,
                         LocalRestartScopeHandled provides ::clearRestartedScopes
@@ -1194,6 +1204,11 @@ class MainActivity : ComponentActivity() {
                         gestureBarRaiseLayout = checked
                         Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                     },
+                    contextualSearchHaptics = contextualSearchHaptics,
+                    onContextualSearchHapticsChange = { enabled ->
+                        Preferences.putBoolean(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS, enabled)
+                        contextualSearchHaptics = enabled
+                    },
                     contextualSearchLongPress = contextualSearchLongPress,
                     onContextualSearchLongPressChange = { enabled ->
                         markTweaked(Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, enabled)
@@ -1380,8 +1395,8 @@ class MainActivity : ComponentActivity() {
                             val cleared = withContext(Dispatchers.IO) { Preferences.clearAllSettings() }
                             if (!cleared) {
                                 Toast.makeText(
-                                    this@MainActivity,
-                                    R.string.settings_clear_all_failed,
+                                    localizedContext,
+                                    localizedContext.getString(R.string.settings_clear_all_failed),
                                     Toast.LENGTH_LONG
                                 ).show()
                                 return@launch

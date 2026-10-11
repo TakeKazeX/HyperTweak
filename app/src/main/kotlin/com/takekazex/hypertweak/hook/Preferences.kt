@@ -1156,6 +1156,7 @@ object Preferences {
      * [KEY_POWER_BUTTON_ACTION]: either entry point may be on.
      */
     const val KEY_CONTEXTUAL_SEARCH_LONG_PRESS = "contextual_search_long_press"
+    const val KEY_CONTEXTUAL_SEARCH_HAPTICS = "contextual_search_haptics"
 
     fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
