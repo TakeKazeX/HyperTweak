@@ -24,6 +24,29 @@ class NotificationTextColorPolicyTest {
         assertFalse(NotificationTextColorPolicy.isHeadsUp(false, false))
     }
 
+    @Test fun groupedChildUsesVisibleSummaryContextAndReturnsToItsOwnBackground() {
+        data class Row(var headsUp: Boolean, var dragging: Boolean = false)
+        val summary = Row(true)
+        val child = Row(false)
+        fun night(parent: Row?, childHidden: Boolean, parentHidden: Boolean): Boolean {
+            val owner = NotificationTextColorPolicy.backgroundOwner(child, parent, childHidden, parentHidden)
+            // GLASS_DARK in light mode: only HUN uses the native light context.
+            return !NotificationTextColorPolicy.isHeadsUp(owner.headsUp, owner.dragging)
+        }
+        assertEquals(0xff000000.toInt(), NotificationTextColorPolicy.neutral(night(summary, true, false)))
+        summary.headsUp = false
+        summary.dragging = true
+        assertFalse(night(summary, true, false))
+        summary.dragging = false
+        assertTrue(night(summary, true, false))
+        summary.headsUp = true
+        assertTrue(night(summary, false, false)) // Expanded child has its own background.
+        assertTrue(night(summary, true, true)) // Hidden summary is not the background owner.
+        assertTrue(night(null, true, false)) // Detached child cannot retain its old HUN parent.
+        child.headsUp = true
+        assertFalse(night(null, false, false))
+    }
+
     @Test fun customSubclassIsExcludedEvenWhenItInheritsNativeTemplate() {
         assertFalse(NotificationTextColorPolicy.ownsTemplate(listOf(
             prefix + "MiuiNotificationDecoratedCustomViewWrapper", prefix + "NotificationTemplateViewWrapper")))

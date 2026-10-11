@@ -145,6 +145,13 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         val rowClass = (ROW + "ExpandableNotificationRow").toClassOrNull()
         val entryClass = "com.android.systemui.statusbar.notification.collection.NotificationEntry".toClassOrNull()
         if (rowClass != null) {
+            // The group relationship/background can change without changing the child's EffectKey.
+            viewHooks += hookAfter(ROW + "ExpandableNotificationRow", "setIsChildInGroup",
+                listOf(Boolean::class.javaPrimitiveType!!, rowClass)) { target, _ ->
+                (target as? View)?.let(::recoverRowText)
+            }
+            viewHooks += hookAfter(ROW + "ExpandableNotificationRow", "updateBackgroundForGroupState",
+                emptyList()) { target, _ -> (target as? View)?.let(::recoverRowText) }
             // Hook each declaration after its own child resolution, including inherited inbox paths.
             (NotificationTextColorPolicy.standardWrappers + (WRAPPER + "MiuiNotificationViewWrapper")).forEach { name ->
                 viewHooks += hookAfter(name, "onContentUpdated", listOf(rowClass)) { target, args ->
@@ -178,6 +185,8 @@ object NotificationMonetTextColorHooker : StaticHooker() {
                     if (rowEffects[row] != key) {
                         rowEffects[row] = key
                         recoverRowText(row)
+                        // Only the summary enters HUN; its children retain ordinary row keys.
+                        attachedChildren(row).forEach(::recoverRowText)
                     }
                 } }
             }
@@ -197,6 +206,16 @@ object NotificationMonetTextColorHooker : StaticHooker() {
             }
             (content as? View)?.let(::recover)
         }
+    }
+
+    private fun attachedChildren(row: View): List<View> =
+        (invokeGetter(row, "getAttachedChildren") as? List<*>)?.filterIsInstance<View>().orEmpty()
+
+    private fun backgroundOwner(row: View): View {
+        val parent = invokeGetter(row, "getNotificationParent") as? View
+        return NotificationTextColorPolicy.backgroundOwner(row, parent,
+            read(row, "mShowNoBackground") == true,
+            parent == null || read(parent, "mShowNoBackground") != false)
     }
 
     private fun hookPalette(): Int {
@@ -349,7 +368,8 @@ object NotificationMonetTextColorHooker : StaticHooker() {
             ?.let { invokeGetter(it, "getValue") } ?: return null
         val state = invokeGetter(stateFlow, "getValue") ?: return null
         val style = read(state, "notifStyle") ?: return null
-        val viewModel = row?.let { invokeGetter(it, "getInjector") }?.let { read(it, "viewModel") }
+        val owner = row?.let(::backgroundOwner)
+        val viewModel = owner?.let { invokeGetter(it, "getInjector") }?.let { read(it, "viewModel") }
         fun flag(name: String): Boolean = viewModel?.let { read(it, name) }
             ?.let { read(it, "flow") }?.let { invokeGetter(it, "getValue") } == true
         val headsUp = NotificationTextColorPolicy.isHeadsUp(
@@ -362,7 +382,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         } else nativeContext
         if (materialLogCount++ < 6) DebugLog.i(TAG,
             "native text context glass=$glass headsUp=$headsUp style=$style " +
-                "fullAod=$fullAod transparent=$transparent night=$night")
+                "fullAod=$fullAod transparent=$transparent groupBackground=${owner != row} night=$night")
         return NativeTextContext(resolved, night)
     }
 

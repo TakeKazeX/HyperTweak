@@ -23,6 +23,10 @@ internal object NotificationTextColorPolicy {
     fun isHeadsUp(headUpState: Boolean, dragDownDisappear: Boolean): Boolean =
         headUpState || dragDownDisappear
 
+    /** Hidden group children draw on the summary's visible background. */
+    fun <T> backgroundOwner(row: T, parent: T?, childHidden: Boolean, parentHidden: Boolean): T =
+        if (parent != null && childHidden && !parentHidden) parent else row
+
     /** Material/style selection already happened in the native context producer. */
     fun usesDarkTextContext(nativeNight: Boolean, fullAod: Boolean, transparent: Boolean): Boolean =
         nativeNight || fullAod || transparent
