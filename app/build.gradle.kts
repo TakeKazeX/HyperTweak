@@ -205,6 +205,7 @@ tasks.register("printBaseVersion") {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.github.libxposed:api:102.0.0")
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")
 

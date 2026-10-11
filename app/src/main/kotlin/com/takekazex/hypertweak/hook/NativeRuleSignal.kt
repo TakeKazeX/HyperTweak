@@ -32,6 +32,23 @@ internal object NativeRuleProtocol {
         .putExtra("hidden", snapshot.hidden).putExtra("columns", snapshot.columns)
         .putExtra("contextual", snapshot.contextualSearch).putExtra("revision", snapshot.revision)
         .putExtra("epoch", snapshot.epoch).putExtra("assistant_widgets", snapshot.assistantWidgets)
+    fun encodeBackSettings(intent: Intent, snapshot: BackGestureSettingsSnapshot?): Intent {
+        if (snapshot != null) {
+            intent.putExtra("back_revision", snapshot.revision).putExtra("back_epoch", snapshot.epoch)
+            BackGestureSettingsSnapshot.KEYS.forEachIndexed { index, key -> intent.putExtra(key, snapshot.values[index]) }
+        }
+        return intent
+    }
+    fun decodeBackSettings(intent: Intent): BackGestureSettingsSnapshot? = runCatching {
+        val extras = intent.extras ?: return null
+        val keys = BackGestureSettingsSnapshot.KEYS
+        if (!extras.containsKey("back_revision") || !extras.containsKey("back_epoch") || keys.any { !extras.containsKey(it) }) return null
+        @Suppress("DEPRECATION")
+        val values = keys.associateWith { extras.get(it) } + mapOf(
+            BackGestureSettingsSnapshot.REVISION to extras.get("back_revision"), "prefs_epoch" to extras.get("back_epoch"))
+        if (values.values.any { it == null }) return null
+        BackGestureSettingsSnapshot.read(values)
+    }.getOrNull()
     fun decode(intent: Intent): NativeRuleStateSnapshot? = runCatching {
         val extras = intent.extras ?: return null
         @Suppress("DEPRECATION")
@@ -50,17 +67,34 @@ internal object NativeRuleSignal {
     @Volatile private var context: Context? = null
     private var source: SharedPreferences? = null
     private val acknowledged = NativeSnapshotLedger()
+    private val acknowledgedBack = BackGestureSettingsLedger()
     fun attach(context: Context) { this.context = context.applicationContext ?: context }
     @Synchronized fun bind(prefs: SharedPreferences) {
         if (source === prefs) return
         source = prefs
         Preferences.nativeRuleSnapshot()?.let(acknowledged::offer)
+        runCatching { BackGestureSettingsSnapshot.read(prefs.all) }
+            .onFailure { DebugLog.w("BackGesture", "settings baseline unavailable", it) }
+            .getOrNull()?.let(acknowledgedBack::offer)
         publishCommitted()
     }
     fun prepareMutation(key: String, value: Any, revision: Long): NativeRuleStateSnapshot = NativeRuleMutation.apply(
         acknowledged.latest() ?: Preferences.nativeRuleSnapshot() ?: error("no authoritative native settings baseline"),
         key, value, revision)
     fun lastAcknowledged(): NativeRuleStateSnapshot? = acknowledged.latest()
+    fun prepareBackMutation(key: String, value: Boolean): BackGestureSettingsSnapshot {
+        val old = acknowledgedBack.latest() ?: BackGestureSettingsSnapshot.read(source?.all ?: error("back settings unavailable"))
+            ?: error("invalid back settings baseline")
+        return old.mutate(key, value, NativeSnapshotLedger.nextRevision(old.revision, android.os.SystemClock.elapsedRealtimeNanos()))
+    }
+    fun writeBackSettings(editor: SharedPreferences.Editor, snapshot: BackGestureSettingsSnapshot) {
+        BackGestureSettingsSnapshot.KEYS.forEachIndexed { index, key -> editor.putBoolean(key, snapshot.values[index]) }
+        editor.putLong(BackGestureSettingsSnapshot.REVISION, snapshot.revision)
+    }
+    fun lastAcknowledgedBack(): BackGestureSettingsSnapshot? = acknowledgedBack.latest()
+    fun acknowledgeBack(snapshot: BackGestureSettingsSnapshot) {
+        if (acknowledgedBack.offer(snapshot)) publishCommitted()
+    }
     fun acknowledge(snapshot: NativeRuleStateSnapshot) {
         if (acknowledged.offer(snapshot)) {
             Preferences.invalidateRuntimeReadCache()
@@ -78,7 +112,8 @@ internal object NativeRuleSignal {
                 else DebugLog.w("NativeRules", "app settings snapshot unavailable after commit revision=$minimumRevision")
                 return
             }
-            runCatching { NativeRuleProtocol.send(target, NativeRuleProtocol.encode(snapshot)) }
+            runCatching { NativeRuleProtocol.send(target, NativeRuleProtocol.encodeBackSettings(
+                NativeRuleProtocol.encode(snapshot), acknowledgedBack.latest())) }
                 .onFailure { DebugLog.w("NativeRules", "app settings notification failed", it) }
         }
         handler.post { attempt(0) }

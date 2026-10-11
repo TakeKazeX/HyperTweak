@@ -356,11 +356,8 @@ __attribute__((used)) volatile uint32_t g_outer_down_post_type_0_count = 0;
 __attribute__((used)) volatile uint32_t g_outer_down_post_type_1_count = 0;
 __attribute__((used)) volatile uint32_t g_outer_down_post_type_2_count = 0;
 __attribute__((used)) volatile uint32_t g_outer_down_post_type_3_count = 0;
-// HyperTweak: 0 yields the SystemUI arbiter ownership surface (business
-// inline hooks, arbiter bridge, Dart state epilogues, status replies) to the
-// independently installed upstream back-gesture module. Set to 1 to restore
-// the full upstream framework participation verbatim.
-__attribute__((used)) volatile uint32_t g_enable_systemui_ownership = 0;
+// HyperTweak is the sole native owner of the upstream input pipeline.
+// Takeover remains gated by authenticated SystemUI readiness and exact DOWN identity.
 __attribute__((used)) volatile uint32_t g_stub_back_handler_count = 0;
 __attribute__((used)) volatile uint32_t g_stub_back_action_last = 0xffffffffu;
 __attribute__((used)) volatile uint32_t g_stub_back_down_count = 0;
@@ -2039,11 +2036,6 @@ void PublishPendingDartStates(uint64_t owner_epoch) {
     const uint32_t pending = __atomic_exchange_n(
             &g_dart_state_publish_pending, uint32_t{0}, __ATOMIC_ACQ_REL);
     if (pending == 0u) return;
-    // HyperTweak: no arbiter bridge means no channel for any of these
-    // broadcasts; observe-only keeps the counters without send failures.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return;
-    }
 
     if ((pending & kDartOwnerPending) != 0u) {
         PublishDartStateOwnerForCurrentGeneration(owner_epoch);
@@ -2329,12 +2321,6 @@ bool EnsureDartStatePublisherThread() {
 }
 
 void PublishXiaoAiStateForCurrentGeneration() {
-    // HyperTweak: without the arbiter bridge there is no channel for this
-    // state broadcast, and emitting it would only loop warn logs. The
-    // observation counters above stay untouched for diagnostics.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return;
-    }
     const uint32_t observed = AtomicLoad(&g_xiaoai_state_observed);
     const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
     if ((observed != 1u && observed != 2u) || generation <= 0 ||
@@ -2588,11 +2574,6 @@ bool HandleRuntimeStatusQuery(void* intent) {
 }
 
 bool TryQuerySystemUiArbiter(uint32_t maximum_attempts) {
-    // HyperTweak: the query broadcast rides the single-owner shared identity;
-    // with ownership disabled the upstream module owns the arbiter dialog.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return false;
-    }
     if (AtomicLoad(&g_systemui_arbiter_generation) > 0) return true;
     uint32_t attempts = AtomicLoad(&g_arbiter_query_attempts);
     while (attempts < maximum_attempts) {
@@ -2616,15 +2597,6 @@ bool TryQuerySystemUiArbiter(uint32_t maximum_attempts) {
 }
 
 void TryInstallArbiterBridge() {
-    // HyperTweak: the private-broadcast GOT slot and the receiver/send inline
-    // hooks are single-owner resources. With ownership disabled, leaving them
-    // to the independently installed upstream module is what keeps the
-    // upstream native bridge "ready"; installing here would CAS-fail the slot
-    // (state 104 → permanent state 4) and silence this module's broadcasts
-    // while masking the upstream status replies.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return;
-    }
     if (!IsLauncherHookProcess() ||
             AtomicLoad(&g_business_hook_state) != uint32_t{3}) {
         return;
@@ -2904,9 +2876,7 @@ void HookGestureStubBackHandler(void* stub_window, void* event) {
     if (counter != nullptr) {
         __atomic_fetch_add(counter, uint32_t{1}, __ATOMIC_RELAXED);
     }
-    const bool ownership_enabled = __atomic_load_n(
-            &g_enable_systemui_ownership, __ATOMIC_RELAXED) != 0u;
-    if (!ownership_enabled || action < 0 || event == nullptr) {
+    if (action < 0 || event == nullptr) {
         if (original != nullptr) original(stub_window, event);
         return;
     }
@@ -3384,29 +3354,27 @@ void* HookLauncherDlopenForSlot(
     if (original == nullptr) return nullptr;
     void* result = original(filename, flags);
     if (result != nullptr && IsDartLibraryPath(filename)) {
-        if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) != 0u) {
-            const auto* profile = ResolveDartFeatureProfile(result);
-            if (profile != nullptr) {
-                TryInstallDartDrawerStateHook(result, profile);
-                TryInstallDartOverviewStateHook(result, profile);
-                TryInstallDartEditingStateHook(result, profile);
-            } else {
-                const auto* launcher = CurrentLauncherProfile();
-                const uint32_t dart_stage = AtomicLoad(
-                        &g_dart_profile_resolve_state);
-                if (launcher != nullptr && g_launcher_base != nullptr &&
-                        StringsEqual(launcher->id, "runtime-side-v1") &&
-                        dart_stage >= static_cast<uint32_t>(
-                                miui_home_dart_profile::ResolveStage::
-                                        kRejectedElf)) {
-                    if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{1}) {
-                        __atomic_store_n(&g_overview_state_hook_state,
-                                         uint32_t{2}, __ATOMIC_RELEASE);
-                    }
-                    if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{1}) {
-                        __atomic_store_n(&g_editing_state_hook_state,
-                                         uint32_t{2}, __ATOMIC_RELEASE);
-                    }
+        const auto* profile = ResolveDartFeatureProfile(result);
+        if (profile != nullptr) {
+            TryInstallDartDrawerStateHook(result, profile);
+            TryInstallDartOverviewStateHook(result, profile);
+            TryInstallDartEditingStateHook(result, profile);
+        } else {
+            const auto* launcher = CurrentLauncherProfile();
+            const uint32_t dart_stage = AtomicLoad(
+                    &g_dart_profile_resolve_state);
+            if (launcher != nullptr && g_launcher_base != nullptr &&
+                    StringsEqual(launcher->id, "runtime-side-v1") &&
+                    dart_stage >= static_cast<uint32_t>(
+                            miui_home_dart_profile::ResolveStage::
+                                    kRejectedElf)) {
+                if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{1}) {
+                    __atomic_store_n(&g_overview_state_hook_state,
+                                     uint32_t{2}, __ATOMIC_RELEASE);
+                }
+                if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{1}) {
+                    __atomic_store_n(&g_editing_state_hook_state,
+                                     uint32_t{2}, __ATOMIC_RELEASE);
                 }
             }
         }
@@ -3433,12 +3401,6 @@ void* HookLauncherDlopen3(const char* filename, int flags) {
 
 void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
     hypertweak::native::RequestNativeRulePreparation();
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        // Our rules do not own the upstream Dart state family. In particular,
-        // never perform that family's full resolver scan on our input path.
-        hypertweak::native::ApplyPreparedNativeRules();
-        return;
-    }
     RepairBusinessHooksIfRemapped(slot_index);
     EnsureDartStatePublisherThread();
     const auto* profile = CurrentDartFeatureProfile();
@@ -3828,13 +3790,6 @@ void RemoveDartEpilogueRange(
 bool TryInstallDartDrawerStateHook(
         void* dart_handle,
         const miui_home_profiles::LauncherProfile* profile) {
-    // HyperTweak: the Dart AOT epilogues are shared inline-hook targets with
-    // the upstream payload. Yield them with ownership disabled; the feature
-    // rules resolve their handles through their dlopen(RTLD_NOLOAD) fallback
-    // instead of the owner stores below.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return false;
-    }
     if (dart_handle == nullptr || profile == nullptr) return false;
     if (AtomicLoad(&g_drawer_state_hook_state) == uint32_t{3}) {
         if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{1}) {
@@ -3914,10 +3869,6 @@ bool TryInstallDartDrawerStateHook(
 bool TryInstallDartOverviewStateHook(
         void* dart_handle,
         const miui_home_profiles::LauncherProfile* profile) {
-    // HyperTweak: shared upstream inline target; see the drawer hook note.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return false;
-    }
     if (dart_handle == nullptr || profile == nullptr) return false;
     if (AtomicLoad(&g_overview_state_hook_state) == uint32_t{3}) return true;
     uint32_t expected = 0u;
@@ -4003,10 +3954,6 @@ bool TryInstallDartOverviewStateHook(
 bool TryInstallDartEditingStateHook(
         void* dart_handle,
         const miui_home_profiles::LauncherProfile* profile) {
-    // HyperTweak: shared upstream inline target; see the drawer hook note.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return false;
-    }
     if (dart_handle == nullptr || profile == nullptr) return false;
     if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{3}) return true;
     uint32_t expected = 0u;
@@ -4770,21 +4717,6 @@ bool InstallClaimedBusinessHooksForProfile(void* app_entry_point, bool repair) {
             "business probe MotionEvent identity hook failed");
         return false;
     }
-    // HyperTweak: yield the accepted-DOWN ownership surface to the
-    // independently installed upstream module. Inline hooks on the Xiaomi
-    // GestureStubView handlers race with the upstream payload on the same
-    // addresses: whichever payload installs second rejects the patched
-    // prologue, and a later remap repair would unhook the other module's
-    // trampoline. With ownership disabled this module keeps only the chained
-    // PLT hooks and the Dart rule maintenance; setting
-    // g_enable_systemui_ownership back to 1 restores the full framework
-    // verbatim.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        AtomicStore(&g_business_hook_state, uint32_t{3});
-        Log(ANDROID_LOG_INFO,
-            "SystemUI ownership disabled: business inline hooks yielded to the upstream arbiter");
-        return true;
-    }
     // Install transparent leaf hooks first. They cannot claim a stream until
     // the outer accepted-DOWN handler publishes thread-local ownership, so a
     // later failure cannot leave Xiaomi business unconditionally disabled.
@@ -4867,13 +4799,6 @@ void InstallBusinessHooksForProfile(void* app_entry_point) {
 }
 
 void RepairBusinessHooksIfRemapped(uint32_t slot_index) {
-    // HyperTweak: remap repair unhooks by target address before reinstalling,
-    // which would tear out the upstream payload's trampoline on the shared
-    // GestureStubView handlers. With ownership disabled this module owns no
-    // business inline hooks, so there is nothing here to repair.
-    if (__atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) == 0u) {
-        return;
-    }
     if (slot_index >= kLauncherInputSlotCount ||
             AtomicLoad(&g_business_hook_state) != uint32_t{3}) {
         return;
@@ -5095,8 +5020,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
         }
     }
 
-    if (IsDartLibraryPath(name) && IsLauncherHookProcess() &&
-        __atomic_load_n(&g_enable_systemui_ownership, __ATOMIC_RELAXED) != 0u) {
+    if (IsDartLibraryPath(name) && IsLauncherHookProcess()) {
         const auto* profile = ResolveDartFeatureProfile(handle);
         if (profile != nullptr) {
             TryInstallDartDrawerStateHook(handle, profile);
@@ -5245,6 +5169,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
             "LSPosed native entry rejected a non-launcher HYOS process");
         return nullptr;
     }
+    Log(ANDROID_LOG_INFO, "full upstream back-gesture ownership enabled; takeover requires authenticated SystemUI readiness");
     hypertweak::native::RefreshClearButtonConfig();
     hypertweak::native::RefreshFolderColumnsConfig();
     hypertweak::native::RefreshAssistantWidgetConfig();

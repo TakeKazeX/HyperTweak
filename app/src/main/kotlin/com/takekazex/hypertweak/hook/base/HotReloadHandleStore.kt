@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.base
 
 import io.github.libxposed.api.XposedInterface
+import java.lang.reflect.Executable
 import java.util.ArrayDeque
 import java.util.IdentityHashMap
 
@@ -32,8 +33,11 @@ class HotReloadHandleStore(handles: Collection<XposedInterface.HookHandle>) {
     val ids: Set<String>
         get() = handlesById.keys.toSet()
 
-    fun firstForId(id: String): XposedInterface.HookHandle? {
-        return handlesById[id]?.peekFirst()
+    fun firstForTarget(id: String, executable: Executable): XposedInterface.HookHandle? {
+        // A stable feature ID can move to another overload or owner between releases.
+        // replaceHook changes the callback, never the executable; leave mismatches for
+        // retirement and register the new target normally.
+        return handlesById[id]?.firstOrNull { it.executable == executable }
     }
 
     fun markHandled(handle: XposedInterface.HookHandle) {

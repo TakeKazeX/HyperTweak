@@ -25,6 +25,8 @@
 
 OS4 experimental launcher controls include **Allow Android widgets in Personal assistant**, which supports dragging ordinary Android widgets from the home screen and adding them through the assistant’s classic-widget catalog entry, using native binding, configuration and persistence with ordinary-widget size eligibility restrictions removed and final placement owned by the native layout.
 
+Experimental settings include predictive back gesture repairs, with AOSP/HyperOS indicators and haptic effects, a release haptic, and HyperOS slide animation. Changes apply to the next gesture, and blurred home-wallpaper backgrounds can be enabled separately for cross-activity and cross-task animations (off by default). The first launcher component update requires a launcher refresh or phone restart. Do not enable the standalone MiuiBackGestureHook module at the same time.
+
 ---
 
 ## ✨ Core Features
@@ -84,7 +86,7 @@ Special thanks to the following open-source projects for their support and inspi
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - Reference implementations for Settings entry injection.
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - OEM Credential Manager override / Google Passkey unlock implementation.
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - Google Push / FCM Live implementation reference by howard20181.
-* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome native launcher hook framework (Dart AOT resolution, launcher lifecycle), integrated under its Apache-2.0 license.
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome native launcher framework and Android 17 back gesture pipeline, integrated under its Apache-2.0 license.
 * **[MiCTS](https://github.com/parallelcc/MiCTS)** - Reference for the Android 15 contextual-search service path used by Circle to Search (GPL-3.0).
 * **[AOSP Package Installer](https://github.com/tehcneko/AospPackageInstaller)** - AOSP package-installer restoration approach by tehcneko (GPL-3.0).
 * **[HyperTrust](https://github.com/StevenWin818/HyperTrust)** - Extend Unlock trust-state repair by StevenWin818 (GPL-3.0).

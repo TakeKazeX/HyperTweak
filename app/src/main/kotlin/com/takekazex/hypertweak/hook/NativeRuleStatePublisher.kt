@@ -26,8 +26,15 @@ internal class NativeRuleStatePublisher {
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
-    fun saveSnapshot(): Array<Any>? = ledger.save()
-    fun restoreSnapshot(state: Any?) = ledger.restore(state)
+    fun saveSnapshot(): Array<Any> = arrayOf(ledger.save() ?: emptyArray<Any>(),
+        Preferences.saveBackGestureSettings() ?: emptyArray<Any>())
+    fun restoreSnapshot(state: Any?) {
+        val values = state as? Array<*>
+        if (values?.size == 2 && values[0] is Array<*>) {
+            ledger.restore(values[0])
+            Preferences.restoreBackGestureSettings(values[1])
+        } else ledger.restore(state)
+    }
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (closed) return
@@ -46,11 +53,18 @@ internal class NativeRuleStatePublisher {
             }
             if (intent.action == NativeRuleProtocol.CHANGED) {
                 if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.MODULE)) return
+                NativeRuleProtocol.decodeBackSettings(intent)?.let { back ->
+                    if (Preferences.acceptBackGestureSettings(back)) {
+                        com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker.refreshPreferences()
+                        DebugLog.i("BackGesture", "live settings applied revision=${back.revision} indicator=${back.value(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR)} slide=${back.value(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION)}")
+                    }
+                }
                 val snapshot = NativeRuleProtocol.decode(intent) ?: run {
                     DebugLog.w("NativeRules", "rejected incomplete app settings notification")
                     return
                 }
-                if (ledger.offer(snapshot)) publish()
+                val changed = snapshot != ledger.latest()
+                if (ledger.offer(snapshot) && changed) publish()
                 return
             }
             if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED) {

@@ -49,6 +49,14 @@ public final class TransitionInfo {
             throw new RuntimeException("Stub");
         }
 
+        public WindowContainerToken getParent() {
+            throw new RuntimeException("Stub");
+        }
+
+        public WindowContainerToken getLastParent() {
+            throw new RuntimeException("Stub");
+        }
+
         public int getMode() {
             throw new RuntimeException("Stub");
         }

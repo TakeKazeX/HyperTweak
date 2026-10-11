@@ -14,6 +14,29 @@ import java.util.concurrent.TimeUnit
 
 object Preferences {
     const val NAME = "hypertweak_settings"
+    const val KEY_BACK_GESTURE_ENABLED = "back_gesture_enabled"
+    const val KEY_BACK_GESTURE_HYPEROS_INDICATOR = "hyperos_indicator_style"
+    const val KEY_BACK_GESTURE_HYPEROS_HAPTICS = "hyperos_indicator_haptics"
+    const val KEY_BACK_GESTURE_ENHANCED_HAPTICS = "hyperos_indicator_haptics_enhanced"
+    const val KEY_BACK_GESTURE_SLIDE_ANIMATION = "hyperos_slide_back_animation"
+    const val KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER = "back_gesture_cross_activity_wallpaper"
+    const val KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER = "back_gesture_cross_task_wallpaper"
+
+    private val liveBackSettings = BackGestureSettingsLedger()
+    fun backGestureEnabled(): Boolean = backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
+    fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
+        liveBackSettings.latest()?.value(key) ?: runCatching {
+            if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue
+        }.getOrDefault(defaultValue)
+    internal fun acceptBackGestureSettings(snapshot: BackGestureSettingsSnapshot): Boolean =
+        snapshot != liveBackSettings.latest() && liveBackSettings.offer(snapshot)
+    internal fun saveBackGestureSettings(): Array<Any>? = liveBackSettings.latest()?.save()
+    internal fun restoreBackGestureSettings(state: Any?) {
+        BackGestureSettingsSnapshot.restore(state)?.let(liveBackSettings::offer)
+    }
+
+    /** The vendored runtime uses the same authoritative source and listeners as other hooks. */
+    fun backGesturePreferences(): SharedPreferences = remotePrefs
     internal const val KEY_NATIVE_RULE_REVISION = "native_rules_revision"
     private const val CACHE_NAME = "hypertweak_cache"
     const val DEFAULT_SEED_COLOR = 0
@@ -1281,6 +1304,7 @@ object Preferences {
     private fun isRuntimeKey(key: String): Boolean =
         key == KEY_PREFS_EPOCH ||
             key == KEY_NATIVE_RULE_REVISION ||
+            key == BackGestureSettingsSnapshot.REVISION ||
             key == KEY_PENDING_RESTART_BOOT_TOKEN ||
             key == KEY_DIRTY_TWEAK_KEYS ||
             key.startsWith(KEY_TWEAK_BASELINE_PREFIX) ||
@@ -1318,7 +1342,9 @@ object Preferences {
                 // Queue the clear behind every ordinary async write and wait for it. Without this
                 // ordering, a setting changed immediately before the clear could be committed
                 // after the clear and silently resurrect the old configuration.
-                val committed = commitRemoteMutation(nativeReset) {
+                val backReset = requireNotNull(BackGestureSettingsSnapshot.read(mapOf(
+                    BackGestureSettingsSnapshot.REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch)))
+                val committed = commitRemoteMutation(nativeReset, backReset) {
                     clear()
                     putLong(KEY_PREFS_EPOCH, epoch)
                     putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
@@ -1378,7 +1404,9 @@ object Preferences {
                     .forEach(::add)
             }
 
-            val committed = commitRemoteMutation(nativeReset) {
+            val backReset = requireNotNull(BackGestureSettingsSnapshot.read(restored + mapOf(
+                BackGestureSettingsSnapshot.REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch))) { "Invalid back gesture settings in backup" }
+            val committed = commitRemoteMutation(nativeReset, backReset) {
                 currentKeys.forEach(::remove)
                 restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                 putLong(KEY_PREFS_EPOCH, epoch)
@@ -1528,7 +1556,7 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
@@ -1551,8 +1579,12 @@ object Preferences {
                 // was written is already visible to the hooked processes that read the daemon copy.
                 runCatching {
                     val snapshot = nativeMutation?.let { NativeRuleSignal.prepareMutation(it.first, it.second, revision) }
+                    val backSnapshot = backMutation?.let { NativeRuleSignal.prepareBackMutation(it.first, it.second) }
+                        ?: NativeRuleSignal.lastAcknowledgedBack()
                     val editor = remotePrefs.edit()
                     block(editor)
+                    // A rejected editor shadow must not contaminate a later successful write.
+                    if (backSnapshot != null) NativeRuleSignal.writeBackSettings(editor, backSnapshot)
                     // Commit the entire native subset atomically, so a prior rejected editor's
                     // shadow values cannot hitchhike into this acknowledged transaction.
                     if (snapshot != null) {
@@ -1564,6 +1596,7 @@ object Preferences {
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
                     val committed = editor.commit()
+                    if (committed && backMutation != null && backSnapshot != null) NativeRuleSignal.acknowledgeBack(backSnapshot)
                     if (!committed) {
                         DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
                     } else if (snapshot != null) {
@@ -1591,14 +1624,16 @@ object Preferences {
         }
     }
 
-    /** Applies one remote mutation after all previously queued writes and waits for its result. */
-    @Suppress("UseKtx")
+    /** Applies one remote mutation after all previously queued writes and waits for its result.
+     * Blocking commit on the writer is required before an acknowledged snapshot is published. */
+    @Suppress("UseKtx", "ApplySharedPref")
     private fun commitRemoteMutation(nativeSnapshot: NativeRuleStateSnapshot? = null,
-        block: SharedPreferences.Editor.() -> Unit): Boolean {
+        backSnapshot: BackGestureSettingsSnapshot? = null, block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
         fun commit(): Boolean {
             var previous: Map<String, *>? = null
             var previousNative: NativeRuleStateSnapshot? = null
+            var previousBack: BackGestureSettingsSnapshot? = null
             fun rollback() {
                 val values = previous ?: return
                 runCatching {
@@ -1614,6 +1649,7 @@ object Preferences {
                         editor.putLong(KEY_NATIVE_RULE_REVISION, it.revision)
                         editor.putLong(KEY_PREFS_EPOCH, it.epoch)
                     }
+                    previousBack?.let { NativeRuleSignal.writeBackSettings(editor, it) }
                     check(editor.commit()) { "settings mutation rollback rejected" }
                 }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
             }
@@ -1624,14 +1660,19 @@ object Preferences {
                 if (nativeSnapshot != null) {
                     previous = HashMap(remotePrefs.all)
                     previousNative = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledged()
+                    previousBack = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledgedBack()
                 }
                 val editor = remotePrefs.edit()
                 block(editor)
+                backSnapshot?.let { NativeRuleSignal.writeBackSettings(editor, it) }
                 editor.commit().also {
                     if (!it) {
                         DebugLog.w("Preferences", "settings mutation commit rejected")
                         rollback()
-                    } else if (nativeSnapshot != null && !isLocalOnly) NativeRuleSignal.acknowledge(nativeSnapshot)
+                    } else if (!isLocalOnly) {
+                        backSnapshot?.let(NativeRuleSignal::acknowledgeBack)
+                        nativeSnapshot?.let(NativeRuleSignal::acknowledge)
+                    }
                 }
             } catch (t: Exception) {
                 DebugLog.e("Preferences", "settings mutation failed", t)
@@ -1838,7 +1879,8 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null) { putBoolean(key, value) }
+        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null,
+            backMutation = if (key in BackGestureSettingsSnapshot.KEYS) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {

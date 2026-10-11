@@ -132,6 +132,8 @@ import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHoo
 import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemServerReadinessHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
+import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -316,6 +318,7 @@ class HookEntry : XposedModule() {
             return false
         }
         val ready = runCatching {
+            AospBackSystemUiHooker.checkHotReloadReady()
             refreshHotReloadSnapshots()
             if (!DexKitManager.prepareForHotReload()) {
                 error("DexKit native bridge users are still active")
@@ -746,6 +749,7 @@ class HookEntry : XposedModule() {
             Preferences.init(remotePrefs)
             if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.bindPreferences(remotePrefs)
             bindNativeSettingsListener(remotePrefs)
+            if (processName == "com.android.systemui") AospBackSystemUiHooker.refreshPreferences()
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
             nativeSettingsReady = true
             true
@@ -768,6 +772,7 @@ class HookEntry : XposedModule() {
             appContext = null
         )
         attachHooker(SystemServerReadinessHooker, classLoader, ctx, replacementHandles)
+        attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker, classLoader, ctx, replacementHandles)
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
@@ -853,6 +858,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospVolumeHapticHooker, classLoader, ctx, replacementHandles)
+                attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AospVolumeExtrasHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ExtendUnlockHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)

@@ -25,6 +25,8 @@
 
 OS4 实验性桌面功能新增 **允许安卓小部件移入负一屏**，允许从桌面拖入普通安卓小部件，也可通过负一屏目录的安卓小部件入口直接添加，沿用原生绑定、配置和保存流程，解除普通安卓小部件的尺寸资格限制，最终放置仍由原生布局负责。
 
+实验性设置提供预测性返回手势修复，可选择返回指示器和震动效果，并开启松手震动与 HyperOS 侧滑动画。设置在下一次手势生效，跨页面与跨任务模糊壁纸背景可分别开启，默认关闭。首次更新桌面组件后需刷新桌面或重启手机；请勿与独立的 MiuiBackGestureHook 模块同时启用。
+
 ---
 
 ## ✨ 核心特性
@@ -84,7 +86,7 @@ app/build/outputs/apk/release/HyperTweak-v<version>-<versionCode>-release.apk
 * **[XiaomiHelper](https://github.com/HowieHChen/XiaomiHelper) / [HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)** - 系统设置项注入实现参考。
 * **[HyperPasskey](https://github.com/howard20181/HyperPasskey)** - 绕过 OEM 凭据管理器限制 / 谷歌密钥解锁实现参考。
 * **[HyperOS_FCM_Live](https://github.com/howard20181/HyperOS_FCM_Live)** - 澎湃系统谷歌推送限制解除 / FCM Live 实现参考，作者 howard20181。
-* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome 原生桌面钩子框架（Dart AOT 解析、桌面生命周期），按其 Apache-2.0 许可证整合。
+* **[MiuiBackGestureHook](https://github.com/wxxsfxyzm/MiuiBackGestureHook)** - MiuiHome 原生桌面框架与 Android 17 返回手势链路，按其 Apache-2.0 许可证整合。
 * **[MiCTS](https://github.com/parallelcc/MiCTS)** - 圈选搜索（Circle to Search）所用 Android 15 上下文搜索服务路径的实现参考（GPL-3.0）。
 * **[AOSP Package Installer](https://github.com/tehcneko/AospPackageInstaller)** - AOSP 包安装器还原方案，作者 tehcneko（GPL-3.0）。
 * **[HyperTrust](https://github.com/StevenWin818/HyperTrust)** - Extend Unlock 信任状态修复，作者 StevenWin818（GPL-3.0）。

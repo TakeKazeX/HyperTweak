@@ -211,7 +211,7 @@ sealed class BaseHooker {
         val target = formatExecutable(method)
         return try {
             val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.firstForId(hookId)
+            val oldHandle = replacementMap?.firstForTarget(hookId, method)
             val handle = if (oldHandle != null) {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)
@@ -270,7 +270,7 @@ sealed class BaseHooker {
         val target = formatExecutable(constructor)
         return try {
             val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.firstForId(hookId)
+            val oldHandle = replacementMap?.firstForTarget(hookId, constructor)
             val handle = if (oldHandle != null) {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)

@@ -16,6 +16,7 @@
 - Read runtime and cross-process settings through `Preferences`; keep hook handles in the existing lifecycle layer. Cover every executing manifest-declared process and the applicable LSPosed scope.
 - Preserve the Compose/Miuix design. For affected UI, account for narrow screens, large fonts, scrolling, applicable loading/empty states, and state retention.
 - Keep extracted APK/JARs and decompiler output outside the repository under `/Users/ink/developer/reverse`; identify reused artifacts by complete SHA-256.
+- Keep feature documentation and research Markdown in `docs/`, not in source directories. Preserve root repository entry documents and `.github` workflow/release documentation.
 
 ## Verification and delivery boundaries
 - Match checks to changed behavior: documentation needs no Gradle build; logic needs relevant compilation/tests; UI-sensitive changes need lint; hook mechanics and R8-sensitive changes need a release build and targeted artifact checks. Use the workflow table for commands and wider checks.

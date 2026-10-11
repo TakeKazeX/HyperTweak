@@ -222,7 +222,11 @@ fun AospImePage(onBack: () -> Unit) {
                         )
                         BasicComponent(
                             title = stringResource(R.string.ime_layout_title),
-                            summary = "$startKey[70AC];${AospImeConfig.BUTTON_HOME_HANDLE};$endKey[70AC]"
+                            summary = stringResource(
+                                R.string.ime_layout_summary,
+                                stringResource(NAV_BAR_KEY_LABELS[navBarKeyIndex(startKey)]),
+                                stringResource(NAV_BAR_KEY_LABELS[navBarKeyIndex(endKey)])
+                            )
                         )
                         SwitchPreference(
                             checked = miuiImeList,

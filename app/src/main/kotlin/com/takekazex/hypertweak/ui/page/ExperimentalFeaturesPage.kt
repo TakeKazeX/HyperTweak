@@ -81,6 +81,13 @@ fun ExperimentalFeaturesPage(
     var hideRecentsClearButton by remember { mutableStateOf(Preferences.hideRecentsClearButton()) }
     var assistantWidgets by remember { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by remember { mutableIntStateOf(Preferences.openedFolderColumns()) }
+    var backGestureEnabled by remember { mutableStateOf(Preferences.backGestureEnabled()) }
+    var hyperosIndicator by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
+    var hyperosHaptics by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
+    var enhancedHaptics by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
+    var slideAnimation by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
+    var crossActivityWallpaper by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
+    var crossTaskWallpaper by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.experimental_features_title),
@@ -154,6 +161,83 @@ fun ExperimentalFeaturesPage(
             // These act on the next Settings UI refresh in the same process; the toggles force the
             // Settings-side capability checks only — runtime sensor gates in system_server are
             // separate (see docs/FEATURE_DETAIL.md).
+            if (PlatformLevel.isOs4) {
+                SmallTitle(stringResource(R.string.back_gesture_section))
+                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    Column(Modifier.fillMaxWidth()) {
+                        SwitchPreference(
+                            title = stringResource(R.string.back_gesture_enabled_title),
+                            summary = stringResource(R.string.back_gesture_enabled_summary),
+                            checked = backGestureEnabled,
+                            onCheckedChange = {
+                                backGestureEnabled = it
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, it)
+                            }
+                        )
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.back_indicator_style_title),
+                            items = listOf("AOSP", "HyperOS"),
+                            selectedIndex = if (hyperosIndicator) 1 else 0,
+                            enabled = backGestureEnabled,
+                            onSelectedIndexChange = {
+                                hyperosIndicator = it == 1
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, hyperosIndicator)
+                            }
+                        )
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.haptic_feedback_effect_title),
+                            items = listOf("AOSP", "HyperOS"),
+                            selectedIndex = if (hyperosHaptics) 1 else 0,
+                            enabled = backGestureEnabled,
+                            onSelectedIndexChange = {
+                                hyperosHaptics = it == 1
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, hyperosHaptics)
+                            }
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.hyperos_haptics_enhanced_title),
+                            summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
+                            checked = enhancedHaptics,
+                            enabled = backGestureEnabled && hyperosHaptics,
+                            onCheckedChange = {
+                                enhancedHaptics = it
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
+                            }
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.hyperos_slide_animation_title),
+                            summary = stringResource(R.string.hyperos_slide_animation_summary),
+                            checked = slideAnimation,
+                            enabled = backGestureEnabled,
+                            onCheckedChange = {
+                                slideAnimation = it
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
+                            }
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.back_cross_activity_wallpaper_title),
+                            summary = stringResource(R.string.back_cross_activity_wallpaper_summary),
+                            checked = crossActivityWallpaper,
+                            enabled = backGestureEnabled,
+                            onCheckedChange = {
+                                crossActivityWallpaper = it
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
+                            }
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.back_cross_task_wallpaper_title),
+                            summary = stringResource(R.string.back_cross_task_wallpaper_summary),
+                            checked = crossTaskWallpaper,
+                            enabled = backGestureEnabled,
+                            onCheckedChange = {
+                                crossTaskWallpaper = it
+                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)
+                            }
+                        )
+                    }
+                }
+            }
+
             SmallTitle(stringResource(R.string.settings_unlock_visual_perception_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
