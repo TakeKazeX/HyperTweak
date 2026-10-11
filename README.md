@@ -34,7 +34,7 @@
 - **🖼️ Fullscreen Always-On Display (AOD)**: Bypasses system limits to enable full-screen wallpaper support for standard AOD styles.
 - **🔘 Scoped Under-display Fingerprint Hiding**: Independently hides the fingerprint icon/halo on the interactive lockscreen, AOD, or in-app authentication prompts such as payments, password managers, and passkeys while preserving fingerprint authentication.
 - **📊 Status Bar Icon Tuner**: Hides data activity, network type, roaming, VoLTE and VoWiFi indicators, and controls icon placement, stacked signals, compound icons and custom signal artwork.
-- **🎛️ Control Center & Lockscreen Layout**: Resizes control-center cards, sliders and the media player, adjusts their corner radius, and adds charging detail, notification fingerprint avoidance and lock-screen notification unlocks.
+- **🎛️ Control Center & Lockscreen Layout**: Resizes control-center cards, sliders and the media player, adjusts their corner radius, and adds a customizable centered privacy indicator with 15-second recent-use retention, animated updates and native pull-down animation, charging detail, notification fingerprint avoidance and lock-screen notification unlocks.
 - **📷 Camera Unlocks**: Reveals Leica Moment, smart composition, content credentials and Ultra image quality, plus Street mode switching and custom watermarks.
 - **♻️ AOSP Restoration**: Hands HyperOS components back to their AOSP implementations — package installer, power menu, volume panel, clipboard editor and keyboard.
 - **📥 Download Manager**: Blocks the Xunlei download-engine log directory and restores the AOSP-style download UI entries.

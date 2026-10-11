@@ -724,6 +724,18 @@ object Preferences {
     const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"
     const val KEY_CC_CARRIER_BADGE_TWO = "systemui_cc_carrier_badge_two"
 
+    const val KEY_CC_PRIVACY_ENABLED = "systemui_cc_privacy_enabled"
+    const val KEY_CC_PRIVACY_CENTER = "systemui_cc_privacy_center"
+    const val KEY_CC_PRIVACY_BACKGROUND = "systemui_cc_privacy_background"
+    const val KEY_CC_PRIVACY_COLORED = "systemui_cc_privacy_colored"
+    const val KEY_CC_PRIVACY_NAMES = "systemui_cc_privacy_names"
+    const val KEY_CC_PRIVACY_ALL_APPS = "systemui_cc_privacy_all_apps"
+    const val KEY_CC_PRIVACY_ARROW = "systemui_cc_privacy_arrow"
+    const val KEY_CC_PRIVACY_DOT = "systemui_cc_privacy_dot"
+    const val KEY_CC_PRIVACY_ICON_SIZE = "systemui_cc_privacy_icon_size"
+    const val KEY_CC_PRIVACY_TEXT_SIZE = "systemui_cc_privacy_text_size"
+    const val KEY_CC_PRIVACY_OFFSET = "systemui_cc_privacy_offset"
+
     // Control-center battery percentage style (see `CcBatteryStyleHooker`). Both switches target
     // only the control center's own `MiuiBatteryMeterView` instances (the CC header icons and the
     // fake status bar used while the CC expands); the home status bar, lockscreen and notification

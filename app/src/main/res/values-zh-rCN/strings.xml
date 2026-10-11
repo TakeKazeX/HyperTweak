@@ -1514,4 +1514,22 @@
     <string name="back_cross_activity_wallpaper_summary">在应用内返回时显示模糊桌面壁纸</string>
     <string name="back_cross_task_wallpaper_title">跨任务模糊背景</string>
     <string name="back_cross_task_wallpaper_summary">返回上一个任务时显示模糊桌面壁纸</string>
+    <string name="icon_cc_privacy_title">控制中心隐私提示</string>
+    <string name="icon_cc_privacy_enabled">自定义隐私提示</string>
+    <string name="icon_cc_privacy_enabled_summary">使用居中隐私提示，保留原生下拉跟手动画</string>
+    <string name="icon_cc_privacy_center">隐私提示居中</string>
+    <string name="icon_cc_privacy_background">显示胶囊背景</string>
+    <string name="icon_cc_privacy_colored">彩色圆形图标</string>
+    <string name="icon_cc_privacy_names">显示应用名称</string>
+    <string name="icon_cc_privacy_all_apps">显示多个应用名称</string>
+    <string name="icon_cc_privacy_arrow">显示详情箭头</string>
+    <string name="icon_cc_privacy_dot">显示尾部隐私圆点</string>
+    <string name="icon_cc_privacy_icon_size">图标大小</string>
+    <string name="icon_cc_privacy_text_size">文字大小</string>
+    <string name="icon_cc_privacy_offset">上下偏移</string>
+    <string name="icon_cc_privacy_reset">恢复推荐样式</string>
+    <string name="icon_cc_privacy_reset_summary">居中显示，图标 18 dp、文字 12 sp、向下偏移 8 dp</string>
+    <string name="settings_privacy_indicator">隐私提示</string>
+    <string name="settings_privacy_indicator_summary">调整控制中心隐私提示的样式与布局</string>
+    <string name="privacy_value_range">范围：%1$d 至 %2$d %3$s</string>
 </resources>

@@ -115,6 +115,7 @@ fun SystemUIPage(
     onContextualSearchLongPressChange: (Boolean) -> Unit,
     onNavigateToNotificationHeader: () -> Unit,
     onNavigateToIconTuner: () -> Unit,
+    onNavigateToPrivacyIndicator: () -> Unit,
     onNavigateToAodIcons: () -> Unit
 ) {
     val context = LocalContext.current
@@ -445,12 +446,20 @@ fun SystemUIPage(
 
             SmallTitle(stringResource(R.string.settings_system_ui_section_status_bar))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_icon_tuner),
-                    summary = stringResource(R.string.settings_icon_tuner_summary),
-                    onClick = onNavigateToIconTuner
-                )
+                Column(Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_icon_tuner),
+                        summary = stringResource(R.string.settings_icon_tuner_summary),
+                        onClick = onNavigateToIconTuner
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_privacy_indicator),
+                        summary = stringResource(R.string.settings_privacy_indicator_summary),
+                        onClick = onNavigateToPrivacyIndicator
+                    )
+                }
             }
+
 
             SmallTitle(stringResource(R.string.settings_system_ui_section_lockscreen))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

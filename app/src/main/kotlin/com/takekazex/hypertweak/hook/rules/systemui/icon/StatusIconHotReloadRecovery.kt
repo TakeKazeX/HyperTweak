@@ -53,6 +53,7 @@ internal object StatusIconHotReloadRecovery {
             recoverFeature("lockscreen date") { LockscreenDateHooker.recoverExistingViews(existingViews) }
             recoverFeature("lockscreen status bar") { HideLockscreenStatusBarHooker.recoverExistingViews(existingViews) }
             recoverFeature("lockscreen compact labels") { LockscreenBottomTextHooker.recoverExistingViews(existingViews) }
+            recoverFeature("privacy header") { ControlCenterPrivacyHooker.recoverExistingViews(existingViews, component) }
             recoverFeature("lockscreen indications") {
                 component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->
                     // Rebuild native messages from current battery, biometric and transient state.

@@ -68,9 +68,10 @@ fun IntValueDialog(
                     }
                 },
                 onValueChange = { newValue ->
-                    // Digit-only, and empty is allowed while editing so the user can clear the
-                    // field before typing a new value.
-                    if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                    // Empty is allowed during editing; a leading minus is accepted only
+                    // for signed ranges such as vertical offsets.
+                    if (newValue.isEmpty() || newValue.all { it.isDigit() } ||
+                        (range.first < 0 && newValue.startsWith("-") && newValue.drop(1).all { it.isDigit() })) {
                         text = newValue
                     }
                 },

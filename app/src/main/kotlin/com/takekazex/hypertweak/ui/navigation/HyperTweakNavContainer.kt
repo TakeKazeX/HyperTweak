@@ -25,6 +25,7 @@ import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.AodIconsPage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
 import com.takekazex.hypertweak.ui.page.NotificationHeaderPage
+import com.takekazex.hypertweak.ui.page.PrivacyIndicatorPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.ControlCenterIconRowsPage
@@ -471,6 +472,9 @@ fun HyperTweakNavContainer(
                 onBack = { navController.pop() }
             )
         }
+        entry<Route.PrivacyIndicator> {
+            PrivacyIndicatorPage(onBack = { navController.pop() })
+        }
         entry<Route.IconTuner> {
             IconTunerPage(
                 onBack = { navController.pop() },
@@ -543,6 +547,7 @@ fun HyperTweakNavContainer(
                 onNavigateToIconTuner = {
                     navController.push(Route.IconTuner)
                 },
+                onNavigateToPrivacyIndicator = { navController.push(Route.PrivacyIndicator) },
                 onNavigateToAodIcons = { navController.push(Route.AodIcons) }
             )
         }

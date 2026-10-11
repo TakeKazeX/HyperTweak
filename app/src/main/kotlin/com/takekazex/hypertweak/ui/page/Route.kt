@@ -20,6 +20,7 @@ sealed interface Route : NavKey {
     data object NotificationHeader : Route
     data object DownloadManager : Route
     data object GoogleServices : Route
+    data object PrivacyIndicator : Route
     data object IconTuner : Route
     data object IconOrder : Route
     data object ControlCenterIconRows : Route
@@ -63,6 +64,7 @@ val Route.saveKey: String
         Route.NotificationHeader -> "NotificationHeader"
         Route.DownloadManager -> "DownloadManager"
         Route.GoogleServices -> "GoogleServices"
+        Route.PrivacyIndicator -> "PrivacyIndicator"
         Route.IconTuner -> "IconTuner"
         Route.IconOrder -> "IconOrder"
         Route.ControlCenterIconRows -> "ControlCenterIconRows"
@@ -101,6 +103,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "NotificationHeader" -> Route.NotificationHeader
     "DownloadManager" -> Route.DownloadManager
     "GoogleServices" -> Route.GoogleServices
+    "PrivacyIndicator" -> Route.PrivacyIndicator
     "IconTuner" -> Route.IconTuner
     "IconOrder" -> Route.IconOrder
     "ControlCenterIconRows" -> Route.ControlCenterIconRows

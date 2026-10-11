@@ -1520,4 +1520,22 @@
     <string name="back_cross_activity_wallpaper_summary">Show blurred home wallpaper when going back within an app</string>
     <string name="back_cross_task_wallpaper_title">Cross-task blurred background</string>
     <string name="back_cross_task_wallpaper_summary">Show blurred home wallpaper when returning to the previous task</string>
+    <string name="icon_cc_privacy_title">Control center privacy indicator</string>
+    <string name="icon_cc_privacy_enabled">Customize privacy indicator</string>
+    <string name="icon_cc_privacy_enabled_summary">Use a centered privacy row with the native pull-down animation</string>
+    <string name="icon_cc_privacy_center">Center the privacy row</string>
+    <string name="icon_cc_privacy_background">Show capsule background</string>
+    <string name="icon_cc_privacy_colored">Colored circular icons</string>
+    <string name="icon_cc_privacy_names">Show app names</string>
+    <string name="icon_cc_privacy_all_apps">Show multiple app names</string>
+    <string name="icon_cc_privacy_arrow">Show details arrow</string>
+    <string name="icon_cc_privacy_dot">Show trailing privacy dot</string>
+    <string name="icon_cc_privacy_icon_size">Icon size</string>
+    <string name="icon_cc_privacy_text_size">Text size</string>
+    <string name="icon_cc_privacy_offset">Vertical offset</string>
+    <string name="icon_cc_privacy_reset">Restore recommended style</string>
+    <string name="icon_cc_privacy_reset_summary">Centered row, 18 dp icons, 12 sp text, 8 dp downward offset</string>
+    <string name="settings_privacy_indicator">Privacy indicator</string>
+    <string name="settings_privacy_indicator_summary">Customize the control-center privacy row</string>
+    <string name="privacy_value_range">Range: %1$d to %2$d %3$s</string>
 </resources>
