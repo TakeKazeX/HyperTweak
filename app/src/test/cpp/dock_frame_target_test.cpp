@@ -17,7 +17,12 @@ int main(int argc, char** argv) {
     DockTickLayout tick{};assert(DecodeDockTickLayout(image,resolved.sites[5].offset,&tick));
     assert(tick.receiver==-16 && tick.scale>0 && tick.y==tick.scale+8 && tick.value==0x13);
     assert(layout.alpha == -48 && layout.offset == -16 && layout.scale == -24 && layout.origin == -40);
-    assert(resolved.site_count == 6);
+    assert(resolved.site_count == 7);
+    const auto unlock = resolved.sites[6].offset;
+    assert(VerifyDockUnlockLayout(image, unlock));
+    bytes[unlock-36]^=1;
+    assert(!ResolveTarget(image,kDockFrameTarget).resolved);
+    bytes[unlock-36]^=1;
     uint32_t disabled=0;
     assert(DecodeDockEditingPool(image,resolved.sites[4].offset,&disabled) && disabled!=0);
     // Entry bytes do not identify the observer family. Discovery must survive

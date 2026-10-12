@@ -28,11 +28,12 @@ __attribute__((visibility("hidden"))) uint64_t g_dock_frame_double_cid = 0;
 __attribute__((visibility("hidden"))) uint32_t g_dock_frame_source_epoch = 0;
 __attribute__((visibility("hidden"))) int64_t g_dock_tick_layout[4]{};
 void HyperTweakDockLocalTickReturn();
-__attribute__((visibility("hidden"))) uint64_t g_dock_frame_samples[8][7]{};
+void HyperTweakDockUnlockReturn();
+__attribute__((visibility("hidden"))) uint64_t g_dock_frame_samples[9][7]{};
 }
 namespace hypertweak::native {
 namespace {
-constexpr size_t kObserverCount = 8;
+constexpr size_t kObserverCount = 9;
 struct Observer {
     void* address = nullptr;
     uint8_t original[16]{};
@@ -114,17 +115,18 @@ bool ReleaseOwnedObservers() {
 bool BuildBank(const DartResolution& resolution, ObserverBank* output,
                dart::DockFrameLayout* row, dart::DockTickLayout* tick, uint32_t* editPool) {
     constexpr const char* names[] = {"hotseat_motion", "controller_scale", "controller_alpha",
-        "controller_set", "editing_state", "hotseat_scale_tick"};
+        "controller_set", "editing_state", "hotseat_scale_tick", "unlock_transform"};
     for (const auto* name : names) if (!resolution.MatchVerify(name)) return false;
     dart::Image image{};
     if (!dart::ParseImage(resolution.base, &image)) return false;
     const auto base = reinterpret_cast<uintptr_t>(resolution.base);
     if (!dart::DecodeDockFrameLayout(image, resolution.Find(names[0]) - base, row) ||
         !dart::DecodeDockTickLayout(image, resolution.Find(names[5]) - base, tick) ||
-        !dart::DecodeDockEditingPool(image, resolution.Find(names[4]) - base, editPool)) return false;
+        !dart::DecodeDockEditingPool(image, resolution.Find(names[4]) - base, editPool) ||
+        !dart::VerifyDockUnlockLayout(image, resolution.Find(names[6]) - base)) return false;
     const uintptr_t offsets[] = {row->visible, row->hidden[0], row->hidden[1],
         resolution.Find(names[1]) - base, resolution.Find(names[2]) - base,
-        resolution.Find(names[4]) - base, resolution.Find(names[3]) - base, tick->site};
+        resolution.Find(names[4]) - base, resolution.Find(names[3]) - base, tick->site, resolution.Find(names[6]) - base};
     ObserverBank planned{};
     planned.base = resolution.base;
     for (size_t i = 0; i < kObserverCount; ++i) {
@@ -211,7 +213,7 @@ bool ApplyDockFrameRule(void* handle) {
     bank = planned;
     void (*const replacements[])() = {HyperTweakDockVisibleReturn, HyperTweakDockHiddenReturn,
         HyperTweakDockHiddenReturn, HyperTweakDockControllerScaleReturn, HyperTweakDockControllerAlphaReturn,
-        HyperTweakDockEditingReturn, HyperTweakDockControllerSetReturn, HyperTweakDockLocalTickReturn};
+        HyperTweakDockEditingReturn, HyperTweakDockControllerSetReturn, HyperTweakDockLocalTickReturn, HyperTweakDockUnlockReturn};
     for (size_t i = 0; i < kObserverCount; ++i) {
         auto& observer = bank.observers[i];
         void* trampoline = nullptr;
@@ -230,7 +232,7 @@ bool ApplyDockFrameRule(void* handle) {
     bank.complete = true;
     __atomic_store_n(&g_dock_frame_enabled, DockFrameRequested() ? 1u : 0u, __ATOMIC_RELEASE);
     ReplaySamples();
-    LogInfo("Dock return observer bank active: row, root pose, editing and local tick");
+    LogInfo("Dock return observer bank active: row, root pose, editing, local tick and unlock");
     return true;
 }
 void ResetDockFrameAfterFork() {

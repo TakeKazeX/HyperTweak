@@ -21,7 +21,7 @@ g_dock_frame_sequence: .xword 0
 g_dock_frame_offsets: .xword -48, -16, -24, -40
 g_dock_frame_pool: .xword 32
 g_dock_edit_disabled_pool: .xword 32
-g_dock_frame_samples: .zero 448
+g_dock_frame_samples: .zero 504
 g_dock_frame_double_cid: .xword 62
 g_dock_frame_source_epoch: .word 305419896
 .balign 8
@@ -35,7 +35,7 @@ g_dock_tick_layout: .xword -16, 271, 279, 19
         elf=ELFFile(f)
         symbols={s.name:s['st_value'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
         segments=[(s['p_vaddr'],s['p_memsz'],s.data()) for s in elf.iter_segments() if s['p_type']=='PT_LOAD']
-    def run(hidden=False, enabled=True, null_scale=False, kind=0, editing=False, bad_scalar=None, edit_name=None):
+    def run(hidden=False, enabled=True, null_scale=False, kind=0, editing=False, bad_scalar=None, edit_name=None, unlock_kind=2, unlock_container=-1):
         uc=Uc(UC_ARCH_ARM64,UC_MODE_ARM)
         pages=set()
         for addr,size,data in segments:
@@ -97,6 +97,16 @@ g_dock_tick_layout: .xword -16, 271, 279, 19
                 uc.mem_write(rx+19,struct.pack('<I',2 if bad_scalar=='smi' else 0x55000001 if bad_scalar=='null' else boxed))
                 uc.mem_write(boxed-1,struct.pack('<Q',(63 if bad_scalar=='foreign' else 62)<<12))
                 uc.mem_write(boxed+7,struct.pack('<d',value))
+        if kind==8:
+            uc.reg_write(UC_ARM64_REG_X28,0)
+            uc.mem_write(fp+32,struct.pack('<Q',0x50003001))
+            uc.mem_write(0x50003001+23,struct.pack('<I',0x51003001))
+            uc.mem_write(0x51003001+15,struct.pack('<I',0x52003001))
+            uc.mem_write(0x52003001+11,struct.pack('<I',0x53003001))
+            uc.mem_write(0x53003001+23,struct.pack('<q',unlock_kind))
+            uc.mem_write(0x53003001+31,struct.pack('<q',unlock_container))
+            uc.mem_write(0x51000001+23,struct.pack('<I',0x50000001))
+            if unlock_kind!=2 or unlock_container!=-1:bad_scalar='foreign_scope'
         if kind==4:uc.mem_write(fp-24,struct.pack('<d',.6))
         if kind==5:
             uc.mem_write(fp-40,struct.pack('<d',.65))
@@ -112,27 +122,27 @@ g_dock_tick_layout: .xword -16, 271, 279, 19
             packets.append(bytes(emu.mem_read(emu.reg_read(UC_ARM64_REG_X1),length)))
             emu.reg_write(UC_ARM64_REG_X0,length)
         uc.hook_add(UC_HOOK_INTR,syscall)
-        name={2:'HyperTweakDockEditingReturn',3:'HyperTweakDockControllerScaleReturn',4:'HyperTweakDockControllerAlphaReturn',5:'HyperTweakDockControllerSetReturn',6:'HyperTweakDockLocalTickReturn'}.get(kind,'HyperTweakDockHiddenReturn' if hidden else 'HyperTweakDockVisibleReturn')
+        name={2:'HyperTweakDockEditingReturn',3:'HyperTweakDockControllerScaleReturn',4:'HyperTweakDockControllerAlphaReturn',5:'HyperTweakDockControllerSetReturn',6:'HyperTweakDockLocalTickReturn',8:'HyperTweakDockUnlockReturn'}.get(kind,'HyperTweakDockHiddenReturn' if hidden else 'HyperTweakDockVisibleReturn')
         uc.emu_start(symbols[name],stop,count=1000)
         assert uc.reg_read(UC_ARM64_REG_PC)==stop
         assert uc.reg_read(UC_ARM64_REG_SP)==0x70001000
         assert uc.reg_read(UC_ARM64_REG_X15)==fp+16
         assert uc.reg_read(UC_ARM64_REG_X29)==0x60003000
         assert uc.reg_read(UC_ARM64_REG_X30)==stop
-        assert uc.reg_read(UC_ARM64_REG_X0)==(0x55000001 if kind>=2 else 0xabcdef01 if hidden else before[0])
+        assert uc.reg_read(UC_ARM64_REG_X0)==(0x55000001 if 2<=kind<=6 else 0xabcdef01 if hidden else before[0])
         for i in list(range(1,15))+list(range(16,29)):assert uc.reg_read(reg(i))==before[i],i
         assert uc.reg_read(UC_ARM64_REG_NZCV)==0xa0000000
         assert floats==[uc.reg_read(UC_ARM64_REG_Q0+i) for i in range(32)]
-        if not hidden and kind<2:assert bytes(uc.mem_read(0x5100000c,4))==struct.pack('<I',child)
+        if not hidden and (kind<2 or kind==8):assert bytes(uc.mem_read(0x5100000c,4))==struct.pack('<I',child)
         if enabled and bad_scalar is None:
             assert len(packets)==1
             magic,t0,t1,sequence,dx,dy,scale,origin,alpha=struct.unpack('<QqqQddddd',packets[0])
             assert (magic,t0,t1,sequence)==(0x444b+((7 if hidden else kind)<<16)+(305419896<<32),101,-202,1)
-            assert (dx,dy,scale,origin,alpha)==((0,-18.5,.86,0,1) if kind==6 else (0,0,.92,0,1) if kind==3 else (0,0,1,0,.6) if kind==4 else (0,0,.65,0,.6) if kind==5 else (0,0,1,1 if edit_name in ['quick','shortcutMenu'] else 0,1 if (edit_name or ('normal' if editing else 'disabled')) in ['disabled','quick','shortcutMenu'] else 0) if kind==2 else (0,0,1,0,0) if hidden else (-125.5,31.25,1 if null_scale else .92,9.5,.6))
+            assert (dx,dy,scale,origin,alpha)==((0,31.25,.65,0,.6) if kind==8 else (0,-18.5,.86,0,1) if kind==6 else (0,0,.92,0,1) if kind==3 else (0,0,1,0,.6) if kind==4 else (0,0,.65,0,.6) if kind==5 else (0,0,1,1 if edit_name in ['quick','shortcutMenu'] else 0,1 if (edit_name or ('normal' if editing else 'disabled')) in ['disabled','quick','shortcutMenu'] else 0) if kind==2 else (0,0,1,0,0) if hidden else (-125.5,31.25,1 if null_scale else .92,9.5,.6))
         else:assert not packets
         sample=struct.unpack('<7Q',bytes(uc.mem_read(symbols['g_dock_frame_samples']+(7 if hidden else kind)*56,56)))
         assert sample[0]==(0 if bad_scalar else 2) and sample[6]==(0 if bad_scalar else 1)
-        assert uc.reg_read(UC_ARM64_REG_X0)==(0x55000001 if kind>=2 else 0xabcdef01 if hidden else before[0])
+        assert uc.reg_read(UC_ARM64_REG_X0)==(0x55000001 if 2<=kind<=6 else 0xabcdef01 if hidden else before[0])
     for hidden in [False,True]:
         for enabled in [False,True]:run(hidden,enabled)
     run(null_scale=True)
@@ -141,6 +151,10 @@ g_dock_tick_layout: .xword -16, 271, 279, 19
         run(kind=3,bad_scalar=bad)
         run(kind=6,bad_scalar=bad)
     for enabled in [False,True]:
-        for kind in [3,4,5,6]:run(kind=kind,enabled=enabled)
+        for kind in [3,4,5,6,8]:run(kind=kind,enabled=enabled)
         for editing in [False,True]:run(kind=2,editing=editing,enabled=enabled)
+    run(kind=8,unlock_kind=0)
+    run(kind=8,unlock_kind=1)
+    run(kind=8,unlock_kind=3)
+    run(kind=8,unlock_container=0)
     print('PASS: production Dock epilogues, packet ABI, all live registers, vectors, SP, Dart SP, NZCV, null scale and disabled syscall gate')

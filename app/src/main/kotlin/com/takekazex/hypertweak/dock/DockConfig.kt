@@ -19,6 +19,9 @@ data class DockConfig(
 ) {
     fun encode(): String = "5|${if (enabled) 1 else 0}|$style|$height|$horizontalMargin|$bottomMargin|$radius|$blur|$tint|$opacity"
 
+    fun materialKey(dark: Boolean) = DockMaterialKey(style, dark, blur,
+        if (style == GLASS) opacity else tint)
+
     fun blurPixels(scale: Float = 1f): Int {
         require(scale.isFinite() && scale > 0f)
         return if (blur == 0) 0 else (blur * scale).roundToInt().coerceAtLeast(1)
@@ -105,3 +108,7 @@ object DockGeometry {
     fun isHomeOverlay(packageName: String?, title: String, type: Int, display: Int): Boolean =
         packageName == "com.miui.home" && display == 0 && type == 4 && title.startsWith("LauncherOverlayWindow:")
 }
+
+
+/** Every value consumed by the active material participates in renderer invalidation. */
+data class DockMaterialKey(val style: Int, val dark: Boolean, val blur: Int, val opacity: Int)

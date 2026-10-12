@@ -371,3 +371,52 @@ HyperTweakDockEditingReturn:
 .Lshortcut_name: .ascii "shortcutMenu"
 .Lquick_name_bytes: .ascii "quick"
 .section .note.GNU-stack,"",%progbits
+
+.text
+// A completed native UnlockWidget for a phone Dock icon. Kind 3 is the
+// separate Hotseat row branch, which this phone does not mount. Workspace
+// cells and the page indicator share this builder but use different kinds.
+.p2align 2
+.global HyperTweakDockUnlockReturn
+.hidden HyperTweakDockUnlockReturn
+.type HyperTweakDockUnlockReturn,%function
+HyperTweakDockUnlockReturn:
+ bti c
+ stur w1, [x0, #0xb]
+ save_dock
+ ldr x12, [x29, #32] // builder closure
+ ldur w12, [x12, #23]
+ add x12, x12, x28, lsl #32 // context
+ ldur w12, [x12, #15]
+ add x12, x12, x28, lsl #32 // UnlockWidget state
+ ldur w12, [x12, #11]
+ add x12, x12, x28, lsl #32 // native widget
+ cmp x12, x22
+ b.eq .Lunlock_done
+ ldur x13, [x12, #23] // raw kind (Dock icon=2)
+ cmp x13, #2
+ b.ne .Lunlock_done
+ ldur x13, [x12, #31] // raw container (Dock=-1)
+ cmn x13, #1
+ b.ne .Lunlock_done
+ ldur w12, [x0, #23] // native translation Offset
+ add x12, x12, x28, lsl #32
+ cmp x12, x22
+ b.eq .Lunlock_done
+ // Icon horizontal offsets spread individual cells around their own centers;
+ // the continuous background remains centered on the row. The native Dock
+ // icons share vertical entry and scale channels.
+ ldur x14, [x12, #15]
+ stp xzr, x14, [sp, #128]
+ ldur x13, [x0, #27] // native scale
+ str x13, [sp, #144]
+ str xzr, [sp, #152]
+ ldur x13, [x0, #15] // native alpha
+ str x13, [sp, #160]
+ send_dock 8
+.Lunlock_done:
+ restore_dock
+ mov x15, x29
+ ldp x29, x30, [x15], #16
+ ret
+.size HyperTweakDockUnlockReturn,.-HyperTweakDockUnlockReturn

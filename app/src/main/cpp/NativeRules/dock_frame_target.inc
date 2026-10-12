@@ -245,6 +245,72 @@ bool FindEditing(const Image& image,uintptr_t* offset,uint32_t* count){
     }
     return *count==1;
 }
+// The native UnlockWidget builder consumes three adjacent animation channels,
+// then constructs the same alpha/offset/scale widget used around Hotseat. Observe
+// its completed return, not the entry or a particular controller's name/RVA.
+bool ReadDockUnlock(const Image& image, uintptr_t site) {
+    constexpr uint32_t completed[] = {0xfc5d83a0, 0xfc01b000, 0xf802b01f, 0, 0,
+        0xb8033001, 0x910082c1, 0xb803f001, 0xf85f83a1, 0xb800b001,
+        0xaa1d03ef, 0xa8c179fd, 0xd65f03c0};
+    if (!DockWords(image, site - 36, completed, 13)) return false;
+    uintptr_t begin = site;
+    for (unsigned n=0; n<192 && begin>=4; ++n) {
+        begin -= 4;
+        uint32_t p[3]{}; if (!ReadInsns(image,begin,p,3)) return false;
+        if (p[0]==0xa9bf79fd && p[1]==0xaa0f03fd) break;
+    }
+    constexpr uint32_t prefix[] = {0xa9bf79fd,0xaa0f03fd,0xd100a1ef,0xf94013a0,
+        0xb8417002,0x8b1c8042,0xf81f83a2,0xb840f041,0x8b1c8021};
+    if (!DockWords(image,begin,prefix,9)) return false;
+    unsigned getters=0;
+    for (uintptr_t pc=begin+36; pc<site-36; pc+=4) {
+        uint32_t call=0; uintptr_t dest=0;
+        if (!ReadInsn(image,pc,&call) || !DecodeBlTarget(pc,call,&dest)) continue;
+        uint32_t q[6]{}; if (!ReadInsns(image,dest,q,6)) continue;
+        // State alpha/translation/scale: the getter result is fed unmodified
+        // into the native constructor. Values live at the shared animation slot.
+        const uint32_t expected[] = {0xb8423020,0xb841f022,0xb841b020};
+        if (getters==0 && q[0]==expected[0] && q[1]==0x8b1c8000 && q[2]==0xb8427001 &&
+            q[3]==0x8b1c8021 && q[4]==0xfc407020 && q[5]==0xd65f03c0) ++getters;
+        else if (getters==1 && q[0]==expected[1] && q[1]==0x8b1c8042 && q[2]==0xb8427040 &&
+            q[3]==0x8b1c8000 && q[4]==0xd65f03c0) ++getters;
+        else if (getters==2 && q[0]==expected[2] && q[1]==0x8b1c8000 && q[2]==0xb8427001 &&
+            q[3]==0x8b1c8021 && q[4]==0xfc407020 && q[5]==0xd65f03c0) ++getters;
+    }
+    if (getters!=3) return false;
+    // Validate the row's native UnlockWidget producer separately: its kind is
+    // 3 and container is -1; grid cells use kind 0. Both are raw int fields.
+    uintptr_t row=0; uint32_t count=0;
+    if (!FindDockVisible(image,&row,&count)) return false;
+    constexpr uint32_t hotseat[] = {0xd2800060,0xf8017020,0x9100c2c0,0xb8027020,
+        0x92800002,0xf801f022};
+    unsigned producers=0;
+    for (uintptr_t pc=row; pc<row+4096; pc+=4) if (DockWords(image,pc,hotseat,6)) ++producers;
+    if (producers!=1) return false;
+    // The phone Dock wraps each icon with kind 2 / container -1. The kind 3
+    // row branch above is not mounted on this phone. Prove both producers use
+    // the same primitive widget field layout before selecting Dock icons.
+    constexpr uint32_t dockIcon[] = {0xd2800040,0xf8017040,0x910082c3,
+        0xb8027043,0x92800004,0xf801f044};
+    unsigned icons=0;
+    for (size_t n=0;n<image.load_count;++n) {
+        const auto& segment=image.loads[n]; if (!(segment.flags & kFlagExec)) continue;
+        for (uintptr_t pc=segment.start;pc+sizeof(dockIcon)<=segment.end;pc+=4)
+            if (DockWords(image,pc,dockIcon,6)) ++icons;
+    }
+    return icons==1;
+}
+bool FindDockUnlock(const Image& image, uintptr_t* offset, uint32_t* count) {
+    *count=0;
+    for (size_t n=0;n<image.load_count;++n) {
+        const auto& segment=image.loads[n]; if (!(segment.flags & kFlagExec)) continue;
+        for (uintptr_t pc=segment.start+36;pc+16<=segment.end;pc+=4) {
+            uint32_t word=0; if (!ReadInsn(image,pc,&word) || word!=0xb800b001) continue;
+            if (ReadDockUnlock(image,pc)) { *offset=pc; ++*count; }
+        }
+    }
+    return *count==1;
+}
 constexpr uint8_t kDockReturn[] = {1,0xb0,0,0xb8,0xef,3,0x1d,0xaa,0xfd,0x79,0xc1,0xa8,0xc0,3,0x5f,0xd6};
 constexpr uint8_t kEditReturn[] = {0xe0,3,0x16,0xaa,0xef,3,0x1d,0xaa,0xfd,0x79,0xc1,0xa8,0xc0,3,0x5f,0xd6};
 const SiteSpec kDockSites[] = {
@@ -253,9 +319,10 @@ const SiteSpec kDockSites[] = {
  {"controller_alpha", {nullptr,nullptr,0}, FindControllerAlpha, true, {kEditReturn,nullptr,sizeof(kEditReturn)}, 0},
  {"controller_set", {nullptr,nullptr,0}, FindControllerSet, true, {kEditReturn,nullptr,sizeof(kEditReturn)}, 0},
  {"editing_state", {nullptr,nullptr,0}, FindEditing, true, {kEditReturn,nullptr,sizeof(kEditReturn)}, 0},
- {"hotseat_scale_tick", {nullptr,nullptr,0}, FindDockTick, true, {kEditReturn,nullptr,sizeof(kEditReturn)}, 0}};
+ {"hotseat_scale_tick", {nullptr,nullptr,0}, FindDockTick, true, {kEditReturn,nullptr,sizeof(kEditReturn)}, 0},
+ {"unlock_transform", {nullptr,nullptr,0}, FindDockUnlock, true, {kDockReturn,nullptr,sizeof(kDockReturn)}, 0}};
 }
-const TargetSpec kDockFrameTarget = {"dock_frame", "libapp.so", kDockSites, 6};
+const TargetSpec kDockFrameTarget = {"dock_frame", "libapp.so", kDockSites, 7};
 bool DecodeDockFrameLayout(const Image& image, uintptr_t offset, DockFrameLayout* out) {
     return out != nullptr && ReadDockLayout(image, offset, out);
 }
@@ -272,3 +339,5 @@ bool DecodeDockTickLayout(const Image& image,uintptr_t site,DockTickLayout* out)
     }
     return false;
 }
+
+bool VerifyDockUnlockLayout(const Image& image, uintptr_t site) { return ReadDockUnlock(image,site); }

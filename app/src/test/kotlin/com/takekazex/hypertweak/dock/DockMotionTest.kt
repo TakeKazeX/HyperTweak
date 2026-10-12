@@ -65,7 +65,36 @@ class DockMotionTest {
         assertEquals(0.0, requireNotNull(ledger.latest).alpha, 0.0)
         assertTrue(offer(4, 2))
         assertEquals(1.0, requireNotNull(ledger.latest).alpha, 0.0)
-        assertNull(DockMotionCodec.decode(packet(5, kind = 8), 72, 101, -202))
+        assertNull(DockMotionCodec.decode(packet(5, kind = 9), 72, 101, -202))
+    }
+    @Test fun unlockTransformComposesWithGestureAndIndependentRootWithoutDoubleAlpha() {
+        val ledger = DockMotionLedger()
+        ledger.offer(DockMotion(1, 0.0, 0.0, 1.0, 118.0, .8, sourceEpoch = 10))
+        ledger.offer(DockMotion(2, 4.0, 10.0, .5, 0.0, .6, 8, sourceEpoch = 10))
+        val motion = requireNotNull(ledger.latest)
+        assertEquals(.48, motion.alpha, .000001)
+        val bounds = requireNotNull(DockGeometry.resolve(1200, 2608, 3f, DockConfig()))
+        val pose = DockPose.resolve(1200, 2608, 3f, bounds, motion)
+        assertEquals(327f, pose.x, .001f)
+        assertEquals(2318.5f, pose.y, .001f)
+        assertEquals(.5f, pose.scale, .001f)
+        val carried = DockMotionLedger().apply { restore(ledger.snapshot()) }
+        assertEquals(motion, carried.latest)
+        carried.offer(DockMotion(3, 0.0, 0.0, 1.0, 0.0, 1.0, 8, sourceEpoch = 10))
+        assertEquals(.8, requireNotNull(carried.latest).alpha, .000001)
+        assertEquals(1.0, requireNotNull(carried.latest).unlockScale, 0.0)
+        assertFalse(carried.offer(DockMotion(2, 4.0, 10.0, .5, 0.0, .6, 8, sourceEpoch = 10)))
+        carried.offer(DockMotion(1, 0.0, 0.0, 1.0, 0.0, 1.0, sourceEpoch = 20))
+        assertEquals(1.0, requireNotNull(carried.latest).unlockScale, 0.0)
+        assertEquals(0.0, requireNotNull(carried.latest).unlockY, 0.0)
+    }
+    @Test fun priorReloadSnapshotRestoresWithNeutralUnlockTransform() {
+        val old = arrayOf<Any>(LongArray(8).also { it[0]=1 }, 1L,
+            doubleArrayOf(0.0,0.0,1.0,118.0,1.0,1.0,1.0,1.0,1.0,1.0,0.0,1.0,1.0), 10L, longArrayOf())
+        val restored = DockMotionLedger().apply { restore(old) }
+        assertEquals(1.0, requireNotNull(restored.latest).unlockScale, 0.0)
+        assertEquals(1.0, requireNotNull(restored.latest).alpha, 0.0)
+        assertNotNull(DockMotionCodec.decode(packet(2, kind = 8), 72, 101, -202))
     }
     @Test fun nativeControllerEventsDrivePoseWithoutAnyWidgetBuild() {
         val ledger = DockMotionLedger()

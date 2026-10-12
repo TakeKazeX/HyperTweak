@@ -124,7 +124,8 @@ object DockBackgroundHooker : StaticHooker() {
         offerChannel()
     }
     private data class Entry(val id: String, val parent: Any, val effect: Any, val key: String,
-        var materialKey: String,
+        var materialKey: com.takekazex.hypertweak.dock.DockMaterialKey,
+        var materialRevision: Long = 0,
         val owner: IBinder = Binder(), var parcel: SurfaceControlViewHost.SurfacePackage? = null,
         var renderer: IBinder? = null, var death: IBinder.DeathRecipient? = null,
         var ready: Boolean = false, var probePending: Boolean = false, var attempts: Int = 0,
@@ -304,7 +305,7 @@ object DockBackgroundHooker : StaticHooker() {
             DockReflection.call(windowConfig, "getRotation") as? Int
         }.getOrNull()?.takeIf { it in 0..3 } ?: rotation
         val key = "$bounds/$rotation/$windowRotation"
-        val materialKey = "${config.style}/$dark"
+        val materialKey = config.materialKey(dark)
         var entry = entries[window]
         if (entry != null && (entry.key != key || entry.parent !== parent || DockReflection.call(entry.effect, "isValid") != true)) {
             retire(window); entry = null
@@ -329,6 +330,7 @@ object DockBackgroundHooker : StaticHooker() {
         if (entry.parcel != null && entry.materialKey != materialKey) {
             entry.materialKey = materialKey
             val targetEntry = entry
+            val materialRevision = ++targetEntry.materialRevision
             val args = Bundle().apply { putLong("lease", targetEntry.lease); putString("config", config.encode()); putBoolean("dark", dark); putFloat("radius", bounds.radius) }
             val reference = WeakReference(window)
             val generation = epoch.get()
@@ -337,8 +339,9 @@ object DockBackgroundHooker : StaticHooker() {
             worker.execute {
                 val result = ipc("update", targetEntry.id, args, ipcContext)
                 resultHandler?.post { synchronized(wmLock) {
-                    reference.get()?.takeIf { !stopped && generation == epoch.get() && entries[it] === targetEntry }?.let {
+                    reference.get()?.takeIf { !stopped && generation == epoch.get() && entries[it] === targetEntry && targetEntry.materialRevision == materialRevision }?.let {
                         if (result?.getBoolean("updated") != true) fail(it, targetEntry)
+                        else DebugLog.i(TAG, "material applied $materialKey")
                     }
                 } }
             }
@@ -362,18 +365,9 @@ object DockBackgroundHooker : StaticHooker() {
         val appearance = "${entry.key}/${entry.ready}/$visible/${motion?.sequence}"
         if (entry.applied == appearance) return
         DockReflection.call(transaction, "setLayer", entry.effect, -1)
-        val density = entry.density
-        val scale = motion?.scale?.toFloat() ?: 1f
-        val pivotX = frame.width() / 2f
-        val pivotY = frame.height() - (49 + 68) * density + (motion?.originY?.toFloat() ?: 0f) * density
-        val screenScale = motion?.screenScale?.toFloat() ?: 1f
-        val totalScale = scale * screenScale
-        val localX = pivotX + (bounds.x - pivotX) * scale + (motion?.x?.toFloat() ?: 0f) * density
-        val localY = pivotY + (bounds.y - pivotY) * scale + (motion?.y?.toFloat() ?: 0f) * density
-        DockReflection.call(transaction, "setMatrix", entry.effect, totalScale, 0f, 0f, totalScale)
-        DockReflection.call(transaction, "setPosition", entry.effect,
-            frame.width() / 2f + (localX - frame.width() / 2f) * screenScale,
-            frame.height() / 2f + (localY - frame.height() / 2f) * screenScale)
+        val pose = com.takekazex.hypertweak.dock.DockPose.resolve(frame.width(), frame.height(), entry.density, bounds, motion)
+        DockReflection.call(transaction, "setMatrix", entry.effect, pose.scale, 0f, 0f, pose.scale)
+        DockReflection.call(transaction, "setPosition", entry.effect, pose.x, pose.y)
         DockReflection.call(transaction, "setWindowCrop", entry.effect, bounds.width, bounds.height)
         DockReflection.call(transaction, "setCornerRadius", entry.effect, bounds.radius)
         DockReflection.call(transaction, "setAlpha", entry.effect, if (entry.ready) motion?.alpha?.toFloat() ?: 0f else 0.001f)

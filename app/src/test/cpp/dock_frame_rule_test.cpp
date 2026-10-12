@@ -15,7 +15,7 @@
 #include <poll.h>
 #include <unistd.h>
 extern "C" volatile uint32_t g_dock_frame_enabled;
-extern "C" uint64_t g_dock_frame_samples[8][7];
+extern "C" uint64_t g_dock_frame_samples[9][7];
 extern "C" uint32_t g_dock_frame_source_epoch;
 extern "C" void HyperTweakDockVisibleReturn() {}
 extern "C" void HyperTweakDockHiddenReturn() {}
@@ -23,6 +23,7 @@ extern "C" void HyperTweakDockControllerScaleReturn() {}
 extern "C" void HyperTweakDockControllerAlphaReturn() {}
 extern "C" void HyperTweakDockControllerSetReturn() {}
 extern "C" void HyperTweakDockLocalTickReturn() {}
+extern "C" void HyperTweakDockUnlockReturn() {}
 extern "C" void HyperTweakDockEditingReturn() {}
 namespace {
 std::vector<uint8_t> image;
@@ -64,8 +65,8 @@ int main(int argc,char** argv) {
     image.assign(std::istreambuf_iterator<char>(input),{});
     dart::Image parsed{};assert(dart::ParseImage(image.data(),&parsed));
     const auto found=dart::ResolveTarget(parsed,dart::kDockFrameTarget);assert(found.resolved);
-    prepared.base=image.data();prepared.located=true;prepared.site_count=6;
-    for(size_t i=0;i<6;++i) {
+    prepared.base=image.data();prepared.located=true;prepared.site_count=7;
+    for(size_t i=0;i<7;++i) {
         prepared.sites[i].name=dart::kDockFrameTarget.sites[i].name;
         prepared.sites[i].address=reinterpret_cast<uintptr_t>(image.data())+found.sites[i].offset;
         prepared.sites[i].verify=dart::kDockFrameTarget.sites[i].verify;
@@ -78,14 +79,14 @@ int main(int argc,char** argv) {
         *port=ntohs(address.sin_port);fcntl(fd,F_SETFL,O_NONBLOCK);return fd;
     };
     int port1=0,port2=0;int first=listener(&port1),second=listener(&port2);
-    for(size_t kind: {size_t{0},size_t{2},size_t{3}}) {
+    for(size_t kind: {size_t{0},size_t{2},size_t{3},size_t{8}}) {
         g_dock_frame_samples[kind][0]=2;
         double values[]={0,0,.7,0,kind==2?0.:1.};
         memcpy(&g_dock_frame_samples[kind][1],values,sizeof(values));
         g_dock_frame_samples[kind][6]=kind+1;
     }
     const auto replay=[](int fd,int64_t token0,int64_t token1){
-        for(size_t kind:{size_t{0},size_t{2},size_t{3}}) {
+        for(size_t kind:{size_t{0},size_t{2},size_t{3},size_t{8}}) {
             uint64_t packet[9]{};pollfd ready{fd,POLLIN,0};assert(poll(&ready,1,1000)==1);assert(recv(fd,packet,sizeof(packet),0)==sizeof(packet));
             assert(packet[0]==(0x444b|(kind<<16)|(static_cast<uint64_t>(g_dock_frame_source_epoch)<<32)) && packet[1]==static_cast<uint64_t>(token0) && packet[2]==static_cast<uint64_t>(token1));
             assert(packet[3]==kind+1); // Replay retains source revision, never promotes stale state.
@@ -95,13 +96,13 @@ int main(int argc,char** argv) {
     assert(!ConfigureDockFrame(10000,0,-202));
     assert(ConfigureDockFrame(port1,101,-202));
     assert(DockFrameRequested() && g_dock_frame_enabled==0);
-    for (int stage=1;stage<=8;++stage) {
+    for (int stage=1;stage<=9;++stage) {
         fail_at=installs+stage;
         assert(!ApplyDockFrameRule(nullptr));
         assert(originals.empty() && g_dock_frame_enabled==0);
     }
     fail_at=0;
-    assert(ApplyDockFrameRule(nullptr));assert(originals.size()==8 && g_dock_frame_enabled==1);replay(first,101,-202);
+    assert(ApplyDockFrameRule(nullptr));assert(originals.size()==9 && g_dock_frame_enabled==1);replay(first,101,-202);
     const int count=installs;
     const auto epoch=g_dock_frame_source_epoch;assert(epoch!=0);
     assert(ApplyDockFrameRule(nullptr));assert(installs==count);
@@ -111,7 +112,7 @@ int main(int argc,char** argv) {
     // rebuild the complete bank before resuming publication.
     for (const auto& original : originals) memcpy(original.first,original.second.data(),16);
     assert(ApplyDockFrameRule(nullptr));
-    assert(installs==count+8 && originals.size()==8 && g_dock_frame_enabled==1);
+    assert(installs==count+9 && originals.size()==9 && g_dock_frame_enabled==1);
     auto* target=reinterpret_cast<uint8_t*>(prepared.sites[0].address);
     target[0]=0xab;
     assert(!ApplyDockFrameRule(nullptr));assert(target[0]==0xab && g_dock_frame_enabled==0);
@@ -120,5 +121,5 @@ int main(int argc,char** argv) {
     assert(preparations==3 && g_dock_frame_source_epoch==epoch);
     close(first);close(second);
     ResetDockFrameAfterFork();
-    puts("PASS: complete-eight-site activation, partial rollback, idempotence, endpoint rebind, foreign ownership and disable");
+    puts("PASS: complete-nine-site activation, partial rollback, idempotence, endpoint rebind, foreign ownership and disable");
 }

@@ -43,6 +43,19 @@ class DockConfigTest {
         assertEquals(0, DockConfig(blur = 0).blurPixels(.001f))
         assertEquals(1, DockConfig(blur = 1).blurPixels(.001f))
     }
+    @Test fun materialInvalidationIncludesActiveParametersWithoutRecreatingGeometry() {
+        val glass = DockConfig()
+        assertNotEquals(glass.materialKey(false), glass.copy(blur = 10).materialKey(false))
+        assertNotEquals(glass.materialKey(false), glass.copy(opacity = 45).materialKey(false))
+        assertNotEquals(glass.materialKey(false), glass.materialKey(true))
+        assertEquals(glass.materialKey(false), glass.copy(tint = 45).materialKey(false))
+        val frosted = glass.copy(style = DockConfig.FROSTED)
+        assertNotEquals(frosted.materialKey(false), frosted.copy(tint = 45).materialKey(false))
+        assertEquals(frosted.materialKey(false), frosted.copy(opacity = 45).materialKey(false))
+        assertEquals(glass.materialKey(false), glass.copy(height = 130).materialKey(false))
+        assertEquals(DockGeometry.resolve(1200, 2608, 3f, glass),
+            DockGeometry.resolve(1200, 2608, 3f, glass.copy(blur = 10, opacity = 45)))
+    }
     @Test fun disableAndIndependentGeometrySurvivePortableRoundTrip() {
         val value = DockConfig(false, DockConfig.FROSTED, 112, 24, 31, 44)
         assertEquals(value, DockConfig.decode(value.encode()))
