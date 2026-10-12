@@ -95,7 +95,11 @@ int main(int argc,char** argv) {
     assert(!ConfigureDockFrame(10000,0,-202));
     assert(ConfigureDockFrame(port1,101,-202));
     assert(DockFrameRequested() && g_dock_frame_enabled==0);
-    assert(!ApplyDockFrameRule(nullptr));assert(originals.empty() && g_dock_frame_enabled==0);
+    for (int stage=1;stage<=8;++stage) {
+        fail_at=installs+stage;
+        assert(!ApplyDockFrameRule(nullptr));
+        assert(originals.empty() && g_dock_frame_enabled==0);
+    }
     fail_at=0;
     assert(ApplyDockFrameRule(nullptr));assert(originals.size()==8 && g_dock_frame_enabled==1);replay(first,101,-202);
     const int count=installs;
@@ -103,6 +107,11 @@ int main(int argc,char** argv) {
     assert(ApplyDockFrameRule(nullptr));assert(installs==count);
     assert(ConfigureDockFrame(port2,303,-404));assert(g_dock_frame_enabled==0);
     assert(ApplyDockFrameRule(nullptr));assert(installs==count && g_dock_frame_enabled==1);replay(second,303,-404);
+    // A same-image remap restores stock bytes, so discard backend handles and
+    // rebuild the complete bank before resuming publication.
+    for (const auto& original : originals) memcpy(original.first,original.second.data(),16);
+    assert(ApplyDockFrameRule(nullptr));
+    assert(installs==count+8 && originals.size()==8 && g_dock_frame_enabled==1);
     auto* target=reinterpret_cast<uint8_t*>(prepared.sites[0].address);
     target[0]=0xab;
     assert(!ApplyDockFrameRule(nullptr));assert(target[0]==0xab && g_dock_frame_enabled==0);

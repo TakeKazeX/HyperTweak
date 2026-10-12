@@ -18,7 +18,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.view.SurfaceControlViewHost
-import android.view.Choreographer
 import android.view.WindowManager
 import com.takekazex.hypertweak.dock.DockConfig
 import com.takekazex.hypertweak.dock.DockGeometry
@@ -26,6 +25,7 @@ import com.takekazex.hypertweak.dock.DockReflection
 import com.takekazex.hypertweak.dock.DockRecoveryPolicy
 import com.takekazex.hypertweak.dock.DockPresentationPolicy
 import com.takekazex.hypertweak.dock.DockFrameChannel
+import com.takekazex.hypertweak.dock.DockFrameDriver
 import com.takekazex.hypertweak.hook.NativeRuleProtocol
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -63,11 +63,15 @@ object DockBackgroundHooker : StaticHooker() {
     private val offerVersion = AtomicLong()
     private var restoredMotion: Any? = null
     private var providerLease = 0L
-    private var frameScheduled = false
-    private var frameClock: Choreographer? = null
-    private val frameCallback = Choreographer.FrameCallback {
-        frameScheduled = false
-        if (!stopped) synchronized(wmLock) {
+    private var frameDriver: DockFrameDriver? = null
+
+    private fun renderFrame() {
+        if (stopped) return
+        synchronized(wmLock) {
+            // Native events and platform lifecycle events drive the same host
+            // reconciliation. Readiness never waits for an unrelated traversal.
+            observed.keys.toList().forEach { window -> runCatching { update(window, schedulePose = false) }
+                .onFailure { DebugLog.w(TAG, "frame reconciliation failed", it) } }
             val transaction = newTransaction()
             try {
                 entries.values.forEach { entry -> runCatching { applyPose(transaction, entry) }
@@ -76,15 +80,7 @@ object DockBackgroundHooker : StaticHooker() {
             } finally { DockReflection.call(transaction, "close") }
         }
     }
-    private fun scheduleFrame() {
-        val generation = epoch.get()
-        handler?.post {
-            if (stopped || epoch.get() != generation || frameScheduled) return@post
-            val clock = frameClock ?: Choreographer.getInstance().also { frameClock = it }
-            frameScheduled = true
-            clock.postFrameCallback(frameCallback)
-        }
-    }
+    private fun scheduleFrame() { frameDriver?.request() }
 
     private fun offerChannel() {
         val ctx = context ?: return
@@ -193,6 +189,7 @@ object DockBackgroundHooker : StaticHooker() {
         wmLock = requireNotNull(DockReflection.field(target, "mGlobalLock").get(target))
         handler = DockReflection.field(target, "mH").get(target) as? Handler ?: Handler(Looper.getMainLooper())
         service = target
+        frameDriver = DockFrameDriver(requireNotNull(handler), ::renderFrame)
         context = ctx
         val generation = epoch.get()
         handler?.post {
@@ -280,7 +277,7 @@ object DockBackgroundHooker : StaticHooker() {
         }
     }
 
-    private fun update(window: Any) {
+    private fun update(window: Any, schedulePose: Boolean = true) {
         if (stopped) return
         val config = configSnapshot
         setChannel(config.enabled)
@@ -353,7 +350,7 @@ object DockBackgroundHooker : StaticHooker() {
         entry.frame = Rect(frame)
         entry.density = configuration.densityDpi / 160f
         entry.surfaceVisible = interactive && !locked && DockReflection.call(window, "isOnScreen") == true
-        scheduleFrame()
+        if (schedulePose) scheduleFrame()
     }
 
     /** The vsync transaction alone owns pose; WMS traversal never queues stale animation values. */
@@ -548,8 +545,8 @@ object DockBackgroundHooker : StaticHooker() {
         stopped = true
         epoch.incrementAndGet()
         setChannel(false)
-        frameClock?.removeFrameCallback(frameCallback)
-        frameScheduled = false; frameClock = null
+        frameDriver?.close()
+        frameDriver = null
         runCatching { preferenceSource?.unregisterOnSharedPreferenceChangeListener(prefListener) }
             .onFailure { DebugLog.w(TAG, "preference observer cleanup failed", it) }
         preferenceSource = null

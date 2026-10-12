@@ -68,70 +68,105 @@ bool FindDockVisible(const Image& image, uintptr_t* offset, uint32_t* count) {
     if (*count != 1u) return false; *offset = match; return true;
 }
 
-// Native animation controller: the scale listener publishes the same boxed
-// scalar through two adjacent Rx fields. The alpha listener shares that setter,
-// reads back that scale and calls the same synchronization consumer as setTo.
+// Observe completed native consumers. Entry instructions are deliberately outside
+// the contract: another hook can own a function entry, but these observers only
+// read the native caller's saved values immediately before its original return.
 bool DockWords(const Image& image, uintptr_t pc, const uint32_t* pattern, size_t size) {
-    for(size_t n=0;n<size;++n){uint32_t w=0;if(!ReadInsn(image,pc+4*n,&w)||(pattern[n]&&pattern[n]!=w))return false;}
+    for (size_t n = 0; n < size; ++n) {
+        uint32_t word = 0;
+        if (!ReadInsn(image, pc + 4 * n, &word) || (pattern[n] && pattern[n] != word)) return false;
+    }
     return true;
 }
 struct DockController { uintptr_t scale, alpha, sync; int rx_value; uintptr_t setter; };
-bool ReadDockController(const Image& image,uintptr_t begin,DockController* out) {
-    uint32_t w[20]{};if(!ReadInsns(image,begin,w,20))return false;
-    constexpr uint32_t shape[]={0xa9bf79fd,0xaa0f03fd,0xd10041ef,0xaa0103e3,0xaa0203e0,
-        0xf81f83a1,0xf81f03a2,0,0x8b1c8021,0xaa0003e2,0,0xf85f83a0,0,
-        0x8b1c8021,0xf85f03a2,0,0xaa1603e0,0xaa1d03ef,0xa8c179fd,0xd65f03c0};
-    if(!DockWords(image,begin,shape,20)||!DockLoad(w[7],0xb8400061)||!DockLoad(w[12],0xb8400001))return false;
-    const int sx=DockDisplacement(w[7]),sy=DockDisplacement(w[12]);
-    if(sx<7||sy!=sx+4)return false;
-    uintptr_t setter=0,setter2=0;
-    if(!DecodeBlTarget(begin+40,w[10],&setter)||!DecodeBlTarget(begin+60,w[15],&setter2)||setter!=setter2)return false;
-    DockController result{};result.scale=begin+64;result.setter=setter;
-    // Match the sibling alpha consumer by its full context and scalar dataflow.
-    unsigned alphas=0;
-    for(uintptr_t pc=begin+80;pc<begin+256;pc+=4){uint32_t q[16]{};if(!ReadInsns(image,pc,q,16))return false;
-        constexpr uint32_t alphaPrefix[]={0xa9bf79fd,0xaa0f03fd,0xd100a1ef,0xaa0103e3,0xaa0203e0,
-            0xf81f83a1,0xf81f03a2,0,0x8b1c8021,0xaa0003e2,0,0xf85f03a0,
-            0xfc407000,0xfc1e83a0,0x6e211c21,0x1e602020};
-        uintptr_t call=0;
-        if(!DockWords(image,pc,alphaPrefix,16)||!DockLoad(q[7],0xb8400061)||DockDisplacement(q[7])!=sx-4||
-            !DecodeBlTarget(pc+40,q[10],&call)||call!=setter)continue;
-        for(uintptr_t tail=pc+64;tail<pc+512;tail+=4){uint32_t t[12]{};if(!ReadInsns(image,tail-32,t,12))return false;
-            if(t[0]!=0xf85f83a0||!DockLoad(t[1],0xb8400001)||DockDisplacement(t[1])!=sx||t[2]!=0x8b1c8021||
-                t[4]!=0xfc407001||t[5]!=0xf85f83a1||t[6]!=0xfc5e83a0||
-                t[8]!=0xaa1603e0||t[9]!=0xaa1d03ef||t[10]!=0xa8c179fd||t[11]!=0xd65f03c0)continue;
-            if(!DecodeBlTarget(tail-4,t[7],&result.sync))continue;
-            uintptr_t getter=0;
-            if(!DecodeBlTarget(tail-20,t[3],&getter))continue;
-            unsigned values=0;
-            for(uintptr_t p=getter;p<getter+128;p+=4){uint32_t g[8]{};if(!ReadInsns(image,p,g,8))return false;
-                if(DockLoad(g[0],0xb8400020)&&g[1]==0x8b1c8000&&g[3]==0x6b10001f&&
-                   g[5]==0xaa1d03ef&&g[6]==0xa8c179fd&&g[7]==0xd65f03c0){result.rx_value=DockDisplacement(g[0]);++values;}}
-            if(values!=1 || result.rx_value<7)continue;
-            result.alpha=tail;++alphas;
+bool ReadDockController(const Image& image, uintptr_t tail, DockController* out) {
+    // The scale consumer saves its receiver/value, writes the same value into
+    // adjacent Rx cells through the same setter and returns Dart null.
+    uint32_t words[16]{};
+    constexpr uint32_t scaleBody[] = {
+        0xaa0203e0, 0xf81f83a1, 0xf81f03a2, 0, 0x8b1c8021, 0xaa0003e2, 0,
+        0xf85f83a0, 0, 0x8b1c8021, 0xf85f03a2, 0, 0xaa1603e0,
+        0xaa1d03ef, 0xa8c179fd, 0xd65f03c0
+    };
+    const uintptr_t body = tail - 48;
+    if (!ReadInsns(image, body, words, 16) || !DockWords(image, body, scaleBody, 16) ||
+        !DockLoad(words[3], 0xb8400061) || !DockLoad(words[8], 0xb8400001)) return false;
+    const int scaleField = DockDisplacement(words[3]);
+    if (scaleField < 7 || DockDisplacement(words[8]) != scaleField + 4) return false;
+    uintptr_t setter = 0, secondSetter = 0;
+    if (!DecodeBlTarget(body + 24, words[6], &setter) ||
+        !DecodeBlTarget(body + 44, words[11], &secondSetter) || setter != secondSetter) return false;
+    DockController result{};
+    result.scale = tail;
+    result.setter = setter;
+    unsigned consumers = 0;
+    // Sibling alpha consumer: a saved alpha, a native Rx read of this scale,
+    // and the shared root-pose synchronization call establish the family.
+    for (uintptr_t pc = tail + 32; pc < tail + 208; pc += 4) {
+        uint32_t alpha[12]{};
+        constexpr uint32_t alphaBody[] = {
+            0xaa0203e0, 0xf81f83a1, 0xf81f03a2, 0, 0x8b1c8021, 0xaa0003e2, 0,
+            0xf85f03a0, 0xfc407000, 0xfc1e83a0, 0x6e211c21, 0x1e602020
+        };
+        uintptr_t call = 0;
+        if (!ReadInsns(image, pc, alpha, 12)) return false;
+        if (!DockWords(image, pc, alphaBody, 12) || !DockLoad(alpha[3], 0xb8400061) ||
+            DockDisplacement(alpha[3]) != scaleField - 4 ||
+            !DecodeBlTarget(pc + 24, alpha[6], &call) || call != setter) continue;
+        for (uintptr_t end = pc + 48; end < pc + 496; end += 4) {
+            uint32_t completed[12]{};
+            if (!ReadInsns(image, end - 32, completed, 12)) return false;
+            if (completed[0] != 0xf85f83a0 || !DockLoad(completed[1], 0xb8400001) ||
+                DockDisplacement(completed[1]) != scaleField || completed[2] != 0x8b1c8021 ||
+                completed[4] != 0xfc407001 || completed[5] != 0xf85f83a1 ||
+                completed[6] != 0xfc5e83a0 || completed[8] != 0xaa1603e0 ||
+                completed[9] != 0xaa1d03ef || completed[10] != 0xa8c179fd ||
+                completed[11] != 0xd65f03c0) continue;
+            uintptr_t getter = 0;
+            if (!DecodeBlTarget(end - 4, completed[7], &result.sync) ||
+                !DecodeBlTarget(end - 20, completed[3], &getter)) continue;
+            unsigned values = 0;
+            for (uintptr_t read = getter; read < getter + 128; read += 4) {
+                uint32_t value[8]{};
+                if (!ReadInsns(image, read, value, 8)) return false;
+                if (DockLoad(value[0], 0xb8400020) && value[1] == 0x8b1c8000 &&
+                    value[3] == 0x6b10001f && value[5] == 0xaa1d03ef &&
+                    value[6] == 0xa8c179fd && value[7] == 0xd65f03c0) {
+                    result.rx_value = DockDisplacement(value[0]);
+                    ++values;
+                }
+            }
+            if (values != 1 || result.rx_value < 7) continue;
+            result.alpha = end;
+            ++consumers;
         }
     }
-    if(alphas!=1)return false;
-    uint32_t sync[6]{};
-    if(!ReadInsns(image,result.sync,sync,6)||sync[0]!=0xa9bf79fd||sync[1]!=0xaa0f03fd||
-        !((sync[3]==0xf81f83a1 && DockLoad(sync[4],0xfc0003a0) && DockLoad(sync[5],0xfc0003a1)) ||
-          (DockLoad(sync[3],0xfc0003a0) && DockLoad(sync[4],0xfc0003a1) && sync[5]==0xf9403f40)))return false;
-    // Match the common consumer even when the optimizer omits its unused receiver.
-    *out=result;return true;
+    if (consumers != 1) return false;
+    *out = result;
+    return true;
 }
-bool FindController(const Image& image,int site,uintptr_t* offset,uint32_t* count){
-    *count=0;
-    for(size_t n=0;n<image.load_count;++n){const auto& seg=image.loads[n];if(!(seg.flags&kFlagExec))continue;
-        for(uintptr_t pc=seg.start;pc+768<seg.end;pc+=4){uint32_t first=0;
-            if(!ReadInsn(image,pc,&first)||first!=0xa9bf79fd)continue;
-            DockController c{};if(!ReadDockController(image,pc,&c))continue;
-            *offset=site==0?c.scale:site==1?c.alpha:c.sync;++*count;
+bool FindController(const Image& image, int site, uintptr_t* offset, uint32_t* count) {
+    *count = 0;
+    for (size_t n = 0; n < image.load_count; ++n) {
+        const auto& segment = image.loads[n];
+        if (!(segment.flags & kFlagExec)) continue;
+        for (uintptr_t tail = segment.start + 48; tail + 704 < segment.end; tail += 4) {
+            uint32_t instruction = 0;
+            if (!ReadInsn(image, tail, &instruction) || instruction != 0xaa1603e0) continue;
+            DockController controller{};
+            if (!ReadDockController(image, tail, &controller)) continue;
+            *offset = site == 0 ? controller.scale : site == 1 ? controller.alpha : controller.sync;
+            ++*count;
         }
     }
-    return *count==1;
+    return *count == 1;
 }
-bool FindControllerScale(const Image&i,uintptr_t*o,uint32_t*c){return FindController(i,0,o,c);}
-bool FindControllerAlpha(const Image&i,uintptr_t*o,uint32_t*c){return FindController(i,1,o,c);}
+bool FindControllerScale(const Image& image, uintptr_t* offset, uint32_t* count) {
+    return FindController(image, 0, offset, count);
+}
+bool FindControllerAlpha(const Image& image, uintptr_t* offset, uint32_t* count) {
+    return FindController(image, 1, offset, count);
+}
 bool FindControllerSet(const Image& image,uintptr_t* offset,uint32_t* count){
     uintptr_t sync=0;uint32_t families=0;if(!FindController(image,2,&sync,&families)){*count=families;return false;}
     *count=0;
@@ -149,7 +184,7 @@ bool ReadDockTick(const Image& image,uintptr_t begin,const DockController& contr
     uint32_t w[11]{};if(!ReadInsns(image,begin,w,11))return false;
     constexpr uint32_t prefix[]={0xa9bf79fd,0xaa0f03fd,0xd10061ef,0xaa0103e2,0xf81f03a1,
         0,0xb8716843,0x8b1c8063,0xf81f83a3,0,0xb8716840};
-    if(!DockWords(image,begin,prefix,11)||(w[5]&0xffe0001f)!=0xd2800011||(w[9]&0xffe0001f)!=0xd2800011)return false;
+    if(!DockWords(image,begin+16,prefix+4,7)||(w[5]&0xffe0001f)!=0xd2800011||(w[9]&0xffe0001f)!=0xd2800011)return false;
     DockTickLayout layout{};layout.receiver=-16;layout.scale=(w[5]>>5)&0xffff;layout.value=controller.rx_value;
     unsigned mid=0,math=0,returns=0,shared=0;
     for(uintptr_t pc=begin+44;pc<begin+320;pc+=4){uint32_t q[9]{};if(!ReadInsns(image,pc,q,9))return false;
@@ -166,10 +201,10 @@ bool ReadDockTick(const Image& image,uintptr_t begin,const DockController& contr
 }
 bool FindDockTick(const Image& image,uintptr_t* offset,uint32_t* count){
     uintptr_t scale=0;uint32_t families=0;if(!FindController(image,0,&scale,&families)){*count=families;return false;}
-    DockController controller{};if(!ReadDockController(image,scale-64,&controller))return false;
+    DockController controller{};if(!ReadDockController(image,scale,&controller))return false;
     *count=0;
     for(size_t n=0;n<image.load_count;++n){const auto& seg=image.loads[n];if(!(seg.flags&kFlagExec))continue;
-        for(uintptr_t pc=seg.start;pc+352<seg.end;pc+=4){uint32_t first=0;if(!ReadInsn(image,pc,&first)||first!=0xa9bf79fd)continue;
+        for(uintptr_t pc=seg.start;pc+352<seg.end;pc+=4){uint32_t saved=0;if(!ReadInsn(image,pc+16,&saved)||saved!=0xf81f03a1)continue;
             DockTickLayout layout{};if(ReadDockTick(image,pc,controller,&layout)){*offset=layout.site;++*count;}}
     }
     return *count==1;
@@ -230,7 +265,7 @@ bool DecodeDockEditingPool(const Image& image,uintptr_t offset,uint32_t* out) { 
 bool DecodeDockTickLayout(const Image& image,uintptr_t site,DockTickLayout* out){
     uintptr_t scale=0;uint32_t count=0;
     if(!out || !FindController(image,0,&scale,&count))return false;
-    DockController controller{};if(!ReadDockController(image,scale-64,&controller))return false;
+    DockController controller{};if(!ReadDockController(image,scale,&controller))return false;
     for(uintptr_t begin=site;begin+352>site && begin>=4;begin-=4){
         DockTickLayout layout{};if(ReadDockTick(image,begin,controller,&layout)&&layout.site==site){*out=layout;return true;}
         if(site-begin>352)break;
