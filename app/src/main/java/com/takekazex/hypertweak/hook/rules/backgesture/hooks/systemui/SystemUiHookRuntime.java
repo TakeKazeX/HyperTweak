@@ -67,6 +67,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
+    private volatile PredictiveBackWallpaper predictiveBackWallpaper;
 
     private volatile SystemUiPlatformImpl systemUiPlatformImpl;
     private volatile SharedPreferences contextualSearchStatePreferences;
@@ -3471,7 +3472,9 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             int height = Math.max(bounds.height(), crop == null ? 0 : crop.bottom);
             SurfaceControl.Builder builder = new SurfaceControl.Builder();
             invokeAnyMethod(organizer, "attachToDisplayArea", new Object[]{displayId, builder});
-            replacement = PredictiveBackWallpaper.create(context, builder, width, height);
+            PredictiveBackWallpaper wallpaper = predictiveBackWallpaper;
+            if (wallpaper == null) return result;
+            replacement = wallpaper.create(builder, width, height);
             if (replacement == null) return result;
             if (relative != null && relative.isValid()) invokeAnyMethod(transaction, "setRelativeLayer", new Object[]{replacement, relative, -1});
             else transaction.setLayer(replacement, -1);
@@ -6783,6 +6786,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             appContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             miuiOverviewReceiverContext = appContext;
             miuiOverviewReceiver = receiver;
+            predictiveBackWallpaper = new PredictiveBackWallpaper(appContext);
             ensureContextualSearchStatePreferenceListener(appContext);
             moduleLog(Log.INFO, TAG, "Registered Miui launcher overview-state receiver"
                     + ", currentOverviewVisible=" + miuiOverviewVisible);
@@ -7152,6 +7156,9 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
     }
 
     protected synchronized void unregisterMiuiOverviewStateReceiver() {
+        PredictiveBackWallpaper wallpaper = predictiveBackWallpaper;
+        predictiveBackWallpaper = null;
+        if (wallpaper != null) wallpaper.close();
         releaseContextualSearchStatePreferenceListener();
         BroadcastReceiver receiver = miuiOverviewReceiver;
         Context receiverContext = miuiOverviewReceiverContext;

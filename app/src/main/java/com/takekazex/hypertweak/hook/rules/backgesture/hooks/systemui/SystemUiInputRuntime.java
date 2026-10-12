@@ -3170,23 +3170,37 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                     return false;
                 }
                 completedSession = activeShellSession;
-                if (completedSession == null) {
-                    return true;
-                }
-                if (!completedSession.completionConsumed.get()) {
-                    moduleLog(Log.WARN, TAG,
-                            "Rejected Shell start while another session owns the slot"
-                                    + ", shellSessionId=" + completedSession.id
-                                    + ", completionConsumed="
-                                    + completedSession.completionConsumed.get());
-                    return false;
-                }
+                if (completedSession == null) return true;
             }
-            completeShellSessionOnMain(
-                    completedSession, "retired-before-next-start");
+            if (!completedSession.completionConsumed.get()
+                    && completedSession.releaseQueued.get()
+                    && completedSession.awaitingStockCleanup.get()) {
+                // A cold/absent preview may finish through a vendor path that skips
+                // our completion hook. Inspect the captured Shell on its executor;
+                // only a fully idle controller can retire this released local slot.
+                executeShellBlocking(completedSession.executor, () -> {
+                    try {
+                        if (activeShellSession == completedSession
+                                && completedSession.controller == controller
+                                && completedSession.inputEpoch == inputMonitorEpoch.get()
+                                && isShellStartReadyOnOwner(completedSession.controller)) {
+                            completeShellSessionOnOwner(completedSession, "stock-idle-before-next-start");
+                        }
+                    } catch (Throwable failure) {
+                        moduleLog(Log.WARN, TAG, "Could not verify released Shell session is idle", failure);
+                    }
+                }, "releasedSessionReadiness");
+            }
+            if (!completedSession.completionConsumed.get()) {
+                moduleLog(Log.WARN, TAG,
+                        "Rejected Shell start while another session owns the slot"
+                                + ", shellSessionId=" + completedSession.id
+                                + ", completionConsumed=false");
+                return false;
+            }
+            completeShellSessionOnMain(completedSession, "retired-before-next-start");
             synchronized (backInputLifecycleLock) {
-                return activeShellSession == null
-                        && !shellStartInFlight && !shellOwnerUncertain;
+                return activeShellSession == null && !shellStartInFlight && !shellOwnerUncertain;
             }
         }
 

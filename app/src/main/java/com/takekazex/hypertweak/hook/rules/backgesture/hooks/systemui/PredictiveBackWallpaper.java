@@ -1,9 +1,19 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import android.app.WallpaperManager;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
+import com.takekazex.hypertweak.util.DebugLog;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -14,41 +24,148 @@ import android.view.Surface;
 import android.view.SurfaceControl;
 
 /** Wallpaper pixels only; Shell continues to own the surface, geometry and removal. */
-final class PredictiveBackWallpaper {
+final class PredictiveBackWallpaper implements AutoCloseable {
+    private final Context context;
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "HT-BackWallpaper");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final PreparedWallpaperCache<Bitmap> cache = new PreparedWallpaperCache<>(worker,
+            Bitmap::recycle, failure -> DebugLog.INSTANCE.w("BackGesture", "Wallpaper preparation unavailable; preserving native background", failure));
+    private final BroadcastReceiver changes = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (Intent.ACTION_WALLPAPER_CHANGED.equals(action)) cache.invalidate();
+            else cache.retryMissing();
+            warm();
+        }
+    };
+    private boolean registered;
+
+    PredictiveBackWallpaper(Context context) {
+        Context application = context.getApplicationContext();
+        this.context = application == null ? context : application;
+        IntentFilter filter = new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED);
+        filter.addAction(Intent.ACTION_USER_UNLOCKED);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        try {
+            this.context.registerReceiver(changes, filter, Context.RECEIVER_NOT_EXPORTED);
+            registered = true;
+        } catch (RuntimeException failure) {
+            DebugLog.INSTANCE.w("BackGesture", "Wallpaper change observer unavailable", failure);
+        }
+        warm();
+    }
+
+    private void warm() {
+        cache.request(() -> prepare(context));
+    }
+
+    SurfaceControl create(SurfaceControl.Builder builder, int width, int height) throws Exception {
+        // Surface dimensions are rendering inputs, never wallpaper-cache identity.
+        SurfaceControl ready = cache.use(bitmap -> render(builder, width, height, bitmap));
+        if (ready == null) warm();
+        return ready;
+    }
+
+    @Override public void close() {
+        cache.close();
+        worker.shutdownNow();
+        if (registered) {
+            registered = false;
+            try { context.unregisterReceiver(changes); }
+            catch (RuntimeException failure) { DebugLog.INSTANCE.w("BackGesture", "Wallpaper observer cleanup failed", failure); }
+        }
+    }
+
     // Runs inside privileged SystemUI (READ_WALLPAPER_INTERNAL verified on the host),
     // never in HyperTweak's app process. Denial is caught by the renderer's native fallback.
     @SuppressLint("MissingPermission")
-    static SurfaceControl create(Context context, SurfaceControl.Builder builder,
-            int width, int height) throws Exception {
-        Drawable drawable = WallpaperManager.getInstance(context).getDrawable(WallpaperManager.FLAG_SYSTEM);
+    private static Bitmap prepare(Context context) throws Exception {
+        WallpaperManager manager = WallpaperManager.getInstance(context);
+        int wallpaperId = manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM);
+        File directory = context.getCacheDir();
+        WallpaperCacheFile disk = directory == null ? null : new WallpaperCacheFile(new File(directory,
+                "hypertweak-back-wallpaper/source.htwp"));
+        Bitmap bitmap = null;
+        try {
+            byte[] pixels = disk == null ? null : disk.read(wallpaperId);
+            if (pixels != null) {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(pixels, 0, pixels.length, bounds);
+                if (bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth <= 1024 && bounds.outHeight <= 1024) {
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                    bitmap = BitmapFactory.decodeByteArray(pixels, 0, pixels.length, options);
+                }
+            }
+        } catch (IOException failure) {
+            DebugLog.INSTANCE.w("BackGesture", "Wallpaper disk cache unreadable; refreshing source", failure);
+        }
+        if (bitmap != null) {
+            boolean current = false;
+            try {
+                current = manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM) == wallpaperId;
+                return current ? bitmap : null;
+            } finally { if (!current) bitmap.recycle(); }
+        }
+        manager.forgetLoadedWallpaper();
+        Drawable drawable = manager.getDrawable(WallpaperManager.FLAG_SYSTEM);
         if (drawable == null) return null;
-        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, width / 4), Math.max(1, height / 4), Bitmap.Config.ARGB_8888);
-        SurfaceControl control = null;
-        Surface surface = null;
+        int sourceWidth = drawable.getIntrinsicWidth();
+        int sourceHeight = drawable.getIntrinsicHeight();
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
+            sourceWidth = Math.max(1, context.getResources().getDisplayMetrics().widthPixels);
+            sourceHeight = Math.max(1, context.getResources().getDisplayMetrics().heightPixels);
+        }
+        // Retain the source aspect ratio. Crop at render time so rotation and
+        // freeform backgrounds reuse the same locally prepared wallpaper.
+        float scale = Math.min(.25f, 1024f / Math.max(sourceWidth, sourceHeight));
+        bitmap = Bitmap.createBitmap(Math.max(1, Math.round(sourceWidth * scale)),
+                Math.max(1, Math.round(sourceHeight * scale)), Bitmap.Config.ARGB_8888);
         boolean complete = false;
         try {
             Rect originalBounds = new Rect(drawable.getBounds());
             try {
-                drawCenterCrop(drawable, new Canvas(bitmap), bitmap.getWidth(), bitmap.getHeight());
-            } finally {
-                drawable.setBounds(originalBounds);
-            }
+                drawable.setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
+                drawable.draw(new Canvas(bitmap));
+            } finally { drawable.setBounds(originalBounds); }
             blurBitmap(bitmap, 7, 2);
+            if (manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM) != wallpaperId) return null;
+            if (wallpaperId > 0 && disk != null) {
+                try {
+                    ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, encoded)) throw new IOException("Wallpaper cache encoding failed");
+                    disk.write(wallpaperId, encoded.toByteArray());
+                } catch (IOException failure) {
+                    DebugLog.INSTANCE.w("BackGesture", "Wallpaper disk cache write failed; retaining memory cache", failure);
+                }
+            }
+            complete = true;
+            return bitmap;
+        } finally { if (!complete) bitmap.recycle(); }
+    }
+
+    private static SurfaceControl render(SurfaceControl.Builder builder, int width, int height,
+            Bitmap bitmap) throws Exception {
+        SurfaceControl control = null;
+        Surface surface = null;
+        boolean complete = false;
+        try {
             control = builder.setName("HyperTweakPredictiveBackWallpaper")
                     .setBufferSize(width, height).setFormat(PixelFormat.RGBX_8888).setHidden(true).build();
             surface = new Surface(control);
             Canvas canvas = surface.lockCanvas(null);
             try {
                 canvas.drawColor(Color.BLACK);
-                canvas.drawBitmap(bitmap, null, new Rect(0, 0, width, height), new Paint(Paint.FILTER_BITMAP_FLAG));
+                drawCenterCrop(bitmap, canvas, width, height);
                 canvas.drawColor(0x26000000);
-            } finally {
-                surface.unlockCanvasAndPost(canvas);
-            }
+            } finally { surface.unlockCanvasAndPost(canvas); }
             complete = true;
             return control;
         } finally {
-            bitmap.recycle();
             if (surface != null) surface.release();
             if (!complete && control != null) discard(control);
         }
@@ -73,21 +190,14 @@ final class PredictiveBackWallpaper {
         }
     }
 
-    private static void drawCenterCrop(Drawable drawable, Canvas canvas, int width, int height) {
-        int sourceWidth = drawable.getIntrinsicWidth();
-        int sourceHeight = drawable.getIntrinsicHeight();
-        if (sourceWidth <= 0 || sourceHeight <= 0) {
-            drawable.setBounds(0, 0, width, height);
-        } else {
-            float scale = Math.max(width / (float) sourceWidth,
-                    height / (float) sourceHeight);
-            int scaledWidth = Math.round(sourceWidth * scale);
-            int scaledHeight = Math.round(sourceHeight * scale);
-            int left = (width - scaledWidth) / 2;
-            int top = (height - scaledHeight) / 2;
-            drawable.setBounds(left, top, left + scaledWidth, top + scaledHeight);
-        }
-        drawable.draw(canvas);
+    private static void drawCenterCrop(Bitmap bitmap, Canvas canvas, int width, int height) {
+        float scale = Math.max(width / (float) bitmap.getWidth(), height / (float) bitmap.getHeight());
+        float scaledWidth = bitmap.getWidth() * scale;
+        float scaledHeight = bitmap.getHeight() * scale;
+        float left = (width - scaledWidth) / 2f;
+        float top = (height - scaledHeight) / 2f;
+        canvas.drawBitmap(bitmap, null, new android.graphics.RectF(left, top,
+                left + scaledWidth, top + scaledHeight), new Paint(Paint.FILTER_BITMAP_FLAG));
     }
 
     private static void blurBitmap(Bitmap bitmap, int radius, int iterations) {
