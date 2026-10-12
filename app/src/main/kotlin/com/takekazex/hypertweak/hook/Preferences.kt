@@ -22,6 +22,8 @@ object Preferences {
     const val KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER = "back_gesture_cross_activity_wallpaper"
     const val KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER = "back_gesture_cross_task_wallpaper"
 
+    const val KEY_FULLSCREEN_DIRECT_BACK = "fullscreen_direct_back"
+
     private val liveBackSettings = BackGestureSettingsLedger()
     fun backGestureEnabled(): Boolean = backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =

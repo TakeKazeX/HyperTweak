@@ -38,6 +38,10 @@ public final class PredictiveBackPreferences {
             "contextual_search_haptics";
     public static final boolean DEFAULT_CONTEXTUAL_SEARCH_HAPTICS = false;
 
+    /** Skip the reveal-system-bars step for an immersive side-back gesture. */
+    public static final String KEY_FULLSCREEN_DIRECT_BACK = "fullscreen_direct_back";
+    public static final boolean DEFAULT_FULLSCREEN_DIRECT_BACK = false;
+
     /** The vertical size of both Xiaomi side trigger areas, expressed as a percentage. */
     public static final String KEY_GESTURE_TRIGGER_HEIGHT_PERCENT =
             "gesture_trigger_height_percent";

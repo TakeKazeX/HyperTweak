@@ -48,8 +48,8 @@ abstract class SystemUiPlatformImpl {
         return false;
     }
 
-    Animator unwrapDefaultTransitionAnimator(Object entry) throws Exception {
-        return entry instanceof Animator ? (Animator) entry : null;
+    Animator[] unwrapDefaultTransitionAnimators(Object entry) throws Exception {
+        return entry instanceof Animator ? new Animator[]{(Animator) entry} : null;
     }
 
     Method brokenBackAnimationStatusBarResetMethod(ClassLoader classLoader)

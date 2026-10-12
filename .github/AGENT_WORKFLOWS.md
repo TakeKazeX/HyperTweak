@@ -16,6 +16,17 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For Dart state-observer assembly changes, execute the production observer offline
+with Unicorn and pyelftools using the installed Android NDK compiler:
+
+```sh
+python3 app/src/test/cpp/run_dart_state_abi_test.py /absolute/path/to/NDK-clang
+```
+
+This checks independent Overview exit publication, owner fencing, exact source and
+boolean validation, retirement, and preservation of registers, SIMD, SP and NZCV.
+Actual recent-task exit and next-gesture behavior remain manual device acceptance.
+
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
 
 ```sh

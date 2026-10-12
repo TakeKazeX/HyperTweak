@@ -179,6 +179,32 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
         }
     }
 
+    protected boolean isFullscreenDirectBackEnabled() {
+        return Preferences.INSTANCE.backGestureBoolean(
+                Preferences.KEY_FULLSCREEN_DIRECT_BACK,
+                PredictiveBackPreferences.DEFAULT_FULLSCREEN_DIRECT_BACK);
+    }
+
+    /** Immutable ACTION_DOWN decision; preference changes apply to the next stream. */
+    protected static final class FullscreenBackPolicy {
+        final boolean directBack;
+        final boolean allowsBack;
+        final boolean yieldToTransientBars;
+
+        FullscreenBackPolicy(Long sysUiStateFlags, boolean navBarHidden,
+                boolean navBarShownTransiently, boolean authenticatedHeadlessLifecycle,
+                boolean directBackRequested) {
+            boolean readable = sysUiStateFlags != null;
+            boolean allowIgnoringBarVisibility = readable
+                    && (sysUiStateFlags.longValue()
+                    & SYSUI_STATE_ALLOW_GESTURE_IGNORING_BAR_VISIBILITY) != 0L;
+            directBack = readable && navBarHidden && directBackRequested;
+            allowsBack = !navBarHidden || allowIgnoringBarVisibility || directBack
+                    || (readable && authenticatedHeadlessLifecycle);
+            yieldToTransientBars = navBarHidden && !navBarShownTransiently && !directBack;
+        }
+    }
+
     protected boolean isContextualSearchHapticsEnabled() {
         try {
             // HyperTweak: consume the acknowledged live snapshot, including hot reload/reset.
@@ -1510,16 +1536,24 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                     && !allowGestureIgnoringBarVisibility
                     && sysUiStateFlags != null
                     && isCurrentHeadlessNavBarLifecycle(edgeBackGestureHandler);
-            if (navBarHidden && !allowGestureIgnoringBarVisibility
-                    && !authenticatedHeadlessLifecycle) {
+            FullscreenBackPolicy fullscreenPolicy = new FullscreenBackPolicy(
+                    sysUiStateFlags, navBarHidden, navBarShownTransiently,
+                    authenticatedHeadlessLifecycle,
+                    navBarHidden && isFullscreenDirectBackEnabled());
+            if (!fullscreenPolicy.allowsBack) {
                 moduleLog(Log.INFO, TAG, "Ignored native back by AOSP bar-visibility policy"
                         + ", sysUiStateFlags=" + sysUiStateFlags
                         + ", edge=" + edge + ", x=" + event.getRawX()
                         + ", y=" + event.getRawY());
                 return false;
             }
-            waitingForTransientBarsAtDown = navBarHidden && !navBarShownTransiently;
-            if (navBarHidden && authenticatedHeadlessLifecycle
+            waitingForTransientBarsAtDown = fullscreenPolicy.yieldToTransientBars;
+            if (fullscreenPolicy.directBack) {
+                moduleLog(Log.INFO, TAG, "Accepted immersive back with direct-back preference"
+                        + ", sysUiStateFlags=" + sysUiStateFlags
+                        + ", edge=" + edge + ", x=" + event.getRawX()
+                        + ", y=" + event.getRawY());
+            } else if (navBarHidden && authenticatedHeadlessLifecycle
                     && !allowGestureIgnoringBarVisibility) {
                 moduleLog(Log.INFO, TAG,
                         "Accepted native back through authenticated headless lifecycle"
@@ -3111,6 +3145,7 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                     }
                 }
                 if (authenticatedNullStart) {
+                    scheduleRecentsIdleNavigationRetry(session);
                     moduleLog(Log.INFO, TAG, "Continuing authenticated in-app gesture with AOSP "
                             + "null-navigation fallback"
                             + ", input=" + shortObject(acceptedInputIdentity)
@@ -3157,6 +3192,180 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                     + ", shellSessionId=" + session.id
                     + ", edge=" + activeEdge + ", x=" + downX + ", y=" + downY);
             return true;
+        }
+
+        /** Read on the input owner; both task and activity must survive the idle wait. */
+        private android.app.ActivityManager.RunningTaskInfo focusedAppTask() {
+            try {
+                android.app.ActivityManager manager = context.getSystemService(android.app.ActivityManager.class);
+                List<android.app.ActivityManager.RunningTaskInfo> tasks = manager.getRunningTasks(20);
+                for (android.app.ActivityManager.RunningTaskInfo task : tasks) {
+                    Object taskDisplay = readField(task, "displayId");
+                    if (!(taskDisplay instanceof Number)
+                            || ((Number) taskDisplay).intValue() != displayId) continue;
+                    if (task.topActivity == null || MIUI_HOME.equals(task.topActivity.getPackageName())) return null;
+                    return task;
+                }
+                return null;
+            } catch (Throwable failure) { return null; }
+        }
+
+        private String focusIdentity(android.app.ActivityManager.RunningTaskInfo task) {
+            return task == null ? null : task.taskId + ":" + task.topActivity.flattenToString();
+        }
+
+        /** All Recents container/list reads run on Shell's owner, never the input Looper. */
+        private List<?> recentsControllersOnOwner(Object transitions) throws Exception {
+            Object recents = invokeAnyMethod(transitions, "getRecentsTransitionHandler", new Object[0]);
+            Object controllers = readField(recents, "mControllers");
+            return controllers instanceof List ? (List<?>) controllers : null;
+        }
+
+        private void scheduleRecentsIdleNavigationRetry(ShellGestureSession session) {
+            android.app.ActivityManager.RunningTaskInfo focus = focusedAppTask();
+            if (focus == null || session.inputIdentity.get() == null) return;
+            RecentsIdleRetry retry = new RecentsIdleRetry(session, session.inputIdentity.get(),
+                    session.inputEpoch, focusIdentity(focus));
+            executeShellBlocking(session.executor, () -> {
+                try {
+                    Object transitions = readField(session.controller, "mTransitions");
+                    List<?> controllers = recentsControllersOnOwner(transitions);
+                    if (controllers == null) return;
+                    Object captured = null;
+                    for (Object candidate : controllers) {
+                        Object type = readField(candidate, "mRemoteToRecentType");
+                        Object token = readField(candidate, "mTransition");
+                        Object info = readField(candidate, "mInfo");
+                        if (!"LAUNCH_FROM_HOME".equals(String.valueOf(type))
+                                || readField(candidate, "mFinishCB") == null
+                                || !Boolean.TRUE.equals(invokeAnyMethod(transitions, "isKnownTransition", new Object[]{token}))
+                                || !(info instanceof android.window.TransitionInfo)) continue;
+                        for (android.window.TransitionInfo.Change change : ((android.window.TransitionInfo) info).getChanges()) {
+                            android.app.ActivityManager.RunningTaskInfo task = change.getTaskInfo();
+                            if (task != null && task.taskId == focus.taskId
+                                    && Integer.valueOf(displayId).equals(readField(task, "displayId"))) {
+                                captured = candidate;
+                                break;
+                            }
+                        }
+                        if (captured != null) break;
+                    }
+                    if (captured == null) return;
+                    moduleLog(Log.INFO, TAG, "Queued same-stream navigation retry after native Recents idle"
+                            + ", sessionId=" + session.id + ", focus=" + focusIdentity(focus));
+                    // Stock runOnIdle runs after native transition finish, including the WM finish IPC.
+                    invokeAnyMethod(transitions, "runOnIdle", new Object[]{(Runnable) () ->
+                            new Handler(Looper.getMainLooper()).post(() ->
+                                    retryNavigationAfterRecentsIdle(session, retry, transitions))});
+                } catch (Throwable failure) {
+                    moduleLog(Log.WARN, TAG, "Recents idle retry unavailable; preserving ordinary BACK", failure);
+                }
+            }, "recentsIdleRegistration");
+        }
+
+        private void retryNavigationAfterRecentsIdle(ShellGestureSession session,
+                                                     RecentsIdleRetry retry, Object transitions) {
+            if (!gestureActive || gestureSuppressed || !aospNullNavigationGesture
+                    || !Preferences.INSTANCE.backGestureEnabled() || !isShellSessionOwnerCurrent(session)) return;
+            NativeBackInputMonitor monitor = nativeInputMonitors.get(edgeBackGestureHandler);
+            if (monitor == null || !monitor.isBackGestureAllowedBySystemUiState()) return;
+            Long flags = monitor.readSystemUiStateFlags();
+            if (flags == null || (flags.longValue() & SYSUI_STATE_LOCKED_OR_PINNED_MASK) != 0L) return;
+            android.app.ActivityManager.RunningTaskInfo focus = focusedAppTask();
+            if (focus == null) return;
+            String currentFocus = focusIdentity(focus);
+            AtomicReference<ShellStartSnapshot> result = new AtomicReference<>();
+            AtomicBoolean abandoned = new AtomicBoolean();
+            boolean completed = executeShellBlocking(session.executor, () -> {
+                boolean invoked = false;
+                try {
+                    if (abandoned.get()) return;
+                    List<?> remaining = recentsControllersOnOwner(transitions);
+                    if (!retry.claim(activeShellSession, acceptedInputIdentity, inputMonitorEpoch.get(),
+                            focusIdentity(focusedAppTask()), gestureActive, session.releaseQueued.get(),
+                            remaining != null && remaining.isEmpty())
+                            || session.completionConsumed.get() || session.moveFailed.get()
+                            || !isCurrentAcceptedInputIdentity(session.inputIdentity.get(), session.edge,
+                                    session.controller, session.inputEpoch)
+                            || readField(session.controller, "mCurrentTracker") != session.tracker
+                            || readField(session.controller, "mBackNavigationInfo") != null
+                            || !Boolean.TRUE.equals(readField(session.controller, "mReceivedNullNavigationInfo"))
+                            || !Boolean.TRUE.equals(invokeAnyMethod(session.tracker, "isActive", new Object[0]))) return;
+                    // Retry native navigation on the existing tracker. Do not synthesize another DOWN,
+                    // clear a running navigation, or bypass system_server's Recents guard.
+                    if (abandoned.get()) return;
+                    invoked = true;
+                    writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.FALSE);
+                    invokeAnyMethod(session.controller, "startBackNavigation", new Object[]{session.tracker});
+                    Object navigation = readField(session.controller, "mBackNavigationInfo");
+                    if (navigation == null) {
+                        writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.TRUE);
+                        return;
+                    }
+                    if (abandoned.get() || activeShellSession != session || session.releaseQueued.get()
+                            || !currentFocus.equals(focusIdentity(focusedAppTask()))) {
+                        invokeAnyMethod(session.controller, "finishBackNavigation", new Object[]{Boolean.FALSE});
+                        writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.TRUE);
+                        return;
+                    }
+                    ((BackTouchTracker) session.tracker).update(lastX, lastY);
+                    invokeAnyMethod(session.controller, "startPredictiveBackAnimationIfNeeded", new Object[0]);
+                    navigation = readField(session.controller, "mBackNavigationInfo");
+                    if (navigation == null) {
+                        writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.TRUE);
+                        return;
+                    }
+                    result.set(new ShellStartSnapshot(true, true, "recents-idle-retry",
+                            session.tracker, navigation, false, null));
+                } catch (Throwable failure) {
+                    try {
+                        // A partially started retry must not leave the old null receipt pointing
+                        // at a new navigation. Cancel only this still-owned tracker and restore fallback.
+                        if (invoked && activeShellSession == session
+                                && readField(session.controller, "mCurrentTracker") == session.tracker) {
+                            if (readField(session.controller, "mBackNavigationInfo") != null) {
+                                invokeAnyMethod(session.controller, "finishBackNavigation", new Object[]{Boolean.FALSE});
+                            }
+                            writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.TRUE);
+                        }
+                    } catch (Throwable cleanupFailure) { failure.addSuppressed(cleanupFailure); }
+                    moduleLog(Log.WARN, TAG, "Same-stream Recents navigation retry failed", failure);
+                }
+            }, "recentsIdleNavigationRetry");
+            if (!completed) {
+                abandoned.set(true);
+                // The owner task checks abandonment before and after its native call.
+                // A completed late result is canceled on the captured owner, never a new stream.
+                try { session.executor.execute(() -> {
+                    try {
+                        if (result.get() != null && readField(session.controller, "mCurrentTracker") == session.tracker
+                                && readField(session.controller, "mBackNavigationInfo") == result.get().navigation) {
+                            invokeAnyMethod(session.controller, "finishBackNavigation", new Object[]{Boolean.FALSE});
+                            writeField(session.controller, "mReceivedNullNavigationInfo", Boolean.TRUE);
+                        }
+                    } catch (Throwable failure) {
+                        moduleLog(Log.WARN, TAG, "Failed to retire abandoned Recents retry", failure);
+                    }
+                }); } catch (Throwable failure) {
+                    moduleLog(Log.WARN, TAG, "Could not enqueue abandoned Recents retry cleanup", failure);
+                }
+                return;
+            }
+            ShellStartSnapshot start = result.get();
+            if (start == null) return;
+            ShellGestureSession replacement = new ShellGestureSession(gestureOwner, start,
+                    session.edge, session.startX, session.startY, session.linearDistance,
+                    session.maxDistance, session.nonLinearFactor, session.inputIdentity.get());
+            synchronized (backInputLifecycleLock) {
+                if (activeShellSession != session || session.releaseQueued.get()) return;
+                // Retire only the local null-start receipt; its same native tracker now has navigation.
+                session.completionConsumed.set(true);
+                activeShellSession = replacement;
+                aospNullNavigationGesture = false;
+            }
+            moduleLog(Log.INFO, TAG, "Upgraded same-stream back navigation after Recents idle"
+                    + ", oldSessionId=" + session.id + ", sessionId=" + replacement.id
+                    + ", focus=" + currentFocus);
         }
 
         protected boolean prepareShellSessionSlotForStart() {

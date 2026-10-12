@@ -64,6 +64,9 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var slideAnimation by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
     var crossActivityWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
     var crossTaskWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
+    var fullscreenDirectBack by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_FULLSCREEN_DIRECT_BACK, false))
+    }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.settings_launcher_section),
@@ -173,6 +176,23 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             onCheckedChange = {
                                 backGestureEnabled = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, it)
+                            }
+                        )
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.fullscreen_back_behavior_title),
+                            summary = stringResource(
+                                if (fullscreenDirectBack) R.string.fullscreen_back_direct_summary
+                                else R.string.fullscreen_back_show_bars_summary
+                            ),
+                            items = listOf(
+                                stringResource(R.string.fullscreen_back_show_bars),
+                                stringResource(R.string.fullscreen_back_direct)
+                            ),
+                            selectedIndex = if (fullscreenDirectBack) 1 else 0,
+                            enabled = backGestureEnabled,
+                            onSelectedIndexChange = {
+                                fullscreenDirectBack = it == 1
+                                Preferences.putBoolean(Preferences.KEY_FULLSCREEN_DIRECT_BACK, fullscreenDirectBack)
                             }
                         )
                         OverlayDropdownPreference(

@@ -34,6 +34,27 @@ class BackGestureHostContractTest {
         assertTrue(shell.methods.any { it.name == "injectBackKey" && it.parameterTypes.map(CharSequence::toString) == listOf("I") })
     }
 
+    @Test fun `current Shell exposes multipart leaves and the native Recents idle boundary`() {
+        val shell = classes("BACK_GESTURE_SHELL_JAR")
+        val window = shell.getValue("Lcom/android/wm/shell/transition/WindowAnimation;")
+        val multipart = shell.getValue("Lcom/android/wm/shell/transition/MultiPartWindowAnimation;")
+        assertEquals(window.type, multipart.superclass)
+        assertEquals("Ljava/util/List;", multipart.fields.single { it.name == "mAnimators" }.type)
+        assertEquals("Landroid/animation/ValueAnimator;", window.fields.single { it.name == "mAnimator" }.type)
+        val transitions = shell.getValue("Lcom/android/wm/shell/transition/Transitions;")
+        assertTrue(transitions.methods.any { it.name == "runOnIdle" && it.parameterTypes.map(CharSequence::toString) == listOf("Ljava/lang/Runnable;") })
+        assertTrue(transitions.methods.any { it.name == "getRecentsTransitionHandler" && it.parameterTypes.isEmpty() })
+        val recents = shell.getValue("Lcom/android/wm/shell/recents/RecentsTransitionHandler;")
+        assertEquals("Ljava/util/concurrent/CopyOnWriteArrayList;", recents.fields.single { it.name == "mControllers" }.type)
+        val controller = shell.getValue("Lcom/android/wm/shell/recents/RecentsTransitionHandler\$RecentsController;")
+        assertEquals("Landroid/window/TransitionInfo;", controller.fields.single { it.name == "mInfo" }.type)
+        assertTrue(controller.fields.any { it.name == "mRemoteToRecentType" })
+        assertTrue(controller.fields.any { it.name == "mFinishCB" })
+        val back = shell.getValue("Lcom/android/wm/shell/back/BackAnimationController;")
+        assertTrue(back.methods.any { it.name == "startBackNavigation" && it.parameterTypes.map(CharSequence::toString) == listOf("Landroid/window/BackTouchTracker;") })
+        assertTrue(back.methods.any { it.name == "startPredictiveBackAnimationIfNeeded" && it.parameterTypes.isEmpty() })
+    }
+
     @Test fun `services preserves native predictive preparation and six-argument transition calculation`() {
         val classes = classes("BACK_GESTURE_SERVICES_JAR")
         val transition = classes.getValue("Lcom/android/server/wm/Transition;")

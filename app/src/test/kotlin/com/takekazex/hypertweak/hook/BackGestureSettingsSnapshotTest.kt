@@ -84,6 +84,30 @@ class BackGestureSettingsSnapshotTest {
         assertEquals(false, restored.value(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS))
     }
 
+    @Test fun `eight-flag reload preserves haptics and defaults fullscreen back off`() {
+        val old = arrayOf<Any>(26L, 4L, true, false, false, false, true, false, true, true)
+        val restored = requireNotNull(BackGestureSettingsSnapshot.restore(old))
+        assertEquals(26L, restored.revision)
+        assertEquals(4L, restored.epoch)
+        assertEquals(true, restored.value(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS))
+        assertEquals(false, restored.value(Preferences.KEY_FULLSCREEN_DIRECT_BACK))
+    }
+
+    @Test fun `fullscreen selection survives reload and rejects stale updates after reset`() {
+        val key = Preferences.KEY_FULLSCREEN_DIRECT_BACK
+        val enabled = baseline().mutate(key, true, 1)
+        val disabled = enabled.mutate(key, false, 2)
+        val ledger = BackGestureSettingsLedger()
+        assertTrue(ledger.offer(requireNotNull(BackGestureSettingsSnapshot.restore(enabled.save()))))
+        assertEquals(true, ledger.latest()?.value(key))
+        assertTrue(ledger.offer(disabled))
+        assertFalse(ledger.offer(enabled))
+        assertEquals(false, ledger.latest()?.value(key))
+        assertTrue(ledger.offer(baseline().copy(epoch = 1)))
+        assertFalse(ledger.offer(enabled.copy(revision = 999)))
+        assertEquals(false, ledger.latest()?.value(key))
+    }
+
     @Test fun `malformed settings and negative identities cannot silently become defaults`() {
         for (bad in listOf<Any>("false", 0, 1L)) {
             assertNull(BackGestureSettingsSnapshot.read(mapOf(indicator to bad)))

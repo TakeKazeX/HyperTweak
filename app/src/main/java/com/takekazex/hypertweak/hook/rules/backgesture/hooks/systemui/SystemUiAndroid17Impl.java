@@ -21,6 +21,17 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 final class SystemUiAndroid17Impl extends SystemUiPlatformImpl {
+    private final java.util.concurrent.ConcurrentHashMap<Class<?>, Field> transitionAnimatorFields =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private Field transitionAnimatorField(Class<?> type, String name) throws Exception {
+        Field field = transitionAnimatorFields.get(type);
+        if (field != null) return field;
+        field = findField(type, name);
+        Field previous = transitionAnimatorFields.putIfAbsent(type, field);
+        return previous == null ? field : previous;
+    }
+
     private final Map<Object, Object> modulePlugins =
             Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<Object, Object> moduleBackCallbacks =
@@ -305,18 +316,27 @@ final class SystemUiAndroid17Impl extends SystemUiPlatformImpl {
     }
 
     @Override
-    Animator unwrapDefaultTransitionAnimator(Object entry) throws Exception {
+    Animator[] unwrapDefaultTransitionAnimators(Object entry) throws Exception {
         if (entry instanceof Animator) {
-            return (Animator) entry;
+            return new Animator[]{(Animator) entry};
         }
-        if (entry == null || !"com.android.wm.shell.transition.WindowAnimation"
-                .equals(entry.getClass().getName())) {
-            return null;
+        if (entry == null) return null;
+        String name = entry.getClass().getName();
+        if ("com.android.wm.shell.transition.MultiPartWindowAnimation".equals(name)) {
+            Object parts = transitionAnimatorField(entry.getClass(), "mAnimators").get(entry);
+            if (!(parts instanceof java.util.List)) return null;
+            java.util.List<?> list = (java.util.List<?>) parts;
+            if (list.isEmpty()) return null;
+            Animator[] result = new Animator[list.size()];
+            for (int i = 0; i < result.length; i++) {
+                if (!(list.get(i) instanceof Animator)) return null;
+                result[i] = (Animator) list.get(i);
+            }
+            return result;
         }
-        Field animatorField = entry.getClass().getDeclaredField("mAnimator");
-        animatorField.setAccessible(true);
-        Object animator = animatorField.get(entry);
-        return animator instanceof Animator ? (Animator) animator : null;
+        if (!"com.android.wm.shell.transition.WindowAnimation".equals(name)) return null;
+        Object animator = transitionAnimatorField(entry.getClass(), "mAnimator").get(entry);
+        return animator instanceof Animator ? new Animator[]{(Animator) animator} : null;
     }
 
     @Override
@@ -331,6 +351,7 @@ final class SystemUiAndroid17Impl extends SystemUiPlatformImpl {
 
     @Override
     void destroy() {
+        transitionAnimatorFields.clear();
         List<Object> plugins;
         synchronized (modulePlugins) {
             plugins = new ArrayList<>(modulePlugins.values());

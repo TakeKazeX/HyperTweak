@@ -218,10 +218,14 @@ MiuiHomeHyosDartHomeSurfacePublishedEpilogueHook:
     ldur w14, [x12, #15]
     cmp w14, w13
     b.ne .Lhome_surface_inactive
-    ldur w13, [x12, #27]
+    ldur w8, [x12, #27]
     add w14, w22, #0x20
-    cmp w13, w14
+    cmp w8, w14
+    b.eq .Lhome_surface_read_source
+    add w14, w22, #0x30
+    cmp w8, w14
     b.ne .Lhome_surface_inactive
+.Lhome_surface_read_source:
     ldur w12, [x12, #31]
     add x12, x12, x28, lsl #32
     tbz w12, #0, .Lhome_surface_inactive
@@ -233,7 +237,12 @@ MiuiHomeHyosDartHomeSurfacePublishedEpilogueHook:
     cmp x13, #94
     b.ne .Lhome_surface_inactive
     ldur x13, [x12, #7]
+    cmp x13, #(13 * 2)
+    b.eq .Lhome_surface_home_source
     cmp x13, #(17 * 2)
+    b.ne .Lhome_surface_inactive
+    add w14, w22, #0x20
+    cmp w8, w14
     b.ne .Lhome_surface_inactive
     add x12, x12, #15
     adrp x13, .Lhome_surface_source
@@ -252,6 +261,33 @@ MiuiHomeHyosDartHomeSurfacePublishedEpilogueHook:
     b.ne .Lhome_surface_inactive
     store_dart_observation g_editing_state_observation, 2, .Lhome_surface_leave
     b .Lhome_surface_publish
+.Lhome_surface_home_source:
+    // A task-card launch can skip sendExitOverviewSignal(). The completed
+    // native false/typefrom_home decision still proves Overview no longer
+    // owns back. Do not infer its exit from an unreadable or other source.
+    add w14, w22, #0x30
+    cmp w8, w14
+    b.ne .Lhome_surface_inactive
+    add x12, x12, #15
+    adrp x13, .Lhome_surface_source
+    add x13, x13, :lo12:.Lhome_surface_source
+    ldr x14, [x12]
+    ldr x17, [x13]
+    cmp x14, x17
+    b.ne .Lhome_surface_inactive
+    ldr w14, [x12, #8]
+    ldr w17, [x13, #8]
+    cmp w14, w17
+    b.ne .Lhome_surface_inactive
+    ldrb w14, [x12, #12]
+    ldrb w17, [x13, #12]
+    cmp w14, w17
+    b.ne .Lhome_surface_inactive
+    store_dart_observation g_overview_state_observation, 1, .Lhome_surface_inactive
+    mark_dart_state_pending 2
+    // Wake even when the Home-surface receipt was already false; a later
+    // Overview enter must not suppress this independent exit observation.
+    wake_dart_state_publisher
 .Lhome_surface_inactive:
     store_dart_observation g_editing_state_observation, 1, .Lhome_surface_leave
 .Lhome_surface_publish:

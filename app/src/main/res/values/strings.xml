@@ -1540,4 +1540,9 @@
     <string name="settings_privacy_indicator">Privacy indicator</string>
     <string name="settings_privacy_indicator_summary">Customize the control-center privacy row</string>
     <string name="privacy_value_range">Range: %1$d to %2$d %3$s</string>
+    <string name="fullscreen_back_behavior_title">Fullscreen back behavior</string>
+    <string name="fullscreen_back_show_bars">Show system bars first</string>
+    <string name="fullscreen_back_show_bars_summary">AOSP default: the first gesture reveals the navigation and status bars</string>
+    <string name="fullscreen_back_direct">Go back directly</string>
+    <string name="fullscreen_back_direct_summary">Like Xiaomi gestures: go back without a separate gesture to reveal system bars</string>
 </resources>

@@ -841,20 +841,20 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             return;
         }
         List<?> animatorList = (List<?>) animatorListObject;
-        Animator[] animators = new Animator[animatorList.size()];
-        for (int index = 0; index < animatorList.size(); index++) {
-            Object entry = animatorList.get(index);
-            Animator animator = requireSystemUiPlatformImpl()
-                    .unwrapDefaultTransitionAnimator(entry);
-            if (animator == null) {
-                throw new IllegalStateException("Unexpected transition animator="
-                        + shortObject(entry));
-            }
-            animators[index] = animator;
-        }
         Object originalSizeObject = ((Map<?, ?>) animationSizeObject).get(token);
         int originalSize = originalSizeObject instanceof Number
                 ? ((Number) originalSizeObject).intValue() : 0;
+        // mAnimationSize counts native wrappers, not the Animator leaves of a multipart
+        // wrapper. Reject a partial wrapper set before flattening its immutable children.
+        List<Animator> leaves = TransitionAnimatorSet.collect(animatorList, originalSize,
+                entry -> requireSystemUiPlatformImpl().unwrapDefaultTransitionAnimators(entry));
+        if (leaves == null) {
+            moduleLog(Log.INFO, TAG, "Skipped incomplete or unsupported Xiaomi OPEN animation set"
+                    + ", wrapperCount=" + animatorList.size()
+                    + ", originalWrapperCount=" + originalSize);
+            return;
+        }
+        Animator[] animators = leaves.toArray(new Animator[0]);
         if (animators.length == 0) {
             moduleLog(Log.INFO, TAG, "Skipped Xiaomi OPEN snapshot with empty animator list"
                     + ", token=" + shortObject(token)
@@ -866,7 +866,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             return;
         }
         OpenTransitionSnapshot snapshot = new OpenTransitionSnapshot(token, info, animators,
-                originalSize, (Executor) executorObject, generation,
+                animators.length, (Executor) executorObject, generation,
                 shellTransitions);
         OpenTransitionSnapshot previous = runningOpenTransitions.put(token, snapshot);
         if (previous != null) {
