@@ -12,11 +12,10 @@ import android.widget.FrameLayout
 
 /** The renderer used both in the wallpaper preview and the windowless desktop host. */
 internal class DockMaterialView(context: Context) : FrameLayout(context) {
-    private val material = FrameLayout(context)
     private val tokens by lazy { Tokens.load(context) }
     private var configured = false
     private var capture = false
-    private data class Spec(val style: Int, val dark: Boolean, val radius: Float, val scale: Float, val crossWindow: Boolean)
+    private data class Spec(val config: DockConfig, val dark: Boolean, val radius: Float, val scale: Float, val crossWindow: Boolean)
     private var pending: Spec? = null
     private var applied: Pair<Spec, Pair<Int, Int>>? = null
     private var frameEpoch = 0L
@@ -30,10 +29,9 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         setBackgroundColor(Color.TRANSPARENT)
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         isClickable = false
-        addView(material, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) pending?.let { spec ->
-                runCatching { apply(spec.style, spec.dark, spec.radius, spec.scale, spec.crossWindow) }
+                runCatching { apply(spec.config, spec.dark, spec.radius, spec.scale, spec.crossWindow) }
                     .onFailure {
                         com.takekazex.hypertweak.util.DebugLog.w("DockMaterial", "measured material configuration failed", it)
                         post { onMaterialState(false) }
@@ -42,8 +40,9 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun apply(style: Int, dark: Boolean, radius: Float, scale: Float = 1f, crossWindow: Boolean = false) {
-        val spec = Spec(style, dark, radius, scale, crossWindow)
+    fun apply(config: DockConfig, dark: Boolean, radius: Float, scale: Float = 1f, crossWindow: Boolean = false) {
+        val style = config.style
+        val spec = Spec(config, dark, radius, scale, crossWindow)
         pending = spec
         if (width < 1 || height < 1) return // Material/SDF configuration follows the real measured size.
         if (applied == (spec to (width to height))) return
@@ -53,37 +52,32 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         check(DockReflection.callStatic(rootClass, "getSupportedMiBlur") == true) { "Native blur unsupported" }
         if (style == DockConfig.GLASS) check(DockReflection.callStatic(rootClass, "getSupportedBionicMaterial") == true) { "Native glass unsupported" }
         val token = tokens
-        val blur = (token.smallRadius * scale).toInt().coerceIn(1, 500)
-        val large = (token.bigRadius * scale).toInt().coerceIn(1, 1000)
-        listOf(this, material).forEach { surface ->
-            surface.background = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = radius }
-            surface.outlineProvider = ViewOutlineProvider.BACKGROUND
-            surface.clipToOutline = true
-        }
-        // A switch must remove the old glass and blends, including when a host is reused.
-        if (style == DockConfig.GLASS || configured) DockReflection.call(material, "setMiGlass", FloatArray(42))
-        DockReflection.call(material, "setMiViewMaterialType", 0)
+        val blur = config.blurPixels(scale)
+        background = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = radius }
+        outlineProvider = ViewOutlineProvider.BACKGROUND
+        clipToOutline = true
+        // One RenderNode owns both texture sampling and its material, as in
+        // HyperMaterialUtils.applyContainerWithGlass. No parent Gaussian pass or child sampler.
+        if (style == DockConfig.GLASS || configured) DockReflection.call(this, "setMiGlass", FloatArray(42))
+        DockReflection.call(this, "setMiViewMaterialType", 0)
         DockReflection.call(this, "setMiBackgroundBlendColors", arrayListOf<Point>())
-        DockReflection.call(material, "setMiBackgroundBlendColors", arrayListOf<Point>())
         DockReflection.call(this, "setMiBackgroundBlurMode", 1)
-        DockReflection.call(this, "setMiBackgroundBlurRadius", blur)
-        DockReflection.call(this, "setMiViewBlurMode", 0)
-        DockReflection.call(this, "setMiGlassBlurRadius", blur, large)
-        val blend = if (dark) token.darkBlend else token.lightBlend
+        DockReflection.call(this, "setMiViewBlurMode", 1)
         if (style == DockConfig.GLASS) {
-            DockReflection.call(this, "setMiBackgroundBlendColors", blend())
-            DockReflection.call(material, "setMiBackgroundBlurMode", 0)
-            DockReflection.call(material, "setMiViewBlurMode", 1)
-            DockReflection.call(material, "setMiViewMaterialType", 1)
-            DockReflection.call(material, "setMiGlass", token.shader.copyOf())
-            DockReflection.call(material, "setMiGlassSdfMaxSize", width.toFloat(), height.toFloat())
+            DockReflection.call(this, "setMiBackgroundBlurRadius", 0)
+            DockReflection.call(this, "setMiViewMaterialType", 1)
+            DockReflection.call(this, "setMiGlassBlurRadius", blur, blur)
+            DockReflection.call(this, "setMiGlass", config.glassShader(token.shader, scale))
+            DockReflection.call(this, "setMiGlassSdfMaxSize", width.toFloat(), height.toFloat())
         } else {
-            // The native frosted surface owns one blur/blend pass. Its empty child contributes
-            // no second Gaussian pass; the same surface also owns its pass-window source.
-            DockReflection.call(this, "setMiViewBlurMode", 1)
-            DockReflection.call(this, "setMiBackgroundBlendColors", blend())
-            DockReflection.call(material, "setMiBackgroundBlurMode", 0)
-            DockReflection.call(material, "setMiViewBlurMode", 0)
+            if (configured) DockReflection.call(this, "setMiGlassBlurRadius", 0, 0)
+            DockReflection.call(this, "setMiBackgroundBlurRadius", blur)
+            val nativeBlend = if (dark) token.darkBlend else token.lightBlend
+            val blend = ArrayList(nativeBlend().map { point ->
+                val alpha = ((point.x ushr 24) * config.tint / 100f).toInt().coerceIn(0, 255)
+                Point((point.x and 0x00ffffff) or (alpha shl 24), point.y)
+            })
+            DockReflection.call(this, "setMiBackgroundBlendColors", blend)
         }
         if (crossWindow) enableCapture()
         configured = true
@@ -93,7 +87,6 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         viewTreeObserver.registerFrameCommitCallback { post { if (generation == frameEpoch && configured) frameCommitted = true } }
         onMaterialState(true)
         invalidate()
-        material.invalidate()
     }
 
     private fun enableCapture() {
@@ -155,7 +148,7 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         requireTextureAfter = 0
     }
 
-    private class Tokens(val shader: FloatArray, val smallRadius: Int, val bigRadius: Int,
+    private class Tokens(val shader: FloatArray,
         val lightBlend: () -> ArrayList<Point>, val darkBlend: () -> ArrayList<Point>) {
         companion object {
             fun load(context: Context): Tokens {
@@ -165,9 +158,6 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
                 val glass = requireNotNull(glassClass.getField("Glass_Bionic_Medium_Normal").get(null))
                 val shader = glassClass.getMethod("toShaderParams").invoke(glass) as FloatArray
                 check(shader.size == 42 && shader.all { it.isFinite() }) { "Unknown native glass ABI" }
-                val blur = requireNotNull(glassClass.getField("blurRadius").get(glass))
-                val small = blur.javaClass.getField("smallBlurRadius").getInt(blur)
-                val big = blur.javaClass.getField("bigBlurRadius").getInt(blur)
                 val blendClass = plugin.classLoader.loadClass("miuix.theme.token.ColorBlendToken")
                 fun blend(name: String): () -> ArrayList<Point> {
                     val value = requireNotNull(blendClass.getField(name).get(null))
@@ -176,7 +166,7 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
                     check(colors.size == modes.size && colors.isNotEmpty())
                     return { ArrayList(colors.indices.map { Point(colors[it], modes[it]) }) }
                 }
-                return Tokens(shader.copyOf(), small, big, blend("Pured_Regular_Glass_Light"), blend("Pured_Regular_Glass_Dark"))
+                return Tokens(shader.copyOf(), blend("Pured_Regular_Glass_Light"), blend("Pured_Regular_Glass_Dark"))
             }
         }
     }

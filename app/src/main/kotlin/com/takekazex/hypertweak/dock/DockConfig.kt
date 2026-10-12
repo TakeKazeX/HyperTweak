@@ -11,23 +11,61 @@ data class DockConfig(
     val horizontalMargin: Int = 10,
     val bottomMargin: Int = 36,
     val radius: Int = 28,
+    /** Actual native radius in pixels, not a percentage of an undocumented token. */
+    val blur: Int = DEFAULT_BLUR,
+    /** Frosted color blend only. Bionic glass owns its color through its shader. */
+    val tint: Int = 100,
+    val opacity: Int = 100,
 ) {
-    fun encode(): String = "3|${if (enabled) 1 else 0}|$style|$height|$horizontalMargin|$bottomMargin|$radius"
+    fun encode(): String = "5|${if (enabled) 1 else 0}|$style|$height|$horizontalMargin|$bottomMargin|$radius|$blur|$tint|$opacity"
+
+    fun blurPixels(scale: Float = 1f): Int {
+        require(scale.isFinite() && scale > 0f)
+        return if (blur == 0) 0 else (blur * scale).roundToInt().coerceAtLeast(1)
+    }
+
+    /** Native output alpha affects the entire glass, including highlights and refraction. */
+    fun glassShader(native: FloatArray, scale: Float = 1f): FloatArray {
+        require(native.size == 42 && native.all { it.isFinite() })
+        require(scale.isFinite() && scale > 0f)
+        return native.copyOf().apply {
+            this[18] *= opacity / 100f
+            // Pixel lengths must follow the preview's reduced geometry; ratios/directions stay native.
+            if (scale != 1f) {
+                this[19] *= scale // edge width
+                this[21] *= scale // refraction thickness
+                this[22] *= scale // reflection offset
+            }
+        }
+    }
 
     companion object {
         const val KEY = "launcher_dock_background"
         const val GLASS = 0
         const val FROSTED = 1
+        // Verified Glass_Bionic_Medium_Normal uses 110 px for both blur textures.
+        const val DEFAULT_BLUR = 110
+        val BLUR_RANGE = 0..160
+        val PERCENT_RANGE = 0..100
+
         fun decode(value: String): DockConfig? {
-            if (value.length > 80) return null
+            if (value.length > 120) return null
             val fields = value.split('|').map { it.toIntOrNull() ?: return null }
-            if (fields.size != 7 || fields[0] !in 1..3 || fields[1] !in 0..1 || fields[2] !in 0..1 ||
+            if (fields.size < 7) return null
+            val expectedSize = when (fields[0]) { in 1..3 -> 7; 4 -> 11; 5 -> 10; else -> return null }
+            if (fields.size != expectedSize || fields[1] !in 0..1 || fields[2] !in 0..1 ||
                 fields[3] !in 40..180 || fields[4] !in 0..100 || fields[5] !in 0..160 || fields[6] !in 0..90) return null
-            // Only migrate the old untouched geometry. An explicitly adjusted layout remains exact.
+            if (fields[0] == 4 && (fields[7] !in 0..200 || fields[8] !in PERCENT_RANGE ||
+                fields[9] !in 0..200 || fields[10] !in 0..200)) return null
+            if (fields[0] == 5 && (fields[7] !in BLUR_RANGE || fields[8] !in PERCENT_RANGE ||
+                fields[9] !in PERCENT_RANGE)) return null
             val legacyDefault = (fields[0] == 1 && fields.drop(3) == listOf(88, 16, 12, 28)) ||
                 (fields[0] == 2 && fields.drop(3) == listOf(88, 16, 40, 28))
-            return if (legacyDefault) DockConfig(enabled = fields[1] == 1, style = fields[2])
+            val geometry = if (legacyDefault) DockConfig(enabled = fields[1] == 1, style = fields[2])
                 else DockConfig(fields[1] == 1, fields[2], fields[3], fields[4], fields[5], fields[6])
+            // v4's coupled blur and optical multipliers do not describe the new native controls.
+            // Restore native material defaults once, preserving every customized layout value.
+            return if (fields[0] == 5) geometry.copy(blur = fields[7], tint = fields[8], opacity = fields[9]) else geometry
         }
     }
 }

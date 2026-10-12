@@ -87,7 +87,7 @@ internal class DockPreviewView(context: Context) : FrameLayout(context) {
         val navTop = height - (10 * resources.displayMetrics.density * previewScale).roundToInt()
         navigation.layout(navLeft, navTop, navLeft + navigation.measuredWidth, navTop + navigation.measuredHeight)
         if (bounds != null && isAttachedToWindow) {
-            val ok = runCatching { panel.apply(config.style, dark, bounds.radius, previewScale) }.isSuccess
+            val ok = runCatching { panel.apply(config, dark, bounds.radius, previewScale) }.isSuccess
             panel.visibility = if (ok) VISIBLE else INVISIBLE
             onNativeState(ok)
         }

@@ -12,4 +12,11 @@
     <string name="dock_radius">圓角</string>
     <string name="dock_reset">重設尺寸</string>
     <string name="dock_save_failed">Dock 設定儲存失敗，已保留原設定。</string>
+    <string name="dock_layout_tab">佈局</string>
+    <string name="dock_glass_tab">玻璃</string>
+    <string name="dock_blur">模糊半徑</string>
+    <string name="dock_tint">底色濃度</string>
+    <string name="dock_reset_glass">重設玻璃參數</string>
+    <string name="dock_opacity">玻璃不透明度</string>
+    <string name="dock_opacity_summary">同時影響整體玻璃、邊緣高光與折射。</string>
 </resources>

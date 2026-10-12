@@ -80,7 +80,7 @@ class DockSurfaceProvider : ContentProvider() {
             val config = DockConfig.decode(args.getString("config") ?: "") ?: error("Invalid Dock configuration")
             val radius = args.getFloat("radius")
             require(radius.isFinite() && radius in 0f..minOf(entry.width, entry.height) / 2f)
-            entry.view.apply(config.style, args.getBoolean("dark"), radius, crossWindow = true)
+            entry.view.apply(config, args.getBoolean("dark"), radius, crossWindow = true)
             return Bundle().apply { putBoolean("updated", true) }
         }
         if (method == "probe") {
@@ -128,7 +128,7 @@ class DockSurfaceProvider : ContentProvider() {
             view.post {
                 if (entries[id] !== entry) return@post
                 runCatching {
-                    view.apply(config.style, args.getBoolean("dark"), radius, crossWindow = true)
+                    view.apply(config, args.getBoolean("dark"), radius, crossWindow = true)
                     view.invalidate()
                     status("loading")
                 }.onFailure { error ->

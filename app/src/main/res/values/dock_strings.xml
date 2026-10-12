@@ -12,4 +12,11 @@
     <string name="dock_radius">Corner radius</string>
     <string name="dock_reset">Reset dimensions</string>
     <string name="dock_save_failed">Could not save Dock settings. Previous settings were retained.</string>
+    <string name="dock_layout_tab">Layout</string>
+    <string name="dock_glass_tab">Glass</string>
+    <string name="dock_blur">Blur radius</string>
+    <string name="dock_tint">Background tint opacity</string>
+    <string name="dock_reset_glass">Reset glass</string>
+    <string name="dock_opacity">Glass opacity</string>
+    <string name="dock_opacity_summary">Affects the whole glass, including highlights and refraction.</string>
 </resources>

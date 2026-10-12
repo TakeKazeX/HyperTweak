@@ -35,6 +35,9 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.roundToInt
 
 @Composable
 fun DockBackgroundPage(onBack: () -> Unit) {
@@ -45,6 +48,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
     val config = DockConfig.decode(draft) ?: DockConfig()
     val writeState by DockSettingsWriter.state.collectAsState()
     var seenAcknowledgement by remember { mutableStateOf(writeState.acknowledged) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var nativeReady by remember { mutableStateOf(true) }
     var image by remember { mutableStateOf(decodeBundledGlassPreviewSample(context).bitmap) }
     var imageUri by rememberSaveable { mutableStateOf<String?>(null) }
@@ -108,18 +112,45 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                     }, modifier = Modifier.padding(horizontal = 12.dp))
                 }
             }
-            SmallTitle(stringResource(R.string.dock_geometry))
+            TabRowWithContour(
+                tabs = listOf(stringResource(R.string.dock_layout_tab), stringResource(R.string.dock_glass_tab)),
+                selectedTabIndex = selectedTab,
+                onTabSelected = { selectedTab = it },
+                colors = TabRowDefaults.tabRowColors(
+                    backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
+                    selectedBackgroundColor = MiuixTheme.colorScheme.surface
+                ),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)
+            )
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.padding(16.dp)) {
-                    DockSlider(stringResource(R.string.dock_height), config.height, 40f..180f,
-                        { change(config.copy(height = it)) })
-                    DockSlider(stringResource(R.string.dock_horizontal), config.horizontalMargin, 0f..100f,
-                        { change(config.copy(horizontalMargin = it)) })
-                    DockSlider(stringResource(R.string.dock_bottom), config.bottomMargin, 0f..160f,
-                        { change(config.copy(bottomMargin = it)) })
-                    DockSlider(stringResource(R.string.dock_radius), config.radius, 0f..90f,
-                        { change(config.copy(radius = it)) })
-                    TextButton(text = stringResource(R.string.dock_reset), onClick = { change(DockConfig(enabled = config.enabled, style = config.style)) })
+                Column {
+                    if (selectedTab == 0) {
+                        DockSlider(stringResource(R.string.dock_height), config.height, 40..180, 94, "dp",
+                            { change(config.copy(height = it)) })
+                        DockSlider(stringResource(R.string.dock_horizontal), config.horizontalMargin, 0..100, 10, "dp",
+                            { change(config.copy(horizontalMargin = it)) })
+                        DockSlider(stringResource(R.string.dock_bottom), config.bottomMargin, 0..160, 36, "dp",
+                            { change(config.copy(bottomMargin = it)) })
+                        DockSlider(stringResource(R.string.dock_radius), config.radius, 0..90, 28, "dp",
+                            { change(config.copy(radius = it)) })
+                        TextButton(text = stringResource(R.string.dock_reset), modifier = Modifier.padding(12.dp), onClick = {
+                            change(config.copy(height = 94, horizontalMargin = 10, bottomMargin = 36, radius = 28))
+                        })
+                    } else {
+                        DockSlider(stringResource(R.string.dock_blur), config.blur, DockConfig.BLUR_RANGE, DockConfig.DEFAULT_BLUR, "px",
+                            { change(config.copy(blur = it)) })
+                        if (config.style == DockConfig.GLASS) {
+                            DockSlider(stringResource(R.string.dock_opacity), config.opacity, DockConfig.PERCENT_RANGE, 100, "%",
+                                { change(config.copy(opacity = it)) }, summary = stringResource(R.string.dock_opacity_summary))
+                        } else {
+                            DockSlider(stringResource(R.string.dock_tint), config.tint, DockConfig.PERCENT_RANGE, 100, "%",
+                                { change(config.copy(tint = it)) })
+                        }
+                        TextButton(text = stringResource(R.string.dock_reset_glass), modifier = Modifier.padding(12.dp), onClick = {
+                            change(if (config.style == DockConfig.GLASS) config.copy(blur = DockConfig.DEFAULT_BLUR, opacity = 100)
+                                else config.copy(blur = DockConfig.DEFAULT_BLUR, tint = 100))
+                        })
+                    }
                 }
             }
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
@@ -128,8 +159,19 @@ fun DockBackgroundPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DockSlider(title: String, value: Int, range: ClosedFloatingPointRange<Float>, onChange: (Int) -> Unit) {
-    Text("$title · $value dp")
-    Slider(value = value.toFloat(), onValueChange = { onChange(it.toInt()) }, valueRange = range)
-    Spacer(Modifier.height(12.dp))
+private fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "") {
+    var showEditor by remember(title) { mutableStateOf(false) }
+    ArrowPreference(
+        title = title, summary = summary,
+        endActions = { Text("$value $unit", color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+        onClick = { showEditor = true },
+        bottomAction = {
+            Slider(value = value.toFloat(), onValueChange = { onChange(it.roundToInt()) },
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                showKeyPoints = true, keyPoints = listOf(defaultValue.toFloat()))
+        }
+    )
+    IntValueDialog(show = showEditor, title = title, summary = summary, suffix = unit, range = range,
+        currentValue = { value }, emptyValue = value, onValueConfirmed = onChange,
+        onDismissRequest = { showEditor = false })
 }
