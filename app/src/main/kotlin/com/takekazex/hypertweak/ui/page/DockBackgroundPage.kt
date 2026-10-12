@@ -140,6 +140,10 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                         DockSlider(stringResource(R.string.dock_blur), config.blur, DockConfig.BLUR_RANGE, DockConfig.DEFAULT_BLUR, "px",
                             { change(config.copy(blur = it)) })
                         if (config.style == DockConfig.GLASS) {
+                            DockSlider(stringResource(R.string.dock_brightness), config.brightness, DockConfig.BRIGHTNESS_RANGE, 0, "%",
+                                { change(config.copy(brightness = it)) }, summary = stringResource(R.string.dock_brightness_summary))
+                            DockSlider(stringResource(R.string.dock_shading), config.shading, DockConfig.PERCENT_RANGE, 0, "%",
+                                { change(config.copy(shading = it)) }, summary = stringResource(R.string.dock_shading_summary))
                             DockSlider(stringResource(R.string.dock_opacity), config.opacity, DockConfig.PERCENT_RANGE, 100, "%",
                                 { change(config.copy(opacity = it)) }, summary = stringResource(R.string.dock_opacity_summary))
                         } else {
@@ -147,7 +151,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                                 { change(config.copy(tint = it)) })
                         }
                         TextButton(text = stringResource(R.string.dock_reset_glass), modifier = Modifier.padding(12.dp), onClick = {
-                            change(if (config.style == DockConfig.GLASS) config.copy(blur = DockConfig.DEFAULT_BLUR, opacity = 100)
+                            change(if (config.style == DockConfig.GLASS) config.copy(blur = DockConfig.DEFAULT_BLUR, opacity = 100, brightness = 0, shading = 0)
                                 else config.copy(blur = DockConfig.DEFAULT_BLUR, tint = 100))
                         })
                     }

@@ -19,4 +19,8 @@
     <string name="dock_reset_glass">重置玻璃参数</string>
     <string name="dock_opacity">玻璃不透明度</string>
     <string name="dock_opacity_summary">同时影响整体玻璃、边缘高光和折射。</string>
+    <string name="dock_brightness">亮度调节</string>
+    <string name="dock_brightness_summary">调节玻璃亮度，保留不透明度和光学参数。0 为原生亮度。</string>
+    <string name="dock_shading">压暗强度</string>
+    <string name="dock_shading_summary">0 关闭亮壁纸上的深色混合，100% 恢复原生压暗。</string>
 </resources>

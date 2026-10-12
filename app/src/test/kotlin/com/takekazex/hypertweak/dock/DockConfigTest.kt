@@ -21,21 +21,49 @@ class DockConfigTest {
             "4|1|0|94|10|36|28|100|100|100|201", "3|1|0|94|10|36|28|100|100|100|100",
             "5|1|0|94|10|36|28|100|100", "5|1|0|94|10|36|28|161|100|100",
             "5|1|0|94|10|36|28|100|101|100", "5|1|0|94|10|36|28|100|100|-1",
-            "5|1|0|94|10|36|28|100|100|101", "6|1|0|94|10|36|28|100|100|100")
+            "5|1|0|94|10|36|28|100|100|101", "6|1|0|94|10|36|28|100|100|100", "7|1|0|94|10|36|28|100|100|100|0|0",
+            "6|1|0|94|10|36|28|100|100|100|-51|0", "6|1|0|94|10|36|28|100|100|100|51|0",
+            "6|1|0|94|10|36|28|100|100|100|0|-1", "6|1|0|94|10|36|28|100|100|100|0|101")
             .forEach { assertNull(it, DockConfig.decode(it)) }
     }
     @Test fun opacityChangesOnlyTheFinalNativeAlphaAndNeverMutatesItsToken() {
         val native = FloatArray(42) { it / 10f }.also { it[18] = .43f }
-        assertArrayEquals(native, DockConfig().glassShader(native), 0f)
-        val adjusted = DockConfig(opacity = 50).glassShader(native)
+        assertArrayEquals(native, DockConfig(shading = 100).glassShader(native), 0f)
+        val adjusted = DockConfig(opacity = 50, shading = 100).glassShader(native)
         assertEquals(.215f, adjusted[18], 0.000001f)
         native.indices.filter { it != 18 }.forEach { assertEquals(native[it], adjusted[it], 0f) }
         assertEquals(.43f, native[18], 0f)
         assertEquals(0f, DockConfig(opacity = 0).glassShader(native)[18], 0f)
     }
+    @Test fun whiteWallpaperDarkMixCanBeDisabledWithoutFadingOptics() {
+        // Verified Glass_Bionic_Medium_Normal brightness/darker/alpha.
+        val native = FloatArray(42) { it / 100f }.also {
+            it[6] = -.02f; it[7] = .3f; it[18] = 1f
+        }
+        val snapshot = native.copyOf()
+        val clear = DockConfig().glassShader(native)
+        assertEquals(0f, clear[7], 0f)
+        assertEquals(-.02f, clear[6], 0f)
+        native.indices.filter { it != 7 }.forEach { assertEquals(native[it], clear[it], 0f) }
+        val brighter = DockConfig(brightness = 20, shading = 50).glassShader(native)
+        assertEquals(.18f, brighter[6], .000001f)
+        assertEquals(.15f, brighter[7], .000001f)
+        native.indices.filter { it != 6 && it != 7 }.forEach { assertEquals(native[it], brighter[it], 0f) }
+        assertArrayEquals(snapshot, native, 0f)
+        assertArrayEquals(native, DockConfig(shading = 100).glassShader(native), 0f)
+    }
+    @Test fun v5MigrationKeepsEveryExistingControlAndRoundTripsToneLimits() {
+        val migrated = requireNotNull(DockConfig.decode("5|1|0|130|24|12|44|70|35|85"))
+        assertEquals(DockConfig(true, DockConfig.GLASS, 130, 24, 12, 44, 70, 35, 85), migrated)
+        assertEquals(0, migrated.shading)
+        for (brightness in listOf(-50, 0, 50)) for (shading in listOf(0, 50, 100)) {
+            val config = migrated.copy(brightness = brightness, shading = shading)
+            assertEquals(config, DockConfig.decode(config.encode()))
+        }
+    }
     @Test fun previewProjectsBlurAndPhysicalGlassShapeWithTheSameGeometryScale() {
         val native = FloatArray(42) { it / 10f }
-        val config = DockConfig(blur = 120)
+        val config = DockConfig(blur = 120, shading = 100)
         val preview = config.glassShader(native, .5f)
         assertEquals(60, config.blurPixels(.5f))
         listOf(19, 21, 22).forEach { assertEquals(native[it] / 2, preview[it], 0f) }
@@ -49,7 +77,10 @@ class DockConfigTest {
         assertNotEquals(glass.materialKey(false), glass.copy(opacity = 45).materialKey(false))
         assertNotEquals(glass.materialKey(false), glass.materialKey(true))
         assertEquals(glass.materialKey(false), glass.copy(tint = 45).materialKey(false))
+        assertNotEquals(glass.materialKey(false), glass.copy(brightness = 20).materialKey(false))
+        assertNotEquals(glass.materialKey(false), glass.copy(shading = 50).materialKey(false))
         val frosted = glass.copy(style = DockConfig.FROSTED)
+        assertEquals(frosted.materialKey(false), frosted.copy(brightness = 20, shading = 50).materialKey(false))
         assertNotEquals(frosted.materialKey(false), frosted.copy(tint = 45).materialKey(false))
         assertEquals(frosted.materialKey(false), frosted.copy(opacity = 45).materialKey(false))
         assertEquals(glass.materialKey(false), glass.copy(height = 130).materialKey(false))

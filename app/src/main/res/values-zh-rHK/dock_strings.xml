@@ -19,4 +19,8 @@
     <string name="dock_reset_glass">重設玻璃參數</string>
     <string name="dock_opacity">玻璃不透明度</string>
     <string name="dock_opacity_summary">同時影響整體玻璃、邊緣高光與折射。</string>
+    <string name="dock_brightness">亮度調節</string>
+    <string name="dock_brightness_summary">調節玻璃亮度，保留不透明度和光學參數。0 為原生亮度。</string>
+    <string name="dock_shading">壓暗強度</string>
+    <string name="dock_shading_summary">0 關閉亮桌布上的深色混合，100% 恢復原生壓暗。</string>
 </resources>

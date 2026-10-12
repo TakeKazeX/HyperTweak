@@ -19,4 +19,8 @@
     <string name="dock_reset_glass">Reset glass</string>
     <string name="dock_opacity">Glass opacity</string>
     <string name="dock_opacity_summary">Affects the whole glass, including highlights and refraction.</string>
+    <string name="dock_brightness">Brightness adjustment</string>
+    <string name="dock_brightness_summary">Adjusts glass brightness while retaining its opacity and optical parameters. Zero keeps native brightness.</string>
+    <string name="dock_shading">Darkening strength</string>
+    <string name="dock_shading_summary">Zero disables the dark tint on bright wallpaper; 100% restores native darkening.</string>
 </resources>
