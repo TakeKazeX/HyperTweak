@@ -718,8 +718,15 @@ object IconPositionHooker : StaticHooker() {
     /** Publish row targets before the host applies/animates its NewStatusIconState objects. */
     private fun prepareControlCenterRows(container: ViewGroup, access: HostRowStateAccess) {
         if (retiring || !ownsTwoLineLayout(container) || container.height <= 0) return
-        val centers = controlCenterRowCenters(container) ?: return
-        val battery = effectiveBattery(container, centers) ?: return
+        val geometry = controlCenterRowGeometry(container) ?: return
+        val battery = effectiveBattery(container) ?: return
+        // MiuiStatusBatteryContainer lays out its battery before statusIcons. Both are direct
+        // siblings, so these bounds belong to this traversal even while the header's carrier
+        // sibling still has its previous orientation's screen position.
+        val anchors = TwoRowIconLayout.anchors(
+            battery.left, battery.top, battery.width, battery.height,
+            container.left, container.top, geometry.secondCenter - geometry.firstCenter
+        )
         val states = access.layoutStates.get(container) as? List<*> ?: return
         val nativeStates = IdentityHashMap<View, Any>()
         for (raw in states) {
@@ -744,15 +751,11 @@ object IconPositionHooker : StaticHooker() {
             items += TwoRowIconLayout.Item(index, occupiedWidth(view), IconSlotPolicy.isTwoLineUpperSlot(slot, rowOverrides))
             children[index] = view to state
         }
-        val containerLocation = IntArray(2)
-        val batteryLocation = IntArray(2)
-        container.getLocationOnScreen(containerLocation)
-        battery.getLocationOnScreen(batteryLocation)
         val spacingId = container.resources.getIdentifier("status_bar_system_icon_spacing", "dimen", "com.android.systemui")
         val spacing = if (spacingId != 0) container.resources.getDimensionPixelSize(spacingId).toFloat() else 0f
         val positions = TwoRowIconLayout.positions(items,
-            upperRight = batteryLocation[0] - containerLocation[0].toFloat(),
-            lowerRight = batteryLocation[0] + battery.width - containerLocation[0].toFloat(),
+            upperRight = anchors.upperRight,
+            lowerRight = anchors.lowerRight,
             spacing = spacing, rtl = container.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         disableClipping(container)
         var parent = container.parent as? ViewGroup
@@ -769,8 +772,8 @@ object IconPositionHooker : StaticHooker() {
             access.layoutTranslationX.setFloat(state, x)
             // The host state has no Y property. Use final child bounds within this layout pass;
             // QS_FAKE remains one row and native appearance/expansion still owns the movement.
-            val center = if (item.upper) centers.first else centers.second
-            val top = (center - containerLocation[1] - view.height / 2f).toInt()
+            val center = if (item.upper) anchors.firstCenter else anchors.secondCenter
+            val top = (center - view.height / 2f).toInt()
             view.layout(view.left, top, view.right, top + view.height)
         }
     }
@@ -786,8 +789,8 @@ object IconPositionHooker : StaticHooker() {
         return false
     }
 
-    /** Returns first-row and second-row centers in screen coordinates when the carrier block exists. */
-    private fun controlCenterRowCenters(container: ViewGroup): Pair<Float, Float>? {
+    /** Only row spacing comes from the carrier; its screen location may be from the last layout. */
+    private fun controlCenterRowGeometry(container: ViewGroup): TwoRowIconLayout.Geometry? {
         var rowRoot: ViewGroup? = container.parent as? ViewGroup
         while (rowRoot != null &&
             rowRoot.javaClass.name != CONTROL_CENTER_ROW_CLASS &&
@@ -801,18 +804,11 @@ object IconPositionHooker : StaticHooker() {
         )
         if (carrierId == 0) return null
         val carrier = header.findViewById<View>(carrierId) as? ViewGroup ?: return null
-        val carrierLocation = IntArray(2)
-        carrier.getLocationOnScreen(carrierLocation)
-        val geometry = ControlCenterCarrierBlockHooker.rowGeometry(carrier) ?: return null
-        return (carrierLocation[1] + geometry.firstCenter) to (carrierLocation[1] + geometry.secondCenter)
+        return ControlCenterCarrierBlockHooker.rowGeometry(carrier)
     }
 
     /** Current layout owner: native battery, or DuoView while Duo borrows mBattery. */
-    private fun effectiveBattery(
-        container: ViewGroup,
-        rowCenters: Pair<Float, Float>?
-    ): View? {
-        if (rowCenters == null) return null
+    private fun effectiveBattery(container: ViewGroup): View? {
         val parent = container.parent as? ViewGroup ?: return null
         val layoutBattery = runCatching {
             batteryLayoutFields.getOrPut(parent.javaClass) {
@@ -826,13 +822,8 @@ object IconPositionHooker : StaticHooker() {
             if (batteryId == 0) return null
             parent.findViewById<View>(batteryId) ?: return null
         }
-        if (battery.visibility != View.VISIBLE || battery.width <= 0 || battery.height <= 0) {
-            return null
-        }
-        val batteryLocation = IntArray(2)
-        battery.getLocationOnScreen(batteryLocation)
-        val batteryCenter = batteryLocation[1] + battery.height / 2f
-        if (abs(batteryCenter - rowCenters.first) > abs(batteryCenter - rowCenters.second)) {
+        if (battery.parent !== parent || battery.visibility != View.VISIBLE ||
+            battery.width <= 0 || battery.height <= 0) {
             return null
         }
         return battery

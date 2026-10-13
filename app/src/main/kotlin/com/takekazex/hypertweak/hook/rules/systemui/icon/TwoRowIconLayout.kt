@@ -4,6 +4,21 @@ import kotlin.math.roundToInt
 
 /** Independent row packing in native child order; alpha never determines occupied space. */
 internal object TwoRowIconLayout {
+    /** Rotation swaps the available dimensions; tablets and tiny windows keep native geometry. */
+    fun supportsPhoneHeader(widthDp: Int, heightDp: Int): Boolean =
+        minOf(widthDp, heightDp) in 300..599
+
+    data class Anchors(val upperRight: Float, val lowerRight: Float,
+                       val firstCenter: Float, val secondCenter: Float)
+
+    /** Current sibling bounds define the first row; ancestor transforms never enter row targets. */
+    fun anchors(batteryLeft: Int, batteryTop: Int, batteryWidth: Int, batteryHeight: Int,
+                containerLeft: Int, containerTop: Int, rowSpacing: Float): Anchors {
+        val right = (batteryLeft - containerLeft).toFloat()
+        val center = batteryTop + batteryHeight / 2f - containerTop
+        return Anchors(right, right + batteryWidth, center, center + rowSpacing)
+    }
+
     data class Geometry(val firstCenter: Float, val secondCenter: Float, val minimumHeight: Int)
 
     /** SIM count changes content, never the two-row header's reserved geometry. */

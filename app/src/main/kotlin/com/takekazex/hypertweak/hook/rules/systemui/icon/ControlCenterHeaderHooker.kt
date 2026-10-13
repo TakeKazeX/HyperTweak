@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
@@ -39,12 +40,13 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
     private val resourceIds = WeakHashMap<Resources, ResourceIds>()
     private val compactHeaders = WeakHashMap<ViewGroup, WeakSiblings<View>>()
+    private val compactPrivacy = WeakHashMap<ViewGroup, WeakReference<View>>()
     private val compactCarrierVisibility = WeakHashMap<ViewGroup, Int>()
 
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
 
-    /** Configured visibility is retained across rotation; only two-row geometry is portrait-only. */
+    /** Configured visibility is retained across rotation. */
     fun twoLineConfigured(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
             Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
@@ -75,6 +77,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             }
             compactCarrierVisibility.clear()
             compactHeaders.clear()
+            compactPrivacy.clear()
             fields.clear()
             resourceIds.clear()
         }
@@ -104,6 +107,9 @@ object ControlCenterHeaderHooker : StaticHooker() {
                     }
                     (read(owner, "dateView") as? View)?.let(::hideDateView)
                     (read(owner, "carrierLayout") as? ViewGroup)?.let { carrier ->
+                        if (name == "updateConstraint") {
+                            compactPrivacy[carrier]?.get()?.let(layouts::remove)
+                        }
                         if (name == "updateCarrierAndPrivacyVisible") {
                             reapplyCompactCarrierVisibility(carrier)
                         }
@@ -182,13 +188,12 @@ object ControlCenterHeaderHooker : StaticHooker() {
         if (date.visibility != View.GONE) date.visibility = View.GONE
     }
 
-    /** Only the verified normal phone portrait header uses this constraint graph. */
+    /** The normal phone header uses the same two-row constraints in both orientations. */
     fun supportsCompactLayout(view: View): Boolean = supportsCompactLayout(view.context)
 
     fun supportsCompactLayout(context: Context): Boolean {
         val config = context.resources.configuration
-        return config.orientation == Configuration.ORIENTATION_PORTRAIT &&
-            config.screenWidthDp in 300..599
+        return TwoRowIconLayout.supportsPhoneHeader(config.screenWidthDp, config.screenHeightDp)
     }
 
     /** Re-shows the two-line carrier block after SystemUI hides it for a privacy prompt. */
@@ -227,6 +232,23 @@ object ControlCenterHeaderHooker : StaticHooker() {
             val statusId = id(carrier, "normal_control_center_status_bar")
             val status = parent.findViewById<View>(statusId) ?: return@guarded
             val fake = parent.findViewById<View>(id(carrier, "normal_fake_control_center_status_bar"))
+            // The wide header keeps its privacy chip beside the first row. Reserve its native
+            // width instead of placing battery/status icons underneath an active indicator.
+            val privacyId = id(carrier, "normal_privacy_container")
+            val privacy = parent.findViewById<View>(privacyId)
+            val besidePrivacy = carrier.resources.configuration.orientation ==
+                Configuration.ORIENTATION_LANDSCAPE && privacyId != 0 && privacy != null
+            if (besidePrivacy) {
+                compactPrivacy[carrier] = WeakReference(privacy)
+                // The native wide ConstraintSet leaves this chip's horizontal position unset.
+                // A GONE chip must still anchor at the right edge, not at its old/solver position.
+                change(privacy, mapOf(
+                    "startToStart" to UNSET, "startToEnd" to UNSET,
+                    "endToStart" to UNSET, "endToEnd" to PARENT_ID
+                ))
+            } else {
+                compactPrivacy.remove(carrier)?.get()?.let(::restoreLayout)
+            }
             compactHeaders[carrier] = WeakSiblings(status, fake)
             // Keep the status/battery root at the first row: the battery belongs to the header's
             // first-row anchor. IconPositionHooker splits only the statusIcons children against
@@ -234,6 +256,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             // without dragging the battery or its MiuiStatusBatteryContainer with them.
             change(carrier, mapOf(
                 "width" to 0, "height" to ViewGroup.LayoutParams.WRAP_CONTENT,
+                "matchConstraintMaxWidth" to 0,
                 "startToStart" to PARENT_ID, "startToEnd" to UNSET,
                 "endToStart" to statusId, "endToEnd" to UNSET,
                 "topToTop" to UNSET, "topToBottom" to UNSET,
@@ -242,8 +265,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
             ))
             change(status, mapOf(
                 "width" to ViewGroup.LayoutParams.WRAP_CONTENT,
+                "matchConstraintMaxWidth" to 0,
                 "startToStart" to UNSET, "startToEnd" to UNSET,
-                "endToStart" to UNSET, "endToEnd" to PARENT_ID,
+                "endToStart" to if (besidePrivacy) privacyId else UNSET,
+                "endToEnd" to if (besidePrivacy) UNSET else PARENT_ID,
                 "topToTop" to carrier.id, "topToBottom" to UNSET,
                 "bottomToTop" to UNSET, "bottomToBottom" to UNSET,
                 "topMargin" to (ControlCenterCarrierBlockHooker.firstRowCenter(carrier) -
@@ -255,6 +280,8 @@ object ControlCenterHeaderHooker : StaticHooker() {
             fake?.let {
                 change(it, mapOf(
                     "startToStart" to PARENT_ID, "startToEnd" to UNSET,
+                    "endToStart" to if (besidePrivacy) privacyId else UNSET,
+                    "endToEnd" to if (besidePrivacy) UNSET else PARENT_ID,
                     "topToTop" to statusId, "topToBottom" to UNSET,
                     "bottomToTop" to UNSET, "bottomToBottom" to statusId,
                     "topMargin" to 0, "bottomMargin" to 0
@@ -272,6 +299,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     /** Called after the host detach traversal, and before this block relinquishes ownership. */
     internal fun releaseCarrier(carrier: ViewGroup) {
+        compactPrivacy.remove(carrier)?.get()?.let(::restoreLayout)
         compactHeaders.remove(carrier)?.let { header ->
             restoreLayout(carrier)
             header.first.get()?.let(::restoreLayout)

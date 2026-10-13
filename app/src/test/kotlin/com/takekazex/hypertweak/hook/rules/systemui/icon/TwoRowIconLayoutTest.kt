@@ -4,6 +4,48 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TwoRowIconLayoutTest {
+    @Test fun rotationUsesCurrentBatteryBoundsAndAlwaysKeepsNfcOnTheFirstRow() {
+        val nfc = TwoRowIconLayout.Item(0, 20f, true)
+        val bluetooth = TwoRowIconLayout.Item(1, 18f, false)
+        fun layout(batteryLeft: Int, batteryTop: Int, containerLeft: Int, containerTop: Int): Pair<Map<Int, Float>, TwoRowIconLayout.Anchors> {
+            val anchors = TwoRowIconLayout.anchors(batteryLeft, batteryTop, 40, 24,
+                containerLeft, containerTop, 27f)
+            return TwoRowIconLayout.positions(listOf(nfc, bluetooth), anchors.upperRight,
+                anchors.lowerRight, 4f, false) to anchors
+        }
+        val landscape = layout(700, 8, 400, 8)
+        val portrait = layout(300, 12, 100, 12)
+        assertEquals(280f, landscape.first.getValue(0), 0f)
+        assertEquals(180f, portrait.first.getValue(0), 0f)
+        assertEquals(12f, landscape.second.firstCenter, 0f)
+        assertEquals(39f, landscape.second.secondCenter, 0f)
+        // Moving the ancestor/header or changing both siblings' origin cannot affect packing.
+        assertEquals(landscape, layout(1700, 108, 1400, 108))
+        repeat(3) {
+            layout(300, 12, 100, 12)
+            assertEquals(landscape, layout(700, 8, 400, 8))
+        }
+    }
+
+    @Test fun differentSiblingTopAndLargeRowsStillUseTheCurrentFirstRow() {
+        val anchors = TwoRowIconLayout.anchors(410, 4, 50, 40, 10, 8, 43f)
+        assertEquals(16f, anchors.firstCenter, 0f)
+        assertEquals(59f, anchors.secondCenter, 0f)
+        assertEquals(400f, anchors.upperRight, 0f)
+        assertEquals(450f, anchors.lowerRight, 0f)
+    }
+
+    @Test fun phoneHeaderKeepsTwoRowsAcrossRotationWithoutEnablingTabletOrTinyWindows() {
+        for ((width, height) in listOf(300 to 700, 393 to 873, 599 to 960)) {
+            assertTrue(TwoRowIconLayout.supportsPhoneHeader(width, height))
+            assertTrue(TwoRowIconLayout.supportsPhoneHeader(height, width))
+        }
+        for ((width, height) in listOf(600 to 960, 800 to 1280, 299 to 700, 393 to 280, 0 to 873)) {
+            assertFalse(TwoRowIconLayout.supportsPhoneHeader(width, height))
+            assertFalse(TwoRowIconLayout.supportsPhoneHeader(height, width))
+        }
+    }
+
     private val icons = listOf(
         TwoRowIconLayout.Item(0, 12f, false), // Bluetooth
         TwoRowIconLayout.Item(1, 16f, true),  // Mobile
