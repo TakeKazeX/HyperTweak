@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screenshot_section">Screenshots</string>
+    <string name="screenshot_auto_frame_title">Automatically Add Device Frame</string>
+    <string name="screenshot_auto_frame_summary">Save portrait full-screen screenshots with the native device frame. Download the frame once in the screenshot editor. Unsupported captures stay unchanged. The preview includes the frame, which can be removed in the screenshot editor.</string>
+    <string name="screenshot_page_summary">Native screenshot options</string>
+    <string name="screenshot_restart_title">Restart Screenshot App</string>
+    <string name="screenshot_restart_summary">Reload screenshot hooks after installing an update.</string>
+</resources>

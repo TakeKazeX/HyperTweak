@@ -260,6 +260,7 @@ fun HyperTweakNavContainer(
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemLauncher = { navController.push(Route.SystemLauncher) },
+                onNavigateToScreenshot = { navController.push(Route.Screenshot) },
                 onNavigateToSystemUi = {
                     navController.push(Route.SystemUi)
                 },
@@ -491,6 +492,9 @@ fun HyperTweakNavContainer(
             IconOrderPage(
                 onBack = { navController.pop() }
             )
+        }
+        entry<Route.Screenshot> {
+            com.takekazex.hypertweak.ui.page.ScreenshotPage(onBack = { navController.pop() })
         }
         entry<Route.SystemUi> {
             SystemUIPage(

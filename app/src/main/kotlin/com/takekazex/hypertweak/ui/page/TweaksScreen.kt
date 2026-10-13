@@ -47,6 +47,7 @@ fun TweaksScreenContent(
     padding: PaddingValues,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
+    onNavigateToScreenshot: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
     onNavigateToAospRestore: () -> Unit,
@@ -145,6 +146,18 @@ fun TweaksScreenContent(
                             )
                         },
                         onClick = onNavigateToSystemUi
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.screenshot_section),
+                        summary = stringResource(R.string.screenshot_page_summary),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = "com.miui.screenshot",
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.screenshot_section)
+                            )
+                        },
+                        onClick = onNavigateToScreenshot
                     )
                     ArrowPreference(
                         title = stringResource(R.string.download_manager_title),

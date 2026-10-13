@@ -112,6 +112,7 @@ object Preferences {
     const val KEY_HIDE_FINGERPRINT_LOCKSCREEN = "hide_fingerprint_lockscreen"
     const val KEY_HIDE_FINGERPRINT_APP_AUTH = "hide_fingerprint_app_auth"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
+    const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
     const val KEY_HIDE_LOCKSCREEN_DATE = "hide_lockscreen_date"
 
     /**
