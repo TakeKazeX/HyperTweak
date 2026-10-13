@@ -172,6 +172,12 @@ class HookEntry : XposedModule() {
     @Volatile private var nativeSettingsSource: SharedPreferences? = null
     @Volatile private var nativeSettingsReady = false
     private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key == Preferences.KEY_VOLUME_KEY_STEP_COUNT ||
+            key == Preferences.KEY_VOLUME_KEY_STEP_SCOPE || key == "prefs_epoch") {
+            Preferences.invalidateRuntimeReadCache()
+            if (isSystemServer) runCatching { VolumeKeyStepsHooker.refreshConfiguration() }
+                .onFailure { DebugLog.w("VolumeKeySteps", "live configuration refresh failed", it) }
+        }
         if (key == null || key == Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON ||
             key == Preferences.KEY_OPENED_FOLDER_COLUMNS ||
             key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS ||
@@ -191,7 +197,7 @@ class HookEntry : XposedModule() {
     }
 
     private fun bindNativeSettingsListener(source: SharedPreferences) {
-        if ((processName != LAUNCHER_PACKAGE && processName != "com.android.systemui") ||
+        if ((!isSystemServer && processName != LAUNCHER_PACKAGE && processName != "com.android.systemui") ||
             nativeSettingsSource === source) return
         detachNativeSettingsListener()
         runCatching {

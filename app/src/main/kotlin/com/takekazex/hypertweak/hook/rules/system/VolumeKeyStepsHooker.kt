@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Changes only AudioService adjustments marked as volume-key input. */
 object VolumeKeyStepsHooker : StaticHooker() {
     override val hookerName = "VolumeKeySteps"
-    override val hotReloadMode = HotReloadMode.UNSUPPORTED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "VolumeKeySteps"
     private const val AUDIO_SERVICE = "com.android.server.audio.AudioService"
@@ -81,16 +81,7 @@ object VolumeKeyStepsHooker : StaticHooker() {
             return
         }
 
-        activeConfiguration = VolumeKeyStepPolicy.configuration(
-            Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_COUNT,
-                Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT
-            ),
-            Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_SCOPE,
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY
-            )
-        )
+        refreshConfiguration()
         listOf(adjustStreamVolumeMethod, setIndexMethod).forEach { method ->
             if (!deoptimize(method)) {
                 DebugLog.w(TAG, "could not deoptimize ${method.name}; a boot-image inline may bypass its hook")
@@ -125,6 +116,27 @@ object VolumeKeyStepsHooker : StaticHooker() {
         )
     }
 
+    @Synchronized
+    fun refreshConfiguration() {
+        val configuration = VolumeKeyStepPolicy.configuration(
+            Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT),
+            Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+        )
+        if (configuration != activeConfiguration) {
+            hardwareStepRemainders.clear()
+            activeConfiguration = configuration
+            loggedFirstAppliedStep.set(false)
+            DebugLog.i(TAG, "applied live configuration steps=${configuration.steps} scope=${configuration.scope}")
+        }
+    }
+
+    @Synchronized
+    override fun onPrepareHotReload() {
+        hooksReady = false
+        hardwareStepRemainders.clear()
+        loggedFirstAppliedStep.set(false)
+    }
+
     private fun beginHardwareAdjustment(args: Array<Any?>) {
         val direction = args.getOrNull(1) as? Int
         val flags = args.getOrNull(2) as? Int ?: 0
@@ -141,6 +153,7 @@ object VolumeKeyStepsHooker : StaticHooker() {
         if (stack.isEmpty()) hardwareKeyFrames.remove()
     }
 
+    @Synchronized
     private fun applyHardwareKeyStep(streamState: Any, args: Array<Any?>) {
         if (!hooksReady) return
         val context = hardwareKeyFrames.get()?.peekLast()?.context ?: return
@@ -172,12 +185,10 @@ object VolumeKeyStepsHooker : StaticHooker() {
             } else {
                 -requestedStep.coerceAtMost(current - minimum)
             }
-            if (bounded != 0) hardwareStepRemainders[key] = result.remainder
+            hardwareStepRemainders[key] = result.remainder
             bounded
         }
         context.adjustmentConsumed = true
-        if (boundedStep == 0) return
-
         args[0] = current + boundedStep
         if (loggedFirstAppliedStep.compareAndSet(false, true)) {
             DebugLog.i(

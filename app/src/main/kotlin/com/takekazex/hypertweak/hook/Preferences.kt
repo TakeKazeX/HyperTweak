@@ -331,8 +331,8 @@ object Preferences {
 
     /**
      * Number of volume-index steps from minimum to maximum for hardware volume-key adjustments.
-     * Applied in system_server when the AudioService process starts; a device reboot is
-     * needed after changing either this value or [KEY_VOLUME_KEY_STEP_SCOPE].
+     * Applied live through the remote preference listener in system_server and SystemUI.
+     * The next key adjustment uses the new count or [KEY_VOLUME_KEY_STEP_SCOPE].
      */
     const val KEY_VOLUME_KEY_STEP_COUNT = "volume_key_step_count"
     const val KEY_VOLUME_KEY_STEP_SCOPE = "volume_key_step_scope"

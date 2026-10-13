@@ -44,3 +44,21 @@ internal object VolumeKeyStepPolicy {
 
     private const val STREAM_MUSIC = 3
 }
+
+/** Remainder state for one controller; a live configuration/range change starts a fresh sequence. */
+internal class VolumeKeyStepSequence {
+    private var configuration: VolumeKeyStepConfiguration? = null
+    private var range = -1
+    private val remainders = HashMap<Int, Int>()
+
+    fun next(totalRange: Int, config: VolumeKeyStepConfiguration, direction: Int): Int {
+        if (configuration != config || range != totalRange) {
+            remainders.clear()
+            configuration = config
+            range = totalRange
+        }
+        val result = VolumeKeyStepPolicy.nextDelta(totalRange, config.steps, remainders[direction] ?: 0)
+        remainders[direction] = result.remainder
+        return result.delta
+    }
+}

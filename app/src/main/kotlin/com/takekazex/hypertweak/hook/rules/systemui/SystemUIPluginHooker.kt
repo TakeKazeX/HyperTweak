@@ -22,6 +22,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val state: HotReloadPluginState,
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
+        val volumeKeyHooker: ControlCenterVolumeKeyHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
@@ -107,6 +108,8 @@ object SystemUIPluginHooker : StaticHooker() {
                                 runCatching { mediaWhitelist.prepareForHotReload() }
                                 detach(mediaWhitelist)
                             }
+                            runCatching { session.volumeKeyHooker.prepareForHotReload() }
+                            detach(session.volumeKeyHooker)
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
                         }
@@ -208,6 +211,7 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             ControlCenterCornerHooker()
         }
+        val volumeKeyHooker = ControlCenterVolumeKeyHooker()
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
             ControlCenterCardsEditHooker()
         } else {
@@ -238,6 +242,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 state,
                 hooker,
                 cornerHooker,
+                volumeKeyHooker,
                 cardsEditHooker,
                 cardResizeHooker,
                 mediaDeviceIconHooker,
@@ -256,6 +261,8 @@ object SystemUIPluginHooker : StaticHooker() {
                 DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
                 Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
             }
+        runCatching { attach(volumeKeyHooker, state.classLoader) }
+            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach volume-key plugin hook", it) }
         if (cardsEditHooker != null) {
             runCatching { attach(cardsEditHooker, state.classLoader) }
                 .onFailure { t ->
