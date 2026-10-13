@@ -45,6 +45,9 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     @Volatile private var carrierLeft = false
     @Volatile private var hideDate = false
+    @Volatile private var privacyEnabled = false
+    private var privacyCentered = true
+    private var privacyOffset = ControlCenterPrivacyPolicy.DEFAULT_OFFSET
 
     /** Configured visibility is retained across rotation. */
     fun twoLineConfigured(): Boolean =
@@ -63,6 +66,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         carrierLeft = false
         hideDate = false
+        privacyEnabled = false
         val restore = {
             dates.forEach { (date, state) ->
                 runCatching {
@@ -91,6 +95,12 @@ object ControlCenterHeaderHooker : StaticHooker() {
     override fun onHook() {
         carrierLeft = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_LEFT, false)
         hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
+        // Read the same placement policy before carrier recovery runs. This does not depend on
+        // whether the replacement privacy hook has already attached or recovered its old views.
+        privacyEnabled = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_ENABLED, false)
+        privacyCentered = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_CENTER, true)
+        privacyOffset = Preferences.getInt(Preferences.KEY_CC_PRIVACY_OFFSET,
+            ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
         if (!carrierLeft && !hideDate) return
         val controller = CONTROLLER_CLASS.toClassOrNull() ?: return
         // Lifecycle hooks also cover compiled callers that inline the small visibility helpers.
@@ -232,12 +242,15 @@ object ControlCenterHeaderHooker : StaticHooker() {
             val statusId = id(carrier, "normal_control_center_status_bar")
             val status = parent.findViewById<View>(statusId) ?: return@guarded
             val fake = parent.findViewById<View>(id(carrier, "normal_fake_control_center_status_bar"))
-            // The wide header keeps its privacy chip beside the first row. Reserve its native
-            // width instead of placing battery/status icons underneath an active indicator.
+            // Only an inline native privacy chip reserves first-row width. Independently placed
+            // chips may be re-anchored during hot reload without moving the status row boundary.
             val privacyId = id(carrier, "normal_privacy_container")
             val privacy = parent.findViewById<View>(privacyId)
-            val besidePrivacy = carrier.resources.configuration.orientation ==
-                Configuration.ORIENTATION_LANDSCAPE && privacyId != 0 && privacy != null
+            val landscape = carrier.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val besidePrivacy = landscape && ControlCenterPrivacyPolicy.placement(
+                privacyEnabled, landscape, privacyCentered, privacyOffset
+            ) == ControlCenterPrivacyPolicy.Placement.NATIVE &&
+                privacyId != 0 && privacy != null
             if (besidePrivacy) {
                 compactPrivacy[carrier] = WeakReference(privacy)
                 // The native wide ConstraintSet leaves this chip's horizontal position unset.

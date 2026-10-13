@@ -4,6 +4,34 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ControlCenterPrivacyPolicyTest {
+    @Test fun `centered or offset privacy never reserves status row width after recovery`() {
+        for ((centered, offset) in listOf(true to 0, true to 8, false to 8, false to -16)) {
+            assertEquals(ControlCenterPrivacyPolicy.Placement.ABOVE_STATUS,
+                ControlCenterPrivacyPolicy.placement(true, false, centered, offset))
+        }
+        assertEquals(ControlCenterPrivacyPolicy.Placement.NATIVE,
+            ControlCenterPrivacyPolicy.placement(true, false, false, 0))
+    }
+
+    @Test fun `disabled privacy preserves native inline width regardless of old placement values`() {
+        for (centered in listOf(false, true)) for (offset in listOf(-16, 0, 8, 24)) {
+            for (landscape in listOf(false, true)) {
+                assertEquals(ControlCenterPrivacyPolicy.Placement.NATIVE,
+                    ControlCenterPrivacyPolicy.placement(false, landscape, centered, offset))
+            }
+        }
+    }
+
+    @Test fun `landscape centers inside the header and rotating back restores portrait placement`() {
+        for (centered in listOf(false, true)) for (offset in listOf(-16, 0, 8, 24)) {
+            assertEquals(ControlCenterPrivacyPolicy.Placement.CENTER_HEADER,
+                ControlCenterPrivacyPolicy.placement(true, true, centered, offset))
+            val portrait = if (centered || offset != 0) ControlCenterPrivacyPolicy.Placement.ABOVE_STATUS
+                else ControlCenterPrivacyPolicy.Placement.NATIVE
+            assertEquals(portrait, ControlCenterPrivacyPolicy.placement(true, false, centered, offset))
+        }
+    }
+
     private fun app(uid: Int, pkg: String, label: String, active: Boolean = true) =
         ControlCenterPrivacyPolicy.App(uid, pkg, label, active)
 

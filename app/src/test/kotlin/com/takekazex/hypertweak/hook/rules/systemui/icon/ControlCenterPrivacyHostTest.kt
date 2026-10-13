@@ -68,6 +68,7 @@ class ControlCenterPrivacyHostTest {
         val constraints = classes.getValue("Landroidx/constraintlayout/widget/ConstraintLayout\$LayoutParams;")
         assertTrue(constraints.methods.any { it.name == "<init>" && it.parameterTypes.map(CharSequence::toString) ==
             listOf("Landroid/view/ViewGroup\$LayoutParams;") })
-        assertTrue(constraints.fields.map { it.name }.containsAll(listOf("startToStart", "endToEnd", "bottomToTop")))
+        assertTrue(constraints.fields.map { it.name }.containsAll(listOf("startToStart", "endToEnd",
+            "topToTop", "bottomToBottom", "bottomToTop")))
     }
 }

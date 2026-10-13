@@ -6,6 +6,16 @@ internal object ControlCenterPrivacyPolicy {
     const val DEFAULT_TEXT_SIZE = 12
     const val DEFAULT_OFFSET = 8
     const val RETENTION_MS = 15_000L
+
+    enum class Placement { NATIVE, ABOVE_STATUS, CENTER_HEADER }
+
+    /** Landscape has no room above its header; custom privacy uses the header's central space. */
+    fun placement(enabled: Boolean, landscape: Boolean, centered: Boolean, offset: Int): Placement = when {
+        !enabled -> Placement.NATIVE
+        landscape -> Placement.CENTER_HEADER
+        centered || offset != 0 -> Placement.ABOVE_STATUS
+        else -> Placement.NATIVE
+    }
     enum class Permission { CAMERA, MICROPHONE, LOCATION, SCREEN }
     data class App(val uid: Int, val packageName: String, val label: String, val active: Boolean,
                    val permission: Permission = Permission.LOCATION, val inactiveSinceMs: Long = 0)

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.pm.ApplicationInfo
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -527,7 +528,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         adjustAnchor(root)
         binding.fake?.get()?.let { fake ->
             adjustAnchor(fake)
-            if (center && fake is LinearLayout) {
+            if ((center || isLandscape(root)) && fake is LinearLayout) {
                 if (binding.fakeGravity == null) binding.fakeGravity = fake.gravity
                 fake.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
@@ -544,14 +545,22 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     private fun adjustAnchor(view: View) {
         val original = view.layoutParams ?: return
         val params = copyParams(original)
-        if (center) {
+        val placement = ControlCenterPrivacyPolicy.placement(enabled, isLandscape(view), center, offset)
+        if (center || placement == ControlCenterPrivacyPolicy.Placement.CENTER_HEADER) {
             setInt(params, "startToStart", 0)
             setInt(params, "startToEnd", -1)
             setInt(params, "endToStart", -1)
             setInt(params, "endToEnd", 0)
         }
         val margin = dp(view, offset)
-        if (center || offset != 0) {
+        if (placement == ControlCenterPrivacyPolicy.Placement.CENTER_HEADER) {
+            setInt(params, "topToTop", 0)
+            setInt(params, "topToBottom", -1)
+            setInt(params, "bottomToBottom", 0)
+            setInt(params, "bottomToTop", -1)
+            setInt(params, "topMargin", 0)
+            setInt(params, "bottomMargin", 0)
+        } else if (placement == ControlCenterPrivacyPolicy.Placement.ABOVE_STATUS) {
             setInt(params, "topToTop", -1)
             setInt(params, "topToBottom", -1)
             setInt(params, "bottomToBottom", -1)
@@ -571,13 +580,16 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         val root = binding.root.get() ?: return
         val fake = binding.fake?.get() ?: return
         if (root.width <= 0 || !ControlCenterHeaderHooker.supportsCompactLayout(root)) return
-        val width = if (center) root.width else fake.layoutParams.width
+        val width = if (center || isLandscape(root)) root.width else fake.layoutParams.width
         val height = root.layoutParams.height
         if (fake.layoutParams.width != width || fake.layoutParams.height != height) {
             layoutStates.putIfAbsent(fake, copyParams(fake.layoutParams))
             fake.layoutParams = copyParams(fake.layoutParams).also { it.width = width; it.height = height }
         }
     }
+
+    private fun isLandscape(view: View): Boolean =
+        view.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     private fun restore(binding: Binding) {
         val root = binding.root.get() ?: return
@@ -669,7 +681,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     }
     private val COLORS = intArrayOf(0xff34c759.toInt(), 0xffff9f0a.toInt(), 0xff0a84ff.toInt(), 0xffaf52de.toInt())
     private val ANCHOR_FIELDS = listOf("startToStart", "startToEnd", "endToStart", "endToEnd",
-        "topToTop", "topToBottom", "bottomToBottom", "bottomToTop", "bottomMargin")
+        "topToTop", "topToBottom", "bottomToBottom", "bottomToTop", "topMargin", "bottomMargin")
 
     private class PrivacyCircleDrawable(private val glyph: Drawable, color: Int) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
