@@ -167,7 +167,7 @@ class HookEntry : XposedModule() {
     @Volatile private var nativeGenerationRetired = false
     @Synchronized private fun nativePublisher(): NativeRuleStatePublisher? {
         if (nativeGenerationRetired || processName != "com.android.systemui") return null
-        return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
+        return nativeRuleStatePublisher ?: NativeRuleStatePublisher { iconSettingsReload.request() }.also { nativeRuleStatePublisher = it }
     }
     private val iconSettingsLock = java.util.concurrent.locks.ReentrantLock()
     private val iconSettingsReload by lazy {

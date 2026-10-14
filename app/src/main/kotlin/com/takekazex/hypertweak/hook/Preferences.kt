@@ -1366,6 +1366,7 @@ object Preferences {
                     putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
+                if (!isLocalOnly) IconSettingsSignal.replaceCommitted(emptyMap<String, Any>())
                 runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
@@ -1433,6 +1434,7 @@ object Preferences {
                 memoClear()
                 error("Unable to write restored settings")
             }
+            if (!isLocalOnly) IconSettingsSignal.replaceCommitted(restored)
 
             runCatching {
                 localSourcePrefs?.edit(commit = true) {
@@ -1572,7 +1574,7 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, iconMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
@@ -1612,6 +1614,7 @@ object Preferences {
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
                     val committed = editor.commit()
+                    if (committed && iconMutation != null) IconSettingsSignal.acknowledge(iconMutation.first, iconMutation.second)
                     if (committed && backMutation != null && backSnapshot != null) NativeRuleSignal.acknowledgeBack(backSnapshot)
                     if (!committed) {
                         DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
@@ -1782,6 +1785,7 @@ object Preferences {
      * older key, rather than being indistinguishable from the default value.
      */
     fun contains(key: String): Boolean {
+        if (IconSettingsRuntime.owns(key)) return IconSettingsRuntime.value(key) != null
         if (!isInitialized) return getLocalCache()?.contains(key) == true
         return runCatching {
             if (remotePrefs.contains(key)) {
@@ -1797,6 +1801,7 @@ object Preferences {
     }
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
+        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Boolean) ?: default
         if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
         // Safe cast: the memo map is keyed by key alone, so a key read through two different typed
         // getters would otherwise throw ClassCastException at a hook boundary with no fallback.
@@ -1846,6 +1851,7 @@ object Preferences {
         getFingerprintHideScope(KEY_HIDE_FINGERPRINT_APP_AUTH)
 
     fun getInt(key: String, default: Int = 0): Int {
+        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Int) ?: default
         if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
         (memoGet(key) as? Int)?.let { return it }
         val value = try {
@@ -1869,6 +1875,7 @@ object Preferences {
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
+        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Float) ?: default
         if (!isInitialized) return getLocalCache()?.getFloat(key, default) ?: default
         (memoGet(key) as? Float)?.let { return it }
         val value = try {
@@ -1896,20 +1903,26 @@ object Preferences {
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null,
-            backMutation = if (key in BackGestureSettingsSnapshot.KEYS) key to value else null) { putBoolean(key, value) }
+            backMutation = if (key in BackGestureSettingsSnapshot.KEYS) key to value else null,
+            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null) { putInt(key, value) }
+        write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null,
+            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {
         memoInvalidate(key)
-        write { putFloat(key, value) }
+        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putFloat(key, value) }
     }
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
+        if (IconSettingsRuntime.owns(key)) {
+            @Suppress("UNCHECKED_CAST")
+            return (IconSettingsRuntime.value(key) as? Set<String>) ?: default
+        }
         if (!isInitialized) return getLocalCache()?.getStringSet(key, default) ?: default
         memoGet(key)?.let { return ((it as? Set<*>) ?: default).map { element -> element as String }.toSet() }
         val value = try {
@@ -1937,10 +1950,11 @@ object Preferences {
 
     fun putStringSet(key: String, value: Set<String>) {
         memoInvalidate(key)
-        write { putStringSet(key, value) }
+        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putStringSet(key, value) }
     }
 
     fun getString(key: String, default: String = ""): String {
+        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? String) ?: default
         if (!isInitialized) return getLocalCache()?.getString(key, default) ?: default
         (memoGet(key) as? String)?.let { return it }
         val value = try {
@@ -1965,7 +1979,7 @@ object Preferences {
 
     fun putString(key: String, value: String) {
         memoInvalidate(key)
-        write { putString(key, value) }
+        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
     }
 
     /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
@@ -2018,7 +2032,8 @@ object Preferences {
         if (isLocalOnly || local === remotePrefs) return
         val task = serializedWriter.submit {
             runCatching {
-                remotePrefs.edit(commit = true) { putString(key, value) }
+                val committed = remotePrefs.edit().putString(key, value).commit()
+                if (committed && IconSettingsSnapshot.owns(key)) IconSettingsSignal.acknowledge(key, value)
             }.onFailure { t ->
                 DebugLog.w("Preferences", "synchronous remote pref write failed", t)
             }

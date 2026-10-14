@@ -123,8 +123,10 @@ internal object NativeRuleSignal {
 /** Only a framework-authenticated SystemUI request may wake the app's sync response. */
 class NativeRuleSyncReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != NativeRuleProtocol.REQUEST || !NativeRuleProtocol.trusted(context,
-                sentFromPackage, sentFromUid, NativeRuleProtocol.SYSTEM_UI)) return
-        NativeRuleSignal.publishCommitted()
+        if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.SYSTEM_UI)) return
+        when (intent.action) {
+            NativeRuleProtocol.REQUEST -> NativeRuleSignal.publishCommitted()
+            IconSettingsProtocol.REQUEST -> IconSettingsSignal.publishCommitted()
+        }
     }
 }
