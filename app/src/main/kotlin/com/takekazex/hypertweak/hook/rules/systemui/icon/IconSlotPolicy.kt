@@ -61,6 +61,7 @@ data class IconSlotPolicyConfig(
         const val POSITION_SYSTEM = 0
         const val POSITION_WIFI_BEFORE_MOBILE = 1
         const val POSITION_CUSTOM = 2
+        const val POSITION_MOBILE_BEFORE_WIFI = 3
     }
 }
 
@@ -369,9 +370,10 @@ object IconSlotPolicy {
         config: IconSlotPolicyConfig
     ): List<String> {
         var normalized = addEnabledModuleSlots(systemSlots, config.enabledModuleSlots)
-        normalized = when (config.position.coerceIn(0, 2)) {
+        normalized = when (config.position) {
             IconSlotPolicyConfig.POSITION_WIFI_BEFORE_MOBILE -> moveWifiBeforeMobile(normalized)
             IconSlotPolicyConfig.POSITION_CUSTOM -> applyCustomOrder(normalized, config.customOrderEntries)
+            IconSlotPolicyConfig.POSITION_MOBILE_BEFORE_WIFI -> moveMobileBeforeWifi(normalized)
             else -> normalized
         }
         return if (config.reorderHidden) {
@@ -410,8 +412,11 @@ object IconSlotPolicy {
         enabledModuleSlots: Set<String>
     ): List<String> {
         val result = stableUnique(systemSlots)
-        val enabledSignals = SIGNAL_SLOTS.filter { it in enabledModuleSlots && it !in result }
+        val enabledSignals = SIGNAL_SLOTS.filter { it in enabledModuleSlots }
         if (enabledSignals.isNotEmpty()) {
+            // Reload carries existing module holders after native slots. Re-anchor those too;
+            // adding only missing slots makes repeated reloads split/reverse the signal group.
+            result.removeAll(enabledSignals.toSet())
             val mobileIndex = result.indexOfFirst { it == SLOT_MOBILE || it == "demo_mobile" }
             result.addAll(if (mobileIndex >= 0) mobileIndex else result.size, enabledSignals)
         }
@@ -430,6 +435,17 @@ object IconSlotPolicy {
         }
         withoutWifi.addAll(if (mobileIndex >= 0) mobileIndex else withoutWifi.size, wifi)
         return withoutWifi
+    }
+
+    private fun moveMobileBeforeWifi(slots: List<String>): List<String> {
+        val unique = stableUnique(slots)
+        val mobile = unique.filter { it == SLOT_MOBILE || it == "demo_mobile" ||
+            it == "stacked_mobile" || it in SIGNAL_SLOTS }
+        if (mobile.isEmpty() || unique.none { it == SLOT_WIFI || it == SLOT_DEMO_WIFI }) return unique
+        val remaining = ArrayList(unique.filterNot { it in mobile })
+        val wifiIndex = remaining.indexOfFirst { it == SLOT_WIFI || it == SLOT_DEMO_WIFI }
+        remaining.addAll(wifiIndex, mobile)
+        return remaining
     }
 
     private fun applyCustomOrder(slots: List<String>, entries: Iterable<String>): List<String> {

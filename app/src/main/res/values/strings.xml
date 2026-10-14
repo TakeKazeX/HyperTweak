@@ -606,8 +606,8 @@
     <string name="icon_hide_wifi_activity_summary">Hide the up/down arrows beside the WiFi icon</string>
     <string name="icon_hide_wifi_standard">Hide WiFi Standard</string>
     <string name="icon_hide_wifi_standard_summary">Hide the 6E/WiFi 6 text next to the WiFi icon</string>
-    <string name="icon_wifi_activity_right">Place WiFi Activity on the Right</string>
-    <string name="icon_wifi_activity_right_summary">Move the WiFi activity indicator to the right side of the signal icon</string>
+    <string name="icon_wifi_activity_right">Wi-Fi Activity Arrows on the Right</string>
+    <string name="icon_wifi_activity_right_summary">Place arrows on the right of Wi-Fi and standard text on the left. Change whole icon positions in Icon Order</string>
     <string name="icon_wifi_standard_mode">WiFi Standard Mode</string>
     <string name="icon_wifi_standard_mode_summary">Choose how the WiFi standard label is shown</string>
     <string name="icon_wifi_standard_follow">Follow System</string>
@@ -623,6 +623,7 @@
     <string name="icon_position_summary">Choose the order of the status-bar icons</string>
     <string name="icon_position_system">System Order</string>
     <string name="icon_position_wifi_before_mobile">WiFi Before Cellular</string>
+    <string name="icon_position_mobile_before_wifi">Cellular Before Wi-Fi</string>
     <string name="icon_position_custom">Custom Order</string>
     <string name="icon_order_mode_title">Arrangement</string>
     <string name="icon_order_custom_hint">Long-press a row to drag it. The list is the final order; host slots that are not listed keep the system order.</string>

@@ -148,7 +148,8 @@ fun IconOrderPage(onBack: () -> Unit) {
     val positions = listOf(
         stringResource(R.string.icon_position_system),
         stringResource(R.string.icon_position_wifi_before_mobile),
-        stringResource(R.string.icon_position_custom)
+        stringResource(R.string.icon_position_custom),
+        stringResource(R.string.icon_position_mobile_before_wifi)
     )
     val custom = position == IconSlotPolicyConfig.POSITION_CUSTOM
 

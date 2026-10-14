@@ -606,8 +606,8 @@
     <string name="icon_hide_wifi_activity_summary">隐藏 WiFi 图标旁的上下箭头</string>
     <string name="icon_hide_wifi_standard">隐藏 WiFi 标准</string>
     <string name="icon_hide_wifi_standard_summary">隐藏 WiFi 图标旁的 6E/WiFi 6 文字</string>
-    <string name="icon_wifi_activity_right">将 WiFi 活动放到右侧</string>
-    <string name="icon_wifi_activity_right_summary">将 WiFi 活动指示器移动到信号图标右侧</string>
+    <string name="icon_wifi_activity_right">Wi-Fi 上下行箭头放到右侧</string>
+    <string name="icon_wifi_activity_right_summary">箭头放在 Wi-Fi 右侧，标准文字放在左侧；整个图标的位置请在「图标顺序」中调整</string>
     <string name="icon_wifi_standard_mode">WiFi 标准模式</string>
     <string name="icon_wifi_standard_mode_summary">选择 WiFi 标准文字的显示方式</string>
     <string name="icon_wifi_standard_follow">跟随系统</string>
@@ -623,6 +623,7 @@
     <string name="icon_position_summary">选择状态栏图标的排列顺序</string>
     <string name="icon_position_system">系统顺序</string>
     <string name="icon_position_wifi_before_mobile">WiFi 在蜂窝前</string>
+    <string name="icon_position_mobile_before_wifi">蜂窝在 Wi-Fi 前</string>
     <string name="icon_position_custom">自定义顺序</string>
     <string name="icon_order_mode_title">排列方式</string>
     <string name="icon_order_custom_hint">长按某一行即可拖动排序。该列表即为最终顺序，未列出的系统槽位仍按系统顺序排列。</string>

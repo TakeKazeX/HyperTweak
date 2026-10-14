@@ -9,6 +9,40 @@ import org.junit.Test
 
 class IconSlotPolicyTest {
     @Test
+    fun mobileBeforeWifiSurvivesReloadWithBothNativeAndModuleSignalHolders() {
+        val native = listOf("alarm_clock", "wifi", "demo_wifi", "mobile", "demo_mobile", "battery")
+        val mobileFirst = IconSlotPolicyConfig(
+            position = IconSlotPolicyConfig.POSITION_MOBILE_BEFORE_WIFI,
+            enabledModuleSlots = IconSlotPolicy.SIGNAL_SLOTS.toSet()
+        )
+        val expected = listOf("alarm_clock") + IconSlotPolicy.SIGNAL_SLOTS +
+            listOf("mobile", "demo_mobile", "wifi", "demo_wifi", "battery")
+        var current = native
+        repeat(5) {
+            current = IconSlotPolicy.normalizeReloadOrder(native, current, mobileFirst)
+            assertEquals(expected, current)
+            assertEquals(current.size, current.toSet().size)
+            current = IconSlotPolicy.normalizeReloadOrder(native, current, mobileFirst.copy(
+                position = IconSlotPolicyConfig.POSITION_WIFI_BEFORE_MOBILE))
+            assertTrue(current.indexOf("wifi") < current.indexOf("stacked_mobile_icon"))
+        }
+    }
+
+    @Test
+    fun mobileBeforeWifiKeepsUnrelatedOrderAndLeavesMissingNetworkFamilyAlone() {
+        val options = IconSlotPolicyConfig(position = IconSlotPolicyConfig.POSITION_MOBILE_BEFORE_WIFI)
+        assertEquals(listOf("alarm_clock", "mobile", "wifi", "vpn", "battery"),
+            IconSlotPolicy.normalizeOrder(listOf("alarm_clock", "wifi", "vpn", "mobile", "battery"), options))
+        for (slots in listOf(listOf("alarm_clock", "wifi", "battery"), listOf("mobile", "battery"))) {
+            assertEquals(slots, IconSlotPolicy.normalizeOrder(slots, options))
+        }
+        // Existing custom value 2 keeps its original meaning after adding preset value 3.
+        assertEquals(listOf("battery", "wifi", "mobile"), IconSlotPolicy.normalizeOrder(
+            listOf("wifi", "mobile", "battery"), options.copy(position = 2,
+                customOrderEntries = setOf("0:battery"))))
+    }
+
+    @Test
     fun reloadOrderReturnsToNativeAfterRepeatedPositionChanges() {
         val native = listOf("alarm_clock", "mobile", "wifi", "airplane")
         val swap = IconSlotPolicyConfig(position = IconSlotPolicyConfig.POSITION_WIFI_BEFORE_MOBILE)

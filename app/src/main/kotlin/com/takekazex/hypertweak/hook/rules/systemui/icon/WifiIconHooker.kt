@@ -1,6 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.annotation.SuppressLint
 import android.view.ViewGroup
+import android.view.Gravity
+import android.widget.FrameLayout
+import android.widget.TextView
+import java.util.WeakHashMap
 import android.os.Handler
 import android.os.Looper
 import java.lang.ref.WeakReference
@@ -51,6 +56,7 @@ object WifiIconHooker : StaticHooker() {
     @Volatile private var paddingEnd = 0f
     @Volatile private var activityRight = false
     private var restoredDirection: Any? = null
+    private val standardGravity = WeakHashMap<TextView, Int>()
     private val directionHandles = ArrayList<HostFlowCollector.Handle>()
     @Volatile private var directionEpoch = 0L
     private var directionAttempt = 0L
@@ -61,6 +67,13 @@ object WifiIconHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         StatusIconHostAccess.onMain {
             retired = true
+            standardGravity.forEach { (view, original) ->
+                (view.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+                    params.gravity = original
+                    view.layoutParams = params
+                }
+            }
+            standardGravity.clear()
             recoveryTask?.let(recoveryHandler::removeCallbacks)
             recoveryTask = null
             directionEpoch = ++directionAttempt
@@ -98,6 +111,7 @@ object WifiIconHooker : StaticHooker() {
         )
         activityRight = Preferences.getBoolean(Preferences.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
         hookActivityDirection()
+        hookAccessoryLayout()
         if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&
             !paddingEnabled && !activityRight
         ) {
@@ -279,12 +293,70 @@ object WifiIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.hook {
-            before { param ->
-                if (activityRight && !hideActivity) param.result = IconTunerFlows.falseFlow
-                else restoredDirection?.let { param.result = it }
+        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.let { getter ->
+            deoptimize(getter)
+            getter.hook {
+                before { param ->
+                    if (activityRight && !hideActivity) param.result = IconTunerFlows.falseFlow
+                    else restoredDirection?.let { param.result = it }
+                }
             }
         } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getInoutLeft", "method not found")
+    }
+
+    /** The native XML anchors both accessories right; forcing arrows right must move the label. */
+    @SuppressLint("RtlHardcoded") // Match the native inoutLeft collector's absolute LEFT/RIGHT.
+    private fun hookAccessoryLayout() {
+        if (!activityRight || hideActivity) return
+        val binderClass = BINDER_CLASS.toClassOrNull() ?: return
+        binderClass.findMethodOrNull { name("bind"); paramCount(2) }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                if (retired || !activityRight || hideActivity) return@after
+                runCatching {
+                    val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
+                    val standardId = root.resources.getIdentifier("wifi_standard", "id", "com.android.systemui")
+                    val activityId = root.resources.getIdentifier("wifi_activity", "id", "com.android.systemui")
+                    val standard = if (standardId != 0) root.findViewById<android.view.View>(standardId) as? TextView else null
+                    standard?.let(::placeStandardLeft)
+                    val activity = if (activityId != 0) root.findViewById<android.view.View>(activityId) else null
+                    (activity?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+                        params.gravity = Gravity.RIGHT or Gravity.BOTTOM
+                        activity.layoutParams = params
+                    }
+                }.onFailure { DebugLog.w(TAG, "Wi-Fi accessory placement failed", it) }
+            } }
+        }
+        binderClass.findMethodOrNull {
+            name("access\$bind\$updateWifiStandardLayoutParams"); paramCount(2)
+        }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                if (retired || !activityRight || hideActivity) return@after
+                runCatching { (param.args.getOrNull(0) as? TextView)?.let(::placeStandardLeft) }
+                    .onFailure { DebugLog.w(TAG, "Wi-Fi standard placement failed", it) }
+            } }
+        }
+        // AOT may inline the getter into the native collector. Match its verified fields before
+        // deoptimizing the caller so freshly rebound hosts consume the replacement Flow.
+        runCatching {
+            val collector = "$BINDER_CLASS\$bind\$1\$1\$6".toClassOrNull()
+            if (collector?.declaredFields?.any { it.type.name.endsWith(".LocationBasedWifiViewModel") } == true &&
+                collector.declaredFields.any { android.widget.ImageView::class.java.isAssignableFrom(it.type) }) {
+                collector.findMethodOrNull { name("invokeSuspend"); paramCount(1) }?.let(::deoptimize)
+            }
+        }.onFailure { DebugLog.w(TAG, "Wi-Fi activity collector deoptimization failed", it) }
+    }
+
+    @SuppressLint("RtlHardcoded") // Keep the label opposite the native absolute-right arrow.
+    private fun placeStandardLeft(view: TextView) {
+        val params = view.layoutParams as? FrameLayout.LayoutParams ?: return
+        standardGravity.putIfAbsent(view, params.gravity)
+        val desired = Gravity.LEFT or Gravity.BOTTOM
+        if (params.gravity != desired) {
+            params.gravity = desired
+            view.layoutParams = params
+        }
     }
 
     internal fun recoverViewModel(component: Any) {
