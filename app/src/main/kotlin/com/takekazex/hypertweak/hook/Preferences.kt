@@ -612,15 +612,9 @@ object Preferences {
     // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
     const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
-    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE = "icon_tuner_cellular_type_single_size"
-    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL = "icon_tuner_cellular_type_single_size_val"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
     const val KEY_ICON_CELLULAR_TYPE_SMALL_5GA = "icon_tuner_cellular_type_small_5ga"
-    const val KEY_ICON_FONT_MOBILE_TYPE = "sb_font_mobile_type"
-    const val KEY_ICON_FONT_MOBILE_TYPE_WEIGHT = "sb_font_mobile_type_weight"
-    const val KEY_ICON_FONT_MOBILE_TYPE_SINGLE = "sb_font_mobile_type_single"
-    const val KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT = "sb_font_mobile_type_single_weight"
 
     // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
     // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The SVG keys match Hyper Helper's t32.f-o:

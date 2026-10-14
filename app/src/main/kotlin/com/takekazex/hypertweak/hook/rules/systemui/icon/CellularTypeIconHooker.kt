@@ -3,12 +3,10 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
-import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
-import android.util.TypedValue
 import android.util.SparseArray
 import android.view.ViewGroup
 import android.widget.TextView
@@ -25,8 +23,8 @@ import kotlin.math.ceil
 /**
  * Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (OS4_ADAPTATION_PLAN.md
  * T4a). The operator config hook preserves the original 15-entry mapping contract; the binder
- * hook covers single-row order/size, while the native drawable and single-label paths handle their
- * own 5GA suffix formatting alongside the optional font overrides.
+ * hook covers single-row order, while the native drawable and single-label paths handle their
+ * own 5GA suffix formatting.
  */
 object CellularTypeIconHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -39,30 +37,13 @@ object CellularTypeIconHooker : StaticHooker() {
 
     @Volatile private var forceSingle = false
     @Volatile private var swapSingle = false
-    @Volatile private var singleSizeEnabled = false
-    @Volatile private var singleSize = 14f
     @Volatile private var customType = ""
     @Volatile private var useCustom = false
     @Volatile private var small5GaEnabled = false
     @Volatile private var mobileTypeSingleViewId = 0
-    @Volatile private var drawableFontEnabled = false
-    @Volatile private var drawableWeight = 660
-    @Volatile private var singleFontEnabled = false
-    @Volatile private var singleWeight = 400
 
-    private data class PaintState(val original: Typeface?, var applied: Typeface?)
-    private val paintStates = Collections.synchronizedMap(WeakHashMap<Paint, PaintState>())
     private val modifiedDrawables = Collections.synchronizedMap(WeakHashMap<Any, Boolean>())
 
-    private fun applyTypeface(paint: Paint, resolved: Typeface) = synchronized(paintStates) {
-        if (!drawableFontEnabled) return@synchronized
-        val state = paintStates[paint] ?: PaintState(paint.typeface, resolved).also { paintStates[paint] = it }
-        state.applied = resolved
-        paint.typeface = resolved
-    }
-
-    private var typeface: Typeface? = null
-    private var singleTypeface: Typeface? = null
     private val nativeDrawStates = ThreadLocal.withInitial {
         IdentityHashMap<Any, NativeDrawState>()
     }
@@ -88,23 +69,11 @@ object CellularTypeIconHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         forceSingle = false
         swapSingle = false
-        singleSizeEnabled = false
-        singleSize = 14f
         customType = ""
         useCustom = false
         small5GaEnabled = false
         mobileTypeSingleViewId = 0
-        drawableFontEnabled = false
-        drawableWeight = 660
-        singleFontEnabled = false
-        singleWeight = 400
-        typeface = null
-        singleTypeface = null
         StatusIconHostAccess.onMain {
-            synchronized(paintStates) {
-                paintStates.forEach { (paint, state) -> if (paint.typeface === state.applied) paint.typeface = state.original }
-                paintStates.clear()
-            }
             val drawables = synchronized(modifiedDrawables) {
                 modifiedDrawables.keys.toList().also { modifiedDrawables.clear() }
             }
@@ -117,47 +86,28 @@ object CellularTypeIconHooker : StaticHooker() {
     override fun onHook() {
         forceSingle = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
         swapSingle = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
-        singleSizeEnabled = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE, false)
-        singleSize = Preferences.getFloat(
-            Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL,
-            14f
-        ).takeIf(Float::isFinite)?.coerceIn(1f, 48f) ?: 14f
         useCustom = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
         customType = Preferences.getString(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "").trim()
         small5GaEnabled = Preferences.getBoolean(
             Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
-        drawableFontEnabled = Preferences.getBoolean(Preferences.KEY_ICON_FONT_MOBILE_TYPE, false)
-        drawableWeight = Preferences.getInt(
-            Preferences.KEY_ICON_FONT_MOBILE_TYPE_WEIGHT,
-            660
-        ).coerceIn(100, 900)
-        singleFontEnabled = Preferences.getBoolean(
-            Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE,
-            false
-        )
-        singleWeight = Preferences.getInt(
-            Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT,
-            400
-        ).coerceIn(100, 900)
 
         val configEnabled = forceSingle || useCustom
-        val binderEnabled = swapSingle || singleSizeEnabled || singleFontEnabled
-        if (!configEnabled && !binderEnabled && !drawableFontEnabled && !small5GaEnabled) {
+        val binderEnabled = swapSingle
+        if (!configEnabled && !binderEnabled && !small5GaEnabled) {
             DebugLog.hookSkippedDebug(TAG, "CellularTypeIcon", "disabled")
             return
         }
         if (configEnabled) hookOperatorConfig()
         if (binderEnabled) hookBinder()
-        if (drawableFontEnabled) hookDrawableFont()
         if (small5GaEnabled) {
             hookSmall5GaTextView()
             hookSmall5GaDrawable()
         }
         DebugLog.hookRegistered(
             TAG,
-            "CellularType: single=$forceSingle swap=$swapSingle size=$singleSizeEnabled font=$drawableFontEnabled small5GA=$small5GaEnabled"
+            "CellularType: single=$forceSingle swap=$swapSingle small5GA=$small5GaEnabled"
         )
     }
 
@@ -371,14 +321,6 @@ object CellularTypeIconHooker : StaticHooker() {
                 runCatching {
                     val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
                     val typeSingle = findView(root, "mobile_type_single") as? TextView
-                    if (typeSingle != null) {
-                        if (singleSizeEnabled) {
-                            typeSingle.setTextSize(TypedValue.COMPLEX_UNIT_SP, singleSize)
-                        }
-                        if (singleFontEnabled) {
-                            typeSingle.typeface = singleTypeface()
-                        }
-                    }
                     if (swapSingle) swapSingleAndStack(root, typeSingle)
                 }.onFailure { DebugLog.w(TAG, "cellular single type layout update failed", it) }
             }
@@ -399,66 +341,9 @@ object CellularTypeIconHooker : StaticHooker() {
         singleParent.addView(typeSingle, second)
     }
 
-    /** The constructor and static helper both touch the drawable's two paints. */
-    private fun hookDrawableFont() {
-        val drawableClass = DRAWABLE_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, DRAWABLE_CLASS, "class not found")
-            return
-        }
-        drawableClass.hookAllConstructors {
-            after { param -> applyDrawablePaints(param.thisObject) }
-        }
-        drawableClass.findMethodOrNull {
-            name("setMiuiStatusBarTypeface")
-            isStatic()
-            paramCount(1)
-        }?.hook {
-            after { param ->
-                if (!drawableFontEnabled) return@after
-                val paints = param.args.getOrNull(0) as? Array<*> ?: return@after
-                val resolved = drawableTypeface()
-                paints.filterIsInstance<Paint>().forEach { applyTypeface(it, resolved) }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$DRAWABLE_CLASS#setMiuiStatusBarTypeface", "method not found")
-    }
-
-    private fun applyDrawablePaints(target: Any) {
-        synchronized(modifiedDrawables) {
-            if (!drawableFontEnabled) return
-            modifiedDrawables[target] = true
-            val resolved = drawableTypeface()
-            listOf("mMobileTypeTextPaint", "mMobileTypePlusPaint").forEach { name ->
-                (readField(target, name) as? Paint)?.let { applyTypeface(it, resolved) }
-            }
-            runCatching { findMethod(target.javaClass, "measure", 0)?.invoke(target) }
-        }
-    }
-
-    private fun drawableTypeface(): Typeface = typeface ?: IconFontResolver.resolve(
-        module = module,
-        remoteFileName = "status_bar_font",
-        weight = drawableWeight
-    ).also { typeface = it }
-
-    private fun singleTypeface(): Typeface = singleTypeface ?: IconFontResolver.resolve(
-        module = module,
-        remoteFileName = "status_bar_font",
-        weight = singleWeight
-    ).also { singleTypeface = it }
-
     private fun findView(root: ViewGroup, name: String): android.view.View? {
         val id = root.resources.getIdentifier(name, "id", "com.android.systemui")
         return id.takeIf { it != 0 }?.let(root::findViewById)
-    }
-
-    private fun readField(target: Any?, name: String): Any? {
-        var type = target?.javaClass
-        while (type != null) {
-            val field = hierarchyField(type, name)
-            if (field != null) return runCatching { field.get(target) }.getOrNull()
-            type = type.superclass
-        }
-        return null
     }
 
     private fun findMethod(type: Class<*>, name: String, count: Int) =

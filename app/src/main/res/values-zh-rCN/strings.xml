@@ -523,13 +523,6 @@
     <string name="icon_cellular_type_title">类型显示</string>
     <string name="icon_cellular_type_swap">交换单卡类型与信号</string>
     <string name="icon_cellular_type_swap_summary">将单卡网络类型文字移到信号图标右侧</string>
-    <string name="icon_cellular_type_size">自定义单卡类型字号</string>
-    <string name="icon_cellular_type_size_summary">为单卡网络类型文字使用自定义字号</string>
-    <string name="icon_cellular_type_size_value">单卡类型字号</string>
-    <string name="icon_cellular_type_font">自定义蜂窝类型字重</string>
-    <string name="icon_cellular_type_font_summary">仅为图标内蜂窝类型文字应用数字字重</string>
-    <string name="icon_cellular_type_single_font">自定义单卡类型字重</string>
-    <string name="icon_cellular_type_single_font_summary">仅为单卡类型文字应用数字字重</string>
     <string name="icon_font_weight">字体字重</string>
     <string name="icon_battery_style_title">状态栏电量样式</string>
     <string name="icon_battery_style_outside">控制中心电量百分比显示在图标外</string>

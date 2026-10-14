@@ -368,13 +368,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 useCustom = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
                 customValue = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
                 swapSingle = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false),
-                singleSizeEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE, false),
-                singleSize = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL, 14f),
-                drawableFontEnabled = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE, false),
-                drawableWeight = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_WEIGHT, 660),
                 small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
-                singleFontEnabled = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE, false),
-                singleWeight = pref(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT, 400),
                 onChange = { key, value -> changed(key, value) }
                         )
                     }
@@ -898,13 +892,7 @@ private fun CellularTypeSection(
     useCustom: Boolean,
     customValue: String,
     swapSingle: Boolean,
-    singleSizeEnabled: Boolean,
-    singleSize: Float,
-    drawableFontEnabled: Boolean,
-    drawableWeight: Int,
     small5GaEnabled: Boolean,
-    singleFontEnabled: Boolean,
-    singleWeight: Int,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_cellular_type_title))
@@ -938,36 +926,6 @@ private fun CellularTypeSection(
                 stringResource(R.string.icon_cellular_type_swap),
                 stringResource(R.string.icon_cellular_type_swap_summary)
             ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, it) }
-            TunerSwitch(
-                singleSizeEnabled,
-                stringResource(R.string.icon_cellular_type_size),
-                stringResource(R.string.icon_cellular_type_size_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE, it) }
-            if (singleSizeEnabled) {
-                SliderRow(stringResource(R.string.icon_cellular_type_size_value), singleSize, 6f, 24f) {
-                    onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SIZE_VAL, it)
-                }
-            }
-            TunerSwitch(
-                drawableFontEnabled,
-                stringResource(R.string.icon_cellular_type_font),
-                stringResource(R.string.icon_cellular_type_font_summary)
-            ) { onChange(Preferences.KEY_ICON_FONT_MOBILE_TYPE, it) }
-            if (drawableFontEnabled) {
-                IntSliderRow(stringResource(R.string.icon_font_weight), drawableWeight, 100, 900) {
-                    onChange(Preferences.KEY_ICON_FONT_MOBILE_TYPE_WEIGHT, it)
-                }
-            }
-            TunerSwitch(
-                singleFontEnabled,
-                stringResource(R.string.icon_cellular_type_single_font),
-                stringResource(R.string.icon_cellular_type_single_font_summary)
-            ) { onChange(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE, it) }
-            if (singleFontEnabled) {
-                IntSliderRow(stringResource(R.string.icon_font_weight), singleWeight, 100, 900) {
-                    onChange(Preferences.KEY_ICON_FONT_MOBILE_TYPE_SINGLE_WEIGHT, it)
-                }
-            }
         }
     }
 }
