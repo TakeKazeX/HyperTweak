@@ -4,7 +4,10 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 data class DuoSignalRow(val subId: Int, val slotIndex: Int, val level: Int)
 
 internal object DuoSignalRows {
-    fun ordered(rows: List<DuoSignalRow>): List<DuoSignalRow> = rows
+    fun ordered(rows: List<DuoSignalRow>, activeDataSubId: Int = -1,
+                dataFirst: Boolean = false): List<DuoSignalRow> = rows
         .distinctBy { it.subId }
-        .sortedBy { if (it.slotIndex >= 0) it.slotIndex else Int.MAX_VALUE }
+        .sortedWith(compareBy<DuoSignalRow> {
+            if (dataFirst && it.subId == activeDataSubId) 0 else 1
+        }.thenBy { if (it.slotIndex >= 0) it.slotIndex else Int.MAX_VALUE })
 }

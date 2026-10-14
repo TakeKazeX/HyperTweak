@@ -137,27 +137,18 @@ object IconSvgRenderer {
         render(document, SvgKind.SINGLE_SIGNAL, listOf(level), config)
 
     /** Records vector commands once; replay scales paths, never a low-resolution bitmap. */
-    fun signalPicture(document: Document, levels: List<Int>, background: Float = .28f, error: Float = background,
-        hollow: Boolean = false): Picture =
+    fun signalPicture(document: Document, levels: List<Int>, background: Float = .28f, error: Float = background): Picture =
         picture(document, if (levels.size > 1) SvgKind.STACKED_SIGNAL else SvgKind.SINGLE_SIGNAL,
-            levels, IconSvgRenderConfig(20, alphaBg = background, alphaError = error), hollow)
+            levels, IconSvgRenderConfig(20, alphaBg = background, alphaError = error))
 
-    private fun picture(document: Document, kind: SvgKind, levels: List<Int>, config: IconSvgRenderConfig, hollow: Boolean = false): Picture {
+    private fun picture(document: Document, kind: SvgKind, levels: List<Int>, config: IconSvgRenderConfig): Picture {
         val safe = config.safe()
-        val key = "$kind|$levels|${safe.alphaFg}|${safe.alphaBg}|${safe.alphaError}|$hollow"
+        val key = "$kind|$levels|${safe.alphaFg}|${safe.alphaBg}|${safe.alphaError}"
         return synchronized(document) {
             document.pictures[key] ?: run {
                 validate(document, kind).getOrThrow()
-                // Keep the original single/stacked geometry; unreachable data has outlines only.
-                val source = if (hollow) document.source.replace(Regex("<path\\b[^>]*>")) { match ->
-                    if (idPattern.find(match.value)?.groupValues?.get(2)?.startsWith("signal_") == true)
-                        match.value.replace(Regex("\\sfill=[\"'][^\"']*[\"']"), "")
-                            .replace("/>", " fill=\"none\" stroke=\"white\" stroke-width=\"0.65\"/>")
-                    else match.value
-                } else document.source
-                val opacities = opacityMap(document, kind, levels, safe).toMutableMap()
-                if (hollow) opacities.keys.filter { it.startsWith("signal_") }.forEach { opacities[it] = 1f }
-                val variant = SVG.getFromString(withOpacities(source, opacities))
+                val opacities = opacityMap(document, kind, levels, safe)
+                val variant = SVG.getFromString(withOpacities(document.source, opacities))
                 val height = 100
                 val width = (height * document.metadata.viewBox.width() / document.metadata.viewBox.height()).toInt().coerceAtLeast(1)
                 variant.setDocumentWidth(width.toFloat())

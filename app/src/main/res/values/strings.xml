@@ -556,6 +556,12 @@
     <string name="icon_cc_carrier_left_summary">Align single-line carrier labels to the left</string>
     <string name="icon_cc_hide_date">Hide Control Center Date</string>
     <string name="icon_cc_hide_date_summary">Hide the control-center date; also enables the two-line carrier label</string>
+    <string name="icon_cc_network_first_row">Network Status on First Row</string>
+    <string name="icon_cc_network_first_row_summary">Keep SIM slot order; place Wi-Fi and the data SIM network type on the first row</string>
+    <string name="icon_mobile_row_style">SIM Row Style</string>
+    <string name="icon_mobile_row_style_summary">Order carrier rows, stacked signal and the signal inside Duo</string>
+    <string name="icon_mobile_row_style_slot">SIM slot order</string>
+    <string name="icon_mobile_row_style_data">Data SIM first (iOS style)</string>
     <string name="icon_cc_carrier_two_line">Two-Line Carrier Label</string>
     <string name="icon_cc_carrier_two_line_summary">Use one row per SIM for signal, carrier and network type</string>
     <string name="icon_cc_carrier_name_priority">Two-line mode keeps both carrier names visible in the compact control center; this preference still applies to other layouts</string>

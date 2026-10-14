@@ -88,7 +88,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         val side = min(bounds.width(), bounds.height()).toFloat()
         if (side <= 0f) return
         val cellular = !networkOnly && !batteryOnly && state.wifiLevel == null &&
-            (state.networkLabel != null || state.noService || state.hollowCellularSignal)
+            state.hasCellularSignal
         val compactRing = !networkOnly
         val save = canvas.save()
         try {

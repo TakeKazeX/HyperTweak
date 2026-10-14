@@ -121,10 +121,11 @@ internal enum class CarrierNetworkMode { EMPTY, CELLULAR, WIFI, BOTH }
 
 /** A connected access point is insufficient: Wi-Fi takes this slot only as default data route. */
 internal object CarrierNetworkChoice {
-    fun select(cellular: Boolean, wifiDefaultAndRendered: Boolean, keepCellularType: Boolean): CarrierNetworkMode = when {
+    fun select(cellular: Boolean, wifiDefaultAndRendered: Boolean, keepCellularType: Boolean,
+               cellularSuppressed: Boolean = false): CarrierNetworkMode = when {
         wifiDefaultAndRendered && cellular && keepCellularType -> CarrierNetworkMode.BOTH
         wifiDefaultAndRendered -> CarrierNetworkMode.WIFI
-        cellular -> CarrierNetworkMode.CELLULAR
+        cellular && !cellularSuppressed -> CarrierNetworkMode.CELLULAR
         else -> CarrierNetworkMode.EMPTY
     }
 

@@ -556,6 +556,12 @@
     <string name="icon_cc_carrier_left_summary">将单行运营商标签靠左显示</string>
     <string name="icon_cc_hide_date">隐藏控制中心日期</string>
     <string name="icon_cc_hide_date_summary">隐藏控制中心头部的日期；同时启用两行运营商标签</string>
+    <string name="icon_cc_network_first_row">网络状态显示在第一行</string>
+    <string name="icon_cc_network_first_row_summary">保持卡槽排列，将 Wi-Fi 和上网卡网络类型显示在第一行</string>
+    <string name="icon_mobile_row_style">SIM 行样式</string>
+    <string name="icon_mobile_row_style_summary">调整双层运营商、堆叠信号和三合一内部信号的排列</string>
+    <string name="icon_mobile_row_style_slot">按卡槽排列</string>
+    <string name="icon_mobile_row_style_data">上网卡优先（iOS 样式）</string>
     <string name="icon_cc_carrier_two_line">运营商标签两行显示</string>
     <string name="icon_cc_carrier_two_line_summary">每张卡各占一行，显示信号、运营商和网络类型</string>
     <string name="icon_cc_carrier_name_priority">两行模式下，紧凑控制中心始终显示双卡名称；此偏好仍适用于其他布局</string>

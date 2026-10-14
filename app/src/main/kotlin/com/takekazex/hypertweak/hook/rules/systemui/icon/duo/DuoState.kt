@@ -42,7 +42,7 @@ data class DuoContent(
     val cellularSignalRows: List<DuoSignalRow> = emptyList(),
     val activeDataSubId: Int? = null
 ) {
-    val hollowCellularSignal: Boolean get() = noInternet && wifiLevel == null && !airplaneMode
+    val hasCellularSignal: Boolean get() = !airplaneMode && wifiLevel == null && cellularSignalLevels.isNotEmpty()
 }
 
 object DuoPolicy {
@@ -71,7 +71,7 @@ object DuoPolicy {
      * even when there is no active subscription to inspect.
      */
     fun content(battery: DuoBattery?, mobile: MobileSignalState, network: DuoNetwork,
-                slotOf: (Int) -> Int = { -1 }): DuoContent? {
+                dataFirst: Boolean = false, slotOf: (Int) -> Int = { -1 }): DuoContent? {
         if (battery == null || battery.percent !in 0..100) return null
         if (mobile.airplaneMode) {
             return DuoContent(
@@ -93,8 +93,8 @@ object DuoPolicy {
             (network.transport == DuoTransport.VPN && network.wifiDefault == true)
         val wifiLevel = if (wifi) network.wifiLevel?.takeIf { it in 0..4 } ?: return null else null
         val noService = sub.kind == MobileSignalKind.NO_SERVICE
-        val cellular = network.transport == DuoTransport.CELLULAR ||
-            (network.transport == DuoTransport.VPN && network.wifiDefault == false && sub.dataConnected == true)
+        val cellular = sub.dataConnected == true && (network.transport == DuoTransport.CELLULAR ||
+            (network.transport == DuoTransport.VPN && network.wifiDefault == false))
         val label = if (cellular) {
             // Only render bounded, host-provided labels; don't invent 5G from radio strength.
             val hostLabel = sub.networkType?.trim()?.takeIf {
@@ -103,9 +103,9 @@ object DuoPolicy {
             if (hostLabel == null && network.validated) return null
             hostLabel
         } else null
-        val noDefaultNetwork = network.transport == DuoTransport.NONE
-        // A lost default route is known offline even if the SIM still has radio service.
-        // Keep Duo's hollow cellular glyph instead of returning to the native warning icon.
+        val noDefaultNetwork = network.transport == DuoTransport.NONE ||
+            (!wifi && network.transport == DuoTransport.CELLULAR && sub.dataConnected == false)
+        // Losing an internet route does not change the SIM's radio strength.
         if (!wifi && label == null && !noService && !noDefaultNetwork &&
             !(cellular && !network.validated)) return null
         // Match the host's single/stacked signal family. Unknown and satellite rows are omitted;
@@ -114,7 +114,7 @@ object DuoPolicy {
         val signalRows = DuoSignalRows.ordered(mobile.rows.asSequence()
             .filter { it.originalVisible && it.supportsReplacement }
             .map { DuoSignalRow(it.subId, slotOf(it.subId), it.renderLevel) }
-            .toList())
+            .toList(), mobile.activeDataSubId, dataFirst)
         val noInternet = (!network.validated && (wifi || cellular)) || noDefaultNetwork
         return DuoContent(
             battery, wifiLevel, label, sub.normalizedLevel,

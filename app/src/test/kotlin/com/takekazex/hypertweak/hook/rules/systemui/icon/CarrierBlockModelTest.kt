@@ -65,18 +65,24 @@ class CarrierBlockModelTest {
         .reduce(MobileSignalEvent.NetworkType(101, firstType))
         .reduce(MobileSignalEvent.NetworkType(202, secondType))
         .reduce(MobileSignalEvent.ActiveDataSubId(activeData))
+        .reduce(MobileSignalEvent.DataConnected(101, true))
+        .reduce(MobileSignalEvent.DataConnected(202, true))
 
     private fun resolve(
         state: MobileSignalState,
         wifiLevel: Int? = null,
         showNonDataType: Boolean = false,
-        keepTypeOnWifi: Boolean = false
+        keepTypeOnWifi: Boolean = false,
+        dataFirst: Boolean = false,
+        networkOnFirstRow: Boolean = false
     ) = CarrierBlockPolicy.resolve(
         state = state,
         wifiLevel = wifiLevel,
         config = CarrierBlockConfig(
             showNonDataType = showNonDataType,
-            keepTypeOnWifi = keepTypeOnWifi
+            keepTypeOnWifi = keepTypeOnWifi,
+            dataFirst = dataFirst,
+            networkOnFirstRow = networkOnFirstRow
         ),
         slotOf = slotOf
     )
@@ -92,6 +98,75 @@ class CarrierBlockModelTest {
         assertEquals(listOf(0, 1), rows.map { it.slot })
         assertEquals(listOf(101, 202), rows.map { it.subId })
         assertEquals(listOf(4, 2), rows.map { it.signalLevel })
+    }
+
+    @Test
+    fun wifiFollowsSecondDataSimAndSuppressesBothCachedTypes() {
+        val state = dualSim(activeData = 202).reduce(MobileSignalEvent.WifiAvailable(202, true))
+        val rows = resolve(state, wifiLevel = 3, showNonDataType = true)
+        assertNull(rows[0].wifiLevel)
+        assertEquals(3, rows[1].wifiLevel)
+        assertTrue(rows.all { it.typeSuppressed })
+        assertEquals(listOf(CarrierNetworkMode.EMPTY, CarrierNetworkMode.WIFI), rows.map {
+            CarrierNetworkChoice.select(it.hasType, it.hasWifi, false, it.typeSuppressed)
+        })
+        assertTrue(resolve(state, 3, true, true).none { it.typeSuppressed })
+        val switched = resolve(state.reduce(MobileSignalEvent.ActiveDataSubId(101)), 3)
+        assertEquals(3, switched[0].wifiLevel)
+        assertNull(switched[1].wifiLevel)
+    }
+
+    @Test
+    fun dataFirstReordersWholeRowsAndKeepsSlotAndSubscriptionIdentity() {
+        val state = dualSim(activeData = 202).reduce(MobileSignalEvent.WifiAvailable(202, true))
+        val rows = resolve(state, wifiLevel = 3, dataFirst = true)
+        assertEquals(listOf(1, 0), rows.map { it.slot })
+        assertEquals(listOf(202, 101), rows.map { it.subId })
+        assertEquals(listOf(2, 4), rows.map { it.signalLevel })
+        assertEquals(3, rows[0].wifiLevel)
+        val single = resolve(state.reduce(MobileSignalEvent.Subscriptions(listOf(202))), 3, dataFirst = true)
+        assertEquals(202, single.first().subId)
+        val airplane = resolve(state.reduce(MobileSignalEvent.AirplaneMode(true)), 3, dataFirst = true)
+        assertTrue(airplane[0].airplane)
+        assertEquals(0, airplane[0].slot)
+    }
+
+    @Test
+    fun networkFirstRowMovesOnlyNetworkAndPreservesDataSimProvenance() {
+        val state = dualSim(activeData = 202).reduce(MobileSignalEvent.WifiAvailable(202, true))
+        val rows = resolve(state, 3, networkOnFirstRow = true)
+        assertEquals(listOf(101, 202), rows.map { it.subId })
+        assertEquals(listOf(4, 2), rows.map { it.signalLevel })
+        assertEquals(3, rows[0].wifiLevel)
+        assertEquals("4G", rows[0].typeText)
+        assertEquals(202, rows[0].networkSubId)
+        assertNull(rows[1].wifiLevel)
+        assertNull(rows[1].typeText)
+        val both = resolve(state, 3, showNonDataType = true, networkOnFirstRow = true)
+        assertEquals(listOf("4G", "5G"), both.map { it.typeText })
+        assertEquals(listOf(202, 101), both.map { it.networkSubId })
+        val mobile = resolve(state.reduce(MobileSignalEvent.WifiAvailable(202, false)),
+            networkOnFirstRow = true)
+        assertEquals("4G", mobile[0].typeText)
+        assertNull(mobile[1].typeText)
+        val dataFirst = resolve(state, 3, dataFirst = true, networkOnFirstRow = true)
+        assertEquals(202, dataFirst[0].subId)
+        assertEquals(3, dataFirst[0].wifiLevel)
+    }
+
+    @Test
+    fun networkFirstRowHandlesMissingFirstSimAndAirplaneWithoutInventingRows() {
+        val single = dualSim(activeData = 202).reduce(MobileSignalEvent.Subscriptions(listOf(202)))
+            .reduce(MobileSignalEvent.WifiAvailable(202, true))
+        val rows = resolve(single, 3, networkOnFirstRow = true)
+        assertFalse(rows[0].visible)
+        assertEquals(202, rows[1].networkSubId)
+        assertEquals(3, rows[1].wifiLevel)
+        val airplane = resolve(single.reduce(MobileSignalEvent.AirplaneMode(true)), 3,
+            networkOnFirstRow = true)
+        assertTrue(airplane[0].airplane)
+        assertEquals(3, airplane[0].wifiLevel)
+        assertTrue(airplane.all { it.networkSubId == null })
     }
 
     @Test
@@ -145,6 +220,24 @@ class CarrierBlockModelTest {
 
         assertNull(rows[0].typeText)
         assertEquals("4G", rows[1].typeText)
+    }
+
+    @Test
+    fun nonDataTypeUsesTheSelectedDataConnectionNotItsOwnDisconnectedState() {
+        for (active in listOf(101, 202)) {
+            val state = dualSim(activeData = active)
+                .reduce(MobileSignalEvent.DataConnected(101, false))
+                .reduce(MobileSignalEvent.DataConnected(202, false))
+                .reduce(MobileSignalEvent.DataConnected(active, true))
+            assertEquals(listOf("5G", "4G"), resolve(state, showNonDataType = true).map { it.typeText })
+            val onlyData = resolve(state)
+            assertNull(onlyData.first { it.subId != active }.typeText)
+            val allOff = state.reduce(MobileSignalEvent.DataConnected(active, false))
+            assertTrue(resolve(allOff, showNonDataType = true).all { it.typeText == null })
+            val wifi = allOff.reduce(MobileSignalEvent.WifiAvailable(active, true))
+            assertTrue(resolve(wifi, 3, showNonDataType = true).all { it.typeSuppressed })
+            assertEquals(listOf("5G", "4G"), resolve(wifi, 3, true, true).map { it.typeText })
+        }
     }
 
     @Test
@@ -203,10 +296,10 @@ class CarrierBlockModelTest {
             dualSim(activeData = 101).reduce(MobileSignalEvent.WifiAvailable(101, true)),
             wifiLevel = null
         )[0]
-        assertFalse(waitingForLevel.typeSuppressed)
-        assertEquals(CarrierNetworkMode.CELLULAR, CarrierNetworkChoice.select(
+        assertTrue(waitingForLevel.typeSuppressed)
+        assertEquals(CarrierNetworkMode.EMPTY, CarrierNetworkChoice.select(
             cellular = waitingForLevel.hasType, wifiDefaultAndRendered = waitingForLevel.hasWifi,
-            keepCellularType = false
+            keepCellularType = false, cellularSuppressed = waitingForLevel.typeSuppressed
         ))
     }
 
@@ -235,6 +328,20 @@ class CarrierBlockModelTest {
         val kept = resolve(state, wifiLevel = 4, keepTypeOnWifi = true)
         assertEquals("5G", kept[0].typeText)
         assertFalse(kept[0].typeSuppressed)
+    }
+
+    @Test
+    fun dataOffKeepsRadioStrengthButHidesCachedTypesAndRecovers() {
+        val idle = dualSim().reduce(MobileSignalEvent.DataConnected(101, false))
+            .reduce(MobileSignalEvent.DataConnected(202, false))
+        val rows = resolve(idle, showNonDataType = true)
+        assertEquals(listOf(4, 2), rows.map { it.signalLevel })
+        assertTrue(rows.all { it.typeText == null })
+        val recovered = resolve(idle.reduce(MobileSignalEvent.DataConnected(101, true)))
+        assertEquals("5G", recovered[0].typeText)
+        val wifi = resolve(idle.reduce(MobileSignalEvent.WifiAvailable(101, true)), 4,
+            keepTypeOnWifi = true)
+        assertEquals("5G", wifi[0].typeText)
     }
 
     @Test

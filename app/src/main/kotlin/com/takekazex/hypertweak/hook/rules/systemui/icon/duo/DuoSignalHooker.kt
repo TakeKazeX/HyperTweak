@@ -95,7 +95,7 @@ object DuoSignalHooker : StaticHooker() {
         val stacked: IconSvgRenderer.Document
     )
     private var cellularSignalAssets: CellularSignalAssets? = null
-    private val aodCellularPictures = LinkedHashMap<Pair<List<Int>, Boolean>, Picture>()
+    private val aodCellularPictures = LinkedHashMap<List<Int>, Picture>()
     // Only applicationContext is retained, for restoring the host flow after a reload.
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var wifiContext: Context? = null
@@ -436,7 +436,10 @@ object DuoSignalHooker : StaticHooker() {
         }
     }
 
+    private var dataFirst = false
+
     override fun onHook() {
+        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         small5GaEnabled = Preferences.getBoolean(
             Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
@@ -650,10 +653,10 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun renderAodCellularSignal(context: Context, content: DuoContent): Picture? {
         if (content.airplaneMode || content.wifiLevel != null ||
-            (content.networkLabel == null && !content.noService && !content.hollowCellularSignal)) return null
+            !content.hasCellularSignal) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
-        val key = levels to content.hollowCellularSignal
+        val key = levels
         synchronized(aodCellularPictures) {
             aodCellularPictures[key]?.let { return it }
             val picture = renderCellularSignal(context, content) ?: return null
@@ -694,13 +697,12 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun renderCellularSignal(context: Context, content: DuoContent): Picture? {
         if (content.airplaneMode || content.wifiLevel != null ||
-            (content.networkLabel == null && !content.noService && !content.hollowCellularSignal)) return null
+            !content.hasCellularSignal) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
         val assets = loadCellularSignalAssets(context) ?: return null
         return runCatching {
-            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
-                hollow = content.hollowCellularSignal)
+            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels)
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
@@ -855,7 +857,7 @@ object DuoSignalHooker : StaticHooker() {
                 read(battery, "mBatteryIconView")?.let { read(it, "mBatteryPerformanceModeColor") as? Int }
                 else null
             val freshContent = if (percent != null && charging != null && powerSave != null)
-                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, network) { subId ->
+                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, network, dataFirst) { subId ->
                     slotIndices[subId] ?: -1
                 } else null
             val content = when {

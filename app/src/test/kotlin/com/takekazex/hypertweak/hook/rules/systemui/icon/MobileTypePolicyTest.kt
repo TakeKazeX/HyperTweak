@@ -75,6 +75,14 @@ class MobileTypePolicyTest {
     }
 
     @Test
+    fun noWifiAndNoDataNeverShowsCachedType() {
+        val idle = state(listOf(1), 1, "5G", connected = false, wifi = false)
+        assertEquals("", MobileTypePolicy.resolve(idle, MobileTypeConfig()).text)
+        assertEquals("5G", MobileTypePolicy.resolve(
+            idle.reduce(MobileSignalEvent.DataConnected(1, true)), MobileTypeConfig()).text)
+    }
+
+    @Test
     fun roamingPrefixNeverAppearsForBlankType() {
         val blank = state(listOf(1), 1, "", roaming = true)
         val output = MobileTypePolicy.resolve(blank, MobileTypeConfig(showRoamingPrefix = true))

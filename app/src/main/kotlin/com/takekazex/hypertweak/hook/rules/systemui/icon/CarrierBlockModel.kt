@@ -9,13 +9,15 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 data class CarrierRowModel(
     val slot: Int,
     val subId: Int? = null,
+    /** Type provenance may differ from the signal/name SIM when network status is on row one. */
+    val networkSubId: Int? = subId,
     /** `renderLevel` of this SIM (`-1` = no service), or null when no honest level exists. */
     val signalLevel: Int? = null,
     /** Network type text ("5G", "4G+…") for this row, or null when it should not be drawn. */
     val typeText: String? = null,
-    /** Wi-Fi level 0..4; only the first row ever carries it. */
+    /** Wi-Fi level 0..4; follows the active data subscription. */
     val wifiLevel: Int? = null,
-    /** Wi-Fi is default and its artwork is available, so the shared slot may fade out the type. */
+    /** Wi-Fi is default, so the cellular type fades out unless explicitly retained. */
     val typeSuppressed: Boolean = false,
     val airplane: Boolean = false
 ) {
@@ -32,16 +34,18 @@ data class CarrierBlockConfig(
     /** Switch 4: draw the network type of the SIM that is not the default data line too. */
     val showNonDataType: Boolean = false,
     /** 连接 WiFi 时依旧显示蜂窝类型: keep the type readable while Wi-Fi carries the data. */
-    val keepTypeOnWifi: Boolean = false
+    val keepTypeOnWifi: Boolean = false,
+    val dataFirst: Boolean = false,
+    val networkOnFirstRow: Boolean = false
 )
 
 /**
  * Pure mapping from the shared mobile reducer to the two carrier rows.
  *
  * `slotOf` resolves a subscription id to its physical SIM slot; it is injected so this policy keeps
- * working (and stays unit-testable) without `SubscriptionManager`. Rows are always emitted in
- * physical slot order — 卡一 above 卡二 — never in subscription-flow order, because the host
- * reorders `subscriptionOrder` when the user swaps the default data SIM.
+ * working (and stays unit-testable) without `SubscriptionManager`. Physical slot identity is
+ * retained when the data-first style reorders the rows.
+ * Subscription-flow order is never used as a substitute for physical slot identity.
  */
 object CarrierBlockPolicy {
     /** The control-center carrier layout owns exactly two rows. */
@@ -71,25 +75,41 @@ object CarrierBlockPolicy {
             ?.takeIf { !state.airplaneMode && it.supportsReplacement }
             ?.renderLevel
         val typeText = subscription
-            ?.takeIf { !state.airplaneMode && it.inService != false }
+            ?.takeIf { !state.airplaneMode && it.inService != false &&
+                (state.subscriptions[state.activeDataSubId]?.dataConnected == true || state.wifiConnected) }
             ?.networkType
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?.takeIf { subId == state.activeDataSubId || config.showNonDataType }
-        // Wi-Fi takes the shared trailing slot on 卡一 only after it is the default data route.
+        // Wi-Fi follows the selected data SIM in either row style.
         val rowWifi = wifiLevel
             ?.coerceIn(0, 4)
-            ?.takeIf { slot == 0 && state.wifiConnected }
+            ?.takeIf { subId == state.activeDataSubId && state.wifiConnected }
         CarrierRowModel(
             slot = slot,
             subId = subId,
             signalLevel = signalLevel,
             typeText = typeText,
             wifiLevel = rowWifi,
-            // A default-route change without a renderable level keeps cellular until Wi-Fi can
-            // enter the same measured position. There is no interim empty/new slot.
-            typeSuppressed = typeText != null && rowWifi != null && !config.keepTypeOnWifi
+            // Suppression belongs to the default route, including the row without a Wi-Fi glyph.
+            typeSuppressed = typeText != null && state.wifiConnected && !config.keepTypeOnWifi
         )
+    }.let { rows ->
+        if (config.dataFirst && !state.airplaneMode) rows.sortedBy {
+            if (it.subId == state.activeDataSubId) -1 else it.slot
+        } else if (config.networkOnFirstRow && !state.airplaneMode) {
+            val first = rows.firstOrNull { it.visible }
+            val active = rows.firstOrNull { it.subId == state.activeDataSubId }
+            if (first == null || active == null || first.slot == active.slot) rows else rows.map { row ->
+                val network = when (row.slot) {
+                    first.slot -> active
+                    active.slot -> first
+                    else -> row
+                }
+                row.copy(networkSubId = network.networkSubId, typeText = network.typeText,
+                    wifiLevel = network.wifiLevel, typeSuppressed = network.typeSuppressed)
+            }
+        } else rows
     }
 
     /** The entire cellular slot can be masked only when every subscribed row is represented. */

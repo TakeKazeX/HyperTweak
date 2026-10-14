@@ -717,6 +717,9 @@ object Preferences {
     //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
     const val KEY_CC_CARRIER_LEFT = "systemui_cc_carrier_left"
     const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
+    // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
+    const val KEY_ICON_MOBILE_ROW_STYLE = "icon_tuner_mobile_row_style"
+    const val KEY_CC_NETWORK_FIRST_ROW = "systemui_cc_network_first_row"
     const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
     const val KEY_CC_ICON_ROW_OVERRIDES = "systemui_cc_icon_row_overrides"
     const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"

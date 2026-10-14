@@ -289,7 +289,10 @@ object StackedSignalHooker : StaticHooker() {
         scheduleAdapterRestore(adapter, generation.get())
     }
 
+    private var dataFirst = false
+
     override fun onHook() {
+        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
         renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
@@ -320,7 +323,7 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun orderedSignalRows(state: MobileSignalState): List<DuoSignalRow> = DuoSignalRows.ordered(
         state.rows.map { DuoSignalRow(it.subId,
-            slotIndices[it.subId] ?: -1, it.renderLevel) })
+            slotIndices[it.subId] ?: -1, it.renderLevel) }, state.activeDataSubId, dataFirst)
 
     private fun hookPanelMotion() {
         val methods = resolvePanelMotionMethods()

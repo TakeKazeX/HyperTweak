@@ -418,6 +418,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 ccCarrierLeft = pref(Preferences.KEY_CC_CARRIER_LEFT, false),
                 ccHideDate = pref(Preferences.KEY_CC_HIDE_DATE, false),
                 ccTwoLine = pref(Preferences.KEY_CC_CARRIER_TWO_LINE, false),
+                mobileRowStyle = pref(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0),
+                ccNetworkFirstRow = pref(Preferences.KEY_CC_NETWORK_FIRST_ROW, false),
                 ccShowNonDataType = pref(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false),
                 ccShowBadge = pref(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true),
                 ccBadgeOne = pref(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
@@ -972,6 +974,8 @@ private fun CarrierSection(
     ccCarrierLeft: Boolean,
     ccHideDate: Boolean,
     ccTwoLine: Boolean,
+    mobileRowStyle: Int,
+    ccNetworkFirstRow: Boolean,
     ccShowNonDataType: Boolean,
     ccShowBadge: Boolean,
     ccBadgeOne: String,
@@ -1000,6 +1004,22 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_two_line_summary),
                 enabled = ccHideDate
             ) { onChange(Preferences.KEY_CC_CARRIER_TWO_LINE, it) }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_mobile_row_style),
+                summary = stringResource(R.string.icon_mobile_row_style_summary),
+                items = listOf(stringResource(R.string.icon_mobile_row_style_slot),
+                    stringResource(R.string.icon_mobile_row_style_data)),
+                selectedIndex = mobileRowStyle.coerceIn(0, 1),
+                onSelectedIndexChange = { onChange(Preferences.KEY_ICON_MOBILE_ROW_STYLE, it) }
+            )
+            if (mobileRowStyle == 0) {
+                TunerSwitch(
+                    ccNetworkFirstRow,
+                    stringResource(R.string.icon_cc_network_first_row),
+                    stringResource(R.string.icon_cc_network_first_row_summary),
+                    enabled = ccHideDate && ccTwoLine
+                ) { onChange(Preferences.KEY_CC_NETWORK_FIRST_ROW, it) }
+            }
             ArrowPreference(
                 title = stringResource(R.string.icon_cc_rows_title),
                 summary = stringResource(R.string.icon_cc_rows_entry_summary),

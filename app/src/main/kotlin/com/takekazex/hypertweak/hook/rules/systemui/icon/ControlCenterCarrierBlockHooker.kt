@@ -47,8 +47,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Compact control-center rows. The host still owns carrier names and the shared mobile reducer
- * owns connectivity; only measurement, presentation and expanded-container masks are replaced.
+ * Compact control-center rows. Subscription names follow Settings; host carrier text remains the
+ * fallback. The shared mobile reducer owns connectivity and expanded-container signal masks.
  */
 @SuppressLint("StaticFieldLeak")
 object ControlCenterCarrierBlockHooker : StaticHooker() {
@@ -112,9 +112,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var shadeSwitchProgress = 0f
 
     internal fun isShadeSwitching(): Boolean = shadeSwitching
+    private var networkOnFirstRow = false
+    private var dataFirst = false
+    private var rowOrder = listOf(0, 1)
     private var showBadge = true
     private var badgeTexts = listOf("1", "2")
     @Volatile private var hostContext: Context? = null
+    private var subscriptionManager: SubscriptionManager? = null
+    private var subscriptionListener: SubscriptionManager.OnSubscriptionsChangedListener? = null
+    private var simNames: Map<Int, String> = emptyMap()
     @Volatile private var svgRepository: IconSvgRepository? = null
     @Volatile private var artwork: Artwork? = null
     @Volatile private var artGeneration = Long.MIN_VALUE
@@ -179,6 +185,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        var nativeCarrierText: CharSequence = carrierText.text
         val networkFade = CarrierNetworkCrossfade(type, wifi) { visible ->
             networkSlot.visibility = if (visible) View.VISIBLE else View.GONE
         }
@@ -221,6 +228,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val separator: View?,
         val keyguardSeparator: View?
     ) {
+        val originalChildren = (0 until layout.childCount).map(layout::getChildAt)
         val orientation = layout.orientation
         val minimumHeight = layout.minimumHeight
         val gravity = layout.gravity
@@ -253,7 +261,41 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             }.onFailure { DebugLog.w(TAG, "carrier module resources unavailable", it) }.getOrNull()
             svgRepository = moduleContext?.let(::IconSvgRepository)
         }
-        if (enabled) scheduleArtworkLoad(generation.get())
+        if (enabled) {
+            bindSimNames(app)
+            scheduleArtworkLoad(generation.get())
+        }
+    }
+
+    /** Subscription display names include Settings SIM renames; carrier/SPN text does not. */
+    // Runs with SystemUI's manifest-granted READ_PHONE_STATE, not the module app identity.
+    @SuppressLint("MissingPermission")
+    private fun bindSimNames(context: Context) {
+        if (!enabled || subscriptionListener != null) return
+        val manager = context.getSystemService(SubscriptionManager::class.java) ?: return
+        val token = generation.get()
+        val listener = object : SubscriptionManager.OnSubscriptionsChangedListener() {
+            override fun onSubscriptionsChanged() {
+                if (!enabled || generation.get() != token) return
+                runCatching {
+                    simNames = manager.activeSubscriptionInfoList.orEmpty().mapNotNull { info ->
+                        info.displayName?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                            ?.let { info.subscriptionId to it }
+                    }.toMap()
+                    scheduleRender()
+                }.onFailure {
+                    simNames = emptyMap()
+                    scheduleRender()
+                    DebugLog.w(TAG, "SIM name refresh failed; retaining native names", it)
+                }
+            }
+        }
+        runCatching {
+            manager.addOnSubscriptionsChangedListener(context.mainExecutor, listener)
+            subscriptionManager = manager
+            subscriptionListener = listener
+            listener.onSubscriptionsChanged()
+        }.onFailure { DebugLog.w(TAG, "SIM name listener unavailable", it) }
     }
 
     /**
@@ -397,6 +439,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         // Finish host restoration before the lifecycle removes this generation's hooks.
         onMainBlocking {
+            subscriptionListener?.let { listener ->
+                runCatching { subscriptionManager?.removeOnSubscriptionsChangedListener(listener) }
+                    .onFailure { DebugLog.w(TAG, "SIM name listener cleanup failed", it) }
+            }
+            subscriptionListener = null
+            subscriptionManager = null
+            simNames = emptyMap()
             Choreographer.getInstance().removeFrameCallback(renderFrame)
             renderGate.cancel()
             motions.values.forEach(CarrierTypeMotion::clear)
@@ -423,6 +472,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        networkOnFirstRow = Preferences.getBoolean(Preferences.KEY_CC_NETWORK_FIRST_ROW, false)
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(
             small5GaEnabled = Preferences.getBoolean(
@@ -430,6 +480,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 false
             )
         )
+        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         val hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
         val twoLine = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
         showNonDataType = Preferences.getBoolean(
@@ -457,7 +508,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         hookExpansion()
         hookShadeSwitching()
         hookWifi()
-        hostContext?.let { scheduleArtworkLoad(generation.get()) }
+        hostContext?.let { context -> StatusIconHostAccess.onMain { bindEnvironment(context) } }
         DebugLog.hookRegistered(TAG, "control-center two-line carrier block")
     }
 
@@ -557,6 +608,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     val row = readOuter(param.thisObject, ROW_CLASS) as? ViewGroup ?: return@runCatching
                     if (!ownsRow(row)) return@runCatching
                     rowIndex[row]?.let { parts ->
+                        parts.nativeCarrierText = parts.carrierText.text
                         parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
                     }
                     scheduleRender()
@@ -844,12 +896,18 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     fun firstRowCenter(layout: ViewGroup): Int = rowGeometry(layout)?.firstCenter?.roundToInt() ?: 0
 
+    private fun orderedRows(block: Block): List<RowParts> =
+        block.rows.sortedBy { rowOrder.indexOf(it.slot) }
+
     private fun updateRowGeometry(block: Block) {
         if (!block.compact) return
         val gravity = Gravity.START or Gravity.TOP
         if (block.layout.gravity != gravity) block.layout.gravity = gravity
+        val ordered = orderedRows(block)
+        val indices = ordered.map { block.layout.indexOfChild(it.row) }
+        if (indices != indices.sorted()) ordered.forEach { block.layout.bringChildToFront(it.row) }
         val gap = (3 * block.layout.resources.displayMetrics.density).roundToInt()
-        val margins = TwoRowIconLayout.visibleRowMargins(block.rows.filter { it.row.isVisible }.map { it.slot }, gap)
+        val margins = TwoRowIconLayout.visibleRowMargins(ordered.filter { it.row.isVisible }.map { it.slot }, gap)
         block.rows.forEach { parts ->
             if (parts.row.isVisible) {
                 val params = parts.row.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
@@ -860,7 +918,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val geometry = rowGeometry(block.layout) ?: return
         val height = maxOf(block.minimumHeight, geometry.minimumHeight)
         if (block.layout.minimumHeight != height) block.layout.minimumHeight = height
-        val visible = block.rows.filter { it.row.isVisible && it.row.isLaidOut && it.row.height > 0 }
+        val visible = ordered.filter { it.row.isVisible && it.row.isLaidOut && it.row.height > 0 }
         val tops = TwoRowIconLayout.carrierRowTops(visible.map { it.slot to it.row.height }, geometry)
         visible.forEach { parts ->
             val row = parts.row
@@ -884,7 +942,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         ?.rows?.firstNotNullOfOrNull { parts ->
             val target = if (wifi && parts.wifiReady) parts.wifi else if (!wifi &&
                 parts.cellularReady && !parts.typeSuppressed && subId != null &&
-                parts.model?.subId == subId) parts.type else null
+                parts.model?.networkSubId == subId) parts.type else null
             target?.takeIf { isUsable(it) && it.drawable != null && parts.row.isShown }
         }
 
@@ -1076,6 +1134,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun restoreBlockStyle(block: Block) {
+        block.originalChildren.filter { it.parent === block.layout }.forEach(block.layout::bringChildToFront)
         block.layout.orientation = block.orientation
         block.layout.minimumHeight = block.minimumHeight
         block.layout.gravity = block.gravity
@@ -1084,6 +1143,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.rows.forEach { parts ->
             parts.rowState.restore(parts.row)
             parts.textState.restore(parts.carrierText)
+            parts.carrierText.text = parts.nativeCarrierText
             if (Preferences.getBoolean(if (parts.slot == 0) Preferences.KEY_ICON_HIDE_CARRIER_ONE
                     else Preferences.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
@@ -1209,10 +1269,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             wifiLevel = wifiLevel,
             config = CarrierBlockConfig(
                 showNonDataType = showNonDataType,
-                keepTypeOnWifi = keepTypeOnWifi
+                keepTypeOnWifi = keepTypeOnWifi,
+                dataFirst = dataFirst,
+                networkOnFirstRow = networkOnFirstRow
             ),
             slotOf = ::slotOf
         )
+        rowOrder = rows.map { it.slot }
         blocks.values.toList().forEach { block ->
             if (!block.layout.isAttachedToWindow) return@forEach
             if (block.compact) {
@@ -1227,6 +1290,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val art = artwork
         val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
         parts.model = model
+        val name = model?.subId?.let(simNames::get) ?: parts.nativeCarrierText
+        if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
         parts.carrierText.visibility = if (mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
         parts.airplaneText.visibility = if (model?.airplane == true && art != null) View.VISIBLE else View.GONE
         parts.badge.visibility = if (mobileState.airplaneMode || !showBadge || art == null || model == null) View.GONE else View.VISIBLE
@@ -1255,7 +1320,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val state = RowRenderState(model, art, tint, densityDpi, fontScale, rtl,
             iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
             mobileState.subscriptionOrder.size == 1,
-            mobileState.subscriptions[model.subId]?.roaming == true, keepTypeOnWifi, typeConfig, showBadge)
+            mobileState.subscriptions[model.networkSubId]?.roaming == true, keepTypeOnWifi, typeConfig, showBadge)
         if (parts.rendered == state) return
         parts.badge.setTextColor(tint)
         parts.airplaneText.setTextColor(tint)
@@ -1279,7 +1344,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         publish(parts.signal, signalBitmap, tint)
 
-        // Wi-Fi glyph on 卡一 only; the data type follows the active data SIM (开关 4: both rows).
+        // Wi-Fi and its type follow the active data SIM (开关 4: types on both rows).
         val wifiBitmap = model.wifiLevel?.let { level ->
             runCatching {
                 IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
@@ -1291,7 +1356,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                     output = MobileTypeOutput(
                         text = text,
                         isSingle = mobileState.subscriptionOrder.size == 1,
-                        isRoaming = mobileState.subscriptions[model.subId]?.roaming == true
+                        isRoaming = mobileState.subscriptions[model.networkSubId]?.roaming == true
                     ),
                     config = typeConfig,
                     iconHeightPx = CarrierBlockPolicy.typeHeight(iconHeightPx(context),
@@ -1328,9 +1393,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val mode = CarrierNetworkChoice.select(
             cellular = type != null,
             wifiDefaultAndRendered = wifi != null,
-            keepCellularType = keepTypeOnWifi
+            keepCellularType = keepTypeOnWifi,
+            cellularSuppressed = parts.model?.typeSuppressed == true
         )
-        parts.typeSuppressed = mode == CarrierNetworkMode.WIFI
+        parts.typeSuppressed = parts.model?.typeSuppressed == true || mode == CarrierNetworkMode.WIFI
         val icon = iconHeightPx(parts.row.context)
         val gap = (4 * parts.row.resources.displayMetrics.density).roundToInt()
         val width = CarrierNetworkChoice.requiredWidth(

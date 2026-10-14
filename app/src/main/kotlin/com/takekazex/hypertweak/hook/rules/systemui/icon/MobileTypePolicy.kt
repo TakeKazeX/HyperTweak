@@ -59,7 +59,8 @@ object MobileTypePolicy {
         val active = state.subscriptions[state.activeDataSubId] ?: return empty(state)
         val raw = active.networkType?.trim().orEmpty()
         if (raw.isEmpty()) return empty(state)
-        if (safe.hideWhenDisconnected && active.dataConnected == false) return empty(state)
+        if (active.dataConnected == false &&
+            (safe.hideWhenDisconnected || !state.wifiConnected)) return empty(state)
         // Wi-Fi carries the data connection: the type is suppressed rather than dropped, so the
         // renderer can keep the glyph's box and fade it. `state.wifiConnected` is the same signal
         // `icon_hide_mobile_on_wifi` uses and mirrors the host's own `!wifiAvailable` rule.

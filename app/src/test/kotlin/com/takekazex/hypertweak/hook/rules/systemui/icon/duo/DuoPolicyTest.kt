@@ -49,18 +49,20 @@ class DuoPolicyTest {
         .reduce(MobileSignalEvent.NetworkType(11, "5G-A"))
         .reduce(MobileSignalEvent.NetworkType(22, "4G"))
         .reduce(MobileSignalEvent.ActiveDataSubId(11))
+        .reduce(MobileSignalEvent.DataConnected(11, true))
+        .reduce(MobileSignalEvent.DataConnected(22, true))
 
     @Test fun rowsFollowPhysicalSlotsAcrossSubscriptionAndDataSimReordering() {
         val reversed = mobile().reduce(MobileSignalEvent.Subscriptions(listOf(22, 11)))
         val slotOf: (Int) -> Int = { if (it == 11) 0 else 1 }
-        val first = DuoPolicy.content(battery, reversed, cellular, slotOf)!!
-        val switched = DuoPolicy.content(battery, reversed.reduce(MobileSignalEvent.ActiveDataSubId(22)), cellular, slotOf)!!
+        val first = DuoPolicy.content(battery, reversed, cellular, slotOf = slotOf)!!
+        val switched = DuoPolicy.content(battery, reversed.reduce(MobileSignalEvent.ActiveDataSubId(22)), cellular, slotOf = slotOf)!!
         assertEquals(listOf(11, 22), first.cellularSignalRows.map { it.subId })
         assertEquals(first.cellularSignalRows, switched.cellularSignalRows)
         assertEquals("4G", switched.networkLabel)
         val onlySecond = reversed.reduce(MobileSignalEvent.ActiveDataSubId(22))
             .reduce(MobileSignalEvent.Subscriptions(listOf(22)))
-        val single = DuoPolicy.content(battery, onlySecond, cellular, slotOf)!!
+        val single = DuoPolicy.content(battery, onlySecond, cellular, slotOf = slotOf)!!
         assertEquals(listOf(DuoSignalRow(22, 1, 1)), single.cellularSignalRows)
     }
 
@@ -71,6 +73,22 @@ class DuoPolicyTest {
         assertEquals(1, result.mobileLevel)
         assertEquals("4G", result.networkLabel)
         assertEquals(listOf(11, 22), switched.subscriptionOrder)
+    }
+
+    @Test fun dataFirstKeepsTheActiveSimInTheLargeSignalRow() {
+        val switched = mobile().reduce(MobileSignalEvent.ActiveDataSubId(22))
+            .reduce(MobileSignalEvent.Subscriptions(listOf(22, 11)))
+        val slotOf: (Int) -> Int = { if (it == 11) 0 else 1 }
+        val dataFirst = DuoPolicy.content(battery, switched, cellular, true, slotOf)!!
+        assertEquals(listOf(22, 11), dataFirst.cellularSignalRows.map { it.subId })
+        assertEquals(listOf(1, 4), dataFirst.cellularSignalLevels)
+        assertEquals(1, dataFirst.mobileLevel)
+        assertEquals("4G", dataFirst.networkLabel)
+        val slotOrder = DuoPolicy.content(battery, switched, cellular, false, slotOf)!!
+        assertEquals(listOf(11, 22), slotOrder.cellularSignalRows.map { it.subId })
+        val wifi = DuoPolicy.content(battery, switched, DuoNetwork(DuoTransport.WIFI, true, 3), true, slotOf)!!
+        assertEquals(22, wifi.activeDataSubId)
+        assertEquals(1, wifi.mobileLevel)
     }
 
     @Test fun removedOrUnknownDataSimCannotShowTheLastKnownSim() {
@@ -95,31 +113,39 @@ class DuoPolicyTest {
 
     @Test fun systemWifiFallbackUsesCellularEvenWithStaleWifiState() {
         val wifi = DuoNetwork(DuoTransport.WIFI, false, 4, true)
-        assertFalse(DuoPolicy.content(battery, mobile(), wifi)!!.hollowCellularSignal)
         val fallback = DuoPolicy.content(battery, mobile(), wifi.copy(
             transport = DuoTransport.CELLULAR, validated = true))!!
         assertNull(fallback.wifiLevel)
         assertEquals("5G-A", fallback.networkLabel)
-        assertFalse(fallback.hollowCellularSignal)
         assertEquals(listOf(4, 1), fallback.cellularSignalLevels)
     }
 
-    @Test fun unreachableCellularUsesHollowSignalAndRecoversRealLevels() {
+    @Test fun unvalidatedCellularAndLostRoutePreserveRealSignalLevels() {
         val unreachable = DuoPolicy.content(battery, mobile(), cellular.copy(validated = false))!!
-        assertTrue(unreachable.hollowCellularSignal)
         assertEquals("5G-A", unreachable.networkLabel)
         assertEquals(listOf(4, 1), unreachable.cellularSignalLevels)
         val withoutType = DuoPolicy.content(battery,
             mobile().reduce(MobileSignalEvent.NetworkType(11, null)), cellular.copy(validated = false))!!
-        assertTrue(withoutType.hollowCellularSignal)
         assertNull(withoutType.networkLabel)
+        assertTrue(withoutType.hasCellularSignal)
+        assertEquals(listOf(4, 1), withoutType.cellularSignalLevels)
         val lost = DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.NONE, wifiLevel = 4))!!
         assertNull(lost.wifiLevel)
         assertNull(lost.networkLabel)
-        assertTrue(lost.hollowCellularSignal)
+        assertTrue(lost.hasCellularSignal)
+        assertEquals(listOf(4, 1), lost.cellularSignalLevels)
         val recovered = DuoPolicy.content(battery, mobile(), cellular)!!
-        assertFalse(recovered.hollowCellularSignal)
         assertEquals(unreachable.cellularSignalRows, recovered.cellularSignalRows)
+    }
+
+    @Test fun radiosNotCarryingDataKeepSignalWithoutStaleType() {
+        val idle = mobile().reduce(MobileSignalEvent.DataConnected(11, false))
+        for (network in listOf(DuoNetwork(DuoTransport.NONE), cellular)) {
+            val content = DuoPolicy.content(battery, idle, network)!!
+            assertNull(content.networkLabel)
+            assertTrue(content.hasCellularSignal)
+            assertEquals(listOf(4, 1), content.cellularSignalLevels)
+        }
     }
 
     @Test fun wifiDotsRetainTheActiveDataSimForTheirHandoff() {
@@ -157,7 +183,8 @@ class DuoPolicyTest {
         val offline = mobile().reduce(MobileSignalEvent.InService(11, false))
         val noService = DuoPolicy.content(battery, offline, DuoNetwork(DuoTransport.NONE, false))!!
         assertTrue(noService.noService)
-        assertTrue(noService.hollowCellularSignal)
+        assertTrue(noService.hasCellularSignal)
+        assertEquals(-1, noService.cellularSignalLevels.first())
     }
 
     @Test fun vpnUsesHostDefaultRouteRatherThanWifiAssociation() {
