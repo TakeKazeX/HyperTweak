@@ -14,12 +14,19 @@ class DockPresentationPolicyTest {
         assertFalse(inApp.probeTexture)
         assertTrue(gesture.showLayer && gesture.probeTexture)
     }
-    @Test fun lockScreenAndAssistantSuppressLayerWithoutDiscardingWarmHost() {
+    @Test fun screenOffAndKeyguardKeepChildForParentTransitionButSuspendTextureProbes() {
         listOf(
             DockPresentationPolicy.resolve(true, true, false, false, false, true),
             DockPresentationPolicy.resolve(true, true, true, true, false, true),
-            DockPresentationPolicy.resolve(true, true, true, false, true, true),
-        ).forEach { assertTrue(it.retainHost); assertFalse(it.showLayer); assertFalse(it.probeTexture) }
+            DockPresentationPolicy.resolve(true, true, false, true, false, false),
+        ).forEach { assertTrue(it.retainHost); assertTrue(it.showLayer); assertFalse(it.probeTexture) }
+        val unlocked = DockPresentationPolicy.resolve(true, true, true, false, false, true)
+        assertTrue(unlocked.showLayer && unlocked.probeTexture)
+    }
+    @Test fun nativeHotseatHideAndDisabledOrInvalidHostStillSuppressLayer() {
+        val hidden = DockPresentationPolicy.resolve(true, true, true, false, true, true)
+        assertTrue(hidden.retainHost)
+        assertFalse(hidden.showLayer || hidden.probeTexture)
         assertFalse(DockPresentationPolicy.resolve(false, true, true, false, false, true).retainHost)
         assertFalse(DockPresentationPolicy.resolve(true, false, true, false, false, true).retainHost)
     }

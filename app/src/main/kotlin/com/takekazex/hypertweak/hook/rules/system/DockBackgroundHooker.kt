@@ -352,7 +352,9 @@ object DockBackgroundHooker : StaticHooker() {
         entry.bounds = bounds
         entry.frame = Rect(frame)
         entry.density = configuration.densityDpi / 160f
-        entry.surfaceVisible = interactive && !locked && DockReflection.call(window, "isOnScreen") == true
+        // WMS owns parent visibility, including screen-off/lock and app transitions.
+        // The child only follows native Hotseat visibility, never an earlier power gate.
+        entry.surfaceVisible = presentation.showLayer
         if (schedulePose) scheduleFrame()
     }
 

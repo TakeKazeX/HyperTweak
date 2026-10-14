@@ -7,7 +7,9 @@ object DockPresentationPolicy {
     fun resolve(enabled: Boolean, validParent: Boolean, interactive: Boolean, locked: Boolean,
         nativeHidden: Boolean, onScreen: Boolean): DockPresentation {
         val retain = enabled && validParent
-        val show = retain && interactive && !locked && !nativeHidden
-        return DockPresentation(retain, show, show && onScreen)
+        // Power/keyguard state changes precede the parent's screen-off transition. Hiding
+        // this child there cuts the Dock out of the still-running launcher animation.
+        val show = retain && !nativeHidden
+        return DockPresentation(retain, show, show && interactive && !locked && onScreen)
     }
 }
