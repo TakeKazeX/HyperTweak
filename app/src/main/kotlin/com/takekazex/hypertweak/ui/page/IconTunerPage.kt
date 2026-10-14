@@ -35,6 +35,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalWeight
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
@@ -320,6 +321,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         StackedSignalSection(
                             enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
+                            weight = pref(Preferences.KEY_ICON_STACKED_WEIGHT, 0f),
                             hideWhenDisconnected = pref(
                                 Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
                                 false
@@ -435,6 +437,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
 @Composable
 private fun StackedSignalSection(
     enabled: Boolean,
+    weight: Float,
     hideWhenDisconnected: Boolean,
     keepTypeOnWifi: Boolean,
     showSingleBadge: Boolean,
@@ -443,7 +446,7 @@ private fun StackedSignalSection(
     onChange: (String, Any) -> Unit
 ) {
     // The signal artwork is fixed to the built-in HyperOS 3 SVGs, and icon scale, opacity, signal
-    // padding, SVG import and every type-appearance knob are no longer exposed here, so the hook
+    // padding and SVG import are no longer exposed here, so the hook
     // renders its built-in values for them.
     SmallTitle(stringResource(R.string.icon_stacked_signal_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -453,6 +456,10 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_signal_style),
                 stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
+            SliderRow(
+                "${stringResource(R.string.icon_stacked_signal_weight)} · ${(SignalWeight.normalize(weight) * 100).roundToInt()}%",
+                SignalWeight.normalize(weight), 0f, 1f
+            ) { onChange(Preferences.KEY_ICON_STACKED_WEIGHT, it) }
             // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
             // control-center carrier block's type glyph, which works without stacked signal.
             TunerSwitch(

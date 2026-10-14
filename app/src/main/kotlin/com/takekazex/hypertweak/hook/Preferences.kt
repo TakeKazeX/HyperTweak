@@ -636,6 +636,7 @@ object Preferences {
 
 
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
+    const val KEY_ICON_STACKED_WEIGHT = "icon_tuner_stacked_weight"
     const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
     const val KEY_ICON_STACKED_SVG_SINGLE = "icon_tuner_stacked_icon_svg_single"
     const val KEY_ICON_STACKED_SVG_SINGLE_NAME = "icon_tuner_stacked_icon_svg_single_name"

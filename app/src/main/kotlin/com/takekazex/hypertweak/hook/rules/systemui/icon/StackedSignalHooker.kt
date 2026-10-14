@@ -1043,7 +1043,8 @@ object StackedSignalHooker : StaticHooker() {
         publishedSignalRows = renderRows
         publishedSignalPicture = if (replacementVisible) IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
-            renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR) else null
+            renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
+            weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f)) else null
         renderTypeSlot(state, bridge)
         if (panelMotions.isNotEmpty()) {
             val commands = publishedSignalPicture
@@ -1279,6 +1280,7 @@ object StackedSignalHooker : StaticHooker() {
             paddingEndPx = SIGNAL_PADDING_END_PX,
             densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
             fontScale = context?.resources?.configuration?.fontScale ?: 1f,
+            signalWeight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f),
             configVersion = 3
         )
     }

@@ -37,6 +37,7 @@ data class IconSvgRenderConfig(
     val rtl: Boolean = false,
     val densityDpi: Int = 0,
     val fontScale: Float = 1f,
+    val signalWeight: Float = 0f,
     val configVersion: Int = 1
 )
 
@@ -137,18 +138,19 @@ object IconSvgRenderer {
         render(document, SvgKind.SINGLE_SIGNAL, listOf(level), config)
 
     /** Records vector commands once; replay scales paths, never a low-resolution bitmap. */
-    fun signalPicture(document: Document, levels: List<Int>, background: Float = .28f, error: Float = background): Picture =
+    fun signalPicture(document: Document, levels: List<Int>, background: Float = .28f, error: Float = background, weight: Float = 0f): Picture =
         picture(document, if (levels.size > 1) SvgKind.STACKED_SIGNAL else SvgKind.SINGLE_SIGNAL,
-            levels, IconSvgRenderConfig(20, alphaBg = background, alphaError = error))
+            levels, IconSvgRenderConfig(20, alphaBg = background, alphaError = error, signalWeight = weight))
 
     private fun picture(document: Document, kind: SvgKind, levels: List<Int>, config: IconSvgRenderConfig): Picture {
         val safe = config.safe()
-        val key = "$kind|$levels|${safe.alphaFg}|${safe.alphaBg}|${safe.alphaError}"
+        val key = "$kind|$levels|${safe.alphaFg}|${safe.alphaBg}|${safe.alphaError}|${safe.signalWeight}"
         return synchronized(document) {
             document.pictures[key] ?: run {
                 validate(document, kind).getOrThrow()
                 val opacities = opacityMap(document, kind, levels, safe)
-                val variant = SVG.getFromString(withOpacities(document.source, opacities))
+                val source = if (kind == SvgKind.STACKED_SIGNAL) SignalWeight.apply(document.source, safe.signalWeight) else document.source
+                val variant = SVG.getFromString(withOpacities(source, opacities))
                 val height = 100
                 val width = (height * document.metadata.viewBox.width() / document.metadata.viewBox.height()).toInt().coerceAtLeast(1)
                 variant.setDocumentWidth(width.toFloat())
@@ -216,7 +218,7 @@ object IconSvgRenderer {
             append('|').append(contentHeight).append('|').append(contentWidth).append('|').append(start).append('|').append(end)
             append('|').append(safe.alphaFg).append('|').append(safe.alphaBg).append('|').append(safe.alphaError)
             append('|').append(safe.rtl).append('|').append(safe.densityDpi).append('|').append(safe.fontScale)
-            append('|').append(safe.configVersion)
+            append('|').append(safe.signalWeight).append('|').append(safe.configVersion)
         }
         synchronized(document) { document.bitmaps[key]?.let { return it } }
 
@@ -444,6 +446,7 @@ object IconSvgRenderer {
         alphaError = alphaError.safeAlpha(0.7f),
         paddingStartPx = paddingStartPx.coerceIn(0, 512),
         paddingEndPx = paddingEndPx.coerceIn(0, 512),
+        signalWeight = SignalWeight.normalize(signalWeight),
         fontScale = fontScale.takeIf { it.isFinite() }?.coerceIn(0.1f, 4f) ?: 1f
     )
 

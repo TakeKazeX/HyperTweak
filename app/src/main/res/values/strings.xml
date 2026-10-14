@@ -696,6 +696,7 @@
     <string name="icon_slot_single_sim2">Custom SIM 2 signal icon</string>
     <string name="icon_slots_title">Slots</string>
     <string name="icon_stacked_signal_title">Stacked Signal</string>
+    <string name="icon_stacked_signal_weight">Stacked Signal Boldness</string>
     <string name="icon_notification_title">Notification Icons</string>
     <string name="icon_notification_max">Limit Notification Icons</string>
     <string name="icon_notification_max_summary">Set the maximum number of notification icons</string>

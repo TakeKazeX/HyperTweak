@@ -702,7 +702,8 @@ object DuoSignalHooker : StaticHooker() {
         if (levels.isEmpty()) return null
         val assets = loadCellularSignalAssets(context) ?: return null
         return runCatching {
-            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels)
+            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
+                weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f))
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 

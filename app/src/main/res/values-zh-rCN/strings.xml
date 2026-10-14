@@ -696,6 +696,7 @@
     <string name="icon_slot_single_sim2">自定义 SIM 卡 2 信号图标</string>
     <string name="icon_slots_title">槽位</string>
     <string name="icon_stacked_signal_title">堆叠信号</string>
+    <string name="icon_stacked_signal_weight">堆叠信号加粗</string>
     <string name="icon_notification_title">通知图标</string>
     <string name="icon_notification_max">限制通知图标数量</string>
     <string name="icon_notification_max_summary">设置通知图标数量上限</string>
