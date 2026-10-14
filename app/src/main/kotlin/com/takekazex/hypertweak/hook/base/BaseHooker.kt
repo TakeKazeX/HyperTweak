@@ -314,7 +314,7 @@ sealed class BaseHooker {
      * diagnostics even when their normal install path intentionally skips an already-replaced id.
      */
     internal fun adoptManagedHookHandle(handle: XposedInterface.HookHandle) {
-        hookHandles.add(wrapHandle(handle))
+        ownManagedHandle(handle)
         DebugLog.hookRegistered(hookerName, "carried id=${handle.id}")
     }
 
@@ -337,9 +337,7 @@ sealed class BaseHooker {
     ): XposedInterface.HookHandle {
         DebugLog.hookRegistered(hookerName, "$target id=${handle.id}")
         if (!managed) return handle
-        val managedHandle = wrapHandle(handle)
-        hookHandles.add(managedHandle)
-        return managedHandle
+        return ownManagedHandle(handle)
     }
 
     private fun replaceOldHandle(
@@ -359,21 +357,27 @@ sealed class BaseHooker {
         return replacement
     }
 
-    private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle {
-        return object : XposedInterface.HookHandle {
-            override fun getExecutable(): Executable = original.executable
-            override fun getId(): String? = original.getId()
-            override fun unhook() {
-                original.unhook()
-                hookHandles.remove(this)
-            }
-            override fun replaceHook(hooker: XposedInterface.Hooker): XposedInterface.HookHandle {
-                val replaced = original.replaceHook(hooker)
-                hookHandles.remove(this)
-                val managed = wrapHandle(replaced)
-                hookHandles.add(managed)
-                return managed
-            }
+    /** Re-registering an already owned replacement must not add a second wrapper. */
+    internal fun ownManagedHandle(handle: XposedInterface.HookHandle): XposedInterface.HookHandle {
+        if (handle is ManagedHookHandle && handle.owner === this) return handle
+        return wrapHandle(handle).also(hookHandles::add)
+    }
+
+    private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle =
+        ManagedHookHandle(original)
+
+    private inner class ManagedHookHandle(private val original: XposedInterface.HookHandle) : XposedInterface.HookHandle {
+        val owner: BaseHooker = this@BaseHooker
+        override fun getExecutable(): Executable = original.executable
+        override fun getId(): String? = original.getId()
+        override fun unhook() {
+            original.unhook()
+            hookHandles.remove(this)
+        }
+        override fun replaceHook(hooker: XposedInterface.Hooker): XposedInterface.HookHandle {
+            val replaced = original.replaceHook(hooker)
+            hookHandles.remove(this)
+            return ownManagedHandle(replaced)
         }
     }
 
