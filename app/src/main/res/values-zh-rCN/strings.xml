@@ -1539,4 +1539,6 @@
     <string name="fullscreen_back_show_bars_summary">AOSP 默认：第一次手势显示导航栏和状态栏</string>
     <string name="fullscreen_back_direct">直接返回</string>
     <string name="fullscreen_back_direct_summary">与小米原厂手势一致，无需先用一次手势显示系统栏</string>
+    <string name="tweaks_cc_hide_super_island_title">控制中心不显示超级岛</string>
+    <string name="tweaks_cc_hide_super_island_summary">打开控制中心时隐藏超级岛</string>
 </resources>

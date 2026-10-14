@@ -161,6 +161,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     // Removing the Super Island notification whitelist installs SystemUI hooks; enabling needs a
     // SystemUI restart. Callbacks read the per-app `<pkg>_focus` pref live, so disabling applies
     // immediately once the hooks are installed.
+    Preferences.KEY_CC_HIDE_SUPER_ISLAND to RestartScopeSelection(systemUi = true),
     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST to RestartScopeSelection(systemUi = true),
     // The media Super Island dropdown whitelist is a separate SystemUI gate and is independently
     // controllable from the normal Super Island notification whitelist.
@@ -427,6 +428,7 @@ class MainActivity : ComponentActivity() {
             var allowThirdPartyTheme by remember {
                 mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, false))
             }
+            var ccHideSuperIsland by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)) }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -564,6 +566,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
                     Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
                     Preferences.KEY_ALLOW_THIRD_PARTY_THEME -> allowThirdPartyTheme
+                    Preferences.KEY_CC_HIDE_SUPER_ISLAND -> ccHideSuperIsland
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -917,6 +920,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_ALLOW_THIRD_PARTY_THEME,
                         false
                     )
+                    ccHideSuperIsland = Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
                     mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
                     xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
@@ -1349,6 +1353,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
                         allowThirdPartyTheme = checked
                         Preferences.putBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
+                    },
+                    ccHideSuperIsland = ccHideSuperIsland,
+                    onCcHideSuperIslandChange = { checked ->
+                        ccHideSuperIsland = checked
+                        markTweaked(Preferences.KEY_CC_HIDE_SUPER_ISLAND, checked)
+                        Preferences.putBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, checked)
                     },
                     focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
                     onFocusNotificationUnlockWhitelistChange = { checked ->

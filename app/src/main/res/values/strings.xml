@@ -1545,4 +1545,6 @@
     <string name="fullscreen_back_show_bars_summary">AOSP default: the first gesture reveals the navigation and status bars</string>
     <string name="fullscreen_back_direct">Go back directly</string>
     <string name="fullscreen_back_direct_summary">Like Xiaomi gestures: go back without a separate gesture to reveal system bars</string>
+    <string name="tweaks_cc_hide_super_island_title">Hide Super Island in Control Center</string>
+    <string name="tweaks_cc_hide_super_island_summary">Hide Super Island while Control Center is open</string>
 </resources>

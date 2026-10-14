@@ -73,6 +73,8 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    ccHideSuperIsland: Boolean,
+    onCcHideSuperIslandChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
     mediaSuperIslandUnlockWhitelist: Boolean,
@@ -333,11 +335,17 @@ fun TweaksScreenContent(
                 }
             }
 
-            // Super Island: keep the normal, media, and xmsf gates together on this page (no
+            // Super Island: keep visibility and the normal, media, and xmsf gates on this page (no
             // second-level page), while leaving each switch independently controllable.
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = ccHideSuperIsland,
+                        onCheckedChange = onCcHideSuperIslandChange,
+                        title = stringResource(R.string.tweaks_cc_hide_super_island_title),
+                        summary = stringResource(R.string.tweaks_cc_hide_super_island_summary)
+                    )
                     SwitchPreference(
                         checked = focusNotificationUnlockWhitelist,
                         onCheckedChange = onFocusNotificationUnlockWhitelistChange,
