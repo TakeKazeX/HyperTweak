@@ -372,6 +372,7 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        retiring = false
         IconTunerFlows.init(classLoader)
 
         val managerBaseClass = ICON_MANAGER_BASE_CLASS.toClassOrNull()

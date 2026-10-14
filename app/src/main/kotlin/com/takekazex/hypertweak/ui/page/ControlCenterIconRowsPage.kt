@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
-import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,7 +43,6 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun ControlCenterIconRowsPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val listState = rememberLazyListState()
-    val requestRestartScopes = LocalRestartScopeRequest.current
     var entries by rememberSaveable {
         mutableStateOf(Preferences.getStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, emptySet()).toList())
     }
@@ -79,7 +77,6 @@ fun ControlCenterIconRowsPage(onBack: () -> Unit) {
                             val updated = IconSlotPolicy.withControlCenterRow(entries.toSet(), slot, index + 1)
                             entries = updated.toList()
                             Preferences.putStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, updated)
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                         }
                     )
                 }

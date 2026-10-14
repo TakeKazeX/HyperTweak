@@ -179,6 +179,7 @@ object IconPositionHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        retiring = false
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
         rowOverrides = Preferences.getStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, emptySet())

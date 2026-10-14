@@ -49,7 +49,6 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
-import com.takekazex.hypertweak.util.RestartScopeSelection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.Card
@@ -94,13 +93,12 @@ private const val AUTO_SCROLL_EDGE_FRACTION = 0.2f
  * of the legacy `icon_ext_blocked` list (HIDE_EVERYWHERE *is* "extra hidden"), without that key's
  * precedence over the mode, so there is no second hiding control here.
  *
- * Every edit reports SystemUI to the shared Home restart dialog; like every other secondary page
- * this one keeps no preference cache, so a value written here is re-read on the next visit.
+ * Edits refresh existing SystemUI icon groups through the remote settings listener.
+ * This page keeps no preference cache, so values are re-read on the next visit.
  */
 @Composable
 fun IconOrderPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
-    val requestRestartScopes = LocalRestartScopeRequest.current
     val pageScroll = rememberScrollState()
 
     // The auto-scroll threshold is compared against the scroll viewport's own bounds, so a
@@ -134,17 +132,12 @@ fun IconOrderPage(onBack: () -> Unit) {
         mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots))
     }
 
-    fun markDirty() {
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
-    }
-
     /** Stores the displayed order plus the carry-over entries the list cannot show. */
     fun persistOrder(slots: List<String>) {
         Preferences.putStringSet(
             IconTunerOptions.KEY_POSITION_VALUES,
             IconSlotPolicy.orderEntries(slots + offCatalogSlots)
         )
-        markDirty()
     }
 
     fun writeOrder(slots: List<String>) {
@@ -199,7 +192,6 @@ fun IconOrderPage(onBack: () -> Unit) {
                             onSelectedIndexChange = { index ->
                                 position = index
                                 Preferences.putInt(IconTunerOptions.KEY_POSITION, index)
-                                markDirty()
                             }
                         )
                         SwitchPreference(
@@ -210,7 +202,6 @@ fun IconOrderPage(onBack: () -> Unit) {
                                     IconTunerOptions.KEY_POSITION_REORDER,
                                     checked
                                 )
-                                markDirty()
                             },
                             title = stringResource(R.string.icon_position_reorder_hidden),
                             summary = stringResource(R.string.icon_position_reorder_hidden_summary)
@@ -242,8 +233,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                                         IconTunerOptions.KEY_POSITION_VALUES,
                                         IconSlotPolicy.orderEntries(offCatalogSlots)
                                     )
-                                    markDirty()
-                                },
+                                    },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                             )
                         }

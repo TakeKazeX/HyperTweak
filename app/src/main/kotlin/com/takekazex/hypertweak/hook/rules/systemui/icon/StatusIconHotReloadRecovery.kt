@@ -27,10 +27,15 @@ internal object StatusIconHotReloadRecovery {
     fun cancel() { active = false; main.removeCallbacksAndMessages(null) }
 
     fun schedule(context: Context) {
+        active = true
         main.post { if (active) recover(context) }
     }
 
-    private fun recover(context: Context) {
+    fun scheduleIcons(context: Context) {
+        main.post { if (active) recover(context, iconsOnly = true) }
+    }
+
+    private fun recover(context: Context, iconsOnly: Boolean = false) {
         runCatching {
             val app = context.applicationContext ?: context
             val component = read(app, "mSysUIComponent")
@@ -40,29 +45,31 @@ internal object StatusIconHotReloadRecovery {
             }
             // Header restoration must not depend on native status-icon group availability.
             val existingViews = windowViews()
-            recoverFeature("notification header") {
-                val headers = NotificationHeaderHooker.recoverExistingHosts(component, existingViews)
-                val headerViews = ArrayList<View>()
-                headers.forEach { collectViews(it, headerViews) }
-                NotificationHeaderClockSecondsHooker.recoverExistingViews((existingViews + headerViews).distinct())
-                NotificationHeaderWeatherHooker.recoverExistingHeaders(headers)
-            }
-            recoverFeature("notification content") { NotificationContentHotReloadRecovery.recover(existingViews) }
-            recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }
-            recoverFeature("media output switch") { MediaCardHideDeviceSwitchHooker.recoverExistingViews(existingViews) }
-            recoverFeature("lockscreen date") { LockscreenDateHooker.recoverExistingViews(existingViews) }
-            recoverFeature("lockscreen status bar") { HideLockscreenStatusBarHooker.recoverExistingViews(existingViews) }
-            recoverFeature("lockscreen compact labels") { LockscreenBottomTextHooker.recoverExistingViews(existingViews) }
-            recoverFeature("privacy header") { ControlCenterPrivacyHooker.recoverExistingViews(existingViews, component) }
-            recoverFeature("lockscreen indications") {
-                component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->
-                    // Rebuild native messages from current battery, biometric and transient state.
-                    val refresh = StatusIconHostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
-                        ?: error("Missing native keyguard indication refresh")
-                    refresh.invoke(indication, false)
-                    read(indication, "mRotateTextViewController")?.let(LockscreenChargingDetailHooker::recoverController)
+            if (!iconsOnly) {
+                recoverFeature("notification header") {
+                    val headers = NotificationHeaderHooker.recoverExistingHosts(component, existingViews)
+                    val headerViews = ArrayList<View>()
+                    headers.forEach { collectViews(it, headerViews) }
+                    NotificationHeaderClockSecondsHooker.recoverExistingViews((existingViews + headerViews).distinct())
+                    NotificationHeaderWeatherHooker.recoverExistingHeaders(headers)
+                }
+                recoverFeature("notification content") { NotificationContentHotReloadRecovery.recover(existingViews) }
+                recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }
+                recoverFeature("media output switch") { MediaCardHideDeviceSwitchHooker.recoverExistingViews(existingViews) }
+                recoverFeature("lockscreen date") { LockscreenDateHooker.recoverExistingViews(existingViews) }
+                recoverFeature("lockscreen status bar") { HideLockscreenStatusBarHooker.recoverExistingViews(existingViews) }
+                recoverFeature("lockscreen compact labels") { LockscreenBottomTextHooker.recoverExistingViews(existingViews) }
+                recoverFeature("lockscreen indications") {
+                    component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->
+                        // Rebuild native messages from current battery, biometric and transient state.
+                        val refresh = StatusIconHostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
+                            ?: error("Missing native keyguard indication refresh")
+                        refresh.invoke(indication, false)
+                        read(indication, "mRotateTextViewController")?.let(LockscreenChargingDetailHooker::recoverController)
+                    }
                 }
             }
+            recoverFeature("privacy header") { ControlCenterPrivacyHooker.recoverExistingViews(existingViews, component) }
             val controller = component?.let { provider(it, "statusBarIconControllerImplProvider") }
                 ?: error("Missing existing SystemUI icon controller")
             val managers = (read(controller, "mIconGroups") as? List<*>).orEmpty().filterNotNull().toList()

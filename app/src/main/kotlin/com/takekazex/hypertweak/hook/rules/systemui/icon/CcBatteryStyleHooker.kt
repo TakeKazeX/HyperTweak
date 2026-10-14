@@ -49,6 +49,7 @@ object CcBatteryStyleHooker : StaticHooker() {
     private var percentField: Field? = null
 
     override fun onHook() {
+        retiring = false
         if (!isMainProcess) return
         val outside = Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
         leadingPercent = Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false)

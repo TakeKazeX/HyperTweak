@@ -22,14 +22,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -40,8 +38,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
-import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
@@ -85,9 +81,8 @@ private val iconPrefsSaver = Saver<SnapshotStateMap<String, Any>, ArrayList<Any>
 /**
  * Status-bar icon customization, ported from Hyper Helper's icon tuner
  * (see the reverse-engineering workspace, cache/xiaomihelper-2bfd4873a4138764, and
- * OS4_ADAPTATION_PLAN.md). State is kept locally rather than hoisted into `MainActivity`, so every
- * change reports SystemUI to the shared Home restart dialog; the page also keeps its local restart
- * affordance. The page is a second-level settings menu: related controls are
+ * OS4_ADAPTATION_PLAN.md). Local state updates immediately; SystemUI consumes remote settings
+ * and refreshes the existing status-bar/control-center hosts. The page is a second-level settings menu: related controls are
  * grouped behind a compact TabRow so the long list does not become one undifferentiated scroll.
  */
 
@@ -126,12 +121,7 @@ private fun TunerSwitch(
 @Composable
 fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavigateToIconRows: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
     // async, so reading Preferences directly in composition made switches bounce back.
@@ -171,7 +161,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
     }
 
     fun changed(key: String, value: Any) {
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[key] = if (value is Set<*>) {
             ArrayList(value.filterIsInstance<String>())
         } else {
@@ -184,7 +173,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             is String -> Preferences.putString(key, value)
             is Set<*> -> Preferences.putStringSet(key, value.filterIsInstance<String>().toSet())
         }
-        systemUiRestartPending = true
     }
 
     // Modes follow Hyper Helper: 0 = follow system (lists untouched), 1 = visible everywhere,
@@ -436,31 +424,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 onChange = { key, value -> changed(key, value) }
                         )
                     }
-                }
-
-                if (systemUiRestartPending) {
-                SmallTitle(stringResource(R.string.icon_apply_title))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    ArrowPreference(
-                        title = stringResource(R.string.icon_restart_systemui),
-                        summary = stringResource(R.string.icon_restart_systemui_summary),
-                        enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                        onClick = {
-                            // The remote (LSPosed daemon) copy is written asynchronously; make
-                            // sure SystemUI starts after the daemon has the latest values.
-                            Preferences.flush()
-                            RestartUtils.restartScope(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                selection = RestartScopeSelection(systemUi = true),
-                                onCompleted = { completed ->
-                                    handleRestartedScopes(completed)
-                                    if (completed.systemUi) systemUiRestartPending = false
-                                },
-                            )
-                        }
-                    )
-                }
                 }
 
                 Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))

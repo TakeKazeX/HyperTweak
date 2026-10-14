@@ -169,9 +169,62 @@ class HookEntry : XposedModule() {
         if (nativeGenerationRetired || processName != "com.android.systemui") return null
         return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
     }
+    private val iconSettingsLock = java.util.concurrent.locks.ReentrantLock()
+    private val iconSettingsReload by lazy {
+        com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsLiveReload {
+            if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
+            finally { iconSettingsLock.unlock() }
+        }
+    }
+
+    private fun iconHookers(): List<BaseHooker> = listOf(
+        CellularIconHooker, WifiIconHooker, HideCellularIconHooker, IconManagerHooker,
+        IconPositionHooker, AirplaneIconHooker, IconSlotTintHooker, IgnoreSysIconSettingsHooker,
+        LeftContainerHooker, DuoSignalHooker, StackedSignalHooker, HideCarrierLabelHooker,
+        ControlCenterHeaderHooker, CcBatteryStyleHooker, ControlCenterCarrierBlockHooker,
+        ControlCenterPrivacyHooker, RegionSamplingHooker, CellularTypeIconHooker, NotificationMaxNumberHooker
+    )
+
+    /** Retire current callbacks before reattaching; real module hot reload uses framework handles. */
+    private fun applyLiveIconSettings(): Boolean {
+        if (nativeGenerationRetired || processName != "com.android.systemui") return true
+        val state = packageStates["com.android.systemui"] ?: return false
+        val context = state.appContext ?: return false
+        val hooks = iconHookers().filter { it in rootHookers }
+        if (hooks.isEmpty()) return false
+        val oldHandles = HotReloadHandleStore(hooks.flatMap { it.collectManagedHookHandles() })
+        com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsReloadTransaction.run(
+            hooks = hooks,
+            capture = { it.saveHotReloadState() },
+            prepare = { it.prepareForHotReload() },
+            reset = { it.resetAfterHotReloadPrepared() },
+            install = { hooker ->
+                hooker.setHotReloadReplacementHandles(null)
+                hooker.performInit()
+                hooker.updateParentState(true)
+            },
+            restore = { hooker, snapshot -> hooker.restoreHotReloadState(snapshot) },
+            retire = { unhookRemainingOldHandles(oldHandles) },
+            recover = {
+                StackedSignalHooker.onPackageReady(context)
+                ControlCenterCarrierBlockHooker.onPackageReady(context)
+                LeftContainerHooker.onPackageReady(context)
+                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context)
+            }
+        )
+        DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size}; native host recovery queued")
+        return true
+    }
+
     @Volatile private var nativeSettingsSource: SharedPreferences? = null
     @Volatile private var nativeSettingsReady = false
     private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (processName == "com.android.systemui" && !nativeGenerationRetired &&
+            com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy.affectsIcons(key)) {
+            Preferences.invalidateRuntimeReadCache()
+            DebugLog.d("IconTuner", "live icon setting received key=$key")
+            iconSettingsReload.request()
+        }
         if (key == null || key == Preferences.KEY_VOLUME_KEY_STEP_COUNT ||
             key == Preferences.KEY_VOLUME_KEY_STEP_SCOPE || key == "prefs_epoch") {
             Preferences.invalidateRuntimeReadCache()
@@ -325,7 +378,9 @@ class HookEntry : XposedModule() {
             )
             return false
         }
-        val ready = runCatching {
+        iconSettingsLock.lock()
+        val ready = try { runCatching {
+            if (processName == "com.android.systemui") iconSettingsReload.cancel()
             AospBackSystemUiHooker.checkHotReloadReady()
             refreshHotReloadSnapshots()
             if (!DexKitManager.prepareForHotReload()) {
@@ -356,7 +411,8 @@ class HookEntry : XposedModule() {
         }.onFailure { t ->
             DexKitManager.cancelHotReloadPreparation()
             DebugLog.e("HookEntry", "hot reload preparation failed; keeping old generation active", t)
-        }.isSuccess
+            if (processName == "com.android.systemui") iconSettingsReload.resume()
+        }.isSuccess } finally { iconSettingsLock.unlock() }
         return ready
     }
 
@@ -372,6 +428,7 @@ class HookEntry : XposedModule() {
         processName = param.processName
         isSystemServer = param.isSystemServer
         nativeGenerationRetired = false
+        if (processName == "com.android.systemui") iconSettingsReload.cancel()
         preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
         NativeRules.bindProcess(processName)
@@ -477,6 +534,7 @@ class HookEntry : XposedModule() {
                 DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
             }
         }
+        if (processName == "com.android.systemui") iconSettingsReload.resume()
         DebugLog.i("HookEntry", "hot reload replacement ready process=$processName roots=${rootHookers.size}")
     }
 
@@ -872,25 +930,7 @@ class HookEntry : XposedModule() {
                 attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
-                attachHooker(CellularIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(WifiIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(HideCellularIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(IconManagerHooker, classLoader, ctx, replacementHandles)
-                attachHooker(IconPositionHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AirplaneIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(IconSlotTintHooker, classLoader, ctx, replacementHandles)
-                attachHooker(IgnoreSysIconSettingsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LeftContainerHooker, classLoader, ctx, replacementHandles)
-                attachHooker(DuoSignalHooker, classLoader, ctx, replacementHandles)
-                attachHooker(StackedSignalHooker, classLoader, ctx, replacementHandles)
-                attachHooker(HideCarrierLabelHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ControlCenterHeaderHooker, classLoader, ctx, replacementHandles)
-                attachHooker(CcBatteryStyleHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ControlCenterCarrierBlockHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ControlCenterPrivacyHooker, classLoader, ctx, replacementHandles)
-                attachHooker(RegionSamplingHooker, classLoader, ctx, replacementHandles)
-                attachHooker(CellularTypeIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationMaxNumberHooker, classLoader, ctx, replacementHandles)
+                iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)

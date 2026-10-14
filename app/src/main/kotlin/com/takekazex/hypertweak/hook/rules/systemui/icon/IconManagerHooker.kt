@@ -177,6 +177,7 @@ object IconManagerHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        retiring = false
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
         registerHostLists()

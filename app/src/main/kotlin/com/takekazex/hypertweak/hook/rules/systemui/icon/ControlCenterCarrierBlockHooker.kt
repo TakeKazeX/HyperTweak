@@ -79,9 +79,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private const val SIGNAL_SVG_STYLE_IOS = 1
 
     private val main = Handler(Looper.getMainLooper())
-    private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
+    private fun newAssetExecutor() = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "HyperTweak-CarrierBlockAssets").apply { isDaemon = true }
     }
+    private var assetExecutor = newAssetExecutor()
     private val generation = AtomicLong(0L)
     private val installed = AtomicBoolean(false)
     private val artLock = Any()
@@ -472,6 +473,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        if (assetExecutor.isShutdown) assetExecutor = newAssetExecutor()
         networkOnFirstRow = Preferences.getBoolean(Preferences.KEY_CC_NETWORK_FIRST_ROW, false)
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(

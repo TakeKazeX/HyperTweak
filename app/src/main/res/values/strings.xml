@@ -510,7 +510,6 @@
     <string name="home_summary_active">Module loaded successfully</string>
     <string name="home_summary_hot_reload_required">The module is active, but running processes still use the old code. Tap to hot reload</string>
     <string name="home_summary_inactive">Enable the module in LSPosed manager, check HyperTweak itself in the scope, then reboot or restart SystemUI</string>
-    <string name="icon_apply_title">Apply</string>
     <string name="icon_back">Back</string>
     <string name="icon_cellular_title">Cellular</string>
     <string name="icon_cellular_type_custom">Custom Type Text</string>
@@ -640,8 +639,6 @@
     <string name="icon_ignore_system_hiding_summary">Show icons the system hides on its own (privacy indicator and others)</string>
     <string name="icon_page_title">Icon Tuner</string>
     <string name="icon_preview_network_type">5G</string>
-    <string name="icon_restart_systemui">Restart SystemUI</string>
-    <string name="icon_restart_systemui_summary">Apply the changes made on this page</string>
     <string name="icon_slot_mode_control_center">Control Center Only</string>
     <string name="icon_slot_mode_follow">Follow System</string>
     <string name="icon_slot_mode_hidden">Hidden</string>

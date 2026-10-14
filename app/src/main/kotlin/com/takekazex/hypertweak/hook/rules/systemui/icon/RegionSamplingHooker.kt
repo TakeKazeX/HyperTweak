@@ -67,6 +67,7 @@ object RegionSamplingHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        retiring = false
         val mode = Preferences.getInt(Preferences.KEY_STATUSBAR_REGION_SAMPLING, 0)
         if (mode !in 1..2) {
             DebugLog.hookSkippedDebug(TAG, "RegionSampling", "mode $mode not active")
