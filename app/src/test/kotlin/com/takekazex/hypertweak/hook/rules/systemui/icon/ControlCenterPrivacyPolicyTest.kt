@@ -4,6 +4,32 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ControlCenterPrivacyPolicyTest {
+    @Test fun `recovery reads prompt types instead of four inflated visible children`() {
+        val camera = setOf(ControlCenterPrivacyPolicy.Permission.CAMERA)
+        assertEquals(camera, ControlCenterPrivacyPolicy.nativePermissions(intArrayOf(1, 0, 0, 0), null, false))
+        assertEquals(emptySet<ControlCenterPrivacyPolicy.Permission>(),
+            ControlCenterPrivacyPolicy.nativePermissions(null, null, false))
+        assertEquals(camera, ControlCenterPrivacyPolicy.nativePermissions(intArrayOf(1), null, false))
+        assertEquals(emptySet<ControlCenterPrivacyPolicy.Permission>(),
+            ControlCenterPrivacyPolicy.nativePermissions(intArrayOf(2, -1, 0, 9), null, false))
+    }
+
+    @Test fun `android prompt replaces miui types and null android types clear them`() {
+        assertEquals(setOf(ControlCenterPrivacyPolicy.Permission.SCREEN),
+            ControlCenterPrivacyPolicy.nativePermissions(intArrayOf(1, 1, 1, 1), intArrayOf(0, 0, 0, 1), true))
+        assertEquals(emptySet<ControlCenterPrivacyPolicy.Permission>(),
+            ControlCenterPrivacyPolicy.nativePermissions(intArrayOf(1, 1, 1, 1), null, true))
+    }
+
+    @Test fun `expired history never restores stale native permission snapshot`() {
+        val all = ControlCenterPrivacyPolicy.Permission.entries.toSet()
+        assertEquals(emptySet<ControlCenterPrivacyPolicy.Permission>(),
+            ControlCenterPrivacyPolicy.displayPermissions(emptySet(), all))
+        val mic = setOf(ControlCenterPrivacyPolicy.Permission.MICROPHONE)
+        assertEquals(mic, ControlCenterPrivacyPolicy.displayPermissions(mic, all))
+        assertEquals(mic, ControlCenterPrivacyPolicy.displayPermissions(null, mic))
+    }
+
     @Test fun `centered or offset privacy never reserves status row width after recovery`() {
         for ((centered, offset) in listOf(true to 0, true to 8, false to 8, false to -16)) {
             assertEquals(ControlCenterPrivacyPolicy.Placement.ABOVE_STATUS,

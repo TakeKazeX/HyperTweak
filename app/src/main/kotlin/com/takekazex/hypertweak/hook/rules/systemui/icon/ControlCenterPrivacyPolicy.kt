@@ -21,6 +21,16 @@ internal object ControlCenterPrivacyPolicy {
                    val permission: Permission = Permission.LOCATION, val inactiveSinceMs: Long = 0)
     data class Presentation(val names: String, val permissions: Set<Permission>, val nextExpiryMs: Long? = null)
 
+    /** Native arrays are camera/microphone/location/screen; Android prompt wins when present. */
+    fun nativePermissions(miui: IntArray?, android: IntArray?, androidPresent: Boolean): Set<Permission> {
+        val types = if (androidPresent) android else miui
+        return Permission.entries.filterIndexed { index, _ -> types?.getOrNull(index) == 1 }.toSet()
+    }
+
+    /** An available but empty history is authoritative; it must not resurrect stale native icons. */
+    fun displayPermissions(history: Set<Permission>?, native: Set<Permission>): Set<Permission> =
+        history ?: native
+
     fun presentation(apps: List<App>, fallback: String, nowMs: Long = 0): Presentation {
         val active = apps.filter { it.packageName.isNotBlank() && (it.active ||
             (it.inactiveSinceMs > 0 && nowMs >= it.inactiveSinceMs && nowMs - it.inactiveSinceMs < RETENTION_MS)) }

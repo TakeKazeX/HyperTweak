@@ -98,7 +98,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         val dotVisibility = dotView.visibility
         val endVisibility = end.visibility
         var originalText: CharSequence = text.text
-        var nativeIconVisibility = icons.map { it.view.visibility }
+        var nativePermissions: Set<ControlCenterPrivacyPolicy.Permission> = emptySet()
         var styledText: String? = null
         var lastColor: Int? = null
         var fake: WeakReference<View>? = null
@@ -149,16 +149,25 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         before(headerClass, listOf("updateConstraint")) { owner ->
             (read(owner, "privacyContainer") as? ViewGroup)?.let { bindings[it] }?.let(::restore)
         }
-        hook(viewClass, listOf("onFinishInflate", "onAttachedToWindow", "onPromptInfoChanged",
+        hook(viewClass, listOf("onFinishInflate", "onAttachedToWindow",
             "onConfigChanged", "onDensityOrFontScaleChanged", "updateDimens\$2")) { owner, name ->
             val root = owner as? ViewGroup ?: return@hook
-            if (name == "onPromptInfoChanged") bindings[root]?.let {
-                it.originalText = it.text.text
-                it.styledText = null
-                it.nativeIconVisibility = it.icons.map { icon -> icon.view.visibility }
-            }
             if (name == "onDensityOrFontScaleChanged") bindings[root]?.let { it.textSize = it.text.textSize }
             bind(root)?.let(::style)
+        }
+        viewClass.findMethodOrNull { name("onPromptInfoChanged"); paramCount(2) }?.let { method ->
+            deoptimize(method)
+            method.hook { after { param ->
+                if (!enabled || retiring) return@after
+                guarded {
+                    val root = param.thisObject as? ViewGroup ?: return@guarded
+                    val binding = bind(root) ?: return@guarded
+                    binding.originalText = binding.text.text
+                    binding.styledText = null
+                    binding.nativePermissions = promptPermissions(param.args.getOrNull(0), param.args.getOrNull(1))
+                    style(binding)
+                }
+            } }
         }
         hook(viewClass, listOf("onDetachedFromWindow")) { owner, _ ->
             val root = owner as? ViewGroup ?: return@hook
@@ -235,7 +244,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     private fun before(type: Class<*>, names: List<String>, action: (Any) -> Unit) {
         type.declaredMethods.filter { it.name in names }.forEach { method ->
             deoptimize(method)
-            method.hook { before { param ->
+            method.hook(hookId = "$hookerName:privacy-restore:${method.toGenericString()}") { before { param ->
                 if (enabled && !retiring) guarded { action(param.thisObject) }
             } }
         }
@@ -360,25 +369,21 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         if (binding.styledText != binding.text.text.toString()) binding.originalText = binding.text.text
         val fallback = binding.originalText.toString()
         val presentation = appPresentation(root, fallback)
-        val permissions = presentation?.permissions.orEmpty()
+        val permissions = ControlCenterPrivacyPolicy.displayPermissions(
+            presentation?.permissions, nativePermissions(binding))
         scheduleExpiry(presentation?.nextExpiryMs)
         val value = if (!names) "" else presentation?.names ?: fallback
         val nativeVisible = read(root, "mVisibility") == true
         val visible = (nativeVisible || permissions.isNotEmpty()) && read(root, "mNeedShowing") != false
-        val displayPermissions = if (permissions.isNotEmpty()) permissions else
-            binding.nativeIconVisibility.mapIndexedNotNull { index, v ->
-                ControlCenterPrivacyPolicy.Permission.entries[index].takeIf { v == View.VISIBLE }
-            }.toSet()
-        animateChange(binding, displayPermissions, value, visible)
+        animateChange(binding, permissions, value, visible)
         root.visibility = if (visible) View.VISIBLE else View.GONE
         binding.fake?.get()?.let { fake ->
             val show = read(fake, "mVisibility") == true || permissions.isNotEmpty()
             fake.visibility = if (show && read(fake, "mNeedShowing") != false) View.VISIBLE else View.GONE
         }
         binding.icons.forEachIndexed { index, state ->
-            state.view.visibility = if (permissions.isNotEmpty()) {
-                if (ControlCenterPrivacyPolicy.Permission.entries[index] in permissions) View.VISIBLE else View.GONE
-            } else binding.nativeIconVisibility[index]
+            state.view.visibility = if (ControlCenterPrivacyPolicy.Permission.entries[index] in permissions)
+                View.VISIBLE else View.GONE
         }
         if (binding.text.text.toString() != value) binding.text.text = value
         binding.styledText = value
@@ -397,12 +402,30 @@ object ControlCenterPrivacyHooker : StaticHooker() {
             .coerceAtLeast(dp(root, 24))
     }
 
-    private fun appPresentation(root: View, fallback: String): ControlCenterPrivacyPolicy.Presentation? {
-        // Hook registration precedes SystemUI's Dependency initialization on a cold start.
+    private fun resolvePrivacyController(): Any? {
+        // Dependency can be unavailable during cold inflation; never infer permissions from Views.
         if (dependency == null) dependency = dependencyClass?.let { field(it, "sDependency")?.get(null) }
-        val controller = privacyController?.get() ?: runCatching {
+        return privacyController?.get() ?: runCatching {
             dependency?.let { dependencyGet?.invoke(it, controllerClass) }
-        }.getOrNull()?.also { privacyController = WeakReference(it) } ?: return null
+        }.getOrNull()?.also { privacyController = WeakReference(it) }
+    }
+
+    private fun promptPermissions(miui: Any?, android: Any?): Set<ControlCenterPrivacyPolicy.Permission> =
+        ControlCenterPrivacyPolicy.nativePermissions(miui?.let { invoke(it, "getMiuiType") } as? IntArray,
+            android?.let { invoke(it, "getAndroidType") } as? IntArray, android != null)
+
+    private fun nativePermissions(binding: Binding): Set<ControlCenterPrivacyPolicy.Permission> {
+        val root = binding.root.get() ?: return emptySet()
+        val controller = resolvePrivacyController()
+            ?: return if (read(root, "mVisibility") == true) binding.nativePermissions else emptySet()
+        val miui = read(controller, "mMiuiOptimization") as? Boolean ?: return binding.nativePermissions
+        return promptPermissions(if (miui) read(controller, "mPromptInfo") else null,
+            if (miui) null else read(controller, "mAndroidPromptInfo"))
+            .also { binding.nativePermissions = it }
+    }
+
+    private fun appPresentation(root: View, fallback: String): ControlCenterPrivacyPolicy.Presentation? {
+        val controller = resolvePrivacyController() ?: return null
         val tracker = read(controller, "mHistoryTracker")
         (read(controller, "mPromptInfo")?.let { read(it, "mPackageName") } as? String)
             ?.takeIf { it.isNotBlank() }?.let { primaryPackage = it }
@@ -600,8 +623,9 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         binding.fake?.get()?.let { fake ->
             fake.visibility = if (read(fake, "mVisibility") == true && read(fake, "mNeedShowing") != false) View.VISIBLE else View.GONE
         }
+        val native = nativePermissions(binding)
         binding.icons.forEachIndexed { index, state ->
-            state.view.visibility = binding.nativeIconVisibility[index]
+            state.view.visibility = if (ControlCenterPrivacyPolicy.Permission.entries[index] in native) View.VISIBLE else View.GONE
             state.view.setImageDrawable(state.drawable)
             state.view.imageTintList = state.tint
             state.view.background = state.background
