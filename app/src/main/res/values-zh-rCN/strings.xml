@@ -1539,4 +1539,6 @@
     <string name="fullscreen_back_direct_summary">与小米原厂手势一致，无需先用一次手势显示系统栏</string>
     <string name="tweaks_cc_hide_super_island_title">控制中心不显示超级岛</string>
     <string name="tweaks_cc_hide_super_island_summary">打开控制中心时隐藏超级岛</string>
+    <string name="tweaks_three_islands_title">三岛调度（实验性）</string>
+    <string name="tweaks_three_islands_summary">竖屏同时显示一个大岛和左右两个小岛，沿用原生任务优先级与手势；空间不足时恢复双岛。修改后请热重载系统界面。</string>
 </resources>

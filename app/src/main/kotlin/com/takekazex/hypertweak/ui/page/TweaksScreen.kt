@@ -73,7 +73,9 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    threeIslands: Boolean,
     ccHideSuperIsland: Boolean,
+    onThreeIslandsChange: (Boolean) -> Unit,
     onCcHideSuperIslandChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
@@ -340,6 +342,12 @@ fun TweaksScreenContent(
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = threeIslands,
+                        onCheckedChange = onThreeIslandsChange,
+                        title = stringResource(R.string.tweaks_three_islands_title),
+                        summary = stringResource(R.string.tweaks_three_islands_summary)
+                    )
                     SwitchPreference(
                         checked = ccHideSuperIsland,
                         onCheckedChange = onCcHideSuperIslandChange,

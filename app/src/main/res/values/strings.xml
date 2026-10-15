@@ -1545,4 +1545,6 @@
     <string name="fullscreen_back_direct_summary">Like Xiaomi gestures: go back without a separate gesture to reveal system bars</string>
     <string name="tweaks_cc_hide_super_island_title">Hide Super Island in Control Center</string>
     <string name="tweaks_cc_hide_super_island_summary">Hide Super Island while Control Center is open</string>
+    <string name="tweaks_three_islands_title">Three Islands (Experimental)</string>
+    <string name="tweaks_three_islands_summary">Show one large island and two small islands in portrait. Uses native task priority and gestures; falls back to two islands when space is limited. Reload SystemUI hooks after changing.</string>
 </resources>

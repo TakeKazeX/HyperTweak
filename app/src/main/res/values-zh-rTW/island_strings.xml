@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tweaks_three_islands_title">三島調度（實驗性）</string>
+    <string name="tweaks_three_islands_summary">直向同時顯示一個大島和左右兩個小島，沿用原生任務優先級與手勢；空間不足時恢復雙島。修改後請熱重載系統介面。</string>
+</resources>

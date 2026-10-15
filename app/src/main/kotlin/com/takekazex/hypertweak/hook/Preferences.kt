@@ -527,6 +527,9 @@ object Preferences {
      */
     const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
 
+    /** Experimental native one-big/two-small scheduling; disabled by default. */
+    const val KEY_THREE_ISLANDS = "systemui_three_islands"
+
     /** Hide Super Island through the plugin temporary-hide path while Control Center appears. */
     const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
 

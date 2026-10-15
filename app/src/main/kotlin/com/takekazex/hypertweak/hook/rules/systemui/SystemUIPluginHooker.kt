@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -24,6 +25,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val cornerHooker: ControlCenterCornerHooker,
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
         val superIslandHooker: ControlCenterSuperIslandHooker,
+        val threeIslandHooker: ThreeIslandHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
@@ -109,6 +111,8 @@ object SystemUIPluginHooker : StaticHooker() {
                                 runCatching { mediaWhitelist.prepareForHotReload() }
                                 detach(mediaWhitelist)
                             }
+                            runCatching { session.threeIslandHooker.prepareForHotReload() }
+                            detach(session.threeIslandHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -216,6 +220,7 @@ object SystemUIPluginHooker : StaticHooker() {
         }
         val volumeKeyHooker = ControlCenterVolumeKeyHooker()
         val superIslandHooker = ControlCenterSuperIslandHooker()
+        val threeIslandHooker = ThreeIslandHooker()
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
             ControlCenterCardsEditHooker()
         } else {
@@ -248,6 +253,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 cornerHooker,
                 volumeKeyHooker,
                 superIslandHooker,
+                threeIslandHooker,
                 cardsEditHooker,
                 cardResizeHooker,
                 mediaDeviceIconHooker,
@@ -256,6 +262,8 @@ object SystemUIPluginHooker : StaticHooker() {
         // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
         // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
         // hooker uninstalled while the session entry suppressed later retries.
+        runCatching { attach(threeIslandHooker, state.classLoader) }
+            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach three-island scheduler", it) }
         runCatching { attach(superIslandHooker, state.classLoader) }
             .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
         runCatching { attach(hooker, state.classLoader) }

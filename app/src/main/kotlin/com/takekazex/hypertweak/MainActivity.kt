@@ -428,6 +428,7 @@ class MainActivity : ComponentActivity() {
             var allowThirdPartyTheme by remember {
                 mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, false))
             }
+            var threeIslands by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)) }
             var ccHideSuperIsland by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)) }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
@@ -566,6 +567,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
                     Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
                     Preferences.KEY_ALLOW_THIRD_PARTY_THEME -> allowThirdPartyTheme
+                    Preferences.KEY_THREE_ISLANDS -> threeIslands
                     Preferences.KEY_CC_HIDE_SUPER_ISLAND -> ccHideSuperIsland
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
@@ -920,6 +922,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_ALLOW_THIRD_PARTY_THEME,
                         false
                     )
+                    threeIslands = Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)
                     ccHideSuperIsland = Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
                     mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
@@ -1353,6 +1356,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
                         allowThirdPartyTheme = checked
                         Preferences.putBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
+                    },
+                    threeIslands = threeIslands,
+                    onThreeIslandsChange = { checked ->
+                        threeIslands = checked
+                        markTweaked(Preferences.KEY_THREE_ISLANDS, checked)
+                        Preferences.putBoolean(Preferences.KEY_THREE_ISLANDS, checked)
                     },
                     ccHideSuperIsland = ccHideSuperIsland,
                     onCcHideSuperIslandChange = { checked ->
