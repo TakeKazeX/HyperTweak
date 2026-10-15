@@ -29,11 +29,11 @@ import java.lang.reflect.Method
  * `app_notification` SharedPreferences, and that value is read directly (via the method's Context
  * argument — the same file `getFocusState` reads). A package with `_focus == 0` is left to the
  * original logic (returns 0, or -1 if it is also cloud-blacklisted), so the user can always turn
- * an app off without losing the unlock for everything else. Read at hook-install time; requires a
- * SystemUI restart.
+ * an app off without losing the unlock for everything else. Hooks attach unconditionally and
+ * read the switch live on each callback.
  */
 object FocusNotificationWhitelistHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "FocusNotificationWhitelist"
     private const val SETTINGS_MANAGER =
@@ -41,10 +41,6 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
     private const val NOTIF_PREFS = "app_notification"
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) {
-            DebugLog.hookSkippedDebug(TAG, "Super Island notification whitelist", "disabled")
-            return
-        }
         val manager = SETTINGS_MANAGER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, SETTINGS_MANAGER, "class not found")
             return
@@ -71,6 +67,7 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
         method.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, target, Unit) {
+                    if (!Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) return@open
                     val context = param.args[0] as? Context ?: return@open
                     val pkg = param.args[1] as? String ?: return@open
                     val focusPref = try {

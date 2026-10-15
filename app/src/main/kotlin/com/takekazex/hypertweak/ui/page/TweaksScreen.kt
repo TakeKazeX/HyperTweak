@@ -74,8 +74,12 @@ fun TweaksScreenContent(
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
     threeIslands: Boolean,
+    landscapeFullIslands: Boolean,
+    landscapeMoreIslands: Boolean,
     ccHideSuperIsland: Boolean,
     onThreeIslandsChange: (Boolean) -> Unit,
+    onLandscapeFullIslandsChange: (Boolean) -> Unit,
+    onLandscapeMoreIslandsChange: (Boolean) -> Unit,
     onCcHideSuperIslandChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
@@ -347,6 +351,18 @@ fun TweaksScreenContent(
                         onCheckedChange = onThreeIslandsChange,
                         title = stringResource(R.string.tweaks_three_islands_title),
                         summary = stringResource(R.string.tweaks_three_islands_summary)
+                    )
+                    SwitchPreference(
+                        checked = landscapeFullIslands,
+                        onCheckedChange = onLandscapeFullIslandsChange,
+                        title = stringResource(R.string.tweaks_landscape_full_islands_title),
+                        summary = stringResource(R.string.tweaks_landscape_full_islands_summary)
+                    )
+                    SwitchPreference(
+                        checked = landscapeMoreIslands,
+                        onCheckedChange = onLandscapeMoreIslandsChange,
+                        title = stringResource(R.string.tweaks_landscape_more_islands_title),
+                        summary = stringResource(R.string.tweaks_landscape_more_islands_summary)
                     )
                     SwitchPreference(
                         checked = ccHideSuperIsland,

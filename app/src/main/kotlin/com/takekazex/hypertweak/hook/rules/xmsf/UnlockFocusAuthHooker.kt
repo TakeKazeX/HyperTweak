@@ -27,7 +27,7 @@ import java.lang.reflect.Modifier
  *
  * The hook before-forces the error dispatch to return the success Bundle (with the AuthError's int
  * error-code field zeroed, mirroring upstream), so the signature check passes for every app. The
- * switch is read live in the callback; installing the hook needs an xmsf restart.
+ * switch is read live in the callback; the hook attaches unconditionally.
  *
  * Resolution is by reflection, not DexKit: on this build the two classes keep their names
  * (`com.xiaomi.xms.auth.AuthSession` / `AuthError` are referenced directly by the binder code and
@@ -38,7 +38,7 @@ import java.lang.reflect.Modifier
  * methods are deoptimized so ART cannot AOT-inline the error dispatch past the hook.
  */
 object UnlockFocusAuthHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "UnlockFocusAuth"
     private const val AUTH_SESSION = "com.xiaomi.xms.auth.AuthSession"
@@ -51,10 +51,6 @@ object UnlockFocusAuthHooker : StaticHooker() {
     )
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
-            DebugLog.hookSkippedDebug(TAG, "Super Island whitelist signature auth", "disabled")
-            return
-        }
         val targets = resolveTargets() ?: run {
             DebugLog.hookSkipped(TAG, AUTH_SESSION, "auth session targets not resolved")
             return

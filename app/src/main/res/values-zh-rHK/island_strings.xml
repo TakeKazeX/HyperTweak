@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tweaks_three_islands_title">三島調度（實驗性）</string>
-    <string name="tweaks_three_islands_summary">直向同時顯示一個大島和左右兩個小島，沿用原生任務優先級與手勢；空間不足時恢復雙島。修改後請熱重載系統介面。</string>
+    <string name="tweaks_three_islands_summary">橫直向最多顯示三個島，沿用原生任務優先級與手勢；空間不足時恢復雙島。修改後即時生效。</string>
+    <string name="tweaks_landscape_full_islands_title">橫向全寬島</string>
+    <string name="tweaks_landscape_full_islands_summary">橫向空間充足時，各島顯示完整內容，雙島時也生效。不依賴三島調度開關，空間不足時恢復原生配置。修改後即時生效。</string>
+    <string name="tweaks_landscape_more_islands_title">橫向顯示更多超級島</string>
+    <string name="tweaks_landscape_more_islands_summary">按橫向可用寬度顯示更多原生超級島，放不下的任務繼續排隊；可搭配全寬或小島配置。修改後即時生效。</string>
 </resources>

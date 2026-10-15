@@ -1540,5 +1540,9 @@
     <string name="tweaks_cc_hide_super_island_title">控制中心不显示超级岛</string>
     <string name="tweaks_cc_hide_super_island_summary">打开控制中心时隐藏超级岛</string>
     <string name="tweaks_three_islands_title">三岛调度（实验性）</string>
-    <string name="tweaks_three_islands_summary">竖屏同时显示一个大岛和左右两个小岛，沿用原生任务优先级与手势；空间不足时恢复双岛。修改后请热重载系统界面。</string>
+    <string name="tweaks_three_islands_summary">横竖屏最多显示三个岛，沿用原生任务优先级与手势；空间不足时恢复双岛。修改后即时生效。</string>
+    <string name="tweaks_landscape_full_islands_title">横屏全宽岛</string>
+    <string name="tweaks_landscape_full_islands_summary">横屏空间充足时，各岛显示完整内容，两岛时也生效。不依赖三岛调度开关，空间不足时恢复原生布局。修改后即时生效。</string>
+    <string name="tweaks_landscape_more_islands_title">横屏显示更多超级岛</string>
+    <string name="tweaks_landscape_more_islands_summary">按横屏可用宽度显示更多原生超级岛，放不下的任务继续排队；可搭配全宽或小岛布局。修改后即时生效。</string>
 </resources>

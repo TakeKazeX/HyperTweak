@@ -40,6 +40,26 @@ object SystemUIPluginHooker : StaticHooker() {
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
     private val activeAodSessions = ConcurrentHashMap<Any, AodPluginSession>()
 
+    fun refreshIslandSettings() {
+        activeSessions.values.forEach { session ->
+            session.threeIslandHooker.refreshSettings()
+            session.superIslandHooker.refreshSettings()
+        }
+    }
+
+    override fun saveHotReloadState(): Any = activeSessions.values.map { session ->
+        listOf(session.state.pluginInstance, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers())
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        (state as? List<*>)?.forEach { item ->
+            val entry = item as? List<*> ?: return@forEach
+            val session = activeSessions[entry.firstOrNull()] ?: return@forEach
+            session.threeIslandHooker.restoreOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
+            session.superIslandHooker.restoreControllers((entry.getOrNull(2) as? List<*>)?.filterNotNull().orEmpty())
+        }
+    }
+
     override fun onPrepareHotReload() {
         activeSessions.clear()
         activeAodSessions.clear()
@@ -220,7 +240,7 @@ object SystemUIPluginHooker : StaticHooker() {
         }
         val volumeKeyHooker = ControlCenterVolumeKeyHooker()
         val superIslandHooker = ControlCenterSuperIslandHooker()
-        val threeIslandHooker = ThreeIslandHooker()
+        val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath)
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
             ControlCenterCardsEditHooker()
         } else {
@@ -236,15 +256,7 @@ object SystemUIPluginHooker : StaticHooker() {
         } else {
             null
         }
-        val mediaSuperIslandWhitelistHooker = if (Preferences.getBoolean(
-                Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
-                false
-            )
-        ) {
-            MediaSuperIslandWhitelistHooker()
-        } else {
-            null
-        }
+        val mediaSuperIslandWhitelistHooker = MediaSuperIslandWhitelistHooker()
 
         activeSessions[state.pluginInstance] =
             PluginHookSession(
@@ -299,7 +311,7 @@ object SystemUIPluginHooker : StaticHooker() {
                     Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
                 }
         }
-        if (mediaSuperIslandWhitelistHooker != null) {
+        run {
             runCatching { attach(mediaSuperIslandWhitelistHooker, state.classLoader) }
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach media Super Island plugin hook", t)

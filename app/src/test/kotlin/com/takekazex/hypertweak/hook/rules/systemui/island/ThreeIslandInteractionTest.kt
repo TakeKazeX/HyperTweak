@@ -4,17 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ThreeIslandInteractionTest {
-    @Test fun `four tasks keep three summary seats while the fourth is expanded`() {
-        assertTrue(ThreeIslandAdmission.reserve(true, true, true, true))
-        assertTrue(ThreeIslandAdmission.reserve(true, true, true, false))
-        assertTrue(ThreeIslandAdmission.reserve(true, true, false, false))
-    }
-    @Test fun `expanding one of three retains remaining small seat until card closes`() {
-        assertTrue(ThreeIslandAdmission.reserve(true, false, true, true))
-        assertFalse(ThreeIslandAdmission.reserve(true, false, false, true))
-        assertFalse(ThreeIslandAdmission.reserve(false, true, true, true))
-        assertFalse(ThreeIslandAdmission.reserve(true, false, true, false))
-    }
     @Test fun `left media and right task keep physical seats through ownership exchange`() {
         val seats = SmallIslandSeats()
         seats.assign("timer", "media")

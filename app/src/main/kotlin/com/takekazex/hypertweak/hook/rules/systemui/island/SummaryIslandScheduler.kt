@@ -8,12 +8,12 @@ internal class SummaryIslandScheduler {
 
     fun isHidden(key: String?): Boolean = key != null && key in hidden
 
-    fun plan(visible: List<String>, queued: List<String>, reveal: Boolean, downKey: String?): Change? {
+    fun plan(visible: List<String>, queued: List<String>, reveal: Boolean, downKey: String?, capacity: Int = 3): Change? {
         if (reveal) {
             // Prefer tasks still waiting for a turn over tasks explicitly hidden by the user.
             val next = queued.firstOrNull { it !in visible && it !in hidden }
                 ?: hidden.firstOrNull { it in queued && it !in visible } ?: return null
-            if (visible.size >= 3) {
+            if (visible.size >= capacity.coerceAtLeast(2)) {
                 val previous = if (downKey == null) visible.first() else downKey.takeIf { it in visible } ?: return null
                 return Change(visible.map { if (it == previous) next else it }, next, true, previous)
             }
@@ -36,14 +36,15 @@ internal class SummaryIslandScheduler {
         }
     }
 
-    data class Selection(val native: List<String>, val extra: String?) {
-        val visible: List<String> get() = native + listOfNotNull(extra)
+    data class Selection(val native: List<String>, val extras: List<String>) {
+        val extra: String? get() = extras.firstOrNull()
+        val visible: List<String> get() = native + extras
     }
 
     /** Fresh tasks can always use free capacity; only explicitly hidden identities are excluded. */
-    fun select(visible: List<String>, queued: List<String>, smallEligible: Set<String>): Selection {
+    fun select(visible: List<String>, queued: List<String>, smallEligible: Set<String>, capacity: Int = 3): Selection {
         val eligible = (visible + queued).distinct().filterNot(::isHidden)
-        return Selection(eligible.take(2), eligible.drop(2).firstOrNull { it in smallEligible })
+        return Selection(eligible.take(2), eligible.drop(2).filter { it in smallEligible }.take((capacity - 2).coerceAtLeast(0)))
     }
 
     /** Opening a summary card frees one seat, even if its backup was hidden by rotation. */
@@ -55,6 +56,11 @@ internal class SummaryIslandScheduler {
         val next = candidates.firstOrNull { it !in hidden } ?: candidates.firstOrNull() ?: return null
         hidden.remove(next)
         return next
+    }
+
+    /** Explicitly expanding capacity starts a new presentation of all currently queued tasks. */
+    fun capacityChanged(previousMore: Boolean, more: Boolean) {
+        if (more && !previousMore) hidden.clear()
     }
 
     fun retain(keys: Set<String>) { hidden.retainAll(keys) }

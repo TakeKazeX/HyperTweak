@@ -219,6 +219,19 @@ class HookEntry : XposedModule() {
     @Volatile private var nativeSettingsSource: SharedPreferences? = null
     @Volatile private var nativeSettingsReady = false
     private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (!nativeGenerationRetired && (processName == "com.xiaomi.xmsf" || processName.startsWith("com.xiaomi.xmsf:")) &&
+            (key == null || key == "prefs_epoch" || key == Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH)) {
+            Preferences.invalidateRuntimeReadCache()
+        }
+        if (processName == "com.android.systemui" && !nativeGenerationRetired && (key == null || key == "prefs_epoch" || key in setOf(
+                Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
+                Preferences.KEY_LANDSCAPE_MORE_ISLANDS, Preferences.KEY_CC_HIDE_SUPER_ISLAND,
+                Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST))) {
+            Preferences.invalidateRuntimeReadCache()
+            DebugLog.i("ThreeIslands", "settings received key=$key three=${Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)} " +
+                "full=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)} more=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)}")
+            SystemUIPluginHooker.refreshIslandSettings()
+        }
         if (processName == "com.android.systemui" && !nativeGenerationRetired &&
             com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy.affectsIcons(key)) {
             Preferences.invalidateRuntimeReadCache()
@@ -250,7 +263,8 @@ class HookEntry : XposedModule() {
     }
 
     private fun bindNativeSettingsListener(source: SharedPreferences) {
-        if ((!isSystemServer && processName != LAUNCHER_PACKAGE && processName != "com.android.systemui") ||
+        if ((!isSystemServer && processName != LAUNCHER_PACKAGE && processName != "com.android.systemui" && processName != "com.xiaomi.xmsf" &&
+                !processName.startsWith("com.xiaomi.xmsf:")) ||
             nativeSettingsSource === source) return
         detachNativeSettingsListener()
         runCatching {

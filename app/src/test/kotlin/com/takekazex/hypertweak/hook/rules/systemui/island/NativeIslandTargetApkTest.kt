@@ -6,12 +6,91 @@ import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.iface.ClassDef
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
+import org.jf.dexlib2.iface.reference.StringReference
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /** Validate against both APKs: the plugin API also depends on classes supplied by SystemUI. */
 class NativeIslandTargetApkTest {
+    @Test fun `live whitelist gates preserve verified host signatures`() {
+        val paths = listOf("SYSTEMUI_PLUGIN_APK", "SYSTEMUI_APK", "XMSF_AUTH_APK").map { System.getenv(it)?.let(::File) }
+        assumeTrue(paths.all { it?.isFile == true })
+        val classes = paths.filterNotNull().flatMap { path ->
+            val container = DexFileFactory.loadDexContainer(path, Opcodes.getDefault())
+            container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }
+        }.associateBy { it.type }
+        val manager = classes.getValue("Lcom/miui/systemui/notification/NotificationSettingsManager;")
+        for (name in listOf("canShowFocusState", "canShowFocusStateApp")) {
+            val method = manager.methods.single { it.name == name && it.parameterTypes.size == 2 }
+            assertEquals(listOf("Landroid/content/Context;", "Ljava/lang/String;"), method.parameterTypes.map(CharSequence::toString))
+            assertEquals("I", method.returnType)
+        }
+        val media = classes.getValue("Lmiui/systemui/notification/NotificationSettingsManager;")
+            .methods.single { it.name == "mediaIslandSupportMiniWindow" }
+        assertEquals(listOf("Ljava/lang/String;"), media.parameterTypes.map(CharSequence::toString))
+        assertEquals("Z", media.returnType)
+        val session = classes.getValue("Lcom/xiaomi/xms/auth/AuthSession;")
+        val publicFinal = session.methods.filter { it.accessFlags and 0x11 == 0x11 && it.returnType == "Landroid/os/Bundle;" }
+        val error = publicFinal.single { it.parameterTypes.map(CharSequence::toString) == listOf("Lcom/xiaomi/xms/auth/AuthError;") }
+        val success = publicFinal.single { it.parameterTypes.isEmpty() }
+        fun strings(method: org.jf.dexlib2.iface.Method) = method.implementation!!.instructions.mapNotNull {
+            ((it as? ReferenceInstruction)?.reference as? StringReference)?.string
+        }.toSet()
+        assertTrue("result_code" in strings(error))
+        assertTrue("Auth is successful" in strings(success))
+        assertEquals(1, classes.getValue("Lcom/xiaomi/xms/auth/AuthError;").fields.count { it.type == "I" })
+    }
+
+    @Test fun `semantic discovery has unique entries connected to the native render and scheduling graph`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val methods = classes.values.flatMap { it.methods.toList() }
+        fun javaType(type: String): String = when (type) {
+            "V" -> "void"; "Z" -> "boolean"; "F" -> "float"; "I" -> "int"
+            else -> if (type.startsWith("[")) type.replace('/', '.') else type.removePrefix("L").removeSuffix(";").replace('/', '.')
+        }
+        val entries = NativeIslandAnchors.strings.mapValues { (role, anchors) ->
+            val candidates = methods.filter { method ->
+                val strings = (method.implementation?.instructions ?: emptyList()).mapNotNull {
+                    ((it as? ReferenceInstruction)?.reference as? StringReference)?.string
+                }.toList()
+                anchors.all { anchor -> strings.any { anchor in it } }
+            }
+            NativeIslandAnchors.select(role, candidates,
+                { it.parameterTypes.map { type -> javaType(type.toString()) } }, { javaType(it.returnType) })
+        }
+        val tween = entries.getValue("widthTween")
+        assertTrue(classes.getValue(tween.definingClass).methods.any { it.name == "setTo" &&
+            it.parameterTypes == tween.parameterTypes && it.returnType == tween.returnType })
+        val transaction = entries.getValue("transaction")
+        val animation = entries.getValue("animation")
+        val content = transaction.parameterTypes[1].toString()
+        assertEquals(content, entries.getValue("contentMeasure").definingClass)
+        assertEquals(listOf(content), animation.parameterTypes.map(CharSequence::toString))
+        val transitions = entries.getValue("transitions")
+        val calls = animation.implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }.toList()
+        assertTrue(calls.any { it.definingClass == transitions.definingClass && it.name == transitions.name &&
+            it.parameterTypes == transitions.parameterTypes && it.returnType == transitions.returnType })
+        val coordinator = classes.getValue(transaction.definingClass)
+        assertEquals(1, coordinator.fields.count { it.type == "Ljava/util/ArrayList;" })
+        val gesture = classes.getValue("Lmiui/systemui/dynamicisland/anim/ui/animator/IslandGestureAnimator;")
+        assertEquals(1, gesture.fields.count { it.type == classes.getValue(content).superclass })
+        val press = gesture.methods.single { it.name == "onPressBigIsland" }
+        val reset = gesture.methods.single { it.name == "resetPressBigIsland" }
+        assertEquals(listOf(content), press.parameterTypes.map(CharSequence::toString))
+        assertEquals(listOf(content), reset.parameterTypes.map(CharSequence::toString))
+        val full = classes.getValue("Lmiui/systemui/dynamicisland/anim/ui/animator/IslandAnimStateFactory;")
+            .methods.single { it.name == "createBigIslandProperties" }
+        assertTrue(full.implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }.any { it.name == "getBigIslandStart" })
+    }
+
     @Test fun `verified host exposes the complete scheduling measurement and touch contract`() {
         val paths = listOf("SYSTEMUI_PLUGIN_APK", "SYSTEMUI_APK").map { System.getenv(it)?.let(::File) }
         assumeTrue(paths.all { it?.isFile == true })

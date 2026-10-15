@@ -8,13 +8,34 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Uses the plugin's temporary-hide event and per-content gate; never deletes island data. */
 class ControlCenterSuperIslandHooker : DynamicHooker() {
     private val main = Handler(Looper.getMainLooper())
     private val forcedControllers = WeakHashMap<Any, Boolean>()
-    private var retiring = false
+    private val knownControllers = WeakHashMap<Any, Boolean>()
+    @Volatile private var retiring = false
     private var restore: ((Any) -> Unit)? = null
+
+    fun snapshotControllers(): List<Any> = synchronized(knownControllers) { knownControllers.keys.toList() }
+
+    fun restoreControllers(controllers: List<Any>) {
+        synchronized(knownControllers) { controllers.forEach { knownControllers[it] = true } }
+        refreshSettings()
+    }
+
+    private val refreshSettingsAction = Runnable {
+        if (!retiring) snapshotControllers().forEach { owner ->
+            HookFailurePolicy.open(TAG, "live temporary hide", Unit) { restore?.invoke(owner) }
+        }
+    }
+
+    fun refreshSettings() {
+        main.removeCallbacks(refreshSettingsAction)
+        if (!retiring) main.post(refreshSettingsAction)
+    }
 
     override fun onHook() {
         val state = "miui.systemui.dynamicisland.window.DynamicIslandWindowState".toClassOrNull()
@@ -51,6 +72,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false) &&
             (value(owner, expanded, expandedValue) || value(owner, swiping, swipeValue))
         fun refresh(owner: Any) {
+            synchronized(knownControllers) { knownControllers[owner] = true }
             val windowState = getState.invoke(owner) ?: return
             val forced = shouldHide(windowState)
             val previous = synchronized(forcedControllers) { forcedControllers[owner] == true }
@@ -103,6 +125,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
+        main.removeCallbacks(refreshSettingsAction)
         main.removeCallbacksAndMessages(null)
         val owners = synchronized(forcedControllers) { forcedControllers.keys.toList() }
         val refresh = restore
@@ -113,8 +136,13 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
                 HookFailurePolicy.open(TAG, "restore native visibility", Unit) { refresh?.invoke(owner) }
             }
             synchronized(forcedControllers) { forcedControllers.clear() }
+            synchronized(knownControllers) { knownControllers.clear() }
         }
-        if (Looper.myLooper() == main.looper) cleanup.run() else main.post(cleanup)
+        if (Looper.myLooper() == main.looper) cleanup.run() else {
+            val done = CountDownLatch(1)
+            main.post { try { cleanup.run() } finally { done.countDown() } }
+            check(done.await(5, TimeUnit.SECONDS)) { "island visibility cleanup timed out" }
+        }
         restore = null
     }
 

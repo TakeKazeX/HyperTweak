@@ -1546,5 +1546,9 @@
     <string name="tweaks_cc_hide_super_island_title">Hide Super Island in Control Center</string>
     <string name="tweaks_cc_hide_super_island_summary">Hide Super Island while Control Center is open</string>
     <string name="tweaks_three_islands_title">Three Islands (Experimental)</string>
-    <string name="tweaks_three_islands_summary">Show one large island and two small islands in portrait. Uses native task priority and gestures; falls back to two islands when space is limited. Reload SystemUI hooks after changing.</string>
+    <string name="tweaks_three_islands_summary">Show up to three islands in portrait and landscape, using native task priority and gestures. Falls back to two islands when space is limited. Changes apply immediately.</string>
+    <string name="tweaks_landscape_full_islands_title">Full islands in landscape</string>
+    <string name="tweaks_landscape_full_islands_summary">Show full content on each visible island when space allows, including two islands. Works independently of Three Islands; falls back to native layout when space is limited. Changes apply immediately.</string>
+    <string name="tweaks_landscape_more_islands_title">More islands in landscape</string>
+    <string name="tweaks_landscape_more_islands_summary">Show as many native islands as the available width allows. Extra tasks stay queued; works with full or compact islands. Changes apply immediately.</string>
 </resources>

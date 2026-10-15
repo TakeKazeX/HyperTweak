@@ -530,6 +530,10 @@ object Preferences {
     /** Experimental native one-big/two-small scheduling; disabled by default. */
     const val KEY_THREE_ISLANDS = "systemui_three_islands"
 
+    /** Independent landscape native full-template layout for occupied summaries. */
+    const val KEY_LANDSCAPE_FULL_ISLANDS = "systemui_landscape_full_islands"
+    const val KEY_LANDSCAPE_MORE_ISLANDS = "systemui_landscape_more_islands"
+
     /** Hide Super Island through the plugin temporary-hide path while Control Center appears. */
     const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
 
@@ -538,8 +542,7 @@ object Preferences {
      * `NotificationSettingsManager.canShowFocusState` / `canShowFocusStateApp` to treat every
      * package as Super Island-capable. The per-app `<pkg>_focus` preference is respected — a
      * user who explicitly turned an app off keeps it off, while everything without an explicit
-     * off is unlocked. Read by `FocusNotificationWhitelistHooker` at hook-install time; requires
-     * a SystemUI restart.
+     * off is unlocked. Read live by `FocusNotificationWhitelistHooker`.
      */
     const val KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST = "focus_notification_unlock_whitelist"
 
@@ -547,7 +550,7 @@ object Preferences {
      * Removes the media Super Island dropdown whitelist (MIUI SystemUI plugin): hooks
      * `miui.systemui.notification.NotificationSettingsManager.mediaIslandSupportMiniWindow` to
      * allow media mini-windows/dropdowns from every package. The hook is attached when the plugin
-     * loads and reads this preference live at callback time. Requires a SystemUI restart to attach.
+     * loads unconditionally and reads this preference live at callback time.
      */
     const val KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST = "media_super_island_unlock_whitelist"
 
@@ -555,8 +558,7 @@ object Preferences {
      * Unlocks the Super Island whitelist signature verification (com.xiaomi.xmsf): hooks
      * `com.xiaomi.xms.auth.AuthSession`'s error dispatch (R8-obfuscated, resolved by signature)
      * to force every auth request to succeed, so arbitrary apps pass xmsf's whitelist signature
-     * check. Read by `UnlockFocusAuthHooker` at hook-install time and live in the callback;
-     * requires an xmsf restart to install.
+     * check. `UnlockFocusAuthHooker` attaches unconditionally and reads the switch live.
      */
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
 
