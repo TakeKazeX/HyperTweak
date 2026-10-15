@@ -23,8 +23,7 @@ class ThreeIslandHooker : DynamicHooker() {
             set(value) { slot.task = value }
         val seats = SmallIslandSeats()
         val gesture = IslandGestureScope()
-        val swipe = SummaryIslandSwipe()
-        var summaryLimit = 3
+        val scheduler = SummaryIslandScheduler()
         var swipePreview: Any? = null
         var layoutIntent = false
         var layout: ThreeIslandLayout? = null
@@ -200,8 +199,8 @@ class ThreeIslandHooker : DynamicHooker() {
                     val session = sessions[param.thisObject] ?: return@after
                     extension(session, "window region") {
                         val region = param.result as? Region ?: return@extension
-                        if (name == "getSmallBigIslandRegion" && session.summaryLimit == 0 &&
-                            session.swipe.hasHidden && summarySwipeEnabled(session)) {
+                        if (name == "getSmallBigIslandRegion" && host.current(session.owner, "getBigIslandStateHandler") == null &&
+                            session.scheduler.hasHidden && summarySwipeEnabled(session)) {
                             // Keep a summary reveal target even while a separate card is expanded.
                             (host.call(session.owner, "getDefaultIslandTouchRegion") as? Region)?.let {
                                 region.op(it, Region.Op.UNION)
@@ -458,18 +457,15 @@ class ThreeIslandHooker : DynamicHooker() {
             host.call(host.call(s.owner, "getBigIslandStateHandler")!!, "getCurrentTempShow") == null
     }
 
-    private fun swipePlan(s: Session, visible: List<Any>, reveal: Boolean): SummaryIslandSwipe.Change? =
-        s.swipe.plan(visible.mapNotNull(::key), host.queue(s.owner).filter {
-            host.hidden.isInstance(host.call(it, "getState"))
-        }.mapNotNull(::key), reveal, s.gesture.clickKey)
+    private fun swipePlan(s: Session, visible: List<Any>, reveal: Boolean): SummaryIslandScheduler.Change? =
+        s.scheduler.plan(visible.mapNotNull(::key), queuedSummaries(s).mapNotNull(::key), reveal, s.gesture.clickKey)
 
-    private fun commitSwipe(s: Session, before: List<Any>, change: SummaryIslandSwipe.Change) {
+    private fun commitSwipe(s: Session, before: List<Any>, change: SummaryIslandScheduler.Change) {
         val queue = host.queue(s.owner)
         val pool = (before + queue).distinct()
         val after = change.visible.map { wanted -> pool.single { key(it) == wanted } }
         val target = pool.single { key(it) == change.task }
-        s.swipe.commit(change)
-        s.summaryLimit = after.size
+        s.scheduler.commit(change)
         queue.removeAll(before.toSet() + after.toSet())
         val removed = before.filter { it !in after }
         removed.forEach { if (it !in queue) queue.add(it) }
@@ -486,18 +482,23 @@ class ThreeIslandHooker : DynamicHooker() {
         host.call(handler, "setCurrent", queue.firstOrNull())
     }
 
-    /** Keep manually hidden tasks excluded until a swipe or new card vacancy admits them. */
-    private fun enforceSwipeVisibility(s: Session) {
-        if (!summarySwipeEnabled(s) || (s.summaryLimit == 3 && !s.swipe.hasHidden)) return
+    private fun queuedSummaries(s: Session): List<Any> = host.queue(s.owner).filter {
+        host.hidden.isInstance(host.call(it, "getState"))
+    }
+
+    /** Apply one policy decision to both native handlers and the leased third slot. */
+    private fun selectSummaries(s: Session): Any? {
         val queue = host.queue(s.owner)
         val handler = host.call(s.owner, "getHiddenStateHandler")!!
         val bigHandler = host.call(s.owner, "getBigIslandStateHandler")!!
         val smallHandler = host.call(s.owner, "getSmallIslandStateHandler")!!
         val before = summaries(s)
-        val queued = queue.filter { host.hidden.isInstance(host.call(it, "getState")) }
+        val queued = queuedSummaries(s)
         val pool = (before + queued).distinct()
-        val desired = s.swipe.reconcile(before.mapNotNull(::key), queued.mapNotNull(::key), minOf(2, s.summaryLimit))
-            .map { wanted -> pool.single { key(it) == wanted } }
+        val byKey = pool.mapNotNull { view -> key(view)?.let { it to view } }.toMap()
+        val smallEligible = pool.filter { host.number(it, "getSmallIslandViewWidth") > 0 }.mapNotNull(::key).toSet()
+        val selected = s.scheduler.select(before.mapNotNull(::key), queued.mapNotNull(::key), smallEligible)
+        val desired = selected.native.map(byKey::getValue)
         queue.removeAll(desired.toSet())
         host.call(bigHandler, "setCurrent", desired.getOrNull(0))
         host.call(smallHandler, "setCurrent", desired.getOrNull(1))
@@ -509,8 +510,9 @@ class ThreeIslandHooker : DynamicHooker() {
             }
         }
         host.call(handler, "setCurrent", queue.firstOrNull())
-        s.swipe.retain((queue + summaries(s) + listOfNotNull(host.current(s.owner, "getExpandedStateHandler")))
+        s.scheduler.retain((queue + desired + listOfNotNull(host.current(s.owner, "getExpandedStateHandler")))
             .mapNotNull(::key).toSet())
+        return selected.extra?.let(byKey::getValue)
     }
 
     private fun claimSmall(session: Session, target: Any) {
@@ -538,27 +540,18 @@ class ThreeIslandHooker : DynamicHooker() {
         val owner = s.owner
         val queue = host.queue(owner)
         val expanded = host.current(owner, "getExpandedStateHandler")
-        if (summarySwipeEnabled(s)) {
+        val eligible = summarySwipeEnabled(s)
+        if (eligible) {
             // The host may already have promoted the queued task into a native summary
             // handler. Release its swipe exclusion before enforcing visibility, otherwise
             // that promotion is immediately hidden again and the third seat stays empty.
-            s.swipe.fillExpandedVacancy(tx.expandedKey, expanded?.let(::key), tx.visible.mapNotNull(::key),
-                (summaries(s) + queue.filter { host.hidden.isInstance(host.call(it, "getState")) })
-                    .mapNotNull(::key))
+            s.scheduler.fillExpandedVacancy(tx.expandedKey, expanded?.let(::key), tx.visible.mapNotNull(::key),
+                (summaries(s) + queuedSummaries(s)).mapNotNull(::key))
         }
-        enforceSwipeVisibility(s)
+        val candidate = if (eligible) selectSummaries(s) else null
         val big = host.current(owner, "getBigIslandStateHandler")
         val right = host.current(owner, "getSmallIslandStateHandler")
-        val window = host.call(owner, "getWindowView") as? View
-        val canShow = enabled(s) && big != null && right != null && window != null &&
-            window.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT &&
-            window.resources.configuration.smallestScreenWidthDp < 600 &&
-            host.call(owner, "isTinyScreen") == false && host.call(owner, "getInConfigRebuild") == false &&
-            host.current(owner, "getShowOnceIslandHandler") == null &&
-            host.call(host.call(owner, "getBigIslandStateHandler")!!, "getCurrentTempShow") == null
-        val candidate = if (canShow && s.summaryLimit >= 3) queue.firstOrNull {
-            host.hidden.isInstance(host.call(it, "getState")) && !s.swipe.isHidden(key(it)) && host.number(it, "getSmallIslandViewWidth") > 0
-        } else null
+        val canShow = eligible && big != null && right != null
         s.extra = candidate
         s.layoutIntent = ThreeIslandAdmission.reserve(canShow, candidate != null, expanded != null, s.layout != null)
         s.seats.assign(right?.let(::key), candidate?.let(::key))
@@ -604,8 +597,7 @@ class ThreeIslandHooker : DynamicHooker() {
         session.layout = null
         session.layoutIntent = false
         session.gesture.begin(null)
-        session.swipe.clear()
-        session.summaryLimit = 3
+        session.scheduler.clear()
         session.swipePreview = null
         session.departingPositions.clear()
         val handler = host.call(session.owner, "getHiddenStateHandler")!!

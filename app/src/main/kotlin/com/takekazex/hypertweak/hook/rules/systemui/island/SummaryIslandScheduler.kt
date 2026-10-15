@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
-/** One horizontal gesture changes one task, independently of the native two-slot carousel. */
-internal class SummaryIslandSwipe {
+/** Task admission and gesture decisions share one visibility policy, independent of slot count. */
+internal class SummaryIslandScheduler {
     private val hidden = LinkedHashSet<String>()
     val hasHidden: Boolean get() = hidden.isNotEmpty()
     data class Change(val visible: List<String>, val task: String, val reveal: Boolean, val displaced: String? = null)
@@ -36,8 +36,15 @@ internal class SummaryIslandSwipe {
         }
     }
 
-    fun reconcile(visible: List<String>, queued: List<String>, limit: Int): List<String> =
-        (visible + queued).distinct().filterNot(::isHidden).take(limit.coerceIn(0, 3))
+    data class Selection(val native: List<String>, val extra: String?) {
+        val visible: List<String> get() = native + listOfNotNull(extra)
+    }
+
+    /** Fresh tasks can always use free capacity; only explicitly hidden identities are excluded. */
+    fun select(visible: List<String>, queued: List<String>, smallEligible: Set<String>): Selection {
+        val eligible = (visible + queued).distinct().filterNot(::isHidden)
+        return Selection(eligible.take(2), eligible.drop(2).firstOrNull { it in smallEligible })
+    }
 
     /** Opening a summary card frees one seat, even if its backup was hidden by rotation. */
     fun fillExpandedVacancy(previousExpanded: String?, expanded: String?,
