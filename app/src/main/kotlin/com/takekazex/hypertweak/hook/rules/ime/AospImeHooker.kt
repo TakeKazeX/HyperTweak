@@ -53,10 +53,6 @@ object AospImeHooker : StaticHooker() {
     private const val INPUT_METHOD_MODULE_MANAGER = "android.inputmethodservice.InputMethodModuleManager"
     private const val NAV_BAR_KEY_BUTTON_VIEW = "android.inputmethodservice.navigationbar.KeyButtonView"
 
-    // `input_method_nav_back` is an internal framework id; getIdentifier usually cannot see it,
-    // so keep the literal from the decompiled KeyButtonView as the fallback.
-    private const val NAV_BACK_ID_FALLBACK = 0x010203b8
-
     private const val CAPTION_BAR_HEIGHT_DP = 48
     private const val NAV_BAR_SHADOW_DP = 4
 
@@ -87,8 +83,8 @@ object AospImeHooker : StaticHooker() {
     private var deadZoneSizeMinField: Field? = null
     private var navBarFrameClass: Class<*>? = null
 
-    /** `InputMethodService.mWindow` (private, declared on the base class, not on keyboard subclasses). */
-    private var imeWindowField: Field? = null
+    /** `InputMethodService.mRootView` (private, declared on the base class, not on keyboard subclasses). */
+    private var imeRootField: Field? = null
 
     /** Resolved controller class (`NavigationBarController` or the .15 `$Impl` shape). */
     private var navBarControllerClass: Class<*>? = null
@@ -159,7 +155,7 @@ object AospImeHooker : StaticHooker() {
         navBarHorizontalField = null
         deadZoneSizeMinField = null
         navBarFrameClass = null
-        imeWindowField = null
+        imeRootField = null
         navBarControllerClass = null
         navBarControllerInstance = null
         captionBarHeightPxCache = null
@@ -501,7 +497,7 @@ object AospImeHooker : StaticHooker() {
     /**
      * OS4.0.0.19 keyboards that ignore the window's caption-bar inset (e.g. 搜狗小米版) keep their
      * keys laid out to the very bottom of the window, where the taller AOSP bar then covers them.
-     * The keyboard container (`input_method` root, id 0x010204ab) is bottom-aligned inside the
+     * The keyboard container (the service-owned `input_method` root) is bottom-aligned inside the
      * decor, so adding a bottom padding equal to the bar height raises every keyboard's keys to
      * end exactly at the bar top, whatever the keyboard's own inset handling is.
      *
@@ -570,34 +566,15 @@ object AospImeHooker : StaticHooker() {
     }
 
     private fun findInputMethodRoot(service: Context): View? {
-        val windowField = imeWindowField ?: runCatching {
+        val rootField = imeRootField ?: runCatching {
             INPUT_METHOD_SERVICE.toClassOrNull()
-                ?.getDeclaredField("mWindow")
+                ?.getDeclaredField("mRootView")
                 ?.apply { isAccessible = true }
-        }.getOrNull()?.also { imeWindowField = it }
-        if (windowField == null) {
-            DebugLog.d(TAG, "raise: mWindow field not resolved")
-            return null
-        }
-        val decor = runCatching {
-            val window = windowField.get(service)
-            val getWindow = window.javaClass.getMethod("getWindow")
-            val w = getWindow.invoke(window)
-            w.javaClass.getMethod("getDecorView").invoke(w) as? View
-        }.getOrNull()
-        if (decor == null) {
-            DebugLog.d(TAG, "raise: decor not resolved")
-            return null
-        }
-
-        // 0x010204ab = the `input_method` root id in the framework's input_method.xml layout.
-        // The id is not exposed on android.R (an old AOSP id this ROM reuses for the root), so
-        // the numeric constant is the only stable handle across OS4 builds.
-        @Suppress("ResourceType")
-        val root = decor.findViewById(0x010204ab) as? View
-        if (root == null) {
-            DebugLog.d(TAG, "raise: input_method root not found (decor=${decor.javaClass.simpleName})")
-        }
+        }.getOrNull()?.also { imeRootField = it }
+        // The service owns the current inflated input_method layout. Resource integers are
+        // build-specific (the previous root ID is overlay_display_window_title on OS4 stable).
+        val root = runCatching { rootField?.get(service) as? View }.getOrNull()
+        if (root == null) DebugLog.d(TAG, "raise: InputMethodService root not ready")
         return root
     }
 
@@ -871,6 +848,7 @@ object AospImeHooker : StaticHooker() {
 
     private fun wireBackButtonToDismiss(navBar: View) {
         val backButtonId = resolveNavBackId(navBar.resources)
+        if (backButtonId == 0) return
         val backButton = navBar.findViewById<View>(backButtonId)
         if (backButton == null || wiredBackViews.put(backButton, true) == true) return
         val keyButtonClass = NAV_BAR_KEY_BUTTON_VIEW.toClassOrNull()
@@ -896,7 +874,6 @@ object AospImeHooker : StaticHooker() {
     private fun resolveNavBackId(resources: Resources): Int {
         if (navBackIdCached != -1) return navBackIdCached
         val resolved = resources.getIdentifier("input_method_nav_back", "id", "android")
-            .takeIf { it != 0 } ?: NAV_BACK_ID_FALLBACK
         navBackIdCached = resolved
         return resolved
     }

@@ -35,11 +35,8 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         if (hookParam.processName !in setOf("com.miui.screenshot", "com.miui.screenshot:photo_editor")) return
         boundary("resolve native screenshot contract") {
             val apk = hookParam.appInfo?.sourceDir?.let(::File) ?: return@boundary
-            if (!NativeScreenshotFrameAccess.supports(apk)) {
-                DebugLog.d(TAG, "unsupported screenshot APK; retaining native saves")
-                return@boundary
-            }
-            val access = NativeScreenshotFrameAccess(classLoader)
+            val contract = ScreenshotFrameResolver(apk.path).resolve()
+            val access = NativeScreenshotFrameAccess(classLoader, contract)
             access.saveCallChain.forEach { member ->
                 check(deoptimize(member)) { "Cannot prepare native save call chain: $member" }
             }

@@ -89,22 +89,28 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         invalidate()
     }
 
+    private var ownCaptureBridge = false
+
     private fun enableCapture() {
         if (capture) return
-        val enabled = DockReflection.call(this, "setPassWindowBlurEnabled", true) == true
-        if (!enabled) {
-            val already = runCatching { DockReflection.field(this, "mNeedPassWindowBlur").getBoolean(this) }.getOrDefault(false)
-            if (!already) {
-                val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
-                val field = DockReflection.field(root, "mPassWindowBlurFilterData")
-                val original = field.get(root) as? String ?: error("Native background filter unavailable")
-                // Modify only OUR attached ViewRoot's filter; never a static flag or another app.
-                check(context.packageName == "com.takekazex.hypertweak")
-                field.set(root, "$original,${context.packageName}")
-                if (DockReflection.call(this, "setPassWindowBlurEnabled", true) != true) {
-                    field.set(root, original)
-                    error("Native cross-window background rejected")
-                }
+        if (DockReflection.call(this, "setPassWindowBlurEnabled", true) != true &&
+            !DockReflection.field(this, "mNeedPassWindowBlur").getBoolean(this)) {
+            // OS4 stable moved admission into ViewRootImplStub. Its global policy is not
+            // ours to change. Execute the same native View operations on OUR renderer only.
+            check(context.packageName == "com.takekazex.hypertweak")
+            val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
+            val node = requireNotNull(DockReflection.field(this, "mRenderNode").get(this))
+            val enabled = DockReflection.field(this, "mNeedPassWindowBlur")
+            try {
+                DockReflection.call(root, "addTextureView", this)
+                DockReflection.call(node, "setPassWindowBlurEnabled", true)
+                enabled.setBoolean(this, true)
+                ownCaptureBridge = true
+            } catch (error: Throwable) {
+                runCatching { DockReflection.call(root, "clearTextureView", this) }.exceptionOrNull()?.let(error::addSuppressed)
+                runCatching { DockReflection.call(node, "setPassWindowBlurEnabled", false) }.exceptionOrNull()?.let(error::addSuppressed)
+                enabled.setBoolean(this, false)
+                throw error
             }
         }
         capture = true
@@ -138,7 +144,17 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
     }.getOrDefault(0L)
 
     fun stop() {
-        if (capture) runCatching { DockReflection.call(this, "setPassWindowBlurEnabled", false) }
+        if (capture) runCatching {
+            if (ownCaptureBridge) {
+                val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
+                val node = requireNotNull(DockReflection.field(this, "mRenderNode").get(this))
+                try { DockReflection.call(root, "clearTextureView", this) } finally {
+                    DockReflection.call(node, "setPassWindowBlurEnabled", false)
+                    DockReflection.field(this, "mNeedPassWindowBlur").setBoolean(this, false)
+                }
+            } else DockReflection.call(this, "setPassWindowBlurEnabled", false)
+        }.onFailure { com.takekazex.hypertweak.util.DebugLog.w("DockMaterial", "native capture cleanup failed", it) }
+        ownCaptureBridge = false
         capture = false
         configured = false
         pending = null

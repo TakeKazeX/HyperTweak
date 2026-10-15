@@ -1478,20 +1478,10 @@ bool ResolveSideBoundaryProfile(const uint8_t* base, void* app_entry_point,
     uintptr_t edge_offset = 0u;
     if (!ResolveSide(view, imports, &side_offset, &edge_offset,
                      &diagnostics->side_candidate_count)) {
-        // 8.01.02.6144 keeps the validated launcher entry at 0x91def8 but
-        // rewrites the wrapper prologue/call spacing. Its unique side handler
-        // remains the same MotionEvent graph at 0x654804 with edge field 0xf4;
-        // use that bounded candidate only for this exact entry shape.
-        const uintptr_t entry_address = reinterpret_cast<uintptr_t>(
-                app_entry_point);
-        if (entry_address != reinterpret_cast<uintptr_t>(base) + 0x91def8u ||
-                !Contains(view, 0x654804u, 0x108u, PF_R | PF_X)) {
-            diagnostics->stage = ResolveStage::kRejectedSideBoundary;
-            return false;
-        }
-        side_offset = 0x654804u;
-        edge_offset = 0xf4u;
+        diagnostics->stage = ResolveStage::kRejectedSideBoundary;
+        return false;
     }
+
     diagnostics->side_handler_offset = side_offset;
 
     diagnostics->stage = ResolveStage::kResolvingRuntime;

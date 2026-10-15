@@ -8,10 +8,9 @@
 // LSPosed's inline hook (which mprotects) and on the madvise page guard to keep
 // the patched page alive.
 //
-// Every target is identified by a verified snapshot build id, version profile,
-// and prologue fingerprint before anything is written. An unknown launcher
-// update fails the resolution closed instead of patching whatever now happens
-// to sit at an old offset.
+// Every target is derived from the current snapshot's instruction structure and
+// call relationships. Missing or ambiguous targets are rejected; saved evidence
+// protects patch ownership without requiring a known launcher version.
 #pragma once
 
 #include <stddef.h>

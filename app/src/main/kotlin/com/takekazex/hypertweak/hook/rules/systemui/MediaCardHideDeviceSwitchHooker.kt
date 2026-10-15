@@ -53,9 +53,6 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     private const val AOSP_MEDIA_HOLDER =
         "com.android.systemui.media.controls.ui.view.MediaViewHolder"
     private const val SYSTEMUI_IDS = "com.android.systemui.R\$id"
-    private const val FALLBACK_MEDIA_SEAMLESS_ID = 0x7f0b071c
-    private const val FALLBACK_MEDIA_SEAMLESS_BUTTON_ID = 0x7f0b071d
-    private const val FALLBACK_MEDIA_SEAMLESS_IMAGE_ID = 0x7f0b071e
 
     private val mediaSwitchResourceNames = setOf(
         "media_seamless",
@@ -96,8 +93,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     @Volatile
     private var aospSeamlessIconField: Field? = null
 
-    @Volatile
-    private var mediaSwitchVisibilityIds: IntArray = intArrayOf()
+    private val mediaSwitchVisibilityIds = java.util.concurrent.ConcurrentHashMap<android.content.res.Resources, IntArray>()
 
     private val visibilityGuardLogged = AtomicBoolean(false)
 
@@ -114,11 +110,6 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
 
     internal fun recoverExistingViews(views: List<View>) {
         if (!enabled) return
-        views.firstOrNull()?.resources?.let { resources ->
-            val ids = mediaSwitchResourceNames.map { resources.getIdentifier(it, "id", "com.android.systemui") }
-                .filter { it != 0 }
-            if (ids.isNotEmpty()) mediaSwitchVisibilityIds = ids.toIntArray()
-        }
         views.filter(::isMediaSwitchView).forEach(::hideSeamless)
     }
 
@@ -134,7 +125,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         aospSeamlessField = null
         aospSeamlessButtonField = null
         aospSeamlessIconField = null
-        mediaSwitchVisibilityIds = intArrayOf()
+        mediaSwitchVisibilityIds.clear()
         visibilityGuardLogged.set(false)
         enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
         if (!enabled) {
@@ -165,37 +156,17 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         aospSeamlessField = null
         aospSeamlessButtonField = null
         aospSeamlessIconField = null
-        mediaSwitchVisibilityIds = intArrayOf()
+        mediaSwitchVisibilityIds.clear()
         visibilityGuardLogged.set(false)
     }
 
     /**
      * Final guard for both MIUI and AOSP media layouts. Their bind methods can run in different
      * orders (and other SystemUI components can refresh the transfer chip later), so guarding the
-     * three exact SystemUI resource IDs is the only reliable last-write boundary. The ID check is
+     * SystemUI resources resolved from each actual View is the final-write boundary. The cached ID check is
      * intentionally done before entering the failure wrapper because View#setVisibility is hot.
      */
     private fun installVisibilityGuard() {
-        val idClass = SYSTEMUI_IDS.toClassOrNull()
-        val reflectedIds = idClass?.let {
-            listOf("media_seamless", "media_seamless_button", "media_seamless_image")
-                .mapNotNull { name ->
-                    runCatching {
-                        it.getDeclaredField(name).apply { isAccessible = true }.getInt(null)
-                    }.getOrNull()
-                }
-                .toIntArray()
-        }
-        val ids = reflectedIds?.takeIf { it.isNotEmpty() }
-            ?: intArrayOf(
-                FALLBACK_MEDIA_SEAMLESS_ID,
-                FALLBACK_MEDIA_SEAMLESS_BUTTON_ID,
-                FALLBACK_MEDIA_SEAMLESS_IMAGE_ID
-            ).also {
-                DebugLog.d(TAG, "$SYSTEMUI_IDS unavailable; IDs are runtime-name validated")
-            }
-        mediaSwitchVisibilityIds = ids
-
         val viewClass = "android.view.View".toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "android.view.View", "class not found")
             return
@@ -227,7 +198,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
                 }
             }
         }
-        DebugLog.d(TAG, "final media output switch visibility guard installed ids=${ids.joinToString()}")
+        DebugLog.d(TAG, "final media output switch visibility guard installed with runtime resource names")
     }
 
     // ─── Shade card ───────────────────────────────────────────────────────────
@@ -455,7 +426,13 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     }
 
     private fun isMediaSwitchView(view: View): Boolean {
-        if (!mediaSwitchVisibilityIds.contains(view.id)) return false
+        if (view.id == View.NO_ID) return false
+        val resources = view.resources
+        val ids = mediaSwitchVisibilityIds.getOrPut(resources) {
+            mediaSwitchResourceNames.map { resources.getIdentifier(it, "id", "com.android.systemui") }
+                .filter { it != 0 }.toIntArray()
+        }
+        if (!ids.contains(view.id)) return false
         return runCatching {
             view.resources.getResourceEntryName(view.id) in mediaSwitchResourceNames
         }.getOrDefault(false)

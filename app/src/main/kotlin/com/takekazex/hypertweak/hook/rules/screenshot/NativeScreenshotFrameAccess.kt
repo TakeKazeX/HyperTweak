@@ -6,28 +6,27 @@ import android.graphics.BitmapFactory
 import android.graphics.Path
 import android.net.Uri
 import java.io.File
+import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.security.MessageDigest
 
-/** The obfuscated save layout is used only with the exact APK whose bytecode was audited. */
-internal class NativeScreenshotFrameAccess(private val loader: ClassLoader) {
-    companion object {
-        const val APK_SHA256 = "59c9d09986c4107c84ad74281b3985fb969a488f2d4056208619b397683c6322"
-        fun supports(apk: File): Boolean {
-            val digest = MessageDigest.getInstance("SHA-256")
-            apk.inputStream().use { input ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    digest.update(buffer, 0, count)
-                }
+/** Reflected access to a uniquely resolved host save/editor graph. */
+internal class NativeScreenshotFrameAccess(private val loader: ClassLoader, private val contract: ScreenshotFrameResolver.Contract) {
+    private fun resolvedMethod(role: String): Method {
+        val ref = contract.methods.getValue(role)
+        return CameraDexIndex.type(ref.definingClass, loader)
+            .getDeclaredMethod(ref.name, *ref.parameterTypes.map {
+                CameraDexIndex.type(it.toString(), loader)
+            }.toTypedArray()).apply {
+                check(returnType == CameraDexIndex.type(ref.returnType, loader))
+                isAccessible = true
             }
-            return digest.digest().joinToString("") { "%02x".format(it) } == APK_SHA256
-        }
     }
-
+    private fun resolvedField(role: String): Field {
+        val ref = contract.fields.getValue(role)
+        return field(CameraDexIndex.type(ref.definingClass, loader), ref.name,
+            CameraDexIndex.type(ref.type, loader))
+    }
     private fun load(name: String) = loader.loadClass(name)
     private fun field(type: Class<*>, name: String, valueType: Class<*>): Field =
         type.getDeclaredField(name).apply {
@@ -37,39 +36,27 @@ internal class NativeScreenshotFrameAccess(private val loader: ClassLoader) {
     private fun method(type: Class<*>, name: String, vararg args: Class<*>): Method =
         type.getDeclaredMethod(name, *args).apply { isAccessible = true }
 
-    private val data = load("com.miui.screenshot.X")
-    private val task = load("com.miui.screenshot.a0")
-    private val info = load("com.miui.screenshot.h0")
-    private val controller = load("com.miui.screenshot.z")
-    private val screenshot = load("com.miui.screenshot.core.domain.ScreenshotData")
-    private val dataArray = java.lang.reflect.Array.newInstance(data, 0).javaClass
     private val entry = load("com.miui.gallery.editor.photo.screen.shell.ScreenShellEntry")
     private val shellInfo = load("com.miui.gallery.editor.photo.screen.shell.ShellInfoBean")
     private val fetcher = load("com.miui.gallery.editor.photo.screen.shell.res.ShellResourceFetcher")
-    private val bool = Boolean::class.javaPrimitiveType!!
-    private val int = Int::class.javaPrimitiveType!!
     private val float = Float::class.javaPrimitiveType!!
 
-    val request = controller.declaredMethods.single {
-        it.parameterTypes.size == 3 && it.parameterTypes[0] == screenshot &&
-            it.parameterTypes[1] == java.util.function.Consumer::class.java && it.returnType == Void.TYPE
-    }.apply { isAccessible = true }
-    val save = method(controller, "X1", load("com.miui.screenshot.interfaces.ISaveCallback"),
-        load("com.miui.screenshot.interfaces.ITotalFinishCallback"))
-    val taskConstructor = task.getDeclaredConstructor(data, load("p1.a"), bool).apply { isAccessible = true }
-    val worker = method(task, "d", dataArray).apply { check(returnType == data) }
-    // Cold injection worked while the already-running process bypassed these small private calls.
-    // Deoptimize the enclosing save and bridge bodies as well as the hooked members on hot reload.
-    val saveCaller = method(controller, "k2", Runnable::class.java,
-        load("com.miui.screenshot.interfaces.ISaveCallback"),
-        load("com.miui.screenshot.interfaces.ITotalFinishCallback"), bool)
-    val workerBridge = method(task, "doInBackground", Array<Any>::class.java)
+    val request = resolvedMethod("request")
+    val save = resolvedMethod("save")
+    private val constructor = contract.methods.getValue("taskConstructor")
+    val taskConstructor = CameraDexIndex.type(constructor.definingClass, loader)
+        .getDeclaredConstructor(*constructor.parameterTypes.map {
+            CameraDexIndex.type(it.toString(), loader)
+        }.toTypedArray()).apply { isAccessible = true }
+    val worker = resolvedMethod("worker")
+    val saveCaller = resolvedMethod("saveCaller")
+    val workerBridge = resolvedMethod("workerBridge")
     val saveCallChain get() = listOf(request, saveCaller, save, taskConstructor, worker, workerBridge, write)
-    val thumbnailReady = method(controller, "g2", Runnable::class.java)
-    val captureBitmap = field(controller, "g", Bitmap::class.java)
-    val thumbnail = field(controller, "k", android.widget.ImageView::class.java)
+    val thumbnailReady = resolvedMethod("thumbnailReady")
+    val captureBitmap = resolvedField("captureBitmap")
+    val thumbnail = resolvedField("thumbnail")
     private val drawable = load("com.miui.gallery.editor.transition.RoundedCornerDrawable")
-    private val thumbnailDrawable = field(controller, "n", drawable)
+    private val thumbnailDrawable = resolvedField("thumbnailDrawable")
     private val setPreviewBitmap = method(drawable, "setBitmap", Bitmap::class.java)
     private val setPreviewRadius = method(drawable, "setCornerRadius", float)
 
@@ -80,19 +67,20 @@ internal class NativeScreenshotFrameAccess(private val loader: ClassLoader) {
         setPreviewRadius.invoke(target, 0f)
         (thumbnail.get(owner) as? android.widget.ImageView)?.invalidate()
     }
-    val write = method(task, "e", Context::class.java, dataArray, Bitmap::class.java, java.io.OutputStream::class.java)
-    val bitmap = field(data, "b", Bitmap::class.java)
-    val context = field(data, "a", Context::class.java)
-    val format = field(data, "e", Bitmap.CompressFormat::class.java)
-    val notify = field(task, "a", info)
-    val taskWidth = field(task, "d", int)
-    val taskHeight = field(task, "e", int)
-    val fileTemplate = field(task, "i", String::class.java)
-    val width = field(info, "n", Int::class.javaObjectType)
-    val height = field(info, "o", Int::class.javaObjectType)
-    val uri = field(info, "g", Uri::class.java)
-    val path = field(info, "k", String::class.java)
-    val success = field(info, "h", Boolean::class.javaObjectType)
+    val write = resolvedMethod("write")
+    val bitmap = resolvedField("bitmap")
+    val context = resolvedField("context")
+    val format = resolvedField("format")
+    val notify = resolvedField("notify")
+    val taskWidth = resolvedField("taskWidth")
+    val taskHeight = resolvedField("taskHeight")
+    val fileTemplate = resolvedField("fileTemplate")
+    val width = resolvedField("width")
+    val height = resolvedField("height")
+    val uri = resolvedField("uri")
+    val path = resolvedField("path")
+    val success = resolvedField("success")
+    private val screenshot = request.parameterTypes.first()
     val requestType = method(screenshot, "getType")
     val displayId = method(screenshot, "getDisplayId")
 

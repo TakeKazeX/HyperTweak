@@ -12,13 +12,27 @@ import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
+import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import org.jf.dexlib2.iface.DexFile
+import org.jf.dexlib2.immutable.reference.ImmutableFieldReference
+import org.jf.dexlib2.immutable.reference.ImmutableMethodReference
+import org.jf.dexlib2.rewriter.DexRewriter
+import org.jf.dexlib2.rewriter.Rewriter
+import org.jf.dexlib2.rewriter.RewriterModule
+import org.jf.dexlib2.rewriter.Rewriters
+import org.jf.dexlib2.writer.pool.DexPool
+import org.jf.dexlib2.writer.io.MemoryDataStore
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import kotlin.io.path.createTempDirectory
 
 /** Proves the immutable host contract, including bytecode behavior that reflection alone cannot check. */
 class ScreenshotFrameHostContractTest {
+    private lateinit var contract: ScreenshotFrameResolver.Contract
     private fun classes(): Map<String, ClassDef> {
         val apk = System.getenv("SCREENSHOT_APK")?.let(::File)
         assumeTrue("Set SCREENSHOT_APK to run target bytecode checks", apk?.isFile == true)
-        assertTrue("Update the adapter before accepting a different APK", NativeScreenshotFrameAccess.supports(apk!!))
+        contract = ScreenshotFrameResolver(apk!!.path).resolve()
         val dex = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
         return dex.dexEntryNames.flatMap { dex.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
     }
@@ -27,51 +41,101 @@ class ScreenshotFrameHostContractTest {
         .filterIsInstance<ReferenceInstruction>().map { it.reference }.toList()
     private fun ClassDef.field(name: String) = fields.single { it.name == name }.type
 
-    @Test fun `full screen boundary creates exactly the save task used by the worker`() {
+    @Test fun `save worker preview and bridge resolve as one graph`() {
         val classes = classes()
-        val controller = classes.getValue("Lcom/miui/screenshot/z;")
-        val save = controller.methods.single { it.name == "X1" }
-        assertEquals(listOf("Lcom/miui/screenshot/interfaces/ISaveCallback;",
-            "Lcom/miui/screenshot/interfaces/ITotalFinishCallback;"), save.parameterTypes.map { it.toString() })
-        val calls = save.references().filterIsInstance<MethodReference>()
-        assertTrue(calls.any { it.definingClass == "Lcom/miui/screenshot/a0;" && it.name == "<init>" &&
-            it.parameterTypes.map { type -> type.toString() } == listOf("Lcom/miui/screenshot/X;", "Lp1/a;", "Z") })
-        assertTrue(calls.any { it.name == "execute" })
-        val thumbnail = controller.methods.single { it.name == "g2" }
-        assertTrue(thumbnail.references().filterIsInstance<MethodReference>().any {
-            it.definingClass == "Lcom/miui/gallery/editor/transition/RoundedCornerDrawable;" && it.name == "setBitmap"
-        })
-        val caller = controller.methods.single { it.name == "k2" }
-        assertTrue(caller.references().filterIsInstance<MethodReference>().any { it.name == "X1" })
-        val task = classes.getValue("Lcom/miui/screenshot/a0;")
-        val worker = task.methods.single { it.name == "d" && it.returnType == "Lcom/miui/screenshot/X;" }
-        assertEquals(listOf("[Lcom/miui/screenshot/X;"), worker.parameterTypes.map { it.toString() })
-        assertTrue(worker.references().filterIsInstance<MethodReference>().any {
-            it.definingClass == task.type && it.name == "e"
-        })
-        assertEquals("Landroid/graphics/Bitmap;", classes.getValue("Lcom/miui/screenshot/X;").field("b"))
-        assertEquals("Landroid/graphics/Bitmap\$CompressFormat;", classes.getValue("Lcom/miui/screenshot/X;").field("e"))
+        fun definition(role: String): Method {
+            val ref = contract.methods.getValue(role)
+            return classes.getValue(ref.definingClass).methods.single {
+                it.name == ref.name && it.parameterTypes == ref.parameterTypes && it.returnType == ref.returnType
+            }
+        }
+        val save = definition("save")
+        assertTrue(save.references().contains(contract.methods.getValue("taskConstructor")))
+        assertTrue(definition("worker").references().contains(contract.methods.getValue("write")))
+        assertTrue(definition("workerBridge").references().contains(contract.methods.getValue("worker")))
+        assertTrue(definition("saveCaller").references().contains(contract.methods.getValue("save")))
+        assertTrue(definition("thumbnailReady").references().contains(contract.fields.getValue("captureBitmap")))
+        assertTrue(save.references().contains(contract.fields.getValue("captureBitmap")))
     }
 
-    @Test fun `file format and live MediaStore dimensions are the audited mutable fields`() {
+    @Test fun `mutable dimensions and format belong to the actual data records`() {
         val classes = classes()
-        val task = classes.getValue("Lcom/miui/screenshot/a0;")
-        assertEquals("Ljava/lang/String;", task.field("i"))
-        assertEquals("I", task.field("d"))
-        assertEquals("I", task.field("e"))
-        val strings = task.methods.filter { it.name == "<init>" }
-            .flatMap { it.references().filterIsInstance<StringReference>() }.map { it.string }
-        assertTrue(strings.contains("Screenshot_%s_%s.png"))
-        val info = classes.getValue("Lcom/miui/screenshot/h0;")
-        assertEquals("Ljava/lang/Integer;", info.field("n"))
-        assertEquals("Ljava/lang/Integer;", info.field("o"))
-        assertEquals("Landroid/net/Uri;", info.field("g"))
-        assertEquals("Ljava/lang/Boolean;", info.field("h"))
-        val mediaUtils = classes.getValue("Lcom/miui/screenshot/util/MediaUtils;")
-        val mediaFields = mediaUtils.methods.filter { it.implementation != null }
-            .flatMap { it.references().filterIsInstance<FieldReference>() }
-            .filter { it.definingClass == info.type }.map { it.name }
-        assertTrue(mediaFields.containsAll(listOf("n", "o")))
+        val expected = mapOf("bitmap" to "Landroid/graphics/Bitmap;", "format" to "Landroid/graphics/Bitmap\$CompressFormat;",
+            "taskWidth" to "I", "taskHeight" to "I", "fileTemplate" to "Ljava/lang/String;",
+            "width" to "Ljava/lang/Integer;", "height" to "Ljava/lang/Integer;", "uri" to "Landroid/net/Uri;", "success" to "Ljava/lang/Boolean;")
+        expected.forEach { (role, type) ->
+            val ref = contract.fields.getValue(role)
+            val field = classes.getValue(ref.definingClass).fields.single { it.name == ref.name }
+            assertEquals(type, field.type)
+            assertEquals(0, field.accessFlags and 16)
+        }
+    }
+
+    private fun fieldKey(ref: FieldReference) = "${ref.definingClass}->${ref.name}:${ref.type}"
+
+    /** Repackage real DEX after independently changing every resolved obfuscated type/member. */
+    private fun fixture(duplicate: Boolean = false, removeWriter: Boolean = false, check: (File) -> Unit) {
+        classes()
+        val apk = File(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val source = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
+        val types = (contract.methods.values.map { it.definingClass } + contract.fields.values.flatMap { listOf(it.definingClass) } +
+            contract.methods.getValue("taskConstructor").parameterTypes.map(CharSequence::toString))
+            .filter { it.startsWith("Lcom/miui/screenshot/") && !it.contains("/interfaces/") && !it.contains("/core/") }
+            .distinct().mapIndexed { index, type -> type to "Lfixture/adaptive/Type$index;" }.toMap()
+        fun type(value: String): String = if (value.startsWith("[")) "[" + type(value.substring(1)) else types[value] ?: value
+        val methodNames = contract.methods.values.filter { it.name != "<init>" && it.name != "doInBackground" }
+            .mapIndexed { index, ref -> CameraDexIndex.descriptor(ref) to "operation$index" }.toMap()
+        val fieldNames = contract.fields.values.mapIndexed { index, ref -> fieldKey(ref) to "slot$index" }.toMap()
+        val rewrite = DexRewriter(object : RewriterModule() {
+            override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
+            override fun getMethodReferenceRewriter(rewriters: Rewriters) = Rewriter<MethodReference> { ref ->
+                ImmutableMethodReference(type(ref.definingClass), methodNames[CameraDexIndex.descriptor(ref)] ?: ref.name,
+                    ref.parameterTypes.map { type(it.toString()) }, type(ref.returnType))
+            }
+            override fun getFieldReferenceRewriter(rewriters: Rewriters) = Rewriter<FieldReference> { ref ->
+                ImmutableFieldReference(type(ref.definingClass), fieldNames[fieldKey(ref)] ?: ref.name, type(ref.type))
+            }
+        })
+        val directory = createTempDirectory("screenshot-adaptive-").toFile()
+        try {
+            val fixture = File(directory, "fixture.apk")
+            ZipOutputStream(fixture.outputStream()).use { output ->
+                source.dexEntryNames.forEach { name ->
+                    val original = source.getEntry(name)!!.dexFile
+                    val rewritten = rewrite.dexFileRewriter.rewrite(original)
+                    val selected = rewritten.classes.filter { owner ->
+                        !removeWriter || owner.type != type(contract.methods.getValue("write").definingClass)
+                    }.toMutableSet()
+                    if (duplicate) selected.addAll(original.classes.filter { it.type in types.keys })
+                    val dex = object : DexFile {
+                        override fun getOpcodes() = original.opcodes
+                        override fun getClasses() = selected
+                    }
+                    val store = MemoryDataStore()
+                    DexPool.writeTo(store, dex)
+                    output.putNextEntry(ZipEntry(name.substringAfterLast('/')))
+                    output.write(store.buffer, 0, store.size)
+                    output.closeEntry()
+                    store.close()
+                }
+            }
+            check(fixture)
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test fun `renaming classes methods fields and changing APK identity preserves resolution`() = fixture { apk ->
+        val resolved = ScreenshotFrameResolver(apk.path).resolve()
+        assertTrue(resolved.methods.getValue("save").definingClass.startsWith("Lfixture/adaptive/"))
+        assertTrue(resolved.methods.getValue("save").name.startsWith("operation"))
+        assertTrue(resolved.fields.getValue("bitmap").name.startsWith("slot"))
+    }
+
+    @Test fun `duplicate save graph is rejected rather than selecting the first candidate`() = fixture(duplicate = true) { apk ->
+        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(apk.path).resolve() }
+    }
+
+    @Test fun `missing worker is rejected before any save can enroll`() = fixture(removeWriter = true) { apk ->
+        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(apk.path).resolve() }
     }
 
     @Test fun `native frame uses model resources and creates an independent output without recycling input`() {
@@ -99,7 +163,7 @@ class ScreenshotFrameHostContractTest {
         assertTrue(manager.methods.any { it.name == "isSavedAsPng" && it.returnType == "Z" })
         assertTrue(manager.methods.any { it.name == "openInputStream" && it.returnType == "Ljava/io/InputStream;" })
         val exporter = classes.getValue("Lcom/miui/gallery/editor/photo/app/ExportTask;")
-        assertEquals("Lcom/miui/screenshot/h0;", exporter.field("mNotifyMediaStoreData"))
+        assertEquals(contract.fields.getValue("notify").type, exporter.field("mNotifyMediaStoreData"))
         assertTrue(exporter.methods.any { it.name == "onExport" && it.returnType == "Z" })
         assertTrue(shell.methods.any { it.name == "doShell" && it.parameterTypes.size == 1 })
         val activity = classes.getValue("Lcom/miui/gallery/editor/photo/screen/home/ScreenEditorActivity;")

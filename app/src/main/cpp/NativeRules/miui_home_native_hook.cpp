@@ -10,7 +10,6 @@
 #include "native_config.h"
 #include "native_rule_runtime.h"
 #include "native_rule_events.h"
-#include "launcher_profiles.generated.h"
 #include "runtime_profile_resolver.h"
 
 #include <android/log.h>
@@ -293,8 +292,6 @@ void* g_motion_get_y = nullptr;
 uint8_t* g_launcher_base = nullptr;
 const miui_home_profiles::LauncherProfile* g_launcher_profile = nullptr;
 miui_home_runtime_profile::ResolutionStorage g_dynamic_profile_storage{};
-miui_home_runtime_profile::ResolutionStorage g_contextual_overlay_storage{};
-__attribute__((used)) volatile uint32_t g_contextual_overlay_state = 0;
 miui_home_dart_profile::ResolutionStorage g_dart_profile_storage{};
 __attribute__((used)) miui_home_dart_profile::ResolutionDiagnostics
         g_dart_profile_diagnostics{};
@@ -907,80 +904,8 @@ const miui_home_profiles::LauncherProfile* ResolveLauncherProfile(
     }
     auto* base = static_cast<uint8_t*>(info.dli_fbase);
     const miui_home_profiles::LauncherProfile* matched = nullptr;
-    for (const auto* profile : miui_home_profiles::kProfiles) {
-        if (profile != nullptr &&
-                MatchesLauncherProfile(base, app_entry_point, *profile)) {
-            if (matched != nullptr) return nullptr;
-            matched = profile;
-        }
-    }
-    if (matched != nullptr) {
-        __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                "launcher static profile matched: id=%s entry=0x%zx base=%p",
-                matched->id, matched->entry_offset, base);
-
-        // Static profiles intentionally contain only immutable launcher
-        // identity and the side boundary. New Xiaomi builds may retain the
-        // contextual-search graph while changing its offsets, so resolve the
-        // optional graph independently and overlay it without weakening the
-        // already validated static profile.
-        const bool contextual_missing =
-                matched->contextual_long_press_handler_offset == 0u &&
-                matched->contextual_search_invoke_offset == 0u;
-        if (contextual_missing) {
-            uint32_t expected_overlay = 0u;
-            if (__atomic_compare_exchange_n(
-                        &g_contextual_overlay_state, &expected_overlay,
-                        uint32_t{1}, false, __ATOMIC_ACQ_REL,
-                        __ATOMIC_ACQUIRE)) {
-                miui_home_runtime_profile::ResolutionDiagnostics diagnostics{};
-                const bool overlay =
-                        miui_home_runtime_profile::ResolveContextualSearchOverlay(
-                                base, matched, &g_contextual_overlay_storage,
-                                &diagnostics);
-                __atomic_store_n(&g_dynamic_contextual_support_candidate_count,
-                        diagnostics.contextual_support_candidate_count,
-                        __ATOMIC_RELAXED);
-                __atomic_store_n(&g_dynamic_contextual_invoke_candidate_count,
-                        diagnostics.contextual_invoke_candidate_count,
-                        __ATOMIC_RELAXED);
-                __atomic_store_n(
-                        &g_dynamic_contextual_long_press_candidate_count,
-                        diagnostics.contextual_long_press_candidate_count,
-                        __ATOMIC_RELAXED);
-                __atomic_store_n(&g_dynamic_contextual_resolved,
-                        diagnostics.contextual_resolved, __ATOMIC_RELAXED);
-                __atomic_store_n(&g_dynamic_contextual_search_invoke_offset,
-                        diagnostics.contextual_search_invoke_offset,
-                        __ATOMIC_RELAXED);
-                __atomic_store_n(
-                        &g_dynamic_contextual_long_press_handler_offset,
-                        diagnostics.contextual_long_press_handler_offset,
-                        __ATOMIC_RELAXED);
-                __atomic_store_n(&g_contextual_overlay_state,
-                        static_cast<uint32_t>(diagnostics.stage),
-                        __ATOMIC_RELEASE);
-                if (overlay) {
-                    matched = &g_contextual_overlay_storage.profile;
-                    Log(ANDROID_LOG_INFO,
-                        "resolved contextual-search overlay for static launcher profile");
-                } else {
-                    __android_log_print(
-                            ANDROID_LOG_WARN, kLogTag,
-                            "contextual-search overlay unavailable: stage=%u support=%u invoke=%u long_press=%u",
-                            static_cast<uint32_t>(diagnostics.stage),
-                            diagnostics.contextual_support_candidate_count,
-                            diagnostics.contextual_invoke_candidate_count,
-                            diagnostics.contextual_long_press_candidate_count);
-                }
-            } else if (__atomic_load_n(&g_contextual_overlay_state,
-                                       __ATOMIC_ACQUIRE) ==
-                    static_cast<uint32_t>(
-                            miui_home_runtime_profile::ResolveStage::kComplete)) {
-                matched = &g_contextual_overlay_storage.profile;
-            }
-        }
-    }
+    // Every launcher goes through the structural resolver, including previously known
+    // builds. The resulting fingerprints protect ownership; they are not version gates.
     const auto* current = AtomicLoad(&g_launcher_profile);
     if (matched == nullptr && current == nullptr) {
         uint32_t expected_state = static_cast<uint32_t>(
@@ -2419,7 +2344,7 @@ bool HandleRuntimeStatusQuery(void* intent) {
     const bool contextual_dynamic = profile_resolved &&
             profile->contextual_long_press_handler_offset != 0u &&
             profile->contextual_search_invoke_offset != 0u &&
-            (dynamic_profile || profile == &g_contextual_overlay_storage.profile);
+            dynamic_profile;
     const uint32_t business_state = AtomicLoad(&g_business_hook_state);
     const uint32_t bridge_state = AtomicLoad(&g_arbiter_bridge_hook_state);
     const auto* feature_profile = CurrentDartFeatureProfile();
