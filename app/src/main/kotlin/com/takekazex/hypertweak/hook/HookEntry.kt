@@ -231,10 +231,12 @@ class HookEntry : XposedModule() {
         if (processName == "com.android.systemui" && !nativeGenerationRetired && (key == null || key == "prefs_epoch" || key in setOf(
                 Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
                 Preferences.KEY_LANDSCAPE_MORE_ISLANDS, Preferences.KEY_CC_HIDE_SUPER_ISLAND,
+                Preferences.KEY_ISLAND_NARROW_TIME_FONT,
                 Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST))) {
             Preferences.invalidateRuntimeReadCache()
             DebugLog.i("ThreeIslands", "settings received key=$key three=${Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)} " +
                 "full=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)} more=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)}")
+            if (key == Preferences.KEY_ISLAND_NARROW_TIME_FONT) DebugLog.i("IslandTimeFont", "settings received enabled=${Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false)}")
             SystemUIPluginHooker.refreshIslandSettings()
         }
         if (processName == "com.android.systemui" && !nativeGenerationRetired &&

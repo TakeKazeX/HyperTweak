@@ -537,6 +537,9 @@ object Preferences {
     /** Hide Super Island through the plugin temporary-hide path while Control Center appears. */
     const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
 
+    /** Native condensed digits for Clock and Recorder island timers. */
+    const val KEY_ISLAND_NARROW_TIME_FONT = "systemui_island_narrow_time_font"
+
     /** Restore contrast for dark monochrome icons from promoted ongoing notifications. */
     const val KEY_ISLAND_LIVE_UPDATE_ICON = "systemui_island_live_update_icon"
 

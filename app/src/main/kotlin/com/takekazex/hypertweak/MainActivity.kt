@@ -422,6 +422,7 @@ class MainActivity : ComponentActivity() {
             var landscapeMoreIslands by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)) }
             var ccHideSuperIsland by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)) }
             var islandLiveUpdateIcon by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ISLAND_LIVE_UPDATE_ICON, false)) }
+            var islandNarrowTimeFont by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false)) }
             var focusNotificationUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) }
             var mediaSuperIslandUnlockWhitelist by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)) }
             var xmsfUnlockFocusAuth by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) }
@@ -564,6 +565,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_LANDSCAPE_MORE_ISLANDS -> landscapeMoreIslands
                     Preferences.KEY_CC_HIDE_SUPER_ISLAND -> ccHideSuperIsland
                     Preferences.KEY_ISLAND_LIVE_UPDATE_ICON -> islandLiveUpdateIcon
+                    Preferences.KEY_ISLAND_NARROW_TIME_FONT -> islandNarrowTimeFont
                     Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
                     Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
                     Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
@@ -922,6 +924,7 @@ class MainActivity : ComponentActivity() {
                     landscapeMoreIslands = Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)
                     ccHideSuperIsland = Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false)
                     islandLiveUpdateIcon = Preferences.getBoolean(Preferences.KEY_ISLAND_LIVE_UPDATE_ICON, false)
+                    islandNarrowTimeFont = Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false)
                     focusNotificationUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
                     mediaSuperIslandUnlockWhitelist = Preferences.getBoolean(Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
                     xmsfUnlockFocusAuth = Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
@@ -1375,10 +1378,16 @@ class MainActivity : ComponentActivity() {
                     },
                     ccHideSuperIsland = ccHideSuperIsland,
                     islandLiveUpdateIcon = islandLiveUpdateIcon,
+                    islandNarrowTimeFont = islandNarrowTimeFont,
                     onIslandLiveUpdateIconChange = { checked ->
                         islandLiveUpdateIcon = checked
                         markTweaked(Preferences.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
                         Preferences.putBoolean(Preferences.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
+                    },
+                    onIslandNarrowTimeFontChange = { checked ->
+                        islandNarrowTimeFont = checked
+                        markTweaked(Preferences.KEY_ISLAND_NARROW_TIME_FONT, checked)
+                        Preferences.putBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, checked)
                     },
                     onCcHideSuperIslandChange = { checked ->
                         ccHideSuperIsland = checked

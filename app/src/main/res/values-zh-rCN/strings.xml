@@ -1547,4 +1547,6 @@
     <string name="tweaks_landscape_more_islands_summary">按横屏可用宽度显示更多原生超级岛，放不下的任务继续排队；可搭配全宽或小岛布局。修改后即时生效。</string>
     <string name="tweaks_island_live_update_icon_title">修复实时通知图标</string>
     <string name="tweaks_island_live_update_icon_summary">为实时通知的深色单色图标补上前景色，改善 ChatGPT 远程会话等图标不可见的问题。修改立即生效。</string>
+    <string name="tweaks_island_narrow_time_font_title">时间数字使用窄字体</string>
+    <string name="tweaks_island_narrow_time_font_summary">时钟、录音机的超级岛时间数字使用原生窄字体，修改后即时生效。</string>
 </resources>

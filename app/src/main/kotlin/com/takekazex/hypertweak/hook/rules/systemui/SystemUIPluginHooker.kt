@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTimeFontHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
 import android.content.ComponentName
 import android.content.Context
@@ -28,6 +29,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val superIslandHooker: ControlCenterSuperIslandHooker,
         val threeIslandHooker: ThreeIslandHooker,
         val liveUpdateIconHooker: LiveUpdateIconHooker,
+        val timeFontHooker: IslandTimeFontHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
@@ -46,6 +48,7 @@ object SystemUIPluginHooker : StaticHooker() {
         activeSessions.values.forEach { session ->
             session.threeIslandHooker.refreshSettings()
             session.superIslandHooker.refreshSettings()
+            session.timeFontHooker.restoreIslandOwners(session.threeIslandHooker.snapshotOwners())
         }
     }
 
@@ -55,7 +58,7 @@ object SystemUIPluginHooker : StaticHooker() {
 
     override fun saveHotReloadState(): Any = activeSessions.values.map { session ->
         listOf(session.state.pluginInstance, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
-            session.liveUpdateIconHooker.snapshotHolders())
+            session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -65,6 +68,8 @@ object SystemUIPluginHooker : StaticHooker() {
             session.threeIslandHooker.restoreOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
             session.superIslandHooker.restoreControllers((entry.getOrNull(2) as? List<*>)?.filterNotNull().orEmpty())
             session.liveUpdateIconHooker.restoreHolders((entry.getOrNull(3) as? List<*>)?.filterNotNull().orEmpty())
+            session.timeFontHooker.restoreHolders((entry.getOrNull(4) as? List<*>)?.filterNotNull().orEmpty())
+            session.timeFontHooker.restoreIslandOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
         }
     }
 
@@ -143,6 +148,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.threeIslandHooker)
                             runCatching { session.liveUpdateIconHooker.prepareForHotReload() }
                             detach(session.liveUpdateIconHooker)
+                            runCatching { session.timeFontHooker.prepareForHotReload() }
+                            detach(session.timeFontHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -252,6 +259,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val superIslandHooker = ControlCenterSuperIslandHooker()
         val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath)
         val liveUpdateIconHooker = LiveUpdateIconHooker()
+        val timeFontHooker = IslandTimeFontHooker()
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
             ControlCenterCardsEditHooker()
         } else {
@@ -278,6 +286,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 superIslandHooker,
                 threeIslandHooker,
                 liveUpdateIconHooker,
+                timeFontHooker,
                 cardsEditHooker,
                 cardResizeHooker,
                 mediaDeviceIconHooker,
@@ -288,6 +297,8 @@ object SystemUIPluginHooker : StaticHooker() {
         // hooker uninstalled while the session entry suppressed later retries.
         runCatching { attach(threeIslandHooker, state.classLoader) }
             .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach three-island scheduler", it) }
+        runCatching { attach(timeFontHooker, state.classLoader) }
+            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island timer font", it) }
         runCatching { attach(liveUpdateIconHooker, state.classLoader) }
             .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
         runCatching { attach(superIslandHooker, state.classLoader) }
