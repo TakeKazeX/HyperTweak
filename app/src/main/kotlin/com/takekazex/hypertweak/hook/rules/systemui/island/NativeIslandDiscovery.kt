@@ -76,6 +76,9 @@ internal class NativeIslandDiscovery private constructor(val classes: Map<String
             check(entries.getValue("animation").declaringClass == animation)
             val delegate = NativeIslandMembers.named(animation, "getAnimator", listOf(content.superclass)).returnType
             val gesture = getter(delegate, "getGestureAnimator")
+            val fakeAnimator = getter(delegate, "getFakeViewAnimator")
+            val fakeHelper = fakeAnimator.declaredMethods.single { it.name.startsWith("getHelper") && it.parameterCount == 0 }.returnType
+            val window = getter(coordinator, "getWindowView")
             val updater = delegate.declaredFields.map { it.type }.distinct().single { type ->
                 type.declaredMethods.any { it.name == "updateBigIsland" && it.parameterCount == 1 && it.returnType == Void.TYPE } &&
                     type.declaredMethods.any { it.name == "updateContainer" && it.parameterCount == 1 && it.returnType == Void.TYPE }
@@ -95,9 +98,12 @@ internal class NativeIslandDiscovery private constructor(val classes: Map<String
                 root + "event.DynamicIslandEvent" to event,
                 root + "event.handler.HiddenStateHandler" to hiddenHandler,
                 root + "event.handler.StateHandler" to handler,
-                root + "window.DynamicIslandWindowView" to getter(coordinator, "getWindowView"),
+                root + "window.DynamicIslandWindowView" to window,
+                root + "window.DynamicIslandWindowViewController" to getter(window, "getWindowViewController"),
                 root + "anim.DynamicIslandAnimationController" to animation,
                 root + "anim.DynamicIslandAnimationDelegate" to delegate,
+                root + "anim.ui.animator.FakeViewAnimator" to fakeAnimator,
+                root + "anim.ui.animator.FakeViewAnimHelper" to fakeHelper,
                 root + "anim.ui.animator.IslandCoordinateCalculator" to getter(delegate, "getCoords"),
                 root + "window.content.helpers.DynamicIslandContentViewPhoneHelper" to measure.declaringClass,
                 root + "model.IslandContentViewCalculationParams" to measure.parameterTypes.single(),

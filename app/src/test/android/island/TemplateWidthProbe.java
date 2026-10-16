@@ -36,9 +36,12 @@ public class TemplateWidthProbe {
   IslandTemplateWidthLease lease=new IslandTemplateWidthLease();Object owner=new Object();
   lease.acquire(owner,left,right,0);lease.acquire(owner,left,right,0);layout(parent);
   if(right.getMeasuredWidth()!=216||left.getMeasuredWidth()!=93||cutout.getMeasuredWidth()!=0)throw new AssertionError("repair widths "+left.getMeasuredWidth()+","+cutout.getMeasuredWidth()+","+right.getMeasuredWidth());
-  cutout.getLayoutParams().width=59; // Native onBegin callback rewrites the placeholder.
-  boolean draw=parent.getViewTreeObserver().dispatchOnPreDraw();layout(parent);
-  if(cutout.getMeasuredWidth()!=0||right.getMeasuredWidth()!=216)throw new AssertionError("callback overwrite not repaired");
+  // Folme onBegin now reads getFixedCutoutWidth from both real and fake owners.
+  // It writes the final target directly, with no module pre-draw repair listener.
+  cutout.getLayoutParams().width=0;
+  if(!parent.getViewTreeObserver().dispatchOnPreDraw())throw new AssertionError("lease blocked native drawing");
+  layout(parent);
+  if(cutout.getMeasuredWidth()!=0||right.getMeasuredWidth()!=216)throw new AssertionError("native callback geometry changed");
   lease.releaseAll(key -> null);layout(parent);
   if(((LinearLayout.LayoutParams)left.getLayoutParams()).weight!=1||cutout.getLayoutParams().width!=59||right.getMeasuredWidth()!=before)throw new AssertionError("restore failed");
   // Rotation must use the new native portrait cutout, not the landscape snapshot.

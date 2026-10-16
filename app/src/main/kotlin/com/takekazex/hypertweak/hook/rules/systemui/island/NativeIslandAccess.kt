@@ -34,9 +34,18 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
     val event = load(root + "event.DynamicIslandEvent")
     val data = load("com.android.systemui.plugins.miui.dynamicisland.DynamicIslandData")
     val resolver = load(root + "anim.domain.interactor.AnimTransitionResolver")
+    val delegate = load(root + "anim.DynamicIslandAnimationDelegate")
+    val fakeAnimator = load(root + "anim.ui.animator.FakeViewAnimator")
+    val fakeHelper = load(root + "anim.ui.animator.FakeViewAnimHelper")
+    val windowController = load(root + "window.DynamicIslandWindowViewController")
     val gestureAnimator = load(root + "anim.ui.animator.IslandGestureAnimator")
     val updater = load(root + "anim.ui.animator.IslandPropertyUpdater")
     val properties = load(root + "anim.model.IslandAnimProperties")
+    // Removing module text measurement relies on this native premeasurement contract.
+    private val nativePreMeasure = NativeIslandMembers.named(content, "applyPreMeasureMode",
+        listOf(android.view.ViewGroup::class.java, Boolean::class.javaPrimitiveType!!)).also {
+        check(it.returnType == Boolean::class.javaPrimitiveType)
+    }
     private val members = HashMap<Pair<Class<*>, String>, Method>()
     private fun resolve(owner: Class<*>, name: String): Method {
         val semantic = when {
@@ -50,7 +59,7 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
             else -> null
         }
         if (semantic != null) return discovery.entries.getValue(semantic)
-        if (name == "updateBigIslandView") return owner.declaredMethods.single { it.name == name &&
+        if (name == "updateBigIslandView" || name == "updateSmallIslandView") return owner.declaredMethods.single { it.name == name &&
             it.parameterTypes.take(2) == listOf(data, Boolean::class.javaPrimitiveType) && it.parameterCount == 3 }.apply { isAccessible = true }
         val f = Float::class.javaPrimitiveType!!
         val z = Boolean::class.javaPrimitiveType!!
@@ -61,6 +70,8 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
             "updateBigIslandLayoutWithAnim" -> listOf(android.widget.FrameLayout::class.java, android.widget.FrameLayout::class.java,
                 android.widget.LinearLayout::class.java, android.widget.FrameLayout::class.java, content, z)
             "updateState" -> listOf(content)
+            "updateDynamicIslandView" -> listOf(data, z, z)
+            "setSmallIslandViewWidth" -> listOf(Int::class.javaPrimitiveType!!)
             "setUserExpanded" -> listOf(z)
             "setConfigChange" -> listOf(Boolean::class.javaObjectType)
             "setFakeSecondLayout" -> listOf(android.widget.FrameLayout::class.java)
@@ -158,6 +169,13 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
         val hiddenState = nextState(view, hidden)
         if (previous != null) eventFields.transfer(previous, hiddenState)
         call(view, "setState", hiddenState)
+    }
+    /** Preserve native event metadata on a render-only state copy. */
+    fun renderBig(source: Any?): Any = bigConstructor.newInstance().also { target ->
+        if (source != null) {
+            method(state, "changeToState").invoke(source, target)
+            eventFields.transfer(source, target)
+        }
     }
     fun transition(view: Any, target: Class<*>) = call(view, "setState", nextState(view, target))
 }

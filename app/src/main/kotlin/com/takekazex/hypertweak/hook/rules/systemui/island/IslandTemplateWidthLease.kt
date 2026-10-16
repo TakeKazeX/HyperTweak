@@ -1,13 +1,14 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
 import android.view.View
-import android.util.Log
-import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 
 /** Keep native area animations, but remove weighted redistribution and control the physical camera seat. */
 internal class IslandTemplateWidthLease {
-    private class Entry(val parent: LinearLayout, val left: View, val right: View, var cutoutWidth: Int) {
+    private class Entry(val parent: LinearLayout, val left: View, val right: View, var cutoutWidth: Int, var media: Boolean) {
+        private var leftInnerPadding = left.paddingEnd
+        private var rightInnerPadding = right.paddingStart
+        private var paddingOwned = false
         private val leftParams = left.layoutParams as LinearLayout.LayoutParams
         private val rightParams = right.layoutParams as LinearLayout.LayoutParams
         private val leftWeight = leftParams.weight
@@ -16,17 +17,17 @@ internal class IslandTemplateWidthLease {
             val child = parent.getChildAt(it)
             Triple(child, child.layoutParams, child.layoutParams.width)
         }
-        private val observer = parent.viewTreeObserver
-        private val listener = ViewTreeObserver.OnPreDrawListener {
-            // Native template-factory animation callbacks can rewrite the cutout after acquisition.
-            // Repair the actual LayoutParams before a frame, then let Android measure once more.
-            runCatching { !apply() }.getOrElse { failure ->
-                Log.e("HyperTweak", "island template pre-draw repair failed", failure)
-                runCatching { release() }
-                true
+        init { apply() }
+
+        fun update(cutoutWidth: Int, media: Boolean) {
+            if (media && !this.media) {
+                leftInnerPadding = left.paddingEnd
+                rightInnerPadding = right.paddingStart
             }
+            this.cutoutWidth = cutoutWidth
+            this.media = media
+            apply()
         }
-        init { observer.addOnPreDrawListener(listener); apply() }
 
         fun apply(): Boolean {
             var changed = false
@@ -36,6 +37,19 @@ internal class IslandTemplateWidthLease {
                     view.layoutParams = params
                     changed = true
                 }
+            }
+            if (media || paddingOwned) {
+                val leftPadding = if (media) 0 else leftInnerPadding
+                val rightPadding = if (media) 0 else rightInnerPadding
+                if (left.paddingEnd != leftPadding) {
+                    left.setPaddingRelative(left.paddingStart, left.paddingTop, leftPadding, left.paddingBottom)
+                    changed = true
+                }
+                if (right.paddingStart != rightPadding) {
+                    right.setPaddingRelative(rightPadding, right.paddingTop, right.paddingEnd, right.paddingBottom)
+                    changed = true
+                }
+                paddingOwned = media
             }
             zeroWeight(left, leftParams)
             zeroWeight(right, rightParams)
@@ -51,7 +65,10 @@ internal class IslandTemplateWidthLease {
         }
 
         fun release(nativeCutoutWidth: Int? = null) {
-            if (observer.isAlive) observer.removeOnPreDrawListener(listener)
+            if (media && left.paddingEnd == 0)
+                left.setPaddingRelative(left.paddingStart, left.paddingTop, leftInnerPadding, left.paddingBottom)
+            if (media && right.paddingStart == 0)
+                right.setPaddingRelative(rightInnerPadding, right.paddingTop, right.paddingEnd, right.paddingBottom)
             if (left.layoutParams === leftParams && leftParams.weight == 0f) {
                 leftParams.weight = leftWeight
                 left.layoutParams = leftParams
@@ -71,14 +88,20 @@ internal class IslandTemplateWidthLease {
     }
     private val entries = LinkedHashMap<Any, MutableList<Entry>>()
 
-    fun acquire(owner: Any, left: View, right: View, cutoutWidth: Int = 0) {
+    fun acquire(owner: Any, left: View, right: View, cutoutWidth: Int = 0) =
+        acquire(owner, left, right, cutoutWidth, false)
+
+    /** A side media pair has no physical camera between its original native areas. */
+    fun acquireMedia(owner: Any, left: View, right: View) = acquire(owner, left, right, 0, true)
+
+    private fun acquire(owner: Any, left: View, right: View, cutoutWidth: Int, media: Boolean) {
         val parent = left.parent as? LinearLayout ?: return
         if (right.parent !== parent || parent.indexOfChild(left) >= parent.indexOfChild(right) ||
             left.layoutParams !is LinearLayout.LayoutParams || right.layoutParams !is LinearLayout.LayoutParams) return
         val owned = entries.getOrPut(owner) { mutableListOf() }
         val entry = owned.firstOrNull { it.parent === parent }
-        if (entry != null) { entry.cutoutWidth = cutoutWidth; entry.apply() }
-        else owned.add(Entry(parent, left, right, cutoutWidth))
+        if (entry != null) entry.update(cutoutWidth, media)
+        else owned.add(Entry(parent, left, right, cutoutWidth, media))
     }
 
     /** A replacement hook generation may inherit a zero camera seat without owning its lease. */

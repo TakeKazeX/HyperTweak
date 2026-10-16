@@ -13,6 +13,42 @@ import org.junit.Test
 
 /** Validate against both APKs: the plugin API also depends on classes supplied by SystemUI. */
 class NativeIslandTargetApkTest {
+    @Test fun `native measurement owns timer premeasure and real fake camera publication`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val root = "Lmiui/systemui/dynamicisland/"
+        val content = classes.getValue(root + "window/content/DynamicIslandContentView;")
+        val base = classes.getValue(content.superclass!!)
+        val fake = classes.getValue(root + "window/content/DynamicIslandContentFakeView;")
+        fun calls(method: org.jf.dexlib2.iface.Method) = (method.implementation?.instructions ?: emptyList()).mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }.toList()
+        val measurement = content.methods.single { it.name == "calculateBigIslandWidth" }
+        val premeasure = content.methods.single { it.name == "applyPreMeasureMode" }
+        assertEquals(listOf("Landroid/view/ViewGroup;", "Z"), premeasure.parameterTypes.map(CharSequence::toString))
+        assertEquals("Z", premeasure.returnType)
+        assertTrue(calls(premeasure).any { it.name == "enablePreMeasureMode" && it.parameterTypes == listOf("Z") })
+        val measurementCalls = calls(measurement)
+        val modeCalls = measurementCalls.withIndex().filter { it.value.name == premeasure.name }
+        assertEquals("native measurement enters and exits premeasure", 2, modeCalls.size)
+        assertTrue(measurementCalls.withIndex().any { it.value.name == "measure" &&
+            it.index > modeCalls.first().index && it.index < modeCalls.last().index })
+        assertTrue(measurementCalls.withIndex().any { it.value.name == "calculateBigIslandWidth" &&
+            it.value.definingClass != content.type && it.index > modeCalls.last().index })
+        // Hooking this inherited getter must cover the fake callback owner as well.
+        assertEquals(base.type, fake.superclass)
+        assertTrue(base.methods.any { it.name == "getFixedCutoutWidth" && it.returnType == "I" })
+        assertFalse(fake.methods.any { it.name == "getFixedCutoutWidth" })
+        val callback = classes.values.flatMap { it.methods.toList() }.filter { it.name == "onBegin" }
+            .single { method -> calls(method).any { it.name == "updateCutoutWidth" } &&
+                calls(method).any { it.name == "getFixedCutoutWidth" } }
+        val callbackCalls = calls(callback)
+        assertTrue(callbackCalls.indexOfFirst { it.name == "getFixedCutoutWidth" } <
+            callbackCalls.indexOfFirst { it.name == "updateCutoutWidth" })
+    }
+
     @Test fun `live whitelist gates preserve verified host signatures`() {
         val paths = listOf("SYSTEMUI_PLUGIN_APK", "SYSTEMUI_APK", "XMSF_AUTH_APK").map { System.getenv(it)?.let(::File) }
         assumeTrue(paths.all { it?.isFile == true })

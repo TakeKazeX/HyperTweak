@@ -43,7 +43,7 @@ internal class IslandGeometryDiagnostics(context: Context, main: Handler, dump: 
                 "screen=${location.joinToString()} box=${view.left},${view.top},${view.width},${view.height} " +
                 "measured=${view.measuredWidth} lp=${params?.width},${params?.height} gravity=$gravity " +
                 "weight=${(params as? LinearLayout.LayoutParams)?.weight} " +
-                "translation=${view.translationX},${view.translationY} alpha=${view.alpha} visibility=${view.visibility} " +
+                "translation=${view.translationX},${view.translationY} scale=${view.scaleX},${view.scaleY} pivot=${view.pivotX},${view.pivotY} alpha=${view.alpha} visibility=${view.visibility} " +
                 "clip=${view.clipBounds}$textWidth")
             if (view is ViewGroup) for (i in 0 until view.childCount) tree("$role/$i", view.getChildAt(i), depth + 1)
         }

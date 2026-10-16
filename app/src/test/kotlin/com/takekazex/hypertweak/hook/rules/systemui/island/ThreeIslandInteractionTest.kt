@@ -4,6 +4,36 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ThreeIslandInteractionTest {
+    @Test fun `music returning through left carousel inherits left seat over right history`() {
+        val seats = SmallIslandSeats()
+        val scheduler = SummaryIslandScheduler()
+        seats.assign("media", "stopwatch") // Music previously occupied the right side.
+        seats.assign("timer", "stopwatch")
+        seats.assign("stopwatch", "timer") // DOWN claims the left native handler.
+        val before = listOf("hotspot", "stopwatch", "timer")
+        val change = scheduler.plan(before, listOf("media"), true, "stopwatch")!!
+        seats.replace(change.displaced, change.task)
+        seats.assign(change.visible[1], change.visible[2])
+        assertEquals(listOf("hotspot", "media", "timer"), change.visible)
+        assertTrue(seats.primaryOnLeft)
+        assertEquals(true, seats.left("media"))
+        assertEquals(false, seats.left("timer"))
+        seats.assign("timer", "media") // Further native ownership exchange preserves it.
+        assertEquals(true, seats.left("media"))
+    }
+
+    @Test fun `hide replacement inherits right seat without moving left neighbour`() {
+        val seats = SmallIslandSeats()
+        seats.assign("timer", "media")
+        seats.assign("timer", "stopwatch")
+        val change = SummaryIslandScheduler().plan(
+            listOf("hotspot", "timer", "stopwatch"), listOf("media"), false, "timer")!!
+        seats.replace(change.task, change.visible[1])
+        seats.assign(change.visible[1], change.visible[2])
+        assertEquals(false, seats.left("media"))
+        assertEquals(true, seats.left("stopwatch"))
+    }
+
     @Test fun `left media and right task keep physical seats through ownership exchange`() {
         val seats = SmallIslandSeats()
         seats.assign("timer", "media")

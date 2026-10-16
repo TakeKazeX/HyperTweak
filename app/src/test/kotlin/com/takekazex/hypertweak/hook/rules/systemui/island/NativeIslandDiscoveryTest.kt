@@ -16,7 +16,8 @@ class NativeIslandDiscoveryTest {
         class E { class SwipeLeft; class SwipeRight }
         open class H { fun p() {} }
         class HH : H()
-        class W
+        class W { fun getWindowViewController() = WC() }
+        class WC
         class Data
         class C {
             fun t(event: E, view: V) {}
@@ -25,7 +26,9 @@ class NativeIslandDiscoveryTest {
             fun getWindowView() = W()
         }
         class A { fun a(view: V) {}; fun getAnimator(view: B) = D() }
-        class D { private val u = U(); fun getCoords() = Coords(); fun getGestureAnimator() = G() }
+        class D { private val u = U(); fun getCoords() = Coords(); fun getGestureAnimator() = G(); fun getFakeViewAnimator() = FA() }
+        class FA { fun getHelper() = FH() }
+        class FH
         class Coords
         class G
         class P
@@ -60,6 +63,11 @@ class NativeIslandDiscoveryTest {
         assertEquals(Fixture.V::class.java, resolved.classes[root + "window.content.DynamicIslandContentView"])
         assertEquals(Fixture.Coords::class.java, resolved.classes[root + "anim.ui.animator.IslandCoordinateCalculator"])
         assertEquals(Fixture.U::class.java, resolved.classes[root + "anim.ui.animator.IslandPropertyUpdater"])
+        assertTrue("Every access-registry owner must be available through discovery",
+            resolved.classes.keys.containsAll(NativeIslandContract.methods.keys))
+        assertEquals(Fixture.FA::class.java, resolved.classes[root + "anim.ui.animator.FakeViewAnimator"])
+        assertEquals(Fixture.FH::class.java, resolved.classes[root + "anim.ui.animator.FakeViewAnimHelper"])
+        assertEquals(Fixture.WC::class.java, resolved.classes[root + "window.DynamicIslandWindowViewController"])
         assertEquals("t", resolved.entries.getValue("transaction").name)
         assertEquals("p", resolved.entries.getValue("publication").name)
     }

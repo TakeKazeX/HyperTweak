@@ -18,6 +18,12 @@ internal class SmallIslandSeats {
 
     fun left(key: String?): Boolean? = key?.let(history::get)
 
+    /** A carousel replacement occupies the touched seat, regardless of its previous side. */
+    fun replace(previous: String?, next: String?) {
+        val left = previous?.let(history::get) ?: return
+        if (next != null) remember(next, left)
+    }
+
     private fun remember(key: String, left: Boolean) {
         history.remove(key)
         history[key] = left

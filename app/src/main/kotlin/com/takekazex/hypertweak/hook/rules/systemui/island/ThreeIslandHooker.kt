@@ -26,13 +26,15 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             set(value) { slot.stage(value) }
         val extra: Any? get() = extras.firstOrNull()
         var relayout: IslandRelayoutDriver? = null
-        val textWidths = IslandTextWidthLease()
         val templateWidths = IslandTemplateWidthLease()
         val configurationBindings = IslandTemplateRebinds()
         var displayOrder = emptyList<String>()
         var rowAvailable = 0
         var rowGap = 0
         var portraitContent: IslandContentSize? = null
+        var musicSmall: Any? = null
+        @Volatile var musicReturnGeometry: SmallIslandSpectrum.ReturnGeometry? = null
+        var spectrumLog: String? = null
         val seats = SmallIslandSeats()
         val gesture = IslandGestureScope()
         val scheduler = SummaryIslandScheduler()
@@ -59,11 +61,13 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         var forcePublication = false
     }
     private lateinit var host: NativeIslandAccess
+    private var musicSpectrum: NativeMusicSpectrum? = null
+    private var mediaRender: NativeMediaRenderContract? = null
     private val sessions = Collections.synchronizedMap(WeakHashMap<Any, Session>())
     private val transaction = ThreadLocal<Transaction?>()
     private val calculating = ThreadLocal<Any?>()
     private val animating = ThreadLocal<Any?>()
-    private val renderingState = ThreadLocal<Any?>()
+    private val renderingState = IslandRenderScope()
     private val templatePublication = IslandTemplatePublication()
     private val relayoutPublication = IslandTemplatePublication()
     private val layoutMeasurement = IslandTemplatePublication()
@@ -73,11 +77,14 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
 
     override fun onHook() {
         host = NativeIslandAccess(NativeIslandDiscovery.scan(pluginApkPath, classLoader))
+        musicSpectrum = runCatching { NativeMusicSpectrum(host.content) }
+            .onFailure { DebugLog.w(TAG, "native small-island spectrum contract unavailable", it) }.getOrNull()
+        mediaRender = musicSpectrum?.let { runCatching { NativeMediaRenderContract(host) }
+            .onFailure { DebugLog.w(TAG, "native media rendering contract unavailable", it) }.getOrNull() }
         // Fully resolve first. A changed plugin must skip this feature before any mutation.
         val handle = host.method(host.coordinator, "handleEvent")
         check(handle.parameterTypes.toList() == listOf(host.event, host.content))
         check(host.method(host.handler, "stop").parameterCount == 0)
-        installTemplatePublication()
         check(host.method(host.touch, "onInterceptTouchEvent").parameterTypes.first() == MotionEvent::class.java)
 
         listOf(handle, host.method(host.handler, "stop"), host.method(host.handler, "addState"),
@@ -88,7 +95,22 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             host.method(host.coordinator, "dispatchSwipe"), host.method(host.anim, "onStateChange"),
             host.method(host.resolver, "resolve"), host.method(host.content, "getCurrentBigIslandX"),
             host.method(host.content, "getCurrentBigIslandWidth")).forEach { deoptimize(it) }
+        installTemplatePublication()
+        installScheduling()
+        installConfiguration()
+        installTemplateBinding()
+        installNativeMeasurement()
+        installCoordinatesAndRegions()
+        installTouchRouting()
+        installSummaryGestures()
+        installFullPresentation()
+        DebugLog.hookRegistered(TAG, "DexKit native third task, adaptive full templates and touch routing")
+    }
+
+    private fun installScheduling() {
+        val handle = host.method(host.coordinator, "handleEvent")
         registerRuntimeHook(handle, "three_islands_transaction", XposedInterface.Hooker { chain ->
+            renderingState.native {
             val owner = chain.thisObject ?: return@Hooker chain.proceed()
             if (Looper.myLooper() != Looper.getMainLooper() || transaction.get() != null) return@Hooker chain.proceed()
             val session = sessions.getOrPut(owner) { Session(owner) }
@@ -129,6 +151,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             } finally {
                 transaction.remove()
             }
+            }
         })
         host.method(host.handler, "stop").hook {
             before {
@@ -144,6 +167,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 extension(tx.session, "preserve transition origin") { host.call(view, "setLastState", old) }
             }
         }
+    }
+
+    private fun installConfiguration() {
         // A configuration rebuild snapshots only native slots/queue. Return our lease before
         // the window clears or reinflates any views, and suppress admission until it finishes.
         registerRuntimeHook(host.method(host.window, "onConfigChanged"), "three_islands_configuration",
@@ -165,8 +191,12 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                     chain.proceed()
                 } finally { session.suspended--; refreshSettings() }
             })
-        // Config changes rebuild templates asynchronously after onConfigChanged has returned.
+    }
+
+    private fun installTemplateBinding() {
+        // Native template binding owns music content; animation callbacks never rebind it.
         listOf(host.method(host.content, "updateBigIslandView"), host.method(host.fake, "updateBigIslandView")).forEach(::deoptimize)
+        installNativeMediaRendering()
         host.method(host.content, "initBigIslandView").also(::deoptimize).hook {
             after { param -> templateBound(param.thisObject) }
         }
@@ -177,135 +207,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                     .onFailure { DebugLog.e(TAG, "resolve rebound fake template", it) }
             }
         }
-        // Keep native template measurement; choose compact three-island or occupied full-row geometry.
-        registerRuntimeHook(host.method(host.content, "calculateBigIslandWidth"), "three_islands_measure",
-            XposedInterface.Hooker { chain ->
-                val previous = calculating.get()
-                calculating.set(chain.thisObject)
-                try {
-                    chain.thisObject?.let { view -> sessionFor(view)?.let { s ->
-                        extension(s, "prepare full native text measurement") {
-                            if (!layoutMeasurement.active) releaseFullPosition(s, view)
-                            val root = host.call(view, "getBigIslandView") as? View
-                            if (root != null && (landscapeFullEnabled(s) || portraitCompactEnabled(s) ||
-                                    (landscapeMoreEnabled(s) && view === host.current(s.owner, "getBigIslandStateHandler"))))
-                                s.textWidths.acquire(root)
-                        }
-                    } }
-                    chain.proceed()
-                } finally {
-                    chain.thisObject?.let { view -> sessionFor(view)?.let { s ->
-                        extension(s, "release temporary text measurement") {
-                            if (!layoutMeasurement.active && !fullTemplate(s, view))
-                                (host.call(view, "getBigIslandView") as? View)?.let(s.textWidths::release)
-                        }
-                    } }
-                    if (previous == null) calculating.remove() else calculating.set(previous)
-                }
-            })
-        host.method(host.helper, "calculateBigIslandWidth").hook {
-            after { param ->
-                val view = calculating.get() ?: return@after
-                val session = sessionFor(view) ?: return@after
-                extension(session, "measure three islands") {
-                    val input = param.args[0] ?: return@extension
-                    val result = param.result ?: return@extension
-                    session.contentSizes.remove(view)
-                    fun natural(side: String): Int {
-                        val measured = host.number(input, "getBigIslandArea${side}Width")
-                        if (!landscapeFullEnabled(session) && !portraitCompactEnabled(session) && !(landscapeMoreEnabled(session) &&
-                                view === host.current(session.owner, "getBigIslandStateHandler"))) return measured
-                        val area = host.call(view, "getBigIslandArea$side") as? View ?: return measured
-                        return maxOf(measured, session.textWidths.minimumWidth(area))
-                    }
-                    IslandContentSize.measured(natural("Left"), natural("Right"), host.number(view, "getIslandViewHeight"))
-                        ?.let { session.contentSizes[view] = it }
-                    if (!session.layoutIntent || !enabled(session)) return@extension
-                    val big = host.current(session.owner, "getBigIslandStateHandler")
-                    if (big === view) {
-                        val window = host.call(session.owner, "getWindowView") as? View ?: return@extension
-                        val insets = window.rootWindowInsets?.displayCutout
-                        val screenWidth = host.number(input, "getScreenWidth")
-                        val screenHeight = host.number(input, "getScreenHeight")
-                        val clock = host.ceilDimension(input, "getClockWidth")
-                        val battery = host.ceilDimension(input, "getBatteryWidth")
-                        val gap = host.number(input, "getSpace")
-                        val right = host.current(session.owner, "getSmallIslandStateHandler")
-                        val native = listOfNotNull(big, right)
-                        fun size(item: Any): IslandContentSize? = if (item === big || landscapeFullEnabled(session))
-                            session.contentSizes[item] else host.number(item, "getSmallIslandViewWidth").takeIf { it > 0 }?.let { IslandContentSize(it, 0) }
-                        val more = landscapeMoreEnabled(session)
-                        val safeLeft = insets?.safeInsetLeft ?: 0
-                        val safeRight = insets?.safeInsetRight ?: 0
-                        session.rowAvailable = screenWidth - 2 * maxOf(clock, battery, safeLeft, safeRight, 0)
-                        session.rowGap = gap
-                        val selected = if (rowModeEnabled(session)) FullIslandRow.admit(native, session.extras) { items ->
-                            val sizes = items.mapNotNull(::size)
-                            sizes.size == items.size && FullIslandRow.calculate(screenWidth, screenHeight, clock, battery,
-                                sizes, gap, safeLeft, safeRight) != null
-                        } else native
-                        if (more) session.extras = selected.filter { it !in native }
-                        val all = (native + session.extras).distinct()
-                        val initial = all.sortedBy { item -> if (item === big) 1 else if (session.seats.left(key(item)) == true) 0 else 2 }
-                        val order = (session.displayOrder + initial.mapNotNull(::key)).distinct()
-                        val ordered = all.sortedBy { order.indexOf(key(it)).let { i -> if (i < 0) Int.MAX_VALUE else i } }
-                        val contents = ordered.mapNotNull(::size)
-                        val row = if (rowModeEnabled(session) && contents.size == ordered.size)
-                            FullIslandRow.calculate(screenWidth, screenHeight, clock, battery, contents, gap, safeLeft, safeRight) else null
-                        session.fullFrames.clear()
-                        session.portraitContent = null
-                        val portrait = if (portraitCompactEnabled(session)) session.contentSizes[big]?.let { content ->
-                            PortraitIslandLayout.calculate(screenWidth, screenHeight, clock, battery, content,
-                                host.number(input, "getCutoutWidth"),
-                                (listOfNotNull(right) + session.extras).maxOfOrNull { host.number(it, "getSmallIslandViewWidth") } ?: 0,
-                                gap, (listOfNotNull(right) + session.extras).any { session.seats.left(key(it)) == true },
-                                (listOfNotNull(right) + session.extras).any { session.seats.left(key(it)) != true }, safeLeft, safeRight)?.also {
-                                    session.portraitContent = content
-                                }
-                        } else null
-                        if (portrait != null) {
-                            session.layout = portrait
-                        } else if (row != null) {
-                            session.fullFrames.putAll(ordered.zip(row).map { (item, frame) ->
-                                item to frame.copy(full = item === big || landscapeFullEnabled(session))
-                            })
-                            session.displayOrder = ordered.mapNotNull(::key)
-                            val centre = session.fullFrames.getValue(big)
-                            val sides = ordered.filter { it !== big }.map { session.fullFrames.getValue(it) }
-                            session.layout = ThreeIslandLayout(centre.x, centre.width,
-                                sides.firstOrNull { it.x < centre.x }?.x ?: centre.x,
-                                sides.firstOrNull { it.x > centre.x }?.x ?: centre.x, true, screenWidth)
-                        } else if (portraitCompactEnabled(session)) {
-                            session.extras = emptyList()
-                            session.layout = null
-                        } else if (session.extra != null && right != null) {
-                            session.extras = session.extras.take(1)
-                            session.layout = ThreeIslandLayout.calculate(screenWidth, screenHeight, clock, battery,
-                                minOf(host.number(result, "getBigIslandViewWidth"), host.number(input, "getMaxWidth")),
-                                (host.minimumBig.invoke(param.thisObject) as Number).toInt(),
-                                maxOf(host.number(right, "getSmallIslandViewWidth"), host.number(session.extra!!, "getSmallIslandViewWidth")),
-                                gap, safeLeft = insets?.safeInsetLeft ?: 0, safeRight = insets?.safeInsetRight ?: 0)
-                        } else session.layout = null
-                    }
-                    session.fullFrames.filterValues { it.full }.keys.forEach { acquireTemplateWidth(session, it, 0) }
-                    if (session.portraitContent != null) acquireTemplateWidth(session, big!!, host.number(input, "getCutoutWidth"))
-                    val layout = session.layout ?: return@extension
-                    if (view !in summaries(session)) return@extension
-                    val frame = session.fullFrames[view]
-                    if (session.portraitContent != null && view !== host.current(session.owner, "getBigIslandStateHandler")) return@extension
-                    if (frame != null && !frame.full) return@extension
-                    val cutout = if (frame != null) 0 else host.number(input, "getCutoutWidth")
-                    val width = frame?.width ?: layout.bigWidth
-                    val x = frame?.x ?: layout.bigX
-                    if (width < cutout) { session.layout = null; session.fullFrames.clear(); return@extension }
-                    val portraitContent = session.portraitContent.takeIf { view === host.current(session.owner, "getBigIslandStateHandler") }
-                    val left = frame?.content?.left ?: portraitContent?.left ?: ((width - cutout) / 2)
-                    val right = frame?.content?.right ?: portraitContent?.right ?: (width - cutout - left)
-                    param.result = host.resultConstructor.newInstance(width, left, right, x,
-                        if (frame != null) 0 else host.number(result, "getBigIslandMarginWidth"), width, left, right, x)
-                }
-            }
-        }
+    }
+
+    private fun installCoordinatesAndRegions() {
         host.method(host.coords, "getSmallIslandX").hook {
             after { param ->
                 val view = host.coordsView.get(param.thisObject) ?: return@after
@@ -337,7 +241,10 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 extension(session, "small hit region") {
                     val x = smallX(session, view) ?: return@extension
                     val rect = param.result as? Rect ?: return@extension
-                    rect.set(x, rect.top, x + sideWidth(session, view), rect.bottom)
+                    val returning = if (view !in summaries(session)) session.musicReturnGeometry
+                        ?.takeIf { it.key == key(view) }?.target(x, nativeSmallWidth(view)) else null
+                    rect.set(returning?.x ?: x, rect.top,
+                        returning?.let { it.x + it.width } ?: (x + sideWidth(session, view)), rect.bottom)
                 }
             }
         }
@@ -388,6 +295,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 if (param.args.firstOrNull() in session.extras) param.result = true
             }
         }
+    }
+
+    private fun installTouchRouting() {
         host.method(host.window, "dispatchTouchEvent").hook {
             before { param ->
                 val event = param.args.firstOrNull() as? MotionEvent ?: return@before
@@ -472,6 +382,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 if (enabled(session) && session.layout != null && session.gesture.expandedKey != null) param.args[2] = true
             }
         }
+    }
+
+    private fun installSummaryGestures() {
         // Keep the host event envelope (rebuild blocking, bookkeeping and publication), but
         // replace its two-slot carousel at the exact progress / commit / rollback boundaries.
         host.method(host.swipe, "handleAppEvent").also(::deoptimize).hook {
@@ -489,6 +402,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                     param.result = null
                     if (!s.gesture.cancelled && s.gesture.expandedKey == null) {
                         val plan = swipePlan(s, tx.visible, reveal)
+                        DebugLog.i(TAG, "summary swipe reveal=$reveal down=${s.gesture.clickKey} " +
+                            "visible=${tx.visible.map(::key)} queued=${queuedSummaries(s).map(::key)} plan=$plan")
                         if (plan != null) {
                             commitSwipe(s, tx.visible, plan)
                             s.swipePreview = null // State publication now owns the final animation.
@@ -555,8 +470,149 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 }
             }
         }
-        installFullPresentation()
-        DebugLog.hookRegistered(TAG, "DexKit native third task, adaptive full templates and touch routing")
+    }
+
+    /** Capture the host's measured areas; only adapt occupied slot geometry. */
+    private fun installNativeMeasurement() {
+        // Keep native template measurement; choose compact three-island or occupied full-row geometry.
+        registerRuntimeHook(host.method(host.content, "calculateBigIslandWidth"), "three_islands_measure",
+            XposedInterface.Hooker { chain ->
+                val previous = calculating.get()
+                calculating.set(chain.thisObject)
+                try {
+                    chain.thisObject?.let { view -> sessionFor(view)?.let { s ->
+                        extension(s, "restore native template before measurement") {
+                            if (!layoutMeasurement.active) releaseFullPosition(s, view)
+                        }
+                    } }
+                    chain.proceed()
+                } finally {
+                    if (previous == null) calculating.remove() else calculating.set(previous)
+                }
+            })
+        host.method(host.helper, "calculateBigIslandWidth").hook {
+            after { param ->
+                val view = calculating.get() ?: return@after
+                val session = sessionFor(view) ?: return@after
+                extension(session, "measure three islands") {
+                    val input = param.args[0] ?: return@extension
+                    val result = param.result ?: return@extension
+                    session.contentSizes.remove(view)
+                    // The host already enables TimerTextEffectView premeasure mode, measures
+                    // native areas and restores that mode before entering its phone helper.
+                    IslandContentSize.measured(host.number(input, "getBigIslandAreaLeftWidth"),
+                        host.number(input, "getBigIslandAreaRightWidth"), host.number(view, "getIslandViewHeight"))
+                        ?.let { session.contentSizes[view] = it }
+                    if (!session.layoutIntent || !enabled(session)) return@extension
+                    val big = host.current(session.owner, "getBigIslandStateHandler")
+                    if (big === view) {
+                        val window = host.call(session.owner, "getWindowView") as? View ?: return@extension
+                        val insets = window.rootWindowInsets?.displayCutout
+                        val screenWidth = host.number(input, "getScreenWidth")
+                        val screenHeight = host.number(input, "getScreenHeight")
+                        val clock = host.ceilDimension(input, "getClockWidth")
+                        val battery = host.ceilDimension(input, "getBatteryWidth")
+                        val gap = host.number(input, "getSpace")
+                        val right = host.current(session.owner, "getSmallIslandStateHandler")
+                        val native = listOfNotNull(big, right)
+                        fun size(item: Any): IslandContentSize? = if (item === big || landscapeFullEnabled(session))
+                            session.contentSizes[item] else nativeSmallWidth(item).takeIf { it > 0 }?.let { IslandContentSize(it, 0) }
+                        val more = landscapeMoreEnabled(session)
+                        val safeLeft = insets?.safeInsetLeft ?: 0
+                        val safeRight = insets?.safeInsetRight ?: 0
+                        session.rowAvailable = screenWidth - 2 * maxOf(clock, battery, safeLeft, safeRight, 0)
+                        session.rowGap = gap
+                        val selected = if (rowModeEnabled(session)) FullIslandRow.admit(native, session.extras) { items ->
+                            val sizes = items.mapNotNull(::size)
+                            sizes.size == items.size && FullIslandRow.calculate(screenWidth, screenHeight, clock, battery,
+                                sizes, gap, safeLeft, safeRight) != null
+                        } else native
+                        if (more) session.extras = selected.filter { it !in native }
+                        val all = (native + session.extras).distinct()
+                        val initial = all.sortedBy { item -> if (item === big) 1 else if (session.seats.left(key(item)) == true) 0 else 2 }
+                        val order = (session.displayOrder + initial.mapNotNull(::key)).distinct()
+                        val ordered = all.sortedBy { order.indexOf(key(it)).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+                        val contents = ordered.mapNotNull(::size)
+                        val row = if (rowModeEnabled(session) && contents.size == ordered.size)
+                            FullIslandRow.calculate(screenWidth, screenHeight, clock, battery, contents, gap, safeLeft, safeRight) else null
+                        session.fullFrames.clear()
+                        session.musicSmall = null
+                        session.portraitContent = null
+                        val portrait = if (portraitCompactEnabled(session)) session.contentSizes[big]?.let { content ->
+                            PortraitIslandLayout.calculate(screenWidth, screenHeight, clock, battery, content,
+                                host.number(input, "getCutoutWidth"),
+                                (listOfNotNull(right) + session.extras).maxOfOrNull { nativeSmallWidth(it) } ?: 0,
+                                gap, (listOfNotNull(right) + session.extras).any { session.seats.left(key(it)) == true },
+                                (listOfNotNull(right) + session.extras).any { session.seats.left(key(it)) != true }, safeLeft, safeRight)?.also {
+                                    session.portraitContent = content
+                                }
+                        } else null
+                        if (portrait != null) {
+                            session.layout = portrait
+                        } else if (row != null) {
+                            session.fullFrames.putAll(ordered.zip(row).map { (item, frame) ->
+                                item to frame.copy(full = item === big || landscapeFullEnabled(session))
+                            })
+                            session.displayOrder = ordered.mapNotNull(::key)
+                            val centre = session.fullFrames.getValue(big)
+                            val sides = ordered.filter { it !== big }.map { session.fullFrames.getValue(it) }
+                            session.layout = ThreeIslandLayout(centre.x, centre.width,
+                                sides.firstOrNull { it.x < centre.x }?.x ?: centre.x,
+                                sides.firstOrNull { it.x > centre.x }?.x ?: centre.x, true, screenWidth)
+                        } else if (portraitCompactEnabled(session)) {
+                            session.extras = emptyList()
+                            session.layout = null
+                        } else if (session.extra != null && right != null) {
+                            session.extras = session.extras.take(1)
+                            session.layout = ThreeIslandLayout.calculate(screenWidth, screenHeight, clock, battery,
+                                minOf(host.number(result, "getBigIslandViewWidth"), host.number(input, "getMaxWidth")),
+                                (host.minimumBig.invoke(param.thisObject) as Number).toInt(),
+                                maxOf(nativeSmallWidth(right), nativeSmallWidth(session.extra!!)),
+                                gap, safeLeft = insets?.safeInsetLeft ?: 0, safeRight = insets?.safeInsetRight ?: 0)
+                        } else if (right != null && Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false) &&
+                            musicSpectrum?.matches(right) == true) {
+                            val x = host.number(result, "getBigIslandXHasSmallIsland")
+                            val width = host.number(result, "getBigIslandViewWidthHasSmallIsland")
+                            val small = nativeSmallWidth(right)
+                            session.layout = ThreeIslandLayout(x, width, x - gap - small,
+                                x + width + gap, false, screenWidth)
+                        } else session.layout = null
+                        adaptMusicSmall(session, clock, battery, safeLeft, safeRight, gap)
+                    }
+                    session.fullFrames.filterValues { it.full }.keys.forEach { acquireTemplateWidth(session, it, 0) }
+                    if (session.portraitContent != null) acquireTemplateWidth(session, big!!, host.number(input, "getCutoutWidth"))
+                    val layout = session.layout ?: return@extension
+                    // A two-island native row only lends unused space to music; preserve
+                    // the host's asymmetric main-area allocation and cutout geometry.
+                    if (session.extras.isEmpty() && session.portraitContent == null && view !in session.fullFrames)
+                        return@extension
+                    if (view !in summaries(session)) return@extension
+                    val frame = session.fullFrames[view]
+                    if (session.portraitContent != null && view !== host.current(session.owner, "getBigIslandStateHandler") && frame?.full != true) return@extension
+                    if (frame != null && !frame.full) return@extension
+                    val cutout = if (frame != null) 0 else host.number(input, "getCutoutWidth")
+                    val width = frame?.width ?: layout.bigWidth
+                    val x = frame?.x ?: layout.bigX
+                    if (width < cutout) { session.layout = null; session.fullFrames.clear(); return@extension }
+                    val portraitContent = session.portraitContent.takeIf { view === host.current(session.owner, "getBigIslandStateHandler") }
+                    val left = frame?.content?.left ?: portraitContent?.left ?: ((width - cutout) / 2)
+                    val right = frame?.content?.right ?: portraitContent?.right ?: (width - cutout - left)
+                    param.result = host.resultConstructor.newInstance(width, left, right, x,
+                        if (frame != null) 0 else host.number(result, "getBigIslandMarginWidth"), width, left, right, x)
+                }
+            }
+        }
+    }
+
+    private fun realContent(view: Any): Any? = try {
+        when {
+            host.content.isInstance(view) -> view
+            host.fake.isInstance(view) -> host.call(view, "getRealView")
+            else -> null
+        }
+    } catch (error: Throwable) {
+        DebugLog.e(TAG, "resolve native template owner", error)
+        null
     }
 
     private fun sessionFor(view: Any): Session? {
@@ -606,9 +662,12 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             })
         host.method(host.content, "getFixedCutoutWidth").also(::deoptimize).hook {
             after { param ->
-                val s = sessionFor(param.thisObject) ?: return@after
-                extension(s, "remove landscape camera placeholder") {
-                    if (fullTemplate(s, param.thisObject)) param.result = 0
+                val real = realContent(param.thisObject) ?: return@after
+                val s = sessionFor(real) ?: return@after
+                extension(s, "native template camera seat") {
+                    // The inherited getter also runs on the fake view in Folme onBegin.
+                    // Give that callback the final geometry instead of repairing every draw.
+                    if (fullTemplate(s, real)) param.result = 0
                 }
             }
         }
@@ -646,13 +705,15 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 if (previous == null) renderingState.remove() else renderingState.set(previous)
             }
         })
-        host.method(host.content, "getState").also(::deoptimize).hook {
-            after { param ->
-                if (renderingState.get() !== param.thisObject) return@after
-                val s = sessionFor(param.thisObject) ?: return@after
-                extension(s, "reset full native template") {
-                    if (fullSide(s, param.thisObject) && host.small.isInstance(param.result))
-                        param.result = host.bigConstructor.newInstance()
+        listOf("getState", "getLastState").forEach { name ->
+            host.method(host.content, name).also(::deoptimize).hook {
+                after { param ->
+                    if (renderingState.get() !== param.thisObject) return@after
+                    val s = sessionFor(param.thisObject) ?: return@after
+                    extension(s, "native large media state") {
+                        if (fullSide(s, param.thisObject) && host.small.isInstance(param.result))
+                            param.result = host.renderBig(param.result)
+                    }
                 }
             }
         }
@@ -661,7 +722,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             val previous = animating.get()
             animating.set(view)
             try {
-                sessionFor(view)?.let { s -> extension(s, "return expanded template to native coordinates") {
+                sessionFor(view)?.let { s -> extension(s, "prepare native summary animation") {
+                    prepareSmallMusicAnimation(s, view)
                     releaseFullPosition(s, view)
                 } }
                 val result = chain.proceed()
@@ -680,8 +742,10 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 extension(s, "resolve full native template") {
                     val previousFull = s.fullPresentation[view] == true
                     val nextFull = fullSide(s, view)
-                    param.args[0] = IslandPresentation.project(param.args[0], previousFull, host.small::isInstance) { host.bigConstructor.newInstance() }
-                    param.args[1] = IslandPresentation.project(param.args[1], nextFull, host.small::isInstance) { host.bigConstructor.newInstance() }
+                    val before = param.args[0]
+                    val after = param.args[1]
+                    param.args[0] = IslandPresentation.project(before, previousFull, host.small::isInstance) { host.renderBig(before) }
+                    param.args[1] = IslandPresentation.project(after, nextFull, host.small::isInstance) { host.renderBig(after) }
                 }
             }
         }
@@ -699,8 +763,118 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         }
     }
 
-    private fun fullTemplate(s: Session, view: Any): Boolean = rowModeEnabled(s) && s.fullFrames[view]?.full == true &&
+    private fun fullTemplate(s: Session, view: Any): Boolean =
+        enabled(s) && (rowModeEnabled(s) || s.musicSmall === view) &&
+        s.fullFrames[view]?.full == true &&
         IslandPresentation.isSummary(view, s.fullFrames.keys, summaries(s), host.current(s.owner, "getExpandedStateHandler"))
+
+    private fun installNativeMediaRendering() {
+        val contract = mediaRender ?: return
+        contract.callers.forEach(::deoptimize)
+        contract.entries.forEach { entry ->
+            entry.destination?.let(::deoptimize)
+            registerRuntimeHook(entry.method.also(::deoptimize),
+                "three_islands_native_media_${entry.method.declaringClass.simpleName}_${entry.method.name}",
+                XposedInterface.Hooker { chain ->
+                    val view = entry.viewIndex?.let { chain.args[it] } ?: if (host.fake.isInstance(chain.thisObject))
+                        runCatching { host.call(chain.thisObject!!, "getRealView") }
+                            .onFailure { DebugLog.e(TAG, "resolve native media owner", it) }.getOrNull()
+                        else chain.thisObject
+                    val s = view?.let(::sessionFor) ?: return@Hooker chain.proceed()
+                    var project = false
+                    extension(s, "prepare native media renderer") {
+                        prepareSmallMusicAnimation(s, view)
+                        project = fullSide(s, view)
+                    }
+                    if (!project) return@Hooker chain.proceed()
+                    renderingState.render(view) {
+                        if (entry.destination != null) {
+                            try { entry.destination.invoke(chain.thisObject, *chain.args.toTypedArray()) }
+                            catch (failure: java.lang.reflect.InvocationTargetException) { throw failure.targetException }
+                        } else chain.proceed()
+                    }
+                })
+        }
+        contract.appCloseTarget.also(::deoptimize).hook {
+            after { param ->
+                if (!host.small.isInstance(param.args[0])) return@after
+                val view = param.args[1] ?: return@after
+                val s = sessionFor(view) ?: return@after
+                extension(s, "native media return destination") {
+                    if (!enabled(s)) return@extension
+                    val geometry = s.musicReturnGeometry?.takeIf { it.key == key(view) } ?: return@extension
+                    val rect = param.result as? Rect ?: return@extension
+                    val frame = geometry.target(rect.left, rect.width()) ?: return@extension
+                    param.result = Rect(frame.x, rect.top, frame.x + frame.width, rect.bottom)
+                }
+            }
+        }
+    }
+
+    private fun nativeSmallWidth(view: Any): Int = host.number(view, "getSmallIslandViewWidth")
+
+    private fun nativeMusicDemand(view: Any): IslandContentSize {
+        val root = view as View
+        fun dimension(name: String): Int {
+            val id = root.resources.getIdentifier(name, "dimen", "miui.systemui.plugin")
+            check(id != 0) { "Missing native music dimension $name" }
+            return root.resources.getDimensionPixelSize(id)
+        }
+        val cell = dimension("island_area_padding") + dimension("island_fix_icon_size") +
+            2 * dimension("island_fix_icon_margin")
+        return IslandContentSize(cell, cell)
+    }
+
+    /** Choose native Big rendering before the transition resolver captures the first state. */
+    private fun prepareSmallMusicAnimation(s: Session, view: Any) {
+        if (s.musicSmall === view && s.fullFrames[view]?.full == true) return
+        if (Looper.myLooper() != main.looper || layoutMeasurement.active || calculating.get() != null ||
+            !enabled(s) || !s.layoutIntent || s.layout?.full != false || s.extras.size > 1 ||
+            !Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false) ||
+            view === host.current(s.owner, "getExpandedStateHandler") ||
+            (view !in s.extras && view !== host.current(s.owner, "getSmallIslandStateHandler")) ||
+            musicSpectrum?.matches(view) != true) return
+        val big = host.current(s.owner, "getBigIslandStateHandler") ?: return
+        layoutMeasurement.run {
+            host.call(view, "calculateBigIslandWidth")
+            host.call(big, "calculateBigIslandWidth")
+            host.call(view, "calculateBigIslandWidth")
+        }
+    }
+
+    private fun adaptMusicSmall(s: Session, clock: Int, battery: Int, safeLeft: Int, safeRight: Int, gap: Int) {
+        val layout = s.layout ?: return
+        s.musicReturnGeometry = s.musicReturnGeometry?.copy(layout = layout, gap = gap,
+            clock = clock, battery = battery, safeLeft = safeLeft, safeRight = safeRight)
+        if (layout.full || !Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false) ||
+            s.extras.size > 1 || s.fullFrames.isNotEmpty()) return
+        val primary = host.current(s.owner, "getSmallIslandStateHandler") ?: return
+        val extra = s.extras.singleOrNull()
+        val expanded = host.current(s.owner, "getExpandedStateHandler")
+        val candidates = listOfNotNull(primary, extra).filter { it !== expanded && musicSpectrum?.matches(it) == true }
+        fun record(message: String) {
+            if (s.spectrumLog != message) { s.spectrumLog = message; DebugLog.i(TAG, "small spectrum $message") }
+        }
+        if (candidates.isEmpty()) {
+            record("no native waveform: primary=${musicSpectrum?.describe(primary)} extra=${extra?.let { musicSpectrum?.describe(it) }}")
+        }
+        val music = candidates.singleOrNull() ?: return
+        val other = if (music === primary) extra else primary
+        if (mediaRender == null) return
+        if (host.call(music, "getBigIslandAreaLeft") !is View || host.call(music, "getBigIslandAreaRight") !is View) return
+        val size = nativeMusicDemand(music)
+        key(music)?.let { musicKey ->
+            s.musicReturnGeometry = SmallIslandSpectrum.ReturnGeometry(musicKey, layout, size,
+                gap, clock, battery, safeLeft, safeRight, other?.let(::nativeSmallWidth) ?: 0)
+        }
+        val currentLeft = s.seats.left(key(music)) ?: return
+        val seat = SmallIslandSpectrum.choose(layout, size, gap, clock, battery, safeLeft, safeRight,
+            currentLeft, other?.let(::nativeSmallWidth) ?: 0)
+        record("nativeBig size=$size currentLeft=$currentLeft seat=$seat")
+        if (seat == null) return
+        s.musicSmall = music
+        s.fullFrames[music] = seat.frame
+    }
 
     private fun portraitMain(s: Session, view: Any): Boolean = portraitCompactEnabled(s) && s.portraitContent != null &&
         view === host.current(s.owner, "getBigIslandStateHandler") && view !== host.current(s.owner, "getExpandedStateHandler")
@@ -719,7 +893,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     }
 
     private fun acquireTemplateWidth(s: Session, view: Any, cutout: Int) = templateAreas(view) { left, right ->
-        s.templateWidths.acquire(view, left, right, cutout)
+        if (s.musicSmall === view) s.templateWidths.acquireMedia(view, left, right)
+        else s.templateWidths.acquire(view, left, right, cutout)
     }
 
     private fun templateBound(view: Any, binding: Any = view) {
@@ -727,7 +902,10 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         if (Looper.myLooper() != main.looper) { main.post { templateBound(view, binding) }; return }
         val s = sessionFor(view) ?: return
         extension(s, "publish rebound template") {
-            s.fullFrames.remove(view)
+            val sideMusic = enabled(s) && Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false) &&
+                (view in s.extras || view === host.current(s.owner, "getSmallIslandStateHandler")) &&
+                view !== host.current(s.owner, "getExpandedStateHandler") && musicSpectrum?.matches(view) == true
+            if (!sideMusic) s.fullFrames.remove(view)
             s.portraitContent = null
             s.contentSizes.remove(view)
             releaseFullPosition(s, view)
@@ -736,6 +914,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             if (s.configurationBindings.bound(binding)) {
                 DebugLog.d(TAG, "configuration template bound; frame generation invalidated")
                 requestRelayout(s)
+            } else if (sideMusic && s.musicSmall === view) {
+                acquireTemplateWidth(s, view, 0)
             }
         }
     }
@@ -747,7 +927,6 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             templateAreas(view) { left, right -> s.templateWidths.restoreCutout(left, right, nativeCutout) }
             (host.call(view, "getBigIslandView") as? View)?.let { root ->
                 if (s.fullOrigins.remove(view) != null) root.translationX = 0f
-                s.textWidths.release(root)
             }
         }
     }
@@ -818,7 +997,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         if (!landscapeMoreEnabled(s) || s.fullFrames.isEmpty()) return 3
         val next = queuedSummaries(s).firstOrNull { it !in visible } ?: return visible.size.coerceAtLeast(2)
         val width = if (landscapeFullEnabled(s)) s.contentSizes[next]?.width
-            else host.number(next, "getSmallIslandViewWidth")
+            else nativeSmallWidth(next)
         val used = s.fullFrames.values.sumOf { it.width.toLong() } + s.rowGap.toLong() * s.fullFrames.size
         return if (width != null && width > 0 && used + width <= s.rowAvailable) visible.size + 1 else visible.size.coerceAtLeast(2)
     }
@@ -872,18 +1051,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     private fun requestRelayout(s: Session) {
         if (retiring) return
         val window = host.call(s.owner, "getWindowView") as? View ?: return
-        if (geometryDiagnostics == null) geometryDiagnostics = IslandGeometryDiagnostics(window.context, main) {
-            sessionSnapshot().forEach { current ->
-                DebugLog.i("IslandGeometry", "layout=${current.layout} portrait=${current.portraitContent} frames=${current.fullFrames.values} failed=${current.failed} intent=${current.layoutIntent} eligible=${phoneLayoutEligible(current)} orientation=${window.resources.configuration.orientation}")
-                summaries(current).forEachIndexed { index, view ->
-                    DebugLog.i("IslandGeometry", "summary=$index state=${host.call(view, "getState")} size=${current.contentSizes[view]}")
-                    IslandGeometryDiagnostics.tree("summary$index", view as? View)
-                    IslandGeometryDiagnostics.tree("left$index", host.call(view, "getBigIslandAreaLeft") as? View)
-                    IslandGeometryDiagnostics.tree("right$index", host.call(view, "getBigIslandAreaRight") as? View)
-                    IslandGeometryDiagnostics.tree("fake$index", host.call(view, "getFakeView") as? View)
-                }
-            }
-        }
+        registerGeometryDiagnostics(s)
         if (s.relayout?.window !== window) {
             s.relayout?.retire()
             s.relayout = IslandRelayoutDriver(window,
@@ -897,6 +1065,22 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 })
         }
         s.relayout?.request()
+    }
+
+    private fun registerGeometryDiagnostics(s: Session) {
+        val window = host.call(s.owner, "getWindowView") as? View ?: return
+        if (geometryDiagnostics == null) geometryDiagnostics = IslandGeometryDiagnostics(window.context, main) {
+            sessionSnapshot().forEach { current ->
+                DebugLog.i("IslandGeometry", "layout=${current.layout} portrait=${current.portraitContent} frames=${current.fullFrames.values} failed=${current.failed} intent=${current.layoutIntent} eligible=${phoneLayoutEligible(current)} orientation=${window.resources.configuration.orientation}")
+                summaries(current).forEachIndexed { index, view ->
+                    DebugLog.i("IslandGeometry", "summary=$index state=${host.call(view, "getState")} size=${current.contentSizes[view]}")
+                    IslandGeometryDiagnostics.tree("summary$index", view as? View)
+                    IslandGeometryDiagnostics.tree("left$index", host.call(view, "getBigIslandAreaLeft") as? View)
+                    IslandGeometryDiagnostics.tree("right$index", host.call(view, "getBigIslandAreaRight") as? View)
+                    IslandGeometryDiagnostics.tree("fake$index", host.call(view, "getFakeView") as? View)
+                }
+            }
+        }
     }
 
     private val settingsRefresh = Runnable {
@@ -915,6 +1099,13 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val pool = (before + queue).distinct()
         val after = change.visible.map { wanted -> pool.single { key(it) == wanted } }
         val target = pool.single { key(it) == change.task }
+        // Ownership exchange at DOWN keeps task positions, but an explicit replacement
+        // must inherit the vacated position instead of resurrecting its old side history.
+        val replaced = if (change.reveal) change.displaced else change.task
+        val index = before.indexOfFirst { key(it) == replaced }
+        if (index > 0 && before.size == after.size) {
+            s.seats.replace(replaced, key(after[index]))
+        }
         s.scheduler.commit(change)
         queue.removeAll(before.toSet() + after.toSet())
         val removed = before.filter { it !in after }
@@ -946,7 +1137,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val queued = queuedSummaries(s)
         val pool = (before + queued).distinct()
         val byKey = pool.mapNotNull { view -> key(view)?.let { it to view } }.toMap()
-        val smallEligible = pool.filter { host.number(it, "getSmallIslandViewWidth") > 0 }.mapNotNull(::key).toSet()
+        val smallEligible = pool.filter { nativeSmallWidth(it) > 0 }.mapNotNull(::key).toSet()
         val selected = s.scheduler.select(before.mapNotNull(::key), queued.mapNotNull(::key), smallEligible, if (landscapeMoreEnabled(s)) Int.MAX_VALUE else 3)
         val desired = selected.native.map(byKey::getValue)
         queue.removeAll(desired.toSet())
@@ -989,6 +1180,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     private fun settle(tx: Transaction) {
         tx.settled = true
         val s = tx.session
+        registerGeometryDiagnostics(s)
         val owner = s.owner
         val queue = host.queue(owner)
         val expanded = host.current(owner, "getExpandedStateHandler")
@@ -1007,7 +1199,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val big = host.current(owner, "getBigIslandStateHandler")
         val right = host.current(owner, "getSmallIslandStateHandler")
         s.extras = candidates
-        val reserve = big != null && ((eligible && right != null && candidates.isNotEmpty()) || rowModeEnabled(s) || portraitCompactEnabled(s))
+        val reserve = big != null && ((eligible && right != null && candidates.isNotEmpty()) || rowModeEnabled(s) || portraitCompactEnabled(s) ||
+            (right != null && Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false) && musicSpectrum?.matches(right) == true))
         s.seats.assign(right?.let(::key), candidates.firstOrNull()?.let(::key))
         s.layoutIntent = false
         // Keep the displayed row and its leases until the new occupied row is calculated.
@@ -1016,6 +1209,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             if (!reserve) {
                 s.layout = null
                 s.fullFrames.clear()
+                s.musicSmall = null
                 s.portraitContent = null
             }
             if (reserve) (listOfNotNull(right) + candidates).forEach { host.call(it, "calculateBigIslandWidth") }
@@ -1086,12 +1280,14 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     }
 
     private fun restore(session: Session) {
+        session.musicReturnGeometry = null
         val extras = session.extras
         val old = extras.associateWith { host.call(it, "getState") }
         returnToQueue(session)
         session.layout = null
         session.layoutIntent = false
         session.fullFrames.clear()
+        session.musicSmall = null
         session.portraitContent = null
         session.gesture.begin(null)
         session.scheduler.clear()
@@ -1104,7 +1300,6 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             host.call(handler, "addState", it, null)
         }
         old.forEach { (view, state) -> host.call(view, "setLastState", state) }
-        session.textWidths.releaseAll()
         session.templateWidths.releaseAll { host.number(it, "getFixedCutoutWidth") }
         host.call(handler, "stop")
         host.call(session.owner, "updateTouchRegion")
