@@ -4,6 +4,31 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IslandTemplatePublicationTest {
+    @Test fun `relayout scope alone does not snap native state or gesture tweens`() {
+        val relayout = IslandTemplatePublication()
+        val width = IslandTemplatePublication()
+        relayout.run {
+            assertFalse(width.active)
+            width.run { assertTrue(width.active) }
+            assertFalse(width.active)
+        }
+        assertFalse(relayout.active)
+        assertFalse(width.active)
+    }
+
+    @Test fun `ordinary updates do not replay configuration publication after template binding`() {
+        val bindings = IslandTemplateRebinds()
+        val real = Any()
+        val fake = Any()
+        assertFalse(bindings.bound(real)) // Initial creation or a track update.
+        bindings.expect(real)
+        bindings.expect(fake)
+        assertTrue(bindings.bound(real))
+        assertFalse(bindings.bound(real)) // Subsequent ordinary update.
+        assertTrue(bindings.bound(fake)) // Asynchronous fake binding completes separately.
+        assertFalse(bindings.bound(fake))
+    }
+
     @Test fun `nested template transactions release scope even on failure`() {
         val scope = IslandTemplatePublication()
         assertFalse(scope.active)

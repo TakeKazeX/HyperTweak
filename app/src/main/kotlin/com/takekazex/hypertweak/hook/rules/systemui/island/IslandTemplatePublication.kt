@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
-/** Only the native template width transaction uses setTo; state/gesture animations keep to(). */
+/** Explicit settings/rotation relayout uses setTo; ordinary events and gestures keep to(). */
 internal class IslandTemplatePublication {
     private val depth = ThreadLocal<Int>()
     val active: Boolean get() = (depth.get() ?: 0) > 0

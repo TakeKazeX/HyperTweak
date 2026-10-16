@@ -4,6 +4,38 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IslandPresentationTest {
+    @Test fun `unchanged borrowed neighbours stay displayed but track updates still publish`() {
+        val frame = FullIslandFrame(800, IslandContentSize(80, 200))
+        assertTrue(IslandPresentation.keepBorrowedSummary(frame, frame.copy(), false, false))
+        assertFalse(IslandPresentation.keepBorrowedSummary(frame, frame, true, false))
+        assertFalse(IslandPresentation.keepBorrowedSummary(frame, frame, false, true))
+        assertFalse(IslandPresentation.keepBorrowedSummary(frame, frame.copy(x = 900), false, false))
+        assertFalse(IslandPresentation.keepBorrowedSummary(null, frame, false, false))
+        assertFalse(IslandPresentation.keepBorrowedSummary(frame, null, false, false))
+        val compact = frame.copy(full = false)
+        assertFalse(IslandPresentation.keepBorrowedSummary(compact, compact, false, false))
+    }
+
+    @Test fun `expanding a neighbour only republishes survivors whose own frame changes`() {
+        val content = IslandContentSize(90, 210)
+        val before = FullIslandRow.calculate(2400, 1080, 100, 100,
+            listOf(content, content, content), 20)!!
+        val after = FullIslandRow.calculate(2400, 1080, 100, 100,
+            listOf(content, content), 20)!!
+        // Removing a seat moves the remaining row. Both survivors need final coordinates.
+        for (i in after.indices) {
+            assertTrue(IslandPresentation.needsPublication(before[i], after[i], true, false))
+        }
+        // A refill can preserve one survivor exactly while changing the other task/seat.
+        assertFalse(IslandPresentation.needsPublication(before[0], before[0].copy(), true, false))
+        assertTrue(IslandPresentation.needsPublication(before[0], before[0], false, true))
+        assertTrue(IslandPresentation.needsPublication(before[0], before[0].copy(content = IslandContentSize(120, 180)), true, false))
+        assertTrue(IslandPresentation.needsPublication(before[0], before[0].copy(full = false), true, false))
+        assertTrue(IslandPresentation.needsPublication(null, after[0], true, false))
+        assertTrue(IslandPresentation.needsPublication(before[0], null, true, false))
+        assertFalse(IslandPresentation.needsPublication(null, null, false, false))
+    }
+
     private enum class State { SMALL, BIG, EXPANDED, HIDDEN, DELETED }
     private fun render(state: State, full: Boolean) = IslandPresentation.project(state, full, { it == State.SMALL }) { State.BIG }
 

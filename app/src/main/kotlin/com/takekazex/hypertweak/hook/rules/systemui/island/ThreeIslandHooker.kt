@@ -28,6 +28,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         var relayout: IslandRelayoutDriver? = null
         val textWidths = IslandTextWidthLease()
         val templateWidths = IslandTemplateWidthLease()
+        val configurationBindings = IslandTemplateRebinds()
         var displayOrder = emptyList<String>()
         var rowAvailable = 0
         var rowGap = 0
@@ -50,7 +51,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         var admissionLog: String? = null
     }
     private class Transaction(val session: Session,
-        val visible: List<Any>, val expandedKey: String?) {
+        val visible: List<Any>, val expandedKey: String?, val eventView: Any? = null) {
         var oldStates = emptyMap<Any, Any?>()
         val oldLayout = session.layout
         val oldFullFrames = session.fullFrames.toMap()
@@ -64,6 +65,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     private val animating = ThreadLocal<Any?>()
     private val renderingState = ThreadLocal<Any?>()
     private val templatePublication = IslandTemplatePublication()
+    private val relayoutPublication = IslandTemplatePublication()
+    private val layoutMeasurement = IslandTemplatePublication()
     private var geometryDiagnostics: IslandGeometryDiagnostics? = null
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retiring = false
@@ -93,7 +96,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             val previousExpanded = host.current(owner, "getExpandedStateHandler")?.let(::key)
             val wasUserExpanded = host.call(owner, "getUserExpanded") == true
             val tx = Transaction(session,
-                summaries(session), host.current(owner, "getExpandedStateHandler")?.let(::key)).also { tx ->
+                summaries(session), host.current(owner, "getExpandedStateHandler")?.let(::key), chain.args[1]).also { tx ->
                     tx.oldStates = session.extras.associateWith { host.call(it, "getState") }
                 }
             transaction.set(tx)
@@ -150,6 +153,12 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 session.suspended++
                 try {
                     extension(session, "prepare configuration rebuild") {
+                        (summaries(session) + host.queue(owner) + listOfNotNull(
+                            host.current(owner, "getExpandedStateHandler"),
+                            host.current(owner, "getShowOnceIslandHandler"))).distinct().forEach { view ->
+                            session.configurationBindings.expect(view)
+                            host.call(view, "getFakeView")?.let(session.configurationBindings::expect)
+                        }
                         session.relayout?.request()
                         restore(session)
                     }
@@ -164,7 +173,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         host.method(host.fake, "setFakeSecondLayout").also(::deoptimize).hook {
             after { param ->
                 runCatching { host.call(param.thisObject, "getRealView") }
-                    .onSuccess { it?.let(::templateBound) }
+                    .onSuccess { it?.let { view -> templateBound(view, param.thisObject) } }
                     .onFailure { DebugLog.e(TAG, "resolve rebound fake template", it) }
             }
         }
@@ -176,7 +185,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 try {
                     chain.thisObject?.let { view -> sessionFor(view)?.let { s ->
                         extension(s, "prepare full native text measurement") {
-                            releaseFullPosition(s, view)
+                            if (!layoutMeasurement.active) releaseFullPosition(s, view)
                             val root = host.call(view, "getBigIslandView") as? View
                             if (root != null && (landscapeFullEnabled(s) || portraitCompactEnabled(s) ||
                                     (landscapeMoreEnabled(s) && view === host.current(s.owner, "getBigIslandStateHandler"))))
@@ -187,7 +196,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 } finally {
                     chain.thisObject?.let { view -> sessionFor(view)?.let { s ->
                         extension(s, "release temporary text measurement") {
-                            if (!fullTemplate(s, view)) (host.call(view, "getBigIslandView") as? View)?.let(s.textWidths::release)
+                            if (!layoutMeasurement.active && !fullTemplate(s, view))
+                                (host.call(view, "getBigIslandView") as? View)?.let(s.textWidths::release)
                         }
                     } }
                     if (previous == null) calculating.remove() else calculating.set(previous)
@@ -577,6 +587,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             "three_islands_template_publication", XposedInterface.Hooker { chain ->
                 val view = chain.args[8] ?: return@Hooker chain.proceed()
                 val s = sessionFor(view) ?: return@Hooker chain.proceed()
+                // calculateBigIslandWidth also animates real/fake widths and calls template
+                // factories. Planning must not expose the temporary native two-slot geometry.
+                if (layoutMeasurement.active) return@Hooker null
                 if (!alignedTemplate(s, view)) return@Hooker chain.proceed()
                 val layout = s.layout ?: return@Hooker chain.proceed()
                 val frame = s.fullFrames[view]
@@ -588,7 +601,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 args[3] = IslandPresentation.contentTranslation(layout.screenWidth, x.toFloat(),
                     x.toFloat() + width, (chain.args[3] as Number).toFloat(), 1f)
                 s.fullOrigins[view] = layout.screenWidth
-                templatePublication.run { chain.proceed(args) }
+                if (relayoutPublication.active) templatePublication.run { chain.proceed(args) }
+                else chain.proceed(args)
             })
         host.method(host.content, "getFixedCutoutWidth").also(::deoptimize).hook {
             after { param ->
@@ -708,17 +722,21 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         s.templateWidths.acquire(view, left, right, cutout)
     }
 
-    private fun templateBound(view: Any) {
+    private fun templateBound(view: Any, binding: Any = view) {
         if (retiring) return
-        if (Looper.myLooper() != main.looper) { main.post { templateBound(view) }; return }
+        if (Looper.myLooper() != main.looper) { main.post { templateBound(view, binding) }; return }
         val s = sessionFor(view) ?: return
         extension(s, "publish rebound template") {
             s.fullFrames.remove(view)
             s.portraitContent = null
             s.contentSizes.remove(view)
             releaseFullPosition(s, view)
-            DebugLog.d(TAG, "native template bound; frame generation invalidated")
-            requestRelayout(s)
+            // Updates (including media track changes) also bind templates. Their native
+            // event owns publication; a later config/no-animation replay would overwrite it.
+            if (s.configurationBindings.bound(binding)) {
+                DebugLog.d(TAG, "configuration template bound; frame generation invalidated")
+                requestRelayout(s)
+            }
         }
     }
 
@@ -822,8 +840,10 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         try {
             s.gesture.begin(null)
             returnToQueue(s)
-            settle(tx)
-            host.call(host.call(s.owner, "getHiddenStateHandler")!!, "stop")
+            relayoutPublication.run {
+                settle(tx)
+                host.call(host.call(s.owner, "getHiddenStateHandler")!!, "stop")
+            }
         } finally { transaction.remove() }
     }
 
@@ -838,9 +858,11 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val previous = host.call(windowState, "getConfigChange")
         try {
             host.call(windowState, "setConfigChange", true)
-            visible.forEach { view ->
-                host.call(view, "setLastState", host.call(view, "getState"))
-                host.call(view, "getViewModel")?.let { host.call(it, "updateState", view) }
+            relayoutPublication.run {
+                visible.forEach { view ->
+                    host.call(view, "setLastState", host.call(view, "getState"))
+                    host.call(view, "getViewModel")?.let { host.call(it, "updateState", view) }
+                }
             }
         } finally { host.call(windowState, "setConfigChange", previous) }
         host.call(s.owner, "updateTouchRegion")
@@ -988,18 +1010,41 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val reserve = big != null && ((eligible && right != null && candidates.isNotEmpty()) || rowModeEnabled(s) || portraitCompactEnabled(s))
         s.seats.assign(right?.let(::key), candidates.firstOrNull()?.let(::key))
         s.layoutIntent = false
-        s.layout = null
-        s.fullFrames.clear()
-        s.portraitContent = null
-        // Re-measure real contents, then pack only the currently occupied summary seats.
-        if (reserve) (listOfNotNull(right) + candidates).forEach { host.call(it, "calculateBigIslandWidth") }
-        s.layoutIntent = reserve
-        if (big != null) host.call(big, "calculateBigIslandWidth")
+        // Keep the displayed row and its leases until the new occupied row is calculated.
+        // Native measurement has animation side effects, suppressed only during this pass.
+        layoutMeasurement.run {
+            if (!reserve) {
+                s.layout = null
+                s.fullFrames.clear()
+                s.portraitContent = null
+            }
+            if (reserve) (listOfNotNull(right) + candidates).forEach { host.call(it, "calculateBigIslandWidth") }
+            s.layoutIntent = reserve
+            if (big != null) host.call(big, "calculateBigIslandWidth")
+            // The preliminary side measurements stored native two-slot coordinates. Replace
+            // that metadata with the final row before any state callback can read it.
+            if (reserve && s.layout != null) (listOfNotNull(right) + s.extras).forEach {
+                host.call(it, "calculateBigIslandWidth")
+            }
+        }
         val admitted = s.extras
+        val unchangedExtras = admitted.filter { view ->
+            host.small.isInstance(tx.oldStates[view]) && IslandPresentation.keepBorrowedSummary(
+                tx.oldFullFrames[view], s.fullFrames[view], view === tx.eventView,
+                tx.forcePublication || tx.oldLayout?.screenWidth != s.layout?.screenWidth)
+        }.toSet()
         if (admitted.isNotEmpty() && s.layout != null) {
             s.slot.take(queue, admitted)
             host.call(host.call(owner, "getHiddenStateHandler")!!, "setCurrent", queue.firstOrNull())
-            admitted.forEach { view -> host.call(host.call(owner, "getHiddenStateHandler")!!, "addState", view, host.nextState(view, host.small)) }
+            admitted.forEach { view ->
+                val state = host.nextState(view, host.small)
+                if (view in unchangedExtras) {
+                    // Undo the internal queue loan without reporting a visual transition.
+                    // An actual event for this view still goes through native publication.
+                    host.call(view, "setState", state)
+                    host.call(view, "setLastState", tx.oldStates.getValue(view))
+                } else host.call(host.call(owner, "getHiddenStateHandler")!!, "addState", view, state)
+            }
         } else s.extras = emptyList()
         val admission = "more=$more visible=${summaries(s).size} candidates=${candidates.size} leased=${s.extras.size} " +
             "queued=${queuedSummaries(s).size} excluded=${queuedSummaries(s).count { s.scheduler.isHidden(key(it)) }} " +
@@ -1017,8 +1062,12 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         // touch them, so hide/removal/refill transitions cannot leave an orphaned view.
         val oldSurvivors = tx.oldStates.keys.filter { it in queue || it === big || it === right || it in s.extras }
         val geometryChanged = tx.oldLayout != s.layout || tx.oldFullFrames != s.fullFrames
-        val changed = (if (geometryChanged || s.layout?.full == true || tx.forcePublication) listOfNotNull(big, right) else emptyList())
-            .plus(s.extras + oldSurvivors + listOfNotNull(expanded?.takeIf { it in tx.visible })).distinct()
+        val changed = listOfNotNull(big, right).filter { view ->
+            IslandPresentation.needsPublication(tx.oldFullFrames[view], s.fullFrames[view], geometryChanged,
+                tx.forcePublication || tx.oldLayout?.screenWidth != s.layout?.screenWidth)
+        }
+            .plus(s.extras + oldSurvivors + listOfNotNull(expanded?.takeIf { it in tx.visible }))
+            .distinct().filterNot { it in unchangedExtras }
         val handler = host.call(owner, "getHiddenStateHandler")!!
         changed.forEach { view ->
             host.call(view, "calculateBigIslandWidth")
