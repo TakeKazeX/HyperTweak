@@ -77,10 +77,12 @@ fun TweaksScreenContent(
     landscapeFullIslands: Boolean,
     landscapeMoreIslands: Boolean,
     ccHideSuperIsland: Boolean,
+    islandLiveUpdateIcon: Boolean,
     onThreeIslandsChange: (Boolean) -> Unit,
     onLandscapeFullIslandsChange: (Boolean) -> Unit,
     onLandscapeMoreIslandsChange: (Boolean) -> Unit,
     onCcHideSuperIslandChange: (Boolean) -> Unit,
+    onIslandLiveUpdateIconChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
     mediaSuperIslandUnlockWhitelist: Boolean,
@@ -369,6 +371,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onCcHideSuperIslandChange,
                         title = stringResource(R.string.tweaks_cc_hide_super_island_title),
                         summary = stringResource(R.string.tweaks_cc_hide_super_island_summary)
+                    )
+                    SwitchPreference(
+                        checked = islandLiveUpdateIcon,
+                        onCheckedChange = onIslandLiveUpdateIconChange,
+                        title = stringResource(R.string.tweaks_island_live_update_icon_title),
+                        summary = stringResource(R.string.tweaks_island_live_update_icon_summary)
                     )
                     SwitchPreference(
                         checked = focusNotificationUnlockWhitelist,

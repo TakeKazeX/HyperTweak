@@ -219,6 +219,11 @@ class HookEntry : XposedModule() {
     @Volatile private var nativeSettingsSource: SharedPreferences? = null
     @Volatile private var nativeSettingsReady = false
     private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (processName == "com.android.systemui" && !nativeGenerationRetired &&
+            (key == null || key == "prefs_epoch" || key == Preferences.KEY_ISLAND_LIVE_UPDATE_ICON)) {
+            Preferences.invalidateRuntimeReadCache()
+            SystemUIPluginHooker.refreshIslandIconSettings()
+        }
         if (!nativeGenerationRetired && (processName == "com.xiaomi.xmsf" || processName.startsWith("com.xiaomi.xmsf:")) &&
             (key == null || key == "prefs_epoch" || key == Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH)) {
             Preferences.invalidateRuntimeReadCache()

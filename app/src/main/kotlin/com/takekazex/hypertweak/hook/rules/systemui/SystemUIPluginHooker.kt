@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -26,6 +27,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
         val superIslandHooker: ControlCenterSuperIslandHooker,
         val threeIslandHooker: ThreeIslandHooker,
+        val liveUpdateIconHooker: LiveUpdateIconHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
@@ -47,8 +49,13 @@ object SystemUIPluginHooker : StaticHooker() {
         }
     }
 
+    fun refreshIslandIconSettings() {
+        activeSessions.values.forEach { it.liveUpdateIconHooker.refreshSettings() }
+    }
+
     override fun saveHotReloadState(): Any = activeSessions.values.map { session ->
-        listOf(session.state.pluginInstance, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers())
+        listOf(session.state.pluginInstance, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
+            session.liveUpdateIconHooker.snapshotHolders())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -57,6 +64,7 @@ object SystemUIPluginHooker : StaticHooker() {
             val session = activeSessions[entry.firstOrNull()] ?: return@forEach
             session.threeIslandHooker.restoreOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
             session.superIslandHooker.restoreControllers((entry.getOrNull(2) as? List<*>)?.filterNotNull().orEmpty())
+            session.liveUpdateIconHooker.restoreHolders((entry.getOrNull(3) as? List<*>)?.filterNotNull().orEmpty())
         }
     }
 
@@ -133,6 +141,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             }
                             runCatching { session.threeIslandHooker.prepareForHotReload() }
                             detach(session.threeIslandHooker)
+                            runCatching { session.liveUpdateIconHooker.prepareForHotReload() }
+                            detach(session.liveUpdateIconHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -241,6 +251,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val volumeKeyHooker = ControlCenterVolumeKeyHooker()
         val superIslandHooker = ControlCenterSuperIslandHooker()
         val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath)
+        val liveUpdateIconHooker = LiveUpdateIconHooker()
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
             ControlCenterCardsEditHooker()
         } else {
@@ -266,6 +277,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 volumeKeyHooker,
                 superIslandHooker,
                 threeIslandHooker,
+                liveUpdateIconHooker,
                 cardsEditHooker,
                 cardResizeHooker,
                 mediaDeviceIconHooker,
@@ -276,6 +288,8 @@ object SystemUIPluginHooker : StaticHooker() {
         // hooker uninstalled while the session entry suppressed later retries.
         runCatching { attach(threeIslandHooker, state.classLoader) }
             .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach three-island scheduler", it) }
+        runCatching { attach(liveUpdateIconHooker, state.classLoader) }
+            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
         runCatching { attach(superIslandHooker, state.classLoader) }
             .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
         runCatching { attach(hooker, state.classLoader) }

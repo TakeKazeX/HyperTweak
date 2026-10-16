@@ -6,4 +6,6 @@
     <string name="tweaks_landscape_full_islands_summary">橫向空間充足時，各島顯示完整內容，雙島時也生效。不依賴三島調度開關，空間不足時恢復原生配置。修改後即時生效。</string>
     <string name="tweaks_landscape_more_islands_title">橫向顯示更多超級島</string>
     <string name="tweaks_landscape_more_islands_summary">按橫向可用寬度顯示更多原生超級島，放不下的任務繼續排隊；可搭配全寬或小島配置。修改後即時生效。</string>
+    <string name="tweaks_island_live_update_icon_title">修復即時通知圖示</string>
+    <string name="tweaks_island_live_update_icon_summary">為即時通知的深色單色圖示補上前景色，改善 ChatGPT 遙距工作階段等圖示不可見的問題。修改立即生效。</string>
 </resources>
