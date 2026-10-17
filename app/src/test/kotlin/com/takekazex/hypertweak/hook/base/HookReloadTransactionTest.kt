@@ -1,14 +1,16 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.hook.base
+
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy
 
 import org.junit.Assert.*
 import org.junit.Test
 
-class IconSettingsReloadTransactionTest {
+class HookReloadTransactionTest {
     @Test fun repeatedSettingsChangesRetireOldHandlesAndRestoreBeforeHostRecovery() {
         val events = ArrayList<String>()
         var handles = 2
         repeat(3) {
-            IconSettingsReloadTransaction.run(
+            HookReloadTransaction.run(
                 listOf("visibility", "carrier"),
                 capture = { events += "capture:$it"; "host:$it" },
                 prepare = { events += "prepare:$it" },
@@ -29,7 +31,7 @@ class IconSettingsReloadTransactionTest {
         val events = ArrayList<String>()
         val failure = IllegalStateException("missing optional target")
         try {
-            IconSettingsReloadTransaction.run(listOf(1, 2), capture = { it }, prepare = {}, reset = {},
+            HookReloadTransaction.run(listOf(1, 2), capture = { it }, prepare = {}, reset = {},
                 install = { events += "install:$it"; if (it == 1) throw failure },
                 restore = { hook, _ -> events += "restore:$hook" },
                 retire = { events += "retire" }, recover = { events += "recover" })
@@ -41,7 +43,7 @@ class IconSettingsReloadTransactionTest {
     @Test fun failedSnapshotLeavesEveryCurrentHookUntouched() {
         var touched = false
         try {
-            IconSettingsReloadTransaction.run(listOf(1), capture = { error("snapshot failed") },
+            HookReloadTransaction.run(listOf(1), capture = { error("snapshot failed") },
                 prepare = { touched = true }, reset = { touched = true }, install = { touched = true },
                 restore = { _, _ -> touched = true }, retire = { touched = true }, recover = { touched = true })
             fail()

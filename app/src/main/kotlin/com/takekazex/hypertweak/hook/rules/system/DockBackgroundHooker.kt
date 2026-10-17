@@ -5,8 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.SharedPreferences
-import android.database.ContentObserver
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
@@ -26,7 +24,7 @@ import com.takekazex.hypertweak.dock.DockRecoveryPolicy
 import com.takekazex.hypertweak.dock.DockPresentationPolicy
 import com.takekazex.hypertweak.dock.DockFrameChannel
 import com.takekazex.hypertweak.dock.DockFrameDriver
-import com.takekazex.hypertweak.hook.NativeRuleProtocol
+import com.takekazex.hypertweak.hook.SettingsTransport
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -51,12 +49,9 @@ object DockBackgroundHooker : StaticHooker() {
     private var wmLock: Any = Any()
     private val entries = WeakHashMap<Any, Entry>() // WMS global lock only.
     private val observed = WeakHashMap<Any, DockRecoveryPolicy>()
-    private var preferenceSource: SharedPreferences? = null
     private var receiver: BroadcastReceiver? = null
     private var displays: DisplayManager? = null
     private var displayListener: DisplayManager.DisplayListener? = null
-    private var settingsObserver: ContentObserver? = null
-    private val settingsRequest = AtomicLong()
     private var configSnapshot = DockConfig()
     private var frameChannel: DockFrameChannel? = null
     private val channelEpoch = AtomicLong()
@@ -86,11 +81,11 @@ object DockBackgroundHooker : StaticHooker() {
         val ctx = context ?: return
         val channel = frameChannel
         val version = offerVersion.updateAndGet { maxOf(it + 1L, SystemClock.elapsedRealtimeNanos()) }
-        val intent = Intent(DockFrameChannel.OFFER).setPackage(NativeRuleProtocol.SYSTEM_UI)
+        val intent = Intent(DockFrameChannel.OFFER).setPackage(SettingsTransport.SYSTEM_UI)
             .putExtra("port", channel?.port ?: 0).putExtra("token0", channel?.token0 ?: 0L).putExtra("token1", channel?.token1 ?: 0L)
             .putExtra("version", version)
         // ActivityManager broadcast work must not run under WMS's global lock.
-        runCatching { worker.execute { runCatching { NativeRuleProtocol.send(ctx, intent) }
+        runCatching { worker.execute { runCatching { SettingsTransport.send(ctx, intent) }
             .onFailure { DebugLog.w(TAG, "native channel broadcast failed", it) } } }
             .onFailure { DebugLog.w(TAG, "native channel setup unavailable", it) }
     }
@@ -133,24 +128,6 @@ object DockBackgroundHooker : StaticHooker() {
         var bounds: com.takekazex.hypertweak.dock.DockBounds? = null, var frame: Rect = Rect(), var density: Float = 1f,
         var surfaceVisible: Boolean = false, val lease: Long = 0L)
 
-    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == DockConfig.KEY || key == "prefs_epoch") {
-            Preferences.invalidateRuntimeReadCache()
-            requestSettings()
-        }
-    }
-
-    fun bindPreferences(source: SharedPreferences) {
-        if (preferenceSource === source) return
-        runCatching {
-            preferenceSource?.unregisterOnSharedPreferenceChangeListener(prefListener)
-            preferenceSource = null
-            source.registerOnSharedPreferenceChangeListener(prefListener)
-            preferenceSource = source
-        }.onFailure { DebugLog.w(TAG, "Dock preference listener unavailable", it) }
-        requestSettings()
-    }
-
     override fun onHook() {
         if (!com.takekazex.hypertweak.util.PlatformLevel.isOs4) return
         val clazz = "com.android.server.wm.WindowState".toClassOrNull() ?: return
@@ -162,8 +139,6 @@ object DockBackgroundHooker : StaticHooker() {
         configSnapshot = DockConfig.decode(Preferences.getString(DockConfig.KEY, DockConfig().encode())) ?: DockConfig()
         providerLease = SystemClock.elapsedRealtimeNanos()
         epoch.incrementAndGet()
-        if (preferenceSource == null) preferenceSource = runCatching { Preferences.observeDockBackground(prefListener) }
-            .onFailure { DebugLog.w(TAG, "Dock preference listener unavailable", it) }.getOrNull()
         if (worker.isShutdown) worker = Executors.newSingleThreadExecutor { Thread(it, "HT-DockIPC").apply { isDaemon = true } }
         prepareMethod.hook("dock_wms_prepare") {
             after { param ->
@@ -238,15 +213,12 @@ object DockBackgroundHooker : StaticHooker() {
     }
 
     private fun installObservers(ctx: Context) {
-        settingsObserver = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) = requestSettings()
-        }.also { ctx.contentResolver.registerContentObserver(com.takekazex.hypertweak.dock.DockSettingsSignal.uri, false, it) }
-        requestSettings()
+        refreshSettings()
         receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == DockFrameChannel.REQUEST) {
-                    if (NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.SYSTEM_UI)) offerChannel()
-                } else { requestSettings(); requestRefresh(recover = true) }
+                    if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, SettingsTransport.SYSTEM_UI)) offerChannel()
+                } else { requestRefresh(recover = true) }
             }
         }.also { ctx.registerReceiver(it, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON)
@@ -486,32 +458,21 @@ object DockBackgroundHooker : StaticHooker() {
     }
     private fun requestTraversal() { service?.let { runCatching { DockReflection.call(it, "requestTraversal") }.onFailure { DebugLog.w(TAG, "traversal unavailable", it) } } }
     /** Read the module's Preferences after acknowledgement, outside WMS's global lock. */
-    private fun requestSettings(attempt: Int = 0) {
-        val target = context ?: return
-        val resultHandler = handler ?: return
-        if (stopped || worker.isShutdown) return
+    fun refreshSettings(): Boolean {
+        if (stopped) return false
+        val resultHandler = handler ?: return false
+        val config = DockConfig.decode(Preferences.getString(DockConfig.KEY, DockConfig().encode()))
+            ?: error("invalid committed Dock configuration")
         val generation = epoch.get()
-        val request = settingsRequest.incrementAndGet()
-        runCatching { worker.execute {
-            if (stopped || epoch.get() != generation || settingsRequest.get() != request) return@execute
-            val result = ipc("settings", "configuration", Bundle.EMPTY, target)
-            val config = DockConfig.decode(result?.getString("config").orEmpty())
-            resultHandler.post {
-                if (stopped || epoch.get() != generation || settingsRequest.get() != request) return@post
-                if (config == null) {
-                    if (attempt < 3) resultHandler.postDelayed({
-                        if (!stopped && epoch.get() == generation && settingsRequest.get() == request) requestSettings(attempt + 1)
-                    }, 250)
-                    else DebugLog.w(TAG, "saved configuration unavailable; retaining current Dock")
-                    return@post
-                }
-                synchronized(wmLock) {
-                    if (configSnapshot != config) DebugLog.i(TAG, "settings applied ${config.encode()}")
-                    configSnapshot = config
-                }
-                requestRefresh(recover = true)
+        resultHandler.post {
+            if (stopped || epoch.get() != generation) return@post
+            synchronized(wmLock) {
+                if (configSnapshot != config) DebugLog.i(TAG, "settings applied ${config.encode()}")
+                configSnapshot = config
             }
-        } }.onFailure { DebugLog.w(TAG, "settings refresh unavailable", it) }
+            requestRefresh(recover = true)
+        }
+        return true
     }
     private fun requestRefresh(recover: Boolean = false) {
         val generation = epoch.get()
@@ -543,13 +504,6 @@ object DockBackgroundHooker : StaticHooker() {
         setChannel(false)
         frameDriver?.close()
         frameDriver = null
-        runCatching { preferenceSource?.unregisterOnSharedPreferenceChangeListener(prefListener) }
-            .onFailure { DebugLog.w(TAG, "preference observer cleanup failed", it) }
-        preferenceSource = null
-        settingsObserver?.let { observer -> runCatching { context?.contentResolver?.unregisterContentObserver(observer) }
-            .onFailure { DebugLog.w(TAG, "settings observer cleanup failed", it) } }
-        settingsObserver = null
-        settingsRequest.incrementAndGet()
         receiver?.let { callback -> context?.let { runCatching { it.unregisterReceiver(callback) } } }
         displayListener?.let { listener -> runCatching { displays?.unregisterDisplayListener(listener) }
             .onFailure { DebugLog.w(TAG, "display observer cleanup failed", it) } }

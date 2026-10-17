@@ -123,6 +123,9 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         DebugLog.hookRegistered(TAG, "plugin temporary-hide gate and Control Center events")
     }
 
+    override fun saveHotReloadState(): Any = snapshotControllers()
+    override fun restoreHotReloadState(state: Any?) = restoreControllers((state as? List<*>)?.filterNotNull().orEmpty())
+
     override fun onPrepareHotReload() {
         retiring = true
         main.removeCallbacks(refreshSettingsAction)

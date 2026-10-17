@@ -60,7 +60,7 @@ object NativeUpgradeManager {
     private fun loadedApk(context: Context, running: Running): File {
         val ranges = running.maps.lineSequence().filter { it.contains("/data/app/") && it.contains("base.apk") }
             .filter { it.split(Regex("\\s+"))[1].contains('x') }
-            .sortedByDescending { it.contains(NativeRuleProtocol.MODULE) }
+            .sortedByDescending { it.contains(SettingsTransport.MODULE) }
             .map { it.substringBefore(' ') }.distinct().take(12).toList()
         val directory = File(context.filesDir, "updates").apply { mkdirs() }
         val file = File.createTempFile("native-loaded-", ".apk", directory)
@@ -104,7 +104,7 @@ object NativeUpgradeManager {
             try { withTimeout(60000) {
                 val service = XposedServiceManager.currentService ?: error("module service unavailable")
                 check(service.apiVersion >= io.github.libxposed.service.XposedService.API_102) { "module service API 102 required" }
-                check(service.runningTargets.any { it.processName == NativeRuleProtocol.SYSTEM_UI &&
+                check(service.runningTargets.any { it.processName == SettingsTransport.SYSTEM_UI &&
                     it.state == io.github.libxposed.service.HookedTarget.State.UP_TO_DATE }) {
                     "update SystemUI Java hooks before activating native code"
                 }
@@ -152,7 +152,7 @@ object NativeUpgradeManager {
                     }
                 }
                 val target = after ?: error("replacement launcher did not become available")
-                NativeRuleSignal.publishCommitted()
+                RuntimeSettingsSignal.publishCommitted()
                 val apkPath = app.applicationInfo.sourceDir
                 val inode = text("stat -c %i ${NativeRootCommand.quote(apkPath)}").toLong()
                 check(target.maps.lineSequence().any { line ->

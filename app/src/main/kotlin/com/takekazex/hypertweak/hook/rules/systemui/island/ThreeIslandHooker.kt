@@ -1305,6 +1305,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         host.call(session.owner, "updateTouchRegion")
     }
 
+    override fun saveHotReloadState(): Any = snapshotOwners()
+    override fun restoreHotReloadState(state: Any?) = restoreOwners((state as? List<*>)?.filterNotNull().orEmpty())
+
     override fun onPrepareHotReload() {
         retiring = true
         geometryDiagnostics?.retire()

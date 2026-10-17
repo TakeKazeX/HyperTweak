@@ -29,23 +29,12 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     private val saveSources = ThreadLocal<ArrayDeque<Source>>()
     @Volatile private var retired = false
     private var frameAccess: NativeScreenshotFrameAccess? = null
-    // The receiver owns a host application context and is closed before this generation retires.
-    @SuppressLint("StaticFieldLeak")
-    private var settingsReceiver: ScreenshotSettingsReceiver? = null
-
-    @Synchronized fun onPackageReady(context: Context) {
-        if (retired) return
-        val receiver = settingsReceiver ?: ScreenshotSettingsReceiver().also { settingsReceiver = it }
-        receiver.attach(context)
-    }
-
     override fun saveHotReloadState(): Any? = Preferences.saveScreenshotSettings()
     override fun restoreHotReloadState(state: Any?) { Preferences.restoreScreenshotSettings(state) }
 
     override fun onHook() {
         retired = false
         if (hookParam.processName !in setOf("com.miui.screenshot", "com.miui.screenshot:photo_editor")) return
-        hookParam.appContext?.let(::onPackageReady)
         boundary("resolve native screenshot contract") {
             val apk = hookParam.appInfo?.sourceDir?.let(::File) ?: return@boundary
             val contract = ScreenshotFrameResolver(apk.path).resolve()
@@ -406,8 +395,6 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
 
     @Synchronized override fun onPrepareHotReload() {
         retired = true
-        settingsReceiver?.close()
-        settingsReceiver = null
         frameAccess?.close()
         frameAccess = null
         synchronized(previews) { previews.clear() }

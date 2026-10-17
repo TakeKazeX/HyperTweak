@@ -174,6 +174,19 @@ sealed class BaseHooker {
         hooker.updateParentState(isEffectiveEnabled)
     }
 
+    /** Settings reload uses the same capture/prepare/restore contract as API-102 replacement.
+     * Fresh children avoid reusing retired callbacks, handlers and per-host failure state.
+     */
+    internal fun replaceChildren(replacements: List<Pair<BaseHooker, BaseHooker>>, recover: () -> Unit = {}) {
+        check(replacements.all { it.first in childHookers }) { "replacement must belong to this parent" }
+        ManagedHookReload.run(
+            replacements,
+            reset = { old -> detach(old); old.resetAfterHotReloadPrepared() },
+            install = { old, next -> attach(next, old.classLoader, old.hookParam) },
+            recover = recover
+        )
+    }
+
     fun setHotReloadReplacementHandles(handles: HotReloadHandleStore?) {
         replacementHandles = handles
         childHookers.forEach { it.setHotReloadReplacementHandles(handles) }

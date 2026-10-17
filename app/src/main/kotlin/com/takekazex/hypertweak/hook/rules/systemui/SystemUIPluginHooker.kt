@@ -26,10 +26,10 @@ object SystemUIPluginHooker : StaticHooker() {
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
-        val superIslandHooker: ControlCenterSuperIslandHooker,
-        val threeIslandHooker: ThreeIslandHooker,
-        val liveUpdateIconHooker: LiveUpdateIconHooker,
-        val timeFontHooker: IslandTimeFontHooker,
+        var superIslandHooker: ControlCenterSuperIslandHooker,
+        var threeIslandHooker: ThreeIslandHooker,
+        var liveUpdateIconHooker: LiveUpdateIconHooker,
+        var timeFontHooker: IslandTimeFontHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
@@ -44,16 +44,34 @@ object SystemUIPluginHooker : StaticHooker() {
     private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
     private val activeAodSessions = ConcurrentHashMap<Any, AodPluginSession>()
 
-    fun refreshIslandSettings() {
+    /** All island participants are replaced together after capturing every live host. */
+    fun reloadIslandSettings(): Boolean {
         activeSessions.values.forEach { session ->
-            session.threeIslandHooker.refreshSettings()
-            session.superIslandHooker.refreshSettings()
-            session.timeFontHooker.restoreIslandOwners(session.threeIslandHooker.snapshotOwners())
-        }
-    }
+            val scheduler = ThreeIslandHooker(session.state.pluginApkPath)
+            val controller = ControlCenterSuperIslandHooker()
+            val icon = LiveUpdateIconHooker()
+            val font = IslandTimeFontHooker()
+            val replacements = listOf(
+                session.threeIslandHooker to scheduler, session.superIslandHooker to controller,
+                session.liveUpdateIconHooker to icon, session.timeFontHooker to font
+            )
+            replaceChildren(replacements) {
+                // Recovery runs after every installation attempt, including partial failures.
+                // Capture failure leaves the original session untouched.
 
-    fun refreshIslandIconSettings() {
-        activeSessions.values.forEach { it.liveUpdateIconHooker.refreshSettings() }
+                session.threeIslandHooker = scheduler
+                session.superIslandHooker = controller
+                session.liveUpdateIconHooker = icon
+                session.timeFontHooker = font
+                font.restoreIslandOwners(scheduler.snapshotOwners())
+                DebugLog.i("RuntimeSettings", "island hosts restored owners=${scheduler.snapshotOwners().size} " +
+                    "three=${Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)} " +
+                    "full=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)} " +
+                    "more=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)}")
+            }
+        }
+        // A plugin arriving later attaches directly against the current committed snapshot.
+        return true
     }
 
     override fun saveHotReloadState(): Any = activeSessions.values.map { session ->

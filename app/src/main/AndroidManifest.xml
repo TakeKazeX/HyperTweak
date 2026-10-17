@@ -102,12 +102,10 @@
             android:resource="@array/xposed_scope"/>
 
         <!-- Main Activity -->
-        <receiver android:name="com.takekazex.hypertweak.hook.NativeRuleSyncReceiver"
+        <receiver android:name="com.takekazex.hypertweak.hook.RuntimeSettingsSyncReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.takekazex.hypertweak.action.NATIVE_SETTINGS_REQUEST" />
-                <action android:name="com.takekazex.hypertweak.action.ICON_SETTINGS_REQUEST" />
-                <action android:name="com.takekazex.hypertweak.action.SCREENSHOT_SETTINGS_REQUEST" />
+                <action android:name="com.takekazex.hypertweak.action.RUNTIME_SETTINGS_REQUEST" />
             </intent-filter>
         </receiver>
         <activity

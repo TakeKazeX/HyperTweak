@@ -12,9 +12,7 @@ class HyperTweakApp : Application() {
         super.onCreate()
 
         DebugLog.setProcessTag("app")
-        com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal.attach(this)
-        com.takekazex.hypertweak.hook.IconSettingsSignal.attach(this)
-        com.takekazex.hypertweak.hook.NativeRuleSignal.attach(this)
+        com.takekazex.hypertweak.hook.RuntimeSettingsSignal.attach(this)
         com.takekazex.hypertweak.hook.NativeUpgradeManager.restore(this)
         // Init connection to LSPosed preferences as early as possible
         XposedServiceManager.init()
@@ -23,7 +21,6 @@ class HyperTweakApp : Application() {
         val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
-        com.takekazex.hypertweak.dock.DockSettingsSignal.attach(this)
         DebugLog.ensureSession()
 
         // Republish the native rule flags on every start so the launcher-side payload sees the

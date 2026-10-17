@@ -622,12 +622,9 @@ fun SystemUIPage(
                         checked = contextualSearchLongPress,
                         onCheckedChange = { checked ->
                             onContextualSearchLongPressChange(checked)
-                            // Keep the published record in step with the preference. The payload is
-                            // not driven by this file -- the launcher cannot read it -- but takes
-                            // the switch from `NativeRules.applyRuleSwitches` when the launcher
-                            // next loads the module, which is why the change raises a
-                            // launcher-restart prompt. `checked` is passed explicitly rather than
-                            // re-read, so the published value cannot lag the write above.
+                            // Preferences delivers the acknowledged switch through the common
+                            // live-settings channel. Keep this legacy file as a diagnostic record;
+                            // it is not the runtime transport.
                             NativeRuleConfig.publish(
                                 context,
                                 Preferences.hideRecentsClearButton(),

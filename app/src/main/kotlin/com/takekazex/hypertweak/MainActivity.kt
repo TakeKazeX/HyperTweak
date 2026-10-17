@@ -95,9 +95,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
     Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
     Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
-    // The launcher reads this from the shared native config when it loads the payload, so the
-    // launcher process is what has to come back.
-    Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to RestartScopeSelection(miuiHome = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
     // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
@@ -1219,7 +1216,6 @@ class MainActivity : ComponentActivity() {
                     },
                     contextualSearchLongPress = contextualSearchLongPress,
                     onContextualSearchLongPressChange = { enabled ->
-                        markTweaked(Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, enabled)
                         contextualSearchLongPress = enabled
                         Preferences.putBoolean(
                             Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS,

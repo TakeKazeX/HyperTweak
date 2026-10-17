@@ -141,6 +141,9 @@ class LiveUpdateIconHooker : DynamicHooker() {
         }
     }
 
+    override fun saveHotReloadState(): Any = snapshotHolders()
+    override fun restoreHotReloadState(state: Any?) = restoreHolders((state as? List<*>)?.filterNotNull().orEmpty())
+
     override fun onPrepareHotReload() {
         retiring = true
         main.removeCallbacksAndMessages(null)

@@ -245,6 +245,14 @@ class IslandTimeFontHooker : DynamicHooker() {
         if (resetGlyphs && narrowGlyphs.remove(view) == true) refreshGlyphs(view)
     }
 
+    override fun saveHotReloadState(): Any = listOf(snapshotHolders(),
+        synchronized(islandOwners) { islandOwners.keys.toList() })
+    override fun restoreHotReloadState(state: Any?) {
+        val values = state as? List<*> ?: return
+        restoreHolders((values.getOrNull(0) as? List<*>)?.filterNotNull().orEmpty())
+        restoreIslandOwners((values.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
+    }
+
     override fun onPrepareHotReload() {
         retiring = true
         main.removeCallbacksAndMessages(null)

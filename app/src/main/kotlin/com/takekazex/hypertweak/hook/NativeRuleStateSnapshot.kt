@@ -2,6 +2,11 @@ package com.takekazex.hypertweak.hook
 
 internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: Int, val contextualSearch: Boolean,
     val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false) {
+    fun settingsValues(): Map<String, Any> = mapOf(
+        Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to hidden, Preferences.KEY_OPENED_FOLDER_COLUMNS to columns,
+        Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to contextualSearch,
+        Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to assistantWidgets,
+        Preferences.KEY_NATIVE_RULE_REVISION to revision, "prefs_epoch" to epoch)
     companion object {
         val REPLAY_DELAYS_MS = longArrayOf(0, 250, 1_000, 3_000, 10_000)
 

@@ -11,7 +11,7 @@ import android.os.SystemClock
 import com.takekazex.hypertweak.util.DebugLog
 
 /** SystemUI owns remote Preferences; HYOS receives a complete, identity-sharing snapshot. */
-internal class NativeRuleStatePublisher(private val onIconSettingsChanged: () -> Unit = {}) {
+internal class NativeRuleStatePublisher {
     private val handler = Handler(Looper.getMainLooper())
     private val token = Any()
     private var context: Context? = null
@@ -27,20 +27,19 @@ internal class NativeRuleStatePublisher(private val onIconSettingsChanged: () ->
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
     fun saveSnapshot(): Array<Any> = arrayOf(ledger.save() ?: emptyArray<Any>(),
-        Preferences.saveBackGestureSettings() ?: emptyArray<Any>(), IconSettingsRuntime.save() ?: emptyArray<Any>())
+        Preferences.saveBackGestureSettings() ?: emptyArray<Any>())
     fun restoreSnapshot(state: Any?) {
         val values = state as? Array<*>
         if (values != null && values.size >= 2 && values[0] is Array<*>) {
             ledger.restore(values[0])
             Preferences.restoreBackGestureSettings(values[1])
-            IconSettingsRuntime.restore(values.getOrNull(2))
         } else ledger.restore(state)
     }
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (closed) return
             if (intent.action == com.takekazex.hypertweak.dock.DockFrameChannel.OFFER) {
-                if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, "android") || sentFromUid != Process.SYSTEM_UID) return
+                if (!SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "android") || sentFromUid != Process.SYSTEM_UID) return
                 val port = intent.getIntExtra("port", -1)
                 val t0 = intent.getLongExtra("token0", 0)
                 val t1 = intent.getLongExtra("token1", 0)
@@ -52,33 +51,7 @@ internal class NativeRuleStatePublisher(private val onIconSettingsChanged: () ->
                 publish() // The same endpoint offer also rebinds a newly started launcher process.
                 return
             }
-            if (intent.action == IconSettingsProtocol.CHANGED) {
-                if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.MODULE)) return
-                val snapshot = IconSettingsProtocol.decode(intent) ?: return
-                if (IconSettingsRuntime.accept(snapshot)) {
-                    DebugLog.i("IconTuner", "committed icon snapshot received revision=${snapshot.revision} keys=${snapshot.values.size}")
-                    onIconSettingsChanged()
-                }
-                return
-            }
-            if (intent.action == NativeRuleProtocol.CHANGED) {
-                if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.MODULE)) return
-                NativeRuleProtocol.decodeBackSettings(intent)?.let { back ->
-                    if (Preferences.acceptBackGestureSettings(back)) {
-                        com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker.refreshPreferences()
-                        DebugLog.i("BackGesture", "live settings applied revision=${back.revision} indicator=${back.value(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR)} slide=${back.value(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION)}")
-                    }
-                }
-                val snapshot = NativeRuleProtocol.decode(intent) ?: run {
-                    DebugLog.w("NativeRules", "rejected incomplete app settings notification")
-                    return
-                }
-                val changed = snapshot != ledger.latest()
-                if (ledger.offer(snapshot) && changed) publish()
-                return
-            }
             if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED) {
-                requestSnapshot(context)
                 publish()
             }
         }
@@ -95,27 +68,16 @@ internal class NativeRuleStatePublisher(private val onIconSettingsChanged: () ->
                 application.registerReceiver(receiver, IntentFilter().apply {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
                     addAction(Intent.ACTION_USER_UNLOCKED)
-                    addAction(NativeRuleProtocol.CHANGED)
-                    addAction(IconSettingsProtocol.CHANGED)
                     addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
                 }, Context.RECEIVER_EXPORTED)
                 receiverRegistered = true
             }.onFailure { DebugLog.w("NativeRules", "boot settings publisher registration failed", it) }
             DebugLog.i("NativeRules", "SystemUI native settings publisher attached observer=$receiverRegistered")
-            requestSnapshot(application)
-            runCatching { NativeRuleProtocol.send(application,
-                Intent(IconSettingsProtocol.REQUEST).setPackage(NativeRuleProtocol.MODULE)) }
-                .onFailure { DebugLog.w("IconTuner", "icon snapshot resync request failed", it) }
-            runCatching { NativeRuleProtocol.send(application,
+            runCatching { SettingsTransport.send(application,
                 Intent(com.takekazex.hypertweak.dock.DockFrameChannel.REQUEST).setPackage("android")) }
                 .onFailure { DebugLog.w("DockMotion", "channel resync request failed", it) }
             publish()
         }
-    }
-
-    private fun requestSnapshot(context: Context) {
-        runCatching { NativeRuleProtocol.send(context, Intent(NativeRuleProtocol.REQUEST).setPackage(NativeRuleProtocol.MODULE)) }
-            .onFailure { DebugLog.w("NativeRules", "native settings resync request failed", it) }
     }
 
     fun publish() {
@@ -153,7 +115,7 @@ internal class NativeRuleStatePublisher(private val onIconSettingsChanged: () ->
                 .putExtra("hypertweak_rule_dock_port", dockPort)
                 .putExtra("hypertweak_rule_dock_token0", dockToken0)
                 .putExtra("hypertweak_rule_dock_token1", dockToken1)
-            NativeRuleProtocol.send(context, intent)
+            SettingsTransport.send(context, intent)
             if (forwarded != snapshot) {
                 forwarded = snapshot
                 DebugLog.i("NativeRules", "native settings forwarded commit=${snapshot.revision} epoch=${snapshot.epoch} columns=${snapshot.columns} hidden=${snapshot.hidden} widgets=${snapshot.assistantWidgets}")

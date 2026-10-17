@@ -1,7 +1,7 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.hook.base
 
 /** Capture before teardown; finish every participant and host recovery even after one failure. */
-internal object IconSettingsReloadTransaction {
+internal object HookReloadTransaction {
     fun <H, S> run(
         hooks: List<H>, capture: (H) -> S, prepare: (H) -> Unit, reset: (H) -> Unit,
         install: (H) -> Unit, restore: (H, S) -> Unit, retire: () -> Unit, recover: () -> Unit

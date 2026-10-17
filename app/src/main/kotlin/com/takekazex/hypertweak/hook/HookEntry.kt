@@ -141,6 +141,9 @@ import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
 import io.github.lingqiqi5211.ezhooktool.xposed.ApplicationAttachCallback
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.base.SettingsReloadDispatcher
+import com.takekazex.hypertweak.hook.base.ManagedHookReload
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -164,17 +167,69 @@ class HookEntry : XposedModule() {
     private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
     private val preferenceRetryGeneration = AtomicLong(0L)
     @Volatile private var nativeRuleStatePublisher: NativeRuleStatePublisher? = null
-    @Volatile private var nativeGenerationRetired = false
+    @Volatile private var generationRetired = false
     @Synchronized private fun nativePublisher(): NativeRuleStatePublisher? {
-        if (nativeGenerationRetired || processName != "com.android.systemui") return null
-        return nativeRuleStatePublisher ?: NativeRuleStatePublisher { iconSettingsReload.request() }.also { nativeRuleStatePublisher = it }
+        if (generationRetired || processName != "com.android.systemui") return null
+        return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
     }
+    private val runtimeSettingsReceiver by lazy { RuntimeSettingsReceiver(::requestSettingsReload) }
     private val iconSettingsLock = java.util.concurrent.locks.ReentrantLock()
-    private val iconSettingsReload by lazy {
-        com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsLiveReload {
-            if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
-            finally { iconSettingsLock.unlock() }
+    private val settingsHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    private val settingsReload by lazy {
+        SettingsReloadDispatcher(
+            post = { task, delay -> settingsHandler.postDelayed(task, delay); Unit },
+            remove = { settingsHandler.removeCallbacks(it) },
+            failure = { id, error -> DebugLog.w("RuntimeSettings", "reload failed participant=$id", error) }
+        ).apply {
+            fun registerForProcess(id: String, apply: () -> Boolean) {
+                if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) register(id, apply)
+            }
+            registerForProcess(RuntimeSettingsGroups.ICONS) {
+                if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
+                finally { iconSettingsLock.unlock() }
+            }
+            registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.BACK) {
+                RuntimeSettingsPreferences.dispatch(setOf(RuntimeSettingsGroups.BACK))
+                if (processName == "com.android.systemui") AospBackSystemUiHooker.refreshPreferences()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.NATIVE) { publishNativeRuleSwitches(); true }
+            registerForProcess(RuntimeSettingsGroups.DOCK) { com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
+            registerForProcess(RuntimeSettingsGroups.VOLUME) { if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
+            registerForProcess(RuntimeSettingsGroups.XMSF) { Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.ISLANDS) {
+                if (generationRetired) true else {
+                    Preferences.invalidateRuntimeReadCache()
+                    SystemUIPluginHooker.reloadIslandSettings()
+                }
+            }
         }
+    }
+    private fun requestSettingsReload(groups: Set<String>) {
+        settingsHandler.post { if (!generationRetired) settingsReload.request(groups.intersect(RuntimeSettingsGroups.forProcess(processName, isSystemServer))) }
+    }
+    private fun cancelSettingsReload() {
+        // API-102 preparation can run off-main; serialize retirement with live replacement.
+        if (android.os.Looper.myLooper() == settingsHandler.looper) settingsReload.cancel() else {
+            val done = java.util.concurrent.CountDownLatch(1)
+            settingsHandler.post { try { settingsReload.cancel() } finally { done.countDown() } }
+            check(done.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "settings reload retirement timed out" }
+        }
+    }
+    private fun resumeSettingsReload() { settingsHandler.post { settingsReload.resume() } }
+
+    private val runtimeContextRetry by lazy {
+        com.takekazex.hypertweak.hook.rules.system.SystemServerStartupRetry("RuntimeSettings", action = {
+            val owner = Class.forName("android.app.ActivityThread")
+            val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@SystemServerStartupRetry false
+            val context = owner.getMethod("getSystemContext").invoke(thread) as? Context ?: return@SystemServerStartupRetry false
+            attachRuntimeSettingsContext(context)
+            true
+        })
+    }
+    private fun attachRuntimeSettingsContext(context: Context) {
+        if (!generationRetired && RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.attach(context)
     }
 
     private fun iconHookers(): List<BaseHooker> = listOf(
@@ -187,24 +242,13 @@ class HookEntry : XposedModule() {
 
     /** Retire current callbacks before reattaching; real module hot reload uses framework handles. */
     private fun applyLiveIconSettings(): Boolean {
-        if (nativeGenerationRetired || processName != "com.android.systemui") return true
+        if (generationRetired || processName != "com.android.systemui") return true
         val state = packageStates["com.android.systemui"] ?: return false
         val context = state.appContext ?: return false
         val hooks = iconHookers().filter { it in rootHookers }
         if (hooks.isEmpty()) return false
-        val oldHandles = HotReloadHandleStore(hooks.flatMap { it.collectManagedHookHandles() })
-        com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsReloadTransaction.run(
-            hooks = hooks,
-            capture = { it.saveHotReloadState() },
-            prepare = { it.prepareForHotReload() },
-            reset = { it.resetAfterHotReloadPrepared() },
-            install = { hooker ->
-                hooker.setHotReloadReplacementHandles(null)
-                hooker.performInit()
-                hooker.updateParentState(true)
-            },
-            restore = { hooker, snapshot -> hooker.restoreHotReloadState(snapshot) },
-            retire = { unhookRemainingOldHandles(oldHandles) },
+        ManagedHookReload.run(
+            replacements = hooks.map { it to it },
             recover = {
                 StackedSignalHooker.onPackageReady(context)
                 ControlCenterCarrierBlockHooker.onPackageReady(context)
@@ -216,75 +260,29 @@ class HookEntry : XposedModule() {
         return true
     }
 
-    @Volatile private var nativeSettingsSource: SharedPreferences? = null
-    @Volatile private var nativeSettingsReady = false
-    private val nativeSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (processName == "com.android.systemui" && !nativeGenerationRetired &&
-            (key == null || key == "prefs_epoch" || key == Preferences.KEY_ISLAND_LIVE_UPDATE_ICON)) {
+    @Volatile private var runtimePreferencesSource: SharedPreferences? = null
+    @Volatile private var remoteSettingsReady = false
+    private val runtimePreferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (!generationRetired) {
             Preferences.invalidateRuntimeReadCache()
-            SystemUIPluginHooker.refreshIslandIconSettings()
-        }
-        if (!nativeGenerationRetired && (processName == "com.xiaomi.xmsf" || processName.startsWith("com.xiaomi.xmsf:")) &&
-            (key == null || key == "prefs_epoch" || key == Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH)) {
-            Preferences.invalidateRuntimeReadCache()
-        }
-        if (processName == "com.android.systemui" && !nativeGenerationRetired && (key == null || key == "prefs_epoch" || key in setOf(
-                Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
-                Preferences.KEY_LANDSCAPE_MORE_ISLANDS, Preferences.KEY_CC_HIDE_SUPER_ISLAND,
-                Preferences.KEY_ISLAND_NARROW_TIME_FONT,
-                Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST))) {
-            Preferences.invalidateRuntimeReadCache()
-            DebugLog.i("ThreeIslands", "settings received key=$key three=${Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)} " +
-                "full=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)} more=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)}")
-            if (key == Preferences.KEY_ISLAND_NARROW_TIME_FONT) DebugLog.i("IslandTimeFont", "settings received enabled=${Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false)}")
-            SystemUIPluginHooker.refreshIslandSettings()
-        }
-        if (processName == "com.android.systemui" && !nativeGenerationRetired &&
-            com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy.affectsIcons(key)) {
-            Preferences.invalidateRuntimeReadCache()
-            DebugLog.d("IconTuner", "live icon setting received key=$key")
-            iconSettingsReload.request()
-        }
-        if ((processName == "com.miui.screenshot" || processName == "com.miui.screenshot:photo_editor") &&
-            (key == null || key == Preferences.KEY_SCREENSHOT_AUTO_FRAME ||
-                key == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE || key == "prefs_epoch")) {
-            Preferences.invalidateRuntimeReadCache()
-            DebugLog.d("ScreenshotAutoFrame", "live screenshot setting received key=$key")
-        }
-        if (key == null || key == Preferences.KEY_VOLUME_KEY_STEP_COUNT ||
-            key == Preferences.KEY_VOLUME_KEY_STEP_SCOPE || key == "prefs_epoch") {
-            Preferences.invalidateRuntimeReadCache()
-            if (isSystemServer) runCatching { VolumeKeyStepsHooker.refreshConfiguration() }
-                .onFailure { DebugLog.w("VolumeKeySteps", "live configuration refresh failed", it) }
-        }
-        if (key == null || key == Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON ||
-            key == Preferences.KEY_OPENED_FOLDER_COLUMNS ||
-            key == Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS ||
-            key == Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT ||
-            key == Preferences.KEY_NATIVE_RULE_REVISION || key == "prefs_epoch") {
-            // A change notification must bypass the normal short-lived read memo.
-            Preferences.invalidateRuntimeReadCache()
-            publishNativeRuleSwitches()
+            requestSettingsReload(RuntimeSettingsGroups.affected(key))
         }
     }
 
-    private fun detachNativeSettingsListener() {
-        nativeSettingsSource?.let { source ->
-            runCatching { source.unregisterOnSharedPreferenceChangeListener(nativeSettingsListener) }
+    private fun detachRuntimePreferencesListener() {
+        runtimePreferencesSource?.let { source ->
+            runCatching { source.unregisterOnSharedPreferenceChangeListener(runtimePreferencesListener) }
         }
-        nativeSettingsSource = null
+        runtimePreferencesSource = null
     }
 
-    private fun bindNativeSettingsListener(source: SharedPreferences) {
-        if ((!isSystemServer && processName != LAUNCHER_PACKAGE && processName != "com.android.systemui" && processName != "com.xiaomi.xmsf" &&
-                !processName.startsWith("com.xiaomi.xmsf:") && processName != "com.miui.screenshot" &&
-                processName != "com.miui.screenshot:photo_editor") ||
-            nativeSettingsSource === source) return
-        detachNativeSettingsListener()
+    private fun bindRuntimePreferencesListener(source: SharedPreferences) {
+        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isEmpty() || runtimePreferencesSource === source) return
+        detachRuntimePreferencesListener()
         runCatching {
-            source.registerOnSharedPreferenceChangeListener(nativeSettingsListener)
-            nativeSettingsSource = source
-        }.onFailure { DebugLog.w("NativeRules", "native settings listener unavailable", it) }
+            source.registerOnSharedPreferenceChangeListener(runtimePreferencesListener)
+            runtimePreferencesSource = source
+        }.onFailure { DebugLog.w("NativeRules", "runtime settings listener unavailable", it) }
     }
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
@@ -296,6 +294,7 @@ class HookEntry : XposedModule() {
         // here must be logged, not thrown back into the host's module-load path.
         processName = param.processName
         isSystemServer = param.isSystemServer
+        RuntimeSettingsStore.configure(processName, isSystemServer)
         try {
             preferenceRetryGeneration.incrementAndGet()
             // Initialize EzXposed with the module interface
@@ -326,6 +325,7 @@ class HookEntry : XposedModule() {
         // sees the failure.
         try {
             dispatchSystemServerHookers(param.classLoader)
+            runtimeContextRetry.schedule()
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "system_server hook dispatch failed", t)
             throw t
@@ -381,7 +381,7 @@ class HookEntry : XposedModule() {
             handlePackageReadyContext(param.packageName, param.classLoader)
             if (processName == LAUNCHER_PACKAGE) {
                 // The early daemon binding may have failed before package readiness.
-                if (nativeSettingsSource == null) tryInitPreferences()
+                if (runtimePreferencesSource == null) tryInitPreferences()
                 publishNativeRuleSwitches()
             }
 
@@ -408,7 +408,7 @@ class HookEntry : XposedModule() {
         }
         iconSettingsLock.lock()
         val ready = try { runCatching {
-            if (processName == "com.android.systemui") iconSettingsReload.cancel()
+            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
             AospBackSystemUiHooker.checkHotReloadReady()
             refreshHotReloadSnapshots()
             if (!DexKitManager.prepareForHotReload()) {
@@ -420,7 +420,8 @@ class HookEntry : XposedModule() {
                 systemServerClassLoader = systemServerClassLoader,
                 packages = packageStates.values,
                 hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() } +
-                    mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot())
+                    mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot(),
+                        "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save())
             )
             if (processName == "com.android.systemui") {
                 com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
@@ -430,16 +431,19 @@ class HookEntry : XposedModule() {
             rootHookers.clear()
             param.setSavedInstanceState(hyperTweakState)
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
-            detachNativeSettingsListener()
-            nativeSettingsReady = false
-            nativeGenerationRetired = true
+            detachRuntimePreferencesListener()
+            remoteSettingsReady = false
+            generationRetired = true
+            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.close()
+            RuntimeSettingsPreferences.clearObservers()
+            runtimeContextRetry.cancel()
             nativeRuleStatePublisher?.close()
             nativeRuleStatePublisher = null
             DebugLog.prepareForHotReload()
         }.onFailure { t ->
             DexKitManager.cancelHotReloadPreparation()
             DebugLog.e("HookEntry", "hot reload preparation failed; keeping old generation active", t)
-            if (processName == "com.android.systemui") iconSettingsReload.resume()
+            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
         }.isSuccess } finally { iconSettingsLock.unlock() }
         return ready
     }
@@ -455,8 +459,9 @@ class HookEntry : XposedModule() {
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
-        nativeGenerationRetired = false
-        if (processName == "com.android.systemui") iconSettingsReload.cancel()
+        RuntimeSettingsStore.configure(processName, isSystemServer)
+        generationRetired = false
+        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
         preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
         NativeRules.bindProcess(processName)
@@ -464,6 +469,8 @@ class HookEntry : XposedModule() {
         DebugLog.bindXposed(this)
         val restoredState = HotReloadState.restore(param.savedInstanceState)
         nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
+        RuntimeSettingsStore.restore(restoredState?.hookerStates?.get("HyperTweak.RuntimeSettings")
+            ?: (restoredState?.hookerStates?.get("HyperTweak.NativeSettings") as? Array<*>)?.getOrNull(2))
         initPreferences()
         publishNativeRuleSwitches()
         DebugLog.ensureSession()
@@ -550,7 +557,10 @@ class HookEntry : XposedModule() {
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
         retryHookersAfterHotReload()
-        if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.recoverExistingWindows()
+        if (isSystemServer) {
+            runtimeContextRetry.schedule()
+            com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.recoverExistingWindows()
+        }
         // Publication requires the restored host context. The early hot-reload callback runs
         // before package snapshots are restored and cannot be its only recovery boundary.
         publishNativeRuleSwitches()
@@ -562,7 +572,7 @@ class HookEntry : XposedModule() {
                 DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
             }
         }
-        if (processName == "com.android.systemui") iconSettingsReload.resume()
+        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
         DebugLog.i("HookEntry", "hot reload replacement ready process=$processName roots=${rootHookers.size}")
     }
 
@@ -684,7 +694,7 @@ class HookEntry : XposedModule() {
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
         Preferences.initLocalCache(appContext)
         RestartBroadcastHooker.register(appContext)
-        if (packageName == "com.miui.screenshot") ScreenshotAutoFrameHooker.onPackageReady(appContext)
+        attachRuntimeSettingsContext(appContext)
         if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
             BatteryInfoHooker.onPackageReady(appContext)
         }
@@ -700,6 +710,7 @@ class HookEntry : XposedModule() {
     /** Cold startup and hot reload must publish the same host environment to every consumer. */
     private fun onSystemUiContextReady(context: Context) {
         nativePublisher()?.attach(context)
+        attachRuntimeSettingsContext(context)
         ProxyLaunchHooker.register(context)
         ExtendUnlockHooker.syncTrustAgent(context)
         StackedSignalHooker.onPackageReady(context)
@@ -728,7 +739,7 @@ class HookEntry : XposedModule() {
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
-            if (state.packageName == "com.miui.screenshot") ScreenshotAutoFrameHooker.onPackageReady(appContext)
+            attachRuntimeSettingsContext(appContext)
             if (state.packageName == BatteryInfoHooker.PACKAGE && processName == state.packageName) {
                 BatteryInfoHooker.onPackageReady(appContext)
             }
@@ -816,16 +827,16 @@ class HookEntry : XposedModule() {
     private fun publishNativeRuleSwitches() {
         // An unavailable daemon must not overwrite the last good native snapshot
         // with default values during boot. The successful bind/retry publishes it.
-        if (nativeGenerationRetired) return
+        if (generationRetired) return
         if (processName == "com.android.systemui") {
             val context = packageStates[processName]?.appContext
                 ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
             val publisher = nativePublisher() ?: return
-            if (context != null) publisher.attach(context)
+            if (context != null) { publisher.attach(context); runtimeSettingsReceiver.attach(context) }
             publisher.publish()
             return
         }
-        if (!nativeSettingsReady || processName != LAUNCHER_PACKAGE) return
+        if ((!remoteSettingsReady && !RuntimeSettingsStore.owns(Preferences.KEY_NATIVE_RULE_REVISION)) || processName != LAUNCHER_PACKAGE) return
         runCatching {
             NativeRules.applyRuleSwitches(
                 hideRecentsClearButton = Preferences.hideRecentsClearButton(),
@@ -843,14 +854,13 @@ class HookEntry : XposedModule() {
         return try {
             val remotePrefs = getRemotePreferences(Preferences.NAME)
             Preferences.init(remotePrefs)
-            if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.bindPreferences(remotePrefs)
-            bindNativeSettingsListener(remotePrefs)
-            if (processName == "com.android.systemui") AospBackSystemUiHooker.refreshPreferences()
+            bindRuntimePreferencesListener(remotePrefs)
+            requestSettingsReload(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
-            nativeSettingsReady = true
+            remoteSettingsReady = true
             true
         } catch (t: Throwable) {
-            nativeSettingsReady = false
+            remoteSettingsReady = false
             Preferences.noteRemoteBackendUnavailable()
             DebugLog.e("HookEntry", "failed to init Preferences (remote channel unavailable; using cache fallback)", t)
             false

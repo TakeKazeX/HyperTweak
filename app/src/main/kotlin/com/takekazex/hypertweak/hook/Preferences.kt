@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook
 
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsLedger
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSnapshot
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal
+import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -30,7 +30,7 @@ object Preferences {
     private val liveBackSettings = BackGestureSettingsLedger()
     fun backGestureEnabled(): Boolean = backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
-        liveBackSettings.latest()?.value(key) ?: runCatching {
+        if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {
             if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue
         }.getOrDefault(defaultValue)
     internal fun acceptBackGestureSettings(snapshot: BackGestureSettingsSnapshot): Boolean =
@@ -41,7 +41,8 @@ object Preferences {
     }
 
     /** The vendored runtime uses the same authoritative source and listeners as other hooks. */
-    fun backGesturePreferences(): SharedPreferences = remotePrefs
+    fun backGesturePreferences(): SharedPreferences = RuntimeSettingsPreferences
+    internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
     internal const val KEY_NATIVE_RULE_REVISION = "native_rules_revision"
     private const val CACHE_NAME = "hypertweak_cache"
     const val DEFAULT_SEED_COLOR = 0
@@ -118,9 +119,9 @@ object Preferences {
     const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
     const val KEY_SCREENSHOT_FRAME_EDITOR_MODE = "screenshot_frame_editor_mode"
     private val screenshotSettings = ScreenshotSettingsLedger()
-    fun screenshotAutoFrameEnabled(): Boolean = screenshotSettings.latest()?.enabled
+    fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
         ?: getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false)
-    fun screenshotEditorMode(): Int = screenshotSettings.latest()?.editorMode
+    fun screenshotEditorMode(): Int = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_FRAME_EDITOR_MODE)) getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) else screenshotSettings.latest()?.editorMode
         ?: getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
     internal fun acceptScreenshotSettings(snapshot: ScreenshotSettingsSnapshot): Boolean = screenshotSettings.accept(snapshot)
     internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
@@ -1343,7 +1344,8 @@ object Preferences {
 
     /** Keys used by the module runtime itself rather than by user-facing configuration. */
     private fun isRuntimeKey(key: String): Boolean =
-        key == ScreenshotSettingsSnapshot.REVISION ||
+        key == RuntimeSettingsGroups.REVISION ||
+            key == ScreenshotSettingsSnapshot.REVISION ||
             key == KEY_PREFS_EPOCH ||
             key == KEY_NATIVE_RULE_REVISION ||
             key == BackGestureSettingsSnapshot.REVISION ||
@@ -1384,22 +1386,17 @@ object Preferences {
                 // Queue the clear behind every ordinary async write and wait for it. Without this
                 // ordering, a setting changed immediately before the clear could be committed
                 // after the clear and silently resurrect the old configuration.
-                val backReset = requireNotNull(BackGestureSettingsSnapshot.read(mapOf(
+                requireNotNull(BackGestureSettingsSnapshot.read(mapOf(
                     BackGestureSettingsSnapshot.REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch)))
-                val committed = commitRemoteMutation(nativeReset, backReset) {
+                val committed = commitRemoteMutation(nativeReset, emptyMap<String, Any>()) {
                     clear()
                     putLong(KEY_PREFS_EPOCH, epoch)
                     putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
-                if (!isLocalOnly) {
-                    IconSettingsSignal.replaceCommitted(emptyMap<String, Any>())
-                    ScreenshotSettingsSignal.replaceCommitted(emptyMap<String, Any>())
-                }
                 runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
-                com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
                 return true
             }
         }
@@ -1450,9 +1447,9 @@ object Preferences {
                     .forEach(::add)
             }
 
-            val backReset = requireNotNull(BackGestureSettingsSnapshot.read(restored + mapOf(
+            requireNotNull(BackGestureSettingsSnapshot.read(restored + mapOf(
                 BackGestureSettingsSnapshot.REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch))) { "Invalid back gesture settings in backup" }
-            val committed = commitRemoteMutation(nativeReset, backReset) {
+            val committed = commitRemoteMutation(nativeReset, restored) {
                 currentKeys.forEach(::remove)
                 restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                 putLong(KEY_PREFS_EPOCH, epoch)
@@ -1462,10 +1459,6 @@ object Preferences {
                 // The serialized transaction restores the captured map on rejection.
                 memoClear()
                 error("Unable to write restored settings")
-            }
-            if (!isLocalOnly) {
-                IconSettingsSignal.replaceCommitted(restored)
-                ScreenshotSettingsSignal.replaceCommitted(restored)
             }
 
             runCatching {
@@ -1485,7 +1478,6 @@ object Preferences {
                 }
             }
             memoClear()
-            com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
             return restored.size
         }
     }
@@ -1575,6 +1567,7 @@ object Preferences {
     }
 
     internal fun nativeRuleSnapshot(): NativeRuleStateSnapshot? {
+        if (RuntimeSettingsStore.owns(KEY_NATIVE_RULE_REVISION)) return RuntimeSettingsStore.values()?.let { values -> NativeRuleStateSnapshot.read { values } }
         if (!this::remotePrefs.isInitialized || isLocalOnly) return null
         return NativeRuleStateSnapshot.read { remotePrefs.all }
     }
@@ -1606,7 +1599,7 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, iconMutation: Pair<String, Any>? = null, screenshotMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
@@ -1628,16 +1621,17 @@ object Preferences {
                 // blocking commit makes flush() honest: once this queue is drained, every setting that
                 // was written is already visible to the hooked processes that read the daemon copy.
                 runCatching {
-                    val snapshot = nativeMutation?.let { NativeRuleSignal.prepareMutation(it.first, it.second, revision) }
-                    val backSnapshot = backMutation?.let { NativeRuleSignal.prepareBackMutation(it.first, it.second) }
-                        ?: NativeRuleSignal.lastAcknowledgedBack()
-                    val screenshot = screenshotMutation?.let { ScreenshotSettingsSignal.prepare(it.first, it.second) }
-                        ?: ScreenshotSettingsSignal.lastAcknowledged()
+                    val snapshot = nativeMutation?.let { mutation ->
+                        val baseline = RuntimeSettingsSignal.lastAcknowledged()?.values?.let { values -> NativeRuleStateSnapshot.read { values } }
+                            ?: error("native settings baseline unavailable")
+                        NativeRuleMutation.apply(baseline, mutation.first, mutation.second, revision)
+                    }
+                    val changes = runtimeMutation?.let { mapOf(it) }.orEmpty() + snapshot?.settingsValues().orEmpty()
+                    val runtime = if (changes.isNotEmpty()) RuntimeSettingsSignal.prepare(changes)
+                        else RuntimeSettingsSignal.lastAcknowledged()
                     val editor = remotePrefs.edit()
                     block(editor)
-                    if (screenshot != null) ScreenshotSettingsSignal.write(editor, screenshot)
-                    // A rejected editor shadow must not contaminate a later successful write.
-                    if (backSnapshot != null) NativeRuleSignal.writeBackSettings(editor, backSnapshot)
+                    if (runtime != null) RuntimeSettingsSignal.write(editor, runtime)
                     // Commit the entire native subset atomically, so a prior rejected editor's
                     // shadow values cannot hitchhike into this acknowledged transaction.
                     if (snapshot != null) {
@@ -1649,13 +1643,10 @@ object Preferences {
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
                     val committed = editor.commit()
-                    if (committed && screenshot != null) ScreenshotSettingsSignal.acknowledge(screenshot)
-                    if (committed && iconMutation != null) IconSettingsSignal.acknowledge(iconMutation.first, iconMutation.second)
-                    if (committed && backMutation != null && backSnapshot != null) NativeRuleSignal.acknowledgeBack(backSnapshot)
+                    if (committed && changes.isNotEmpty() && runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     if (!committed) {
                         DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
                     } else if (snapshot != null) {
-                        NativeRuleSignal.acknowledge(snapshot)
                         // Do not overwrite newer app-local edits already queued behind this one.
                         synchronized(nativeMirrorLock) {
                             if (local != null && NativeRuleMutation.canMirror(snapshot,
@@ -1682,68 +1673,36 @@ object Preferences {
     /** Applies one remote mutation after all previously queued writes and waits for its result.
      * Blocking commit on the writer is required before an acknowledged snapshot is published. */
     @Suppress("UseKtx", "ApplySharedPref")
-    private fun commitRemoteMutation(nativeSnapshot: NativeRuleStateSnapshot? = null,
-        backSnapshot: BackGestureSettingsSnapshot? = null, block: SharedPreferences.Editor.() -> Unit): Boolean {
+    private fun commitRemoteMutation(nativeSnapshot: NativeRuleStateSnapshot,
+        replacement: Map<String, *>, block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
         fun commit(): Boolean {
-            var previous: Map<String, *>? = null
-            var previousNative: NativeRuleStateSnapshot? = null
-            var previousBack: BackGestureSettingsSnapshot? = null
-            var previousScreenshot: ScreenshotSettingsSnapshot? = null
-            fun rollback() {
-                val values = previous ?: return
-                runCatching {
-                    val editor = remotePrefs.edit().clear()
-                    values.forEach { (key, value) ->
-                        if (value != null) editor.putSharedPreferenceValue(key, value)
-                    }
-                    previousNative?.let {
-                        editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, it.hidden)
-                        editor.putInt(KEY_OPENED_FOLDER_COLUMNS, it.columns)
-                        editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, it.contextualSearch)
-                        editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it.assistantWidgets)
-                        editor.putLong(KEY_NATIVE_RULE_REVISION, it.revision)
-                        editor.putLong(KEY_PREFS_EPOCH, it.epoch)
-                    }
-                    previousBack?.let { NativeRuleSignal.writeBackSettings(editor, it) }
-                    previousScreenshot?.let { ScreenshotSettingsSignal.write(editor, it) }
-                    check(editor.commit()) { "settings mutation rollback rejected" }
-                }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
-            }
+            val previous = HashMap(remotePrefs.all)
+            val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
+            fun rollback() = runCatching {
+                val editor = remotePrefs.edit().clear()
+                previous.forEach { (key, value) -> if (value != null) editor.putSharedPreferenceValue(key, value) }
+                previousRuntime?.let { RuntimeSettingsSignal.write(editor, it) }
+                check(editor.commit()) { "settings mutation rollback rejected" }
+            }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
             return try {
-                // Capture on the writer, after older queued commits. SharedPreferences editors
-                // can mutate their live map even when commit fails; both clear and restore must
-                // remove newly introduced keys and recover the whole prior configuration.
-                if (nativeSnapshot != null) {
-                    previous = HashMap(remotePrefs.all)
-                    previousNative = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledged()
-                    previousBack = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledgedBack()
-                    previousScreenshot = if (isLocalOnly) null else ScreenshotSettingsSignal.lastAcknowledged()
-                }
+                val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepareReplacement(replacement + nativeSnapshot.settingsValues())
                 val editor = remotePrefs.edit()
                 block(editor)
-                backSnapshot?.let { NativeRuleSignal.writeBackSettings(editor, it) }
-                editor.commit().also {
-                    if (!it) {
-                        DebugLog.w("Preferences", "settings mutation commit rejected")
-                        rollback()
-                    } else if (!isLocalOnly) {
-                        backSnapshot?.let(NativeRuleSignal::acknowledgeBack)
-                        nativeSnapshot?.let(NativeRuleSignal::acknowledge)
-                    }
+                runtime?.let { RuntimeSettingsSignal.write(editor, it) }
+                editor.commit().also { committed ->
+                    if (!committed) { DebugLog.w("Preferences", "settings mutation commit rejected"); rollback() }
+                    else if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                 }
-            } catch (t: Exception) {
-                DebugLog.e("Preferences", "settings mutation failed", t)
+            } catch (error: Exception) {
+                DebugLog.e("Preferences", "settings mutation failed", error)
                 rollback()
                 false
             }
         }
-        val local = localSourcePrefs
-        if (isLocalOnly || local === remotePrefs) return commit()
-        val task = serializedWriter.submit<Boolean> { commit() }
-        return runCatching { task.get(5, TimeUnit.SECONDS) }
-            .onFailure { DebugLog.e("Preferences", "waiting for settings mutation failed", it) }
-            .getOrDefault(false)
+        if (isLocalOnly || localSourcePrefs === remotePrefs) return commit()
+        return runCatching { serializedWriter.submit<Boolean> { commit() }.get(5, TimeUnit.SECONDS) }
+            .onFailure { DebugLog.e("Preferences", "waiting for settings mutation failed", it) }.getOrDefault(false)
     }
 
     private fun SharedPreferences.Editor.putSharedPreferenceValue(key: String, value: Any) {
@@ -1757,6 +1716,7 @@ object Preferences {
             else -> error("Unsupported restored setting type: ${value::class.java.name}")
         }
     }
+
 
     /**
      * Blocks until every queued remote write has been applied. The remote copy lives in the
@@ -1824,7 +1784,7 @@ object Preferences {
      * older key, rather than being indistinguishable from the default value.
      */
     fun contains(key: String): Boolean {
-        if (IconSettingsRuntime.owns(key)) return IconSettingsRuntime.value(key) != null
+        if (RuntimeSettingsStore.owns(key)) return RuntimeSettingsStore.value(key) != null
         if (!isInitialized) return getLocalCache()?.contains(key) == true
         return runCatching {
             if (remotePrefs.contains(key)) {
@@ -1840,7 +1800,7 @@ object Preferences {
     }
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
-        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Boolean) ?: default
+        if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Boolean) ?: default
         if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
         // Safe cast: the memo map is keyed by key alone, so a key read through two different typed
         // getters would otherwise throw ClassCastException at a hook boundary with no fallback.
@@ -1890,7 +1850,7 @@ object Preferences {
         getFingerprintHideScope(KEY_HIDE_FINGERPRINT_APP_AUTH)
 
     fun getInt(key: String, default: Int = 0): Int {
-        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Int) ?: default
+        if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Int) ?: default
         if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
         (memoGet(key) as? Int)?.let { return it }
         val value = try {
@@ -1914,7 +1874,7 @@ object Preferences {
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
-        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? Float) ?: default
+        if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Float) ?: default
         if (!isInitialized) return getLocalCache()?.getFloat(key, default) ?: default
         (memoGet(key) as? Float)?.let { return it }
         val value = try {
@@ -1942,27 +1902,24 @@ object Preferences {
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null,
-            backMutation = if (key in BackGestureSettingsSnapshot.KEYS) key to value else null,
-            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null,
-            screenshotMutation = if (ScreenshotSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
+            runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null,
-            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null,
-            screenshotMutation = if (ScreenshotSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
+            runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {
         memoInvalidate(key)
-        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putFloat(key, value) }
+        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putFloat(key, value) }
     }
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
-        if (IconSettingsRuntime.owns(key)) {
+        if (RuntimeSettingsStore.owns(key)) {
             @Suppress("UNCHECKED_CAST")
-            return (IconSettingsRuntime.value(key) as? Set<String>) ?: default
+            return (RuntimeSettingsStore.value(key) as? Set<String>) ?: default
         }
         if (!isInitialized) return getLocalCache()?.getStringSet(key, default) ?: default
         memoGet(key)?.let { return ((it as? Set<*>) ?: default).map { element -> element as String }.toSet() }
@@ -1991,11 +1948,11 @@ object Preferences {
 
     fun putStringSet(key: String, value: Set<String>) {
         memoInvalidate(key)
-        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putStringSet(key, value) }
+        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putStringSet(key, value) }
     }
 
     fun getString(key: String, default: String = ""): String {
-        if (IconSettingsRuntime.owns(key)) return (IconSettingsRuntime.value(key) as? String) ?: default
+        if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? String) ?: default
         if (!isInitialized) return getLocalCache()?.getString(key, default) ?: default
         (memoGet(key) as? String)?.let { return it }
         val value = try {
@@ -2020,7 +1977,7 @@ object Preferences {
 
     fun putString(key: String, value: String) {
         memoInvalidate(key)
-        write(iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
+        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
     }
 
     /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
@@ -2028,17 +1985,22 @@ object Preferences {
         if (com.takekazex.hypertweak.dock.DockConfig.decode(value) == null || !isInitialized) return false
         val key = com.takekazex.hypertweak.dock.DockConfig.KEY
         fun commit(): Boolean = synchronized(settingsMutationLock) {
-            val previous = remotePrefs.getString(key, null)
+            val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
+            val previous = if (previousRuntime != null) previousRuntime.values[key] as? String else remotePrefs.getString(key, null)
             try {
-                if (!remotePrefs.edit().putString(key, value).commit()) {
+                val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepare(key, value)
+                val editor = remotePrefs.edit().putString(key, value)
+                runtime?.let { RuntimeSettingsSignal.write(editor, it) }
+                if (!editor.commit()) {
                     val restore = remotePrefs.edit()
                     if (previous == null) restore.remove(key) else restore.putString(key, previous)
+                    previousRuntime?.let { RuntimeSettingsSignal.write(restore, it) }
                     check(restore.commit()) { "Dock settings rollback rejected" }
                     false
                 } else {
                     localSourcePrefs?.takeIf { it !== remotePrefs }?.edit(commit = true) { putString(key, value) }
+                    if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     memoInvalidate(key)
-                    com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
                     DebugLog.i("DockBackground", "settings committed $value")
                     true
                 }
@@ -2046,6 +2008,7 @@ object Preferences {
                 runCatching {
                     val restore = remotePrefs.edit()
                     if (previous == null) restore.remove(key) else restore.putString(key, previous)
+                    previousRuntime?.let { RuntimeSettingsSignal.write(restore, it) }
                     check(restore.commit()) { "Dock settings rollback rejected" }
                 }.onFailure { DebugLog.w("DockBackground", "settings rollback failed", it) }
                 DebugLog.w("DockBackground", "settings commit failed", error)
@@ -2057,8 +2020,6 @@ object Preferences {
             .onFailure { DebugLog.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
     }
 
-    fun observeDockBackground(listener: SharedPreferences.OnSharedPreferenceChangeListener): SharedPreferences? =
-        if (!isInitialized) null else remotePrefs.also { it.registerOnSharedPreferenceChangeListener(listener) }
 
     /**
      * Writes a string and waits for the remote preferences commit to finish. This is used for
@@ -2073,8 +2034,12 @@ object Preferences {
         if (isLocalOnly || local === remotePrefs) return
         val task = serializedWriter.submit {
             runCatching {
-                val committed = remotePrefs.edit().putString(key, value).commit()
-                if (committed && IconSettingsSnapshot.owns(key)) IconSettingsSignal.acknowledge(key, value)
+                val runtime = if (RuntimeSettingsSnapshot.owns(key)) RuntimeSettingsSignal.prepare(key, value)
+                    else RuntimeSettingsSignal.lastAcknowledged()
+                val editor = remotePrefs.edit().putString(key, value)
+                if (runtime != null) RuntimeSettingsSignal.write(editor, runtime)
+                val committed = editor.commit()
+                if (committed && runtime != null && RuntimeSettingsSnapshot.owns(key)) RuntimeSettingsSignal.acknowledge(runtime)
             }.onFailure { t ->
                 DebugLog.w("Preferences", "synchronous remote pref write failed", t)
             }
