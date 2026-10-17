@@ -11,6 +11,8 @@ internal class NativeMediaRenderContract(host: NativeIslandAccess) {
     private val f = Float::class.javaPrimitiveType!!
     private fun method(owner: Class<*>, name: String, vararg args: Class<*>) =
         NativeIslandMembers.named(owner, name, args.toList())
+    private fun defaultMethod(owner: Class<*>, name: String, vararg args: Class<*>) =
+        NativeIslandMembers.namedStatic(owner, name, args.toList())
 
     private val returnArgs = arrayOf(host.content, z)
     val entries = listOf(
@@ -35,9 +37,9 @@ internal class NativeMediaRenderContract(host: NativeIslandAccess) {
         method(host.content, "getState"), method(host.content, "getLastState"),
         method(host.content, "getCurrentBigIslandX", Boolean::class.javaObjectType),
         method(host.content, "getCurrentBigIslandWidth", Boolean::class.javaObjectType),
-        method(host.base, "getCurrentBigIslandX\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
-        method(host.base, "getCurrentBigIslandWidth\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
-        method(host.base, "getBigIslandRect\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
+        defaultMethod(host.base, "getCurrentBigIslandX\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
+        defaultMethod(host.base, "getCurrentBigIslandWidth\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
+        defaultMethod(host.base, "getBigIslandRect\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
     )
     val appCloseTarget = host.windowController.declaredMethods.single {
         it.returnType == Rect::class.java && it.parameterTypes.toList() ==

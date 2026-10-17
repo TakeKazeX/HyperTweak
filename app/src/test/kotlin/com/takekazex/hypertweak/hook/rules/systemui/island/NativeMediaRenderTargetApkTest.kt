@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
 import java.io.File
+import org.jf.dexlib2.AccessFlags
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.iface.Method
@@ -56,6 +57,8 @@ class NativeMediaRenderTargetApkTest {
         for (name in listOf("getState", "getLastState")) method(base, name)
         for (name in listOf("getCurrentBigIslandX", "getCurrentBigIslandWidth", "getBigIslandRect")) {
             val bridge = method(base, name + "\$default", base, "Ljava/lang/Boolean;", "I", "Ljava/lang/Object;")
+            assertTrue("$name default bridge must be static",
+                bridge.accessFlags and AccessFlags.STATIC.value != 0)
             assertTrue(calls(bridge).any { it.name == name })
         }
         for (owner in listOf(delegate, root + "anim/DynamicIslandAnimationController;"))

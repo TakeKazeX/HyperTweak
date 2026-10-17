@@ -144,6 +144,12 @@ internal object NativeIslandMembers {
             .filter { it.name == name && it.parameterTypes.toList() == parameters && !Modifier.isStatic(it.modifiers) }
             .distinctBy { it.parameterTypes.toList() }.single().apply { isAccessible = true }
 
+    /** Kotlin default-argument bridges are static synthetic members on the declaring class. */
+    fun namedStatic(owner: Class<*>, name: String, parameters: List<Class<*>>): Method =
+        generateSequence(owner) { it.superclass }.flatMap { it.declaredMethods.asSequence() }
+            .filter { it.name == name && it.parameterTypes.toList() == parameters && Modifier.isStatic(it.modifiers) }
+            .distinctBy { it.parameterTypes.toList() }.single().apply { isAccessible = true }
+
     fun field(owner: Class<*>, type: Class<*>) = owner.declaredFields
         .filter { it.type == type && !Modifier.isStatic(it.modifiers) }.single().apply { isAccessible = true }
 }

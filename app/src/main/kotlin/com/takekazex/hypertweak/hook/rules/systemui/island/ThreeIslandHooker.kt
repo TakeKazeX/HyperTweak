@@ -33,6 +33,9 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         var rowGap = 0
         var portraitContent: IslandContentSize? = null
         var musicSmall: Any? = null
+        var lyricGuard: IslandLyricGuard? = null
+        var expanded: Any? = null
+        var big: Any? = null
         @Volatile var musicReturnGeometry: SmallIslandSpectrum.ReturnGeometry? = null
         var spectrumLog: String? = null
         val seats = SmallIslandSeats()
@@ -72,6 +75,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     private val relayoutPublication = IslandTemplatePublication()
     private val layoutMeasurement = IslandTemplatePublication()
     private var geometryDiagnostics: IslandGeometryDiagnostics? = null
+    private var lyricModulePresent: Boolean? = null
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retiring = false
 
@@ -813,16 +817,16 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
 
     private fun nativeSmallWidth(view: Any): Int = host.number(view, "getSmallIslandViewWidth")
 
-    private fun nativeMusicDemand(view: Any): IslandContentSize {
+    private fun nativeMusicDemand(view: Any): IslandContentSize? {
         val root = view as View
         fun dimension(name: String): Int {
             val id = root.resources.getIdentifier(name, "dimen", "miui.systemui.plugin")
             check(id != 0) { "Missing native music dimension $name" }
             return root.resources.getDimensionPixelSize(id)
         }
-        val cell = dimension("island_area_padding") + dimension("island_fix_icon_size") +
-            2 * dimension("island_fix_icon_margin")
-        return IslandContentSize(cell, cell)
+        return SmallIslandSpectrum.musicDemand(dimension("island_area_padding"),
+            dimension("island_fix_icon_size"), dimension("island_fix_icon_margin"),
+            dimension("island_area_padding_cutout"))
     }
 
     /** Choose native Big rendering before the transition resolver captures the first state. */
@@ -860,9 +864,12 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         }
         val music = candidates.singleOrNull() ?: return
         val other = if (music === primary) extra else primary
-        if (mediaRender == null) return
-        if (host.call(music, "getBigIslandAreaLeft") !is View || host.call(music, "getBigIslandAreaRight") !is View) return
-        val size = nativeMusicDemand(music)
+        if (mediaRender == null) { record("native media renderer unavailable"); return }
+        if (host.call(music, "getBigIslandAreaLeft") !is View || host.call(music, "getBigIslandAreaRight") !is View) {
+            record("native media areas unavailable")
+            return
+        }
+        val size = nativeMusicDemand(music) ?: return
         key(music)?.let { musicKey ->
             s.musicReturnGeometry = SmallIslandSpectrum.ReturnGeometry(musicKey, layout, size,
                 gap, clock, battery, safeLeft, safeRight, other?.let(::nativeSmallWidth) ?: 0)
@@ -874,6 +881,42 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         if (seat == null) return
         s.musicSmall = music
         s.fullFrames[music] = seat.frame
+        syncLyricGuard(s)
+    }
+
+    /** Keep third-party island lyric text out of the side media spectrum, while leaving it in big. */
+    private fun syncLyricGuard(s: Session) {
+        val music = s.musicSmall
+        if (music == null) { releaseLyricGuard(s); return }
+        val view = music as? View ?: run { releaseLyricGuard(s); return }
+        if (!lyricModuleInstalled(view)) { releaseLyricGuard(s); return }
+        // Never guard the fake transition template: it carries app-return/middle-island content.
+        val roots = listOf(view)
+        val current = s.lyricGuard
+        if (current != null && current.roots == roots) return
+        current?.release()
+        s.lyricGuard = IslandLyricGuard(roots) {
+            !retiring && !s.failed && s.expanded !== music && s.big !== music &&
+                s.musicSmall === music && s.fullFrames[music]?.full == true
+        }
+    }
+
+    private fun releaseLyricGuard(s: Session, view: Any? = null) {
+        val guard = s.lyricGuard ?: return
+        if (view != null && guard.roots.none { it === view }) return
+        guard.release()
+        s.lyricGuard = null
+    }
+
+    private fun lyricModuleInstalled(view: View): Boolean {
+        lyricModulePresent?.let { return it }
+        val present = runCatching {
+            view.context.packageManager.getPackageInfo("com.juren233.hyperlyricsenhanced",
+                android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            true
+        }.getOrDefault(false)
+        lyricModulePresent = present
+        return present
     }
 
     private fun portraitMain(s: Session, view: Any): Boolean = portraitCompactEnabled(s) && s.portraitContent != null &&
@@ -906,6 +949,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
                 (view in s.extras || view === host.current(s.owner, "getSmallIslandStateHandler")) &&
                 view !== host.current(s.owner, "getExpandedStateHandler") && musicSpectrum?.matches(view) == true
             if (!sideMusic) s.fullFrames.remove(view)
+            if (!sideMusic) releaseLyricGuard(s, view)
             s.portraitContent = null
             s.contentSizes.remove(view)
             releaseFullPosition(s, view)
@@ -922,6 +966,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
 
     private fun releaseFullPosition(s: Session, view: Any) {
         if (!alignedTemplate(s, view)) {
+            releaseLyricGuard(s, view)
             val nativeCutout = host.number(view, "getFixedCutoutWidth")
             s.templateWidths.release(view, nativeCutout)
             templateAreas(view) { left, right -> s.templateWidths.restoreCutout(left, right, nativeCutout) }
@@ -1184,6 +1229,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         val owner = s.owner
         val queue = host.queue(owner)
         val expanded = host.current(owner, "getExpandedStateHandler")
+        s.expanded = expanded
         val eligible = summarySwipeEnabled(s)
         val more = landscapeMoreEnabled(s)
         s.scheduler.capacityChanged(s.moreCapacity, more)
@@ -1197,6 +1243,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         }
         val candidates = if (eligible) selectSummaries(s) else emptyList()
         val big = host.current(owner, "getBigIslandStateHandler")
+        s.big = big
         val right = host.current(owner, "getSmallIslandStateHandler")
         s.extras = candidates
         val reserve = big != null && ((eligible && right != null && candidates.isNotEmpty()) || rowModeEnabled(s) || portraitCompactEnabled(s) ||
@@ -1268,6 +1315,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             host.call(handler, "addState", view, null)
             tx.oldStates[view]?.let { host.call(view, "setLastState", it) }
         }
+        if (s.musicSmall == null) releaseLyricGuard(s)
     }
 
     private inline fun extension(session: Session, operation: String, block: () -> Unit) {
@@ -1280,7 +1328,10 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     }
 
     private fun restore(session: Session) {
+        releaseLyricGuard(session)
         session.musicReturnGeometry = null
+        session.expanded = null
+        session.big = null
         val extras = session.extras
         val old = extras.associateWith { host.call(it, "getState") }
         returnToQueue(session)

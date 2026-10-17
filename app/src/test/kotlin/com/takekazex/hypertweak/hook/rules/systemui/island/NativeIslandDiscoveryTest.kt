@@ -76,6 +76,10 @@ class NativeIslandDiscoveryTest {
         @Suppress("unused") private var a = ArrayList<String>()
         @Suppress("unused") fun read(): Int = 1
         @Suppress("unused", "UNUSED_PARAMETER") fun read(value: String): Int = 2
+        companion object {
+            @JvmStatic
+            @Suppress("unused", "UNUSED_PARAMETER") fun read(value: Boolean?, flags: Int, marker: Any?): Int = 3
+        }
     }
     private class Ambiguous {
         @Suppress("unused") private var a = ArrayList<String>()
@@ -88,6 +92,16 @@ class NativeIslandDiscoveryTest {
         assertEquals("a", NativeIslandMembers.field(Renamed::class.java, ArrayList::class.java).name)
         assertEquals(0, NativeIslandMembers.named(Renamed::class.java, "read", emptyList()).parameterCount)
         assertEquals(1, NativeIslandMembers.named(Renamed::class.java, "read", listOf(String::class.java)).parameterCount)
+    }
+
+    @Test fun `static Kotlin default bridges resolve separately from instance members`() {
+        val parameters = listOf(Boolean::class.javaObjectType, Int::class.javaPrimitiveType!!, Any::class.java)
+        val bridge = NativeIslandMembers.namedStatic(Renamed::class.java, "read", parameters)
+        assertTrue(java.lang.reflect.Modifier.isStatic(bridge.modifiers))
+        assertEquals(3, bridge.invoke(null, null, 1, null))
+        assertThrows(NoSuchElementException::class.java) {
+            NativeIslandMembers.named(Renamed::class.java, "read", parameters)
+        }
     }
 
     @Test(expected = IllegalArgumentException::class) fun `ambiguous field types are rejected`() {

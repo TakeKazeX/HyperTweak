@@ -24,8 +24,8 @@ class NativeMusicSpectrumTargetApkTest {
         java.util.zip.ZipFile(files.first()!!).use { apk ->
             val resources = apk.getInputStream(apk.getEntry("resources.arsc")).use { it.readBytes() }
                 .toString(Charsets.ISO_8859_1)
-            for (name in listOf("island_container_module_icon", "island_container_module_text"))
-                assertTrue(resources.contains(name))
+            for (name in listOf("island_container_module_icon", "island_container_module_text",
+                    "island_area_padding_cutout")) assertTrue(resources.contains(name))
         }
         assertEquals("Ljava/lang/Boolean;", getter(content, "isMediaApp").returnType)
         val template = classes.getValue(getter(content, "getTemplate").returnType)

@@ -49,15 +49,15 @@ class SmallIslandSpectrumTest {
         val device = ThreeIslandLayout(467, 316, 347, 801, false, 1200)
         assertNull(SmallIslandSpectrum.choose(device, IslandContentSize(332, 325), 18,
             229, 281, 0, 0, true, 102))
-        val seat = SmallIslandSpectrum.choose(device, IslandContentSize(93, 93), 18,
+        val seat = SmallIslandSpectrum.choose(device, IslandContentSize(90, 90), 18,
             229, 281, 0, 0, true, 102)!!
         assertTrue(seat.left)
-        assertEquals(263, seat.frame.x)
-        assertEquals(186, seat.frame.width)
+        assertEquals(269, seat.frame.x)
+        assertEquals(180, seat.frame.width)
     }
     @Test fun `use natural icon demand instead of a previous main template allocation`() {
         val inflated = IslandContentSize(216, 216)
-        val natural = IslandContentSize(93, 93)
+        val natural = IslandContentSize(90, 90)
         assertNull(SmallIslandSpectrum.choose(layout, inflated, 20, 100, 100, 0, 0, true, 50))
         assertNotNull(SmallIslandSpectrum.choose(layout, natural, 20, 100, 100, 0, 0, true, 50))
     }
@@ -107,6 +107,17 @@ class SmallIslandSpectrumTest {
         assertEquals(false, seats.left("media"))
         assertEquals(true, seats.left("timer"))
         assertFalse(choose(seats.left("media")!!)!!.left)
+    }
+
+    @Test fun `side music demand excludes the camera-facing pad its lease removes`() {
+        // Verified plugin dimensions at 3.1 px/dp: outer 8dp, icon 20dp, margin 1dp, inner edge 1dp.
+        fun px(dp: Int): Int = (dp * 3.1f + 0.5f).toInt()
+        val demand = checkNotNull(SmallIslandSpectrum.musicDemand(px(8), px(20), px(1), px(1)))
+        assertEquals(IslandContentSize(90, 90), demand)
+        val device = ThreeIslandLayout(477, 316, 357, 811, false, 1200)
+        // Spare right room is 182 px; reserving the removed 6 px edge would hide the spectrum.
+        assertNotNull(SmallIslandSpectrum.choose(device, demand, 18, 239, 207, 0, 0, false, 0))
+        assertNotNull(SmallIslandSpectrum.choose(device, demand, 18, 239, 207, 0, 0, false, 102))
     }
 
     @Test fun `right seat keeps native icons and outside padding after removing camera facing padding`() {
