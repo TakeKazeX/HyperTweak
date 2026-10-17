@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.lbe
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import android.view.View
 import android.widget.Toast
 import com.takekazex.hypertweak.hook.Preferences
@@ -10,9 +13,11 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
+import java.io.File
 import java.lang.ref.Reference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.concurrent.Executors
 
 /**
  * Shows the clipboard-reading warning as a normal Android Toast instead of the vendor overlay.
@@ -64,9 +69,21 @@ object LbeClipboardToastHooker : StaticHooker() {
 
     private var contextField: Field? = null
 
+    private val worker = Executors.newSingleThreadExecutor { task ->
+        Thread({
+            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
+            task.run()
+        }, "HT-ClipboardResolver").apply { isDaemon = true }
+    }
+    private val initialization = ClipboardHookInitialization(
+        afterStartup = { task -> Handler(Looper.getMainLooper()).post { task() } },
+        background = { task -> worker.execute { task() } },
+    )
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
+        initialization.cancel()
         enabled = false
         contextField = null
     }
@@ -78,10 +95,29 @@ object LbeClipboardToastHooker : StaticHooker() {
             return
         }
 
-        val type = resolveOverlayType() ?: run {
-            DebugLog.hookSkipped(TAG, hookParam.packageName, "overlay class not found")
-            return
-        }
+        // Posting from PackageLoaded lets handleBindApplication return before any APK work.
+        // Neither the main queue callback nor hot reload waits for the native DexKit scan.
+        val packageName = hookParam.packageName
+        val appInfo = hookParam.appInfo
+        val loader = classLoader
+        initialization.schedule(
+            resolve = {
+                runCatching {
+                    resolveOverlayType(
+                        packageName, appInfo?.sourceDir,
+                        appInfo?.deviceProtectedDataDir ?: appInfo?.dataDir, loader,
+                    )
+                }.onFailure { DebugLog.hookFailed(TAG, "overlay resolution", it) }
+                    .getOrNull()
+            },
+            install = { type ->
+                runCatching { installOverlayHook(type) }
+                    .onFailure { DebugLog.hookFailed(TAG, "overlay installation", it) }
+            },
+        )
+    }
+
+    private fun installOverlayHook(type: Class<*>) {
         contextField = findContextField(type)
         if (contextField == null) {
             DebugLog.hookSkipped(TAG, "${type.name}#<Context>", "context field not found")
@@ -119,53 +155,49 @@ object LbeClipboardToastHooker : StaticHooker() {
 
     // ─── target resolution ───────────────────────────────────────────────────
 
-    private fun resolveOverlayType(): Class<*>? = when (hookParam.packageName) {
-        SECURITY_CENTER_PACKAGE -> resolveObfuscatedType()
+    private fun resolveOverlayType(
+        packageName: String, apkPath: String?, dataDir: String?, loader: ClassLoader,
+    ): Class<*>? = when (packageName) {
+        SECURITY_CENTER_PACKAGE -> resolveObfuscatedType(apkPath, dataDir, loader)
         else -> TOAST_UTIL_CANDIDATES.firstNotNullOfOrNull { name ->
-            name.toClassOrNull()?.takeIf(::looksLikeToastUtil)
+            runCatching { loader.loadClass(name) }.getOrNull()?.takeIf(::looksLikeToastUtil)
         }
     }
 
-    /**
-     * Resolves Security Center's obfuscated copy. Candidates come from the vendor debug line first
-     * and the entry-point prototype second; either way a candidate only counts when it still carries
-     * the full ToastUtil shape, so a rename or a partial match cannot move the hook onto something
-     * else.
-     */
-    private fun resolveObfuscatedType(): Class<*>? {
-        val apkPath = hookParam.appInfo?.sourceDir ?: run {
-            DebugLog.w(TAG, "source APK unavailable; cannot resolve the obfuscated overlay class")
-            return null
-        }
-
-        val candidates = DexKitManager.withBridge(apkPath) { bridge ->
-            val marked = bridge.findMethod {
-                matcher { addUsingString(TOAST_LOG_MARKER, StringMatchType.Equals) }
-            }.map { it.className }
-            val byPrototype = bridge.findMethod {
-                matcher {
-                    paramCount(2)
-                    paramTypes(String::class.java, Int::class.javaPrimitiveType!!)
-                    returnType(View::class.java)
+    /** APK identity and semantic validation guard the persistent, obfuscation-independent cache. */
+    private fun resolveObfuscatedType(apkPath: String?, dataDir: String?, loader: ClassLoader): Class<*>? {
+        if (apkPath == null) return null
+        val key = "clipboardToastOverlayV2"
+        return DexKitManager.resolveClasses(
+            cacheDir = dataDir?.let { File(it, "cache") },
+            apkPath = apkPath,
+            classLoader = loader,
+            queries = mapOf(key to { bridge ->
+                fun uniqueValid(names: List<String>): List<String> = names.distinct().filter { name ->
+                    runCatching { looksLikeToastUtil(loader.loadClass(name)) }.getOrDefault(false)
                 }
-            }.map { it.className }
-            (marked + byPrototype).distinct()
-        }.orEmpty()
-
-        if (candidates.isEmpty()) {
-            DebugLog.w(TAG, "structural resolution produced no candidate class")
-            return null
-        }
-        for (name in candidates) {
-            val type = name.toClassOrNull() ?: continue
-            if (looksLikeToastUtil(type)) return type
-        }
-        DebugLog.w(TAG, "structural resolution rejected ${candidates.size} candidate class(es)")
-        return null
+                val marked = uniqueValid(bridge.findMethod {
+                    matcher { addUsingString(TOAST_LOG_MARKER, StringMatchType.Equals) }
+                }.map { it.className })
+                // Do not scan every method prototype when the semantic marker already resolves.
+                when (marked.size) {
+                    1 -> marked.single()
+                    0 -> uniqueValid(bridge.findMethod {
+                        matcher {
+                            paramCount(2)
+                            paramTypes(String::class.java, Int::class.javaPrimitiveType!!)
+                            returnType(View::class.java)
+                        }
+                    }.map { it.className }).singleOrNull()
+                    else -> null
+                }
+            }),
+            validators = mapOf(key to ::looksLikeToastUtil),
+        )[key]
     }
 
     /** The private `(String, int) -> View` overlay builder; null for `type != 1` in both copies. */
-    private fun findOverlayMethod(type: Class<*>): Method? = type.declaredMethods.firstOrNull { method ->
+    private fun findOverlayMethod(type: Class<*>): Method? = type.declaredMethods.singleOrNull { method ->
         method.parameterCount == 2 &&
             method.parameterTypes[0] == String::class.java &&
             method.parameterTypes[1] == Int::class.javaPrimitiveType &&
@@ -178,7 +210,7 @@ object LbeClipboardToastHooker : StaticHooker() {
      * bare prototype.
      */
     private fun looksLikeToastUtil(type: Class<*>): Boolean =
-        findOverlayMethod(type) != null && type.declaredMethods.any { method ->
+        findOverlayMethod(type) != null && findContextField(type) != null && type.declaredMethods.any { method ->
             method.parameterCount == 2 &&
                 method.parameterTypes[0] == String::class.java &&
                 method.parameterTypes[1] == Int::class.javaPrimitiveType &&
