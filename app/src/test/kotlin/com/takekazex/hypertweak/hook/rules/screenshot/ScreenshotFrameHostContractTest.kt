@@ -169,4 +169,25 @@ class ScreenshotFrameHostContractTest {
         val activity = classes.getValue("Lcom/miui/gallery/editor/photo/screen/home/ScreenEditorActivity;")
         assertTrue(activity.methods.any { it.name == "doShellExecutor" })
     }
+    @Test fun `flattened editor source uses native crop path without creating a shell layer`() {
+        val classes = classes()
+        val activity = classes.getValue("Lcom/miui/gallery/editor/photo/screen/home/ScreenEditorActivity;")
+        assertEquals("Lcom/miui/gallery/editor/photo/scribbles/ScreenImageManager;", activity.field("mScreenImageManager"))
+        val gateCalls = activity.methods.single { it.name == "initShellView" }.references()
+            .filterIsInstance<MethodReference>()
+        assertTrue(gateCalls.any { it.name == "checkShellFuncEnabled" && it.parameterTypes == listOf("Landroid/content/Context;") })
+        val shell = classes.getValue("Lcom/miui/gallery/editor/photo/scribbles/ScreenShellManager;")
+        val gate = shell.methods.single { it.name == "checkShellFuncEnabled" }
+        assertTrue(gate.references().filterIsInstance<FieldReference>().any { it.name == "mIsShellEnabled" })
+        // Cropping is hidden only when a separate native shell layer is active.
+        val editor = classes.getValue("Lcom/miui/gallery/editor/photo/screen/home/ScreenEditorView;")
+        val cropCalls = editor.methods.single { it.name == "updateScreenCrop" }.references()
+            .filterIsInstance<MethodReference>()
+        assertTrue(cropCalls.any { it.name == "isWithShell" })
+        assertTrue(cropCalls.any { it.name == "setVisible" && it.parameterTypes == listOf("Z") })
+        val imageManager = classes.getValue("Lcom/miui/gallery/editor/photo/scribbles/ScreenImageManager;")
+        assertEquals("Landroid/content/Context;", imageManager.field("mContext"))
+        assertTrue(imageManager.methods.any { it.name == "setNeedSaveAsPng" && it.parameterTypes == listOf("Z") })
+    }
+
 }

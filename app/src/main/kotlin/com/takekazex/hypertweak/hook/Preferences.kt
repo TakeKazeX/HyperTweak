@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsLedger
+import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSnapshot
+import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -113,6 +116,16 @@ object Preferences {
     const val KEY_HIDE_FINGERPRINT_APP_AUTH = "hide_fingerprint_app_auth"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
     const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
+    const val KEY_SCREENSHOT_FRAME_EDITOR_MODE = "screenshot_frame_editor_mode"
+    private val screenshotSettings = ScreenshotSettingsLedger()
+    fun screenshotAutoFrameEnabled(): Boolean = screenshotSettings.latest()?.enabled
+        ?: getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false)
+    fun screenshotEditorMode(): Int = screenshotSettings.latest()?.editorMode
+        ?: getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
+    internal fun acceptScreenshotSettings(snapshot: ScreenshotSettingsSnapshot): Boolean = screenshotSettings.accept(snapshot)
+    internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
+    internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)
+
     const val KEY_HIDE_LOCKSCREEN_DATE = "hide_lockscreen_date"
 
     /**
@@ -1330,7 +1343,8 @@ object Preferences {
 
     /** Keys used by the module runtime itself rather than by user-facing configuration. */
     private fun isRuntimeKey(key: String): Boolean =
-        key == KEY_PREFS_EPOCH ||
+        key == ScreenshotSettingsSnapshot.REVISION ||
+            key == KEY_PREFS_EPOCH ||
             key == KEY_NATIVE_RULE_REVISION ||
             key == BackGestureSettingsSnapshot.REVISION ||
             key == KEY_PENDING_RESTART_BOOT_TOKEN ||
@@ -1378,7 +1392,10 @@ object Preferences {
                     putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
-                if (!isLocalOnly) IconSettingsSignal.replaceCommitted(emptyMap<String, Any>())
+                if (!isLocalOnly) {
+                    IconSettingsSignal.replaceCommitted(emptyMap<String, Any>())
+                    ScreenshotSettingsSignal.replaceCommitted(emptyMap<String, Any>())
+                }
                 runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
@@ -1446,7 +1463,10 @@ object Preferences {
                 memoClear()
                 error("Unable to write restored settings")
             }
-            if (!isLocalOnly) IconSettingsSignal.replaceCommitted(restored)
+            if (!isLocalOnly) {
+                IconSettingsSignal.replaceCommitted(restored)
+                ScreenshotSettingsSignal.replaceCommitted(restored)
+            }
 
             runCatching {
                 localSourcePrefs?.edit(commit = true) {
@@ -1586,7 +1606,7 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, iconMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(nativeMutation: Pair<String, Any>? = null, backMutation: Pair<String, Boolean>? = null, iconMutation: Pair<String, Any>? = null, screenshotMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
@@ -1611,8 +1631,11 @@ object Preferences {
                     val snapshot = nativeMutation?.let { NativeRuleSignal.prepareMutation(it.first, it.second, revision) }
                     val backSnapshot = backMutation?.let { NativeRuleSignal.prepareBackMutation(it.first, it.second) }
                         ?: NativeRuleSignal.lastAcknowledgedBack()
+                    val screenshot = screenshotMutation?.let { ScreenshotSettingsSignal.prepare(it.first, it.second) }
+                        ?: ScreenshotSettingsSignal.lastAcknowledged()
                     val editor = remotePrefs.edit()
                     block(editor)
+                    if (screenshot != null) ScreenshotSettingsSignal.write(editor, screenshot)
                     // A rejected editor shadow must not contaminate a later successful write.
                     if (backSnapshot != null) NativeRuleSignal.writeBackSettings(editor, backSnapshot)
                     // Commit the entire native subset atomically, so a prior rejected editor's
@@ -1626,6 +1649,7 @@ object Preferences {
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
                     val committed = editor.commit()
+                    if (committed && screenshot != null) ScreenshotSettingsSignal.acknowledge(screenshot)
                     if (committed && iconMutation != null) IconSettingsSignal.acknowledge(iconMutation.first, iconMutation.second)
                     if (committed && backMutation != null && backSnapshot != null) NativeRuleSignal.acknowledgeBack(backSnapshot)
                     if (!committed) {
@@ -1665,6 +1689,7 @@ object Preferences {
             var previous: Map<String, *>? = null
             var previousNative: NativeRuleStateSnapshot? = null
             var previousBack: BackGestureSettingsSnapshot? = null
+            var previousScreenshot: ScreenshotSettingsSnapshot? = null
             fun rollback() {
                 val values = previous ?: return
                 runCatching {
@@ -1681,6 +1706,7 @@ object Preferences {
                         editor.putLong(KEY_PREFS_EPOCH, it.epoch)
                     }
                     previousBack?.let { NativeRuleSignal.writeBackSettings(editor, it) }
+                    previousScreenshot?.let { ScreenshotSettingsSignal.write(editor, it) }
                     check(editor.commit()) { "settings mutation rollback rejected" }
                 }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
             }
@@ -1692,6 +1718,7 @@ object Preferences {
                     previous = HashMap(remotePrefs.all)
                     previousNative = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledged()
                     previousBack = if (isLocalOnly) null else NativeRuleSignal.lastAcknowledgedBack()
+                    previousScreenshot = if (isLocalOnly) null else ScreenshotSettingsSignal.lastAcknowledged()
                 }
                 val editor = remotePrefs.edit()
                 block(editor)
@@ -1916,13 +1943,15 @@ object Preferences {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null,
             backMutation = if (key in BackGestureSettingsSnapshot.KEYS) key to value else null,
-            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
+            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null,
+            screenshotMutation = if (ScreenshotSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null,
-            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
+            iconMutation = if (IconSettingsSnapshot.owns(key)) key to value else null,
+            screenshotMutation = if (ScreenshotSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {

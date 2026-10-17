@@ -29,10 +29,13 @@ internal class ScreenshotFrameResolver(path: String) {
     fun resolve(): Contract {
         val screenshot = "Lcom/miui/screenshot/core/domain/ScreenshotData;"
         val request = method("request", dex.methods.filter {
-            it.implementation != null && dex.declared(it.definingClass).any { candidate ->
+            // Reject unrelated methods before scanning an owner's save call graph. Most DEX
+            // methods cannot accept ScreenshotData, and many share the same owner.
+            it.implementation != null && it.params().size == 3 && it.params().take(2) == listOf(screenshot, "Ljava/util/function/Consumer;") && it.returnType == "V" &&
+                dex.declared(it.definingClass).any { candidate ->
                 candidate.params() == listOf("Lcom/miui/screenshot/interfaces/ISaveCallback;", "Lcom/miui/screenshot/interfaces/ITotalFinishCallback;") &&
                     calls(candidate).any { call -> call.name == "execute" }
-            } && it.params().size == 3 && it.params().take(2) == listOf(screenshot, "Ljava/util/function/Consumer;") && it.returnType == "V"
+            }
         })
         val controller = request.definingClass
         val save = method("save", dex.declared(controller).filter { candidate ->

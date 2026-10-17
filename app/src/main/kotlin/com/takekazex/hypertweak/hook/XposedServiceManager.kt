@@ -54,6 +54,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             com.takekazex.hypertweak.dock.DockSettingsSignal.changed()
             NativeRuleSignal.bind(remotePrefs)
             IconSettingsSignal.bind(remotePrefs)
+            com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal.bind(remotePrefs)
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
             Preferences.noteRemoteBackendUnavailable()

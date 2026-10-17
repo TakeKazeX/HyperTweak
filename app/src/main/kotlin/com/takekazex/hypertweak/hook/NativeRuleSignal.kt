@@ -120,9 +120,16 @@ internal object NativeRuleSignal {
     }
 }
 
-/** Only a framework-authenticated SystemUI request may wake the app's sync response. */
+/** Only framework-authenticated SystemUI or screenshot requests may wake their sync response. */
 class NativeRuleSyncReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsProtocol.REQUEST) {
+            if (NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid,
+                    com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsProtocol.PACKAGE)) {
+                com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal.publishCommitted()
+            }
+            return
+        }
         if (!NativeRuleProtocol.trusted(context, sentFromPackage, sentFromUid, NativeRuleProtocol.SYSTEM_UI)) return
         when (intent.action) {
             NativeRuleProtocol.REQUEST -> NativeRuleSignal.publishCommitted()

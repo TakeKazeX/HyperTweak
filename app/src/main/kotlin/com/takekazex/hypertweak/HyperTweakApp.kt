@@ -12,6 +12,7 @@ class HyperTweakApp : Application() {
         super.onCreate()
 
         DebugLog.setProcessTag("app")
+        com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSignal.attach(this)
         com.takekazex.hypertweak.hook.IconSettingsSignal.attach(this)
         com.takekazex.hypertweak.hook.NativeRuleSignal.attach(this)
         com.takekazex.hypertweak.hook.NativeUpgradeManager.restore(this)

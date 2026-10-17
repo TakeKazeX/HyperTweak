@@ -245,6 +245,12 @@ class HookEntry : XposedModule() {
             DebugLog.d("IconTuner", "live icon setting received key=$key")
             iconSettingsReload.request()
         }
+        if ((processName == "com.miui.screenshot" || processName == "com.miui.screenshot:photo_editor") &&
+            (key == null || key == Preferences.KEY_SCREENSHOT_AUTO_FRAME ||
+                key == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE || key == "prefs_epoch")) {
+            Preferences.invalidateRuntimeReadCache()
+            DebugLog.d("ScreenshotAutoFrame", "live screenshot setting received key=$key")
+        }
         if (key == null || key == Preferences.KEY_VOLUME_KEY_STEP_COUNT ||
             key == Preferences.KEY_VOLUME_KEY_STEP_SCOPE || key == "prefs_epoch") {
             Preferences.invalidateRuntimeReadCache()
@@ -271,7 +277,8 @@ class HookEntry : XposedModule() {
 
     private fun bindNativeSettingsListener(source: SharedPreferences) {
         if ((!isSystemServer && processName != LAUNCHER_PACKAGE && processName != "com.android.systemui" && processName != "com.xiaomi.xmsf" &&
-                !processName.startsWith("com.xiaomi.xmsf:")) ||
+                !processName.startsWith("com.xiaomi.xmsf:") && processName != "com.miui.screenshot" &&
+                processName != "com.miui.screenshot:photo_editor") ||
             nativeSettingsSource === source) return
         detachNativeSettingsListener()
         runCatching {
@@ -677,6 +684,7 @@ class HookEntry : XposedModule() {
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
         Preferences.initLocalCache(appContext)
         RestartBroadcastHooker.register(appContext)
+        if (packageName == "com.miui.screenshot") ScreenshotAutoFrameHooker.onPackageReady(appContext)
         if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
             BatteryInfoHooker.onPackageReady(appContext)
         }
@@ -720,6 +728,7 @@ class HookEntry : XposedModule() {
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             RestartBroadcastHooker.register(appContext)
+            if (state.packageName == "com.miui.screenshot") ScreenshotAutoFrameHooker.onPackageReady(appContext)
             if (state.packageName == BatteryInfoHooker.PACKAGE && processName == state.packageName) {
                 BatteryInfoHooker.onPackageReady(appContext)
             }

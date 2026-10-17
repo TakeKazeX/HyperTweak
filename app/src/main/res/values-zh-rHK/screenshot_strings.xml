@@ -2,8 +2,10 @@
 <resources>
     <string name="screenshot_section">螢幕截圖</string>
     <string name="screenshot_auto_frame_title">螢幕截圖自動加上機框</string>
-    <string name="screenshot_auto_frame_summary">直向全螢幕截圖自動儲存為原生機框圖片。請先在截圖編輯器中下載一次機框；不支援的截圖保留原圖。預覽包含機框，可在編輯器中加入或移除。</string>
+    <string name="screenshot_auto_frame_summary">直向截圖自動加框，需先在截圖編輯器下載機框。</string>
     <string name="screenshot_page_summary">截圖應用程式的原生功能調整</string>
-    <string name="screenshot_restart_title">重新啟動截圖應用程式</string>
-    <string name="screenshot_restart_summary">更新模組後重新載入截圖 Hook。</string>
+    <string name="screenshot_frame_editor_mode_title">機框截圖編輯方式</string>
+    <string name="screenshot_frame_editor_mode_summary">下次進入編輯器生效。整張裁剪儲存後無法移除機框。</string>
+    <string name="screenshot_frame_editor_removable">可移除機框</string>
+    <string name="screenshot_frame_editor_crop">整張裁剪</string>
 </resources>

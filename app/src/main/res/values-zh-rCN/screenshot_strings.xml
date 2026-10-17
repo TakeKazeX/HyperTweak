@@ -2,8 +2,10 @@
 <resources>
     <string name="screenshot_section">截图</string>
     <string name="screenshot_auto_frame_title">截图自动带壳</string>
-    <string name="screenshot_auto_frame_summary">竖屏全屏截图自动保存为原生带壳图片。请先在截图编辑器中下载一次机壳；不支持的截图保留原图。预览带壳，编辑器中可加壳或去壳。</string>
+    <string name="screenshot_auto_frame_summary">竖屏截图自动加壳，需先在截图编辑器下载机壳。</string>
     <string name="screenshot_page_summary">截图应用的原生功能调整</string>
-    <string name="screenshot_restart_title">重启截图应用</string>
-    <string name="screenshot_restart_summary">更新模块后重新加载截图 Hook。</string>
+    <string name="screenshot_frame_editor_mode_title">带壳截图编辑方式</string>
+    <string name="screenshot_frame_editor_mode_summary">下次进入编辑器生效。整图裁剪保存后不可去壳。</string>
+    <string name="screenshot_frame_editor_removable">可去壳</string>
+    <string name="screenshot_frame_editor_crop">整图裁剪</string>
 </resources>

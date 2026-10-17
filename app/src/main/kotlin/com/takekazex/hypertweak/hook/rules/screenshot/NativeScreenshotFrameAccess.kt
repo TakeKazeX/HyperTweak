@@ -122,48 +122,69 @@ internal class NativeScreenshotFrameAccess(private val loader: ClassLoader, priv
             values.getInt("with"), values.getInt("height"))
     }
 
-    /** Independent native entry per job, with no shared mutable Rect/Paint or network requests. */
+    private data class MaterialFile(val path: String, val length: Long, val modified: Long)
+    private fun materialFiles(directory: String): List<MaterialFile>? {
+        return listOf("shell.json", "shell.png", "shell.svg").map { name ->
+            val file = File(directory, name)
+            if (!file.isFile || file.length() !in 1..16_777_216) return null
+            MaterialFile(file.absolutePath, file.length(), file.lastModified())
+        }
+    }
+    private fun disposeEntry(nativeEntry: Any) {
+        (shellBitmap.get(nativeEntry) as? Bitmap)?.takeIf { !it.isRecycled }?.recycle()
+    }
+    private val materials = ScreenshotFrameMaterialCache<Any>(::disposeEntry)
+
+    fun close() = materials.close()
+
+    /** Reuse native material decoding; the cache serializes the entry's mutable Rect/Paint. */
     fun render(input: Bitmap): Bitmap? {
         if (available.invoke(null) != true) return null
         val initialPath = materialPath.invoke(null) as? String ?: return null
-        val directory = File(initialPath)
-        if (listOf("shell.json", "shell.png", "shell.svg").any { name ->
-                val file = File(directory, name)
-                !file.isFile || file.length() !in 1..16_777_216
-            }) return null
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(File(directory, "shell.png").path, options)
-        if (!ScreenshotFramePolicy.safeOutput(options.outWidth.toFloat(), options.outHeight.toFloat())) return null
-        val nativeEntry = entryConstructor.newInstance()
-        var softwareCopy: Bitmap? = null
-        var result: Bitmap? = null
-        try {
-            generate.invoke(nativeEntry)
-            val material = entryInfo.get(nativeEntry) ?: return null
-            if (shellBitmap.get(nativeEntry) !is Bitmap || shellPath.get(nativeEntry) !is Path) return null
-            if (margins.any { it.getFloat(material).let { value -> !value.isFinite() || value < 0 || value > 4096 } }) return null
-            if (!ScreenshotFramePolicy.matchesMaterial(input.width, input.height,
-                    materialWidth.getFloat(material), materialHeight.getFloat(material))) return null
-            val outWidth = (outputWidth.invoke(material) as Number).toFloat()
-            val outHeight = (outputHeight.invoke(material) as Number).toFloat()
-            if (!ScreenshotFramePolicy.safeOutput(outWidth, outHeight)) return null
-            val source = if (input.config == Bitmap.Config.HARDWARE) {
-                input.copy(Bitmap.Config.ARGB_8888, false)?.also { softwareCopy = it } ?: return null
-            } else input
-            result = apply.invoke(nativeEntry, source) as? Bitmap ?: return null
-            if (result === input || result.width != outWidth.toInt() || result.height != outHeight.toInt() ||
-                available.invoke(null) != true || materialPath.invoke(null) != initialPath) {
-                if (result !== input) result.recycle()
-                result = null
-                return null
+        val files = materialFiles(initialPath) ?: return null
+        return materials.use(files, load = {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(File(initialPath, "shell.png").path, options)
+            if (!ScreenshotFramePolicy.safeOutput(options.outWidth.toFloat(), options.outHeight.toFloat())) return@use null
+            val nativeEntry = entryConstructor.newInstance()
+            try {
+                generate.invoke(nativeEntry)
+                check(entryInfo.get(nativeEntry) != null && shellBitmap.get(nativeEntry) is Bitmap && shellPath.get(nativeEntry) is Path) {
+                    "Incomplete native frame material"
+                }
+                nativeEntry
+            } catch (error: Throwable) {
+                disposeEntry(nativeEntry)
+                throw error
             }
-            return result
-        } catch (error: Throwable) {
-            result?.takeIf { it !== input && !it.isRecycled }?.recycle()
-            throw error
-        } finally {
-            softwareCopy?.recycle()
-            (shellBitmap.get(nativeEntry) as? Bitmap)?.takeIf { !it.isRecycled }?.recycle()
+        }) { nativeEntry ->
+            var softwareCopy: Bitmap? = null
+            var result: Bitmap? = null
+            try {
+                val material = entryInfo.get(nativeEntry) ?: return@use null
+                if (margins.any { it.getFloat(material).let { value -> !value.isFinite() || value < 0 || value > 4096 } }) return@use null
+                if (!ScreenshotFramePolicy.matchesMaterial(input.width, input.height,
+                        materialWidth.getFloat(material), materialHeight.getFloat(material))) return@use null
+                val outWidth = (outputWidth.invoke(material) as Number).toFloat()
+                val outHeight = (outputHeight.invoke(material) as Number).toFloat()
+                if (!ScreenshotFramePolicy.safeOutput(outWidth, outHeight)) return@use null
+                val source = if (input.config == Bitmap.Config.HARDWARE) {
+                    input.copy(Bitmap.Config.ARGB_8888, false)?.also { softwareCopy = it } ?: return@use null
+                } else input
+                result = apply.invoke(nativeEntry, source) as? Bitmap ?: return@use null
+                if (result === input || result.width != outWidth.toInt() || result.height != outHeight.toInt() ||
+                    available.invoke(null) != true || materialPath.invoke(null) != initialPath || materialFiles(initialPath) != files) {
+                    if (result !== input) result.recycle()
+                    result = null
+                    return@use null
+                }
+                result
+            } catch (error: Throwable) {
+                result?.takeIf { it !== input && !it.isRecycled }?.recycle()
+                throw error
+            } finally {
+                softwareCopy?.recycle()
+            }
         }
     }
 }

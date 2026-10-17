@@ -1,12 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Point
 import android.hardware.display.DisplayManager
 import android.net.Uri
-import android.os.Bundle
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -26,17 +26,31 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     private val sources = WeakHashMap<Any, Source>()
     private val enrolled = WeakHashMap<Any, Source>()
     private val transformations = WeakHashMap<Any, Transformation>()
-    private val editors = WeakHashMap<Any, Boolean>()
     private val saveSources = ThreadLocal<ArrayDeque<Source>>()
     @Volatile private var retired = false
+    private var frameAccess: NativeScreenshotFrameAccess? = null
+    // The receiver owns a host application context and is closed before this generation retires.
+    @SuppressLint("StaticFieldLeak")
+    private var settingsReceiver: ScreenshotSettingsReceiver? = null
+
+    @Synchronized fun onPackageReady(context: Context) {
+        if (retired) return
+        val receiver = settingsReceiver ?: ScreenshotSettingsReceiver().also { settingsReceiver = it }
+        receiver.attach(context)
+    }
+
+    override fun saveHotReloadState(): Any? = Preferences.saveScreenshotSettings()
+    override fun restoreHotReloadState(state: Any?) { Preferences.restoreScreenshotSettings(state) }
 
     override fun onHook() {
         retired = false
         if (hookParam.processName !in setOf("com.miui.screenshot", "com.miui.screenshot:photo_editor")) return
+        hookParam.appContext?.let(::onPackageReady)
         boundary("resolve native screenshot contract") {
             val apk = hookParam.appInfo?.sourceDir?.let(::File) ?: return@boundary
             val contract = ScreenshotFrameResolver(apk.path).resolve()
             val access = NativeScreenshotFrameAccess(classLoader, contract)
+            frameAccess = access
             access.saveCallChain.forEach { member ->
                 check(deoptimize(member)) { "Cannot prepare native save call chain: $member" }
             }
@@ -112,7 +126,10 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
             before { param ->
                 val task = param.thisObject
                 val source = synchronized(enrolled) { enrolled.remove(task) } ?: return@before
-                if (retired || !Preferences.getBoolean(Preferences.KEY_SCREENSHOT_AUTO_FRAME, false)) return@before
+                if (retired) return@before
+                val enabled = Preferences.screenshotAutoFrameEnabled()
+                DebugLog.d(TAG, "screenshot save settings enabled=$enabled")
+                if (!enabled) return@before
                 boundary("compose native screenshot frame") {
                     val data = (param.args.firstOrNull() as? Array<*>)?.singleOrNull() ?: return@boundary
                     val original = access.bitmap.get(data) as? Bitmap ?: return@boundary
@@ -129,14 +146,13 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                     check(receiptDirectory.isDirectory || receiptDirectory.mkdirs()) {
                         "Cannot prepare editor frame receipts"
                     }
+                    val composeStarted = System.nanoTime()
                     val framed = access.render(original) ?: run {
                         DebugLog.d(TAG, "native frame material unavailable or incompatible; saving original")
                         return@boundary
                     }
+                    val composeMs = (System.nanoTime() - composeStarted) / 1_000_000
                     try {
-                        val raw = sourceStore(context).capture { original.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                        synchronized(transformations) { transformations[task] = Transformation(data, original, framed, raw) }
-                        mutateSave(task, data, framed, access)
                         boundary("prepare native framed thumbnail") { source.owner?.get()?.let { owner ->
                             val copy = Bitmap.createScaledBitmap(framed, 400, (framed.height * 400f / framed.width).toInt(), true)
                             synchronized(previews) { previews[owner] = Preview(original, copy) }
@@ -144,8 +160,21 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                                 boundary("update native screenshot preview") { access.updatePreview(owner, original, copy) }
                             }
                         } }
+                        val preserveStarted = System.nanoTime()
+                        val raw = sourceStore(context).capture { original.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        DebugLog.d(TAG, "frame prepare=${composeMs}ms original=${(System.nanoTime() - preserveStarted) / 1_000_000}ms")
+                        synchronized(transformations) { transformations[task] = Transformation(data, original, framed, raw) }
+                        mutateSave(task, data, framed, access)
                     } catch (error: Throwable) {
                         synchronized(transformations) { transformations.remove(task) }
+                        boundary("restore preview after frame setup failure") {
+                            source.owner?.get()?.let { owner ->
+                                synchronized(previews) { previews.remove(owner) }
+                                (access.thumbnail.get(owner) as? android.view.View)?.post {
+                                    boundary("restore original screenshot preview") { access.updatePreview(owner, original, original) }
+                                }
+                            }
+                        }
                         framed.recycle()
                         throw error
                     }
@@ -192,6 +221,10 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         val manager = classLoader.loadClass("com.miui.gallery.editor.photo.scribbles.ScreenImageManager")
         val source = manager.getDeclaredField("mSource").accessible()
         val context = manager.getDeclaredField("mContext").accessible()
+        val sessions = ScreenshotEditorSessions {
+            Preferences.screenshotEditorMode().also { DebugLog.d(TAG, "screenshot editor session mode=$it") }
+        }
+        val saveAsPng = manager.getDeclaredMethod("setNeedSaveAsPng", Boolean::class.javaPrimitiveType)
         val rawFiles = WeakHashMap<Any, File>()
         val identities = WeakHashMap<Any, ScreenshotMediaIdentity>()
         val initialized = WeakHashMap<Any, Boolean>()
@@ -226,7 +259,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         val shellEntry = renderData.getDeclaredField("mScreenShellEntry").accessible()
         val renderJob = ThreadLocal<Any>()
         val rawRender = WeakHashMap<Any, File>()
-        listOf(initialize, open, ready, onExport, render, draw).forEach { check(deoptimize(it)) }
+        listOf(initialize, open, ready, onExport, render, draw, checkEnabled).forEach { check(deoptimize(it)) }
 
         fun identify(owner: Any): ScreenshotMediaIdentity? {
             synchronized(identities) { identities[owner] }?.let { return it }
@@ -244,6 +277,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                 if (retired) return@before
                 boundary("restore native editable original") {
                     val owner = param.thisObject
+                    if (sessions.mode(owner) != 0) return@boundary
                     if (synchronized(rawFiles) { rawFiles.containsKey(owner) }) return@boundary
                     val identity = identify(owner) ?: return@boundary
                     val host = context.get(owner) as? Context ?: return@boundary
@@ -325,8 +359,31 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                 }
             }
         }
+        checkEnabled.hook("screenshot_frame_editor_flattened") {
+            before { param ->
+                if (retired) return@before
+                boundary("keep framed screenshot directly editable") {
+                    val host = param.args.firstOrNull()?.takeIf(activity::isInstance) ?: return@boundary
+                    val imageManager = imageManagerField.get(host) ?: return@boundary
+                    if (sessions.mode(imageManager) != 1) return@boundary
+                    val editorContext = context.get(imageManager) as? Context ?: return@boundary
+                    val uri = source.get(imageManager) as? Uri ?: return@boundary
+                    val identity = ScreenshotMediaIdentity.read(editorContext, uri) ?: return@boundary
+                    val receipts = ScreenshotFrameReceipts(File(editorContext.filesDir, RECEIPTS))
+                    if (!receipts.contains(identity.key, identity.stamp) &&
+                        !access.matchesSavedFrame(identity.width, identity.height, identity.mime)) return@boundary
+                    // Keep the saved composite as the editor source. A separate native shell layer
+                    // hides the crop handles and would add a second frame on export.
+                    // Let the host publish its disabled state to the toolbar's LiveData observers.
+                    saveAsPng.invoke(imageManager, true)
+                    portrait.setBoolean(param.thisObject, false)
+                    DebugLog.d(TAG, "framed screenshot opened for whole-image cropping")
+                }
+            }
+        }
         release.hook("screenshot_frame_editor_release") {
             after { param ->
+                sessions.release(param.thisObject)
                 synchronized(rawFiles) { rawFiles.remove(param.thisObject) }
                 synchronized(identities) { identities.remove(param.thisObject) }
                 synchronized(initialized) { initialized.remove(param.thisObject) }
@@ -347,11 +404,15 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         runCatching(block).onFailure { DebugLog.w(TAG, action, it) }
     }
 
-    override fun onPrepareHotReload() {
+    @Synchronized override fun onPrepareHotReload() {
         retired = true
+        settingsReceiver?.close()
+        settingsReceiver = null
+        frameAccess?.close()
+        frameAccess = null
+        synchronized(previews) { previews.clear() }
         synchronized(sources) { sources.clear() }
         synchronized(enrolled) { enrolled.clear() }
-        synchronized(editors) { editors.clear() }
         // In-flight worker callbacks own their generated bitmap until native writing finishes.
     }
 }

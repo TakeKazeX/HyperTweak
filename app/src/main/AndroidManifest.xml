@@ -107,6 +107,7 @@
             <intent-filter>
                 <action android:name="com.takekazex.hypertweak.action.NATIVE_SETTINGS_REQUEST" />
                 <action android:name="com.takekazex.hypertweak.action.ICON_SETTINGS_REQUEST" />
+                <action android:name="com.takekazex.hypertweak.action.SCREENSHOT_SETTINGS_REQUEST" />
             </intent-filter>
         </receiver>
         <activity
