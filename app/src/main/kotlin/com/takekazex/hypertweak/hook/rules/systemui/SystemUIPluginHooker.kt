@@ -47,7 +47,7 @@ object SystemUIPluginHooker : StaticHooker() {
     /** All island participants are replaced together after capturing every live host. */
     fun reloadIslandSettings(): Boolean {
         activeSessions.values.forEach { session ->
-            val scheduler = ThreeIslandHooker(session.state.pluginApkPath)
+            val scheduler = ThreeIslandHooker(session.state.pluginApkPath, classLoader)
             val controller = ControlCenterSuperIslandHooker()
             val icon = LiveUpdateIconHooker()
             val font = IslandTimeFontHooker()
@@ -275,7 +275,7 @@ object SystemUIPluginHooker : StaticHooker() {
         }
         val volumeKeyHooker = ControlCenterVolumeKeyHooker()
         val superIslandHooker = ControlCenterSuperIslandHooker()
-        val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath)
+        val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath, classLoader)
         val liveUpdateIconHooker = LiveUpdateIconHooker()
         val timeFontHooker = IslandTimeFontHooker()
         val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {

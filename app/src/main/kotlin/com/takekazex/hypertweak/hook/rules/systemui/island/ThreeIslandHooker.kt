@@ -7,6 +7,8 @@ import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookContext
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookPlan
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookRegistrar
+import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.MediaCoverBinder
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaCoverContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandAccess
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandDiscovery
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandHost
@@ -21,11 +23,15 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** Extra native summaries, lent back to the host queue during each scheduling transaction. */
-class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
+class ThreeIslandHooker(
+    private val pluginApkPath: String,
+    private val systemUiClassLoader: ClassLoader,
+) : DynamicHooker() {
     private lateinit var access: NativeIslandAccess
     private var runtime: IslandRuntime? = null
     private var musicSpectrum: NativeMusicSpectrum? = null
     private var mediaRender: NativeMediaRenderContract? = null
+    private var mediaCover: MediaCoverBinder? = null
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retiring = false
 
@@ -48,7 +54,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             mediaRender = mediaRender,
         )
         runtime = islandRuntime
-        val plan = IslandHookPlan(IslandHookContext(
+        val hookContext = IslandHookContext(
             access = access,
             host = nativeHost,
             runtime = islandRuntime,
@@ -56,11 +62,17 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             spectrum = musicSpectrum,
             media = mediaRender,
             refreshSettings = ::refreshSettings,
-        ))
+        )
+        val plan = IslandHookPlan(hookContext)
         // A changed plugin must skip this feature before any deoptimization or mutation.
         plan.validate()
         plan.deoptimizeTargets()
         plan.install()
+        runCatching { NativeMediaCoverContract(classLoader, systemUiClassLoader) }
+            .onFailure { DebugLog.w(TAG, "native media cover animation unavailable", it) }
+            .getOrNull()?.let { contract ->
+                mediaCover = MediaCoverBinder(hookContext, contract).also { it.install() }
+            }
         DebugLog.hookRegistered(TAG, "DexKit native third task, adaptive full templates and touch routing")
     }
 
@@ -82,6 +94,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
     private val settingsRefresh = Runnable {
         val runtime = runtime ?: return@Runnable
         if (retiring) return@Runnable
+        mediaCover?.retire()
         runtime.sessions.snapshot().forEach { session ->
             runtime.boundary.core(session, IslandFeature.TEMPLATE, "request frame relayout") {
                 runtime.relayout.request(session)
@@ -102,6 +115,8 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
         if (!::access.isInitialized || runtime == null) return
         val owners = runtime.sessions.snapshot()
         val cleanup = Runnable {
+            mediaCover?.retire()
+            mediaCover = null
             owners.forEach { session ->
                 session.template.relayout?.retire()
                 session.template.relayout = null
