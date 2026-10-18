@@ -9,16 +9,20 @@ import org.luckypray.dexkit.query.enums.MatchType
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData
 import java.io.File
+import java.lang.reflect.Constructor
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
+import java.util.LinkedHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Unlocks watermark categories in the Xiaomi media editor (`com.miui.mediaeditor`,
- * 相册编辑). Verified against 2.10.37.9 on OS4.0.0.15.XPMCNXM (REDMI K90 Pro Max, `myron`);
- * reverse-engineering notes and the full gating map live in the reverse workspace at
- * `cache/mediaeditor-292ff5db343e5f13/WATERMARK_UNLOCK_PLAN.md`.
+ * 相册编辑). The legacy cloud model was verified against 2.10.37.9
+ * (OS4.0.0.15.XPMCNXM); the replacement `watermark_config_v3` model was derived with DexSQL
+ * from 2.10.43.0.6 (device APK SHA-256
+ * `ea1cd5c1dd7a8fcbefe8512c1cc4bf8d214ce8ae8900798e5c3ebf1c7488e34c`).
  *
  * Watermark visibility and resource availability are handled by four hook paths:
  *
@@ -28,34 +32,30 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    template menu and cloud config filter, so each preference controls both paths. Ambiguous or
  *    changed shapes fail closed. The separate global menu-suppression gate is excluded.
  *
- * 2. **Cloud config fields** — `CloudWatermarkData` (Kotlin data class, business name kept)
- *    carries per-watermark restriction fields parsed from the `watermark_config_v2` cloud
- *    config: `supportDeviceList`/`unSupportDeviceList` (device-group tags), `supportRegions`/
- *    `unSupportRegions` (country codes), `validFrom`/`validTo` (festival time windows),
- *    `name_length_limitation`, `minWmVer` and `supportDisplayApp`. DexKit resolves the cloud
- *    filter by its configuration/list signature and device-group markers. The constructor after-hook
- *    rewrites the restriction fields while the master switch is on, before the filter runs:
- *    validFrom = 0 / validTo = Long.MAX_VALUE (smali-verified check is
- *    `now <= validTo && validFrom <= now`), supportRegions = ["*"] / unSupportRegions = [],
- *    name_length_limitation = [], minWmVer = 0.0 and supportDisplayApp gains "ALL". These
- *    "integrity" limits follow the master switch rather than per-category switches, because a
- *    category such as leica mixes entries with different restrictions (festival editions,
- *    camera-only display apps, higher min versions) and unlocking the category must show them
- *    all. The LCC tag remap below stays behind [Preferences.KEY_WM_LCC]: with it on,
- *    `lcc_global_devices` / `lcc_cn_devices` tags in the support list become `*` and are
- *    dropped from the unsupported list, so both the CN and the global LCC watermark sets pass
- *    regardless of `ro.product.mod_device`.
+ * 2. **Cloud config fields** — the legacy `CloudWatermarkData` (`watermark_config_v2`) and the
+ *    current obfuscated 22-field model (`watermark_config_v3`) carry the same per-watermark
+ *    restriction slots: support/unSupport device lists, region lists, validFrom/validTo,
+ *    name-length range, minimum manager version and display-app allow-list. The v3 class and its
+ *    constructor are derived from the menu builder's field owners, never from an obfuscated name.
+ *    A constructor after-hook rewrites those slots while the master switch is on:
+ *    supportRegions = ["*"] / unSupportRegions = [], name range = [], minWmVer = 0.0,
+ *    validFrom = 0 / validTo = Long.MAX_VALUE and the display-app list gains
+ *    "ALL"/"Photo"/"Editor". Device lists stay native so per-category gates still decide which
+ *    device-group tags are visible; the explicit LCC switch remaps `lcc_*` tags to "*" and drops
+ *    them from the unsupported list, matching the legacy build. These "integrity" limits follow
+ *    the master switch rather than per-category switches, because a category such as leica mixes
+ *    festival editions, camera-only display apps and higher minimum versions; unlocking the
+ *    category must show all of them. Category visibility remains controlled by the
+ *    per-category gate hooks.
  *
- * 3. **Downloaded-resource filter** — after a cloud watermark zip lands in
- *    `files/watermarks/`, the resource manager re-scans the folder and applies a second filter
- *    chain (id whitelist / validity / device_type / region / theme / system properties / name
- *    length). The chain is skipped when `camera.cloud.watermark.debug` is true. DexKit resolves
- *    the Boolean property reader by its marker and return shape.
+ * 3. **Downloaded-resource filter** — the legacy build re-scans `files/watermarks/` and skips the
+ *    chain when `camera.cloud.watermark.debug` is true; DexKit resolves that property reader by
+ *    its marker and return shape. The 2.10.43 reader remains resolvable but has no callers.
  *
  * 4. **Bulk download** — cloud watermark zips are normally fetched on demand when a menu item is
- *    tapped. With [Preferences.KEY_WM_DOWNLOAD_ALL] on, the DexKit-resolved cloud menu loader
- *    after-hook walks the freshly built menu and dispatches every `CloudWatermarkItem` through the
- *    resolved resource dispatcher (listener supplied via a dynamic proxy).
+ *    tapped. With [Preferences.KEY_WM_DOWNLOAD_ALL] on, the menu-builder after-hook walks the
+ *    freshly built menu and calls the resolved legacy dispatcher or v3 fetcher for every
+ *    `CloudWatermarkItem` (listener supplied via a dynamic proxy).
  *
  * All preference switches are read live inside the callbacks (with the 100 ms Preferences
  * memo), so toggling a category takes effect the next time the watermark menu is built without
@@ -72,6 +72,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     private const val WM_ITEM = "com.miui.mediaeditor.photo.watermark.model.menu.WatermarkItem"
     private const val WM_CATEGORY = "com.miui.mediaeditor.photo.watermark.model.menu.WatermarkCategory"
     private const val CLOUD_WM_ITEM = "com.miui.mediaeditor.photo.watermark.model.menu.CloudWatermarkItem"
+    private const val CLOUD_WM_CATEGORY =
+        "com.miui.mediaeditor.photo.watermark.model.menu.CloudWatermarkCategory"
 
     private const val WN_GATE_CACHE_KEY = "wmDeviceGateOwner"
     private const val ZN_GATE_CACHE_KEY = "wmThemeGateOwner"
@@ -92,10 +94,18 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         "west_coast_2_devices"
     )
 
+    private val LCC_DEVICE_TAGS = setOf(
+        "lcc_devices",
+        "lcc_support_devices",
+        "lcc_cn_devices",
+        "lcc_global_devices"
+    )
+
     /**
-     * Cloud fields are nullable: media editor 2.10.43 removed the `CloudWatermarkData` model and
-     * the device-group markers the old cloud pipeline was built on. The device/theme gates still
-     * resolve and stay active; cloud-only paths are skipped instead of aborting the whole hooker.
+     * Cloud fields are nullable: media editor 2.10.43 replaced `CloudWatermarkData` /
+     * `CloudWatermarkConfigData` with the obfuscated `c70.e` model parsed from
+     * `watermark_config_v3`. The old cloud paths remain for older editors; [ModernCloud]
+     * describes the resolved replacement model on current builds.
      */
     private class ResolvedClasses(
         val deviceGateMethods: Map<String, Method>,
@@ -106,7 +116,32 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val yyMDispatcher: Method?,
         val yyM: Class<*>?,
         val listenerIface: Class<*>?,
-        val cloudWmItem: Class<*>?
+        val cloudWmItem: Class<*>?,
+        val modernCloud: ModernCloud?
+    )
+
+    /**
+     * The 2.10.43+ cloud model and its surrounding graph, resolved from the menu builder rather
+     * than stored obfuscated names. [modelConstructor] is the 22-parameter data-class
+     * constructor whose fields are read by [filterMethod]; [menuBuilder] turns the parsed
+     * config into the cloud menu map; the fetcher is the object that downloads one resource.
+     */
+    private class ModernCloud(
+        val modelClass: Class<*>,
+        val modelConstructor: Constructor<*>,
+        val filterMethod: Method,
+        val menuBuilder: Method,
+        val fetcherClass: Class<*>?,
+        val fetcherConstructor: Constructor<*>?,
+        val fetcherMethod: Method?,
+        val listenerIface: Class<*>?
+    )
+
+    private class ModernFetcher(
+        val type: Class<*>,
+        val constructor: Constructor<*>,
+        val method: Method,
+        val listenerIface: Class<*>
     )
 
     private val downloaded = AtomicBoolean(false)
@@ -134,18 +169,18 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val apkPath = appInfo.sourceDir ?: return null
         val cacheDir = File(baseDir, "cache")
 
-        // 2.10.43 removed the cloud model classes; querying their keys would only emit
-        // unresolved-target warnings and pay for three extra scans on every editor start.
+        // 2.10.43 removed the stable cloud model classes. Keep their DexKit keys optional and
+        // resolve the replacement model from the menu builder instead.
         val cloudPipelineAvailable =
             CLOUD_WM_DATA.toClassOrNull() != null && CLOUD_WM_CONFIG.toClassOrNull() != null
         val queries = buildMap<String, (DexKitBridge) -> String?> {
             put(WN_GATE_CACHE_KEY) { bridge -> resolveWnGateOwner(bridge) }
             put(ZN_GATE_CACHE_KEY) { bridge -> resolveZnGateOwner(bridge) }
+            put(DEBUG_GATE_CACHE_KEY) { bridge -> resolveDebugGateOwner(bridge) }
             if (cloudPipelineAvailable) {
                 put(CLOUD_FILTER_CACHE_KEY) { bridge -> resolveCloudFilterOwner(bridge) }
                 put(CLOUD_LOADER_CACHE_KEY) { bridge -> resolveCloudLoaderOwner(bridge) }
                 put(FETCHER_CACHE_KEY) { bridge -> resolveResourceFetcherOwner(bridge) }
-                put(DEBUG_GATE_CACHE_KEY) { bridge -> resolveDebugGateOwner(bridge) }
             }
         }
         val resolved = DexKitManager.resolveClasses(
@@ -171,12 +206,22 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             return null
         }
 
-        val deviceGateMethods = DexKitManager.withBridge(apkPath) { bridge ->
-            resolveDeviceGateMethods(bridge, wnA, znA)
+        val gateAndModern = DexKitManager.withBridge(apkPath) { bridge ->
+            val gates = resolveDeviceGateMethods(bridge, wnA, znA) ?: return@withBridge null
+            val modern = if (!cloudPipelineAvailable) {
+                runCatching { resolveModernCloud(bridge) }
+                    .onFailure { DebugLog.w(TAG, "modern cloud model resolution failed", it) }
+                    .getOrNull()
+            } else {
+                null
+            }
+            gates to modern
         } ?: run {
             DebugLog.e(TAG, "DexKit device/theme gate methods could not be resolved")
             return null
         }
+        val deviceGateMethods = gateAndModern.first
+        val modernCloud = gateAndModern.second
 
         // Cloud model classes disappeared in media editor 2.10.43; keep them optional.
         val cloudWmData = CLOUD_WM_DATA.toClassOrNull()
@@ -203,11 +248,18 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             ?.declaredMethods?.singleOrNull(::isDebugGateMethod)
 
         if (cloudWmData == null || cloudWmConfig == null) {
-            DebugLog.w(
-                TAG,
-                "cloud watermark pipeline absent on this media-editor build; " +
-                    "installing device/theme gates only"
-            )
+            if (modernCloud == null) {
+                DebugLog.w(
+                    TAG,
+                    "cloud watermark pipeline is neither the legacy nor the v3 model; " +
+                        "installing device/theme gates only"
+                )
+            } else {
+                DebugLog.i(
+                    TAG,
+                    "v3 cloud watermark model resolved: ${modernCloud.modelClass.name}"
+                )
+            }
         }
 
         return ResolvedClasses(
@@ -219,7 +271,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             yyMDispatcher = yyMDispatcher,
             yyM = yyM,
             listenerIface = listenerIface,
-            cloudWmItem = cloudWmItem
+            cloudWmItem = cloudWmItem,
+            modernCloud = modernCloud
         )
     }
 
@@ -475,12 +528,160 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         bridge.findMethod {
             matcher {
                 paramCount(0)
-                returnType(Boolean::class.javaObjectType)
                 addUsingString("camera.cloud.watermark.debug", StringMatchType.Equals)
             }
         }.toList().filter { data ->
-            data.paramCount == 0 && data.returnTypeName == Boolean::class.javaObjectType.name
+            data.paramCount == 0 && data.returnTypeName in setOf(
+                Boolean::class.javaObjectType.name,
+                Any::class.java.name
+            )
         }.map { it.className }.distinct().singleOrNull()
+
+    /**
+     * Resolve the 2.10.43+ cloud graph without storing obfuscated names:
+     * the menu builder is the only method constructing both stable menu classes, its parameter
+     * type is the config root, and the item model is one of the field owners it reads. The
+     * filter is the static `(config, List) -> config` method in that builder class.
+     */
+    private fun resolveModernCloud(bridge: DexKitBridge): ModernCloud? {
+        val menuBuilderData = bridge.findMethod {
+            matcher {
+                paramCount(1)
+                returnType(LinkedHashMap::class.java)
+            }
+        }.toList().singleOrNull { data ->
+            data.invokes.any { it.className == CLOUD_WM_ITEM && it.methodName == "<init>" } &&
+                data.invokes.any { it.className == CLOUD_WM_CATEGORY && it.methodName == "<init>" }
+        } ?: run {
+            DebugLog.w(TAG, "v3 cloud menu builder not found")
+            return null
+        }
+
+        val configName = menuBuilderData.paramTypeNames.singleOrNull() ?: return null
+        val configClass = runCatching { classLoader.loadClass(configName) }.getOrNull() ?: return null
+        val menuBuilderClass = runCatching { classLoader.loadClass(menuBuilderData.className) }
+            .getOrNull() ?: return null
+        val filterMethod = menuBuilderClass.declaredMethods.singleOrNull { method ->
+            Modifier.isStatic(method.modifiers) &&
+                method.parameterTypes.contentEquals(arrayOf(configClass, List::class.java)) &&
+                method.returnType == configClass
+        } ?: run {
+            DebugLog.w(TAG, "v3 cloud filter method not found")
+            return null
+        }
+
+        val modelClass = findModernModelClass(bridge, menuBuilderData, configClass) ?: run {
+            DebugLog.w(TAG, "v3 cloud item model is ambiguous or missing")
+            return null
+        }
+        val modelConstructor = modelClass.declaredConstructors
+            .singleOrNull(::isModernCloudConstructor) ?: run {
+                DebugLog.w(TAG, "v3 cloud item constructor is ambiguous or missing")
+                return null
+            }
+        val menuBuilder = runCatching { menuBuilderData.getMethodInstance(classLoader) }
+            .getOrNull() ?: return null
+        val fetcher = resolveModernFetcher(bridge)
+
+        return ModernCloud(
+            modelClass = modelClass,
+            modelConstructor = modelConstructor,
+            filterMethod = filterMethod,
+            menuBuilder = menuBuilder,
+            fetcherClass = fetcher?.type,
+            fetcherConstructor = fetcher?.constructor,
+            fetcherMethod = fetcher?.method,
+            listenerIface = fetcher?.listenerIface
+        )
+    }
+
+    private fun findModernModelClass(
+        bridge: DexKitBridge,
+        menuBuilder: MethodData,
+        configClass: Class<*>
+    ): Class<*>? {
+        val fromFieldOwners = menuBuilder.usingFields.asSequence()
+            .map { it.field.declaredClassName }
+            .distinct()
+            .mapNotNull { name -> runCatching { classLoader.loadClass(name) }.getOrNull() }
+            .filter { isModernCloudModel(it, configClass) }
+            .toList()
+            .singleOrNull()
+        if (fromFieldOwners != null) return fromFieldOwners
+
+        // Fallback for DexKit builds that omit field-owner data from usingFields: the model is
+        // the unique class with a 22-parameter void constructor matching the v3 shape.
+        return bridge.findClass {
+            matcher {
+                methods {
+                    add {
+                        paramCount(22)
+                        returnType(Void.TYPE)
+                    }
+                }
+            }
+        }.toList().asSequence()
+            .mapNotNull { data -> runCatching { data.getInstance(classLoader) }.getOrNull() }
+            .filter { isModernCloudModel(it, configClass) }
+            .singleOrNull()
+    }
+
+    private fun resolveModernFetcher(bridge: DexKitBridge): ModernFetcher? {
+        val itemClass = CLOUD_WM_ITEM.toClassOrNull() ?: return null
+        val categoryClass = CLOUD_WM_CATEGORY.toClassOrNull() ?: return null
+        val data = bridge.findMethod {
+            matcher {
+                paramCount(3)
+                returnType(Void.TYPE)
+                addUsingString(
+                    "fetch failed, watermark item or watermark category type is invalid",
+                    StringMatchType.Equals
+                )
+            }
+        }.toList().singleOrNull() ?: return null
+        val method = runCatching { data.getMethodInstance(classLoader) }.getOrNull() ?: return null
+        val parameters = method.parameterTypes
+        if (parameters.size != 3 || !parameters[0].isAssignableFrom(itemClass) ||
+            !parameters[1].isAssignableFrom(categoryClass) || !parameters[2].isInterface
+        ) {
+            return null
+        }
+        val constructor = method.declaringClass.declaredConstructors
+            .singleOrNull { it.parameterCount == 0 } ?: return null
+        return ModernFetcher(method.declaringClass, constructor, method, parameters[2])
+    }
+
+    private fun isModernCloudModel(type: Class<*>, configClass: Class<*>): Boolean {
+        if (type == configClass || type.isInterface || type.isEnum) return false
+        val instanceFields = type.declaredFields.filter { !Modifier.isStatic(it.modifiers) }
+        return instanceFields.count { it.type == Long::class.javaPrimitiveType } == 2 &&
+            instanceFields.count { it.type == Double::class.javaPrimitiveType } == 1 &&
+            instanceFields.count { List::class.java.isAssignableFrom(it.type) } >= 7 &&
+            instanceFields.size >= 18 &&
+            type.declaredConstructors.any(::isModernCloudConstructor)
+    }
+
+    private fun isModernCloudConstructor(constructor: Constructor<*>): Boolean {
+        val types = constructor.parameterTypes
+        return types.size == 22 &&
+            types[0] == String::class.java &&
+            types[1] == String::class.java &&
+            types[2] == List::class.java &&
+            types[3] == List::class.java &&
+            types[4] == String::class.java &&
+            types[5] == String::class.java &&
+            types[6] == Long::class.javaPrimitiveType &&
+            types[7] == Long::class.javaPrimitiveType &&
+            types[8] == String::class.java &&
+            types[9] == String::class.java &&
+            types[10] == String::class.java &&
+            types[11] == Boolean::class.javaPrimitiveType &&
+            (12..18).all { types[it] == List::class.java } &&
+            types[19] == Double::class.javaPrimitiveType &&
+            !types[20].isPrimitive &&
+            types[20] != String::class.java &&
+            types[21] == Boolean::class.javaPrimitiveType
+    }
 
     private fun isWnGateClass(type: Class<*>): Boolean =
         type.declaredFields.count {
@@ -536,7 +737,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
     private fun isDebugGateMethod(method: Method): Boolean =
         !Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
-            method.returnType == Boolean::class.javaObjectType
+            (method.returnType == Boolean::class.javaObjectType ||
+                method.returnType == Any::class.java)
 
     // ─── Hook installation ─────────────────────────────────────────────────────
 
@@ -544,11 +746,12 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         // 1. Per-category device checks (shared by local menu + cloud filter), resolved by DEX.
         c.deviceGateMethods.forEach { (prefKey, method) -> hookDeviceCheck(method, prefKey) }
 
-        // 2. Cloud restriction fields: only present before media editor 2.10.43.
-        if (c.cloudWmData != null) {
-            hookCloudDataConstructor(c)
-        } else {
-            DebugLog.d(TAG, "cloud watermark field rewrite unavailable on this build")
+        // 2. Cloud restriction fields: legacy `CloudWatermarkData` before 2.10.43, or the
+        //    obfuscated 22-field v3 model on current builds.
+        when {
+            c.cloudWmData != null -> hookCloudDataConstructor(c)
+            c.modernCloud != null -> hookModernCloudData(c.modernCloud)
+            else -> DebugLog.d(TAG, "cloud watermark field rewrite unavailable on this build")
         }
 
         // 3. Downloaded-resource filter: force the debug property read to true when resolvable.
@@ -561,12 +764,15 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         } ?: DebugLog.d(TAG, "cloud watermark debug gate unavailable on this build")
 
         // 4. Bulk download of every cloud watermark resource when the dispatcher graph resolved.
-        if (c.vyILoad != null && c.yyM != null && c.yyMDispatcher != null &&
-            c.listenerIface != null && c.cloudWmItem != null
-        ) {
-            hookBulkDownload(c)
-        } else {
-            DebugLog.d(TAG, "cloud watermark bulk download unavailable on this build")
+        val modern = c.modernCloud
+        when {
+            modern?.fetcherMethod != null && modern.fetcherClass != null &&
+                modern.fetcherConstructor != null && modern.listenerIface != null ->
+                hookModernBulkDownload(modern)
+            c.vyILoad != null && c.yyM != null && c.yyMDispatcher != null &&
+                c.listenerIface != null && c.cloudWmItem != null ->
+                hookBulkDownload(c)
+            else -> DebugLog.d(TAG, "cloud watermark bulk download unavailable on this build")
         }
     }
 
@@ -673,6 +879,171 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             }
         }
         DebugLog.d(TAG, "cloud watermark fields hook installed on ${clazz.name}")
+    }
+
+    /**
+     * Rewrites the 22-parameter v3 model after construction. The fields that the v3 cloud
+     * filter reads are the same restriction slots as the legacy model:
+     * support/unSupport device lists, region lists, name-length range, display apps,
+     * validFrom/validTo and the minimum manager version. Resolve each list field by the
+     * constructor argument identity so R8 field naming/order changes cannot mis-target it.
+     */
+    private fun hookModernCloudData(modern: ModernCloud) {
+        val constructor = modern.modelConstructor
+        deoptimize(constructor)
+        constructor.hook("wm_cloud_data_v3") {
+            after { param ->
+                if (!Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false)) return@after
+                try {
+                    val target = param.thisObject
+                    val args = param.args
+                    val instanceFields = modern.modelClass.declaredFields
+                        .filter { !Modifier.isStatic(it.modifiers) }
+                    val listFields = instanceFields.filter {
+                        List::class.java.isAssignableFrom(it.type)
+                    }
+                    if (listFields.size < 9) {
+                        DebugLog.w(
+                            TAG,
+                            "v3 cloud model list layout changed (${listFields.size} list fields)"
+                        )
+                        return@after
+                    }
+
+                    fun fieldFor(argumentIndex: Int): Field? =
+                        listFieldForArg(listFields, target, args.getOrNull(argumentIndex))
+                            ?: listFields.getOrNull(argumentIndex - 10)
+
+                    // Keep the native device lists; per-category gate hooks decide whether a
+                    // device-group tag is visible. Only the LCC tags are remapped, matching the
+                    // legacy build's explicit LCC switch.
+                    if (Preferences.getBoolean(Preferences.KEY_WM_LCC, false)) {
+                        rewriteStringList(fieldFor(13), target) { tag ->
+                            if (tag in LCC_DEVICE_TAGS) "*" else tag
+                        }
+                        rewriteStringList(fieldFor(14), target) { tag ->
+                            if (tag in LCC_DEVICE_TAGS) null else tag
+                        }
+                    }
+                    setListField(fieldFor(15), target, listOf("*")) // supportRegions
+                    setListField(fieldFor(16), target, emptyList<String>()) // unSupportRegions
+                    setListField(fieldFor(17), target, emptyList<Any>()) // name length range
+                    val displayAppField = fieldFor(18)
+                    val displayApps = (displayAppField?.get(target) as? List<*>)
+                        ?.filterIsInstance<String>().orEmpty()
+                    setListField(
+                        displayAppField,
+                        target,
+                        (displayApps + listOf("ALL", "Photo", "Editor")).distinct()
+                    )
+
+                    val longFields = instanceFields.filter {
+                        it.type == Long::class.javaPrimitiveType
+                    }
+                    longFields.getOrNull(0)?.let { field ->
+                        field.isAccessible = true
+                        field.setLong(target, 0L)
+                    }
+                    longFields.getOrNull(1)?.let { field ->
+                        field.isAccessible = true
+                        field.setLong(target, Long.MAX_VALUE)
+                    }
+                    instanceFields.firstOrNull {
+                        it.type == Double::class.javaPrimitiveType
+                    }?.let { field ->
+                        field.isAccessible = true
+                        field.setDouble(target, 0.0)
+                    }
+                } catch (t: Throwable) {
+                    DebugLog.w(TAG, "v3 cloud watermark field rewrite failed", t)
+                }
+            }
+        }
+        DebugLog.i(TAG, "v3 cloud watermark fields hooked on ${modern.modelClass.name}")
+    }
+
+    private fun listFieldForArg(fields: List<Field>, target: Any, value: Any?): Field? {
+        if (value == null) return null
+        return fields.firstOrNull { field ->
+            runCatching {
+                field.isAccessible = true
+                field.get(target) === value
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun setListField(field: Field?, target: Any, values: List<*>) {
+        if (field == null) return
+        field.isAccessible = true
+        field.set(target, ArrayList(values))
+    }
+
+    private fun rewriteStringList(
+        field: Field?,
+        target: Any,
+        transform: (String) -> String?
+    ) {
+        if (field == null) return
+        field.isAccessible = true
+        val values = (field.get(target) as? List<*>)
+            ?.filterIsInstance<String>()
+            ?.mapNotNull(transform)
+            ?: return
+        field.set(target, ArrayList(values))
+    }
+
+    /**
+     * The v3 menu builder returns `CloudWatermarkCategory -> [CloudWatermarkItem]`; the fetcher
+     * is the instance whose 3-argument method downloads one item. Reuse it for the existing
+     * download-all preference, once per editor process.
+     */
+    private fun hookModernBulkDownload(modern: ModernCloud) {
+        val constructor = modern.fetcherConstructor ?: return
+        val fetcherMethod = modern.fetcherMethod ?: return
+        val listener = modern.listenerIface ?: return
+        val itemClass = CLOUD_WM_ITEM.toClassOrNull() ?: return
+        val categoryClass = CLOUD_WM_CATEGORY.toClassOrNull() ?: return
+        val fetcher = runCatching { constructor.newInstance() }
+            .onFailure { DebugLog.w(TAG, "v3 cloud fetcher construction failed", it) }
+            .getOrNull() ?: return
+
+        deoptimize(modern.menuBuilder)
+        modern.menuBuilder.hook("wm_cloud_menu_download") {
+            after { param ->
+                if (!Preferences.getBoolean(Preferences.KEY_WM_DOWNLOAD_ALL, false)) return@after
+                if (!downloaded.compareAndSet(false, true)) return@after
+                val map = param.result as? Map<*, *> ?: return@after
+                val proxy = runCatching {
+                    Proxy.newProxyInstance(classLoader, arrayOf(listener)) { _, method, _ ->
+                        when (method.name) {
+                            "onSuccess" -> DebugLog.d(TAG, "v3 cloud watermark download success")
+                            "onFail" -> DebugLog.w(TAG, "v3 cloud watermark download failed")
+                        }
+                        null
+                    }
+                }.onFailure {
+                    DebugLog.w(TAG, "v3 cloud download listener creation failed", it)
+                }.getOrNull() ?: return@after
+
+                var count = 0
+                for ((category, items) in map) {
+                    if (!categoryClass.isInstance(category) || items !is List<*>) continue
+                    for (item in items) {
+                        if (!itemClass.isInstance(item)) continue
+                        runCatching { fetcherMethod.invoke(fetcher, item, category, proxy) }
+                            .onSuccess { count++ }
+                            .onFailure {
+                                DebugLog.w(TAG, "v3 cloud download dispatch failed", it)
+                            }
+                    }
+                }
+                DebugLog.d(TAG, "v3 cloud download dispatched $count watermarks")
+            }
+        }
+        DebugLog.d(
+            TAG,
+            "v3 cloud bulk download hooked on ${modern.menuBuilder.declaringClass.name}"
+        )
     }
 
     private fun hookBulkDownload(c: ResolvedClasses) {
