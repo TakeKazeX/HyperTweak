@@ -91,6 +91,29 @@ class IslandLayoutPolicyTest {
         assertEquals(10, layout.rightX - layout.bigX - layout.bigWidth)
     }
 
+    @Test fun `revealed third seat survives oversized media main content`() {
+        val input = context(scene(cutout = 72, maxWidth = 722), flags(portrait = true),
+            contentSizes = mapOf(big to IslandContentSize(332, 325)), extras = listOf(extra))
+            .copy(nativeResult = nativeResult.copy(bigWidth = 722))
+        val outcome = IslandLayoutPolicy.measure(input)
+        val layout = checkNotNull(outcome.layout)
+        val content = checkNotNull(outcome.portraitContent)
+        assertEquals(listOf(extra), outcome.stagedExtras)
+        assertTrue(layout.leftX >= input.scene.clockWidth)
+        assertTrue(layout.rightX + widths.getValue(primary) <= 1100)
+        assertEquals(564, layout.bigX + content.left)
+        assertEquals(layout.bigWidth, content.width + 72)
+        assertEquals(72, outcome.templateRequests.single().cutoutWidth)
+    }
+
+    @Test fun `compact fallback still rejects a row below the native minimum`() {
+        val input = context(scene(width = 420), flags(portrait = true),
+            contentSizes = mapOf(big to IslandContentSize(332, 325)), extras = listOf(extra))
+        val outcome = IslandLayoutPolicy.measure(input)
+        assertEquals(null, outcome.layout)
+        assertTrue(outcome.stagedExtras.isEmpty())
+    }
+
     @Test fun `balance switch retains or removes excess width without changing task count`() {
         val input = context(scene(orientation = IslandOrientation.LANDSCAPE), flags(full = true),
             contentSizes = mapOf(big to IslandContentSize(60, 200), primary to IslandContentSize(80, 80)))

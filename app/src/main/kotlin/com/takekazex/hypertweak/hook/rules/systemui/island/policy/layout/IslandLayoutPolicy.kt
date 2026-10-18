@@ -95,8 +95,23 @@ internal object IslandLayoutPolicy {
                 )
             }
             context.flags.portraitCompact -> {
-                extras = emptyList()
-                layout = null
+                // Natural media text can exceed the three-seat budget. Use the host's
+                // compact width allocation before giving up the queued seat; otherwise
+                // every reveal repeats the same impossible natural-width admission.
+                layout = if (extras.isNotEmpty() && context.primary != null) {
+                    ThreeIslandLayout.calculate(
+                        scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
+                        minOf(context.nativeResult.bigWidth, scene.maxWidth), context.minBigWidth,
+                        leftSmallWidth, scene.gap, scene.safe.left, scene.safe.right, rightSmallWidth,
+                    )?.takeIf { it.bigWidth > scene.cutoutWidth + 1 }
+                } else null
+                if (layout != null) {
+                    extras = extras.take(1)
+                    val contentWidth = layout.bigWidth - scene.cutoutWidth
+                    portraitContent = IslandContentSize(contentWidth / 2, contentWidth - contentWidth / 2)
+                } else {
+                    extras = emptyList()
+                }
             }
             extras.firstOrNull() != null && context.primary != null -> {
                 extras = extras.take(1)

@@ -20,7 +20,14 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
             host.measuredContentSize(view, input)?.let { session.scene.contentSizes[view] = it }
             if (!session.scene.layoutIntent || !runtime.enabled(session)) return@core null
             val big = host.current(session.owner, IslandSlot.BIG)
-            val scene = host.sceneOf(session.owner, input, host.orientationOf(session.owner))
+            // A side-media measurement carries cutout=0. It must never publish that
+            // value into the main template, including after media is promoted to BIG.
+            val mainCutout = big?.let {
+                runtime.nativeCutoutRead.run { host.fixedCutoutWidth(it) }
+            }
+            val scene = host.sceneOf(session.owner, input, host.orientationOf(session.owner)).let {
+                if (big === view && mainCutout != null) it.copy(cutoutWidth = mainCutout) else it
+            }
             val flags = runtime.flags(session)
             var outcome = outcomeFromSession(session)
             if (big === view) {
@@ -57,7 +64,7 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
             } else {
                 outcome = outcomeFromSession(session)
             }
-            IslandLayoutPolicy.requests(outcome, flags.rowMode, big, scene.cutoutWidth)
+            IslandLayoutPolicy.requests(outcome, flags.rowMode, big, mainCutout ?: scene.cutoutWidth)
                 .forEach { runtime.templates.acquire(session, it) }
             val render = IslandLayoutPolicy.render(
                 outcome = outcome,
