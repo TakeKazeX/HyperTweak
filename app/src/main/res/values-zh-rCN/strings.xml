@@ -1551,4 +1551,5 @@
     <string name="tweaks_island_narrow_time_font_summary">时钟、录音机的超级岛时间数字使用原生窄字体，修改后即时生效。</string>
     <string name="tweaks_remove_island_placeholder_title">移除超级岛结构空位</string>
     <string name="tweaks_remove_island_placeholder_summary">移除左右内容区为对称平衡而额外撑出的空白，按实际内容收紧；关闭后保留平衡宽度。独立于三岛调度，修改后即时生效。</string>
+    <string name="tweaks_super_island_summary">布局、图标、时间字体与白名单设置</string>
 </resources>

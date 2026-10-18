@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.ControlCenterIconRowsPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
+import com.takekazex.hypertweak.ui.page.SuperIslandPage
 import com.takekazex.hypertweak.ui.page.GoogleServicesPage
 import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
 import com.takekazex.hypertweak.ui.page.PowerSavePage
@@ -281,6 +282,7 @@ fun HyperTweakNavContainer(
                 onNavigateToDownloadManager = {
                     navController.push(Route.DownloadManager)
                 },
+                onNavigateToSuperIsland = { navController.push(Route.SuperIsland) },
                 onNavigateToSecurityCenter = {
                     navController.push(Route.SecurityCenter)
                 },
@@ -306,26 +308,6 @@ fun HyperTweakNavContainer(
                 onBlockMiLinkHpplayFilesChange = onBlockMiLinkHpplayFilesChange,
                 allowThirdPartyTheme = allowThirdPartyTheme,
                 onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,
-                removeIslandPlaceholder = removeIslandPlaceholder,
-                onRemoveIslandPlaceholderChange = onRemoveIslandPlaceholderChange,
-                threeIslands = threeIslands,
-                landscapeFullIslands = landscapeFullIslands,
-                landscapeMoreIslands = landscapeMoreIslands,
-                ccHideSuperIsland = ccHideSuperIsland,
-                islandLiveUpdateIcon = islandLiveUpdateIcon,
-                islandNarrowTimeFont = islandNarrowTimeFont,
-                onThreeIslandsChange = onThreeIslandsChange,
-                onLandscapeFullIslandsChange = onLandscapeFullIslandsChange,
-                onLandscapeMoreIslandsChange = onLandscapeMoreIslandsChange,
-                onCcHideSuperIslandChange = onCcHideSuperIslandChange,
-                onIslandLiveUpdateIconChange = onIslandLiveUpdateIconChange,
-                onIslandNarrowTimeFontChange = onIslandNarrowTimeFontChange,
-                focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
-                onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
-                mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
-                onMediaSuperIslandUnlockWhitelistChange = onMediaSuperIslandUnlockWhitelistChange,
-                xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
-                onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,
@@ -616,6 +598,31 @@ fun HyperTweakNavContainer(
         entry<Route.CameraWatermark> {
             CameraWatermarkUnlockPage(
                 onBack = { navController.pop() }
+            )
+        }
+        entry<Route.SuperIsland> {
+            SuperIslandPage(
+                onBack = { navController.pop() },
+                removeIslandPlaceholder = removeIslandPlaceholder,
+                onRemoveIslandPlaceholderChange = onRemoveIslandPlaceholderChange,
+                threeIslands = threeIslands,
+                landscapeFullIslands = landscapeFullIslands,
+                landscapeMoreIslands = landscapeMoreIslands,
+                ccHideSuperIsland = ccHideSuperIsland,
+                islandLiveUpdateIcon = islandLiveUpdateIcon,
+                islandNarrowTimeFont = islandNarrowTimeFont,
+                onThreeIslandsChange = onThreeIslandsChange,
+                onLandscapeFullIslandsChange = onLandscapeFullIslandsChange,
+                onLandscapeMoreIslandsChange = onLandscapeMoreIslandsChange,
+                onCcHideSuperIslandChange = onCcHideSuperIslandChange,
+                onIslandLiveUpdateIconChange = onIslandLiveUpdateIconChange,
+                onIslandNarrowTimeFontChange = onIslandNarrowTimeFontChange,
+                focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
+                onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
+                mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
+                onMediaSuperIslandUnlockWhitelistChange = onMediaSuperIslandUnlockWhitelistChange,
+                xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
+                onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
             )
         }
         entry<Route.GoogleServices> {

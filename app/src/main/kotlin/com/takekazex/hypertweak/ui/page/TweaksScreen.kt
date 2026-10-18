@@ -73,26 +73,7 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
-    removeIslandPlaceholder: Boolean,
-    onRemoveIslandPlaceholderChange: (Boolean) -> Unit,
-    threeIslands: Boolean,
-    landscapeFullIslands: Boolean,
-    landscapeMoreIslands: Boolean,
-    ccHideSuperIsland: Boolean,
-    islandLiveUpdateIcon: Boolean,
-    islandNarrowTimeFont: Boolean,
-    onThreeIslandsChange: (Boolean) -> Unit,
-    onLandscapeFullIslandsChange: (Boolean) -> Unit,
-    onLandscapeMoreIslandsChange: (Boolean) -> Unit,
-    onCcHideSuperIslandChange: (Boolean) -> Unit,
-    onIslandLiveUpdateIconChange: (Boolean) -> Unit,
-    onIslandNarrowTimeFontChange: (Boolean) -> Unit,
-    focusNotificationUnlockWhitelist: Boolean,
-    onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
-    mediaSuperIslandUnlockWhitelist: Boolean,
-    onMediaSuperIslandUnlockWhitelistChange: (Boolean) -> Unit,
-    xmsfUnlockFocusAuth: Boolean,
-    onXmsfUnlockFocusAuthChange: (Boolean) -> Unit,
+    onNavigateToSuperIsland: () -> Unit,
     backdrop: LayerBackdrop
 ) {
     var aicrCopyDirectDefaultBrowser by remember {
@@ -347,72 +328,13 @@ fun TweaksScreenContent(
                 }
             }
 
-            // Super Island: keep visibility and the normal, media, and xmsf gates on this page (no
-            // second-level page), while leaving each switch independently controllable.
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = threeIslands,
-                        onCheckedChange = onThreeIslandsChange,
-                        title = stringResource(R.string.tweaks_three_islands_title),
-                        summary = stringResource(R.string.tweaks_three_islands_summary)
-                    )
-                    SwitchPreference(
-                        checked = landscapeFullIslands,
-                        onCheckedChange = onLandscapeFullIslandsChange,
-                        title = stringResource(R.string.tweaks_landscape_full_islands_title),
-                        summary = stringResource(R.string.tweaks_landscape_full_islands_summary)
-                    )
-                    SwitchPreference(
-                        checked = landscapeMoreIslands,
-                        onCheckedChange = onLandscapeMoreIslandsChange,
-                        title = stringResource(R.string.tweaks_landscape_more_islands_title),
-                        summary = stringResource(R.string.tweaks_landscape_more_islands_summary)
-                    )
-                    SwitchPreference(
-                        checked = removeIslandPlaceholder,
-                        onCheckedChange = onRemoveIslandPlaceholderChange,
-                        title = stringResource(R.string.tweaks_remove_island_placeholder_title),
-                        summary = stringResource(R.string.tweaks_remove_island_placeholder_summary)
-                    )
-                    SwitchPreference(
-                        checked = ccHideSuperIsland,
-                        onCheckedChange = onCcHideSuperIslandChange,
-                        title = stringResource(R.string.tweaks_cc_hide_super_island_title),
-                        summary = stringResource(R.string.tweaks_cc_hide_super_island_summary)
-                    )
-                    SwitchPreference(
-                        checked = islandLiveUpdateIcon,
-                        onCheckedChange = onIslandLiveUpdateIconChange,
-                        title = stringResource(R.string.tweaks_island_live_update_icon_title),
-                        summary = stringResource(R.string.tweaks_island_live_update_icon_summary)
-                    )
-                    SwitchPreference(
-                        checked = islandNarrowTimeFont,
-                        onCheckedChange = onIslandNarrowTimeFontChange,
-                        title = stringResource(R.string.tweaks_island_narrow_time_font_title),
-                        summary = stringResource(R.string.tweaks_island_narrow_time_font_summary)
-                    )
-                    SwitchPreference(
-                        checked = focusNotificationUnlockWhitelist,
-                        onCheckedChange = onFocusNotificationUnlockWhitelistChange,
-                        title = stringResource(R.string.tweaks_focus_unlock_whitelist_title),
-                        summary = stringResource(R.string.tweaks_focus_unlock_whitelist_summary)
-                    )
-                    SwitchPreference(
-                        checked = mediaSuperIslandUnlockWhitelist,
-                        onCheckedChange = onMediaSuperIslandUnlockWhitelistChange,
-                        title = stringResource(R.string.tweaks_media_super_island_unlock_whitelist_title),
-                        summary = stringResource(R.string.tweaks_media_super_island_unlock_whitelist_summary)
-                    )
-                    SwitchPreference(
-                        checked = xmsfUnlockFocusAuth,
-                        onCheckedChange = onXmsfUnlockFocusAuthChange,
-                        title = stringResource(R.string.tweaks_xmsf_unlock_focus_auth_title),
-                        summary = stringResource(R.string.tweaks_xmsf_unlock_focus_auth_summary)
-                    )
-                }
+                ArrowPreference(
+                    title = stringResource(R.string.tweaks_focus_notification_title),
+                    summary = stringResource(R.string.tweaks_super_island_summary),
+                    onClick = onNavigateToSuperIsland
+                )
             }
 
             Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
