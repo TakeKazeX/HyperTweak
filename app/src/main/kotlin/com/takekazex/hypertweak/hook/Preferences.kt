@@ -1313,6 +1313,9 @@ object Preferences {
     private var localCachePrefs: SharedPreferences? = null
     @Volatile
     private var cachedAppContext: Context? = null
+    private val appCache = com.takekazex.hypertweak.hook.base.DeferredAppCache<Pair<Context, SharedPreferences>>(
+        clock = android.os.SystemClock::elapsedRealtime
+    )
 
     /**
      * True once the LSPosed daemon's remote-preferences channel is known to be unavailable
@@ -1734,18 +1737,34 @@ object Preferences {
     }
 
     fun initLocalCache(context: Context): Boolean {
-        val result = com.takekazex.hypertweak.hook.base.OptionalAppCache.open(
-            directory = { context.dataDir },
-            create = { context.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE) }
-        )
+        val result = appCache.open {
+            // A package-ready Context can arrive before credential storage is unlocked.
+            // This is a normal deferral; retain the remote backend without touching CE files.
+            if (!context.isDeviceProtectedStorage &&
+                context.getSystemService(android.os.UserManager::class.java)?.isUserUnlocked == false) {
+                Result.success(null)
+            } else com.takekazex.hypertweak.hook.base.OptionalAppCache.open(
+                directory = { context.dataDir },
+                create = { context to context.getSharedPreferences(CACHE_NAME, Context.MODE_PRIVATE) }
+            )
+        }
         val cache = result.onFailure {
             DebugLog.w("Preferences", "host storage cache unavailable; using remote preferences", it)
         }.getOrNull() ?: return false
         // Publish a complete, usable pair only. A provider's system context must not displace a
         // valid application cache, or prevent package-ready consumers from being registered.
-        cachedAppContext = context
-        localCachePrefs = cache
+        cachedAppContext = cache.first
+        localCachePrefs = cache.second
         return true
+    }
+
+    /** Logging must never initialize storage, mirror settings, or log a backend failure. */
+    internal fun logLevel(default: Int): Int {
+        (memoGet(KEY_LOG_LEVEL) as? Int)?.let { return it }
+        if (isInitialized) runCatching { remotePrefs.getInt(KEY_LOG_LEVEL, default) }
+            .getOrNull()?.let { memoPut(KEY_LOG_LEVEL, it); return it }
+        return runCatching { (localSourcePrefs ?: localCachePrefs)?.getInt(KEY_LOG_LEVEL, default) }
+            .getOrNull() ?: default
     }
 
     /**

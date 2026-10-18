@@ -125,11 +125,7 @@ object DebugLog {
     private val records = ArrayDeque<Pending>()
     private var dropped = 0
 
-    private fun currentThreshold(): Int = runCatching {
-        if (Preferences.isInitialized) {
-            Preferences.getInt(Preferences.KEY_LOG_LEVEL, DEFAULT_LEVEL)
-        } else DEFAULT_LEVEL
-    }.getOrDefault(DEFAULT_LEVEL)
+    private fun currentThreshold(): Int = Preferences.logLevel(DEFAULT_LEVEL)
 
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
         // Successful target registration is diagnostic detail. Severity never depends on words
