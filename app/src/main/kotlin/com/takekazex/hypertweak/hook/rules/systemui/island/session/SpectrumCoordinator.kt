@@ -123,8 +123,9 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
         return HostRect(frame.x, rect.top, frame.x + frame.width, rect.bottom)
     }
 
-    private fun sideLyricTarget(session: IslandSession, view: Any): Boolean =
+    internal fun sideLyricTarget(session: IslandSession, view: Any): Boolean =
         !runtime.retiring() && runtime.enabled(session) && runtime.preferences.threeIslands &&
+            !runtime.landscapeFullEnabled(session) &&
             host.current(session.owner, IslandSlot.EXPANDED) !== view &&
             host.current(session.owner, IslandSlot.BIG) !== view && runtime.spectrumTarget(view) &&
             (session.scene.musicSmall === view || view in session.slot.extras ||

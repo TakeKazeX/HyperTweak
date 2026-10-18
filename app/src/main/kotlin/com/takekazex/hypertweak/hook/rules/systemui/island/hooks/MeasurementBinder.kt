@@ -17,6 +17,9 @@ internal object MeasurementBinder {
                 runtime.context.withMeasuring(view) {
                     val session = view?.let(runtime::sessionForView)
                     if (session != null) {
+                        // Restore lyric visibility before the host reads natural content widths
+                        // when rotating into full templates (or enabling them at runtime).
+                        runtime.spectrum.syncLyricGuard(session)
                         runtime.boundary.core(
                             session, IslandFeature.MEASUREMENT,
                             "restore native template before measurement",
