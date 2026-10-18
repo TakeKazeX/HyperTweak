@@ -136,7 +136,7 @@
     <string name="charging_interval_5s">5 seconds</string>
     <string name="charging_interval_summary">How often the telemetry values update</string>
     <string name="charging_interval_title">Refresh Interval</string>
-    <string name="charging_restart_summary">Apply the master switch change</string>
+    <string name="charging_restart_summary">Only needed after updating the module; the master switch applies immediately</string>
     <string name="charging_restart_title">Restart SystemUI</string>
     <string name="charging_section_fields">Fields</string>
     <string name="charging_section_main">Charging Detail on Lockscreen</string>

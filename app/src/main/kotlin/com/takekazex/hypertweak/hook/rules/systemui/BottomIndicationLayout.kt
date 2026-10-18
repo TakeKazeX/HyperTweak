@@ -108,7 +108,9 @@ internal class BottomIndicationLayout(view: TextView) {
         this.base = base
         this.detail = detail
         this.twoRows = twoRows
-        render(view)
+        // The provider just checked the live controller role/message. A native clear or
+        // replacement callback may have erased our text without changing that role.
+        render(view, authoritative = true)
     }
 
     fun restore() {
@@ -142,10 +144,10 @@ internal class BottomIndicationLayout(view: TextView) {
         }
     }
 
-    private fun render(view: TextView) {
+    private fun render(view: TextView, authoritative: Boolean = false) {
         // Never overwrite a different native indication during its animated text handoff.
         val current = view.text?.toString().orEmpty()
-        if (emitted != null && current != emitted && current != base) return
+        if (!authoritative && emitted != null && current != emitted && current != base) return
         if (configuredMode != twoRows) {
             view.isSingleLine = !twoRows
             view.maxLines = if (twoRows) 2 else 1

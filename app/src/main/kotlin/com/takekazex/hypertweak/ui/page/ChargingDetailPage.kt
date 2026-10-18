@@ -19,7 +19,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -56,14 +55,11 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
     }
-    // Saveable so the pending prompt survives navigating away (Nav3 disposes the entry).
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var twoRows by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
     }
@@ -107,32 +103,27 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
                         },
                         title = stringResource(R.string.charging_enabled_title),
                         summary = stringResource(R.string.charging_enabled_summary)
                     )
-                    if (systemUiRestartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.charging_restart_title),
-                            summary = stringResource(R.string.charging_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) systemUiRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+                    ArrowPreference(
+                        title = stringResource(R.string.charging_restart_title),
+                        summary = stringResource(R.string.charging_restart_summary),
+                        enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
+                        onClick = {
+                            Preferences.flush()
+                            RestartUtils.restartScope(
+                                context = context,
+                                coroutineScope = coroutineScope,
+                                selection = RestartScopeSelection(systemUi = true),
+                                onCompleted = { completed ->
+                                    handleRestartedScopes(completed)
+                                },
+                            )
+                        }
+                    )
                 }
             }
 

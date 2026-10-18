@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.PowerManager
-import android.app.KeyguardManager
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.TextView
@@ -39,8 +38,10 @@ import java.util.concurrent.Executors
  * - fields: any of wattage / voltage / current / temperature, bitmask
  *   `KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS`;
  * - refresh interval: `KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS`.
- * The main switch gates hook installation and still needs a SystemUI restart; the layout and telemetry
- * sub-options are re-read on every render (Preferences memo TTL is 100 ms), so they apply live.
+ * The controller hook is installed at SystemUI startup regardless of the master switch; the
+ * switch itself is read live on every render, so enabling it applies without a restart. The
+ * layout and telemetry sub-options are also re-read on every render (Preferences memo TTL is
+ * 100 ms). A SystemUI restart is only needed after updating the module itself.
  *
  * Data sources (all available to SystemUI, which runs with BATTERY_STATS):
  * - current: `BatteryManager.getIntProperty(CURRENT_NOW)` in µA, falling back to
@@ -70,12 +71,39 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     private const val MIN_INTERVAL_MS = 1_000
     private const val MAX_INTERVAL_MS = 10_000
 
-    @Volatile
-    private var enabled = false
+    private fun detailEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
 
     private var currIndicationTypeField: Field? = null
     private var viewField: Field? = null
     private var messageField: Field? = null
+    private var rotateControllerField: Field? = null
+    private var hostDozingField: Field? = null
+    private var hostVisibleField: Field? = null
+    private var rotateDozingField: Field? = null
+    private var stateListenerField: Field? = null
+    private var onDozingChanged: Method? = null
+    private var indicationHost = WeakReference<Any>(null)
+    private var hostSyncPending = false
+    private val hostSync = Runnable {
+        hostSyncPending = false
+        boundary {
+            val host = indicationHost.get() ?: return@boundary
+            val controller = rotateControllerField?.get(host) ?: return@boundary
+            attachDetail(controller)
+            val view = observedView.get() ?: return@boundary
+            // Theme/scene startup can leave the rotating controller in doze after its host
+            // has resumed. Replay the native wake callback only after both have settled.
+            if (detailEnabled() && interactive && hostVisibleField?.getBoolean(host) == true &&
+                hostDozingField?.getBoolean(host) == false &&
+                rotateDozingField?.getBoolean(controller) == true && view.isAttachedToWindow && view.isShown) {
+                val listener = stateListenerField?.get(controller) ?: return@boundary
+                DebugLog.i(TAG, "resync native indication wake: hostDozing=false rotateDozing=true")
+                onDozingChanged?.invoke(listener, false)
+                reconcile()
+            }
+        }
+    }
     private var getIntProperty: Method? = null
 
     private val layouts = WeakHashMap<TextView, BottomIndicationLayout>()
@@ -84,9 +112,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     @Volatile
     private var reportedFirstAppend = false
 
-    private var plugged = false
     private var interactive = false
-    private var keyguard = false
     private var receiverContext: Context? = null
     private var worker = Executors.newSingleThreadExecutor { task ->
         Thread(task, "HT-ChargeSample").apply { isDaemon = true }
@@ -103,8 +129,15 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         true
     }
     private val attachListener = object : View.OnAttachStateChangeListener {
-        override fun onViewAttachedToWindow(v: View) = boundary { observe(v as TextView); reconcile() }
+        override fun onViewAttachedToWindow(v: View) = boundary {
+            if (observedView.get() === v && v is TextView) {
+                observe(v)
+                reconcile()
+                scheduleHostSync()
+            }
+        }
         override fun onViewDetachedFromWindow(v: View) = boundary {
+            if (observedView.get() !== v) return@boundary
             stopObserving()
             stopRefresh()
             layouts[v]?.restore()
@@ -113,19 +146,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = boundary {
             when (intent.action) {
-                Intent.ACTION_BATTERY_CHANGED -> {
-                    plugged = intent.getIntExtra("plugged", 0) != 0
-                    cachedVoltageMv = intent.getIntExtra("voltage", -1)
-                    cachedTempTenths = intent.getIntExtra("temperature", Int.MIN_VALUE)
-                }
+                Intent.ACTION_BATTERY_CHANGED -> applyBatteryIntent(intent)
                 Intent.ACTION_SCREEN_OFF -> interactive = false
-                Intent.ACTION_SCREEN_ON -> {
-                    interactive = true
-                    keyguard = (context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isKeyguardLocked == true
-                }
-                Intent.ACTION_USER_PRESENT -> keyguard = false
+                Intent.ACTION_SCREEN_ON -> interactive = true
             }
             reconcile()
+            scheduleHostSync()
         }
     }
     private var cachedCurrentUa = 0L
@@ -140,20 +166,34 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     private var refreshRunnable: Runnable? = null
 
     internal fun recoverController(controller: Any) {
-        if (enabled) attachDetail(controller)
+        if (detailEnabled()) attachDetail(controller)
     }
 
-    override fun saveHotReloadState(): Any? = StatusIconHostAccess.onMain { recentController.get() }
+    override fun saveHotReloadState(): Any? = StatusIconHostAccess.onMain {
+        arrayOf(indicationHost.get(), recentController.get())
+    }
     override fun restoreHotReloadState(state: Any?) {
-        if (!enabled || state == null) return
-        StatusIconHostAccess.onMain { attachDetail(state) }
+        if (state !is Array<*> || state.size != 2) return
+        StatusIconHostAccess.onMain {
+            indicationHost = WeakReference(state[0])
+            state[1]?.let(::attachDetail)
+            scheduleHostSync()
+        }
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         refreshGeneration++
         StatusIconHostAccess.onMain {
             stopRefresh()
+            refreshHandler.removeCallbacks(hostSync)
+            hostSyncPending = false
+            indicationHost.clear()
+            rotateControllerField = null
+            hostDozingField = null
+            hostVisibleField = null
+            rotateDozingField = null
+            stateListenerField = null
+            onDozingChanged = null
             stopObserving()
             observedView.get()?.removeOnAttachStateChangeListener(attachListener)
             observedView.clear()
@@ -178,17 +218,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
         refreshGeneration++
         if (worker.isShutdown) {
             sampleGate = ChargingSampleGate()
             worker = Executors.newSingleThreadExecutor { task ->
                 Thread(task, "HT-ChargeSample").apply { isDaemon = true }
             }
-        }
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "keyguard charging indication", "disabled")
-            return
         }
 
         val clazz = runCatching { classLoader.loadClass(ROTATE_VC) }.getOrElse {
@@ -247,7 +282,45 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             DebugLog.hookFailed(TAG, "$ROTATE_VC#showIndication(int)", it)
         }
 
-        DebugLog.d(TAG, "keyguard charging indication detail enabled")
+        hookIndicationHost(clazz)
+        DebugLog.i(TAG, "keyguard charging indication hooks installed; master=${detailEnabled()}")
+    }
+
+    private fun hookIndicationHost(rotateClass: Class<*>) = boundary {
+        val hostClass = classLoader.loadClass("com.android.systemui.statusbar.KeyguardIndicationController")
+        fun Class<*>.field(name: String) = getDeclaredField(name).apply { isAccessible = true }
+        val owner = hostClass.field("mRotateTextViewController")
+        val dozing = hostClass.field("mDozing")
+        val visible = hostClass.field("mVisible")
+        val rotateDozing = rotateClass.field("mIsDozing")
+        val listener = rotateClass.field("mStatusBarStateListener")
+        val wake = listener.type.getDeclaredMethod("onDozingChanged", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        val targets = listOf(
+            hostClass.getDeclaredMethod("setIndicationArea", android.view.ViewGroup::class.java),
+            hostClass.getDeclaredMethod("updateDeviceEntryIndication", Boolean::class.javaPrimitiveType)
+        )
+        rotateControllerField = owner
+        hostDozingField = dozing
+        hostVisibleField = visible
+        rotateDozingField = rotateDozing
+        stateListenerField = listener
+        onDozingChanged = wake
+        targets.forEach { method ->
+            method.hook {
+                after { param -> boundary {
+                    indicationHost = WeakReference(param.thisObject)
+                    owner.get(param.thisObject)?.let(::attachDetail)
+                    scheduleHostSync()
+                } }
+            }
+        }
+    }
+
+    private fun scheduleHostSync() {
+        if (hostSyncPending || indicationHost.get() == null) return
+        hostSyncPending = true
+        refreshHandler.post(hostSync)
     }
 
     // ─── Live sub-option readers (memo TTL 100 ms, so no SystemUI restart required) ───
@@ -263,7 +336,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         HookFailurePolicy.open(TAG, "charging lifecycle", Unit, action)
 
     private fun attachDetail(controller: Any?) {
-        if (!enabled || controller == null) return
+        if (controller == null) return
+        // A retired rotate controller can still receive a queued status/doze callback.
+        // It must never take ownership away from the controller held by the current host.
+        indicationHost.get()?.let { host ->
+            if (rotateControllerField?.get(host) !== controller) return
+        }
         val view = runCatching { viewField?.get(controller) as? TextView }.getOrNull() ?: return
         if (recentController.get() !== controller || observedView.get() !== view) {
             stopRefresh()
@@ -274,6 +352,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             }
             observedView = WeakReference(view)
             recentController = WeakReference(controller)
+            DebugLog.i(TAG, "bound indication controller=${System.identityHashCode(controller)} attached=${view.isAttachedToWindow}")
             view.addOnAttachStateChangeListener(attachListener)
             if (view.isAttachedToWindow) observe(view)
         }
@@ -285,15 +364,36 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         if (receiverContext != null) return
         val app = context.applicationContext ?: context
         interactive = (app.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive == true
-        keyguard = (app.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isKeyguardLocked == true
         val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED).apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
-            addAction(Intent.ACTION_USER_PRESENT)
         }
-        val sticky = app.registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        receiverContext = app
-        sticky?.let { batteryReceiver.onReceive(app, it) }
+        runCatching {
+            app.registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        }.onSuccess { sticky ->
+            receiverContext = app
+            sticky?.let(::applyBatteryIntent)
+        }.onFailure {
+            DebugLog.w(TAG, "battery receiver registration failed", it)
+        }
+        if (cachedVoltageMv <= 0 || cachedTempTenths == Int.MIN_VALUE) {
+            refreshBatterySnapshot(app)
+        }
+    }
+
+    private fun applyBatteryIntent(intent: Intent) {
+        cachedVoltageMv = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
+        cachedTempTenths = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+    }
+
+    private fun refreshBatterySnapshot(context: Context) {
+        runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.onSuccess { intent ->
+            intent?.let(::applyBatteryIntent)
+        }.onFailure {
+            DebugLog.w(TAG, "battery snapshot read failed", it)
+        }
     }
 
     private fun observe(view: TextView) {
@@ -312,7 +412,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val batteryRole = controller != null && runCatching {
             currIndicationTypeField?.getInt(controller) == BATTERY_ROLE
         }.getOrDefault(false)
-        return enabled && plugged && interactive && keyguard && batteryRole &&
+        return detailEnabled() && interactive && batteryRole &&
             view != null && view.isAttachedToWindow && view.isShown && view.windowVisibility == View.VISIBLE
     }
 
@@ -320,6 +420,13 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val controller = recentController.get()
         val view = observedView.get()
         val visible = displayDemanded()
+        if (visible != samplingActive) {
+            val host = indicationHost.get()
+            DebugLog.i(TAG, "charging demand=$visible role=${controller?.let { currIndicationTypeField?.getInt(it) }} " +
+                "interactive=$interactive shown=${view?.isShown} " +
+                "hostDozing=${host?.let { hostDozingField?.getBoolean(it) }} " +
+                "rotateDozing=${controller?.let { rotateDozingField?.getBoolean(it) }}")
+        }
         if (!visible) {
             if (samplingActive) stopRefresh()
             view?.let { layouts[it]?.restore() }
@@ -348,7 +455,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
         if (!reportedFirstAppend) {
             reportedFirstAppend = true
-            DebugLog.d(TAG, "appended live charge detail: $detail")
+            DebugLog.i(TAG, "appended live charge detail: $detail")
         }
     }
 
@@ -372,7 +479,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
                         cachedCurrentUa = current
                         reconcile()
                     }
-                } else if (enabled) boundary { reconcile() }
+                } else if (detailEnabled()) boundary { reconcile() }
             }
         }
     }
