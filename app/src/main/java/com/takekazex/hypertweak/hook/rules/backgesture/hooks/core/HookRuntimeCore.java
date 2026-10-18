@@ -1116,7 +1116,13 @@ public abstract class HookRuntimeCore {
                 || message.startsWith("Back indicator style applied")
                 || message.startsWith("Cross-activity slide route active")))
             DebugLog.INSTANCE.i(tag, message);
-        else DebugLog.INSTANCE.d(tag, message);
+        // Per-gesture sampling and per-frame success traces are diagnostic only. They used
+        // to follow the global DEBUG level, so one gesture produced a dozen unrelated lines
+        // and buried real state changes. Keep the whitelisted transitions above at INFO and
+        // require both the module DEBUG level and an explicit tag opt-in for the rest:
+        //   adb shell setprop log.tag.MiuiBackGestureHook VERBOSE
+        else if (Log.isLoggable(tag, Log.VERBOSE))
+            DebugLog.INSTANCE.d(tag, message);
     }
 
 
