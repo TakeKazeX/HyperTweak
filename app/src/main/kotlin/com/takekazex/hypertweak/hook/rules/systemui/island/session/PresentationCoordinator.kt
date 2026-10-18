@@ -143,9 +143,7 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
     }
 
     fun prepareNativeMedia(session: IslandSession, view: Any): Boolean {
-        if (runtime.spectrum.hasReturnTarget(session, view)) {
-            return (runtime.renderingState.returnTarget() ?: session.spectrum.returnTarget)?.frame?.full == true
-        }
+        runtime.spectrum.nativeReturnTarget(session, view)?.let { return it.frame.full }
         var project = false
         runtime.boundary.soft(session, IslandFeature.SPECTRUM, "prepare native media renderer") {
             prepareSmallMusicAnimation(session, view)

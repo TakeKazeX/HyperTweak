@@ -20,10 +20,12 @@ class IslandMediaReturnTest {
     private val timer = FakeTask("timer", owner)
     private val settings = object : IslandSettings {
         override var threeIslands = true
-        override val landscapeFull = false
+        override var landscapeFull = false
         override val landscapeMore = false
     }
+    private var rebuilding = false
     private val ports = object : IslandHostPorts by host {
+        override fun inConfigRebuild(owner: Any) = rebuilding
         override fun fixedCutoutWidth(view: Any) = 72
     }
     private val runtime = IslandRuntime(ports, settings, { false }, null, null)
@@ -147,6 +149,40 @@ class IslandMediaReturnTest {
         }
         assertNull(runtime.spectrum.renderingReturnFrame(session, media))
         assertNull(runtime.renderingState.returnTarget())
+    }
+
+    @Test fun `landscape full renderer ignores a pending portrait cover target through rebuild and rotation`() {
+        remember()
+        host.bind(owner, IslandSlot.BIG, media).bind(owner, IslandSlot.SMALL, timer)
+        session.spectrum.returnContents = mapOf("timer" to IslandContentSize(230, 184))
+        val cover = checkNotNull(runtime.spectrum.planReturn(session, media, timer))
+        assertFalse(cover.frame.full)
+        assertSame(cover, runtime.spectrum.nativeReturnTarget(session, media))
+        settings.landscapeFull = true
+        host.orientation = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.LANDSCAPE
+        host.bind(owner, IslandSlot.BIG, timer).bind(owner, IslandSlot.SMALL, media)
+        session.scene.layoutIntent = true
+        session.scene.layout = layout.copy(full = true, screenWidth = 2608)
+        val full = FullIslandFrame(1365, IslandContentSize(329, 322), true)
+        session.scene.fullFrames[media] = full
+        assertNull(runtime.spectrum.nativeReturnTarget(session, media))
+        assertTrue(runtime.presentation.prepareNativeMedia(session, media))
+        runtime.renderingState.render(media, cover) {
+            assertNull(runtime.spectrum.nativeReturnTarget(session, media))
+            assertNull(runtime.spectrum.renderingReturnTarget(session, media))
+            assertSame(full, runtime.templateFrame(session, media))
+            assertTrue(runtime.fullSide(session, media))
+        }
+        assertNull(runtime.spectrum.rewriteReturnRect(session, media, HostRect(832, 30, 934, 132)))
+        rebuilding = true
+        assertFalse(runtime.landscapeFullEnabled(session))
+        assertNull(runtime.spectrum.nativeReturnTarget(session, media))
+        assertFalse(runtime.spectrum.hasReturnTarget(session, media))
+        rebuilding = false
+        settings.landscapeFull = false
+        assertNull(runtime.spectrum.nativeReturnTarget(session, media)) // Compact landscape has a different row too.
+        host.orientation = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.PORTRAIT
+        assertSame(cover, runtime.spectrum.nativeReturnTarget(session, media))
     }
 
     @Test fun `opening the app cancels a pending return without deleting its last admitted side plan`() {

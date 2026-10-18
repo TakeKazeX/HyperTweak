@@ -118,14 +118,14 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
     }
 
     fun returningFrame(session: IslandSession, view: Any, x: Int): FullIslandFrame? {
-        if (view in runtime.summaries(session)) return null
+        if (!returnEnabled(session) || view in runtime.summaries(session)) return null
         val geometry = session.spectrum.returnGeometry?.takeIf { it.key == runtime.key(view) } ?: return null
         return geometry.target(x, host.nativeSmallWidth(view))
     }
 
     /** Rebase a saved side plan against the native query's future main task, not today's BIG music. */
     fun planReturn(session: IslandSession, view: Any, main: Any): MediaReturnTarget? {
-        if (!returnEnabled(session) || host.orientationOf(session.owner) != IslandOrientation.PORTRAIT) return null
+        if (!returnEnabled(session)) return null
         val previous = session.spectrum.returnGeometry?.takeIf { it.key == host.key(view) } ?: return null
         val left = previous.seatLeft ?: return null
         val content = session.spectrum.returnContents[host.key(main)] ?: return null
@@ -165,19 +165,31 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
     }
 
     private fun returnEnabled(session: IslandSession): Boolean =
-        runtime.enabled(session) && runtime.preferences.threeIslands && !runtime.landscapeFullEnabled(session)
+        runtime.enabled(session) && runtime.preferences.threeIslands &&
+            host.orientationOf(session.owner) == IslandOrientation.PORTRAIT
+
+    // Layout eligibility temporarily disappears during configuration/app transitions. That
+    // must not reactivate compact suppression inside a requested landscape full template.
+    private fun landscapeLyricsRequested(session: IslandSession): Boolean =
+        runtime.preferences.landscapeFull &&
+            host.orientationOf(session.owner) == IslandOrientation.LANDSCAPE
+
+    /** Capture only targets valid for the current mode before choosing a native renderer. */
+    fun nativeReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
+        (runtime.renderingState.returnTarget().takeIf { runtime.renderingState.get() === view }
+            ?: session.spectrum.returnTarget)?.takeIf {
+            returnEnabled(session) && it.key == host.key(view)
+        }
 
     /** A return target is only a render projection; scheduling keeps the actual host states. */
     fun renderingReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
-        (runtime.renderingState.returnTarget() ?: session.spectrum.returnTarget)?.takeIf {
-            runtime.renderingState.get() === view && it.key == host.key(view) && returnEnabled(session)
-        }
+        nativeReturnTarget(session, view)?.takeIf { runtime.renderingState.get() === view }
 
     fun renderingReturnFrame(session: IslandSession, view: Any): FullIslandFrame? =
         renderingReturnTarget(session, view)?.frame
 
     fun hasReturnTarget(session: IslandSession, view: Any): Boolean =
-        returnEnabled(session) && session.spectrum.returnTarget?.let { it.key == host.key(view) } == true
+        nativeReturnTarget(session, view) != null
 
     fun cancelReturn(session: IslandSession, view: Any) {
         if (session.spectrum.returnTarget?.key == host.key(view)) session.spectrum.returnTarget = null
@@ -198,7 +210,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
 
     internal fun sideLyricTarget(session: IslandSession, view: Any): Boolean =
         !runtime.retiring() && runtime.enabled(session) && runtime.preferences.threeIslands &&
-            !runtime.landscapeFullEnabled(session) &&
+            !landscapeLyricsRequested(session) &&
             (hasReturnTarget(session, view) ||
                 host.current(session.owner, IslandSlot.EXPANDED) !== view &&
                 host.current(session.owner, IslandSlot.BIG) !== view) && runtime.spectrumTarget(view) &&

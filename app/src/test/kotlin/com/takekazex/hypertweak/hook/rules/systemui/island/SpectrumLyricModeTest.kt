@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMusicSpectrum
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
@@ -24,13 +25,26 @@ class SpectrumLyricModeTest {
             ),
         ))
         host.bind(owner, IslandSlot.BIG, Any()).bind(owner, IslandSlot.SMALL, media)
-        val runtime = IslandRuntime(host, settings, { false }, NativeMusicSpectrum(media.javaClass), null)
+        var rebuilding = false
+        var temporary = false
+        val ports = object : IslandHostPorts by host {
+            override fun inConfigRebuild(owner: Any) = rebuilding
+            override fun showOnce(owner: Any): Any? = if (temporary) media else null
+        }
+        val runtime = IslandRuntime(ports, settings, { false }, NativeMusicSpectrum(media.javaClass), null)
         val session = runtime.sessions.getOrCreate(owner)
         fun guarded() = runtime.spectrum.sideLyricTarget(session, media)
 
         assertTrue(guarded()) // A saved landscape setting does not disable portrait protection.
         host.orientation = IslandOrientation.LANDSCAPE
         assertFalse(guarded())
+        rebuilding = true
+        assertFalse(runtime.landscapeFullEnabled(session)) // Geometry is temporarily ineligible.
+        assertFalse(guarded()) // The requested lyric mode must survive the rebuild.
+        rebuilding = false
+        temporary = true
+        assertFalse(guarded()) // App/show-once handoff must not suppress full-template text.
+        temporary = false
         session.scene.musicSmall = media // Stale admission from portrait must not suppress lyrics.
         assertFalse(guarded())
         host.bind(owner, IslandSlot.SMALL, null)

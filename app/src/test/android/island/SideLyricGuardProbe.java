@@ -9,6 +9,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.spectrum.IslandLyricG
 
 /** Detached real/fake return templates are suppressed before their first visible frame. */
 public class SideLyricGuardProbe {
+    private static final class KeepVisible extends FrameLayout {
+        KeepVisible(Context context) { super(context); }
+        @Override public void setVisibility(int value) { super.setVisibility(View.VISIBLE); }
+    }
     public static void main(String[] args) throws Exception {
         if(Looper.myLooper()==null) Looper.prepareMainLooper();
         Class<?> at=Class.forName("android.app.ActivityThread");
@@ -36,6 +40,24 @@ public class SideLyricGuardProbe {
         side[0]=true;guard.applyNow();guard.release();
         if(realLyric.getVisibility()!=View.VISIBLE||fakeLyric.getVisibility()!=View.VISIBLE)
             throw new AssertionError("retirement did not restore text");
+        // HyperLyrics caches wrapper alpha. Compact suppression must leave it untouched
+        // while hiding injected children, then restore their visibility for full templates.
+        FrameLayout area=new FrameLayout(ctx);
+        KeepVisible wrapper=new KeepVisible(ctx);
+        wrapper.setTag("HYPERLYRIC_LEFT_VIEW_WRAPPER");
+        wrapper.setAlpha(0.75f); area.addView(wrapper);
+        TextView child=new TextView(ctx); wrapper.addView(child);
+        for(int rotation=0;rotation<4;rotation++) {
+            side[0]=true;
+            IslandLyricGuard rotating=new IslandLyricGuard(List.of(area),()->side[0],()->Unit.INSTANCE);
+            rotating.applyNow();
+            if(wrapper.getAlpha()!=0.75f || child.getVisibility()!=View.GONE)
+                throw new AssertionError("keepVisible content suppression changed wrapper alpha or leaked lyrics");
+            side[0]=false; rotating.applyNow(); rotating.release();
+            if(wrapper.getAlpha()!=0.75f || wrapper.getVisibility()!=View.VISIBLE || area.getVisibility()!=View.VISIBLE || child.getVisibility()!=View.VISIBLE)
+                throw new AssertionError("landscape alpha/visibility restoration failed at rotation "+rotation);
+        }
+        System.out.println("LYRIC_ROTATION_ALPHA_OK cycles=4 restored=0.75");
         System.out.println("SIDE_LYRIC_RETURN_OK real=true fake=true detached=true cardPreserved=true restored=true");
     }
 }

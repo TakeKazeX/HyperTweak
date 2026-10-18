@@ -37,8 +37,7 @@ internal object MediaRenderBinder {
                     runtime.boundary.soft(session, IslandFeature.SPECTRUM, "guard native media return text") {
                         runtime.spectrum.syncLyricGuard(session, view)
                     }
-                    val returnTarget = (runtime.renderingState.returnTarget() ?: session.spectrum.returnTarget)
-                        ?.takeIf { it.key == runtime.key(view) }
+                    val returnTarget = runtime.spectrum.nativeReturnTarget(session, view)
                     try {
                         if (!project && returnTarget == null) return@Hooker chain.proceed()
                         val nested = runtime.renderingState.get() === view

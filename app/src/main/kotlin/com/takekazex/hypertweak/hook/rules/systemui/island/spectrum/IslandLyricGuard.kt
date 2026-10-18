@@ -17,7 +17,7 @@ internal class IslandLyricGuard(
     private val active: () -> Boolean,
     private val onSuppressed: () -> Unit = { DebugLog.i("ThreeIslands", "small spectrum hid third-party lyric overlay") },
 ) {
-    private class Snapshot(var visibility: Int, var alpha: Float)
+    private class Snapshot(val visibility: Int)
 
     private val changed = LinkedHashMap<View, Snapshot>()
     private val registrations = ArrayList<Registration>()
@@ -159,22 +159,25 @@ internal class IslandLyricGuard(
 
     private fun hide(view: View) {
         if (view.visibility == View.GONE) return
-        // keepVisible views stay VISIBLE after setVisibility(GONE); alpha already suppressed them.
-        if (changed[view] != null && view.alpha == 0f) return
         snapshot(view)
         view.visibility = View.GONE
-        // MaxWidthFrameLayout keepVisible overrides setVisibility(GONE); alpha still hides it.
-        if (view.visibility != View.GONE) view.alpha = 0f
+        // HyperLyrics' keepVisible wrapper rejects GONE and its collision guard caches
+        // wrapper.alpha as the original alpha. Writing zero there poisons that cache:
+        // a later full-template callback re-hides lyrics after our guard has released.
+        // Hide the injected children instead, leaving its wrapper alpha entirely owned
+        // by the lyric module. Repeat on every pass to cover replacement/re-enabled text.
+        if (view.visibility != View.GONE && view is ViewGroup) {
+            for (index in 0 until view.childCount) hide(view.getChildAt(index))
+        }
     }
 
     private fun snapshot(view: View) {
-        changed.getOrPut(view) { Snapshot(view.visibility, view.alpha) }
+        changed.getOrPut(view) { Snapshot(view.visibility) }
     }
 
     private fun restore() {
         changed.entries.toList().asReversed().forEach { (view, snapshot) ->
             if (view.visibility != snapshot.visibility) view.visibility = snapshot.visibility
-            if (view.alpha != snapshot.alpha) view.alpha = snapshot.alpha
         }
         changed.clear()
         reported = false
