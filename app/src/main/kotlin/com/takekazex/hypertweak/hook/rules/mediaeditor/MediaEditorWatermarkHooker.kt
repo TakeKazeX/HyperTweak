@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.mediaeditor
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -183,7 +184,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                 put(FETCHER_CACHE_KEY) { bridge -> resolveResourceFetcherOwner(bridge) }
             }
         }
-        val resolved = DexKitManager.resolveClasses(
+        val resolved = DexRuntime.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
@@ -206,8 +207,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             return null
         }
 
-        val gateAndModern = DexKitManager.withBridge(apkPath) { bridge ->
-            val gates = resolveDeviceGateMethods(bridge, wnA, znA) ?: return@withBridge null
+        val gateAndModern = DexRuntime.query(apkPath, "MediaEditorWatermarkHooker.resolveClasses") { bridge ->
+            val gates = resolveDeviceGateMethods(bridge, wnA, znA) ?: return@query null
             val modern = if (!cloudPipelineAvailable) {
                 runCatching { resolveModernCloud(bridge) }
                     .onFailure { DebugLog.w(TAG, "modern cloud model resolution failed", it) }

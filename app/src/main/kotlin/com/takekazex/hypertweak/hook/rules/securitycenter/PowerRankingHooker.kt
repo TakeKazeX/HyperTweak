@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -23,8 +24,8 @@ import java.util.ArrayList
  * unique result. If DexKit cannot identify that target, the hook is skipped.
  *
  * **DexKit lifetime rule.** A `MethodData` is only readable while its bridge is open:
- * [DexKitManager.withBridge] wraps `DexKitBridge.create(...).use(block)`, so the bridge is closed
- * the moment the block returns and any later `invokes`/`getClassInstance` call throws
+ * [DexRuntime.query] lends a bridge owned by its enclosing shared scope. Consumers must finish
+ * reading lazy data in the callback; a later `invokes`/`getClassInstance` after scope closure throws
  * `IllegalStateException: DexKitBridge is not valid`. Every `MethodData` read — the call-graph
  * disambiguation and the whole fallback row graph — therefore happens inside the block, and only
  * materialized `Method`/`Class`/`Field` objects leave it ([CardResolution]).
@@ -94,7 +95,7 @@ object PowerRankingHooker : StaticHooker() {
     /** Resolve only through the structural DexKit query; ambiguity fails closed. */
     private fun resolveCard(): CardResolution? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        val dexResolved = DexKitManager.withBridge(apkPath) { bridge -> resolveCardWithBridge(bridge) }
+        val dexResolved = DexRuntime.query(apkPath, "PowerRankingHooker.resolveCard") { bridge -> resolveCardWithBridge(bridge) }
         if (dexResolved != null) DebugLog.d(TAG, "card method resolved structurally target=${dexResolved.method}")
         return dexResolved
     }

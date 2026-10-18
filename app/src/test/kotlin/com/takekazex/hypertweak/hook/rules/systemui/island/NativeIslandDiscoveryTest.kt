@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandAnch
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandDiscovery
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandMembers
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -12,6 +13,10 @@ class NativeIslandDiscoveryTest {
     // All implementation owners and semantic entries deliberately use different names.
     @Suppress("unused", "UNUSED_PARAMETER")
     private object Fixture {
+        class Builder {
+            private var cutout: android.widget.FrameLayout? = null
+            fun width(value: Int) {}
+        }
         open class B
         class V : B() { fun getState() = S(); fun getCurrentIslandData() = Data(); fun getFakeView() = F(); fun getViewModel() = VM(); fun getWindowState() = WS(); fun m() {} }
         class VM
@@ -58,6 +63,23 @@ class NativeIslandDiscoveryTest {
             "transitions" to R::class.java.declaredMethods.single(),
             "widthTween" to Tween::class.java.declaredMethods.single(),
         )
+    }
+
+    @Test fun `cached discovery revalidates renamed entries writer and owner relationships`() {
+        val values = Fixture.entries().mapKeys { "entry.${it.key}" }.mapValues {
+            MethodDescriptorCodec.descriptor(it.value)
+        }.toMutableMap()
+        val writer = Fixture.Builder::class.java.getDeclaredMethod("width", Int::class.javaPrimitiveType)
+        values["writer.method"] = MethodDescriptorCodec.descriptor(writer)
+        values["writer.field"] = MethodDescriptorCodec.descriptor(Fixture.Builder::class.java.getDeclaredField("cutout"))
+        values["writer.callers"] = "1"
+        values["writer.caller.0"] = values.getValue("entry.contentMeasure")
+        val loader = javaClass.classLoader!!
+        val resolved = NativeIslandDiscovery.decode(values, loader)
+        assertEquals(values, NativeIslandDiscovery.encode(resolved))
+        assertEquals(Fixture.C::class.java, resolved.entries.getValue("transaction").declaringClass)
+        values["entry.contentMeasure"] = values.getValue("entry.publication")
+        assertThrows(IllegalStateException::class.java) { NativeIslandDiscovery.decode(values, loader) }
     }
 
     @Test fun `complete discovery derives renamed owners through type relationships`() {

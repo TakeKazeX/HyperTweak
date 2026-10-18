@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.trustservice
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -35,7 +36,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "source APK unavailable")
             return
         }
-        val method = DexKitManager.withBridge(apkPath) { bridge ->
+        val method = DexRuntime.query(apkPath, "MiTrustRiskMonitoringHooker.onHook") { bridge ->
             val methodData = bridge.findMethod {
                 matcher {
                     paramCount(0)
@@ -43,7 +44,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
                     addUsingString(STATUS_EVENT_TAG, StringMatchType.Equals)
                     addUsingString(MRM_SERVICE, StringMatchType.Equals)
                 }
-            }.singleOrNull() ?: return@withBridge null
+            }.singleOrNull() ?: return@query null
             runCatching { methodData.getMethodInstance(classLoader) }
                 .onFailure { DebugLog.hookFailed(TAG, "${methodData.className}#${methodData.methodName}", it) }
                 .getOrNull()

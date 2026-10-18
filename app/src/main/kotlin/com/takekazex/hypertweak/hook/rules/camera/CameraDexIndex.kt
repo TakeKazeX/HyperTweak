@@ -8,7 +8,7 @@ import org.jf.dexlib2.iface.reference.FieldReference
 import org.jf.dexlib2.iface.reference.MethodReference
 import org.jf.dexlib2.iface.reference.StringReference
 import java.io.File
-import java.lang.ref.WeakReference
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import java.util.concurrent.ConcurrentHashMap
 
 /** Operand-level evidence for camera feature call sites. No target code is executed here.
@@ -267,16 +267,8 @@ internal class CameraDexIndex private constructor(apk: File) {
     }
 
     companion object {
-        private var cachedPath: String? = null
-        private var cached = WeakReference<CameraDexIndex>(null)
-        @Synchronized fun open(path: String): CameraDexIndex {
-            if (cachedPath == path) cached.get()?.let { return it }
-            return CameraDexIndex(File(path)).also { cachedPath = path; cached = WeakReference(it) }
-        }
-        /** Keep one scan alive through an installation batch, then let GC reclaim its DEX data. */
-        fun <T> withSession(path: String?, block: () -> T): T {
-            val index = path?.let { runCatching { open(it) }.getOrNull() }
-            return try { block() } finally { java.lang.ref.Reference.reachabilityFence(index) }
+        fun open(path: String): CameraDexIndex = DexRuntime.sourceIndex(path, CameraDexIndex::class.java) {
+            CameraDexIndex(File(path))
         }
         fun descriptor(method: MethodReference): String = "${method.definingClass}->${method.name}(" +
             method.parameterTypes.joinToString("") + ")${method.returnType}"

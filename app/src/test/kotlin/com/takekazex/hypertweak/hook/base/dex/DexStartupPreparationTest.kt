@@ -1,15 +1,17 @@
-package com.takekazex.hypertweak.hook.rules.lbe
+package com.takekazex.hypertweak.hook.base.dex
 
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class ClipboardHookInitializationTest {
+class DexStartupPreparationTest {
+    private fun preparation(afterStartup: (() -> Unit) -> Unit, background: (() -> Unit) -> Unit) =
+        DexPreparation(background = background, publish = { it() }, afterStartup = afterStartup, failure = { throw it })
     @Test fun `startup only queues work and duplicate preference retries do not scan twice`() {
         val main = ArrayDeque<() -> Unit>()
         val worker = ArrayDeque<() -> Unit>()
-        val gate = ClipboardHookInitialization({ main.add(it) }, { worker.add(it) })
+        val gate = preparation({ main.add(it) }, { worker.add(it) })
         var scans = 0
         var installed = 0
         repeat(2) { gate.schedule({ ++scans }, { installed = it }) }
@@ -26,7 +28,7 @@ class ClipboardHookInitializationTest {
     @Test fun `retiring queued work prevents scanning and permits a new generation`() {
         val main = ArrayDeque<() -> Unit>()
         val worker = ArrayDeque<() -> Unit>()
-        val gate = ClipboardHookInitialization({ main.add(it) }, { worker.add(it) })
+        val gate = preparation({ main.add(it) }, { worker.add(it) })
         gate.schedule({ fail("retired scan"); 1 }, { fail("retired install") })
         gate.cancel()
         var installed = 0
@@ -42,7 +44,7 @@ class ClipboardHookInitializationTest {
         val release = CountDownLatch(1)
         val finished = CountDownLatch(1)
         var installed = false
-        val gate = ClipboardHookInitialization({ it() }, { task ->
+        val gate = preparation({ it() }, { task ->
             Thread { try { task() } finally { finished.countDown() } }.start()
         })
         gate.schedule({ started.countDown(); release.await(); "old" }, { installed = true })
@@ -61,7 +63,7 @@ class ClipboardHookInitializationTest {
     @Test fun `retired worker completion cannot clear the new pending generation`() {
         val main = ArrayDeque<() -> Unit>()
         val worker = ArrayDeque<() -> Unit>()
-        val gate = ClipboardHookInitialization({ main.add(it) }, { worker.add(it) })
+        val gate = preparation({ main.add(it) }, { worker.add(it) })
         gate.schedule({
             gate.cancel()
             gate.schedule({ "new" }, {})
@@ -76,7 +78,7 @@ class ClipboardHookInitializationTest {
     }
 
     @Test fun `missing target keeps host untouched and allows retry`() {
-        val gate = ClipboardHookInitialization({ it() }, { it() })
+        val gate = preparation({ it() }, { it() })
         gate.schedule<String>({ null }, { fail("unresolved target") })
         var installed = false
         gate.schedule({ "resolved" }, { installed = true })

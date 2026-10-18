@@ -23,37 +23,6 @@ internal interface DexFeature {
 internal enum class DexBackendId(val wireName: String) {
     DEXKIT("dexkit"),
 
-    /**
-     * DexSQL ships as an external CLI/MCP binary (closed source, no embeddable library), so it
-     * cannot answer queries inside a hooked process today. It is registered as an unavailable
-     * backend so feature code and cache plumbing are already backend-aware; an adapter can be
-     * dropped in when a library build exists.
-     */
+    /** Identity for externally produced descriptor caches; there is no in-process DexSQL backend. */
     DEXSQL("dexsql"),
-}
-
-internal interface DexBackend {
-    val id: DexBackendId
-    fun available(): Boolean
-}
-
-internal object DexKitBackend : DexBackend {
-    override val id = DexBackendId.DEXKIT
-    override fun available(): Boolean = true
-}
-
-internal object DexSqlBackend : DexBackend {
-    override val id = DexBackendId.DEXSQL
-    override fun available(): Boolean = false
-}
-
-internal object DexBackends {
-    private val all = listOf(DexKitBackend, DexSqlBackend)
-
-    fun available(): List<DexBackend> = all.filter { it.available() }
-
-    /** First available backend; DexKit remains the only in-process engine. */
-    fun preferred(): DexBackendId = available().firstOrNull()?.id ?: DexBackendId.DEXKIT
-
-    fun summary(): String = all.joinToString(",") { "${it.id.wireName}=${it.available()}" }
 }

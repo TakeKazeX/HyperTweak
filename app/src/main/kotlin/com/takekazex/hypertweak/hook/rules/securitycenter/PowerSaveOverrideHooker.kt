@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.ContentResolver
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -101,7 +102,7 @@ object PowerSaveOverrideHooker : StaticHooker() {
 
     private fun resolveTransition(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "PowerSaveOverrideHooker.resolveTransition") { bridge ->
             bridge.findMethod {
                 matcher {
                     returnType("void")

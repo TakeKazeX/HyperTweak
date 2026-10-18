@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.aicr
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
 import android.content.ContentProvider
 import android.content.Intent
@@ -8,7 +10,6 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -80,7 +81,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     }
 
     private fun resolveTargets(apkPath: String): ResolvedTargets? =
-        DexKitManager.withBridge(apkPath) { bridge ->
+        DexRuntime.query(apkPath, "AicrDefaultBrowserHooker.resolveTargets") { bridge ->
             val legacy = bridge.findMethod {
                 matcher {
                     paramCount(2)

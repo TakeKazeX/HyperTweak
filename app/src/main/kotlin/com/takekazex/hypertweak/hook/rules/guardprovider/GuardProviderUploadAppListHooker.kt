@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.guardprovider
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -41,7 +42,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "source APK unavailable")
             return
         }
-        val resolved = DexKitManager.withBridge(apkPath) { bridge ->
+        val resolved = DexRuntime.query(apkPath, "GuardProviderUploadAppListHooker.onHook") { bridge ->
             val referenceCandidates = bridge.findMethod {
                 matcher {
                     returnType("java.lang.String")

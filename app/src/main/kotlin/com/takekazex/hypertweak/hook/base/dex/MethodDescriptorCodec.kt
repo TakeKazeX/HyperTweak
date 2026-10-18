@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.base.dex
 
 import java.lang.reflect.Method
+import java.lang.reflect.Field
 
 /**
  * Encodes a reflected method as `Lowner;->name(params)return` and back.
@@ -31,6 +32,19 @@ internal object MethodDescriptorCodec {
         type.isPrimitive -> PRIMITIVES.getValue(type.name)
         else -> "L${type.name.replace('.', '/')};"
     }
+
+    fun descriptor(field: Field): String =
+        "${typeDescriptor(field.declaringClass)}->${field.name}:${typeDescriptor(field.type)}"
+
+    fun field(descriptor: String, loader: ClassLoader): Field? = runCatching {
+        val arrow = descriptor.indexOf("->")
+        val colon = descriptor.indexOf(':', arrow + 2)
+        if (arrow <= 0 || colon <= arrow + 2) return null
+        val owner = classOf(descriptor.substring(0, arrow), loader) ?: return null
+        val type = parseType(descriptor.substring(colon + 1), loader) ?: return null
+        owner.getDeclaredField(descriptor.substring(arrow + 2, colon))
+            .takeIf { it.type == type }?.apply { isAccessible = true }
+    }.getOrNull()
 
     fun method(descriptor: String, loader: ClassLoader): Method? = runCatching {
         val arrow = descriptor.indexOf("->")

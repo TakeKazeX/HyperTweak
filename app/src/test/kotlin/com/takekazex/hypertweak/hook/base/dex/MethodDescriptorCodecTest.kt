@@ -6,7 +6,17 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MethodDescriptorCodecTest {
+    private class Fields { @Suppress("unused") private var array: IntArray? = null }
     private val loader = MethodDescriptorCodecTest::class.java.classLoader!!
+
+    @Test fun `field replay validates declared owner name and exact array type`() {
+        val field = Fields::class.java.getDeclaredField("array")
+        val descriptor = MethodDescriptorCodec.descriptor(field)
+        assertEquals(field, MethodDescriptorCodec.field(descriptor, loader))
+        assertNull(MethodDescriptorCodec.field(descriptor.replace(":[I", ":I"), loader))
+        assertNull(MethodDescriptorCodec.field(descriptor + "garbage", loader))
+        assertNull(MethodDescriptorCodec.field("not a field", loader))
+    }
 
     @Test
     fun `round trips instance method`() {

@@ -14,9 +14,14 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArraySet
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.dex.DexPreparationOwner
+import android.os.Handler
+import android.os.Looper
 
 sealed class BaseHooker {
     companion object {
+        private val preparationMain by lazy { Handler(Looper.getMainLooper()) }
         private val hookFactoryConstructor by lazy {
             HookFactory::class.java.getDeclaredConstructor(Executable::class.java).apply {
                 isAccessible = true
@@ -42,6 +47,8 @@ sealed class BaseHooker {
 
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
+    private val dexPreparations = DexPreparationOwner()
+    private val trackedInstances = CopyOnWriteArraySet<HookInstances>()
 
     private var replacementHandles: HotReloadHandleStore? = null
 
@@ -80,12 +87,14 @@ sealed class BaseHooker {
         val newState = isEffectiveEnabled
         if (oldState != newState) {
             if (newState) {
+                dexPreparations.activate()
                 DebugLog.d("BaseHooker", "hooking $hookerName")
                 if (!isHooked) onHook()
             } else {
                 when (this) {
                     is StaticHooker -> { /* Static hookers survive for the lifetime of the process */ }
                     is DynamicHooker -> {
+                        cancelDexPreparations()
                         DebugLog.d("BaseHooker", "unhooking $hookerName")
                         hookHandles.forEach { it.unhook() }
                         hookHandles.clear()
@@ -108,11 +117,66 @@ sealed class BaseHooker {
     /** Restores state captured by [saveHotReloadState] after hooks are attached. */
     open fun restoreHotReloadState(state: Any?) {}
 
+    protected val dexCacheDirectory: java.io.File?
+        get() = DexRuntime.cacheDirectory(hookParam.appInfo)
+
+    /** Features provide a query and hook publication; startup, queueing and retirement are shared. */
+    protected fun <T : Any> prepareDexTargets(
+        name: String = hookerName,
+        resolve: () -> T?,
+        install: (T) -> Unit,
+    ) {
+        dexPreparations.prepare(name,
+            create = { failure -> DexRuntime.preparation(
+                afterStartup = { action -> check(preparationMain.post { action() }) },
+                publish = { action -> check(preparationMain.post { action() }) },
+                failure = failure,
+            ) },
+            failure = { DebugLog.hookFailed(hookerName, "prepare targets: $name", it) },
+            resolve = resolve,
+        ) { target ->
+            val before = collectManagedHookHandles().toSet()
+            val started = android.os.SystemClock.uptimeMillis()
+            try {
+                install(target)
+                DebugLog.i("DexRuntime", "published hooker=$hookerName name=$name " +
+                    "installMs=${android.os.SystemClock.uptimeMillis() - started}")
+            } catch (error: Throwable) {
+                // Retain earlier independent hooks; roll back only this failed publication.
+                collectManagedHookHandles().filterNot { it in before }.forEach { handle ->
+                    runCatching { handle.unhook() }.onFailure(error::addSuppressed)
+                }
+                throw error
+            }
+        }
+    }
+
+    private fun cancelDexPreparations() {
+        dexPreparations.cancel()
+    }
+
+    internal fun instanceTracker(): HookInstances = HookInstances().also(trackedInstances::add)
+
+    /** Observes constructors only. A feature must still validate instances against its resolved contract. */
+    internal fun observeInstances(className: String, tracker: HookInstances) {
+        runCatching { classLoader.loadClass(className) }.getOrNull()?.declaredConstructors?.forEach { constructor ->
+            constructor.hook {
+                after { param ->
+                    if (!dexPreparations.isRetired) HookFailurePolicy.open(hookerName, "capture host instance", Unit) {
+                        tracker.add(param.thisObject)
+                    }
+                }
+            }
+        }
+    }
+
     internal fun performInit() {
+        dexPreparations.activate()
         onInit()
     }
 
     fun prepareForHotReload() {
+        cancelDexPreparations()
         val failures = mutableListOf<Throwable>()
         childHookers.forEach { child ->
             runCatching { child.prepareForHotReload() }
@@ -126,6 +190,7 @@ sealed class BaseHooker {
                 failures += t
                 DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t)
             }
+        trackedInstances.forEach(HookInstances::clear)
         if (failures.isNotEmpty()) {
             val primary = failures.first()
             failures.drop(1).forEach(primary::addSuppressed)
@@ -134,6 +199,7 @@ sealed class BaseHooker {
     }
 
     fun resetAfterHotReloadPrepared() {
+        cancelDexPreparations()
         childHookers.forEach { it.resetAfterHotReloadPrepared() }
         hookHandles.clear()
         childHookers.clear()
@@ -146,7 +212,7 @@ sealed class BaseHooker {
      * unavailable. Hookers that already own a managed handle are left untouched.
      */
     fun retryHookIfNeeded() {
-        if (isEffectiveEnabled && !isHooked) {
+        if (!dexPreparations.isRetired && isEffectiveEnabled && !isHooked) {
             runCatching {
                 DebugLog.d("BaseHooker", "retrying $hookerName after preferences became available")
                 onHook()
@@ -472,7 +538,7 @@ sealed class BaseHooker {
         val cacheDir = java.io.File(baseDir, "cache")
         val apkPath = appInfo.sourceDir ?: return className.toClassOrNull()
 
-        val resolved = DexKitManager.resolveClasses(
+        val resolved = DexRuntime.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,

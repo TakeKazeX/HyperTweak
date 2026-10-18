@@ -11,7 +11,7 @@ Use `build.gradle.kts` and `app/build.gradle.kts` for current plugins, SDKs, Jav
 Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - `hook/`: process entry and feature hooks; `hook/base/`: shared resolution and lifecycle infrastructure.
 - `ui/`: Compose screens; `util/`: shared utilities, including `PlatformLevel.kt` for OS3/OS4 gates.
-- `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns lifecycle/resolution; `DexKitManager` resolves and caches obfuscated targets.
+- `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns hook lifecycle. `hook/base/dex` owns feature descriptors, APK identity caches, serialized resolution and cancellable background preparation; `DexKitManager` is the native bridge backend; consumers use `DexRuntime` and `BaseHooker.prepareDexTargets` instead of managing bridge, worker, cache or cancellation state. Runtime settings refresh existing island policies without reinstalling or scanning DEX on the main thread.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.

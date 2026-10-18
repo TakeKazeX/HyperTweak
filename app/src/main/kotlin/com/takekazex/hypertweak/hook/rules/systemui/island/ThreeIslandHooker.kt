@@ -35,8 +35,24 @@ class ThreeIslandHooker(
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retiring = false
 
+    private val pendingOwners = instanceTracker()
+
     override fun onHook() {
-        access = NativeIslandAccess(NativeIslandDiscovery.scan(pluginApkPath, classLoader))
+        if (retiring) return
+        observeInstances("miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator", pendingOwners)
+        prepareDexTargets(
+            resolve = { NativeIslandAccess(NativeIslandDiscovery.scan(pluginApkPath, classLoader, dexCacheDirectory)) },
+            install = { prepared ->
+                if (!retiring) {
+                    installPrepared(prepared)
+                    restoreOwners(snapshotOwners())
+                }
+            },
+        )
+    }
+
+    private fun installPrepared(prepared: NativeIslandAccess) {
+        access = prepared
         musicSpectrum = runCatching { NativeMusicSpectrum(access.content) }
             .onFailure { DebugLog.w(TAG, "native small-island spectrum contract unavailable", it) }
             .getOrNull()
@@ -76,11 +92,17 @@ class ThreeIslandHooker(
         DebugLog.hookRegistered(TAG, "DexKit native third task, adaptive full templates and touch routing")
     }
 
-    fun snapshotOwners(): List<Any> = runtime?.sessions?.owners().orEmpty()
+    fun snapshotOwners(): List<Any> =
+        (runtime?.sessions?.owners().orEmpty() + pendingOwners.snapshot()).distinct()
 
     fun restoreOwners(owners: List<Any>) {
-        if (!::access.isInitialized || retiring) return
+        if (retiring) return
+        if (!::access.isInitialized || runtime == null) {
+            owners.forEach(pendingOwners::add)
+            return
+        }
         val runtime = runtime ?: return
+        pendingOwners.clear()
         owners.filter(access.coordinator::isInstance).forEach(runtime.sessions::getOrCreate)
         refreshSettings()
     }
@@ -109,6 +131,7 @@ class ThreeIslandHooker(
 
     override fun onPrepareHotReload() {
         retiring = true
+        pendingOwners.clear()
         val runtime = runtime
         runtime?.diagnostics?.retire()
         main.removeCallbacks(settingsRefresh)

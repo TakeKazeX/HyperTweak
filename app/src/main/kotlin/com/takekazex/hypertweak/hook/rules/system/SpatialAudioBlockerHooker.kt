@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -7,7 +9,6 @@ import android.widget.TextView
 import java.util.concurrent.CompletableFuture
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
 import org.luckypray.dexkit.DexKitBridge
 
@@ -410,7 +411,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         val query: (DexKitBridge) -> String? = { bridge ->
             bridge.findClass { matcher { usingStrings(*strings) } }.singleOrNull()?.name
         }
-        val resolved = DexKitManager.resolveClasses(java.io.File(base, "cache"), apk, classLoader,
+        val resolved = DexRuntime.resolveClasses(java.io.File(base, "cache"), apk, classLoader,
             mapOf(name to query), logMissingQueries = false)[name]
         if (resolved == null) Log.w(TAG, "unable to resolve $name using ${strings.toList()}")
         else Log.d(TAG, "resolved $name as ${resolved.name} using DexKit")
@@ -437,7 +438,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             val query: (DexKitBridge) -> String? = { bridge ->
                 bridge.findClass { matcher { usingStrings(*markers) } }.singleOrNull()?.name
             }
-            val resolved = DexKitManager.resolveClasses(
+            val resolved = DexRuntime.resolveClasses(
                 java.io.File(base, "cache"), apk, classLoader,
                 mapOf(key to query), logMissingQueries = false, validators = mapOf(key to validator)
             )[key]

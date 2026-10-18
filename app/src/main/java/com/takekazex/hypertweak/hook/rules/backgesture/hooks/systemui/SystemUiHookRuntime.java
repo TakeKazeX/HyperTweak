@@ -56,12 +56,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences;
 import io.github.libxposed.api.XposedInterface;
-import org.luckypray.dexkit.DexKitBridge;
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
@@ -2458,8 +2457,6 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             preparedBackStartAnimationInvoker;
     protected volatile boolean preparedBackTargetArrivalHookReady;
     protected volatile boolean preparedBackTerminalHookReady;
-    protected final AtomicInteger systemUiDexResolutionInFlight =
-            new AtomicInteger();
     private volatile String preparedBackRunnerDexContainer;
 
     protected void hookPreparedBackTargetArrival(ClassLoader classLoader) {
@@ -2495,43 +2492,36 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
     private Method resolvePreparedBackTargetArrivalWithDexKit(
             ClassLoader classLoader, Class<?> controllerClass, Class<?> runnerStub)
             throws Throwable {
-        Method resolved = null;
-        systemUiDexResolutionInFlight.incrementAndGet();
-        try {
-            ensureDexKitLibraryLoaded();
-            // BackAnimationController lives in a shared Shell jar on Android 17, not in the
-            // SystemUI APK. DexKit's ClassLoader bridge does not necessarily expose shared
-            // library dex files, so locate the one loaded dex container that actually declares
-            // the controller and search that container directly.
-            String dexContainer = resolveDexContainerForLoadedClass(controllerClass);
-            try (DexKitBridge bridge = DexKitBridge.create(dexContainer)) {
-                FindMethod query = FindMethod.create().matcher(
-                        MethodMatcher.create()
-                                .name("onAnimationStart")
-                                .paramCount(3));
-                for (MethodData candidate : bridge.findMethod(query)) {
-                    Method method;
-                    try {
-                        method = candidate.getMethodInstance(classLoader);
-                        validatePreparedBackTargetArrivalSignature(method);
-                        validatePreparedBackTargetArrivalAdapter(
-                                method.getDeclaringClass(), controllerClass, runnerStub);
-                    } catch (Throwable ignored) {
-                        // The method name and arity are intentionally only a Dex search key.
-                        // Require the complete callback and owner contract after loading it.
-                        continue;
-                    }
-                    if (resolved != null && !resolved.equals(method)) {
-                        throw new IllegalStateException(
-                                "Ambiguous back animation runner adapters: "
-                                        + resolved + " and " + method);
-                    }
-                    resolved = method;
+        // BackAnimationController lives in a shared Shell jar on Android 17. Resolve the
+        // actual loaded container, while the common runtime owns native loading and lifetime.
+        String dexContainer = resolveDexContainerForLoadedClass(controllerClass);
+        Method resolved = DexRuntime.INSTANCE.query(
+                dexContainer, "backgesture.preparedTargetArrival", bridge -> {
+            Method match = null;
+            FindMethod query = FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .name("onAnimationStart")
+                            .paramCount(3));
+            for (MethodData candidate : bridge.findMethod(query)) {
+                Method method;
+                try {
+                    method = candidate.getMethodInstance(classLoader);
+                    validatePreparedBackTargetArrivalSignature(method);
+                    validatePreparedBackTargetArrivalAdapter(
+                            method.getDeclaringClass(), controllerClass, runnerStub);
+                } catch (Throwable ignored) {
+                    // Name and arity are only a search key; require the full owner contract.
+                    continue;
                 }
+                if (match != null && !match.equals(method)) {
+                    throw new IllegalStateException(
+                            "Ambiguous back animation runner adapters: "
+                                    + match + " and " + method);
+                }
+                match = method;
             }
-        } finally {
-            systemUiDexResolutionInFlight.decrementAndGet();
-        }
+            return match;
+        });
         if (resolved == null) {
             throw new NoSuchMethodException(
                     "No exact BackAnimationController runner adapter found");

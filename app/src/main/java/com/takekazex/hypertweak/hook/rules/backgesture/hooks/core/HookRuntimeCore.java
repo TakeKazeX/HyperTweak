@@ -46,20 +46,6 @@ import com.takekazex.hypertweak.hook.Preferences;
 import com.takekazex.hypertweak.util.DebugLog;
 
 public abstract class HookRuntimeCore {
-    private volatile boolean dexKitLibraryLoaded;
-
-    protected final void ensureDexKitLibraryLoaded() {
-        if (dexKitLibraryLoaded) {
-            return;
-        }
-        synchronized (this) {
-            if (!dexKitLibraryLoaded) {
-                System.loadLibrary("dexkit");
-                dexKitLibraryLoaded = true;
-            }
-        }
-    }
-
     protected abstract void invalidateOpenTransitionSnapshot(
             OpenTransitionSnapshot snapshot, String reason);
 

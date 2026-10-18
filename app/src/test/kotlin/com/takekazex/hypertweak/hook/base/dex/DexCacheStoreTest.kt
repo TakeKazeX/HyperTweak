@@ -32,7 +32,7 @@ class DexCacheStoreTest {
     }
 
     private fun apk(bytes: String = "apk"): File =
-        File(cacheDir.parentFile, "target-${System.nanoTime()}.apk").apply {
+        File(cacheDir, "target-${System.nanoTime()}.apk").apply {
             writeText(bytes)
             setLastModified(1_700_000_000_000L)
         }
@@ -54,6 +54,25 @@ class DexCacheStoreTest {
         apk.appendText("changed")
 
         assertNull(DexCacheStore(Feature, cacheDir).read(apk))
+    }
+
+    @Test fun `rejects replaced bytes even when path size and mtime match`() {
+        val apk = apk("old")
+        val timestamp = apk.lastModified()
+        DexCacheStore(Feature, cacheDir).write(apk, mapOf("target" to "old target"))
+        apk.writeText("new")
+        assertEquals(true, apk.setLastModified(timestamp))
+
+        assertNull(DexCacheStore(Feature, cacheDir).read(apk))
+    }
+
+    @Test fun `atomic replacement leaves complete values and no temporary file`() {
+        val apk = apk()
+        val store = DexCacheStore(Feature, cacheDir)
+        store.write(apk, mapOf("removed" to "old"))
+        store.write(apk, mapOf("new" to "complete"))
+        assertEquals(mapOf("new" to "complete"), store.read(apk))
+        assertEquals(emptyList<String>(), cacheDir.listFiles()!!.filter { it.extension == "tmp" }.map { it.name })
     }
 
     @Test

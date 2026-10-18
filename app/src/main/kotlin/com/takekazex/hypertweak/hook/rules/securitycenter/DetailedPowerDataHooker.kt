@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -67,7 +68,7 @@ object DetailedPowerDataHooker : StaticHooker() {
     }
 
     private fun resolveTargets(apkPath: String): ResolvedTargets? {
-        val dexTargets = DexKitManager.withBridge(apkPath) { bridge ->
+        val dexTargets = DexRuntime.query(apkPath, "DetailedPowerDataHooker.resolveTargets") { bridge ->
             val splitCandidates = bridge.findMethod {
                 matcher {
                     paramCount(0)

@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -13,7 +15,6 @@ import android.os.Message
 import android.text.format.DateFormat
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -451,7 +452,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
 
     private fun resolveReadMethods(apkPath: String?): BatteryReadMethods {
         val dexResolved = apkPath?.let { path ->
-            DexKitManager.withBridge(path) { bridge ->
+            DexRuntime.query(path, "MoreBatteryInfoHooker.resolveReadMethods") { bridge ->
                 BatteryReadMethods(
                     manufacturingDate = findDexMethod(bridge, "manufacturing_date", String::class.java),
                     firstUsageDate = findDexMethod(bridge, "first_usage_date", String::class.java),

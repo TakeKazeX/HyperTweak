@@ -3,9 +3,6 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import android.os.Process
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -17,7 +14,6 @@ import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
 import org.json.JSONObject
 import java.io.File
 import java.lang.reflect.Modifier
-import java.util.concurrent.Executors
 
 /** Keeps the native Security Center privacy and camera entries in their original preference pages. */
 object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
@@ -64,23 +60,6 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      * deadline there, so the process was killed and retried. Capability gates have no UI in those
      * processes; installing them after startup is equivalent for every later consumer.
      */
-    private val deferredLock = Any()
-    private var deferredGeneration = 0L
-    private var deferredPending = false
-    private val deferredWorker = Executors.newSingleThreadExecutor { task ->
-        Thread({
-            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
-            task.run()
-        }, "HT-SecurityPrivacy").apply { isDaemon = true }
-    }
-
-    override fun onPrepareHotReload() {
-        synchronized(deferredLock) {
-            deferredGeneration++
-            deferredPending = false
-        }
-    }
-
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!hasAnyFeatureEnabled()) {
@@ -112,7 +91,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             DebugLog.w(TAG, "target APK path unavailable; semantic overrides skipped")
             return
         }
-        val cacheDir = hookParam.appInfo?.dataDir?.takeIf { it.isNotBlank() }?.let { File(it, "cache") }
+        val cacheDir = dexCacheDirectory
 
         if (hookParam.isMainProcess) {
             val profile = runCatching {
@@ -167,41 +146,17 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     private fun scheduleDeferredInstall(apkPath: String, cacheDir: File?, antiPeepingMode: Int) {
-        val token = synchronized(deferredLock) {
-            if (deferredPending) return
-            deferredPending = true
-            deferredGeneration
-        }
-        Handler(Looper.getMainLooper()).post {
-            if (!isCurrentGeneration(token)) return@post
-            deferredWorker.execute {
-                try {
-                    if (!isCurrentGeneration(token)) return@execute
-                    val profile = runCatching {
-                        SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir)
-                    }.onFailure {
-                        DebugLog.w(TAG, "privacy target resolution failed", it)
-                    }.getOrNull() ?: return@execute
-                    synchronized(deferredLock) {
-                        if (!isCurrentGeneration(token)) return@synchronized
-                        // Only the capability gates run outside the main process; the settings UI
-                        // hooks above stay on the package-load path where they are required.
-                        if (antiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-                            hookAntiPeepingCapabilityGates(profile)
-                        }
-                        DebugLog.d(TAG, "deferred anti-peeping gates installed mode=$antiPeepingMode")
-                    }
-                } finally {
-                    synchronized(deferredLock) {
-                        if (deferredGeneration == token) deferredPending = false
-                    }
+        prepareDexTargets(
+            name = "securitycenter.privacy",
+            resolve = { SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir) },
+            install = { profile ->
+                if (antiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+                    hookAntiPeepingCapabilityGates(profile)
                 }
-            }
-        }
+                DebugLog.d(TAG, "deferred anti-peeping gates installed mode=$antiPeepingMode")
+            },
+        )
     }
-
-    private fun isCurrentGeneration(token: Long): Boolean =
-        synchronized(deferredLock) { deferredGeneration == token }
 
     private fun hasAnyFeatureEnabled(): Boolean =
         isPrivacyCallEnabled() ||

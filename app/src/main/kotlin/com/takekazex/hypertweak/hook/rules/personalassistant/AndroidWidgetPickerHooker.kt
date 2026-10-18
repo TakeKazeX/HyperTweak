@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.app.Activity
 import android.app.Dialog
 import android.appwidget.AppWidgetManager
@@ -11,7 +13,6 @@ import android.os.Process
 import android.view.View
 import android.widget.Toast
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
@@ -69,7 +70,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
     override fun onHook() {
         if (!isMainProcess || !PlatformLevel.isOs4) return
         apkPath = hookParam.appInfo?.sourceDir ?: return
-        val resolved = runCatching { DexKitManager.withBridge(apkPath) { resolveEntry(it) } }
+        val resolved = runCatching { DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.onHook") { resolveEntry(it) } }
             .onFailure { DebugLog.hookFailed(TAG, "native picker contract", it) }.getOrNull()
         if (resolved == null) {
             DebugLog.hookSkipped(TAG, "native Android-widget entry", "entry contract unavailable; inspect DexKit failure stage")
@@ -140,7 +141,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         val context = activity.applicationContext
         worker.launch {
             try {
-                val picker = contract ?: DexKitManager.withBridge(apkPath) { resolvePicker(it) }
+                val picker = contract ?: DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.choose") { resolvePicker(it) }
                     ?: error("native provider picker contract unavailable")
                 contract = picker
                 val choices = providers(context, picker)

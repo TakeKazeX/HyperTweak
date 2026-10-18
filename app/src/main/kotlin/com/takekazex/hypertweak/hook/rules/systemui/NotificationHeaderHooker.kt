@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Handler
@@ -9,7 +11,6 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
@@ -206,7 +207,7 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private fun resolveGeneratedCallbacks(): GeneratedCallbacks? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "NotificationHeaderHooker.resolveGeneratedCallbacks") { bridge ->
             GeneratedCallbacks(
                 notificationExpansion = resolveGeneratedCallback(
                     bridge,

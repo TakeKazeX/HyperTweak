@@ -17,23 +17,24 @@ import com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardResizeHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.ConcurrentHashMap
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.HookSessionRegistry
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 
 object SystemUIPluginHooker : StaticHooker() {
     private data class PluginHookSession(
-        val state: HotReloadPluginState,
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
-        var superIslandHooker: ControlCenterSuperIslandHooker,
-        var threeIslandHooker: ThreeIslandHooker,
-        var liveUpdateIconHooker: LiveUpdateIconHooker,
-        var timeFontHooker: IslandTimeFontHooker,
+        val superIslandHooker: ControlCenterSuperIslandHooker,
+        val threeIslandHooker: ThreeIslandHooker,
+        val liveUpdateIconHooker: LiveUpdateIconHooker,
+        val timeFontHooker: IslandTimeFontHooker,
         val cardsEditHooker: ControlCenterCardsEditHooker?,
         val cardResizeHooker: ControlCenterCardResizeHooker?,
         val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
-        val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker?
+        val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker
     )
 
     private data class AodPluginSession(
@@ -41,41 +42,23 @@ object SystemUIPluginHooker : StaticHooker() {
         val hooker: AodStatusIconHooker
     )
 
-    private val activeSessions = ConcurrentHashMap<Any, PluginHookSession>()
+    private val activeSessions = HookSessionRegistry<HotReloadPluginState, PluginHookSession>()
     private val activeAodSessions = ConcurrentHashMap<Any, AodPluginSession>()
 
-    /** All island participants are replaced together after capturing every live host. */
+    /** Settings change policies, not host contracts. Keep hooks and their live owners in place. */
     fun reloadIslandSettings(): Boolean {
-        activeSessions.values.forEach { session ->
-            val scheduler = ThreeIslandHooker(session.state.pluginApkPath, classLoader)
-            val controller = ControlCenterSuperIslandHooker()
-            val icon = LiveUpdateIconHooker()
-            val font = IslandTimeFontHooker()
-            val replacements = listOf(
-                session.threeIslandHooker to scheduler, session.superIslandHooker to controller,
-                session.liveUpdateIconHooker to icon, session.timeFontHooker to font
-            )
-            replaceChildren(replacements) {
-                // Recovery runs after every installation attempt, including partial failures.
-                // Capture failure leaves the original session untouched.
-
-                session.threeIslandHooker = scheduler
-                session.superIslandHooker = controller
-                session.liveUpdateIconHooker = icon
-                session.timeFontHooker = font
-                font.restoreIslandOwners(scheduler.snapshotOwners())
-                DebugLog.i("RuntimeSettings", "island hosts restored owners=${scheduler.snapshotOwners().size} " +
-                    "three=${Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)} " +
-                    "full=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)} " +
-                    "more=${Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)}")
-            }
+        activeSessions.sessions().forEach { session ->
+            session.threeIslandHooker.refreshSettings()
+            session.superIslandHooker.refreshSettings()
+            session.liveUpdateIconHooker.refreshSettings()
+            session.timeFontHooker.restoreIslandOwners(session.threeIslandHooker.snapshotOwners())
         }
         // A plugin arriving later attaches directly against the current committed snapshot.
         return true
     }
 
-    override fun saveHotReloadState(): Any = activeSessions.values.map { session ->
-        listOf(session.state.pluginInstance, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
+    override fun saveHotReloadState(): Any = activeSessions.bindings().map { (owner, session) ->
+        listOf(owner, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
             session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders())
     }
 
@@ -142,7 +125,7 @@ object SystemUIPluginHooker : StaticHooker() {
                             runCatching { session.hooker.prepareForHotReload() }
                             detach(session.hooker)
                         }
-                        val session = activeSessions.remove(pluginInstance)
+                        val session = activeSessions.release(pluginInstance)
                         if (session != null) {
                             runCatching { session.sliderPercentHooker.prepareForHotReload() }
                             runCatching { session.cornerHooker.prepareForHotReload() }
@@ -158,7 +141,7 @@ object SystemUIPluginHooker : StaticHooker() {
                                 runCatching { deviceIcon.prepareForHotReload() }
                                 detach(deviceIcon)
                             }
-                            session.mediaSuperIslandWhitelistHooker?.let { mediaWhitelist ->
+                            session.mediaSuperIslandWhitelistHooker.let { mediaWhitelist ->
                                 runCatching { mediaWhitelist.prepareForHotReload() }
                                 detach(mediaWhitelist)
                             }
@@ -185,7 +168,7 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     fun snapshotHotReloadPlugins(): List<HotReloadPluginState> {
-        return activeSessions.values.map { it.state } + activeAodSessions.values.map { it.state }
+        return activeSessions.states() + activeAodSessions.values.map { it.state }
     }
 
     fun restoreHotReloadPlugins(states: List<HotReloadPluginState>) {
@@ -260,8 +243,7 @@ object SystemUIPluginHooker : StaticHooker() {
         return null
     }
 
-    private fun attachPluginHooker(state: HotReloadPluginState) {
-        if (activeSessions.containsKey(state.pluginInstance)) return
+    private fun createPluginSession(state: HotReloadPluginState): PluginHookSession {
         val hooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
             SliderPercentageHooker(state.appContext, state.pluginApkPath)
         } else {
@@ -295,9 +277,7 @@ object SystemUIPluginHooker : StaticHooker() {
         }
         val mediaSuperIslandWhitelistHooker = MediaSuperIslandWhitelistHooker()
 
-        activeSessions[state.pluginInstance] =
-            PluginHookSession(
-                state,
+        return PluginHookSession(
                 hooker,
                 cornerHooker,
                 volumeKeyHooker,
@@ -310,58 +290,82 @@ object SystemUIPluginHooker : StaticHooker() {
                 mediaDeviceIconHooker,
                 mediaSuperIslandWhitelistHooker
             )
-        // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
-        // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
-        // hooker uninstalled while the session entry suppressed later retries.
-        runCatching { attach(threeIslandHooker, state.classLoader) }
-            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach three-island scheduler", it) }
-        runCatching { attach(timeFontHooker, state.classLoader) }
-            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island timer font", it) }
-        runCatching { attach(liveUpdateIconHooker, state.classLoader) }
-            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
-        runCatching { attach(superIslandHooker, state.classLoader) }
-            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
-        runCatching { attach(hooker, state.classLoader) }
-            .onFailure { t ->
-                DebugLog.e("SystemUIPlugin", "failed to attach slider-percent plugin hook", t)
-                Log.e("HyperTweak", "SystemUIPluginHooker: slider-percent attach failed", t)
+    }
+
+    private fun attachPluginHooker(state: HotReloadPluginState) {
+        val (session, created) = activeSessions.acquire(state.pluginInstance, state.classLoader, state) {
+            createPluginSession(state)
+        }
+        if (!created) {
+            DebugLog.d("SystemUIPlugin", "reused plugin hooks loader=${System.identityHashCode(state.classLoader)} component=${state.componentClass}")
+            return
+        }
+        val hooker = session.sliderPercentHooker
+        val cornerHooker = session.cornerHooker
+        val volumeKeyHooker = session.volumeKeyHooker
+        val superIslandHooker = session.superIslandHooker
+        val threeIslandHooker = session.threeIslandHooker
+        val liveUpdateIconHooker = session.liveUpdateIconHooker
+        val timeFontHooker = session.timeFontHooker
+        val cardsEditHooker = session.cardsEditHooker
+        val cardResizeHooker = session.cardResizeHooker
+        val mediaDeviceIconHooker = session.mediaDeviceIconHooker
+        val mediaSuperIslandWhitelistHooker = session.mediaSuperIslandWhitelistHooker
+        val sharedSession = state.pluginApkPath.takeIf(String::isNotBlank)?.let(DexRuntime::beginSession)
+        try {
+            // Each attach is its own failure boundary: a throw from one hooker's onHook (e.g. a
+            // DexKit scan hiccup) must not skip the other — that was silently leaving the corner
+            // hooker uninstalled while the session entry suppressed later retries.
+            runCatching { attach(threeIslandHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach three-island scheduler", it) }
+            runCatching { attach(timeFontHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island timer font", it) }
+            runCatching { attach(liveUpdateIconHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
+            runCatching { attach(superIslandHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
+            runCatching { attach(hooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach slider-percent plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: slider-percent attach failed", t)
+                }
+            runCatching { attach(cornerHooker, state.classLoader) }
+                .onFailure { t ->
+                    DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
+                    Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
+                }
+            runCatching { attach(volumeKeyHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach volume-key plugin hook", it) }
+            if (cardsEditHooker != null) {
+                runCatching { attach(cardsEditHooker, state.classLoader) }
+                    .onFailure { t ->
+                        DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
+                        Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
+                    }
             }
-        runCatching { attach(cornerHooker, state.classLoader) }
-            .onFailure { t ->
-                DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
-                Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
+            if (cardResizeHooker != null) {
+                runCatching { attach(cardResizeHooker, state.classLoader) }
+                    .onFailure { t ->
+                        DebugLog.e("SystemUIPlugin", "failed to attach card-resize plugin hook", t)
+                        Log.e("HyperTweak", "SystemUIPluginHooker: card-resize attach failed", t)
+                    }
             }
-        runCatching { attach(volumeKeyHooker, state.classLoader) }
-            .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach volume-key plugin hook", it) }
-        if (cardsEditHooker != null) {
-            runCatching { attach(cardsEditHooker, state.classLoader) }
-                .onFailure { t ->
-                    DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
-                }
-        }
-        if (cardResizeHooker != null) {
-            runCatching { attach(cardResizeHooker, state.classLoader) }
-                .onFailure { t ->
-                    DebugLog.e("SystemUIPlugin", "failed to attach card-resize plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: card-resize attach failed", t)
-                }
-        }
-        if (mediaDeviceIconHooker != null) {
-            runCatching { attach(mediaDeviceIconHooker, state.classLoader) }
-                .onFailure { t ->
-                    DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
-                }
-        }
-        run {
-            runCatching { attach(mediaSuperIslandWhitelistHooker, state.classLoader) }
-                .onFailure { t ->
-                    DebugLog.e("SystemUIPlugin", "failed to attach media Super Island plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: media Super Island attach failed", t)
-                }
-        }
-        DebugLog.d("SystemUIPlugin", "attached plugin hook ${state.componentPackage}/${state.componentClass}")
+            if (mediaDeviceIconHooker != null) {
+                runCatching { attach(mediaDeviceIconHooker, state.classLoader) }
+                    .onFailure { t ->
+                        DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
+                        Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
+                    }
+            }
+            run {
+                runCatching { attach(mediaSuperIslandWhitelistHooker, state.classLoader) }
+                    .onFailure { t ->
+                        DebugLog.e("SystemUIPlugin", "failed to attach media Super Island plugin hook", t)
+                        Log.e("HyperTweak", "SystemUIPluginHooker: media Super Island attach failed", t)
+                    }
+            }
+        } finally { sharedSession?.close() }
+        DebugLog.i("SystemUIPlugin", "attached shared plugin hooks loader=${System.identityHashCode(state.classLoader)} component=${state.componentClass}")
     }
 
     private fun attachAodPluginHooker(state: HotReloadPluginState) {

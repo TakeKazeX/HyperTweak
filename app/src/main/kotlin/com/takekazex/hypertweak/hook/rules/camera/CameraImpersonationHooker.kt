@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.ComponentName
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -9,7 +11,6 @@ import android.util.SparseArray
 import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.StaticFieldWriter
@@ -391,7 +392,7 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "camera APK path unavailable; adaptive tint-color gate skipped")
             return
         }
-        val gateMethod = DexKitManager.withBridge(apkPath) { bridge ->
+        val gateMethod = DexRuntime.query(apkPath, "CameraImpersonationHooker.hookLccCustomizationProvider") { bridge ->
             resolveTintColorProviderGate(bridge)
         } ?: run {
             DebugLog.w(TAG, "adaptive tint-color gate not resolved; tint-color restore skipped")
@@ -584,7 +585,7 @@ object CameraImpersonationHooker : StaticHooker() {
 
         val apkPath = ctx.appInfo?.sourceDir ?: return
         val styleGate = runCatching {
-            DexKitManager.withBridge(apkPath) { bridge ->
+            DexRuntime.query(apkPath, "CameraImpersonationHooker.hookShutterSoundPlaybackRoute") { bridge ->
                 bridge.findMethod {
                     matcher { usingStrings("loadSound failed: audioData is null for sound") }
                 }.asSequence()

@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
@@ -25,7 +27,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
@@ -745,7 +746,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val appInfo = hookParam.appInfo ?: return null
         val apkPath = appInfo.sourceDir ?: return null
         val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexKitManager.resolveClasses(
+        return DexRuntime.resolveClasses(
             cacheDir = File(baseDir, "cache"),
             apkPath = apkPath,
             classLoader = classLoader,
@@ -1765,7 +1766,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private fun resolveCarrierTextCallback(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "ControlCenterCarrierBlockHooker.resolveCarrierTextCallback") { bridge ->
             bridge.findMethod {
                 matcher {
                     declaredClass {

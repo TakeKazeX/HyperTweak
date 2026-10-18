@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import android.annotation.SuppressLint
 import android.content.Context
@@ -13,7 +15,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -349,7 +350,7 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun resolvePanelMotionMethods(): List<Method> {
         val apkPath = hookParam.appInfo?.sourceDir ?: return emptyList()
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "StackedSignalHooker.resolvePanelMotionMethods") { bridge ->
             val expansion = resolvePanelMotionMethod(
                 bridge,
                 "onExpansionChanged",

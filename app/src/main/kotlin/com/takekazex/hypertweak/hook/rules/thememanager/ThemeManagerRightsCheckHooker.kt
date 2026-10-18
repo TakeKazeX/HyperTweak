@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.thememanager
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -94,7 +95,7 @@ object ThemeManagerRightsCheckHooker : StaticHooker() {
     /** Fallback route: upstream Ceiler's markers, which survive a class rename. */
     private fun dexKitMatch(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "ThemeManagerRightsCheckHooker.dexKitMatch") { bridge ->
             bridge.findMethod {
                 matcher {
                     addUsingString("theme", StringMatchType.Equals)

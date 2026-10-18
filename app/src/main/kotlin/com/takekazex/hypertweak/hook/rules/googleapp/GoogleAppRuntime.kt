@@ -1,13 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedInterface
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Coordinates the independent Google App features using one DexKit bridge per process.
@@ -24,7 +24,6 @@ object GoogleAppRuntime : StaticHooker() {
     private const val RETIRED_CAPABILITY = "google_lens_aim_screen_capability"
     private const val RETIRED_DIAGNOSTIC_PREFIX = "google_lens_diagnostic_"
 
-    private val dexResolutionInFlight = AtomicInteger()
     private val preReplacedIds = ConcurrentHashMap.newKeySet<String>()
 
     @Volatile
@@ -35,12 +34,13 @@ object GoogleAppRuntime : StaticHooker() {
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
-    /** True while this process owns the shared DexKit bridge. */
-    val isResolvingDex: Boolean
-        get() = dexResolutionInFlight.get() != 0
-
     override fun onHook() {
         if (hookParam.packageName != PACKAGE || installationStarted) return
+        // LensExportedActivity (including its aliases) and LensientActivity execute here.
+        // The current manifest was verified against 693c70e37b329840e93fe1b1683a251fea773f511adb4aa01b396193b8936ae2.
+        // Interactor/search/background providers never own these UI gates; scanning their entire
+        // APK at boot needlessly blocks bindApplication before the voice service can publish.
+        if (hookParam.processName != "$PACKAGE:googleapp") return
         installationStarted = true
 
         // The children are lifecycle participants so BaseHooker can collect and replace their
@@ -67,9 +67,8 @@ object GoogleAppRuntime : StaticHooker() {
         }.onFailure { failure ->
             DebugLog.w(TAG, "Live Translate system-feature hook failed", failure)
         }
-        dexResolutionInFlight.incrementAndGet()
         try {
-            DexKitManager.withBridge(apk) { bridge ->
+            DexRuntime.query(apk, "GoogleAppRuntime.onHook") { bridge ->
                 // The Lens entry hook resolves first on purpose: it is the one whose target the
                 // Google App calls *during* its own cold start (the exported Lens activity asks for
                 // the caller package and the eligibility decision as soon as it resumes), so its
@@ -91,7 +90,6 @@ object GoogleAppRuntime : StaticHooker() {
                 }
             }
         } finally {
-            dexResolutionInFlight.decrementAndGet()
             existingHookIds.forEach(preReplacedIds::remove)
         }
     }

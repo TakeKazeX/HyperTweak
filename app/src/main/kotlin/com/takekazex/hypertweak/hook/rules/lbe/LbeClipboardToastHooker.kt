@@ -1,13 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.lbe
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import android.os.Process
 import android.view.View
 import android.widget.Toast
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -17,7 +15,6 @@ import java.io.File
 import java.lang.ref.Reference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.concurrent.Executors
 
 /**
  * Shows the clipboard-reading warning as a normal Android Toast instead of the vendor overlay.
@@ -69,21 +66,9 @@ object LbeClipboardToastHooker : StaticHooker() {
 
     private var contextField: Field? = null
 
-    private val worker = Executors.newSingleThreadExecutor { task ->
-        Thread({
-            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
-            task.run()
-        }, "HT-ClipboardResolver").apply { isDaemon = true }
-    }
-    private val initialization = ClipboardHookInitialization(
-        afterStartup = { task -> Handler(Looper.getMainLooper()).post { task() } },
-        background = { task -> worker.execute { task() } },
-    )
-
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
-        initialization.cancel()
         enabled = false
         contextField = null
     }
@@ -100,7 +85,7 @@ object LbeClipboardToastHooker : StaticHooker() {
         val packageName = hookParam.packageName
         val appInfo = hookParam.appInfo
         val loader = classLoader
-        initialization.schedule(
+        prepareDexTargets(
             resolve = {
                 runCatching {
                     resolveOverlayType(
@@ -168,7 +153,7 @@ object LbeClipboardToastHooker : StaticHooker() {
     private fun resolveObfuscatedType(apkPath: String?, dataDir: String?, loader: ClassLoader): Class<*>? {
         if (apkPath == null) return null
         val key = "clipboardToastOverlayV2"
-        return DexKitManager.resolveClasses(
+        return DexRuntime.resolveClasses(
             cacheDir = dataDir?.let { File(it, "cache") },
             apkPath = apkPath,
             classLoader = loader,

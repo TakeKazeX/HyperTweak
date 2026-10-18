@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.app.Activity
 import android.os.Bundle
 import android.os.Handler
@@ -9,7 +11,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -259,7 +260,7 @@ object WarningCountdownHooker : StaticHooker() {
     private fun resolveConfirmMethod(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir
         if (apkPath != null) {
-            val resolved = DexKitManager.withBridge(apkPath) { bridge ->
+            val resolved = DexRuntime.query(apkPath, "WarningCountdownHooker.resolveConfirmMethod") { bridge ->
                 bridge.findMethod {
                     matcher {
                         declaredClass(BASE_FRAGMENT_CLASS, StringMatchType.Equals)

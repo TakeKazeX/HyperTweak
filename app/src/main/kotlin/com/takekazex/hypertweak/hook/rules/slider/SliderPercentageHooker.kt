@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import org.luckypray.dexkit.query.enums.StringMatchType
 
@@ -21,8 +22,8 @@ class SliderPercentageHooker(
         private set
 
     private val resolvedPluginClasses by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        if (pluginContext == null || pluginApkPath.isEmpty()) emptyMap() else DexKitManager.resolveClasses(
-            cacheDir = pluginContext.cacheDir,
+        if (pluginContext == null || pluginApkPath.isEmpty()) emptyMap() else DexRuntime.resolveClasses(
+            cacheDir = dexCacheDirectory,
             apkPath = pluginApkPath,
             classLoader = classLoader,
             queries = pluginClassQueries()

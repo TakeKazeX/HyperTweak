@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -67,7 +68,7 @@ object ModelSpoofHooker : StaticHooker() {
         DebugLog.d(TAG, "hooked DexKit model-spoof JSON builder ${method.toGenericString()}")
     }
 
-    private fun resolveMethod(apkPath: String): Method? = DexKitManager.withBridge(apkPath) { bridge ->
+    private fun resolveMethod(apkPath: String): Method? = DexRuntime.query(apkPath, "ModelSpoofHooker.resolveMethod") { bridge ->
         val candidates = bridge.findMethod {
             matcher {
                 paramTypes(Context::class.java, String::class.java)

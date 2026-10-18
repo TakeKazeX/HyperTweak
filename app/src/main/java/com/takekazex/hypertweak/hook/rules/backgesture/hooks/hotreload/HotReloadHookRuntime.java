@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemserver.SystemServerHookRuntime;
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime;
 
 import io.github.libxposed.api.XposedInterface;
 
@@ -44,7 +45,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
     }
 
     public void checkHotReloadReady() {
-        if (systemUiDexResolutionInFlight.get() != 0) {
+        if (DexRuntime.INSTANCE.isResolving()) {
             moduleLog(Log.WARN, TAG,
                     "Deferred hot reload during SystemUI dex resolution"
                             + ", process=" + processName);

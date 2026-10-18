@@ -1,11 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.gms
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -199,7 +200,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     )
 
     private fun resolveGateTargets(apkPath: String): GateTargets? =
-        DexKitManager.withBridge(apkPath) { bridge ->
+        DexRuntime.query(apkPath, "QuickSharePhenotypeHooker.resolveGateTargets") { bridge ->
             val initializerData = bridge.findMethod {
                 matcher {
                     declaredClass(MODULE_INITIALIZER_CLASS)
@@ -210,9 +211,9 @@ object QuickSharePhenotypeHooker : StaticHooker() {
                 }
             }.toList().singleOrNull() ?: run {
                 DebugLog.w(TAG, "ModuleInitializer Bluetooth capability gate is ambiguous or missing")
-                return@withBridge null
+                return@query null
             }
-            val initializer = materialize(initializerData) ?: return@withBridge null
+            val initializer = materialize(initializerData) ?: return@query null
             val callers = initializerData.callers.toList()
                 .filter { data ->
                     data.className == MODULE_INITIALIZER_CLASS &&

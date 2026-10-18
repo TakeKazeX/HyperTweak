@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -17,7 +19,6 @@ import android.view.Window
 import android.widget.ImageView
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -243,7 +244,7 @@ object DownloadUiHooker : StaticHooker() {
     private fun resolveHomeClass(apkPath: String): Class<*>? {
         val appInfo = hookParam.appInfo ?: return null
         val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexKitManager.resolveClasses(
+        return DexRuntime.resolveClasses(
             cacheDir = File(baseDir, "cache"),
             apkPath = apkPath,
             classLoader = classLoader,
@@ -270,7 +271,7 @@ object DownloadUiHooker : StaticHooker() {
     private fun resolveDetailClass(apkPath: String): Class<*>? {
         val appInfo = hookParam.appInfo ?: return null
         val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexKitManager.resolveClasses(
+        return DexRuntime.resolveClasses(
             cacheDir = File(baseDir, "cache"),
             apkPath = apkPath,
             classLoader = classLoader,
@@ -328,7 +329,7 @@ object DownloadUiHooker : StaticHooker() {
     private data class DetailRenderer(val method: Method, val source: Field, val infoIndex: Int)
 
     private fun resolveDetailRenderer(apkPath: String, detailClass: Class<*>): DetailRenderer? =
-        DexKitManager.withBridge(apkPath) { bridge ->
+        DexRuntime.query(apkPath, "DownloadUiHooker.resolveDetailRenderer") { bridge ->
             val evidence = bridge.findMethod {
                 matcher {
                     declaredClass(detailClass.name, StringMatchType.Equals)
@@ -339,7 +340,7 @@ object DownloadUiHooker : StaticHooker() {
             }.mapNotNull { runCatching { it.getMethodInstance(classLoader) }.getOrNull() }
             val render = DownloadDetailContract.renderer(detailClass, evidence) {
                 Parcelable::class.java.isAssignableFrom(it)
-            } ?: return@withBridge null
+            } ?: return@query null
             val copyCalls = bridge.findMethod {
                 matcher {
                     declaredClass(detailClass.name, StringMatchType.Equals)
@@ -357,8 +358,8 @@ object DownloadUiHooker : StaticHooker() {
                 runCatching { it.field.getFieldInstance(classLoader) }.getOrNull()
             }
             val infoIndex = DownloadDetailContract.infoIndex(render) { Parcelable::class.java.isAssignableFrom(it) }
-                ?: return@withBridge null
-            val source = DownloadDetailContract.source(render.parameterTypes[infoIndex], fields) ?: return@withBridge null
+                ?: return@query null
+            val source = DownloadDetailContract.source(render.parameterTypes[infoIndex], fields) ?: return@query null
             DebugLog.d(TAG, "native detail contract renderer=${render.name} source=${source.name}")
             DetailRenderer(render, source, infoIndex)
         }

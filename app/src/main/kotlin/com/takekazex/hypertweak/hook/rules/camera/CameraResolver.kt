@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.content.pm.ApplicationInfo
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -46,7 +47,7 @@ object CameraResolver {
                 DebugLog.w(scope, "$key: no source dir, cannot run DexKit probe")
                 return null
             }
-            val resolved = DexKitManager.resolveClasses(
+            val resolved = DexRuntime.resolveClasses(
                 cacheDir = File(baseDir, "cache"),
                 apkPath = apkPath,
                 classLoader = ctx.classLoader,
@@ -98,7 +99,7 @@ object CameraResolver {
         shape: (Method) -> Boolean,
     ): Method? {
         val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "CameraResolver.resolveMethodByStrings") { bridge ->
             val matches = runCatching {
                 bridge.findMethod { matcher { usingStrings(*anchors.toTypedArray()) } }
                     .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
@@ -121,7 +122,7 @@ object CameraResolver {
         shape: (Method) -> Boolean,
     ): Method? {
         val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "CameraResolver.resolveMethodByNumbers") { bridge ->
             val matches = runCatching {
                 bridge.findMethod { matcher { usingNumbers(*numbers.toTypedArray()) } }
                     .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
@@ -187,7 +188,7 @@ object CameraResolver {
         scope: String,
     ): Method? {
         val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "CameraResolver.resolveConfigFallbackGate") { bridge ->
             val methods = runCatching {
                 bridge.findMethod {
                     matcher {
@@ -220,7 +221,7 @@ object CameraResolver {
     fun resolveSourceNameResolver(ctx: Ctx, scope: String): Method? {
         val info = ctx.appInfo ?: return null
         val apkPath = info.sourceDir ?: return null
-        return DexKitManager.withBridge(apkPath) { bridge ->
+        return DexRuntime.query(apkPath, "CameraResolver.resolveSourceNameResolver") { bridge ->
             val methods = runCatching {
                 bridge.findMethod {
                     matcher {

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.Context
@@ -7,7 +9,6 @@ import android.provider.Settings
 import android.util.SparseArray
 import android.util.SparseIntArray
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -210,7 +211,7 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     )
 
     private fun resolveGeneratedCallbacks(apkPath: String): GeneratedCallbacks? =
-        DexKitManager.withBridge(apkPath) { bridge ->
+        DexRuntime.query(apkPath, "ImmediateMonetRefreshHooker.resolveGeneratedCallbacks") { bridge ->
             GeneratedCallbacks(
                 themeOverlay = resolveCallback(
                     bridge,

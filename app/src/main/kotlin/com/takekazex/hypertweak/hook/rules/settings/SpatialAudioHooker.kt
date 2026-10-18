@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -29,8 +30,8 @@ class SpatialAudioHooker(
 
     private fun resolveSpatialAudioClass(): Class<*>? {
         if (pluginApkPath.isNotEmpty() && pluginContext != null) {
-            val resolved = DexKitManager.resolveClasses(
-                cacheDir = pluginContext.cacheDir,
+            val resolved = DexRuntime.resolveClasses(
+                cacheDir = dexCacheDirectory,
                 apkPath = pluginApkPath,
                 classLoader = classLoader,
                 queries = mapOf(

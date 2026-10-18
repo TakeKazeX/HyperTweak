@@ -10,7 +10,6 @@ import android.view.View
 import android.widget.CompoundButton
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -213,7 +212,7 @@ object PasskeyHooker : StaticHooker() {
             }
         }
 
-        val resolved = DexKitManager.resolveClasses(
+        val resolved = DexRuntime.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,

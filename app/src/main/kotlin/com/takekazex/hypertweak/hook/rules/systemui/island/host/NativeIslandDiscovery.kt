@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.host
 
-import com.takekazex.hypertweak.hook.base.DexKitManager
+import com.takekazex.hypertweak.hook.base.dex.DexFeature
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
+import java.io.File
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -55,12 +58,41 @@ internal class NativeIslandDiscovery private constructor(
     val templateWrite: NativeTemplateWrite? = null,
 ) {
     companion object {
-        fun scan(apk: String, loader: ClassLoader): NativeIslandDiscovery =
-            DexKitManager.withBridge(apk) { bridge ->
-                val discovery = resolve { role -> query(bridge, loader, role) }
-                NativeIslandDiscovery(discovery.classes, discovery.entries, resolveTemplateWrite(bridge, loader))
+        private val feature = object : DexFeature {
+            override val id = "systemui.island.contract"
+            override val schema = 1
+        }
+
+        fun scan(apk: String, loader: ClassLoader, cacheDir: File? = null): NativeIslandDiscovery =
+            DexRuntime.resolve(feature, apk, cacheDir,
+                compute = { session -> requireNotNull(session.dexKit { bridge ->
+                    val discovery = resolve { role -> query(bridge, loader, role) }
+                    encode(NativeIslandDiscovery(discovery.classes, discovery.entries, resolveTemplateWrite(bridge, loader)))
+                }) },
+                decode = { values, _ -> decode(values, loader) },
+            ) ?: error("Three-island DexKit contract unavailable")
+
+        internal fun encode(discovery: NativeIslandDiscovery): Map<String, String> = buildMap {
+            discovery.entries.forEach { (role, method) -> put("entry.$role", MethodDescriptorCodec.descriptor(method)) }
+            val writer = requireNotNull(discovery.templateWrite)
+            put("writer.method", MethodDescriptorCodec.descriptor(writer.method))
+            put("writer.field", MethodDescriptorCodec.descriptor(writer.cutout))
+            put("writer.callers", writer.callers.size.toString())
+            writer.callers.forEachIndexed { index, method -> put("writer.caller.$index", MethodDescriptorCodec.descriptor(method)) }
+        }
+
+        internal fun decode(values: Map<String, String>, loader: ClassLoader): NativeIslandDiscovery {
+            val discovery = resolve { role -> listOf(requireNotNull(MethodDescriptorCodec.method(values.getValue("entry.$role"), loader))) }
+            val writer = requireNotNull(MethodDescriptorCodec.method(values.getValue("writer.method"), loader))
+            val field = requireNotNull(MethodDescriptorCodec.field(values.getValue("writer.field"), loader))
+            check(writer.parameterTypes.toList() == listOf(Int::class.javaPrimitiveType) && writer.returnType == Void.TYPE)
+            check(field.declaringClass == writer.declaringClass && field.type == android.widget.FrameLayout::class.java)
+            val count = values.getValue("writer.callers").toInt().also { check(it in 0..256) }
+            val callers = (0 until count).map { index ->
+                requireNotNull(MethodDescriptorCodec.method(values.getValue("writer.caller.$index"), loader))
             }
-                ?: error("Three-island DexKit contract unavailable")
+            return NativeIslandDiscovery(discovery.classes, discovery.entries, NativeTemplateWrite(writer, field, callers))
+        }
 
         internal fun resolveTemplateWrite(bridge: DexKitBridge, loader: ClassLoader): NativeTemplateWrite {
             // Follow the factory's actual invocation and field use, including obfuscated

@@ -1,7 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -97,7 +98,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
         val appInfo = hookParam.appInfo ?: return null
         val apkPath = appInfo.sourceDir ?: return null
         val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexKitManager.resolveClasses(
+        return DexRuntime.resolveClasses(
             cacheDir = File(baseDir, "cache"),
             apkPath = apkPath,
             classLoader = classLoader,

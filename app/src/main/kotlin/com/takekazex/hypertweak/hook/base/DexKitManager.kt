@@ -2,18 +2,12 @@ package com.takekazex.hypertweak.hook.base
 
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
-import java.io.File
-import java.io.FileInputStream
-import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import java.util.concurrent.ConcurrentHashMap
 
 object DexKitManager {
     private val bridgeLock = ReentrantLock()
     private val bridgeDrained = bridgeLock.newCondition()
-    private val resolutionLocks = ConcurrentHashMap<String, ReentrantLock>()
-    private val fingerprintCache = ConcurrentHashMap<String, ApkFingerprint>()
 
     /**
      * Dispatch-wide scope shared by every DexKit consumer in one package's hook installation.
@@ -32,11 +26,17 @@ object DexKitManager {
     private val sharedScopes: ThreadLocal<ArrayList<SharedScope>> =
         ThreadLocal.withInitial { ArrayList() }
 
+    private fun scopeStack(): ArrayList<SharedScope> =
+        sharedScopes.get() ?: ArrayList<SharedScope>().also { sharedScopes.set(it) }
+
     @Volatile
     private var isLoaded = false
 
     @Volatile
     private var activeBridgeUsers = 0
+
+    internal val hasActiveUsers: Boolean
+        get() = activeBridgeUsers != 0
 
     @Volatile
     private var hotReloadPreparing = false
@@ -71,11 +71,11 @@ object DexKitManager {
                 return true
             }
 
-            val deadline = System.currentTimeMillis() + timeoutMs
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs)
             while (activeBridgeUsers > 0) {
-                val remaining = deadline - System.currentTimeMillis()
+                val remaining = deadline - System.nanoTime()
                 if (remaining <= 0) break
-                runCatching { bridgeDrained.awaitNanos(remaining * 1_000_000L) }
+                runCatching { bridgeDrained.awaitNanos(remaining) }
             }
 
             val ready = activeBridgeUsers == 0
@@ -112,35 +112,19 @@ object DexKitManager {
     }
 
     fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
-        val scope = sharedScopes.get().lastOrNull { it.apkPath == apkPath }
-        if (scope != null) {
+        val session = beginSharedSession(apkPath)
+        return try {
+            val scope = scopeStack().last { it.apkPath == apkPath }
             val bridge = sharedBridge(scope) ?: return null
-            return runCatching { block(bridge) }.onFailure { t ->
+            runCatching { block(bridge) }.onFailure { t ->
                 DebugLog.e("DexKit", "failed to run shared bridge block for APK $apkPath", t)
             }.getOrNull()
-        }
-        if (!enterBridgeSession()) {
-            DebugLog.d("DexKit", "skip bridge creation during hot reload preparation")
-            return null
-        }
-        try {
-            if (!loadLibrary()) {
-                DebugLog.e("DexKit", "not loaded; cannot create bridge")
-                return null
-            }
-            return runCatching {
-                DexKitBridge.create(apkPath).use(block)
-            }.onFailure { t ->
-                DebugLog.e("DexKit", "failed to run bridge for APK $apkPath", t)
-            }.getOrNull()
-        } finally {
-            exitBridgeSession()
-        }
+        } finally { session.close() }
     }
 
     /** Bridge currently open on this thread for [apkPath], if a shared scope opened one. */
     fun currentBridge(apkPath: String): DexKitBridge? =
-        sharedScopes.get().lastOrNull { it.apkPath == apkPath }?.bridge
+        scopeStack().lastOrNull { it.apkPath == apkPath }?.bridge
 
     /**
      * Opens a dispatch-wide scope; [withBridge] lazily creates its single bridge.
@@ -149,7 +133,7 @@ object DexKitManager {
      * [withBridge] callers outside any scope keep the previous one-bridge-per-call behavior.
      */
     fun beginSharedSession(apkPath: String): AutoCloseable {
-        val stack = sharedScopes.get()
+        val stack = scopeStack()
         if (stack.any { it.apkPath == apkPath }) return AutoCloseable { }
         val scope = SharedScope(apkPath)
         stack.add(scope)
@@ -200,178 +184,4 @@ object DexKitManager {
         }
     }
 
-    /**
-     * Resolves the required classes either from cache or by performing a DexKit scan.
-     * @param cacheDir Cache directory of the target package (used to store properties cache)
-     * @param apkPath Absolute path to the APK being scanned
-     * @param classLoader ClassLoader of the target package
-     * @param queries A map of cacheKey to query function (DexKitBridge) -> String (ClassName)
-     * @return Map of cacheKey to Resolved ClassName
-     */
-    fun resolveClasses(
-        cacheDir: File?,
-        apkPath: String,
-        classLoader: ClassLoader,
-        queries: Map<String, (DexKitBridge) -> String?>,
-        logMissingQueries: Boolean = true,
-        /**
-         * Semantic validators for cached/query results. Obfuscated camera class names can be
-         * reused by a later APK, so loading a class successfully is not enough to reuse it.
-         */
-        validators: Map<String, (Class<*>) -> Boolean> = emptyMap(),
-    ): Map<String, Class<*>> {
-        val resolutionLock = resolutionLocks.computeIfAbsent(apkPath) { ReentrantLock() }
-        resolutionLock.lock()
-        try {
-        if (!loadLibrary()) {
-            DebugLog.e("DexKit", "not loaded; falling back to default names")
-            return emptyMap()
-        }
-
-        if (cacheDir == null) {
-            DebugLog.w("DexKit", "cacheDir is null; resolving without cache")
-        }
-
-        val cacheFile = if (cacheDir != null) File(cacheDir, "hypertweak_dexkit_cache.properties") else null
-        val properties = java.util.Properties()
-        
-        if (cacheFile != null && cacheFile.exists()) {
-            runCatching {
-                cacheFile.inputStream().use { properties.load(it) }
-            }.onFailure { t ->
-                DebugLog.e("DexKit", "failed to load properties cache", t)
-            }
-        }
-
-        val apkFile = File(apkPath)
-        val fingerprint = fingerprint(apkFile)
-        val identity = fingerprint?.let { DexKitCacheIdentity(it.lastModified, it.size, it.sha256) }
-        val isCacheValid = identity?.prepare(properties) ?: false
-        if (identity == null) properties.clear()
-        val resolvedMap = mutableMapOf<String, Class<*>>()
-        val missingQueries = mutableMapOf<String, (DexKitBridge) -> String?>()
-
-        // 1. Try reading from cache first
-        if (isCacheValid) {
-            DebugLog.d("DexKit", "cache is valid; reading class names")
-            for ((key, _) in queries) {
-                val cachedName = properties.getProperty(key)
-                if (cachedName != null) {
-                    runCatching {
-                        val clazz = classLoader.loadClass(cachedName)
-                        val validator = validators[key]
-                        if (validator != null && !runCatching { validator(clazz) }.onFailure {
-                            DebugLog.e("DexKit", "semantic validator threw key=$key class=${clazz.name}", it)
-                        }.getOrDefault(false)) {
-                            DebugLog.w("DexKit", "cached class $cachedName for key $key failed semantic validation")
-                            properties.remove(key)
-                            missingQueries[key] = queries[key]!!
-                        } else {
-                            resolvedMap[key] = clazz
-                        }
-                    }.onFailure {
-                        DebugLog.w("DexKit", "failed to load cached class $cachedName for key $key", it)
-                        properties.remove(key)
-                        missingQueries[key] = queries[key]!!
-                    }
-                } else {
-                    missingQueries[key] = queries[key]!!
-                }
-            }
-        } else {
-            DebugLog.d("DexKit", "cache invalid or target APK updated; scanning")
-            // Do not carry a previous build's class names into a newly fingerprinted cache. If a
-            // scan cannot resolve an optional key, leaving the old name here would make it look
-            // valid again on the next process start.
-            properties.clear()
-            missingQueries.putAll(queries)
-        }
-
-        // 2. Perform DexKit scan for missing keys
-        if (missingQueries.isNotEmpty()) {
-            DebugLog.d("DexKit", "performing scan for ${missingQueries.size} classes")
-            val startTime = System.currentTimeMillis()
-            withBridge(apkPath) { bridge ->
-                for ((key, queryFunc) in missingQueries) {
-                    val className = try {
-                        queryFunc(bridge)
-                    } catch (t: Throwable) {
-                        DebugLog.e("DexKit", "target query failed key=$key apk=$apkPath", t)
-                        continue
-                    }
-                    if (className != null) {
-                        runCatching {
-                            val clazz = classLoader.loadClass(className)
-                            val validator = validators[key]
-                            if (validator != null && !runCatching { validator(clazz) }.onFailure {
-                                DebugLog.e("DexKit", "semantic validator threw key=$key class=${clazz.name}", it)
-                            }.getOrDefault(false)) {
-                                DebugLog.w("DexKit", "scanned class $className for key $key failed semantic validation")
-                                properties.remove(key)
-                            } else {
-                                resolvedMap[key] = clazz
-                                properties.setProperty(key, className)
-                                DebugLog.d("DexKit", "resolved $key -> $className")
-                            }
-                        }.onFailure { t ->
-                            DebugLog.e("DexKit", "resolved $className for key $key but class load failed", t)
-                        }
-                    } else {
-                        if (logMissingQueries) {
-                            DebugLog.w("DexKit", "required target unresolved key=$key; dependent hook skipped")
-                        } else {
-                            DebugLog.d("DexKit", "optional query returned null for key $key")
-                        }
-                    }
-                }
-                if (fingerprint != null && cacheFile != null && cacheDir != null) {
-                    identity?.stamp(properties)
-                    runCatching {
-                        if (!cacheDir.exists()) cacheDir.mkdirs()
-                        cacheFile.outputStream().use { properties.store(it, "HyperTweak DexKit Cache") }
-                    }.onFailure { t ->
-                        DebugLog.e("DexKit", "failed to write properties cache", t)
-                    }
-                }
-            }
-            DebugLog.d("DexKit", "scan completed in ${System.currentTimeMillis() - startTime} ms")
-        }
-
-        return resolvedMap
-        } finally {
-            resolutionLock.unlock()
-        }
-    }
-
-    private data class ApkFingerprint(val lastModified: Long, val size: Long, val sha256: String)
-
-    /**
-     * Compute the complete APK digest once per on-disk version in this process. Camera hooks ask
-     * for several independent classes during attach; the mtime/size guard avoids hashing the
-     * same 200 MB APK repeatedly while still detecting a replaced file before the next process.
-     */
-    private fun fingerprint(file: File): ApkFingerprint? {
-        if (!file.isFile) return null
-        val lastModified = file.lastModified()
-        val size = file.length()
-        val cached = fingerprintCache[file.absolutePath]
-        if (cached != null && cached.lastModified == lastModified && cached.size == size) return cached
-        val digest = runCatching {
-            val md = MessageDigest.getInstance("SHA-256")
-            FileInputStream(file).use { input ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    if (count > 0) md.update(buffer, 0, count)
-                }
-            }
-            md.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
-        }.onFailure { t ->
-            DebugLog.w("DexKit", "failed to hash APK ${file.absolutePath}; cache will not be reused", t)
-        }.getOrNull() ?: return null
-        return ApkFingerprint(lastModified, size, digest).also {
-            fingerprintCache[file.absolutePath] = it
-        }
-    }
 }

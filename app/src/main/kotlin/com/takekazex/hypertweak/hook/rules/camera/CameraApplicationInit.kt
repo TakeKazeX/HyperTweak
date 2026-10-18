@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.camera
 import android.content.ContentProvider
 import android.os.Handler
 import android.os.Looper
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
@@ -54,7 +55,7 @@ internal object CameraApplicationInit {
                                 pendingByLoader.remove(loader)?.actions?.toList().orEmpty()
                             }
                             DebugLog.i("CamAppInit", "config-ready boundary returned; running deferred hooks=${actions.size}")
-                            CameraDexIndex.withSession(hooker.hookParam.appInfo?.sourceDir) {
+                            DexRuntime.withScope(hooker.hookParam.appInfo?.sourceDir) {
                                 actions.forEach { (owner, queued) -> runAction(owner, queued) }
                             }
                         }
@@ -123,7 +124,7 @@ internal object CameraApplicationInit {
 
     private fun postAction(hooker: BaseHooker, action: () -> Unit) {
         Handler(Looper.getMainLooper()).post {
-            CameraDexIndex.withSession(hooker.hookParam.appInfo?.sourceDir) { runAction(hooker, action) }
+            DexRuntime.withScope(hooker.hookParam.appInfo?.sourceDir) { runAction(hooker, action) }
         }
     }
 }

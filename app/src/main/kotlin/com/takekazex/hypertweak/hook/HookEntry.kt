@@ -118,7 +118,6 @@ import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.AndroidWidgetPickerHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
@@ -399,10 +398,10 @@ class HookEntry : XposedModule() {
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
         )
-        if (GoogleAppRuntime.isResolvingDex) {
+        if (com.takekazex.hypertweak.hook.base.dex.DexRuntime.isResolving) {
             DebugLog.w(
                 "HookEntry",
-                "deferred hot reload during Google App DexKit resolution process=$processName"
+                "deferred hot reload during active DEX resolution process=$processName"
             )
             return false
         }
@@ -934,7 +933,7 @@ class HookEntry : XposedModule() {
 
         // One lazy DexKit scope per package dispatch: every consumer below shares one bridge.
         val sharedSession = appInfo?.sourceDir?.takeIf { it.isNotBlank() }
-            ?.let(DexKitManager::beginSharedSession)
+            ?.let(com.takekazex.hypertweak.hook.base.dex.DexRuntime::beginSession)
         try {
 
         // Input methods are chosen by the user, so they cannot be listed in the `when` below. All
@@ -1133,7 +1132,7 @@ class HookEntry : XposedModule() {
                 attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AndroidWidgetPickerHooker, classLoader, ctx, replacementHandles)
             }
-            "com.android.camera" -> CameraDexIndex.withSession(appInfo?.sourceDir) {
+            "com.android.camera" -> {
                 // Runs before Camera.onCreate; the after-hook preserves model-config initialization
                 // while suppressing only the APK/device mismatch exit guard when opted in.
                 attachHooker(CameraDeviceMismatchHooker, classLoader, ctx, replacementHandles)
