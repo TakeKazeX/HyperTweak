@@ -17,7 +17,7 @@ internal object RuntimeSettingsGroups {
     const val XMSF = "xmsf.focus"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
-        Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
+        Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
         Preferences.KEY_LANDSCAPE_MORE_ISLANDS, Preferences.KEY_CC_HIDE_SUPER_ISLAND,
         Preferences.KEY_ISLAND_NARROW_TIME_FONT, Preferences.KEY_ISLAND_LIVE_UPDATE_ICON,
         Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,

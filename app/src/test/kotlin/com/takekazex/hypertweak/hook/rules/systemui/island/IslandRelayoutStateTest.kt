@@ -1,4 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandRelayoutState
 
 import org.junit.Assert.*
 import org.junit.Test

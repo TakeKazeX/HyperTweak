@@ -1,5 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SmallIslandSeats
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.ThreeIslandLayout
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SmallIslandSpectrum
+
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -107,6 +112,21 @@ class SmallIslandSpectrumTest {
         assertEquals(false, seats.left("media"))
         assertEquals(true, seats.left("timer"))
         assertFalse(choose(seats.left("media")!!)!!.left)
+    }
+
+    @Test fun `paired demand keeps the camera pad and compact fallback removes it`() {
+        // Verified plugin dimensions at 3.1 px/dp: outer 8dp, icon 20dp, margin 1dp, inner edge 1dp.
+        fun px(dp: Int): Int = (dp * 3.1f + 0.5f).toInt()
+        val paired = checkNotNull(SmallIslandSpectrum.pairedDemand(px(8), px(20), px(1)))
+        assertEquals(IslandContentSize(93, 93), paired)
+        assertEquals(IslandContentSize(90, 90),
+            checkNotNull(SmallIslandSpectrum.compactDemand(px(8), px(20), px(1), px(1))))
+        assertEquals(paired, IslandContentSize(paired.left, paired.right))
+        assertNull(SmallIslandSpectrum.pairedDemand(-1, px(20), px(1)))
+        assertNull(SmallIslandSpectrum.pairedDemand(px(8), 0, px(1)))
+        assertNull(SmallIslandSpectrum.compactDemand(px(8), px(20), px(1), -1))
+        assertNull(SmallIslandSpectrum.compactDemand(px(8), px(20), px(1), 200))
+        assertNull(SmallIslandSpectrum.pairedDemand(Int.MAX_VALUE, px(20), px(1)))
     }
 
     @Test fun `side music demand excludes the camera-facing pad its lease removes`() {

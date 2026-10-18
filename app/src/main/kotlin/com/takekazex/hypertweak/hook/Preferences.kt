@@ -542,6 +542,7 @@ object Preferences {
     const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
 
     /** Experimental native one-big/two-small scheduling; disabled by default. */
+    const val KEY_REMOVE_ISLAND_PLACEHOLDER = "systemui_remove_island_placeholder"
     const val KEY_THREE_ISLANDS = "systemui_three_islands"
 
     /** Independent landscape native full-template layout for occupied summaries. */

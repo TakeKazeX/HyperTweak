@@ -3,7 +3,8 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTemplateWidthLease;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateWidthLease;
 
 /** Real Android native-area geometry; no window, media playback or device UI interaction. */
 public class NativeMediaGeometryProbe {
@@ -19,6 +20,7 @@ public class NativeMediaGeometryProbe {
         Object thread=ctor.newInstance();
         java.lang.reflect.Method create=Class.forName("android.app.ContextImpl").getDeclaredMethod("createSystemContext",at);
         create.setAccessible(true);Context ctx=(Context)create.invoke(null,thread);
+        IslandCameraSeat.INSTANCE.clear();
         for(int rotation=0;rotation<4;rotation++) {
             LinearLayout parent=new LinearLayout(ctx);parent.setOrientation(LinearLayout.HORIZONTAL);
             FrameLayout left=new FrameLayout(ctx),camera=new FrameLayout(ctx),right=new FrameLayout(ctx);
@@ -28,16 +30,21 @@ public class NativeMediaGeometryProbe {
             parent.addView(right,new LinearLayout.LayoutParams(90,102,1));
             Object owner=new Object();IslandTemplateWidthLease lease=new IslandTemplateWidthLease();
             lease.acquireMedia(owner,left,right);lease.acquireMedia(owner,left,right);layout(parent);
+            if(!IslandCameraSeat.INSTANCE.holds(parent))
+                throw new AssertionError("media lease did not release camera seat");
             if(left.getWidth()!=90||right.getWidth()!=90||camera.getWidth()!=0||
                 left.getPaddingEnd()!=0||right.getPaddingStart()!=0||
                 left.getPaddingStart()!=24||right.getPaddingEnd()!=24)throw new AssertionError("native pair clipped");
-            // Native template callbacks may restore the camera placeholder and inward pads.
-            camera.getLayoutParams().width=72;
-            left.setPaddingRelative(24,0,3,0);right.setPaddingRelative(3,0,24,0);
-            parent.getViewTreeObserver().dispatchOnPreDraw();layout(parent);
-            if(camera.getWidth()!=0||left.getPaddingEnd()!=0||right.getPaddingStart()!=0)
-                throw new AssertionError("native binding overwrote side geometry");
+            // While the media lease holds the camera seat, the getFixedCutoutWidth hook
+            // answers zero, so the native template factory must receive a zero cutout.
+            // There is deliberately no module pre-draw repair listener.
+            camera.getLayoutParams().width=0;layout(parent);
+            if(camera.getWidth()!=0||left.getPaddingEnd()!=0||right.getPaddingStart()!=0||
+                left.getWidth()!=90||right.getWidth()!=90)
+                throw new AssertionError("native zero-cutout pass clipped the media pair");
             lease.acquire(owner,left,right,72);layout(parent);
+            if(IslandCameraSeat.INSTANCE.holds(parent))
+                throw new AssertionError("main template kept camera seat");
             if(camera.getWidth()!=72||left.getPaddingEnd()!=3||right.getPaddingStart()!=3)
                 throw new AssertionError("native main geometry not restored");
             lease.acquireMedia(owner,left,right);lease.release(owner,72);layout(parent);
@@ -52,6 +59,8 @@ public class NativeMediaGeometryProbe {
             lease.acquireMedia(owner,left,right);lease.release(owner,72);layout(parent);
             if(left.getPaddingEnd()!=5||right.getPaddingStart()!=5)
                 throw new AssertionError("media readmission restored stale native padding");
+            if(IslandCameraSeat.INSTANCE.holds(parent)||IslandCameraSeat.INSTANCE.tracked()!=0)
+                throw new AssertionError("camera seat leaked after media release");
         }
         System.out.println("NATIVE_MEDIA_GEOMETRY_OK rotations=4 paired=180 camera=0 outer=24 nativeRestored=true");
         System.exit(0);

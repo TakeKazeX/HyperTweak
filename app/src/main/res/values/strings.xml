@@ -1555,4 +1555,6 @@
     <string name="tweaks_island_live_update_icon_summary">Improve visibility of dark monochrome icons from live notifications, such as ChatGPT remote sessions. Changes apply immediately.</string>
     <string name="tweaks_island_narrow_time_font_title">Narrow font for time digits</string>
     <string name="tweaks_island_narrow_time_font_summary">Use the native condensed font for Clock and Recorder Super Island time digits. Changes apply immediately.</string>
+    <string name="tweaks_remove_island_placeholder_title">Remove island placeholder</string>
+    <string name="tweaks_remove_island_placeholder_summary">Remove extra blank space added to balance the left and right content areas. Turn off to keep balanced widths. Works independently of Three Islands and applies immediately.</string>
 </resources>

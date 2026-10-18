@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandGestureScope
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SmallIslandSeats
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummaryIslandScheduler
+
 import org.junit.Assert.*
 import org.junit.Test
 

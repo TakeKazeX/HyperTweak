@@ -414,6 +414,7 @@ class MainActivity : ComponentActivity() {
             var allowThirdPartyTheme by remember {
                 mutableStateOf(Preferences.getBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, false))
             }
+            var removeIslandPlaceholder by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, true)) }
             var threeIslands by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)) }
             var landscapeFullIslands by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)) }
             var landscapeMoreIslands by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)) }
@@ -557,6 +558,7 @@ class MainActivity : ComponentActivity() {
                     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
                     Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
                     Preferences.KEY_ALLOW_THIRD_PARTY_THEME -> allowThirdPartyTheme
+                    Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER -> removeIslandPlaceholder
                     Preferences.KEY_THREE_ISLANDS -> threeIslands
                     Preferences.KEY_LANDSCAPE_FULL_ISLANDS -> landscapeFullIslands
                     Preferences.KEY_LANDSCAPE_MORE_ISLANDS -> landscapeMoreIslands
@@ -916,6 +918,7 @@ class MainActivity : ComponentActivity() {
                         Preferences.KEY_ALLOW_THIRD_PARTY_THEME,
                         false
                     )
+                    removeIslandPlaceholder = Preferences.getBoolean(Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, true)
                     threeIslands = Preferences.getBoolean(Preferences.KEY_THREE_ISLANDS, false)
                     landscapeFullIslands = Preferences.getBoolean(Preferences.KEY_LANDSCAPE_FULL_ISLANDS, false)
                     landscapeMoreIslands = Preferences.getBoolean(Preferences.KEY_LANDSCAPE_MORE_ISLANDS, false)
@@ -1353,6 +1356,12 @@ class MainActivity : ComponentActivity() {
                         markTweaked(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
                         allowThirdPartyTheme = checked
                         Preferences.putBoolean(Preferences.KEY_ALLOW_THIRD_PARTY_THEME, checked)
+                    },
+                    removeIslandPlaceholder = removeIslandPlaceholder,
+                    onRemoveIslandPlaceholderChange = { checked ->
+                        removeIslandPlaceholder = checked
+                        markTweaked(Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, checked)
+                        Preferences.putBoolean(Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, checked)
                     },
                     threeIslands = threeIslands,
                     landscapeFullIslands = landscapeFullIslands,

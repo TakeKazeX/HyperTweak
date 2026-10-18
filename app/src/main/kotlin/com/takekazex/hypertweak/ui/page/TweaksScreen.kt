@@ -73,6 +73,8 @@ fun TweaksScreenContent(
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
+    removeIslandPlaceholder: Boolean,
+    onRemoveIslandPlaceholderChange: (Boolean) -> Unit,
     threeIslands: Boolean,
     landscapeFullIslands: Boolean,
     landscapeMoreIslands: Boolean,
@@ -367,6 +369,12 @@ fun TweaksScreenContent(
                         onCheckedChange = onLandscapeMoreIslandsChange,
                         title = stringResource(R.string.tweaks_landscape_more_islands_title),
                         summary = stringResource(R.string.tweaks_landscape_more_islands_summary)
+                    )
+                    SwitchPreference(
+                        checked = removeIslandPlaceholder,
+                        onCheckedChange = onRemoveIslandPlaceholderChange,
+                        title = stringResource(R.string.tweaks_remove_island_placeholder_title),
+                        summary = stringResource(R.string.tweaks_remove_island_placeholder_summary)
                     )
                     SwitchPreference(
                         checked = ccHideSuperIsland,

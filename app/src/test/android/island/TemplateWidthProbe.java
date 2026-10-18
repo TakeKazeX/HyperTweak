@@ -3,13 +3,14 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTemplateWidthLease;
-import com.takekazex.hypertweak.hook.rules.systemui.island.IslandRelayoutDriver;
-import com.takekazex.hypertweak.hook.rules.systemui.island.IslandLayoutInvalidation;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateWidthLease;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandRelayoutDriver;
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandLayoutInvalidation;
 import kotlin.Unit;
-import com.takekazex.hypertweak.hook.rules.systemui.island.IslandContentSize;
-import com.takekazex.hypertweak.hook.rules.systemui.island.PortraitIslandLayout;
-import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandLayout;
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize;
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.PortraitIslandLayout;
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.ThreeIslandLayout;
 /** Standalone app_process regression using real Android layout; no window or device UI interaction.
  * Geometry follows the verified native standard template: equal area weights and a camera seat.
  */
@@ -39,7 +40,8 @@ public class TemplateWidthProbe {
   // Folme onBegin now reads getFixedCutoutWidth from both real and fake owners.
   // It writes the final target directly, with no module pre-draw repair listener.
   cutout.getLayoutParams().width=0;
-  if(!parent.getViewTreeObserver().dispatchOnPreDraw())throw new AssertionError("lease blocked native drawing");
+  // dispatchOnPreDraw() returns true when a listener cancels the draw; no module listener may.
+  if(parent.getViewTreeObserver().dispatchOnPreDraw())throw new AssertionError("lease blocked native drawing");
   layout(parent);
   if(cutout.getMeasuredWidth()!=0||right.getMeasuredWidth()!=216)throw new AssertionError("native callback geometry changed");
   lease.releaseAll(key -> null);layout(parent);
@@ -68,6 +70,12 @@ public class TemplateWidthProbe {
    if(right.getMeasuredWidth()!=216||cutout.getMeasuredWidth()!=0)throw new AssertionError("landscape transition failed");
   }
   lease.release(owner,72);
+  if(IslandCameraSeat.INSTANCE.holds(parent))throw new AssertionError("main template released camera seat");
+  lease.acquireMedia(owner,left,right);
+  if(!IslandCameraSeat.INSTANCE.holds(parent))throw new AssertionError("media lease did not hold camera seat");
+  lease.release(owner,72);layout(parent);
+  if(IslandCameraSeat.INSTANCE.holds(parent)||IslandCameraSeat.INSTANCE.tracked()!=0)throw new AssertionError("camera seat leaked after media release");
+  System.out.println("TEMPLATE_CAMERA_SEAT_OK mainReleased=true mediaHeld=true mediaReleased=true tracked=0");
   // Native content sits below several unchanged FrameLayout/LightBgView ancestors.
   // Manual premeasurement can leave a dirty child beneath clean cached ancestors.
   FrameLayout outer=new FrameLayout(ctx),middle=new FrameLayout(ctx),wrapper=new FrameLayout(ctx);

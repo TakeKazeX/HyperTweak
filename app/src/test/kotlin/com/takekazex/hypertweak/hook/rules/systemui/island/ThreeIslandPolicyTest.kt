@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandSlotLeases
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.ThreeIslandLayout
+
 import org.junit.Assert.*
 import org.junit.Test
 

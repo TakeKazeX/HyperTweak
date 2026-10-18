@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.PortraitIslandLayout
+
 import org.junit.Assert.*
 import org.junit.Test
 

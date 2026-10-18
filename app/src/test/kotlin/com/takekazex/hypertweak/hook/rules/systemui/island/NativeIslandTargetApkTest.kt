@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandAnchors
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandContract
+
 import java.io.File
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
@@ -39,6 +42,10 @@ class NativeIslandTargetApkTest {
             it.value.definingClass != content.type && it.index > modeCalls.last().index })
         // Hooking this inherited getter must cover the fake callback owner as well.
         assertEquals(base.type, fake.superclass)
+        assertTrue("fake width must be available in the runtime registry before hook installation",
+            "getSmallIslandViewWidth" in NativeIslandContract.methods.getValue(fake.type.removePrefix("L").removeSuffix(";").replace('/', '.')))
+        assertTrue(base.methods.any { it.name == "getSmallIslandViewWidth" &&
+            it.parameterTypes.isEmpty() && it.returnType == "I" })
         assertTrue(base.methods.any { it.name == "getFixedCutoutWidth" && it.returnType == "I" })
         assertFalse(fake.methods.any { it.name == "getFixedCutoutWidth" })
         val callback = classes.values.flatMap { it.methods.toList() }.filter { it.name == "onBegin" }

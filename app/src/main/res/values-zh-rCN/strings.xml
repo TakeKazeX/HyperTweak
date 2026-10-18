@@ -1549,4 +1549,6 @@
     <string name="tweaks_island_live_update_icon_summary">为实时通知的深色单色图标补上前景色，改善 ChatGPT 远程会话等图标不可见的问题。修改立即生效。</string>
     <string name="tweaks_island_narrow_time_font_title">时间数字使用窄字体</string>
     <string name="tweaks_island_narrow_time_font_summary">时钟、录音机的超级岛时间数字使用原生窄字体，修改后即时生效。</string>
+    <string name="tweaks_remove_island_placeholder_title">移除超级岛结构空位</string>
+    <string name="tweaks_remove_island_placeholder_summary">移除左右内容区为对称平衡而额外撑出的空白，按实际内容收紧；关闭后保留平衡宽度。独立于三岛调度，修改后即时生效。</string>
 </resources>

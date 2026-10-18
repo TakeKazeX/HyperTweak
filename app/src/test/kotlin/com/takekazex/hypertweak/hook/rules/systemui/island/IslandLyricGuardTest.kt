@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.spectrum.IslandLyricConflict
+import com.takekazex.hypertweak.hook.rules.systemui.island.spectrum.IslandLyricGuard
+
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
