@@ -34,7 +34,7 @@ internal object SmallIslandSpectrum {
 
     /** Published on main, read by the native Binder position query without measuring Views. */
     data class ReturnGeometry(val key: String, val layout: ThreeIslandLayout, val content: IslandContentSize,
-        val gap: Int, val clock: Int, val battery: Int, val safeLeft: Int, val safeRight: Int, val otherWidth: Int) {
+        val gap: Int, val clock: Int, val battery: Int, val safeLeft: Int, val safeRight: Int, val otherWidth: Int, val seatLeft: Boolean? = null, val screenHeight: Int = 0) {
         fun target(nativeX: Int, nativeWidth: Int): FullIslandFrame? {
             val left = when {
                 nativeWidth <= 0 -> return null
@@ -42,7 +42,7 @@ internal object SmallIslandSpectrum {
                 nativeX.toLong() >= layout.bigX.toLong() + layout.bigWidth -> false
                 else -> return null
             }
-            return choose(layout, content, gap, clock, battery, safeLeft, safeRight, left, otherWidth)?.frame
+            return choose(layout, content, gap, clock, battery, safeLeft, safeRight, seatLeft ?: left, otherWidth)?.frame
         }
     }
 

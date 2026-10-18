@@ -16,8 +16,15 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
     fun afterMeasure(view: Any, input: Any, result: Any, helper: Any): IslandResultGeometry? {
         val session = runtime.sessionForView(view) ?: return null
         return runtime.boundary.core(session, IslandFeature.MEASUREMENT, "measure three islands") {
+            runtime.spectrum.renderingReturnFrame(session, view)?.takeIf { it.full }?.let { frame ->
+                return@core IslandResultGeometry(frame.width, frame.content.left, frame.content.right,
+                    frame.x, 0, frame.width, frame.content.left, frame.content.right, frame.x)
+            }
             session.scene.contentSizes.remove(view)
             host.measuredContentSize(view, input)?.let { session.scene.contentSizes[view] = it }
+            session.spectrum.returnContents = session.scene.contentSizes.entries.mapNotNull { (item, size) ->
+                host.key(item)?.let { it to size }
+            }.toMap()
             if (!session.scene.layoutIntent || !runtime.enabled(session)) return@core null
             val big = host.current(session.owner, IslandSlot.BIG)
             // A side-media measurement carries cutout=0. It must never publish that
@@ -40,7 +47,7 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
                     primary = host.current(session.owner, IslandSlot.SMALL),
                     stagedExtras = session.slot.extras,
                     contentSizes = session.scene.contentSizes.toMap(),
-                    nativeSmallWidth = host::nativeSmallWidth,
+                    nativeSmallWidth = runtime::budgetSmallWidth,
                     keyOf = host::key,
                     seatLeft = { candidate -> session.seats.left(host.key(candidate)) },
                     displayOrder = session.scene.displayOrder,
@@ -50,6 +57,7 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
                     nativeMusicRight = runtime.preferences.threeIslands &&
                         host.current(session.owner, IslandSlot.SMALL)?.let(runtime::spectrumTarget) == true,
                 ))
+                val previousMusic = session.scene.musicSmall
                 session.scene.layout = measured.layout
                 session.scene.fullFrames.clear()
                 session.scene.fullFrames.putAll(measured.fullFrames)
@@ -61,6 +69,11 @@ internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
                 session.scene.musicSmall = outcome.musicSmall
                 session.scene.fullFrames.clear()
                 session.scene.fullFrames.putAll(outcome.fullFrames)
+                if (previousMusic != null && previousMusic !== outcome.musicSmall) {
+                    // Drop the old paired template before the native publication that
+                    // follows this helper result. The next Small render then owns the cover.
+                    runtime.templates.releaseFullPosition(session, previousMusic)
+                }
             } else {
                 outcome = outcomeFromSession(session)
             }

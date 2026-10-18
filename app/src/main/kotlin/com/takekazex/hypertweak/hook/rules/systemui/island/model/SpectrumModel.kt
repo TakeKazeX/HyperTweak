@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.model
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.FullIslandFrame
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.ThreeIslandLayout
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SmallIslandSpectrum
@@ -59,3 +60,6 @@ internal sealed interface SpectrumDecision {
         val returnGeometry: SmallIslandSpectrum.ReturnGeometry,
     ) : SpectrumDecision
 }
+
+/** Immutable app-close destination, shared by Binder queries and main-thread render callbacks. */
+internal data class MediaReturnTarget(val key: String, val frame: FullIslandFrame, val screenWidth: Int)

@@ -90,7 +90,9 @@ internal class SessionHealth {
 
 /** Spectrum-only state; never promotes a media failure to a session failure. */
 internal class SpectrumState {
-    var returnGeometry: SmallIslandSpectrum.ReturnGeometry? = null
+    @Volatile var returnGeometry: SmallIslandSpectrum.ReturnGeometry? = null
+    @Volatile var returnTarget: MediaReturnTarget? = null
+    @Volatile var returnContents: Map<String, IslandContentSize> = emptyMap()
     var lastLog: String? = null
     var lyricGuard: IslandLyricGuard? = null
     var lyricOwner: Any? = null

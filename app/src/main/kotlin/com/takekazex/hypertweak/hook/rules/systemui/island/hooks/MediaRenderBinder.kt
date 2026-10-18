@@ -30,14 +30,22 @@ internal object MediaRenderBinder {
                             chain.thisObject
                         }
                     val session = view?.let(runtime::sessionForView) ?: return@Hooker chain.proceed()
+                    if (entry.appOpenIndex?.let { chain.args[it] == true } == true) {
+                        runtime.spectrum.cancelReturn(session, view)
+                    }
                     val project = runtime.presentation.prepareNativeMedia(session, view)
                     runtime.boundary.soft(session, IslandFeature.SPECTRUM, "guard native media return text") {
                         runtime.spectrum.syncLyricGuard(session, view)
                     }
+                    val returnTarget = (runtime.renderingState.returnTarget() ?: session.spectrum.returnTarget)
+                        ?.takeIf { it.key == runtime.key(view) }
                     try {
-                        if (!project) return@Hooker chain.proceed()
-                        runtime.renderingState.render(view) {
-                            if (entry.destination != null) {
+                        if (!project && returnTarget == null) return@Hooker chain.proceed()
+                        val nested = runtime.renderingState.get() === view
+                        runtime.renderingState.render(view, returnTarget) {
+                            if (!nested) runtime.presentation.publishNativeReturn(session, view)
+                            val redirect = if (entry.destinationFull) project else returnTarget?.frame?.full == false
+                            if (redirect && entry.destination != null) {
                                 try {
                                     entry.destination.invoke(chain.thisObject, *chain.args.toTypedArray())
                                 } catch (failure: InvocationTargetException) {
@@ -50,10 +58,35 @@ internal object MediaRenderBinder {
                     } finally {
                         runtime.boundary.soft(session, IslandFeature.SPECTRUM, "guard native media return text") {
                             runtime.spectrum.syncLyricGuard(session, view)
+                            if (entry.method.name == "updateViewStateWhenCloseEnd") {
+                                runtime.spectrum.completeReturn(session, view, returnTarget)
+                            }
                         }
                     }
                 },
             )
+        }
+        registrar.after(contract.appSmallX.also(registrar::deoptimize),
+            "three_islands_native_media_return_x") { param ->
+            val view = runtime.renderingState.get() ?: return@after
+            val session = runtime.sessionForView(view) ?: return@after
+            runtime.boundary.soft(session, IslandFeature.SPECTRUM, "publish native media return x") {
+                runtime.spectrum.renderingReturnFrame(session, view)?.let { param.result = it.x }
+            }
+        }
+        // This native helper exposes the main task selected for the *future* collapsed row.
+        // Its query may run on Binder: use cached content sizes, never measure or mutate Views.
+        registrar.after(contract.appSmallTarget.also(registrar::deoptimize),
+            "three_islands_native_media_return_plan") { param ->
+            val view = param.args[0] ?: return@after
+            val main = param.args[1] ?: return@after
+            val session = runtime.sessionForView(view) ?: return@after
+            runtime.boundary.soft(session, IslandFeature.SPECTRUM, "plan native media return row") {
+                val rect = param.result as? Rect ?: return@soft
+                runtime.spectrum.planReturn(session, view, main)?.let { target ->
+                    param.result = Rect(target.frame.x, rect.top, target.frame.x + target.frame.width, rect.bottom)
+                }
+            }
         }
         registrar.after(
             contract.appCloseTarget.also(registrar::deoptimize),

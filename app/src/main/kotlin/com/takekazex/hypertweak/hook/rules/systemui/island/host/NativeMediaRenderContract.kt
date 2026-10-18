@@ -5,7 +5,8 @@ import java.lang.reflect.Method
 
 /** The vendor's complete BigIsland return path; no module animator or substitute content. */
 internal class NativeMediaRenderContract(host: NativeIslandAccess) {
-    data class Entry(val method: Method, val viewIndex: Int? = null, val destination: Method? = null)
+    data class Entry(val method: Method, val viewIndex: Int? = null, val destination: Method? = null,
+        val appOpenIndex: Int? = null, val destinationFull: Boolean = true)
     private val z = Boolean::class.javaPrimitiveType!!
     private val i = Int::class.javaPrimitiveType!!
     private val f = Float::class.javaPrimitiveType!!
@@ -18,11 +19,15 @@ internal class NativeMediaRenderContract(host: NativeIslandAccess) {
     val entries = listOf(
         Entry(method(host.delegate, "appExpandedToSmallIslandAnimation", *returnArgs), 0,
             method(host.delegate, "appExpandedToBigIslandAnimation", *returnArgs)),
+        Entry(method(host.delegate, "appExpandedToBigIslandAnimation", *returnArgs), 0,
+            method(host.delegate, "appExpandedToSmallIslandAnimation", *returnArgs), destinationFull = false),
+        Entry(method(host.fakeAnimator, "fakeViewToBigIsland", *returnArgs), 0,
+            method(host.fakeAnimator, "fakeViewToSmallIsland", *returnArgs), destinationFull = false),
         Entry(method(host.fakeAnimator, "fakeViewToSmallIsland", *returnArgs), 0,
             method(host.fakeAnimator, "fakeViewToBigIsland", *returnArgs)),
-        Entry(method(host.fakeAnimator, "updateFakeViewStateForAppAnim", i, i, i, i, host.content, z, z), 4),
-        Entry(method(host.fakeAnimator, "applyAppAnimByState", host.content, z, f, f, f), 0),
-        Entry(method(host.fakeHelper, "applyAppAnimByState", host.content, z, f, f, f), 0),
+        Entry(method(host.fakeAnimator, "updateFakeViewStateForAppAnim", i, i, i, i, host.content, z, z), 4, appOpenIndex = 6),
+        Entry(method(host.fakeAnimator, "applyAppAnimByState", host.content, z, f, f, f), 0, appOpenIndex = 1),
+        Entry(method(host.fakeHelper, "applyAppAnimByState", host.content, z, f, f, f), 0, appOpenIndex = 1),
         Entry(method(host.fake, "onStateChanged", host.content), 0),
         Entry(method(host.fake, "updateViewStateWhenCloseEnd", z, String::class.java)),
         Entry(method(host.fake, "syncIslandLottieProgress", z)),
@@ -41,6 +46,10 @@ internal class NativeMediaRenderContract(host: NativeIslandAccess) {
         defaultMethod(host.base, "getCurrentBigIslandWidth\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
         defaultMethod(host.base, "getBigIslandRect\$default", host.base, Boolean::class.javaObjectType, i, Any::class.java),
     )
+    val appSmallX = method(host.delegate, "getAppAnimSmallX\$miui_dynamicisland_release")
+    val appSmallTarget = host.windowController.declaredMethods.single {
+        it.returnType == Rect::class.java && it.parameterTypes.toList() == listOf(host.content, host.content)
+    }.apply { isAccessible = true }
     val appCloseTarget = host.windowController.declaredMethods.single {
         it.returnType == Rect::class.java && it.parameterTypes.toList() ==
             listOf(host.state, host.content, String::class.java, z)

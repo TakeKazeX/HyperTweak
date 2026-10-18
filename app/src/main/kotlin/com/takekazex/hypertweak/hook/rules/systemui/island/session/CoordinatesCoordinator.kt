@@ -10,8 +10,9 @@ internal class CoordinatesCoordinator(private val runtime: IslandRuntime) {
 
     fun nativeCoordinateX(session: IslandSession, view: Any): Float? {
         val x = runtime.smallX(session, view) ?: return null
-        val screenWidth = session.scene.layout?.screenWidth ?: return null
-        return x + host.nativeSmallWidth(view) / 2f - screenWidth / 2f
+        val screenWidth = runtime.spectrum.renderingReturnTarget(session, view)?.screenWidth
+            ?: session.scene.layout?.screenWidth ?: return null
+        return x + runtime.sideWidth(session, view) / 2f - screenWidth / 2f
     }
 
     fun nativeSmallTargetX(session: IslandSession): Int? {
@@ -39,10 +40,11 @@ internal class CoordinatesCoordinator(private val runtime: IslandRuntime) {
     fun containsExtra(session: IslandSession, view: Any): Boolean = view in session.slot.extras
 
     /** Side media publishes its paired frame width; all other summaries keep the native width. */
-    fun publishedSmallWidth(session: IslandSession, view: Any): Int? =
-        if (session.scene.musicSmall === view && session.scene.fullFrames[view]?.full == true) {
-            session.scene.fullFrames.getValue(view).width
-        } else {
-            null
-        }
+    fun publishedSmallWidth(session: IslandSession, view: Any): Int? {
+        if (runtime.nativeSmallWidthRead.active) return null
+        runtime.spectrum.renderingReturnFrame(session, view)?.let { return it.width }
+        return session.scene.fullFrames[view]?.takeIf {
+            session.scene.musicSmall === view && it.full
+        }?.width
+    }
 }

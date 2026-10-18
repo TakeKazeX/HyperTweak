@@ -35,6 +35,11 @@ internal class IslandRuntime(
     val layoutMeasurement = IslandTemplatePublication()
     // Restoration needs the host camera width even while an area lease is still held.
     val nativeCutoutRead = IslandTemplatePublication()
+    // Only policy budgets read the unprojected cover width. Native rendering and
+    // app-return callbacks must retain the paired width, even inside measurement.
+    val nativeSmallWidthRead = IslandTemplatePublication()
+
+    val mediaReturnPublication = IslandTemplatePublication()
     val main: Handler by lazy { Handler(Looper.getMainLooper()) }
 
     val diagnostics by lazy { DiagnosticsCoordinator(this) }
@@ -50,6 +55,8 @@ internal class IslandRuntime(
     init {
         boundary.restorer = { settlement.restore(it) }
     }
+
+    fun budgetSmallWidth(view: Any): Int = nativeSmallWidthRead.run { host.nativeSmallWidth(view) }
 
     fun enabled(session: IslandSession): Boolean = IslandModePolicy.enabled(
         retiring = retiring(),
@@ -106,6 +113,7 @@ internal class IslandRuntime(
     fun key(view: Any): String? = host.key(view)
 
     fun smallX(session: IslandSession, view: Any): Int? {
+        spectrum.renderingReturnFrame(session, view)?.let { return it.x }
         val isExtra = view in session.slot.extras
         if (!isExtra && host.current(session.owner, IslandSlot.SMALL) !== view) {
             return session.interaction.departingPositions[view]
@@ -118,21 +126,29 @@ internal class IslandRuntime(
     }
 
     fun sideWidth(session: IslandSession, view: Any): Int =
-        if (fullTemplate(session, view)) session.scene.fullFrames.getValue(view).width
+        if (fullTemplate(session, view)) checkNotNull(templateFrame(session, view)).width
         else host.nativeSmallWidth(view)
 
-    fun fullTemplate(session: IslandSession, view: Any): Boolean =
-        enabled(session) && (rowModeEnabled(session) || session.scene.musicSmall === view) &&
+    fun templateFrame(session: IslandSession, view: Any) =
+        spectrum.renderingReturnFrame(session, view) ?: session.scene.fullFrames[view]
+
+    fun fullTemplate(session: IslandSession, view: Any): Boolean {
+        if (!enabled(session)) return false
+        spectrum.renderingReturnFrame(session, view)?.let { return it.full }
+        return (rowModeEnabled(session) || session.scene.musicSmall === view) &&
             session.scene.fullFrames[view]?.full == true &&
             IslandPresentation.isSummary(view, session.scene.fullFrames.keys, summaries(session),
                 host.current(session.owner, IslandSlot.EXPANDED))
+    }
 
     fun fullSide(session: IslandSession, view: Any): Boolean =
         fullTemplate(session, view) &&
-            (view in session.slot.extras || host.current(session.owner, IslandSlot.SMALL) === view)
+            (spectrum.renderingReturnFrame(session, view) != null ||
+                view in session.slot.extras || host.current(session.owner, IslandSlot.SMALL) === view)
 
     fun portraitMain(session: IslandSession, view: Any): Boolean =
-        portraitCompactEnabled(session) && session.scene.portraitContent != null &&
+        spectrum.renderingReturnFrame(session, view) == null &&
+            portraitCompactEnabled(session) && session.scene.portraitContent != null &&
             view === host.current(session.owner, IslandSlot.BIG) &&
             view !== host.current(session.owner, IslandSlot.EXPANDED)
 

@@ -211,6 +211,8 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
     fun restore(session: IslandSession) {
         runtime.spectrum.releaseLyricGuard(session)
         session.spectrum.returnGeometry = null
+        session.spectrum.returnTarget = null
+        session.spectrum.returnContents = emptyMap()
         session.presentation.expanded = null
         session.presentation.big = null
         val extras = session.slot.extras

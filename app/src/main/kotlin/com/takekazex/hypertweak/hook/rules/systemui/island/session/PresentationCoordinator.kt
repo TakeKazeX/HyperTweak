@@ -5,6 +5,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
+import com.takekazex.hypertweak.hook.rules.systemui.island.model.TemplateWidthRequest
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.TemplateSeatMode
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandPresentation
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat
 
@@ -80,16 +82,19 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
         val session = runtime.sessionForView(view) ?: return TemplateAnimation.Passthrough
         if (runtime.layoutMeasurement.active) return TemplateAnimation.Suppress
         if (!runtime.alignedTemplate(session, view)) return TemplateAnimation.Passthrough
-        val layout = session.scene.layout ?: return TemplateAnimation.Passthrough
-        val frame = session.scene.fullFrames[view]
-        val x = frame?.x ?: layout.bigX
-        val width = frame?.width ?: layout.bigWidth
+        val target = runtime.spectrum.renderingReturnTarget(session, view)
+        val layout = session.scene.layout
+        if (layout == null && target == null) return TemplateAnimation.Passthrough
+        val frame = runtime.templateFrame(session, view)
+        val x = frame?.x ?: checkNotNull(layout).bigX
+        val width = frame?.width ?: checkNotNull(layout).bigWidth
+        val screenWidth = target?.screenWidth ?: checkNotNull(layout).screenWidth
         val redirected = args.copyOf()
         redirected[3] = IslandPresentation.contentTranslation(
-            layout.screenWidth, x.toFloat(), x.toFloat() + width,
+            screenWidth, x.toFloat(), x.toFloat() + width,
             (args[3] as Number).toFloat(), 1f,
         )
-        session.presentation.fullOrigins[view] = layout.screenWidth
+        session.presentation.fullOrigins[view] = screenWidth
         return TemplateAnimation.Redirect(redirected, view)
     }
 
@@ -110,7 +115,7 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
 
     fun currentBigIslandGeometry(session: IslandSession, view: Any, member: String): Int? {
         if (!runtime.fullTemplate(session, view)) return null
-        val frame = session.scene.fullFrames.getValue(view)
+        val frame = checkNotNull(runtime.templateFrame(session, view))
         return if (member == "getCurrentBigIslandX") frame.x else frame.width
     }
 
@@ -119,7 +124,28 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
         return if (member == "onPressSmallIsland") "onPressBigIsland" else "resetPressBigIsland"
     }
 
+    /** Publish the same target into native fields before any real/fake app-close renderer reads them. */
+    fun publishNativeReturn(session: IslandSession, view: Any) {
+        val frame = runtime.spectrum.renderingReturnFrame(session, view) ?: return
+        if (runtime.mediaReturnPublication.active) return
+        if (!frame.full) {
+            runtime.templates.releaseFullPosition(session, view)
+            return
+        }
+        runtime.mediaReturnPublication.run {
+            runtime.boundary.soft(session, IslandFeature.SPECTRUM, "publish native media return geometry") {
+                runtime.templates.acquire(session,
+                    TemplateWidthRequest(view, 0, TemplateSeatMode.CAMERA_RELEASING))
+                runtime.layoutMeasurement.run { host.call(view, "calculateBigIslandWidth") }
+                host.call(view, "updateBigIslandLayout")
+            }
+        }
+    }
+
     fun prepareNativeMedia(session: IslandSession, view: Any): Boolean {
+        if (runtime.spectrum.hasReturnTarget(session, view)) {
+            return (runtime.renderingState.returnTarget() ?: session.spectrum.returnTarget)?.frame?.full == true
+        }
         var project = false
         runtime.boundary.soft(session, IslandFeature.SPECTRUM, "prepare native media renderer") {
             prepareSmallMusicAnimation(session, view)

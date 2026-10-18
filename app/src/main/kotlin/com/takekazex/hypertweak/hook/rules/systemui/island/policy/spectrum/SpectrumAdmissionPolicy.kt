@@ -41,7 +41,7 @@ internal object SpectrumAdmissionPolicy {
 
         fun geometry(size: IslandContentSize) = SmallIslandSpectrum.ReturnGeometry(
             key, input.layout, size, input.gap, input.clock, input.battery,
-            input.safeLeft, input.safeRight, otherWidth,
+            input.safeLeft, input.safeRight, otherWidth, currentLeft,
         )
 
         fun seat(size: IslandContentSize): SmallIslandSpectrum.Seat? =

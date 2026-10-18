@@ -139,9 +139,10 @@ class SpectrumAdmissionPolicyTest {
 
     @Test fun `return geometry follows the admitted demand and rebases after rotation`() {
         val decision = SpectrumAdmissionPolicy.evaluate(input()) as SpectrumDecision.Admitted
-        val right = decision.returnGeometry.target(830, 93)
-        assertEquals(770, right!!.x)
-        assertEquals(186, right.width)
+        // Native app-close always proposes its right slot; scheduling owns the remembered left seat.
+        val target = decision.returnGeometry.target(830, 93)
+        assertEquals(114, target!!.x)
+        assertEquals(186, target.width)
         val rebased = SpectrumAdmissionPolicy.rebase(decision.returnGeometry,
             layout.copy(bigX = 500), 8, 90, 80, 1, 2)
         assertEquals(500, rebased!!.layout.bigX)

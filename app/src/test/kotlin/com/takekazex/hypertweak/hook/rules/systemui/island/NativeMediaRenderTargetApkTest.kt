@@ -66,6 +66,10 @@ class NativeMediaRenderTargetApkTest {
         method(delegate, "appExpandedToBigIslandAnimation", content)
         val window = root + "window/DynamicIslandWindowView;"
         val controller = method(window, "getWindowViewController").returnType
+        assertEquals(1, classes.getValue(controller).methods.count { it.returnType == "Landroid/graphics/Rect;" &&
+            it.parameterTypes.map(CharSequence::toString) == listOf(content, content) })
+        assertEquals("I", method(delegate, "getAppAnimSmallX\$miui_dynamicisland_release").returnType)
+        assertTrue(calls(smallReturn).any { it.name == "getAppAnimSmallX\$miui_dynamicisland_release" })
         val state = root + "event/DynamicIslandState;"
         assertEquals(1, classes.getValue(controller).methods.count { it.returnType == "Landroid/graphics/Rect;" &&
             it.parameterTypes.map(CharSequence::toString) == listOf(state, content, "Ljava/lang/String;", "Z") })
