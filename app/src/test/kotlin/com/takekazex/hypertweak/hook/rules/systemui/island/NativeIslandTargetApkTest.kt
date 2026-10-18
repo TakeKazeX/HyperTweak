@@ -34,6 +34,9 @@ class NativeIslandTargetApkTest {
         assertEquals("Z", premeasure.returnType)
         assertTrue(calls(premeasure).any { it.name == "enablePreMeasureMode" && it.parameterTypes == listOf("Z") })
         val measurementCalls = calls(measurement)
+        assertEquals("measurement publishes the native layout exactly once", 1,
+            measurementCalls.count { it.definingClass == content.type && it.name == "updateBigIslandLayout" &&
+                it.parameterTypes.isEmpty() && it.returnType == "V" })
         val modeCalls = measurementCalls.withIndex().filter { it.value.name == premeasure.name }
         assertEquals("native measurement enters and exits premeasure", 2, modeCalls.size)
         assertTrue(measurementCalls.withIndex().any { it.value.name == "measure" &&

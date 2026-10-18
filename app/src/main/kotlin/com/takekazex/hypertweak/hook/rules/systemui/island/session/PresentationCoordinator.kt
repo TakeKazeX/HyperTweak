@@ -137,7 +137,7 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
                 runtime.templates.acquire(session,
                     TemplateWidthRequest(view, 0, TemplateSeatMode.CAMERA_RELEASING))
                 runtime.layoutMeasurement.run { host.call(view, "calculateBigIslandWidth") }
-                host.call(view, "updateBigIslandLayout")
+                // Native measurement synchronously publishes updateBigIslandLayout itself.
             }
         }
     }
