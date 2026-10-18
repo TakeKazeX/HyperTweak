@@ -3,6 +3,9 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -12,7 +15,9 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
 import org.json.JSONObject
+import java.io.File
 import java.lang.reflect.Modifier
+import java.util.concurrent.Executors
 
 /** Keeps the native Security Center privacy and camera entries in their original preference pages. */
 object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
@@ -50,9 +55,31 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
         "#Intent;action=$FRONT_ASSISTANT_ACTION;end"
 
     @Volatile private var supportedAntiPeepingModes: Set<Int> = emptySet()
-    private var resolver: SecurityCenterPrivacyResolver? = null
 
     private val beautyManageUiGateActive = ThreadActivation()
+
+    /**
+     * Non-main Security Center processes publish content providers while this hooker runs during
+     * `bindApplication`. The old dexlib2 scan took longer than ActivityManager's 10 s provider
+     * deadline there, so the process was killed and retried. Capability gates have no UI in those
+     * processes; installing them after startup is equivalent for every later consumer.
+     */
+    private val deferredLock = Any()
+    private var deferredGeneration = 0L
+    private var deferredPending = false
+    private val deferredWorker = Executors.newSingleThreadExecutor { task ->
+        Thread({
+            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
+            task.run()
+        }, "HT-SecurityPrivacy").apply { isDaemon = true }
+    }
+
+    override fun onPrepareHotReload() {
+        synchronized(deferredLock) {
+            deferredGeneration++
+            deferredPending = false
+        }
+    }
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -61,33 +88,120 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             return
         }
 
-        resolver = runCatching {
-            SecurityCenterPrivacyResolver(requireNotNull(hookParam.appInfo?.sourceDir), classLoader)
-        }.onFailure { DebugLog.w(TAG, "native privacy semantic index unavailable", it) }.getOrNull()
-        try {
-            val selectedAntiPeepingMode = antiPeepingMode()
-            if (selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-                hookAntiPeepingCapabilityGates()
-            }
+        val selectedAntiPeepingMode = antiPeepingMode()
+        val needsAntiPeepingTargets =
+            selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+        val needsFrontAssistantTargets =
+            hookParam.isMainProcess && isFrontCameraAssistantEnabled()
 
-            if (!hookParam.isMainProcess) return
-
+        // Preference visibility does not depend on DEX evidence; install it before any scan so the
+        // settings page is already correct while the semantic targets are being resolved.
+        if (hookParam.isMainProcess) {
             hookPreferenceVisibility()
             hookPreferenceRemoval()
-            if (isFrontCameraAssistantEnabled()) {
-                hookFrontAssistantAction()
-                hookFrontAssistantFunctionCardGates()
-                hookBeautyManageEntry()
+        }
+        if (!needsAntiPeepingTargets && !needsFrontAssistantTargets) {
+            if (hookParam.isMainProcess) {
+                DebugLog.i(TAG, "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode")
             }
+            return
+        }
 
-            DebugLog.i(
-                TAG,
-                "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode"
-            )
-        } finally {
-            resolver = null // Installed hooks capture only reflected targets, not the whole APK index.
+        val apkPath = hookParam.appInfo?.sourceDir
+        if (apkPath.isNullOrBlank()) {
+            DebugLog.w(TAG, "target APK path unavailable; semantic overrides skipped")
+            return
+        }
+        val cacheDir = hookParam.appInfo?.dataDir?.takeIf { it.isNotBlank() }?.let { File(it, "cache") }
+
+        if (hookParam.isMainProcess) {
+            val profile = runCatching {
+                SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir)
+            }.onFailure {
+                DebugLog.w(TAG, "privacy target resolution failed", it)
+            }.getOrNull()
+            if (profile == null) {
+                DebugLog.w(TAG, "privacy targets unavailable; preserving native behavior")
+                return
+            }
+            installSemanticTargets(profile, selectedAntiPeepingMode)
+        } else {
+            // Auxiliary processes keep the old ordering whenever a cache entry exists: the gates
+            // are installed before the host's services run. Only the one scan after an APK update
+            // has to move past the provider-publish deadline, which is exactly what used to get
+            // the process killed.
+            val cached = runCatching {
+                SecurityCenterPrivacyResolver.resolve(
+                    apkPath,
+                    classLoader,
+                    cacheDir,
+                    cacheOnly = true
+                )
+            }.getOrNull()
+            if (cached != null) {
+                installSemanticTargets(cached, selectedAntiPeepingMode)
+            } else {
+                scheduleDeferredInstall(apkPath, cacheDir, selectedAntiPeepingMode)
+            }
         }
     }
+
+    /** Installs hooks that need the resolved DEX targets; callers own the generation boundary. */
+    private fun installSemanticTargets(
+        profile: SecurityCenterPrivacyResolver,
+        selectedAntiPeepingMode: Int
+    ) {
+        if (selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+            hookAntiPeepingCapabilityGates(profile)
+        }
+        if (hookParam.isMainProcess && isFrontCameraAssistantEnabled()) {
+            hookFrontAssistantAction(profile)
+            hookFrontAssistantFunctionCardGates(profile)
+            hookBeautyManageEntry(profile)
+        }
+        if (hookParam.isMainProcess) {
+            DebugLog.i(TAG, "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode")
+        } else {
+            DebugLog.d(TAG, "anti-peeping capability gates installed mode=$selectedAntiPeepingMode")
+        }
+    }
+
+    private fun scheduleDeferredInstall(apkPath: String, cacheDir: File?, antiPeepingMode: Int) {
+        val token = synchronized(deferredLock) {
+            if (deferredPending) return
+            deferredPending = true
+            deferredGeneration
+        }
+        Handler(Looper.getMainLooper()).post {
+            if (!isCurrentGeneration(token)) return@post
+            deferredWorker.execute {
+                try {
+                    if (!isCurrentGeneration(token)) return@execute
+                    val profile = runCatching {
+                        SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir)
+                    }.onFailure {
+                        DebugLog.w(TAG, "privacy target resolution failed", it)
+                    }.getOrNull() ?: return@execute
+                    synchronized(deferredLock) {
+                        if (!isCurrentGeneration(token)) return@synchronized
+                        // Only the capability gates run outside the main process; the settings UI
+                        // hooks above stay on the package-load path where they are required.
+                        if (antiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+                            hookAntiPeepingCapabilityGates(profile)
+                        }
+                        DebugLog.d(TAG, "deferred anti-peeping gates installed mode=$antiPeepingMode")
+                    }
+                } finally {
+                    synchronized(deferredLock) {
+                        if (deferredGeneration == token) deferredPending = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun isCurrentGeneration(token: Long): Boolean =
+        synchronized(deferredLock) { deferredGeneration == token }
 
     private fun hasAnyFeatureEnabled(): Boolean =
         isPrivacyCallEnabled() ||
@@ -239,8 +353,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     /** Applies the selected version to Security Center's shared V1/V2 support gates. */
-    private fun hookAntiPeepingCapabilityGates() {
-        val profile = resolver ?: return
+    private fun hookAntiPeepingCapabilityGates(profile: SecurityCenterPrivacyResolver) {
         val v1 = profile.antiPeepingV1()
         val v2 = profile.antiPeepingV2()
         supportedAntiPeepingModes = buildSet {
@@ -271,8 +384,8 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     /** Lets Security Center's native function-card filter retain the front-camera assistant item. */
-    private fun hookFrontAssistantAction() {
-        val isSupportedAction = resolver?.frontAction() ?: return
+    private fun hookFrontAssistantAction(profile: SecurityCenterPrivacyResolver) {
+        val isSupportedAction = profile.frontAction() ?: return
         runCatching {
             deoptimize(isSupportedAction)
             isSupportedAction.hook("security_center_front_assistant_native_entry") {
@@ -291,7 +404,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     /** The native function card applies a second cloud/version filter after local capability. */
-    private fun hookFrontAssistantFunctionCardGates() {
+    private fun hookFrontAssistantFunctionCardGates(profile: SecurityCenterPrivacyResolver) {
         val functionCardModel = FUNCTION_CARD_MODEL_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, FUNCTION_CARD_MODEL_CLASS, "class not found")
             return
@@ -301,7 +414,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             methodName = "isShowLocalFunction",
             hookKey = "security_center_front_assistant_local_card_gate"
         )
-        hookFrontAssistantCommonFunctionFallback()
+        hookFrontAssistantCommonFunctionFallback(profile)
 
         val cloudGate = CompatibleMethodResolver.find(
             functionCardModel,
@@ -339,8 +452,8 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      * function card when the cloud list omits it. Replace an unpinned suggestion when the six
      * native slots are full; preserve all user-pinned functions.
      */
-    private fun hookFrontAssistantCommonFunctionFallback() {
-        val buildNewCommonFunctions = resolver?.commonFunctions()
+    private fun hookFrontAssistantCommonFunctionFallback(profile: SecurityCenterPrivacyResolver) {
+        val buildNewCommonFunctions = profile.commonFunctions()
 
         if (buildNewCommonFunctions != null) {
             runCatching {
@@ -359,7 +472,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             }
         }
 
-        val buildLegacyCommonFunctions = resolver?.legacyCommonCard() ?: return
+        val buildLegacyCommonFunctions = profile.legacyCommonCard() ?: return
 
         runCatching {
             deoptimize(buildLegacyCommonFunctions)
@@ -482,8 +595,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      * false. Override that predicate only while the fragment builds this native settings page;
      * calls from BeautyView, service code, and actual camera operation keep the vendor result.
      */
-    private fun hookBeautyManageEntry() {
-        val profile = resolver ?: return
+    private fun hookBeautyManageEntry(profile: SecurityCenterPrivacyResolver) {
         val onCreatePreferences = profile.beautyEntry() ?: return
         val supportBeauty = profile.beautySupport() ?: return
 

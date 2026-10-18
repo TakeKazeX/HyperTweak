@@ -15,6 +15,23 @@ object DexKitManager {
     private val resolutionLocks = ConcurrentHashMap<String, ReentrantLock>()
     private val fingerprintCache = ConcurrentHashMap<String, ApkFingerprint>()
 
+    /**
+     * Dispatch-wide scope shared by every DexKit consumer in one package's hook installation.
+     *
+     * The bridge opens lazily on the first [withBridge] call, so a package that never queries DEX
+     * pays nothing, while every consumer in the same dispatch reuses one native handle. The scope
+     * is thread-local because a deferred resolver in an auxiliary process must not borrow another
+     * thread's live bridge.
+     */
+    private class SharedScope(val apkPath: String) {
+        var bridge: DexKitBridge? = null
+        var active = false
+        var failed = false
+    }
+
+    private val sharedScopes: ThreadLocal<ArrayList<SharedScope>> =
+        ThreadLocal.withInitial { ArrayList() }
+
     @Volatile
     private var isLoaded = false
 
@@ -95,6 +112,13 @@ object DexKitManager {
     }
 
     fun <T> withBridge(apkPath: String, block: (DexKitBridge) -> T): T? {
+        val scope = sharedScopes.get().lastOrNull { it.apkPath == apkPath }
+        if (scope != null) {
+            val bridge = sharedBridge(scope) ?: return null
+            return runCatching { block(bridge) }.onFailure { t ->
+                DebugLog.e("DexKit", "failed to run shared bridge block for APK $apkPath", t)
+            }.getOrNull()
+        }
         if (!enterBridgeSession()) {
             DebugLog.d("DexKit", "skip bridge creation during hot reload preparation")
             return null
@@ -110,6 +134,68 @@ object DexKitManager {
                 DebugLog.e("DexKit", "failed to run bridge for APK $apkPath", t)
             }.getOrNull()
         } finally {
+            exitBridgeSession()
+        }
+    }
+
+    /** Bridge currently open on this thread for [apkPath], if a shared scope opened one. */
+    fun currentBridge(apkPath: String): DexKitBridge? =
+        sharedScopes.get().lastOrNull { it.apkPath == apkPath }?.bridge
+
+    /**
+     * Opens a dispatch-wide scope; [withBridge] lazily creates its single bridge.
+     *
+     * Nested scopes for the same APK return a no-op handle so the outermost owner closes it.
+     * [withBridge] callers outside any scope keep the previous one-bridge-per-call behavior.
+     */
+    fun beginSharedSession(apkPath: String): AutoCloseable {
+        val stack = sharedScopes.get()
+        if (stack.any { it.apkPath == apkPath }) return AutoCloseable { }
+        val scope = SharedScope(apkPath)
+        stack.add(scope)
+        return AutoCloseable {
+            stack.remove(scope)
+            closeScope(scope)
+        }
+    }
+
+    private fun sharedBridge(scope: SharedScope): DexKitBridge? {
+        scope.bridge?.let { return it }
+        if (scope.failed) return null
+        if (!enterBridgeSession()) return null
+        scope.active = true
+        val started = System.nanoTime()
+        try {
+            if (!loadLibrary()) {
+                scope.failed = true
+                return null
+            }
+            val created = runCatching { DexKitBridge.create(scope.apkPath) }.onFailure { t ->
+                DebugLog.e("DexKit", "failed to create shared bridge for APK ${scope.apkPath}", t)
+            }.getOrNull()
+            if (created == null) {
+                scope.failed = true
+                return null
+            }
+            scope.bridge = created
+            DebugLog.i(
+                "DexKit",
+                "shared bridge opened in ${(System.nanoTime() - started) / 1_000_000L}ms for ${scope.apkPath}"
+            )
+            return created
+        } finally {
+            if (scope.bridge == null) {
+                scope.active = false
+                exitBridgeSession()
+            }
+        }
+    }
+
+    private fun closeScope(scope: SharedScope) {
+        runCatching { scope.bridge?.close() }
+        scope.bridge = null
+        if (scope.active) {
+            scope.active = false
             exitBridgeSession()
         }
     }

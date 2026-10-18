@@ -932,6 +932,11 @@ class HookEntry : XposedModule() {
             appContext = null
         )
 
+        // One lazy DexKit scope per package dispatch: every consumer below shares one bridge.
+        val sharedSession = appInfo?.sourceDir?.takeIf { it.isNotBlank() }
+            ?.let(DexKitManager::beginSharedSession)
+        try {
+
         // Input methods are chosen by the user, so they cannot be listed in the `when` below. All
         // the targets are boot-classpath classes present in every process, so a wrong package only
         // installs hooks that never fire; the picker does the real validation.
@@ -1064,31 +1069,42 @@ class HookEntry : XposedModule() {
                 // the attention service from the module's restart picker without root.
             }
             "com.miui.securitycenter" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
-                // Only the main application process owns the on-demand battery request receiver.
-                // Auxiliary Security Center processes must not start another sampling worker.
-                if (processName == packageName) {
-                    attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                // One DexKit bridge for the whole package dispatch: every consumer below reuses
+                // the session opened here. Opening one per hooker cost seconds on the 81 MB APK
+                // and pushed the auxiliary processes past ActivityManager's provider deadline.
+                fun attachSecurityCenterHookers() {
+                    attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                    // Default-credential writers live in the main Application on older builds and
+                    // in CacheService (`.cache`) on OS4. Other Security Center processes have no
+                    // target for this hook, so they must not pay its DEX resolution.
+                    if (processName == packageName || processName == "$packageName.cache") {
+                        attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
+                    }
+                    attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
+                    // Only the main application process owns the on-demand battery request receiver.
+                    // Auxiliary Security Center processes must not start another sampling worker.
+                    if (processName == packageName) {
+                        attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
+                    }
+                    attachHooker(BerserkModeHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(DetailedPowerDataHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
+                    // The 省电模式 pins come from Security Center's remote process (PowerSaveService),
+                    // so this cannot be limited to the main application process.
+                    attachHooker(PowerSaveOverrideHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
+                    attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
+                    // Anti-peeping capability checks also run in Security Center's remote process;
+                    // the hooker limits preference and function-card changes to the main process.
+                    attachHooker(SecurityCenterPrivacyEntriesHooker, classLoader, ctx, replacementHandles)
+                    // Security Center ships its own copy of the vendor clipboard-read overlay and is the
+                    // one that actually builds it; see LbeClipboardToastHooker.
+                    attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
                 }
-                attachHooker(BerserkModeHooker, classLoader, ctx, replacementHandles)
-                attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
-                attachHooker(DetailedPowerDataHooker, classLoader, ctx, replacementHandles)
-                attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
-                // The 省电模式 pins come from Security Center's remote process (PowerSaveService),
-                // so this cannot be limited to the main application process.
-                attachHooker(PowerSaveOverrideHooker, classLoader, ctx, replacementHandles)
-                attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
-                attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
-                // Anti-peeping capability checks also run in Security Center's remote process;
-                // the hooker limits preference and function-card changes to the main process.
-                attachHooker(SecurityCenterPrivacyEntriesHooker, classLoader, ctx, replacementHandles)
-                // Security Center ships its own copy of the vendor clipboard-read overlay and is the
-                // one that actually builds it; see LbeClipboardToastHooker.
-                attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
+                attachSecurityCenterHookers()
             }
             "com.miui.securitycore" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
@@ -1179,6 +1195,9 @@ class HookEntry : XposedModule() {
             "com.takekazex.hypertweak" -> {
                 attachHooker(ModuleStatusHooker, classLoader, ctx, replacementHandles)
             }
+        }
+        } finally {
+            sharedSession?.close()
         }
     }
 

@@ -12,6 +12,9 @@ import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadMode
+import com.takekazex.hypertweak.hook.base.dex.DexFeature
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.util.DebugLog
@@ -21,6 +24,13 @@ import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.locks.ReentrantLock
+import org.luckypray.dexkit.DexKitBridge
+
+/** Cached Security Center default-credential resolution; schema follows the query evidence. */
+internal object PasskeySecurityCenterFeature : DexFeature {
+    override val id = "securitycenter.passkey"
+    override val schema = 1
+}
 
 object PasskeyHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -75,7 +85,7 @@ object PasskeyHooker : StaticHooker() {
             }
             "com.miui.securitycenter" -> {
                 try {
-                    hookSecurityCenter(apkPath)
+                    hookSecurityCenter(apkPath, cacheDir)
                 } catch (t: Throwable) {
                     DebugLog.e(TAG, "Error hooking SecurityCenter", t)
                 }
@@ -438,92 +448,128 @@ object PasskeyHooker : StaticHooker() {
         }
     }
 
-    private fun hookSecurityCenter(apkPath: String) {
+    private fun hookSecurityCenter(apkPath: String, cacheDir: File) {
         // The default-credential writers moved between SecurityCenter builds (from
         // `com.miui.securitycenter.Application` to `com.miui.securitycenter.service.CacheService`
         // on the current OS4 device build, with R8-renamed `(String,int)` helpers), so resolve
         // them by shape instead of by class: a helper that reads a resource and writes
-        // Settings.Secure, plus the wrapper that calls it with the setting names.
-        DexKitManager.withBridge(apkPath) bridgeBlock@ { bridge ->
-                val mSetStringResourceConfigIfNeed = runCatching {
-                    bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
-                        .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .addInvoke("Landroid/content/res/Resources;->getString(I)Ljava/lang/String;")
-                            .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
-                        )).singleOrNull()
-                }.getOrNull()
+        // Settings.Secure, plus the wrapper that calls it with the setting names. Only the two
+        // wrappers are cached; they are what the hooks target.
+        val targets = DexRuntime.resolve(
+            feature = PasskeySecurityCenterFeature,
+            apkPath = apkPath,
+            cacheDir = cacheDir,
+            cacheEmpty = false,
+            compute = { session ->
+                session.dexKit { bridge -> resolveSecurityCenterTargets(bridge) }
+                    ?: throw IllegalStateException("DexKit session unavailable")
+            },
+            decode = { values, fromCache -> decodeSecurityCenterTargets(values, fromCache) },
+        ) ?: run {
+            DebugLog.w(TAG, "securitycenter default-credential targets unavailable")
+            return
+        }
+        installSecurityCenterTarget("autofill-service", targets.autofill)
+        installSecurityCenterTarget("credential", targets.credential)
+    }
 
-                val mConfigForAutofillService = if (mSetStringResourceConfigIfNeed != null) {
-                    runCatching {
-                        bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
-                            .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                                .addEqString("autofill_service")
-                                .addInvoke(mSetStringResourceConfigIfNeed.descriptor)
-                            )).singleOrNull()
-                    }.getOrNull()
-                } else null
+    /** Runs inside the shared bridge; only descriptors leave the session. */
+    private fun resolveSecurityCenterTargets(bridge: DexKitBridge): Map<String, String> {
+        val mSetStringResourceConfigIfNeed = runCatching {
+            bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                    .addInvoke("Landroid/content/res/Resources;->getString(I)Ljava/lang/String;")
+                    .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
+                )).singleOrNull()
+        }.getOrNull()
 
-                val mSetStringArrayResourceConfigIfNeed = runCatching {
-                    bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
-                        .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .addInvoke("Landroid/content/res/Resources;->getStringArray(I)[Ljava/lang/String;")
-                            .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
-                        )).singleOrNull()
-                }.getOrNull()
+        val mConfigForAutofillService = if (mSetStringResourceConfigIfNeed != null) {
+            runCatching {
+                bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                        .addEqString("autofill_service")
+                        .addInvoke(mSetStringResourceConfigIfNeed.descriptor)
+                    )).singleOrNull()
+            }.getOrNull()
+        } else null
 
-                val mSetDefaultConfigForAutofillAndCredentialManager = if (mSetStringArrayResourceConfigIfNeed != null) {
-                    runCatching {
-                        bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
-                            .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                                .usingEqStrings("credential_service", "credential_service_primary")
-                                .addInvoke(mSetStringArrayResourceConfigIfNeed.descriptor)
-                            )).singleOrNull()
-                    }.getOrNull()
-                } else null
+        val mSetStringArrayResourceConfigIfNeed = runCatching {
+            bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                    .addInvoke("Landroid/content/res/Resources;->getStringArray(I)[Ljava/lang/String;")
+                    .addInvoke("Landroid/provider/Settings\$Secure;->putString(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Z")
+                )).singleOrNull()
+        }.getOrNull()
 
-                if (mConfigForAutofillService != null) {
-                    runCatching {
-                        val method = mConfigForAutofillService.getMethodInstance(classLoader)
-                        deoptimize(method)
-                        method.hook {
-                            intercept { chain ->
-                                if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
-                                    null
-                                } else {
-                                    chain.proceed()
-                                }
-                            }
-                        }
-                        DebugLog.i(TAG, "securitycenter autofill-service default write blocked")
-                    }.onFailure { t ->
-                        DebugLog.e(TAG, "securitycenter autofill hook failed", t)
-                    }
-                } else {
-                    DebugLog.w(TAG, "securitycenter autofill-service default write not found")
-                }
+        val mSetDefaultConfigForAutofillAndCredentialManager = if (mSetStringArrayResourceConfigIfNeed != null) {
+            runCatching {
+                bridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                        .usingEqStrings("credential_service", "credential_service_primary")
+                        .addInvoke(mSetStringArrayResourceConfigIfNeed.descriptor)
+                    )).singleOrNull()
+            }.getOrNull()
+        } else null
 
-                if (mSetDefaultConfigForAutofillAndCredentialManager != null) {
-                    runCatching {
-                        val method = mSetDefaultConfigForAutofillAndCredentialManager.getMethodInstance(classLoader)
-                        deoptimize(method)
-                        method.hook {
-                            intercept { chain ->
-                                if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
-                                    null
-                                } else {
-                                    chain.proceed()
-                                }
-                            }
-                        }
-                        DebugLog.i(TAG, "securitycenter credential default write blocked")
-                    }.onFailure { t ->
-                        DebugLog.e(TAG, "securitycenter credential hook failed", t)
-                    }
-                } else {
-                    DebugLog.w(TAG, "securitycenter credential default write not found")
-                }
+        fun descriptor(data: org.luckypray.dexkit.result.MethodData?): String {
+            if (data == null) return ""
+            return runCatching {
+                MethodDescriptorCodec.descriptor(data.getMethodInstance(classLoader))
+            }.onFailure {
+                DebugLog.w(TAG, "securitycenter target did not materialize: ${data.descriptor}", it)
+            }.getOrDefault("")
+        }
+
+        return buildMap {
+            descriptor(mConfigForAutofillService).takeIf { it.isNotEmpty() }?.let { put("autofill", it) }
+            descriptor(mSetDefaultConfigForAutofillAndCredentialManager)
+                .takeIf { it.isNotEmpty() }?.let { put("credential", it) }
         }
     }
+
+    private fun decodeSecurityCenterTargets(
+        values: Map<String, String>,
+        fromCache: Boolean,
+    ): SecurityCenterTargets? {
+        var failed = false
+        fun method(key: String): Method? {
+            val descriptor = values[key].orEmpty()
+            if (descriptor.isEmpty()) return null
+            val resolved = MethodDescriptorCodec.method(descriptor, classLoader)
+            if (resolved == null) {
+                failed = true
+                DebugLog.w(TAG, "securitycenter cached target $key did not materialize")
+            }
+            return resolved
+        }
+        val targets = SecurityCenterTargets(method("autofill"), method("credential"))
+        // A stale cache must scan again; a fresh scan keeps whichever wrapper survived.
+        return if (failed && fromCache) null else targets
+    }
+
+    private fun installSecurityCenterTarget(label: String, method: Method?) {
+        if (method == null) {
+            DebugLog.w(TAG, "securitycenter $label default write not found")
+            return
+        }
+        runCatching {
+            deoptimize(method)
+            method.hook {
+                intercept { chain ->
+                    if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                        null
+                    } else {
+                        chain.proceed()
+                    }
+                }
+            }
+            DebugLog.i(TAG, "securitycenter $label default write blocked")
+        }.onFailure { t ->
+            DebugLog.e(TAG, "securitycenter $label hook failed", t)
+        }
+    }
+
+    private data class SecurityCenterTargets(val autofill: Method?, val credential: Method?)
 
     private fun hookScanner() {
         val iClass = "com.xiaomi.scanner.module.code.utils.bean.MiFiDoBean".toClassOrNull()
