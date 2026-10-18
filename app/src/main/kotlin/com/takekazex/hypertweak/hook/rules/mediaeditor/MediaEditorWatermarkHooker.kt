@@ -92,16 +92,21 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         "west_coast_2_devices"
     )
 
+    /**
+     * Cloud fields are nullable: media editor 2.10.43 removed the `CloudWatermarkData` model and
+     * the device-group markers the old cloud pipeline was built on. The device/theme gates still
+     * resolve and stay active; cloud-only paths are skipped instead of aborting the whole hooker.
+     */
     private class ResolvedClasses(
         val deviceGateMethods: Map<String, Method>,
-        val vyI0Filter: Method,
-        val cloudWmData: Class<*>,
-        val tb0VBInvoke: Method,
-        val vyILoad: Method,
-        val yyMDispatcher: Method,
-        val yyM: Class<*>,
-        val listenerIface: Class<*>,
-        val cloudWmItem: Class<*>
+        val vyI0Filter: Method?,
+        val cloudWmData: Class<*>?,
+        val tb0VBInvoke: Method?,
+        val vyILoad: Method?,
+        val yyMDispatcher: Method?,
+        val yyM: Class<*>?,
+        val listenerIface: Class<*>?,
+        val cloudWmItem: Class<*>?
     )
 
     private val downloaded = AtomicBoolean(false)
@@ -129,18 +134,25 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val apkPath = appInfo.sourceDir ?: return null
         val cacheDir = File(baseDir, "cache")
 
+        // 2.10.43 removed the cloud model classes; querying their keys would only emit
+        // unresolved-target warnings and pay for three extra scans on every editor start.
+        val cloudPipelineAvailable =
+            CLOUD_WM_DATA.toClassOrNull() != null && CLOUD_WM_CONFIG.toClassOrNull() != null
+        val queries = buildMap<String, (DexKitBridge) -> String?> {
+            put(WN_GATE_CACHE_KEY) { bridge -> resolveWnGateOwner(bridge) }
+            put(ZN_GATE_CACHE_KEY) { bridge -> resolveZnGateOwner(bridge) }
+            if (cloudPipelineAvailable) {
+                put(CLOUD_FILTER_CACHE_KEY) { bridge -> resolveCloudFilterOwner(bridge) }
+                put(CLOUD_LOADER_CACHE_KEY) { bridge -> resolveCloudLoaderOwner(bridge) }
+                put(FETCHER_CACHE_KEY) { bridge -> resolveResourceFetcherOwner(bridge) }
+                put(DEBUG_GATE_CACHE_KEY) { bridge -> resolveDebugGateOwner(bridge) }
+            }
+        }
         val resolved = DexKitManager.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
-            queries = mapOf(
-                WN_GATE_CACHE_KEY to { bridge -> resolveWnGateOwner(bridge) },
-                ZN_GATE_CACHE_KEY to { bridge -> resolveZnGateOwner(bridge) },
-                CLOUD_FILTER_CACHE_KEY to { bridge -> resolveCloudFilterOwner(bridge) },
-                CLOUD_LOADER_CACHE_KEY to { bridge -> resolveCloudLoaderOwner(bridge) },
-                FETCHER_CACHE_KEY to { bridge -> resolveResourceFetcherOwner(bridge) },
-                DEBUG_GATE_CACHE_KEY to { bridge -> resolveDebugGateOwner(bridge) }
-            ),
+            queries = queries,
             validators = mapOf(
                 WN_GATE_CACHE_KEY to ::isWnGateClass,
                 ZN_GATE_CACHE_KEY to ::isZnGateClass,
@@ -166,51 +178,36 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             return null
         }
 
-        val cloudWmData = CLOUD_WM_DATA.toClass()
-        val cloudWmConfig = CLOUD_WM_CONFIG.toClass()
-        val wmItem = WM_ITEM.toClass()
-        val wmCategory = WM_CATEGORY.toClass()
-        val cloudWmItem = CLOUD_WM_ITEM.toClass()
+        // Cloud model classes disappeared in media editor 2.10.43; keep them optional.
+        val cloudWmData = CLOUD_WM_DATA.toClassOrNull()
+        val cloudWmConfig = CLOUD_WM_CONFIG.toClassOrNull()
+        val wmItem = WM_ITEM.toClassOrNull()
+        val wmCategory = WM_CATEGORY.toClassOrNull()
+        val cloudWmItem = CLOUD_WM_ITEM.toClassOrNull()
 
-        val cloudFilterClass = resolved[CLOUD_FILTER_CACHE_KEY] ?: run {
-            DebugLog.e(TAG, "DexKit cloud-filter class is ambiguous or missing")
-            return null
-        }
-        val vyI0Filter = cloudFilterClass.declaredMethods.singleOrNull {
-            isCloudFilterMethod(it, cloudWmConfig)
-        } ?: run {
-            DebugLog.e(TAG, "DexKit cloud-filter method shape changed or is ambiguous")
-            return null
-        }
+        val cloudFilterClass = resolved[CLOUD_FILTER_CACHE_KEY]
+        val vyI0Filter = if (cloudFilterClass != null && cloudWmConfig != null) {
+            cloudFilterClass.declaredMethods.singleOrNull { isCloudFilterMethod(it, cloudWmConfig) }
+        } else null
 
-        val cloudLoaderClass = resolved[CLOUD_LOADER_CACHE_KEY] ?: run {
-            DebugLog.e(TAG, "DexKit cloud-loader class is ambiguous or missing")
-            return null
-        }
-        val vyILoad = cloudLoaderClass.declaredMethods.singleOrNull(::isCloudLoaderMethod) ?: run {
-            DebugLog.e(TAG, "DexKit cloud-loader method shape changed or is ambiguous")
-            return null
-        }
+        val vyILoad = resolved[CLOUD_LOADER_CACHE_KEY]
+            ?.declaredMethods?.singleOrNull(::isCloudLoaderMethod)
 
-        val yyM = resolved[FETCHER_CACHE_KEY] ?: run {
-            DebugLog.e(TAG, "DexKit resource-fetcher class is ambiguous or missing")
-            return null
-        }
-        val yyMDispatcher = yyM.declaredMethods.singleOrNull {
-            isResourceDispatcher(it, wmItem, wmCategory)
-        } ?: run {
-            DebugLog.e(TAG, "DexKit resource dispatcher method shape changed or is ambiguous")
-            return null
-        }
-        val listenerIface = yyMDispatcher.parameterTypes[2]
+        val yyM = resolved[FETCHER_CACHE_KEY]
+        val yyMDispatcher = if (yyM != null && wmItem != null && wmCategory != null) {
+            yyM.declaredMethods.singleOrNull { isResourceDispatcher(it, wmItem, wmCategory) }
+        } else null
+        val listenerIface = yyMDispatcher?.parameterTypes?.getOrNull(2)
 
-        val debugGateClass = resolved[DEBUG_GATE_CACHE_KEY] ?: run {
-            DebugLog.e(TAG, "DexKit debug-gate class is ambiguous or missing")
-            return null
-        }
-        val tb0VBInvoke = debugGateClass.declaredMethods.singleOrNull(::isDebugGateMethod) ?: run {
-            DebugLog.e(TAG, "DexKit debug-gate method shape changed or is ambiguous")
-            return null
+        val tb0VBInvoke = resolved[DEBUG_GATE_CACHE_KEY]
+            ?.declaredMethods?.singleOrNull(::isDebugGateMethod)
+
+        if (cloudWmData == null || cloudWmConfig == null) {
+            DebugLog.w(
+                TAG,
+                "cloud watermark pipeline absent on this media-editor build; " +
+                    "installing device/theme gates only"
+            )
         }
 
         return ResolvedClasses(
@@ -547,20 +544,30 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         // 1. Per-category device checks (shared by local menu + cloud filter), resolved by DEX.
         c.deviceGateMethods.forEach { (prefKey, method) -> hookDeviceCheck(method, prefKey) }
 
-        // 2. Cloud restriction fields: rewrite in the CloudWatermarkData constructor.
-        hookCloudDataConstructor(c)
+        // 2. Cloud restriction fields: only present before media editor 2.10.43.
+        if (c.cloudWmData != null) {
+            hookCloudDataConstructor(c)
+        } else {
+            DebugLog.d(TAG, "cloud watermark field rewrite unavailable on this build")
+        }
 
-        // 3. Downloaded-resource filter: force the debug property read to true.
-        c.tb0VBInvoke.hook("wm_debug_filter") {
+        // 3. Downloaded-resource filter: force the debug property read to true when resolvable.
+        c.tb0VBInvoke?.hook("wm_debug_filter") {
             after { param ->
                 if (Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false)) {
                     param.result = true
                 }
             }
-        }
+        } ?: DebugLog.d(TAG, "cloud watermark debug gate unavailable on this build")
 
-        // 4. Bulk download of every cloud watermark resource.
-        hookBulkDownload(c)
+        // 4. Bulk download of every cloud watermark resource when the dispatcher graph resolved.
+        if (c.vyILoad != null && c.yyM != null && c.yyMDispatcher != null &&
+            c.listenerIface != null && c.cloudWmItem != null
+        ) {
+            hookBulkDownload(c)
+        } else {
+            DebugLog.d(TAG, "cloud watermark bulk download unavailable on this build")
+        }
     }
 
     private fun hookDeviceCheck(method: Method, prefKey: String) {
@@ -580,7 +587,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
      * `long` = validTo, the only `double` = minWmVer — the same declaration order R8 preserves).
      */
     private fun hookCloudDataConstructor(c: ResolvedClasses) {
-        val clazz = c.cloudWmData
+        val clazz = c.cloudWmData ?: return
         val ctor = runCatching {
             clazz.declaredConstructors.first { it.parameterTypes.size == 21 }
         }.getOrNull() ?: run {
@@ -669,25 +676,29 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     }
 
     private fun hookBulkDownload(c: ResolvedClasses) {
+        val yyM = c.yyM ?: return
+        val vyILoad = c.vyILoad ?: return
+        val dispatcherMethod = c.yyMDispatcher ?: return
+        val listener = c.listenerIface ?: return
+        val cloudWmItem = c.cloudWmItem ?: return
         // The resolved dispatcher is a singleton; its instance is the static field of its own type.
         val dispatcherInstance = runCatching {
-            val field = c.yyM.declaredFields.firstOrNull {
-                Modifier.isStatic(it.modifiers) && it.type == c.yyM
+            val field = yyM.declaredFields.firstOrNull {
+                Modifier.isStatic(it.modifiers) && it.type == yyM
             } ?: return
             field.isAccessible = true
             field.get(null)
         }.onFailure { DebugLog.e(TAG, "resource-dispatcher singleton not found", it) }.getOrNull() ?: return
 
-        c.vyILoad.hook("wm_bulk_download") {
+        vyILoad.hook("wm_bulk_download") {
             after { param ->
                 if (!Preferences.getBoolean(Preferences.KEY_WM_DOWNLOAD_ALL, false)) return@after
                 if (!downloaded.compareAndSet(false, true)) return@after
                 val map = param.result as? Map<*, *> ?: return@after
-                val dispatcher = c.yyMDispatcher
-                val listener = try {
+                val proxy = try {
                     Proxy.newProxyInstance(
                         classLoader,
-                        arrayOf(c.listenerIface)
+                        arrayOf(listener)
                     ) { _, method, _ ->
                         when (method.name) {
                             "onStart" -> DebugLog.d(TAG, "bulk download start")
@@ -704,9 +715,9 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                 for ((category, items) in map) {
                     if (items !is List<*>) continue
                     for (item in items) {
-                        if (item == null || !c.cloudWmItem.isInstance(item)) continue
+                        if (item == null || !cloudWmItem.isInstance(item)) continue
                         try {
-                            dispatcher.invoke(dispatcherInstance, item, category, listener)
+                            dispatcherMethod.invoke(dispatcherInstance, item, category, proxy)
                             count++
                         } catch (t: Throwable) {
                             DebugLog.w(TAG, "bulk download dispatch failed for ${item.javaClass.name}", t)
