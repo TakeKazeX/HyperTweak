@@ -29,7 +29,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
     ): MeasurementOutcome {
         val layout = outcome.layout
         if (layout == null) {
-            releaseLyricGuard(session)
+            syncLyricGuard(session)
             return outcome
         }
         session.spectrum.returnGeometry = SpectrumAdmissionPolicy.rebase(
@@ -64,7 +64,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
             SpectrumAdmissionPolicy.evaluate(input)
         }
         if (decision == null) {
-            releaseLyricGuard(session)
+            syncLyricGuard(session)
             return outcome
         }
         val admitted = runtime.boundary.soft(session, IslandFeature.SPECTRUM, "apply small spectrum") {
@@ -73,15 +73,15 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
                 SpectrumDecision.NoCandidate -> {
                     record(session, "no native waveform: primary=${runtime.spectrumDescribe(primary)} " +
                         "extra=${outcome.stagedExtras.singleOrNull()?.let(runtime::spectrumDescribe)}")
-                    releaseLyricGuard(session)
+                    syncLyricGuard(session)
                 }
                 is SpectrumDecision.Rejected -> {
                     record(session, decision.reason)
-                    releaseLyricGuard(session)
+                    syncLyricGuard(session)
                 }
                 is SpectrumDecision.CoverOnly -> {
                     record(session, decision.reason)
-                    releaseLyricGuard(session)
+                    syncLyricGuard(session)
                 }
                 is SpectrumDecision.Admitted -> {
                     session.scene.musicSmall = decision.view
@@ -99,7 +99,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
             if (failed != null) session.scene.fullFrames.remove(failed.view)
             session.scene.musicSmall = null
             session.spectrum.returnGeometry = null
-            releaseLyricGuard(session)
+            syncLyricGuard(session)
             return outcome
         }
         return outcome.copy(
@@ -123,33 +123,48 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
         return HostRect(frame.x, rect.top, frame.x + frame.width, rect.bottom)
     }
 
-    fun syncLyricGuard(session: IslandSession) {
-        val music = session.scene.musicSmall
-        if (music == null) {
-            releaseLyricGuard(session)
-            return
-        }
-        val view = music as? View
-        if (view == null || !host.lyricModuleInstalled(view)) {
-            releaseLyricGuard(session)
-            return
-        }
-        val roots = listOf(view)
-        val current = session.spectrum.lyricGuard
-        if (current != null && current.roots == roots) return
-        current?.release()
-        session.spectrum.lyricGuard = IslandLyricGuard(roots) {
-            !runtime.retiring() && !session.health.failed &&
-                session.presentation.expanded !== music && session.presentation.big !== music &&
-                session.scene.musicSmall === music && session.scene.fullFrames[music]?.full == true
+    private fun sideLyricTarget(session: IslandSession, view: Any): Boolean =
+        !runtime.retiring() && runtime.enabled(session) && runtime.preferences.threeIslands &&
+            host.current(session.owner, IslandSlot.EXPANDED) !== view &&
+            host.current(session.owner, IslandSlot.BIG) !== view && runtime.spectrumTarget(view) &&
+            (session.scene.musicSmall === view || view in session.slot.extras ||
+                host.current(session.owner, IslandSlot.SMALL) === view ||
+                session.spectrum.returnGeometry?.key == runtime.key(view))
+
+    /** Keep the real and fake summary templates guarded through app-return, not the card. */
+    fun syncLyricGuard(session: IslandSession, candidate: Any? = null) {
+        runtime.boundary.soft(session, IslandFeature.SPECTRUM, "synchronize side lyric guard") {
+            syncLyricGuardInternal(session, candidate)
         }
     }
 
+    private fun syncLyricGuardInternal(session: IslandSession, candidate: Any?) {
+        val music = candidate?.takeIf { sideLyricTarget(session, it) }
+            ?: session.scene.musicSmall ?: session.spectrum.lyricOwner
+        val view = music as? View
+        if (view == null || !sideLyricTarget(session, music) || !host.lyricModuleInstalled(view)) {
+            releaseLyricGuard(session)
+            return
+        }
+        val roots = host.templateAreas(music).mapNotNull { (it.left as? View)?.parent as? View }.distinct()
+        if (roots.isEmpty()) {
+            releaseLyricGuard(session)
+            return
+        }
+        val current = session.spectrum.lyricGuard
+        if (current == null || current.roots != roots || session.spectrum.lyricOwner !== music) {
+            current?.release()
+            session.spectrum.lyricOwner = music
+            session.spectrum.lyricGuard = IslandLyricGuard(roots, active = { sideLyricTarget(session, music) })
+        }
+        session.spectrum.lyricGuard?.applyNow()
+    }
+
     fun releaseLyricGuard(session: IslandSession, view: Any? = null) {
-        val guard = session.spectrum.lyricGuard ?: return
-        if (view != null && guard.roots.none { it === view }) return
-        guard.release()
+        if (view != null && session.spectrum.lyricOwner !== view) return
+        session.spectrum.lyricGuard?.release()
         session.spectrum.lyricGuard = null
+        session.spectrum.lyricOwner = null
     }
 
     private fun record(session: IslandSession, message: String) {

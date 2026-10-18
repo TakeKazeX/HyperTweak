@@ -51,6 +51,28 @@ class NativeIslandTargetApkTest {
         val callback = classes.values.flatMap { it.methods.toList() }.filter { it.name == "onBegin" }
             .single { method -> calls(method).any { it.name == "updateCutoutWidth" } &&
                 calls(method).any { it.name == "getFixedCutoutWidth" } }
+        val factory = classes.values.flatMap { it.methods.toList() }.single { method ->
+            val strings = (method.implementation?.instructions ?: emptyList()).mapNotNull {
+                ((it as? ReferenceInstruction)?.reference as? StringReference)?.string
+            }.toList()
+            "updateCutoutWidth " in strings && method.parameterTypes.size == 3
+        }
+        val writerCall = calls(factory).filter { it.parameterTypes == listOf("I") && it.returnType == "V" }
+            .distinctBy { it.toString() }.single()
+        val writer = classes.getValue(writerCall.definingClass).methods.single {
+            it.name == writerCall.name && it.parameterTypes == listOf("I")
+        }
+        val cutoutFields = writer.implementation!!.instructions.mapNotNull {
+            ((it as? ReferenceInstruction)?.reference as? org.jf.dexlib2.iface.reference.FieldReference)
+                ?.takeIf { field -> field.type == "Landroid/widget/FrameLayout;" && field.definingClass == writer.definingClass }
+        }.distinctBy { it.toString() }.toList()
+        assertEquals("one exact builder cutout field", 1, cutoutFields.size)
+        assertTrue(calls(callback).any { it.definingClass == factory.definingClass && it.name == factory.name })
+        val coordinator = classes.getValue(root + "event/DynamicIslandEventCoordinator;")
+        val shadow = coordinator.methods.single { it.name == "setShadow" }
+        assertTrue(calls(shadow).any { it.name == "clearShadow" })
+        assertTrue("native shadow cleanup is hooked so leased tasks are included",
+            "setShadow" in NativeIslandContract.methods.getValue(coordinator.type.removePrefix("L").removeSuffix(";").replace('/', '.')))
         val callbackCalls = calls(callback)
         assertTrue(callbackCalls.indexOfFirst { it.name == "getFixedCutoutWidth" } <
             callbackCalls.indexOfFirst { it.name == "updateCutoutWidth" })

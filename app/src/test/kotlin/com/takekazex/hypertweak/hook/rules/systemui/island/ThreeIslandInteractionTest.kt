@@ -90,7 +90,7 @@ class ThreeIslandInteractionTest {
         assertEquals("media", scope.clickKey)
         scope.begin("timer") // The next DOWN ends the previous expanded gesture scope.
         assertNull(scope.expandedKey)
-        assertTrue(scope.allows("delivery"))
+        assertFalse(scope.allows("delivery"))
     }
     @Test fun `click stays bound to DOWN task despite replacement or disappearance`() {
         val scope = IslandGestureScope()

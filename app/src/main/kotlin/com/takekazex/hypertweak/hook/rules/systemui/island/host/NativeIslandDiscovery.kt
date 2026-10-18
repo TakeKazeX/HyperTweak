@@ -44,11 +44,43 @@ internal object NativeIslandAnchors {
  * Remaining public Kotlin API names are validated by NativeIslandAccess. Renamed semantic
  * entries and private fields are supported, but an unknown public API is never guessed.
  */
-internal class NativeIslandDiscovery private constructor(val classes: Map<String, Class<*>>, val entries: Map<String, Method>) {
+internal class NativeTemplateWrite(
+    val method: Method,
+    val cutout: java.lang.reflect.Field,
+    val callers: List<Method>,
+)
+
+internal class NativeIslandDiscovery private constructor(
+    val classes: Map<String, Class<*>>, val entries: Map<String, Method>,
+    val templateWrite: NativeTemplateWrite? = null,
+) {
     companion object {
         fun scan(apk: String, loader: ClassLoader): NativeIslandDiscovery =
-            DexKitManager.withBridge(apk) { bridge -> resolve { role -> query(bridge, loader, role) } }
+            DexKitManager.withBridge(apk) { bridge ->
+                val discovery = resolve { role -> query(bridge, loader, role) }
+                NativeIslandDiscovery(discovery.classes, discovery.entries, resolveTemplateWrite(bridge, loader))
+            }
                 ?: error("Three-island DexKit contract unavailable")
+
+        internal fun resolveTemplateWrite(bridge: DexKitBridge, loader: ClassLoader): NativeTemplateWrite {
+            // Follow the factory's actual invocation and field use, including obfuscated
+            // builders. Materialize all reflection objects while the bridge is open.
+            val factory = bridge.findMethod { matcher { usingStrings("updateCutoutWidth ") } }
+                .filter { it.paramTypeNames.size == 3 && it.paramTypeNames.takeLast(2) == listOf("int", "boolean") &&
+                    it.returnTypeName == "void" }.single()
+            val writer = factory.invokes.filter { candidate ->
+                candidate.paramTypeNames == listOf("int") && candidate.returnTypeName == "void" &&
+                    candidate.usingFields.any { it.field.typeName == "android.widget.FrameLayout" &&
+                        it.field.declaredClassName == candidate.declaredClassName }
+            }.distinctBy { it.descriptor }.single()
+            val field = writer.usingFields.map { it.field }.filter {
+                it.typeName == "android.widget.FrameLayout" && it.declaredClassName == writer.declaredClassName
+            }.distinctBy { it.descriptor }.single().getFieldInstance(loader).apply { isAccessible = true }
+            val method = writer.getMethodInstance(loader).apply { isAccessible = true }
+            val callers = (writer.callers + factory.callers).filter { it.isMethod }
+                .distinctBy { it.descriptor }.map { it.getMethodInstance(loader) }
+            return NativeTemplateWrite(method, field, callers)
+        }
 
         private fun query(bridge: DexKitBridge, loader: ClassLoader, role: String): List<Method> =
             bridge.findMethod { matcher { usingStrings(*NativeIslandAnchors.strings.getValue(role).toTypedArray()) } }

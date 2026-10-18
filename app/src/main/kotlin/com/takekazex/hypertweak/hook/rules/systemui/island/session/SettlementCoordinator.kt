@@ -205,7 +205,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
             host.addState(handler, view, null)
             tx.oldStates[view]?.let { host.setLastState(view, it) }
         }
-        if (session.scene.musicSmall == null) runtime.spectrum.releaseLyricGuard(session)
+        runtime.spectrum.syncLyricGuard(session)
     }
 
     fun restore(session: IslandSession) {
@@ -224,7 +224,9 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         session.interaction.gesture.begin(null)
         session.scheduler.clear()
         session.interaction.swipePreview = null
+        session.interaction.summaryTracking = null
         session.interaction.departingPositions.clear()
+        session.template.templateWidths.releaseAll { view -> runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) } }
         val handler = host.handler(session.owner, IslandSlot.HIDDEN)
         if (handler == null) {
             host.updateTouchRegion(session.owner)
@@ -238,7 +240,6 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
             host.addState(handler, it, null)
         }
         old.forEach { (view, state) -> host.setLastState(view, state) }
-        session.template.templateWidths.releaseAll { host.fixedCutoutWidth(it) }
         host.stop(handler)
         host.updateTouchRegion(session.owner)
     }

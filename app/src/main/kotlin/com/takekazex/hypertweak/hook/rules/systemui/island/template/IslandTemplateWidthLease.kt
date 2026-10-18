@@ -17,6 +17,7 @@ internal class IslandTemplateWidthLease {
             val child = parent.getChildAt(it)
             Triple(child, child.layoutParams, child.layoutParams.width)
         }
+        private val cutoutToken = Any()
         init { apply() }
 
         fun update(cutoutWidth: Int, media: Boolean) {
@@ -30,6 +31,7 @@ internal class IslandTemplateWidthLease {
         }
 
         fun apply(): Boolean {
+            IslandTemplateCutout.acquire(parent, cutoutToken, cutoutWidth)
             var changed = false
             fun zeroWeight(view: View, params: LinearLayout.LayoutParams) {
                 if (view.layoutParams === params && params.weight != 0f) {
@@ -69,6 +71,7 @@ internal class IslandTemplateWidthLease {
         }
 
         fun release(nativeCutoutWidth: Int? = null) {
+            IslandTemplateCutout.release(parent, cutoutToken)
             if (media && left.paddingEnd == 0)
                 left.setPaddingRelative(left.paddingStart, left.paddingTop, leftInnerPadding, left.paddingBottom)
             if (media && right.paddingStart == 0)

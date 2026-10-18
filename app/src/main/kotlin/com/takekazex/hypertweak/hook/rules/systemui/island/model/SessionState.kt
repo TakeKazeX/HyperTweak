@@ -47,6 +47,7 @@ internal class SceneState {
 internal class InteractionState {
     val gesture = IslandGestureScope()
     var swipePreview: Any? = null
+    var summaryTracking: Boolean? = null
     val departingPositions = WeakHashMap<Any, Int>()
 }
 
@@ -92,4 +93,5 @@ internal class SpectrumState {
     var returnGeometry: SmallIslandSpectrum.ReturnGeometry? = null
     var lastLog: String? = null
     var lyricGuard: IslandLyricGuard? = null
+    var lyricOwner: Any? = null
 }

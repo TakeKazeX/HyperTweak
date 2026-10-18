@@ -65,7 +65,8 @@ internal object TouchRoutingBinder {
                     var scoped = false
                     runtime.boundary.core(session, IslandFeature.TOUCH, "scope expanded $name") {
                         scoped = runtime.enabled(session) && session.scene.layout != null &&
-                            !session.interaction.gesture.allows(runtime.key(view))
+                            !session.interaction.gesture.allows(runtime.key(view)) &&
+                            session.interaction.swipePreview !== view
                     }
                     if (scoped) return@Hooker null
                 }

@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaRende
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMusicSpectrum
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.IslandRuntime
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.CountDownLatch
@@ -113,6 +114,7 @@ class ThreeIslandHooker(private val pluginApkPath: String) : DynamicHooker() {
             }
             runtime.sessions.clear()
             IslandCameraSeat.clear()
+            IslandTemplateCutout.clear()
         }
         if (Looper.myLooper() == main.looper) {
             cleanup.run()

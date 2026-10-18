@@ -15,6 +15,7 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
         if (touch.action == TouchInput.CANCEL) session.interaction.gesture.cancel()
         if (touch.action != TouchInput.DOWN) return
         session.interaction.swipePreview = null
+        session.interaction.summaryTracking = null
         val owner = session.owner
         val expanded = host.current(owner, IslandSlot.EXPANDED)
         val expandedRect = expanded?.let(host::expandedRect)
@@ -100,7 +101,10 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
     }
 
     fun handleSwipe(session: IslandSession, x: Float, y: Float): Boolean {
-        if (kotlin.math.abs(x) <= kotlin.math.abs(y)) return false
+        if (session.interaction.summaryTracking == null && (x != 0f || y != 0f)) {
+            session.interaction.summaryTracking = kotlin.math.abs(x) > kotlin.math.abs(y)
+        }
+        if (session.interaction.summaryTracking != true) return false
         if (!runtime.summarySwipeEnabled(session) || session.interaction.gesture.expandedKey != null) {
             return false
         }
@@ -127,11 +131,13 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
     }
 
     fun resetSwipe(session: IslandSession): Boolean {
+        if (session.interaction.summaryTracking != true) return false
         if (!runtime.summarySwipeEnabled(session) || session.interaction.gesture.expandedKey != null) {
             return false
         }
         session.interaction.swipePreview?.let { host.resetSwipe(it) }
         session.interaction.swipePreview = null
+        session.interaction.summaryTracking = null
         return true
     }
 

@@ -29,8 +29,8 @@ internal class TemplateCoordinator(private val runtime: IslandRuntime) {
 
     fun releaseFullPosition(session: IslandSession, view: Any) {
         if (runtime.alignedTemplate(session, view)) return
-        runtime.spectrum.releaseLyricGuard(session, view)
-        val nativeCutout = host.fixedCutoutWidth(view)
+        runtime.spectrum.syncLyricGuard(session)
+        val nativeCutout = runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) }
         session.template.templateWidths.release(view, nativeCutout)
         host.templateAreas(view).forEach { pair ->
             val left = pair.left as? View ?: return@forEach
@@ -55,7 +55,9 @@ internal class TemplateCoordinator(private val runtime: IslandRuntime) {
                 (view in session.slot.extras || host.current(owner, IslandSlot.SMALL) === view) &&
                 view !== host.current(owner, IslandSlot.EXPANDED) && runtime.spectrumTarget(view)
             if (!sideMusic) session.scene.fullFrames.remove(view)
-            if (!sideMusic) runtime.spectrum.releaseLyricGuard(session, view)
+            // A hidden/app-return view may already own a side seat. Keep the guard scoped
+            // to its summary area roots; main/expanded ownership releases it immediately.
+            runtime.spectrum.syncLyricGuard(session)
             session.scene.portraitContent = null
             session.scene.contentSizes.remove(view)
             releaseFullPosition(session, view)

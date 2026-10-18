@@ -31,16 +31,25 @@ internal object MediaRenderBinder {
                         }
                     val session = view?.let(runtime::sessionForView) ?: return@Hooker chain.proceed()
                     val project = runtime.presentation.prepareNativeMedia(session, view)
-                    if (!project) return@Hooker chain.proceed()
-                    runtime.renderingState.render(view) {
-                        if (entry.destination != null) {
-                            try {
-                                entry.destination.invoke(chain.thisObject, *chain.args.toTypedArray())
-                            } catch (failure: InvocationTargetException) {
-                                throw failure.targetException
+                    runtime.boundary.soft(session, IslandFeature.SPECTRUM, "guard native media return text") {
+                        runtime.spectrum.syncLyricGuard(session, view)
+                    }
+                    try {
+                        if (!project) return@Hooker chain.proceed()
+                        runtime.renderingState.render(view) {
+                            if (entry.destination != null) {
+                                try {
+                                    entry.destination.invoke(chain.thisObject, *chain.args.toTypedArray())
+                                } catch (failure: InvocationTargetException) {
+                                    throw failure.targetException
+                                }
+                            } else {
+                                chain.proceed()
                             }
-                        } else {
-                            chain.proceed()
+                        }
+                    } finally {
+                        runtime.boundary.soft(session, IslandFeature.SPECTRUM, "guard native media return text") {
+                            runtime.spectrum.syncLyricGuard(session, view)
                         }
                     }
                 },

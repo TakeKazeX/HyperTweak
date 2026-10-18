@@ -12,6 +12,14 @@ internal object PresentationBinder {
         val access = context.access
         val registrar = context.registrar
 
+        registrar.after(access.method(access.coordinator, "setShadow").also(registrar::deoptimize),
+            "three_islands_borrowed_shadow") { param ->
+            val session = runtime.sessions[param.thisObject] ?: return@after
+            runtime.boundary.core(session, IslandFeature.PRESENTATION, "clear borrowed summary shadows") {
+                runtime.presentation.clearBorrowedShadows(session)
+            }
+        }
+
         registrar.deoptimize(access.method(access.content, "updateBigIslandLayoutWithAnim"))
         registrar.runtime(
             access.method(access.content, "doBigIslandAnim").also(registrar::deoptimize),

@@ -9,12 +9,13 @@ import java.util.LinkedHashMap
 /**
  * Keeps a side music spectrum visible when another island module injects lyric text into the
  * same native template. Only the tagged lyric wrapper and its text container are hidden; native
- * album/waveform icons are restored inside the real side template and all changed visibility is
+ * album/waveform icons are restored inside the real/fake side templates and all changed visibility is
  * put back on release.
  */
 internal class IslandLyricGuard(
     val roots: List<View>,
     private val active: () -> Boolean,
+    private val onSuppressed: () -> Unit = { DebugLog.i("ThreeIslands", "small spectrum hid third-party lyric overlay") },
 ) {
     private class Snapshot(var visibility: Int, var alpha: Float)
 
@@ -78,6 +79,8 @@ internal class IslandLyricGuard(
         observer.addOnPreDrawListener(listener)
     }
 
+    fun applyNow() = apply()
+
     private fun apply() {
         if (!active()) {
             if (changed.isNotEmpty()) restore()
@@ -85,12 +88,12 @@ internal class IslandLyricGuard(
         }
         var foundLyric = false
         roots.forEach { root ->
-            if (root.isAttachedToWindow && walk(root)) foundLyric = true
+            if (walk(root)) foundLyric = true
         }
         if (foundLyric) {
             // The lyric module may hide only one side's native icon container. Restore every
-            // spectrum icon inside this real side template, never outside it or in fake views.
-            roots.forEach { root -> if (root.isAttachedToWindow) showNativeIcons(root) }
+            // spectrum icon inside the selected summary templates, never in expanded card content.
+            roots.forEach { root -> showNativeIcons(root) }
         }
     }
 
@@ -99,7 +102,7 @@ internal class IslandLyricGuard(
         if (IslandLyricConflict.injectedTag(node.tag)) {
             if (!reported) {
                 reported = true
-                DebugLog.i(TAG, "small spectrum hid third-party lyric overlay")
+                onSuppressed()
             }
             hide(node)
             hideTextContainer(node)

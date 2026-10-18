@@ -58,7 +58,7 @@ public class TemplateWidthProbe {
   cutout.getLayoutParams().width=0;
   new IslandTemplateWidthLease().restoreCutout(left,right,72);layout(parent);
   if(cutout.getLayoutParams().width!=72)throw new AssertionError("hot reload inherited camera seat not repaired");
-  ThreeIslandLayout portrait=PortraitIslandLayout.INSTANCE.calculate(1200,2608,170,170,new IslandContentSize(93,216),72,100,12,true,true,0,0);
+  ThreeIslandLayout portrait=PortraitIslandLayout.INSTANCE.calculate(1200,2608,170,170,new IslandContentSize(93,216),72,100,12,true,true,0,0,100);
   if(portrait==null)throw new AssertionError("portrait row unavailable");
   for(int rotation=0;rotation<3;rotation++) {
    lease.acquire(owner,left,right,72);

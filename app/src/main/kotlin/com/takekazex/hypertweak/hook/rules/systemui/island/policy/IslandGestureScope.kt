@@ -17,5 +17,5 @@ internal class IslandGestureScope {
     fun cancel() { cancelled = true }
     fun mayCollapse(currentExpanded: String?): Boolean = !cancelled &&
         (expandedKey == null || expandedKey == currentExpanded)
-    fun allows(viewKey: String?): Boolean = expandedKey == null || expandedKey == viewKey
+    fun allows(viewKey: String?): Boolean = clickKey == null || clickKey == viewKey
 }

@@ -64,6 +64,33 @@ class IslandLayoutPolicyTest {
     ) = LayoutFlags(landscapeFull = full, landscapeMore = more, portraitCompact = portrait,
         rowMode = full || more, summarySwipe = true)
 
+    @Test fun `opposite media width never becomes the left timer spacing`() {
+        val input = context(scene(cutout = 72), flags(portrait = true),
+            contentSizes = mapOf(big to IslandContentSize(93, 131)), extras = listOf(extra))
+        for (mediaWidth in listOf(102, 180, 240)) {
+            val outcome = IslandLayoutPolicy.measure(input.copy(nativeSmallWidth = {
+                if (it === primary) mediaWidth else 102
+            }))
+            val layout = checkNotNull(outcome.layout)
+            assertEquals(471, layout.bigX)
+            assertEquals(359, layout.leftX)
+            assertEquals(777, layout.rightX)
+            assertEquals(10, layout.bigX - layout.leftX - 102)
+        }
+        val mediaExpanded = IslandLayoutPolicy.measure(input.copy(primary = null,
+            nativeSmallWidth = { 102 }))
+        assertEquals(359, checkNotNull(mediaExpanded.layout).leftX)
+    }
+
+    @Test fun `balanced compact row also keeps each sides own width`() {
+        val input = context(scene(cutout = 72), flags(), extras = listOf(extra))
+        val layout = checkNotNull(IslandLayoutPolicy.measure(input.copy(nativeSmallWidth = {
+            if (it === primary) 180 else 102
+        })).layout)
+        assertEquals(10, layout.bigX - layout.leftX - 102)
+        assertEquals(10, layout.rightX - layout.bigX - layout.bigWidth)
+    }
+
     @Test fun `balance switch retains or removes excess width without changing task count`() {
         val input = context(scene(orientation = IslandOrientation.LANDSCAPE), flags(full = true),
             contentSizes = mapOf(big to IslandContentSize(60, 200), primary to IslandContentSize(80, 80)))
@@ -85,7 +112,7 @@ class IslandLayoutPolicyTest {
         val layout = checkNotNull(outcome.layout)
         assertEquals(350, layout.bigX)
         assertEquals(500, layout.bigWidth)
-        assertEquals(260, layout.leftX)
+        assertEquals(270, layout.leftX)
         assertEquals(860, layout.rightX)
         assertEquals(IslandContentSize(200, 200), outcome.portraitContent)
         assertTrue(outcome.fullFrames.isEmpty())

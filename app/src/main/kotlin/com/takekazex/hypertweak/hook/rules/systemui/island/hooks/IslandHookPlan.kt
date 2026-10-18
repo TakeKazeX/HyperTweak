@@ -22,6 +22,7 @@ internal class IslandHookPlan(private val context: IslandHookContext) {
     private val access = context.access
 
     fun validate() {
+        checkNotNull(access.templateWrite) { "native template cutout writer unavailable" }
         val handle = access.method(access.coordinator, "handleEvent")
         check(handle.parameterTypes.toList() == listOf(access.event, access.content))
         check(access.method(access.handler, "stop").parameterCount == 0)

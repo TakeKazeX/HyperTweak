@@ -23,7 +23,8 @@ internal class DiagnosticsCoordinator(private val runtime: IslandRuntime) {
                         "orientation=$orientation",
                 )
                 runtime.summaries(current).forEachIndexed { index, view ->
-                    DebugLog.i("IslandGeometry", "summary=$index state=${runtime.host.state(view)} " +
+                    DebugLog.i("IslandGeometry", "summary=$index state=${runtime.host.state(view)} last=${runtime.host.call(view, "getLastState")} " +
+                        "shade=${runtime.host.call(view, "getShowShade")} fakeShade=${runtime.host.fakeView(view)?.let { runtime.host.call(it, "getShowShade") }} " +
                         "size=${current.scene.contentSizes[view]}")
                     IslandGeometryDiagnostics.tree("summary$index", view as? View)
                     IslandGeometryDiagnostics.tree("left$index",

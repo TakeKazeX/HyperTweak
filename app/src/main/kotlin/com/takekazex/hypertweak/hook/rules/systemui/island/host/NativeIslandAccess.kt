@@ -6,6 +6,7 @@ import java.lang.reflect.Method
 internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) {
     private fun load(name: String): Class<*> = discovery.classes.getValue(name)
     private val root = "miui.systemui.dynamicisland."
+    val templateWrite = discovery.templateWrite
     val widthTween = discovery.entries.getValue("widthTween")
     val widthSetTo = NativeIslandMembers.named(widthTween.declaringClass, "setTo", widthTween.parameterTypes.toList()).also {
         check(it.returnType == widthTween.returnType)

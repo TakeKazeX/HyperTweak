@@ -139,7 +139,8 @@ internal class InMemoryIslandHost : IslandHostPorts {
     override fun animationController(owner: Any): Any? = null
     override fun windowCoordinator(window: Any): Any? = null
     override fun swipeCoordinator(coordinator: Any): Any? = null
-    override fun fakeView(view: Any): Any? = null
+    val fakeViews = mutableMapOf<Any, Any>()
+    override fun fakeView(view: Any): Any? = fakeViews[view]
     override fun templateAreas(view: Any): List<TemplateAreaPair> = emptyList()
     override fun fixedCutoutWidth(view: Any): Int = 0
     override fun bigIslandView(view: Any): Any? = null

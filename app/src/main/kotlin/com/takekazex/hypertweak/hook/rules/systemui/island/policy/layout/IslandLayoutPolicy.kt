@@ -59,15 +59,19 @@ internal object IslandLayoutPolicy {
         var portraitContent: IslandContentSize? = null
         var layout: ThreeIslandLayout? = null
         val sideSources = listOfNotNull(context.primary) + extras
+        val leftSmallWidth = sideSources.filter { context.seatLeft(it) == true }
+            .maxOfOrNull(context.nativeSmallWidth) ?: 0
+        val rightSmallWidth = sideSources.filter { context.seatLeft(it) != true }
+            .maxOfOrNull(context.nativeSmallWidth) ?: 0
         val portrait = if (context.flags.portraitCompact) {
             context.contentSizes[context.big]?.let { content ->
                 PortraitIslandLayout.calculate(
                     scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
                     content, scene.cutoutWidth,
-                    sideSources.maxOfOrNull(context.nativeSmallWidth) ?: 0, scene.gap,
+                    leftSmallWidth, scene.gap,
                     sideSources.any { context.seatLeft(it) == true },
                     sideSources.any { context.seatLeft(it) != true },
-                    scene.safe.left, scene.safe.right,
+                    scene.safe.left, scene.safe.right, rightSmallWidth = rightSmallWidth,
                 )?.also { portraitContent = content }
             }
         } else {
@@ -96,12 +100,12 @@ internal object IslandLayoutPolicy {
             }
             extras.firstOrNull() != null && context.primary != null -> {
                 extras = extras.take(1)
-                val extra = extras.first()
                 layout = ThreeIslandLayout.calculate(
                     scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
                     minOf(context.nativeResult.bigWidth, scene.maxWidth), context.minBigWidth,
-                    maxOf(context.nativeSmallWidth(context.primary), context.nativeSmallWidth(extra)),
+                    leftSmallWidth,
                     scene.gap, safeLeft = scene.safe.left, safeRight = scene.safe.right,
+                    rightSmallWidth = rightSmallWidth,
                 )
             }
             context.primary != null && context.nativeMusicRight -> {

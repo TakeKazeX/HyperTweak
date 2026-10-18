@@ -20,12 +20,10 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
     private val host get() = runtime.host
 
     fun fixedCutoutWidth(session: IslandSession?, view: Any): Int? {
-        if (session != null) {
-            return if (runtime.fullTemplate(session, view)) 0 else null
-        }
-        // Unknown owner (for example a Folme fake callback with no session mapping): the area
-        // parent itself carries the camera-seat lease. Known sessions stay authoritative so
-        // releaseFullPosition can still read the native cutout before the lease is removed.
+        if (runtime.nativeCutoutRead.active) return null
+        if (session != null && runtime.fullTemplate(session, view)) return 0
+        // The native animation may temporarily remove a summary from its handler. A held
+        // real/fake area lease remains authoritative until releaseFullPosition restores it.
         val leased = try {
             host.templateAreas(view).any { pair ->
                 (pair.left as? View)?.parent?.let(IslandCameraSeat::holds) == true
@@ -35,6 +33,14 @@ internal class PresentationCoordinator(private val runtime: IslandRuntime) {
             false
         }
         return if (leased) 0 else null
+    }
+
+    fun clearBorrowedShadows(session: IslandSession) {
+        val expanded = host.current(session.owner, IslandSlot.EXPANDED)
+        session.slot.extras.filter { it !== expanded }.forEach { view ->
+            host.call(view, "clearShadow")
+            host.fakeView(view)?.let { host.call(it, "clearShadow") }
+        }
     }
 
     fun prepareSmallMusicAnimation(session: IslandSession, view: Any) {

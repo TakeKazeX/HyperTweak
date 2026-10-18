@@ -33,6 +33,8 @@ internal class IslandRuntime(
     val templatePublication = IslandTemplatePublication()
     val relayoutPublication = IslandTemplatePublication()
     val layoutMeasurement = IslandTemplatePublication()
+    // Restoration needs the host camera width even while an area lease is still held.
+    val nativeCutoutRead = IslandTemplatePublication()
     val main: Handler by lazy { Handler(Looper.getMainLooper()) }
 
     val diagnostics by lazy { DiagnosticsCoordinator(this) }
