@@ -4870,8 +4870,14 @@ void ObserveLauncherHandle(const char* filename, void* result) {
     if (result != nullptr && IsLauncherLibraryPath(filename) &&
             IsLauncherHookProcess()) {
         RecordLauncherLibraryObservation();
+        void* previous = AtomicLoad(&g_launcher_handle);
         AtomicStore(&g_launcher_handle, result);
-        Log(ANDROID_LOG_INFO, "matched MiuiHome libapp_launcher.so");
+        // A RTLD_NOLOAD lookup reports the same handle on every call. HYOS apps can
+        // issue those lookups in tight loops, so log the identity only when the
+        // launcher image actually changes instead of once per library notification.
+        if (previous != result) {
+            Log(ANDROID_LOG_INFO, "matched MiuiHome libapp_launcher.so");
+        }
     }
 }
 

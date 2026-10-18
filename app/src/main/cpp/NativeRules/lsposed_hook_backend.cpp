@@ -356,6 +356,25 @@ bool ResolveDirectHookIdentity(const Image& image, dev_t* dev, ino_t* inode) {
     return false;
 }
 
+void PublishMadviseChain(MadviseFn backup, const char* source) {
+    if (backup == nullptr || backup == GuardedMadvise) {
+        return;
+    }
+    // LSPlt returns the GOT slot's previous value. Another module (for example
+    // HyperCeiler's dock page guard) may already own that slot; calling the real
+    // libc madvise here would bypass its protected pages and make its hooks lose
+    // their patches on the next MADV_DONTNEED. Keep the previous hook in the
+    // chain so both guards see the request.
+    __atomic_store_n(&g_original_madvise,
+                     reinterpret_cast<MadviseFn>(backup), __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                        "madvise guard chains to previous %s hook %p",
+                        source, reinterpret_cast<void*>(backup));
+}
+
+int PltHookRaw(void* base, const char* symbol, void* replacement,
+               void** original);
+
 bool RegisterDirectMadviseGuard(const Image& image) {
     const uint32_t state = __atomic_load_n(
             &g_direct_madvise_guard_state, __ATOMIC_ACQUIRE);
@@ -367,9 +386,27 @@ bool RegisterDirectMadviseGuard(const Image& image) {
                 __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         return expected == 2u;
     }
+    g_direct_madvise_backup = nullptr;
+    if (PltHookRaw(reinterpret_cast<void*>(image.base), "madvise",
+                   reinterpret_cast<void*>(GuardedMadvise),
+                   reinterpret_cast<void**>(&g_direct_madvise_backup)) ==
+                kHookSuccess &&
+            g_direct_madvise_backup != nullptr) {
+        // A plain GOT write keeps the runtime's file-backed mapping intact.
+        // LSPlt's RegisterHook moves the mapping to a copy; HyperCeiler's page
+        // guard then cannot match the runtime program headers and gives up, so
+        // its dock patches are lost on the next MADV_DONTNEED. Prefer the
+        // non-remapping backend and keep LSPlt only as a fallback.
+        PublishMadviseChain(g_direct_madvise_backup, "direct GOT");
+        __atomic_store_n(&g_direct_madvise_guard_state, uint32_t{2},
+                         __ATOMIC_RELEASE);
+        __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                            "hooked direct runtime %s madvise via GOT",
+                            image.path);
+        return true;
+    }
     dev_t dev = 0;
     ino_t inode = 0;
-    g_direct_madvise_backup = nullptr;
     if (!ResolveDirectHookIdentity(image, &dev, &inode) ||
             !lsplt::RegisterHook(
                     dev, inode, "madvise",
@@ -384,6 +421,7 @@ bool RegisterDirectMadviseGuard(const Image& image) {
                                                   : image.path);
         return false;
     }
+    PublishMadviseChain(g_direct_madvise_backup, "direct");
     __atomic_store_n(&g_direct_madvise_guard_state, uint32_t{2},
                      __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, kLogTag,
@@ -417,6 +455,7 @@ bool RegisterArchiveMadviseGuard(const Image& image) {
                             image.path);
         return false;
     }
+    PublishMadviseChain(g_archive_madvise_backup, "archive");
     __atomic_store_n(&g_archive_madvise_guard_state, uint32_t{2},
                      __ATOMIC_RELEASE);
     __android_log_print(
