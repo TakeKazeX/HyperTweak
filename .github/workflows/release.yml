@@ -47,7 +47,20 @@ jobs:
           else
             CURRENT_TAG="${GITHUB_REF#refs/tags/}"
           fi
-          PROJECT_VERSION="$(./gradlew -q :app:printBaseVersion)"
+          # Read the canonical property without configuring Android/Gradle. A cold
+          # runner may print SDK/NDK installation messages even with Gradle -q,
+          # contaminating a version captured from stdout.
+          PROJECT_VERSION="$(python3 - <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          versions = re.findall(r'^hypertweak\.version\s*=\s*([^\r\n]+)', pathlib.Path('gradle.properties').read_text(), re.MULTILINE)
+          if len(versions) != 1 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', versions[0].strip()):
+              sys.exit('ERROR: expected one hypertweak.version=<major>.<minor>.<patch> property')
+          print(versions[0].strip())
+          PY
+          )"
           EXPECTED_TAG="v${PROJECT_VERSION}"
           if [ "$CURRENT_TAG" != "$EXPECTED_TAG" ]; then
             echo "ERROR: release tag '$CURRENT_TAG' does not match project version '$EXPECTED_TAG'."
