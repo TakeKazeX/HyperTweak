@@ -66,10 +66,10 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeStatus(JNIEnv* env, jobject
 extern "C" JNIEXPORT void JNICALL
 Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
         JNIEnv* env, jobject thiz, jboolean hide_recents_clear, jint folder_columns,
-        jboolean contextual_search_long_press, jboolean assistant_widgets) {
+        jboolean contextual_search_long_press, jboolean assistant_widgets, jboolean recents_haptic) {
     (void)env;
     (void)thiz;
     hypertweak::native::UpdateNativeRuleSettings(
             hide_recents_clear == JNI_TRUE, static_cast<int32_t>(folder_columns),
-            contextual_search_long_press == JNI_TRUE, assistant_widgets == JNI_TRUE);
+            contextual_search_long_press == JNI_TRUE, assistant_widgets == JNI_TRUE, recents_haptic == JNI_TRUE);
 }

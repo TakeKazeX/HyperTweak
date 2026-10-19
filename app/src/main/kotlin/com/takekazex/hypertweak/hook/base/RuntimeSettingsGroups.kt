@@ -29,7 +29,7 @@ internal object RuntimeSettingsGroups {
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
-        Preferences.KEY_NATIVE_RULE_REVISION, "prefs_epoch")
+        Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, "prefs_epoch")
     private data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     private val groups = linkedMapOf(
@@ -54,6 +54,9 @@ internal object RuntimeSettingsGroups {
     fun affected(key: String?): Set<String> = if (key == null || key == "prefs_epoch") groups.keys
         else groups.filterValues { it.owns(key) }.keys
     fun changed(before: Map<String, Any>, after: Map<String, Any>): Set<String> =
-        (before.keys + after.keys).filter { before[it] != after[it] }.flatMap(::affected).toSet()
+        (before.keys + after.keys).filter {
+            // Ordering/commit identities are carried by the snapshot, not UI invalidations.
+            it != "prefs_epoch" && it != Preferences.KEY_NATIVE_RULE_REVISION && before[it] != after[it]
+        }.flatMap(::affected).toSet()
     fun subset(target: String, values: Map<String, Any>): Map<String, Any> = values.filterKeys { owns(target, it) }
 }

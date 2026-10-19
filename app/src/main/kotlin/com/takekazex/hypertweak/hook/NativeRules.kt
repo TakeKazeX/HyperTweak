@@ -84,7 +84,8 @@ object NativeRules {
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int,
         contextualSearchLongPress: Boolean,
-        assistantWidgets: Boolean
+        assistantWidgets: Boolean,
+        recentsHaptic: Boolean = Preferences.recentsCardHaptic()
     ): Boolean {
         if (!ensureLoaded()) return false
         return try {
@@ -92,7 +93,8 @@ object NativeRules {
                 hideRecentsClearButton,
                 openedFolderColumns,
                 contextualSearchLongPress,
-                assistantWidgets
+                assistantWidgets,
+                recentsHaptic
             )
             true
         } catch (t: Throwable) {
@@ -109,6 +111,7 @@ object NativeRules {
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int,
         contextualSearchLongPress: Boolean,
-        assistantWidgets: Boolean
+        assistantWidgets: Boolean,
+        recentsHaptic: Boolean
     )
 }

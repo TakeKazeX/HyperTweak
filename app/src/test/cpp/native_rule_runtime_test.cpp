@@ -8,9 +8,9 @@
 #include <unistd.h>
 #include <string.h>
 namespace {
-std::atomic<bool> hidden{false};
+std::atomic<bool> hidden{false}, recents_haptic{false};
 std::atomic<int32_t> columns{3};
-std::atomic<unsigned> queries{0}, preparations{0}, saves{0};
+std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<bool> block{false}, entered{false};
 void Wait(std::atomic<unsigned>& value, unsigned expected) {
     for (unsigned i = 0u; i < 200u && value.load() < expected; ++i) usleep(10000);
@@ -19,6 +19,12 @@ void Wait(std::atomic<unsigned>& value, unsigned expected) {
 }
 extern "C" bool HyperTweakIsLauncherProcess() { return true; }
 extern "C" void HyperTweakSetContextualSearchLongPress(bool) {}
+extern "C" bool HyperTweakNotifyNativeRulePrepared() {
+    assert(!hypertweak::native::NativeRuleLibraryQueryActive());
+    ++ready;
+    hypertweak::native::ApplyPreparedNativeRules(); // Completion/replay cannot requeue itself.
+    return true;
+}
 extern "C" void* __wrap_dlopen(const char*, int) {
     ++queries;
     assert(hypertweak::native::NativeRuleLibraryQueryActive());
@@ -39,6 +45,11 @@ bool ApplyClearButtonRule(void*) { return true; }
 bool DockFrameRequested() { return false; }
 bool ApplyDockFrameRule(void*) { return true; }
 void ResetDockFrameAfterFork() {}
+void SetRecentsHapticEnabled(bool value) { recents_haptic.store(value); }
+bool RecentsHapticRequested() { return recents_haptic.load(); }
+bool ApplyRecentsHapticRule(void*) { return true; }
+const char* RecentsHapticRuleReason() { return "disabled"; }
+void ResetRecentsHapticAfterFork() {}
 bool ApplyFolderColumnsRule(void*) { return true; }
 void SetAssistantWidgetAllowed(bool) {}
 bool AssistantWidgetAllowedRequested() { return false; }
@@ -50,7 +61,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
@@ -63,6 +74,7 @@ int main() {
     using namespace hypertweak::native;
     assert(ReceiveNativeRuleSettings(true, 4, false, 100));
     Wait(preparations, 1);
+    Wait(ready, 1);
     usleep(200000);
     for (unsigned i = 0u; i < 10000u; ++i) RequestNativeRulePreparation();
     usleep(200000);
@@ -85,5 +97,16 @@ int main() {
     for (unsigned i = 0u; i < 10000u; ++i) ApplyPreparedNativeRules();
     usleep(200000);
     assert(preparations.load() == 3u && queries.load() == 1u);
-    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once");
+    assert(ReceiveNativeRuleSettings(true, 4, false, 103, false, true));
+    Wait(preparations, 4);
+    assert(recents_haptic.load());
+    assert(!ReceiveNativeRuleSettings(true, 4, false, 103, false, false));
+    assert(recents_haptic.load());
+    assert(ReceiveNativeRuleSettings(true, 4, false, 104, false, false));
+    Wait(preparations, 5);
+    assert(!recents_haptic.load());
+    Wait(ready, 4);
+    usleep(100000);
+    assert(ready.load() == 4 && preparations.load() == 5);
+    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic enable/conflict/disable");
 }

@@ -37,7 +37,8 @@ object NativeRuleConfig {
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int = Preferences.openedFolderColumns(),
         contextualSearchLongPress: Boolean = Preferences.contextualSearchLongPress(),
-        assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant()
+        assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant(),
+        recentsHaptic: Boolean = Preferences.recentsCardHaptic()
     ) {
         val contents = buildString {
             append(KEY_HIDE_RECENTS_CLEAR)
@@ -56,6 +57,10 @@ object NativeRuleConfig {
             append(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT)
             append('=')
             append(if (assistantWidgets) '1' else '0')
+            append('\n')
+            append(Preferences.KEY_RECENTS_CARD_HAPTIC)
+            append('=')
+            append(if (recentsHaptic) '1' else '0')
             append('\n')
             append(KEY_CONTEXTUAL_SEARCH_LONG_PRESS)
             append('=')

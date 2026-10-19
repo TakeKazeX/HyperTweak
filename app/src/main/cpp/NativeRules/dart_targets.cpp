@@ -546,12 +546,14 @@ const TargetSpec kAssistantWidgetTarget = {
     sizeof(kAssistantWidgetSites) / sizeof(kAssistantWidgetSites[0])};
 
 #include "dock_frame_target.inc"
+#include "recents_haptic_target.inc"
 
 const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
     &kFolderColumnsTarget,
     &kAssistantWidgetTarget,
     &kDockFrameTarget,
+    &kRecentsHapticTarget,
 };
 
 const size_t kTargetSpecCount =

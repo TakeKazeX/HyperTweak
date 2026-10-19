@@ -27,6 +27,16 @@ This checks independent Overview exit publication, owner fencing, exact source a
 boolean validation, retirement, and preservation of registers, SIMD, SP and NZCV.
 Actual recent-task exit and next-gesture behavior remain manual device acceptance.
 
+For recent-task card haptics, compile `recents_haptic_policy_test.cpp` and
+`recents_haptic_rule_test.cpp` (the latter links `dart_image.cpp` and
+`dart_targets.cpp`) with the NativeRules include directory and ASan/UBSan. Pass
+an externally stored, verified `libapp.so` to the rule test. It exercises the
+production resolver/decoder, duplicate and corrupt targets, dynamic CIDs,
+notification samples, disable/re-enable and patch ownership/remap handling.
+Run `run_recents_haptic_abi_test.py <NDK-clang>` with Unicorn and pyelftools for
+the production observer's enabled/disabled state and complete register/FP state.
+Actual card-switch timing and haptic strength remain manual device acceptance.
+
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
 
 ```sh

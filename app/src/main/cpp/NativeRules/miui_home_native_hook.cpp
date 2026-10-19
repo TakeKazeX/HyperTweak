@@ -2,6 +2,7 @@
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
 #include "assistant_widget_rule.h"
+#include "recents_haptic_rule.h"
 #include "native_rule_settings_dispatch.h"
 #include "dart_runtime_resolver.h"
 #include "dart_state_publication.h"
@@ -1366,7 +1367,7 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     // The carrier is also used by Xiaomi and the input arbiter. Missing module
     // schema is normal and must not produce rejection logs for unrelated state.
     if (!ReadNativeI32(extras, "hypertweak_rule_schema", &schema)) return false;
-    if (schema != 3) return RejectNativeRuleSnapshot(2u);
+    if (schema != 3 && schema != 4) return RejectNativeRuleSnapshot(2u);
     const auto sender = get_sender(intent);
     if (sender.tag != 0u || sender.data == nullptr || sender.length != ConstStringLength(kSystemUiPackage) ||
         memcmp(sender.data, kSystemUiPackage, sender.length) != 0) return RejectNativeRuleSnapshot(3u);
@@ -1379,6 +1380,10 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
         !ReadNativeBool(extras, "hypertweak_rule_contextual_search", &contextual) ||
         !ReadNativeBool(extras, "hypertweak_rule_assistant_widgets", &widgets)) return RejectNativeRuleSnapshot(5u);
     *output = {hidden, columns, contextual, widgets, revision};
+    // Schema 3 predates card haptics. Keep accepting it with the extension absent so a
+    // SystemUI built before this feature, and a launcher payload built before it, remain
+    // mutually compatible. A present but malformed value is treated as the default.
+    (void)ReadNativeBool(extras, "hypertweak_rule_recents_haptic", &output->recents_haptic);
     bool channel = false;
     if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
         if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
@@ -1390,9 +1395,16 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     }
     return true;
 }
+bool SendNativeBroadcast(const char* action, void* extras);
+extern "C" bool HyperTweakNotifyNativeRulePrepared() {
+    return SendNativeBroadcast("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED", nullptr);
+}
+extern "C" bool HyperTweakSendRecentsHaptic() {
+    return SendNativeBroadcast("com.takekazex.hypertweak.action.RECENTS_CARD_HAPTIC", nullptr);
+}
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets)) {
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic)) {
         if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
     }
@@ -3367,6 +3379,9 @@ void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
     hypertweak::native::MaintainFolderColumnsRuleOnActionDown(
             g_dart_app_handle);
     hypertweak::native::MaintainAssistantWidgetRuleOnActionDown(
+            hypertweak::native::NativeRuleCurrentDartHandle());
+    // Consume only prepared targets on the same maintenance boundary as the other rules.
+    (void)hypertweak::native::ApplyRecentsHapticRule(
             hypertweak::native::NativeRuleCurrentDartHandle());
 }
 

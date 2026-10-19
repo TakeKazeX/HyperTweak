@@ -134,6 +134,7 @@ extern const TargetSpec kRecentsClearButtonTarget;
 extern const TargetSpec kFolderColumnsTarget;
 extern const TargetSpec kAssistantWidgetTarget;
 extern const TargetSpec kDockFrameTarget;
+extern const TargetSpec kRecentsHapticTarget;
 bool VerifyDockUnlockLayout(const Image&, uintptr_t);
 struct DockTickLayout { uintptr_t site; int receiver, scale, y, value; };
 bool DecodeDockTickLayout(const Image&, uintptr_t, DockTickLayout*);

@@ -206,6 +206,7 @@ class HookEntry : XposedModule() {
         }
     }
     private fun requestSettingsReload(groups: Set<String>) {
+        if (groups.isEmpty()) return
         settingsHandler.post { if (!generationRetired) settingsReload.request(groups.intersect(RuntimeSettingsGroups.forProcess(processName, isSystemServer))) }
     }
     private fun cancelSettingsReload() {
@@ -264,7 +265,10 @@ class HookEntry : XposedModule() {
     private val runtimePreferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (!generationRetired) {
             Preferences.invalidateRuntimeReadCache()
-            requestSettingsReload(RuntimeSettingsGroups.affected(key))
+            // The daemon rewrites complete subsets (remove + put), and may report null or
+            // unchanged keys. Only the acknowledged snapshot diff owns feature recreation.
+            if (key == null || key == RuntimeSettingsGroups.REVISION || RuntimeSettingsGroups.owns(key))
+                runtimeSettingsReceiver.resync()
         }
     }
 

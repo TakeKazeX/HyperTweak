@@ -61,6 +61,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/folder_columns_rule.cpp"

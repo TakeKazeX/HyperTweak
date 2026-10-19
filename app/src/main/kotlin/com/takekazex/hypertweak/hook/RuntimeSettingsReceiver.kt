@@ -45,6 +45,15 @@ internal class RuntimeSettingsReceiver(private val changed: (Set<String>) -> Uni
             }.onFailure { DebugLog.w("RuntimeSettings", "receiver registration failed", it) }
         }
     }
+    private val resyncTask = Runnable { context?.let(::request) }
+    fun resync() {
+        main.post {
+            if (!retired) {
+                main.removeCallbacks(resyncTask)
+                main.postDelayed(resyncTask, 150L)
+            }
+        }
+    }
     private fun request(context: Context) {
         runCatching { SettingsTransport.send(context,
             Intent(RuntimeSettingsProtocol.REQUEST).setPackage(SettingsTransport.MODULE)) }

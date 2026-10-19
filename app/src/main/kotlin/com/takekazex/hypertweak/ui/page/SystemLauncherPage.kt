@@ -55,6 +55,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(Preferences.hideRecentsClearButton()) }
+    var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by rememberSaveable { mutableIntStateOf(Preferences.openedFolderColumns()) }
     var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureEnabled()) }
@@ -104,6 +105,16 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                         summary = stringResource(R.string.settings_recents_clear_button_summary)
                     )
                     if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = recentsHaptic,
+                            onCheckedChange = {
+                                recentsHaptic = it
+                                Preferences.putBoolean(Preferences.KEY_RECENTS_CARD_HAPTIC, it)
+                                NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, recentsHaptic = it)
+                            },
+                            title = stringResource(R.string.settings_recents_card_haptic_title),
+                            summary = stringResource(R.string.settings_recents_card_haptic_summary)
+                        )
                         ArrowPreference(title = stringResource(R.string.dock_title),
                             summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
                         SwitchPreference(

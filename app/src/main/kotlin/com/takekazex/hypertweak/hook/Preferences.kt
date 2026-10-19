@@ -1164,6 +1164,9 @@ object Preferences {
      */
     const val KEY_HIDE_RECENTS_CLEAR_BUTTON = "hide_recents_clear_button"
 
+    /** Live opt-in feedback for user-driven horizontal recent-task card changes. */
+    const val KEY_RECENTS_CARD_HAPTIC = "recents_card_haptic"
+
     /**
      * Number of application columns in an opened MiuiHome folder. Three preserves the launcher's
      * native behavior; four and five are applied by the native Dart AOT rule after a launcher
@@ -1231,6 +1234,8 @@ object Preferences {
             values.forEach { (featureKey, value) -> putBoolean(featureKey, value) }
         }
     }
+
+    fun recentsCardHaptic(): Boolean = getBoolean(KEY_RECENTS_CARD_HAPTIC, false)
 
     fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
 
@@ -1643,6 +1648,7 @@ object Preferences {
                         editor.putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
                         editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
                         editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
+                        editor.putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
                         editor.putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
@@ -1661,6 +1667,7 @@ object Preferences {
                                     putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
                                     putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
                                     putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
+                                    putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
                                     putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                                     putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                                 }
@@ -1921,7 +1928,7 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT) key to value else null,
+        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == KEY_RECENTS_CARD_HAPTIC) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 

@@ -23,6 +23,7 @@ internal class NativeRuleStatePublisher {
     private var revision = 0L
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
+    private val recentsHaptics = RecentsCardHaptics()
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
@@ -38,6 +39,15 @@ internal class NativeRuleStatePublisher {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (closed) return
+            if (intent.action == "com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED") {
+                if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home")) publish()
+                return
+            }
+            if (intent.action == RecentsCardHaptics.ACTION) {
+                if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home") &&
+                    ledger.latest()?.recentsHaptic == true) recentsHaptics.play(context)
+                return
+            }
             if (intent.action == com.takekazex.hypertweak.dock.DockFrameChannel.OFFER) {
                 if (!SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "android") || sentFromUid != Process.SYSTEM_UID) return
                 val port = intent.getIntExtra("port", -1)
@@ -68,6 +78,8 @@ internal class NativeRuleStatePublisher {
                 application.registerReceiver(receiver, IntentFilter().apply {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
                     addAction(Intent.ACTION_USER_UNLOCKED)
+                    addAction(RecentsCardHaptics.ACTION)
+                    addAction("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED")
                     addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
                 }, Context.RECEIVER_EXPORTED)
                 receiverRegistered = true
@@ -87,6 +99,7 @@ internal class NativeRuleStatePublisher {
             Preferences.nativeRuleSnapshot()?.let(ledger::offer)
             val snapshot = ledger.latest() ?: run { reportWaiting("authoritative settings snapshot"); return@post }
             waiting = null
+            if (snapshot.recentsHaptic) recentsHaptics.prepare(target) else recentsHaptics.cancelPending()
             revision = SystemClock.elapsedRealtimeNanos().coerceAtLeast(revision + 1L)
             val current = revision
             handler.removeCallbacksAndMessages(token)
@@ -104,12 +117,18 @@ internal class NativeRuleStatePublisher {
     private fun send(context: Context, snapshot: NativeRuleStateSnapshot, revision: Long) {
         runCatching {
             val intent = Intent("com.android.systemui.fsgesture").setPackage("com.miui.home")
+                // Schema 3 stays readable by a launcher native payload that predates this
+                // switch; the new boolean is an optional, namespaced extension. A launcher
+                // refreshed after this build reads it and enables card haptics, while an
+                // older payload still accepts the rest of the snapshot instead of rejecting
+                // the entire settings carrier.
                 .putExtra("hypertweak_rule_schema", 3)
                 .putExtra("hypertweak_rule_revision", revision)
                 .putExtra("hypertweak_rule_hide_clear", snapshot.hidden)
                 .putExtra("hypertweak_rule_folder_columns", snapshot.columns)
                 .putExtra("hypertweak_rule_contextual_search", snapshot.contextualSearch)
                 .putExtra("hypertweak_rule_assistant_widgets", snapshot.assistantWidgets)
+                .putExtra("hypertweak_rule_recents_haptic", snapshot.recentsHaptic)
                 .putExtra("sender_uid", Process.myUid())
             if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)
                 .putExtra("hypertweak_rule_dock_port", dockPort)
@@ -131,6 +150,7 @@ internal class NativeRuleStatePublisher {
     }
 
     private fun detachContext() {
+        recentsHaptics.close()
         val old = context
         context = null
         handler.removeCallbacksAndMessages(token)
