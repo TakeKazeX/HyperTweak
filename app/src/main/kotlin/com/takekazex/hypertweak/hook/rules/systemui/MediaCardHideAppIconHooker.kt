@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
+import androidx.core.view.isGone
 
 /**
  * Hides the source-app icon overlay on the media cards (封面隐藏来源应用图标), OS4 SystemUI.
@@ -68,7 +69,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
                 // All three verified native templates declare this overlay visible, and
                 // their binders never change visibility. Older generations hid it permanently
                 // without a snapshot; recover that native baseline during this migration.
-                if (icon.visibility == View.GONE && !originals.containsKey(icon)) icon.visibility = View.VISIBLE
+                if (icon.isGone && !originals.containsKey(icon)) icon.visibility = View.VISIBLE
                 if (enabled) hideIcon(icon)
             }
         }

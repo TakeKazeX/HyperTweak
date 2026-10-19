@@ -17,6 +17,7 @@ import java.util.ArrayDeque
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
+import androidx.core.view.isGone
 
 /**
  * Applies the order policy at OS4's list factory and mirrors the block policy to modern containers.
@@ -289,6 +290,7 @@ object IconPositionHooker : StaticHooker() {
 
     private fun rewriteIconList(listObject: Any?) {
         if (listObject == null) return
+        @Suppress("UNCHECKED_CAST") // Host slot list; every element is shape-checked below.
         val slots = (slotsField ?: findField(listObject.javaClass, "mSlots").also { slotsField = it })
             ?.get(listObject) as? MutableList<Any?> ?: return
         val current = slots.mapNotNull { rawSlot ->
@@ -418,7 +420,7 @@ object IconPositionHooker : StaticHooker() {
                 continue
             }
             val view = access.view.get(state) as? View ?: continue
-            if (view.parent !== container || view.visibility == View.GONE) continue
+            if (view.parent !== container || view.isGone) continue
             val slot = slotOf(view) ?: continue
             val iconVisibleMethod = iconVisibleGetters.getOrPut(view.javaClass) {
                 findNoArgMethod(view.javaClass, "isIconVisible")
@@ -535,6 +537,7 @@ object IconPositionHooker : StaticHooker() {
             return
         }
         runCatching {
+            @Suppress("UNCHECKED_CAST") // Host slot list; entries are mask owners we wrote earlier.
             val ignored = ignoredSlotsField?.get(container) as? MutableList<Any?> ?: return
             ignored.clear()
             ignored.addAll(maskOwners.merged(container, values))

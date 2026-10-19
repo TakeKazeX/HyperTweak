@@ -13,8 +13,10 @@ android {
     namespace = "com.takekazex.hypertweak"
     compileSdk = 37
     // The native payload is built by CMake and injected by LSPosed. Pin the NDK
-    // so the hook trampolines come from a toolchain we have verified.
-    ndkVersion = "28.2.13676358"
+    // so the hook trampolines come from a toolchain we have verified. r30 is the
+    // first release whose platform list covers API 37; older NDKs clamp the
+    // payload's minSdk 36 down to their newest platform (35).
+    ndkVersion = "30.0.16138531"
 
     defaultConfig {
         applicationId = "com.takekazex.hypertweak"
@@ -229,11 +231,11 @@ dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
     compileOnly(project(":hidden-api"))
     implementation("io.github.libxposed:service:102.0.0")
-    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.2")
 
     // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.0")
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.3.0")
+    implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.1")
+    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.3.1")
 
     // DexKit
     implementation("org.luckypray:dexkit:2.3.0")

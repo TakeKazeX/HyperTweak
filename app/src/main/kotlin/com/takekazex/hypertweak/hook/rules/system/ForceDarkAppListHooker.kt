@@ -86,6 +86,7 @@ object ForceDarkAppListHooker : StaticHooker() {
                         .get(param.thisObject) as android.content.pm.PackageManager
                     val getter = data.javaClass.methods.first { it.name == "getDarkModeAppDetailInfoList" && it.parameterTypes.isEmpty() }
                     val setter = data.javaClass.methods.first { it.name == "setDarkModeAppDetailInfoList" && it.parameterTypes.size == 1 }
+                    @Suppress("UNCHECKED_CAST") // Host list; elements are read reflectively below.
                     val list = (getter.invoke(data) as? MutableList<Any?>)?.toMutableList() ?: return@runCatching
                     val names = list.mapNotNull { it?.javaClass?.methods?.firstOrNull { m -> m.name == "getPkgName" }?.invoke(it) as? String }.toHashSet()
                     val detailClass = Class.forName("com.miui.darkmode.DarkModeAppDetailInfo", false, managerClass.classLoader)

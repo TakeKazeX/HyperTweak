@@ -105,10 +105,10 @@ fun AppearancePage(
             )
         }
     )
-    val palettePreviewColors = remember(resolvedSeed, darkPreview) {
-        PaletteStyleOption.entries.map { option ->
-            MiuixSpec2025Adapter.previewColors(resolvedSeed, option.persistedId, darkPreview)
-        }
+    // Each entry resolves through Miuix's public composable, so the swatches follow the same
+    // seed-to-palette derivation the applied theme uses.
+    val palettePreviewColors = PaletteStyleOption.entries.map { option ->
+        MiuixSpec2025Adapter.previewColors(resolvedSeed, option.persistedId, darkPreview)
     }
     val paletteEntry = DropdownEntry(
         items = PaletteStyleOption.entries.mapIndexed { index, option ->

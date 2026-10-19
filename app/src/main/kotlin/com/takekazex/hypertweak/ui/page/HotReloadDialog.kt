@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -217,7 +218,7 @@ private fun HotReloadResultCard(report: HotReloadReport) {
         else -> if (isDark) Color(0xFF9BE6B3) else Color(0xFF12622D)
     }
     val title = when {
-        incomplete -> stringResource(R.string.home_hot_reload_result_states, report.succeededCount, report.failedCount, report.exitedCount, report.pendingCount)
+        incomplete -> pluralStringResource(R.plurals.home_hot_reload_result_states, report.pendingCount, report.succeededCount, report.failedCount, report.exitedCount, report.pendingCount)
         hasFailure -> stringResource(R.string.home_hot_reload_result_counts, report.succeededCount, report.failedCount)
         report.results.isEmpty() -> stringResource(R.string.home_hot_reload_result_none)
         else -> stringResource(R.string.home_hot_reload_result_all)

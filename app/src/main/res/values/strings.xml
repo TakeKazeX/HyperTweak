@@ -86,8 +86,14 @@
     <string name="volume_key_scope_media">Media volume only</string>
     <string name="volume_key_scope_active_stream">Volume stream currently controlled by the keys</string>
     <string name="volume_key_step_title">Volume key steps</string>
-    <string name="volume_key_step_summary">%1$d presses from minimum to maximum, about %2$d%% per press</string>
-    <string name="volume_key_step_value">%1$d steps</string>
+    <plurals name="volume_key_step_summary">
+        <item quantity="one">%1$d press from minimum to maximum, about %2$d%% per press</item>
+        <item quantity="other">%1$d presses from minimum to maximum, about %2$d%% per press</item>
+    </plurals>
+    <plurals name="volume_key_step_value">
+        <item quantity="one">%1$d step</item>
+        <item quantity="other">%1$d steps</item>
+    </plurals>
     <string name="volume_key_step_dialog_summary">Set the number of key presses from minimum to maximum, from 5 to 100</string>
     <string name="volume_key_step_suffix">steps</string>
     <string name="aosp_volume_dnd">Do Not Disturb</string>
@@ -370,16 +376,12 @@
     <string name="glass_glass_tone">Glass Tone</string>
     <string name="glass_glass_tone_summary">Controls the base cast; lower values appear brighter.</string>
     <string name="glass_slider_edit_value">Enter value</string>
-    <string name="glass_original_parameters">Original Parameters</string>
     <string name="glass_parameters">Parameters</string>
     <string name="glass_parameters_summary">Override the blur parameters of the frosted and soft glass materials</string>
     <string name="glass_preview_title">Native Material Preview</string>
-    <string name="glass_preview_import_image">Import preview image</string>
     <string name="glass_preview_change_image">Change image</string>
-    <string name="glass_preview_no_image">No preview image imported</string>
     <string name="glass_preview_auto_dark">Image detected as dark; preview adapted</string>
     <string name="glass_preview_auto_light">Image detected as light; preview adapted</string>
-    <string name="glass_preview_select_image">Choose an image to show the native material</string>
     <string name="glass_preview_loading_image">Loading preview image…</string>
     <string name="glass_preview_image_load_failed">Could not load this image</string>
     <string name="glass_preview_notification_title">Glass material</string>
@@ -402,7 +404,6 @@
     <string name="glass_preset_import_apply">Import and overwrite</string>
     <string name="glass_preset_save_and_import">Save current and import</string>
     <string name="glass_preset_empty">No saved presets</string>
-    <string name="glass_preset_apply">Apply</string>
     <string name="glass_preset_apply_summary">Tap to apply this preset.</string>
     <string name="glass_preset_rename">Rename</string>
     <string name="glass_preset_rename_title">Rename preset</string>
@@ -414,7 +415,6 @@
     <string name="glass_preset_delete">Delete</string>
     <string name="glass_preset_delete_confirm_title">Delete preset?</string>
     <string name="glass_preset_delete_confirm_summary">Delete “%1$s”? This cannot be undone.</string>
-    <string name="glass_preset_saved">Preset saved</string>
     <string name="glass_preset_saved_named">Saved “%1$s”</string>
     <string name="glass_preset_applied">Preset applied</string>
     <string name="glass_preset_imported">Share code imported and applied</string>
@@ -522,7 +522,6 @@
     <string name="icon_cellular_type_title">Type Display</string>
     <string name="icon_cellular_type_swap">Swap Single Type and Signal</string>
     <string name="icon_cellular_type_swap_summary">Move the single-SIM network label to the right of the signal icon</string>
-    <string name="icon_font_weight">Font Weight</string>
     <string name="icon_battery_style_title">Status Bar Battery</string>
     <string name="icon_battery_style_outside">Percentage Outside in the Control Center</string>
     <string name="icon_battery_style_outside_summary">Show the battery percentage outside the icon in Control Center only</string>
@@ -1476,7 +1475,10 @@
     <string name="logs_source_failed">App logs loaded. LSPosed logs could not be read; tap to retry.</string>
     <string name="logs_export_failed">Log file could not be saved.</string>
     <string name="logs_share_failed">Log sharing could not be opened.</string>
-    <string name="home_hot_reload_result_states">%1$d succeeded · %2$d failed · %3$d exited · %4$d in progress</string>
+    <plurals name="home_hot_reload_result_states">
+        <item quantity="one">%1$d succeeded · %2$d failed · %3$d exited · %4$d in progress</item>
+        <item quantity="other">%1$d succeeded · %2$d failed · %3$d exited · %4$d in progress</item>
+    </plurals>
     <string name="home_hot_reload_process_exited">Process exited; the next launch loads the updated module</string>
     <string name="home_hot_reload_process_pending">Reload already in progress</string>
 

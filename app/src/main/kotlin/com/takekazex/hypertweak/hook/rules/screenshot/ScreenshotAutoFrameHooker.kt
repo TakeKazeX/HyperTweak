@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
 import java.lang.reflect.Field
 import java.util.WeakHashMap
+import androidx.core.graphics.scale
 
 /** Native frame composition at the full-screen save boundary, leaving capture/scroll bitmaps alone. */
 object ScreenshotAutoFrameHooker : StaticHooker() {
@@ -143,7 +144,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                     val composeMs = (System.nanoTime() - composeStarted) / 1_000_000
                     try {
                         boundary("prepare native framed thumbnail") { source.owner?.get()?.let { owner ->
-                            val copy = Bitmap.createScaledBitmap(framed, 400, (framed.height * 400f / framed.width).toInt(), true)
+                            val copy = framed.scale(400, (framed.height * 400f / framed.width).toInt())
                             synchronized(previews) { previews[owner] = Preview(original, copy) }
                             (access.thumbnail.get(owner) as? android.view.View)?.post {
                                 boundary("update native screenshot preview") { access.updatePreview(owner, original, copy) }

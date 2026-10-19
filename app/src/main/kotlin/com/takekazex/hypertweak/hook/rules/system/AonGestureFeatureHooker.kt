@@ -62,17 +62,13 @@ object AonGestureFeatureHooker : StaticHooker() {
         deoptimize(current)
         update.hook("aon_gesture_support_features") { after { param ->
             val host = param.thisObject
-            if (host == null || !isAonController(host) || !Preferences.unlockMoreAonGestures()) {
-                return@after
-            }
+            if (!isAonController(host) || !Preferences.unlockMoreAonGestures()) return@after
             runCatching { restoreEnabledFeatures(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to restore AON gesture features", t) }
         } }
         current.hook("aon_gesture_app_mask") { after { param ->
             val host = param.thisObject
-            if (host == null || !isAonController(host) || !Preferences.unlockMoreAonGestures()) {
-                return@after
-            }
+            if (!isAonController(host) || !Preferences.unlockMoreAonGestures()) return@after
             runCatching {
                 val base = param.result as? Int ?: return@after
                 param.result = base or

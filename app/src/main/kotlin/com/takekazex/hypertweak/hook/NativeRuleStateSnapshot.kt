@@ -21,12 +21,18 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val haptic = values[Preferences.KEY_RECENTS_CARD_HAPTIC]
             val revision = values[Preferences.KEY_NATIVE_RULE_REVISION]
             val epoch = values["prefs_epoch"]
+            // Reject the whole snapshot on any type mismatch; a partial read is never a default.
             if ((hidden != null && hidden !is Boolean) || (columns != null && columns !is Int) ||
-                (haptic != null && haptic !is Boolean) || (contextual != null && contextual !is Boolean) || (widgets != null && widgets !is Boolean) || (revision != null && revision !is Long) ||
-                (epoch != null && epoch !is Long) || (revision as? Long ?: 0) < 0 || (epoch as? Long ?: 0) < 0 ||
-                (columns as? Int ?: 3) !in 3..5) return null
-            NativeRuleStateSnapshot(hidden as? Boolean ?: false,
-                columns as? Int ?: 3, contextual as? Boolean ?: false, revision as? Long ?: 0, epoch as? Long ?: 0, widgets as? Boolean ?: false, haptic as? Boolean ?: false)
+                (haptic != null && haptic !is Boolean) || (contextual != null && contextual !is Boolean) ||
+                (widgets != null && widgets !is Boolean) || (revision != null && revision !is Long) ||
+                (epoch != null && epoch !is Long)) return null
+            // The guards above smart-cast each value to its checked type for the rest of the block.
+            val resolvedColumns = columns ?: 3
+            val resolvedRevision = revision ?: 0L
+            val resolvedEpoch = epoch ?: 0L
+            if (resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5) return null
+            NativeRuleStateSnapshot(hidden ?: false, resolvedColumns, contextual ?: false,
+                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false)
         }.getOrNull()
     }
 }

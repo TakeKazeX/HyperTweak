@@ -46,7 +46,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         val updateHeaderList = clazz.declaredMethods.firstOrNull {
                 it.name == UPDATE_HEADER_LIST &&
                 it.parameterTypes.size == 1 &&
-                java.util.List::class.java.isAssignableFrom(it.parameterTypes[0])
+                List::class.java.isAssignableFrom(it.parameterTypes[0])
         } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_CLASS#$UPDATE_HEADER_LIST(List)", "method not found")
             return
@@ -54,7 +54,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         val addGoogleHeaders = clazz.declaredMethods.firstOrNull {
                 it.name == ADD_GOOGLE_HEADERS &&
                 it.parameterTypes.size == 1 &&
-                java.util.List::class.java.isAssignableFrom(it.parameterTypes[0])
+                List::class.java.isAssignableFrom(it.parameterTypes[0])
         }?.apply { isAccessible = true } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_CLASS#$ADD_GOOGLE_HEADERS(List)", "method not found")
             return
@@ -71,6 +71,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
                     ) {
                         return@open
                     }
+                    @Suppress("UNCHECKED_CAST") // Host header list passed into the hooked method.
                     val headers = param.args.getOrNull(0) as? MutableList<Any?> ?: return@open
                     if (containsGoogleSettingsHeader(headers)) return@open
                     addGoogleHeaders.invoke(param.thisObject, headers)

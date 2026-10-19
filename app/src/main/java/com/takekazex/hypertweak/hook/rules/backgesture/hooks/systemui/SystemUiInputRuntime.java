@@ -3194,7 +3194,13 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
             return true;
         }
 
-        /** Read on the input owner; both task and activity must survive the idle wait. */
+        /**
+         * Read on the input owner; both task and activity must survive the idle wait.
+         * HyperTweak: {@code getRunningTasks} is deprecated for third-party apps, but this runs in
+         * privileged SystemUI, which is the only component that can observe the live focus task.
+         * UsageStats is not an equivalent source of current RunningTaskInfo/topActivity.
+         */
+        @SuppressWarnings("deprecation")
         private android.app.ActivityManager.RunningTaskInfo focusedAppTask() {
             try {
                 android.app.ActivityManager manager = context.getSystemService(android.app.ActivityManager.class);

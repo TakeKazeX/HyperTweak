@@ -964,9 +964,9 @@ class MainActivity : ComponentActivity() {
             val resolvedSeedColorHex = if (seedColorHex == 0) deviceAccent else seedColorHex
 
             val pureBlackActive = pureBlackDarkTheme && isEffectivelyDark(themeMode, isDark)
-            val controller = remember(themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive, isDark) {
-                MiuixSpec2025Adapter.createThemeController(themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive)
-            }
+            val controller = MiuixSpec2025Adapter.rememberThemeController(
+                themeMode, useMonet, resolvedSeedColorHex, paletteStyle, pureBlackActive
+            )
 
             val systemDensity = LocalDensity.current
             val density = remember(systemDensity, pageScale) {

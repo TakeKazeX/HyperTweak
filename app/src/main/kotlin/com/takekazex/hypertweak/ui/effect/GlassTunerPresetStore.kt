@@ -58,6 +58,8 @@ internal object GlassTunerPresetStore {
                     .putValues(preset.values)
             )
         }
+        // KTX edit() returns Unit; the boolean commit result is the save-failure signal.
+        @Suppress("UseKtx")
         return preferences.edit().putString(KEY_PRESETS, array.toString()).commit()
     }
 

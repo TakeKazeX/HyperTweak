@@ -14,6 +14,7 @@ import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.core.view.isGone
 
 /** Owns the reversible, orientation-dependent layout state for each OS4 notification header. */
 internal class NotificationHeaderLayoutController(
@@ -546,7 +547,7 @@ internal class NotificationHeaderLayoutController(
     }
 
     private fun transformedBounds(session: Session, view: View): Rect? {
-        if (view.visibility == View.GONE || view.width <= 0 || view.height <= 0) return null
+        if (view.isGone || view.width <= 0 || view.height <= 0) return null
         return runCatching {
             Rect(0, 0, view.width, view.height).also { bounds ->
                 session.root.offsetDescendantRectToMyCoords(view, bounds)

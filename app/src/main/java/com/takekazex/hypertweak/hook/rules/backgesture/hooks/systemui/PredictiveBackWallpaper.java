@@ -25,6 +25,12 @@ import android.view.SurfaceControl;
 
 /** Wallpaper pixels only; Shell continues to own the surface, geometry and removal. */
 final class PredictiveBackWallpaper implements AutoCloseable {
+    /**
+     * HyperTweak: {@link Intent#ACTION_WALLPAPER_CHANGED} is deprecated on API 37, but SystemUI
+     * still receives and registers this broadcast, and it is the only signal for wallpaper swaps.
+     * Spelled out here so the dependency stays explicit without the deprecated constant reference.
+     */
+    private static final String WALLPAPER_CHANGED = "android.intent.action.WALLPAPER_CHANGED";
     private final Context context;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "HT-BackWallpaper");
@@ -36,7 +42,7 @@ final class PredictiveBackWallpaper implements AutoCloseable {
     private final BroadcastReceiver changes = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (Intent.ACTION_WALLPAPER_CHANGED.equals(action)) cache.invalidate();
+            if (WALLPAPER_CHANGED.equals(action)) cache.invalidate();
             else cache.retryMissing();
             warm();
         }
@@ -46,7 +52,7 @@ final class PredictiveBackWallpaper implements AutoCloseable {
     PredictiveBackWallpaper(Context context) {
         Context application = context.getApplicationContext();
         this.context = application == null ? context : application;
-        IntentFilter filter = new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED);
+        IntentFilter filter = new IntentFilter(WALLPAPER_CHANGED);
         filter.addAction(Intent.ACTION_USER_UNLOCKED);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         try {

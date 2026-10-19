@@ -5,7 +5,6 @@
     <string name="dock_glass">Soft glass</string>
     <string name="dock_frosted">Clear frosted</string>
     <string name="dock_preview_icons">Sample icons stay in place while you adjust the background. The desktop follows the system theme.</string>
-    <string name="dock_geometry">Background dimensions</string>
     <string name="dock_height">Height</string>
     <string name="dock_horizontal">Horizontal margin</string>
     <string name="dock_bottom">Bottom margin</string>

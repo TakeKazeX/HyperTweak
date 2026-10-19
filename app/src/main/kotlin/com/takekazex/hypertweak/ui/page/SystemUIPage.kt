@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -236,15 +237,17 @@ fun SystemUIPage(
                     )
                     ArrowPreference(
                         title = stringResource(R.string.volume_key_step_title),
-                        summary = stringResource(
-                            R.string.volume_key_step_summary,
+                        summary = pluralStringResource(
+                            R.plurals.volume_key_step_summary,
+                            displayedVolumeKeyStepCount,
                             displayedVolumeKeyStepCount,
                             (100f / displayedVolumeKeyStepCount).roundToInt()
                         ),
                         endActions = {
                             Text(
-                                text = stringResource(
-                                    R.string.volume_key_step_value,
+                                text = pluralStringResource(
+                                    R.plurals.volume_key_step_value,
+                                    displayedVolumeKeyStepCount,
                                     displayedVolumeKeyStepCount
                                 ),
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions

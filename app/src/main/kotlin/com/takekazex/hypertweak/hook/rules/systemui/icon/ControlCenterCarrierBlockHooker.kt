@@ -1636,7 +1636,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             val fakeRow = header?.findViewById<ViewGroup>(fakeStatusBarId)
             val realIcons = realRow?.let { findStatusContainer(it) as? ViewGroup }
             val fakeIcons = fakeRow?.let { findStatusContainer(it) as? ViewGroup }
-            if (realIcons != null && fakeIcons != null && fakeRow != null) {
+            // fakeRow is non-null here: fakeIcons derives from it through ?.let.
+            if (realIcons != null && fakeIcons != null) {
                 IconPositionHooker.updateLowerRowHandover(realIcons, fakeIcons, fakeRow.alpha, clamped)
                 lowerRowUpdated = true
             } else IconPositionHooker.clearLowerRowHandover()

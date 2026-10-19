@@ -1044,11 +1044,11 @@ object DuoSignalHooker : StaticHooker() {
     private fun positionNativeFullAod(binding: Binding) {
         val state = binding.fullAodNativeState ?: return
         val battery = binding.battery
-        val icon = state.iconContainer.takeIf { it.visibility == View.VISIBLE }
-        val percent = state.percentContainer.takeIf { it.visibility == View.VISIBLE }
+        val icon = state.iconContainer.takeIf { it.isVisible }
+        val percent = state.percentContainer.takeIf { it.isVisible }
         if (icon == null || percent == null || battery.width <= 0) return
         val charging = (read(battery, "mBatteryChargingView") as? View)
-            ?.takeIf { it.visibility == View.VISIBLE }
+            ?.takeIf { it.isVisible }
         val left = battery.paddingLeft
         val percentLeft = if (AodIconSettings.current().percentPosition ==
             Preferences.AOD_PERCENT_POSITION_LEFT) left else

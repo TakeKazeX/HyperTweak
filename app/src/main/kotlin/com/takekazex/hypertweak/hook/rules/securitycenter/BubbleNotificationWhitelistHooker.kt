@@ -217,6 +217,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
             getDefaultBubbles.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "getDefaultBubbles", Unit) {
+                        @Suppress("UNCHECKED_CAST") // Host map returned by the hooked getter.
                         val result = param.result as? ArrayMap<Any?, Any?> ?: return@open
                         val context = contextField.get(param.thisObject) as? Context ?: return@open
                         val userId = currentUserField.get(param.thisObject) as? Int ?: return@open

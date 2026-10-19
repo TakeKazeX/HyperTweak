@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Process
 import android.provider.MediaStore
+import androidx.core.net.toUri
 
 /** Uses the owner's MediaStore row, including pending rows; FUSE file visibility is not a save fence. */
 internal data class ScreenshotMediaIdentity(val key: String, val stamp: String, val width: Int, val height: Int, val mime: String) {
@@ -22,7 +23,7 @@ internal data class ScreenshotMediaIdentity(val key: String, val stamp: String, 
                 val mime = row.getString(5) ?: return null
                 if (width <= 0 || height <= 0) return null
                 val key = ScreenshotFramePolicy.mediaKey("content://media/external/images/media/${row.getLong(0)}", user) ?: return null
-                val contentUri = if (file) Uri.parse("content://media/external/images/media/${row.getLong(0)}") else uri
+                val contentUri = if (file) "content://media/external/images/media/${row.getLong(0)}".toUri() else uri
                 val bytes = context.contentResolver.openFileDescriptor(contentUri, "r")?.use { it.statSize } ?: return null
                 val stamp = listOf(row.getString(1), row.getLong(2), width, height, mime, bytes).joinToString("\u001f")
                 return ScreenshotMediaIdentity(key, stamp, width, height, mime)

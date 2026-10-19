@@ -53,7 +53,7 @@ object AonGestureSettingsHooker : StaticHooker() {
         deoptimize(onResume)
         onResume.hook("aon_gesture_extras_rows") { after { param ->
             if (!Preferences.unlockMoreAonGestures()) return@after
-            val host = param.thisObject ?: return@after
+            val host = param.thisObject
             runCatching { ensureExtraRows(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to add extra gesture rows", t) }
         } }
@@ -65,7 +65,8 @@ object AonGestureSettingsHooker : StaticHooker() {
         val ctx = (hostClass.getMethod("getContext").invoke(host) as? Context) ?: return
         val screen = hostClass.getMethod("getPreferenceScreen").invoke(host) ?: return
         val screenClass = screen.javaClass
-        val loader = screenClass.classLoader
+        // Class.classLoader is annotated @RecentlyNullable; a loaded screen class always has one.
+        val loader = requireNotNull(screenClass.classLoader)
         val findPreference =
             screenClass.getMethod("findPreference", CharSequence::class.java)
         val addPreference =

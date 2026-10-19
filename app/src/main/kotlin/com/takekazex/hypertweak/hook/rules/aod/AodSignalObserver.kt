@@ -49,6 +49,9 @@ internal class AodSignalObserver(
     private var receiverRegistered = false
     private var lastNetwork: Network? = null
     private var lastCapabilities: NetworkCapabilities? = null
+    // WifiInfo arrives with the default-network capabilities; WifiManager.connectionInfo is
+    // deprecated on API 37 and its replacement is exactly this callback field.
+    private var lastWifiInfo: WifiInfo? = null
     private var mobile = MobileSignalState()
     private var network = DuoNetwork()
     private var started = false
@@ -175,6 +178,7 @@ internal class AodSignalObserver(
             override fun onAvailable(network: Network) {
                 lastNetwork = network
                 lastCapabilities = manager.getNetworkCapabilities(network)
+                lastWifiInfo = lastCapabilities?.transportInfo as? WifiInfo
                 refreshDefaultNetwork()
             }
 
@@ -182,6 +186,7 @@ internal class AodSignalObserver(
                 if (lastNetwork == null || lastNetwork == network) {
                     lastNetwork = network
                     lastCapabilities = capabilities
+                    lastWifiInfo = capabilities.transportInfo as? WifiInfo
                     refreshDefaultNetwork()
                 }
             }
@@ -190,6 +195,7 @@ internal class AodSignalObserver(
                 if (lastNetwork == lostNetwork) {
                     lastNetwork = null
                     lastCapabilities = null
+                    lastWifiInfo = null
                     network = DuoNetwork(transport = DuoTransport.NONE)
                     publish()
                 }
@@ -203,7 +209,7 @@ internal class AodSignalObserver(
     private fun refreshDefaultNetwork() {
         if (!started) return
         val capabilities = lastCapabilities
-            ?: connectivityManager?.activeNetwork?.let { connectivityManager?.getNetworkCapabilities(it) }
+            ?: connectivityManager?.activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
         val wifiLevel = wifiLevel()
         val wifiIsUnderlying = wifiLevel != null
         network = when {
@@ -237,9 +243,10 @@ internal class AodSignalObserver(
     }
 
     private fun wifiLevel(): Int? = runCatching {
-        val info = wifiManager?.connectionInfo ?: return null
+        val info = lastWifiInfo ?: return null
         if (info.networkId == -1 || info.rssi <= INVALID_WIFI_RSSI) return null
-        WifiManager.calculateSignalLevel(info.rssi, 5).coerceIn(0, 4)
+        // The instance overload is the supported form; the static (rssi, levels) one is deprecated.
+        (wifiManager?.calculateSignalLevel(info.rssi) ?: return null).coerceIn(0, 4)
     }.getOrNull()
 
     private fun airplaneModeEnabled(): Boolean = runCatching {
@@ -316,20 +323,20 @@ internal class AodSignalObserver(
         networkType == TelephonyManager.NETWORK_TYPE_HSPAP -> "4G"
         networkType in setOf(
             TelephonyManager.NETWORK_TYPE_UMTS,
-            TelephonyManager.NETWORK_TYPE_CDMA,
-            TelephonyManager.NETWORK_TYPE_EVDO_0,
-            TelephonyManager.NETWORK_TYPE_EVDO_A,
-            TelephonyManager.NETWORK_TYPE_EVDO_B,
+            NETWORK_TYPE_CDMA,
+            NETWORK_TYPE_EVDO_0,
+            NETWORK_TYPE_EVDO_A,
+            NETWORK_TYPE_EVDO_B,
             TelephonyManager.NETWORK_TYPE_HSDPA,
             TelephonyManager.NETWORK_TYPE_HSUPA,
             TelephonyManager.NETWORK_TYPE_HSPA,
-            TelephonyManager.NETWORK_TYPE_EHRPD
+            NETWORK_TYPE_EHRPD
         ) -> "3G"
         networkType in setOf(
             TelephonyManager.NETWORK_TYPE_GPRS,
             TelephonyManager.NETWORK_TYPE_EDGE,
-            TelephonyManager.NETWORK_TYPE_1xRTT,
-            TelephonyManager.NETWORK_TYPE_IDEN
+            NETWORK_TYPE_1xRTT,
+            NETWORK_TYPE_IDEN
         ) -> "2G"
         else -> null
     }
@@ -340,5 +347,15 @@ internal class AodSignalObserver(
 
     private companion object {
         const val INVALID_WIFI_RSSI = -127
+
+        // The legacy CDMA/EVDO constants are deprecated on API 37 but still carry the frozen
+        // 3GPP TS 27.007 values; repeat them locally instead of touching the deprecated fields.
+        const val NETWORK_TYPE_CDMA = 4
+        const val NETWORK_TYPE_EVDO_0 = 5
+        const val NETWORK_TYPE_EVDO_A = 6
+        const val NETWORK_TYPE_1xRTT = 7
+        const val NETWORK_TYPE_IDEN = 11
+        const val NETWORK_TYPE_EVDO_B = 12
+        const val NETWORK_TYPE_EHRPD = 14
     }
 }

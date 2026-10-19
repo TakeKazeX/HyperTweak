@@ -31,6 +31,7 @@ import java.lang.reflect.Method
 import java.text.NumberFormat
 import java.util.IdentityHashMap
 import java.util.Locale
+import androidx.core.view.isVisible
 
 /** Adapter for the AOD plugin's battery row, usually hosted inside SystemUI. */
 class AodStatusIconHooker : DynamicHooker() {
@@ -189,7 +190,7 @@ class AodStatusIconHooker : DynamicHooker() {
                     val widget = read(clock, "mBattery") as? View
                         ?: findNamedView(clock, BATTERY_CONTAINER_ID) ?: return@onMain
                     widget.visibility = if (AodIconSettings.current().showRow) View.VISIBLE else View.GONE
-                    if (widget.visibility == View.VISIBLE) findViews(widget, BATTERY_METER).forEach(::bind)
+                    if (widget.isVisible) findViews(widget, BATTERY_METER).forEach(::bind)
                 }
             } }
         }
@@ -431,7 +432,7 @@ class AodStatusIconHooker : DynamicHooker() {
     private fun updateObserver() {
         val needsSignal = AodIconSettings.current().let { it.duo && it.centerSignal } && bindings.values.any { binding ->
             binding.root.isAttachedToWindow &&
-                binding.root.visibility == View.VISIBLE
+                binding.root.isVisible
         }
         if (!needsSignal) {
             signalObserver?.stop()

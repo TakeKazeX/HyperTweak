@@ -277,7 +277,8 @@ class VolumeSliderHooker(
 
                 // Only the outer capsule paints the material; the text stays transparent.
                 badgeStyler.detachTextBackground(badgeText)
-                badgeStyler.applyCapsule(badgeBg, expanded, thisObject.javaClass.classLoader)
+                // Class.classLoader is annotated @RecentlyNullable; a live host instance always has one.
+                badgeStyler.applyCapsule(badgeBg, expanded, requireNotNull(thisObject.javaClass.classLoader))
                 badgeStyler.applyTextStyle(badgeText, parent.sameStyleEnabled)
 
                 val badgeVisibility = if (expanded) View.GONE else View.VISIBLE

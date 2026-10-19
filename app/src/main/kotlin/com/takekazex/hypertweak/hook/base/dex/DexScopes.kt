@@ -32,7 +32,9 @@ internal class DexScopes(private val openBackend: (String) -> AutoCloseable) {
 
     fun <T : Any> artifact(apk: String, type: Class<T>, version: String, create: () -> T): T {
         val scope = stack().lastOrNull { it.apk == apk }
-        scope?.artifacts?.get(type)?.takeIf { it.first == version }?.let { return type.cast(it.second) }
+        // Class.cast is @RecentlyNullable on the platform; the stored value is non-null by type.
+        scope?.artifacts?.get(type)?.takeIf { it.first == version }
+            ?.let { return requireNotNull(type.cast(it.second)) }
         val versions = requireNotNull(recent.get()).getOrPut(type) { HashMap() }
         val value = versions[version]?.get()?.let(type::cast) ?: create()
         versions.clear()

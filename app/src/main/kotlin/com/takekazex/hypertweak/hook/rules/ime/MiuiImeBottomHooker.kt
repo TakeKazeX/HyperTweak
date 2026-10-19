@@ -161,7 +161,8 @@ object MiuiImeBottomHooker : StaticHooker() {
      */
     private fun hookDeleteNotSupportIme(bottomManager: Class<*>) {
         val listenerName = "$BOTTOM_MANAGER\$MiuiSwitchInputMethodListener"
-        val listener = runCatching { bottomManager.classLoader.loadClass(listenerName) }.getOrNull()
+        // Class.classLoader is annotated @RecentlyNullable; a loaded host class always has one.
+        val listener = runCatching { requireNotNull(bottomManager.classLoader).loadClass(listenerName) }.getOrNull()
             ?: run {
                 DebugLog.hookSkipped(TAG, listenerName, "class not found")
                 return

@@ -86,6 +86,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.runtime.mutableIntStateOf
 
 private enum class LogFilter(@StringRes val labelRes: Int) {
     All(R.string.logs_filter_all),
@@ -130,7 +131,7 @@ fun LogsPage(
         mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
     var exportStatus by remember { mutableStateOf<String?>(null) }
-    var refreshGeneration by remember { mutableStateOf(0) }
+    var refreshGeneration by remember { mutableIntStateOf(0) }
     var lsposedStatus by remember { mutableStateOf<LsposedLogReader.Status?>(null) }
     val service by XposedServiceManager.serviceFlow.collectAsState()
     val coroutineScope = rememberCoroutineScope()

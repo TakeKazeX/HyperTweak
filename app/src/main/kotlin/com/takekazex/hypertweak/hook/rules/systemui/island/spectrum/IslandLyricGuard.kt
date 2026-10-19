@@ -5,6 +5,8 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.LinkedHashMap
+import androidx.core.view.isVisible
+import androidx.core.view.isGone
 
 /**
  * Keeps a side music spectrum visible when another island module injects lyric text into the
@@ -126,7 +128,7 @@ internal class IslandLyricGuard(
         var visibleNative = false
         for (index in 0 until parent.childCount) {
             val child = parent.getChildAt(index)
-            if (!IslandLyricConflict.injectedTag(child.tag) && child.visibility == View.VISIBLE) {
+            if (!IslandLyricConflict.injectedTag(child.tag) && child.isVisible) {
                 visibleNative = true
                 break
             }
@@ -152,13 +154,13 @@ internal class IslandLyricGuard(
     }
 
     private fun show(view: View) {
-        if (view.visibility == View.VISIBLE) return
+        if (view.isVisible) return
         snapshot(view)
         view.visibility = View.VISIBLE
     }
 
     private fun hide(view: View) {
-        if (view.visibility == View.GONE) return
+        if (view.isGone) return
         snapshot(view)
         view.visibility = View.GONE
         // HyperLyrics' keepVisible wrapper rejects GONE and its collision guard caches

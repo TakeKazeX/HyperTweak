@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
+import androidx.core.view.isGone
 
 /**
  * Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (OS4_ADAPTATION_PLAN.md T7).
@@ -54,7 +55,7 @@ object HideCarrierLabelHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         StatusIconHostAccess.onMain {
-            hiddenViews.forEach { (view, visibility) -> if (view.visibility == View.GONE) view.visibility = visibility }
+            hiddenViews.forEach { (view, visibility) -> if (view.isGone) view.visibility = visibility }
             hiddenViews.clear()
         }
         hideOne = false

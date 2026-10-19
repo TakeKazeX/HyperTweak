@@ -41,7 +41,9 @@ object UpdateJsonCodec {
 
     fun decode(raw: String): UpdateInfo? = runCatching {
         val json = JSONObject(raw)
-        val channel = UpdateChannel.fromValue(json.optString("channel", null))
+        // optString(String, String) is annotated @RecentlyNonNull on the platform even though a
+        // missing key yields the fallback; UpdateChannel.fromValue already maps null to STABLE.
+        val channel = UpdateChannel.fromValue(json.optString("channel").takeIf { json.has("channel") })
         val versionName = json.optString("versionName", "").takeIf { it.isNotBlank() } ?: return null
         val apkAsset = json.optString("apkAsset", "").takeIf { it.isNotBlank() } ?: return null
         val releaseUrl = json.optString("releaseUrl", "").takeIf { it.isNotBlank() } ?: return null

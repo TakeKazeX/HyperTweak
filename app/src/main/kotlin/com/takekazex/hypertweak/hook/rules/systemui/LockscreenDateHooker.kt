@@ -13,6 +13,7 @@ import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import androidx.core.view.isGone
 
 /** Hide dates in keyguard clocks throughout lockscreen/full-AOD transitions, excluding previews. */
 object LockscreenDateHooker : StaticHooker() {
@@ -150,7 +151,7 @@ object LockscreenDateHooker : StaticHooker() {
                 }
                 originals.keys.toList().filter { it !in dates }.forEach { view ->
                     originals.remove(view)?.let { visibility ->
-                        if (view.visibility == View.GONE) view.visibility = visibility
+                        if (view.isGone) view.visibility = visibility
                     }
                 }
                 dates.forEach { date ->
@@ -210,7 +211,7 @@ object LockscreenDateHooker : StaticHooker() {
         private fun restore() {
             originals.entries.toList().forEach { (view, visibility) ->
                 runCatching {
-                    if (view.visibility == View.GONE) view.visibility = visibility
+                    if (view.isGone) view.visibility = visibility
                 }.onFailure { DebugLog.hookFailed("LockscreenDate", "restore date visibility", it) }
             }
             originals.clear()

@@ -86,8 +86,12 @@
     <string name="volume_key_scope_media">仅媒体音量</string>
     <string name="volume_key_scope_active_stream">音量键当前控制的音量流</string>
     <string name="volume_key_step_title">音量键档位数</string>
-    <string name="volume_key_step_summary">从最小到最大需按 %1$d 次，每次约 %2$d%%</string>
-    <string name="volume_key_step_value">%1$d 档</string>
+    <plurals name="volume_key_step_summary">
+        <item quantity="other">从最小到最大需按 %1$d 次，每次约 %2$d%%</item>
+    </plurals>
+    <plurals name="volume_key_step_value">
+        <item quantity="other">%1$d 档</item>
+    </plurals>
     <string name="volume_key_step_dialog_summary">设置从最小音量升到最大音量所需的按键步数，范围为 5–100</string>
     <string name="volume_key_step_suffix">档</string>
     <string name="aosp_volume_dnd">勿扰模式</string>
@@ -370,16 +374,12 @@
     <string name="glass_glass_tone">玻璃色调</string>
     <string name="glass_glass_tone_summary">控制玻璃的基础色调；数值越低，观感越亮。</string>
     <string name="glass_slider_edit_value">输入数值</string>
-    <string name="glass_original_parameters">原始参数</string>
     <string name="glass_parameters">参数</string>
     <string name="glass_parameters_summary">覆盖磨砂与柔光玻璃的模糊参数</string>
     <string name="glass_preview_title">原生材质预览</string>
-    <string name="glass_preview_import_image">导入预览图片</string>
     <string name="glass_preview_change_image">更换图片</string>
-    <string name="glass_preview_no_image">尚未导入预览图片</string>
     <string name="glass_preview_auto_dark">已根据图片自动适配深色材质</string>
     <string name="glass_preview_auto_light">已根据图片自动适配亮色材质</string>
-    <string name="glass_preview_select_image">选择图片后显示原生材质效果</string>
     <string name="glass_preview_loading_image">正在读取预览图片…</string>
     <string name="glass_preview_image_load_failed">无法读取这张图片</string>
     <string name="glass_preview_notification_title">玻璃材质</string>
@@ -402,7 +402,6 @@
     <string name="glass_preset_import_apply">导入并覆盖当前参数</string>
     <string name="glass_preset_save_and_import">保存当前参数并导入</string>
     <string name="glass_preset_empty">还没有保存的预设</string>
-    <string name="glass_preset_apply">应用</string>
     <string name="glass_preset_apply_summary">点按即可应用这组预设。</string>
     <string name="glass_preset_rename">改名</string>
     <string name="glass_preset_rename_title">重命名预设</string>
@@ -414,7 +413,6 @@
     <string name="glass_preset_delete">删除</string>
     <string name="glass_preset_delete_confirm_title">删除预设？</string>
     <string name="glass_preset_delete_confirm_summary">确定删除“%1$s”吗？此操作无法撤销。</string>
-    <string name="glass_preset_saved">预设已保存</string>
     <string name="glass_preset_saved_named">已保存“%1$s”</string>
     <string name="glass_preset_applied">预设已应用</string>
     <string name="glass_preset_imported">口令已导入并应用</string>
@@ -522,7 +520,6 @@
     <string name="icon_cellular_type_title">类型显示</string>
     <string name="icon_cellular_type_swap">交换单卡类型与信号</string>
     <string name="icon_cellular_type_swap_summary">将单卡网络类型文字移到信号图标右侧</string>
-    <string name="icon_font_weight">字体字重</string>
     <string name="icon_battery_style_title">状态栏电量样式</string>
     <string name="icon_battery_style_outside">控制中心电量百分比显示在图标外</string>
     <string name="icon_battery_style_outside_summary">仅在控制中心将电量百分比放到电池图标外</string>
@@ -1470,7 +1467,9 @@
     <string name="logs_source_failed">已读取应用日志，LSPosed 日志读取失败，点击重试。</string>
     <string name="logs_export_failed">日志文件保存失败。</string>
     <string name="logs_share_failed">无法打开日志分享。</string>
-    <string name="home_hot_reload_result_states">%1$d 成功 · %2$d 失败 · %3$d 已退出 · %4$d 正在替换</string>
+    <plurals name="home_hot_reload_result_states">
+        <item quantity="other">%1$d 成功 · %2$d 失败 · %3$d 已退出 · %4$d 进行中</item>
+    </plurals>
     <string name="home_hot_reload_process_exited">进程已退出，下次启动将加载新模块</string>
     <string name="home_hot_reload_process_pending">框架正在替换</string>
 

@@ -9,7 +9,6 @@ import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import java.util.Collection
 
 /** Applies SystemUI's area tint to module-owned bitmap status-bar slots only. */
 object IconSlotTintHooker : StaticHooker() {

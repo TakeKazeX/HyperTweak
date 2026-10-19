@@ -130,7 +130,8 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     }
     private val attachListener = object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(v: View) = boundary {
-            if (observedView.get() === v && v is TextView) {
+            // observedView is a WeakReference<TextView>, so identity already implies the type.
+            if (observedView.get() === v) {
                 observe(v)
                 reconcile()
                 scheduleHostSync()

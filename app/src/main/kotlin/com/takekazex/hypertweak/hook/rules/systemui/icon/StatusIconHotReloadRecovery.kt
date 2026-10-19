@@ -75,7 +75,8 @@ internal object StatusIconHotReloadRecovery {
             val managers = (read(controller, "mIconGroups") as? List<*>).orEmpty().filterNotNull().toList()
             check(managers.isNotEmpty()) { "No existing icon managers" }
             recoverFeature("observer") { IgnoreSysIconSettingsHooker.recoverController(controller) }
-            if (component != null) {
+            // The controller above requires a non-null component, so this branch always runs.
+            run {
                 recoverFeature("operator config") { CellularTypeIconHooker.recoverOperatorConfig(component) }
                 recoverFeature("Wi-Fi source") { WifiIconHooker.recoverViewModel(component) }
                 recoverFeature("network speed") { IgnoreSysIconSettingsHooker.recoverNetworkSpeed(component) }
@@ -91,7 +92,7 @@ internal object StatusIconHotReloadRecovery {
                 }
                 val adapterClass = "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
                 val adapter = entries.firstOrNull { it?.javaClass?.name == adapterClass }
-                    ?: component?.let { host ->
+                    ?: component.let { host ->
                         sequenceOf("getStartables", "getPerUserStartables").mapNotNull { name ->
                             val startables = invoke(host, name) as? Map<*, *> ?: return@mapNotNull null
                             val provider = startables.entries.firstOrNull { (key, _) ->
@@ -110,7 +111,7 @@ internal object StatusIconHotReloadRecovery {
             rebuildIconGroups(controller, managers, app)
             val roots = WindowInspector.getGlobalWindowViews()
             val views = windowViews()
-            val expansion = component?.let { provider(it, "controlCenterExpandControllerDelegateProvider") }
+            val expansion = component.let { provider(it, "controlCenterExpandControllerDelegateProvider") }
             val progress = expansion?.let { read(it, "expansionState") }
                 ?.let(IconTunerFlows::readFlowValue) as? Float
             val visible = expansion?.let { read(it, "visibleState") }
@@ -126,7 +127,8 @@ internal object StatusIconHotReloadRecovery {
             recoverFeature("notification count") { NotificationMaxNumberHooker.recoverExistingViews(views) }
             recoverFeature("header") { ControlCenterHeaderHooker.recoverExistingViews(views) }
             recoverFeature("Duo") { DuoSignalHooker.recoverExistingViews(views, progress, visible, stretch) }
-            if (component != null) {
+            // Same as above: the controller lookup already proved the component is present.
+            run {
                 val scope = provider(component, "bgApplicationScopeProvider")
                 val interactor = provider(component, "wifiInteractorImplProvider")
                 if (scope != null && interactor != null) {

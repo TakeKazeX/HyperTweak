@@ -460,7 +460,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                 // Cleanup is unconditional (only touches holders we actually blocked/transformed),
                 // so even toggling the master switch off mid-session cannot strand a stale state.
                 runCatching {
-                    val adapterInstance = param.thisObject ?: return@runCatching
+                    val adapterInstance = param.thisObject
                     val modeChanged = invokeChain(adapterInstance, "getModeChanged") as? Boolean
                         ?: return@runCatching
                     if (!modeChanged) return@runCatching
@@ -517,6 +517,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             after { param ->
                 if (!enabled()) return@after
                 runCatching {
+                    @Suppress("UNCHECKED_CAST") // Host section map read through the resolved field.
                     val current = mapField.get(param.thisObject) as? MutableMap<Any, MutableList<Any>>
                         ?: return@runCatching
                     applySectionOrder(mapField, param.thisObject, current)
@@ -956,6 +957,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             after { param ->
                 if (!enabled()) return@after
                 runCatching {
+                    @Suppress("UNCHECKED_CAST") // Host card list returned by the hooked method.
                     val result = param.result as? MutableList<Any> ?: return@runCatching
                     val order = pendingCardOrder ?: storedCardOrder().takeIf { it.isNotEmpty() }
                         ?: return@runCatching

@@ -1,3 +1,9 @@
+// The KTX SharedPreferences.edit helper returns Unit, but every call in this file inspects the
+// boolean result of commit() to detect a rejected write (log persistence and the Dock rollback
+// path). Swallowing that signal would turn a storage failure into a silent success, so the raw
+// editor stays. Suppressed at file scope because the pattern repeats across the log and Dock writers.
+@file:Suppress("UseKtx")
+
 package com.takekazex.hypertweak.hook
 
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsLedger

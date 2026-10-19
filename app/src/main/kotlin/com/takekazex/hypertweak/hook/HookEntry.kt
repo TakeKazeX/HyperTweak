@@ -176,7 +176,7 @@ class HookEntry : XposedModule() {
     private val settingsHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private val settingsReload by lazy {
         SettingsReloadDispatcher(
-            post = { task, delay -> settingsHandler.postDelayed(task, delay); Unit },
+            post = { task, delay -> settingsHandler.postDelayed(task, delay) },
             remove = { settingsHandler.removeCallbacks(it) },
             failure = { id, error -> DebugLog.w("RuntimeSettings", "reload failed participant=$id", error) }
         ).apply {

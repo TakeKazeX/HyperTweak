@@ -57,9 +57,9 @@ internal class RuntimeSettingsLedger {
         val revision = data.getOrNull(0) as? Long ?: return
         val raw = data.getOrNull(1) as? Map<*, *> ?: return
         if (raw.keys.any { it !is String }) return
-        @Suppress("UNCHECKED_CAST")
         val groups = if (data.size == 2) setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS)
             else (data.getOrNull(2) as? List<*>)?.takeIf { it.all { value -> value is String } }?.filterIsInstance<String>()?.toSet() ?: return
+        @Suppress("UNCHECKED_CAST") // Keys were verified as String immediately above.
         RuntimeSettingsSnapshot.read(revision, raw as Map<String, *>, groups)?.let(::accept)
     }
 }
