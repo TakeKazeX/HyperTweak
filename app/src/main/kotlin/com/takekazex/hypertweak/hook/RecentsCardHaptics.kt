@@ -11,9 +11,19 @@ import java.lang.reflect.Method
  * Xiaomi's predefined selection effect, owned by the SystemUI publisher and
  * retired with it on API-102 replacement.
  *
- * The target maps MESH_NORMAL to HEAVY_CLICK and measures 48 ms in the vendor
- * HAL. Requests are coalesced to the next free slot so the effect is never
- * superseded by a faster card swipe; no custom waveform is synthesised.
+ * The launcher emits one signal per card crossing, but they do not arrive one
+ * per frame: the cross-process hop and the recents entry animation both batch
+ * them, so a fast flick is delivered as a burst. Playing a burst straight away
+ * is wrong in both directions - the framework keeps only one running and one
+ * pending vibration and supersedes the pending one, so the tail is silently
+ * cancelled, while coalescing the burst into a single tick (the previous policy)
+ * discards the crossings themselves.
+ *
+ * This keeps an ordered queue instead: every crossing is played, paced at the
+ * motor's own drain rate, so a fast swipe hears each card slightly late rather
+ * than losing the later ones. The effect stays stock Xiaomi
+ * (MESH_NORMAL -> HEAVY_CLICK); no waveform is synthesised, so MIUI's own
+ * haptic-disable policy and motor adaptation still apply.
  */
 internal class RecentsCardHaptics {
     companion object {
@@ -26,12 +36,9 @@ internal class RecentsCardHaptics {
     private var release: Method? = null
     private var failed = false
     private var lastPlayedAt = 0L
-    private var pendingContext: Context? = null
-    private val pendingPlay = Runnable {
-        val context = pendingContext ?: return@Runnable
-        pendingContext = null
-        playNow()
-    }
+    /** Crossings observed but not yet played, oldest first. */
+    private val pending = ArrayDeque<Unit>()
+    private val drain = Runnable { drainNow() }
 
     fun prepare(context: Context): Boolean {
         if (failed) return false
@@ -53,17 +60,24 @@ internal class RecentsCardHaptics {
 
     fun play(context: Context) {
         if (!prepare(context)) return
+        // A backlog longer than the motor can ever catch up would only add lag;
+        // drop the oldest crossings so the most recent cards still answer.
+        repeat(RecentsHapticTiming.overflow(pending.size)) { pending.removeFirst() }
+        pending.addLast(Unit)
+        if (!handler.hasCallbacks(drain)) schedule()
+    }
+
+    /** Next free motor slot, preserving order; never sends into a busy session. */
+    private fun schedule() {
         val wait = RecentsHapticTiming.delayUntilNext(lastPlayedAt, SystemClock.uptimeMillis())
-        if (wait <= 0L) {
-            handler.removeCallbacks(pendingPlay)
-            pendingContext = null
-            playNow()
-        } else {
-            // Coalesce a burst into the next free slot; the trailing event is
-            // preserved so a fast swipe never loses its final tick.
-            pendingContext = context.applicationContext ?: context
-            if (!handler.hasCallbacks(pendingPlay)) handler.postDelayed(pendingPlay, wait)
-        }
+        if (wait <= 0L) drainNow() else handler.postDelayed(drain, wait)
+    }
+
+    private fun drainNow() {
+        if (pending.isEmpty()) return
+        pending.removeFirst()
+        playNow()
+        if (pending.isNotEmpty()) schedule()
     }
 
     private fun playNow() {
@@ -75,8 +89,8 @@ internal class RecentsCardHaptics {
     }
 
     fun cancelPending() {
-        handler.removeCallbacks(pendingPlay)
-        pendingContext = null
+        handler.removeCallbacks(drain)
+        pending.clear()
     }
 
     fun close() {
