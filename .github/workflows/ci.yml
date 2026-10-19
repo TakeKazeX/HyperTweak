@@ -456,3 +456,29 @@ jobs:
           fi
 
           echo "Post-publish self-check passed for $APK_NAME (versionCode $JSON_CODE, sha256 $ACTUAL_SHA)."
+
+      # Keep the release and its download URLs, but refresh the rolling tag only
+      # after the published assets pass verification. This refreshes the release's
+      # commit/date metadata; GitHub's default list order is not guaranteed by it.
+      - name: Refresh ci-latest tag
+        if: steps.monotonicity.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          PUBLISHED_COMMIT="$(jq -er .commit build-info.json)"
+          if [ "$PUBLISHED_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "ERROR: refusing to move ci-latest to a commit different from the verified build."
+            exit 1
+          fi
+          TAG_SHA="$(gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/ci-latest" \
+            -f sha="$PUBLISHED_COMMIT" -F force=true --jq .object.sha)"
+          if [ "$TAG_SHA" != "$PUBLISHED_COMMIT" ]; then
+            echo "ERROR: ci-latest tag does not match the verified build commit."
+            exit 1
+          fi
+          # Moving the ref alone leaves the release's cached creation date stale.
+          # Saving its target refreshes that date while preserving its ID/assets.
+          gh release edit ci-latest --target "$PUBLISHED_COMMIT"
+          echo "ci-latest now points to verified build $TAG_SHA; the existing prerelease and assets are retained."

@@ -98,11 +98,12 @@ jobs:
 
       - name: Generate Changelog
         run: |
-          # Fetch all tags safely to retrieve history
+          # Only formal tags are changelog bases. Exclude rolling CI tags, which
+          # can move during this build and make an unforced --tags fetch fail.
           if git rev-parse --is-shallow-repository | grep -q true; then
-            git fetch --tags --unshallow
+            git fetch --no-tags --unshallow origin 'refs/tags/v*:refs/tags/v*'
           else
-            git fetch --tags
+            git fetch --no-tags origin 'refs/tags/v*:refs/tags/v*'
           fi
           
           echo "Current tag to compare: $CURRENT_TAG"

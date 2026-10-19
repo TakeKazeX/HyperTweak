@@ -82,6 +82,19 @@ Trigger: the user asks for release readiness, a stable release, or a release aud
 - Check the intended release diff and release notes. Local `docs/` files are not build or publication prerequisites. Preparing/auditing a release does not itself authorize publishing it.
 - Report readiness, specific blockers, and pending manual acceptance separately. Do not require a connected device unless device verification is part of the request.
 
+## Rolling CI publication
+
+`ci.yml` retains the existing `ci-latest` prerelease and fixed download URLs. After
+the monotonicity guard permits publication and the anonymous asset self-check
+passes, it moves the rolling `ci-latest` tag to the verified build commit and
+saves the existing release's target to refresh GitHub's cached creation date.
+This refreshes its commit/date metadata without recreating the release or
+changing the stable `Latest` release. GitHub's default list is not guaranteed to
+follow `created_at`; this is not a permanent pin. Skipped or failed publications
+must not move the tag; formal version tags remain unchanged.
+The formal release workflow fetches only `v*` tags for its changelog so a rolling
+CI tag moving during the build cannot cause a tag-fetch rejection.
+
 ## Device delivery
 
 Trigger: requested installation or device verification. Reuse that authorization throughout the delivery.
