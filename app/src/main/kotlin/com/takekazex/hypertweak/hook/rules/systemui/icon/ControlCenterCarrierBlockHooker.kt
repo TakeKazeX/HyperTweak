@@ -6,6 +6,9 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.AssetManager
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Typeface
@@ -35,6 +38,7 @@ import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData
 import java.io.File
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
@@ -104,6 +108,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val endpointStates = IdentityHashMap<View, EndpointState>()
     private val maskedContainers = WeakHashMap<Any, CarrierMask>()
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
+    // Main-thread only. Values do not retain their weak Resources keys.
+    private class IconHeight(
+        val configuration: Configuration, val density: Float,
+        val assets: WeakReference<AssetManager>, val pixels: Int
+    )
+    private val iconHeights = WeakHashMap<Resources, IconHeight>()
     private val fieldCache = HashMap<Pair<Class<*>, String>, Field?>()
 
     @Volatile private var enabled = false
@@ -224,6 +234,21 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val config: MobileTypeConfig, val badge: Boolean
     )
 
+    /** Reused primitive comparison storage; local captured counters otherwise allocate on R8. */
+    private class LayoutInputs(size: Int) {
+        private val values = IntArray(size)
+        private var cursor = 0
+        var changed = false
+            private set
+
+        fun begin() { cursor = 0; changed = false }
+        fun add(value: Int) {
+            if (values[cursor] != value) { values[cursor] = value; changed = true }
+            cursor++
+        }
+        operator fun get(index: Int): Int = values[index]
+    }
+
     private class Block(
         val layout: LinearLayout,
         val rows: List<RowParts>,
@@ -237,6 +262,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val separatorState = separator?.let(::ViewState)
         val keyguardSeparatorState = keyguardSeparator?.let(::ViewState)
         var compact = false
+        var geometry: TwoRowIconLayout.Geometry? = null
+        val geometryInputs = LayoutInputs(4 + rows.size * 3)
+        val presentationInputs = LayoutInputs(5 + rows.size * 9)
+        var presentationValid = false
         var observer: ViewTreeObserver? = null
         var preDraw: ViewTreeObserver.OnPreDrawListener? = null
         var attachListener: View.OnAttachStateChangeListener? = null
@@ -460,6 +489,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             maskedContainers.clear()
             blocks.values.toList().forEach(::removeBlock)
             blocks.clear()
+            iconHeights.clear()
             knownLayouts.clear()
             hostContext = null
             svgRepository = null
@@ -890,11 +920,25 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     internal fun rowGeometry(layout: ViewGroup): TwoRowIconLayout.Geometry? {
         val block = blocks[layout]?.takeIf { it.compact } ?: return null
-        val measured = block.rows.filter { it.row.isVisible }.map { it.row.measuredHeight }
-        val rowHeight = maxOf(iconHeightPx(layout.context),
-            block.rows.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
-        return TwoRowIconLayout.geometry(measured, rowHeight, (3 * layout.resources.displayMetrics.density).roundToInt(),
-            layout.paddingTop, layout.paddingBottom)
+        val inputs = block.geometryInputs
+        inputs.begin()
+        inputs.add(iconHeightPx(layout.context))
+        inputs.add((3 * layout.resources.displayMetrics.density).roundToInt())
+        inputs.add(layout.paddingTop)
+        inputs.add(layout.paddingBottom)
+        for (index in block.rows.indices) {
+            val parts = block.rows[index]
+            inputs.add(if (parts.row.isVisible) 1 else 0)
+            inputs.add(parts.row.measuredHeight)
+            inputs.add(parts.networkSlot.layoutParams.height.coerceAtLeast(0))
+        }
+        if (block.geometry == null || inputs.changed) {
+            val measured = block.rows.filter { it.row.isVisible }.map { it.row.measuredHeight }
+            val rowHeight = maxOf(inputs[0],
+                block.rows.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
+            block.geometry = TwoRowIconLayout.geometry(measured, rowHeight, inputs[1], inputs[2], inputs[3])
+        }
+        return block.geometry
     }
 
     fun firstRowCenter(layout: ViewGroup): Int = rowGeometry(layout)?.firstCenter?.roundToInt() ?: 0
@@ -904,6 +948,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private fun updateRowGeometry(block: Block) {
         if (!block.compact) return
+        val geometry = rowGeometry(block.layout) ?: return
+        if (!capturePresentationInputs(block) && block.presentationValid) return
+        block.presentationValid = false
         val gravity = Gravity.START or Gravity.TOP
         if (block.layout.gravity != gravity) block.layout.gravity = gravity
         val ordered = orderedRows(block)
@@ -918,7 +965,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 if (params.topMargin != margin) { params.topMargin = margin; parts.row.layoutParams = params }
             }
         }
-        val geometry = rowGeometry(block.layout) ?: return
         val height = maxOf(block.minimumHeight, geometry.minimumHeight)
         if (block.layout.minimumHeight != height) block.layout.minimumHeight = height
         val visible = ordered.filter { it.row.isVisible && it.row.isLaidOut && it.row.height > 0 }
@@ -930,6 +976,32 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             // leave the surviving row centered inside the reserved two-row canvas.
             if (row.top != top) row.layout(row.left, top, row.right, top + row.height)
         }
+        // Record our writes too, so the next unchanged pre-draw is a cheap comparison.
+        capturePresentationInputs(block)
+        block.presentationValid = true
+    }
+
+    /** Include native relayouts even when measurement itself did not change. No per-frame lists. */
+    private fun capturePresentationInputs(block: Block): Boolean {
+        val inputs = block.presentationInputs
+        inputs.begin()
+        val geometry = checkNotNull(block.geometry)
+        inputs.add(geometry.firstCenter.toBits())
+        inputs.add(geometry.secondCenter.toBits())
+        inputs.add(geometry.minimumHeight)
+        inputs.add(block.layout.minimumHeight)
+        inputs.add(block.layout.gravity)
+        for (index in block.rows.indices) {
+            val parts = block.rows[index]
+            val row = parts.row
+            inputs.add(row.visibility)
+            inputs.add(row.left); inputs.add(row.top); inputs.add(row.right); inputs.add(row.bottom)
+            inputs.add(if (row.isLaidOut) 1 else 0)
+            inputs.add(block.layout.indexOfChild(row))
+            inputs.add(rowOrder.indexOf(parts.slot))
+            inputs.add((row.layoutParams as? LinearLayout.LayoutParams)?.topMargin ?: Int.MIN_VALUE)
+        }
+        return inputs.changed
     }
 
     /** Duo asks about this exact expanded container, never a global signal preference. */
@@ -1079,6 +1151,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val compact = enabled && ControlCenterHeaderHooker.supportsCompactLayout(block.layout)
         if (block.compact == compact && !restyle) return
         block.compact = compact
+        block.geometry = null
+        block.presentationValid = false
+        if (restyle) {
+            iconHeights.remove(block.layout.resources)
+            block.rows.forEach { iconHeights.remove(it.row.resources) }
+        }
         block.rows.forEach { it.rendered = null }
         if (!compact) {
             restoreBlockStyle(block)
@@ -1463,11 +1541,19 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private fun iconHeightPx(context: Context): Int {
         val resources = context.resources
+        val configuration = resources.configuration
+        val density = resources.displayMetrics.density
+        iconHeights[resources]?.let { cached ->
+            if (cached.configuration == configuration && cached.density == density &&
+                cached.assets.get() === resources.assets) return cached.pixels
+        }
         val height = runCatching {
             val id = resources.getIdentifier("status_bar_icon_height", "dimen", "com.android.systemui")
             if (id != 0) resources.getDimensionPixelSize(id) else null
         }.getOrNull()
-        return CarrierBlockPolicy.iconHeight(height, resources.displayMetrics.density)
+        val pixels = CarrierBlockPolicy.iconHeight(height, density)
+        iconHeights[resources] = IconHeight(Configuration(configuration), density, WeakReference(resources.assets), pixels)
+        return pixels
     }
 
     private fun scheduleArtworkLoad(token: Long) {

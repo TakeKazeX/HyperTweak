@@ -214,8 +214,6 @@ object LeftContainerHooker : StaticHooker() {
 
     private fun masterEnabled(): Boolean = leftMode != IconTunerOptions.LEFT_MODE_DISABLED
 
-    private fun selectedSlots(): Set<String> = IconTunerOptions.snapshot().policy.leftSlots
-
     /** Owned slots as of the last tick, so a change can refresh the merged block lists. */
     private var publishedOwnedSlots: Set<String> = emptySet()
     private var publishedKeyguardOwnedSlots: Set<String> = emptySet()
@@ -269,7 +267,7 @@ object LeftContainerHooker : StaticHooker() {
         val snapshot = IconTunerOptions.snapshot()
         leftMode = snapshot.leftMode
         val master = masterEnabled()
-        val slots = if (master) selectedSlots() else emptySet()
+        val slots = if (master) snapshot.policy.leftSlots else emptySet()
         active = master && slots.isNotEmpty()
         activeSlots = slots
     }
@@ -1099,6 +1097,7 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     private fun resetReflectionCaches() {
+        synchronized(this) { hierarchyFields.clear() }
         iconViewConstructor = null
         iconViewMIconField = null
         iconPayloadCloneMethod = null
@@ -1658,15 +1657,20 @@ object LeftContainerHooker : StaticHooker() {
         return runCatching { getter.invoke(view) as? String }.getOrNull()
     }
 
+    private val hierarchyFields = HashMap<Pair<Class<*>, String>, Field?>()
+
+    @Synchronized
     private fun hierarchyField(clazz: Class<*>, name: String): Field? {
+        val key = clazz to name
+        if (hierarchyFields.containsKey(key)) return hierarchyFields[key]
         var c: Class<*>? = clazz
-        while (c != null) {
-            runCatching {
-                return c.getDeclaredField(name).apply { isAccessible = true }
-            }
+        var resolved: Field? = null
+        while (c != null && resolved == null) {
+            resolved = runCatching { c.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
             c = c.superclass
         }
-        return null
+        hierarchyFields[key] = resolved
+        return resolved
     }
 
     private fun findReflectiveMethod(clazz: Class<*>, predicate: (Method) -> Boolean): Method? {
