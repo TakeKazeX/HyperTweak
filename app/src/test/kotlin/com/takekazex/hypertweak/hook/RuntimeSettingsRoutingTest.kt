@@ -19,6 +19,21 @@ class RuntimeSettingsRoutingTest {
         assertNull(ledger.value(key))
     }
 
+    @Test fun launcherGestureBarSwitchReachesSystemUiAndResetsWithItsGroup() {
+        val key = Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
+        // Only SystemUI draws the bar, so the desktop switch has exactly one destination.
+        assertEquals(setOf(Groups.GESTURE_BAR_UI), Groups.affected(key))
+        assertEquals(mapOf(key to true), Groups.subset("com.android.systemui", mapOf(key to true)))
+        assertTrue(Groups.subset("android", mapOf(key to true)).isEmpty())
+        val ledger = RuntimeSettingsLedger()
+        assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(1, mapOf(key to true), setOf(Groups.GESTURE_BAR_UI))!!))
+        assertEquals(true, ledger.value(key))
+        val reset = RuntimeSettingsSnapshot.read(2, emptyMap<String, Any>(), setOf(Groups.GESTURE_BAR_UI))!!
+        assertEquals(setOf(Groups.GESTURE_BAR_UI), ledger.changedGroups(reset))
+        assertTrue(ledger.accept(reset))
+        assertNull(ledger.value(key))
+    }
+
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))

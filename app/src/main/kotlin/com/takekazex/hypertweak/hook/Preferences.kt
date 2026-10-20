@@ -199,6 +199,13 @@ object Preferences {
 
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
     const val KEY_HIDE_GESTURE_BAR_RECENTS = "hide_gesture_bar_recents"
+
+    /**
+     * Hides the gesture bar only while the launcher's Home surface owns the primary display
+     * (桌面隐藏小白条). Read live by `HideBottomBarHooker` in SystemUI, which re-reads the
+     * top task on the host events that change what the bottom of the screen belongs to.
+     */
+    const val KEY_HIDE_GESTURE_BAR_LAUNCHER = "hide_gesture_bar_launcher"
     const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
 
     /**

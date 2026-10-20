@@ -2,7 +2,11 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Canvas
 import android.os.Handler
@@ -24,11 +28,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Hides the gesture bar (小白条) and keeps it hidden for exactly as long as recent tasks owns the
  * bottom of the screen.
  *
- * Three independent switches share this one draw path, which is why they live in one hooker:
+ * Four independent switches share this one draw path, which is why they live in one hooker:
  * - [Preferences.KEY_HIDE_GESTURE_BAR] hides it everywhere (the original feature);
  * - [Preferences.KEY_HIDE_GESTURE_BAR_RECENTS] hides it only in recent tasks;
+ * - [Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER] hides it only over the launcher's Home surface;
  * - [Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION] keeps it attached to the application during
  *   the swipe-up transition, which is what makes hiding it there look native.
+ *
+ * The desktop switch is decided by [LauncherHomePolicy] from the newest task of the primary
+ * display. It is the only source that survives HYOS running Recents inside the same launcher
+ * activity, and it is why the bar cannot simply follow "is the launcher foreground".
  *
  * State and decisions belong to [GestureBarState]. This class only feeds it host events, performs
  * the returned action on the real views, and owns the deadline timer. The previous implementation
@@ -58,8 +67,29 @@ object HideBottomBarHooker : StaticHooker() {
     @Volatile private var hideGestureBarEnabled = false
     @Volatile private var raiseLayoutEnabled = false
     @Volatile private var hideInRecentsEnabled = false
+    @Volatile private var hideInLauncherEnabled = false
     @Volatile private var attachTransitionEnabled = false
     @Volatile private var followGenerationActive = false
+
+    /**
+     * Whether the launcher's Home surface owns the primary display right now.
+     *
+     * Read by the draw gate on every frame, so it is a plain volatile flag; the platform query that
+     * produces it runs on the events that can change the answer (see [refreshLauncherHome]).
+     */
+    @Volatile private var launcherHomeVisible = false
+
+    /** Uptime millis of the last completed launcher-Home probe; 0 means "never asked". */
+    @Volatile private var launcherHomeProbedAt = 0L
+
+    /** Guards against stacking probes while one is already queued on the main thread. */
+    private val launcherHomeProbePending = AtomicBoolean(false)
+
+    /** The queued probe, so a retired generation can drop it instead of running it later. */
+    @Volatile private var launcherHomeProbeTask: Runnable? = null
+
+    /** Resolved HOME components of the default launcher, cached until resolution succeeds. */
+    @Volatile private var launcherHomeComponents: Set<String> = emptySet()
 
     private val state = GestureBarState()
     private val handleViews = instanceTracker()
@@ -98,7 +128,8 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Whether any feature of this hooker is on, so the draw hooks can skip work when idle. */
     private val anyEnabled: Boolean
-        get() = hideGestureBarEnabled || (hideInRecentsEnabled && attachTransitionEnabled)
+        get() = hideGestureBarEnabled || hideInLauncherEnabled ||
+            (hideInRecentsEnabled && attachTransitionEnabled)
 
     // ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -108,7 +139,10 @@ object HideBottomBarHooker : StaticHooker() {
         ArrayList(navigationBars.snapshot()),
         synchronized(hostAlphas) {
             hostAlphas.map { (view, alpha) -> arrayOf<Any>(view, alpha) }.toTypedArray()
-        }
+        },
+        // The desktop answer survives the handoff so the replacement does not draw the bar for
+        // a frame on a Home screen that already had it hidden. Older payloads simply lack it.
+        launcherHomeVisible
     )
 
     override fun restoreHotReloadState(saved: Any?) {
@@ -122,6 +156,9 @@ object HideBottomBarHooker : StaticHooker() {
             val alpha = pair.getOrNull(1) as? Float ?: return@forEach
             hostAlphas[view] = alpha
         }
+        // Only meaningful while the switch is on; refreshSettings() below re-reads it and drops
+        // a restored answer that belongs to a switch the user has since turned off.
+        launcherHomeVisible = values.getOrNull(4) as? Boolean ?: false
         refreshSettings()
     }
 
@@ -143,6 +180,9 @@ object HideBottomBarHooker : StaticHooker() {
                     }
                 }
         }.onFailure { DebugLog.w(TAG, "failed to recover native overview state", it) }
+        // A replacement generation starts with no desktop answer, and the switch may already be
+        // on: re-read it before the first frame instead of waiting for the next task move.
+        refreshLauncherHome("recovery")
         applyCurrentState()
         // The replacement's draw gate is a different callback instance; the frame recorded by the
         // retired generation was drawn under the old decision. Repaint so a switch that changed
@@ -164,6 +204,13 @@ object HideBottomBarHooker : StaticHooker() {
         hideGestureBarEnabled = false
         raiseLayoutEnabled = false
         hideInRecentsEnabled = false
+        hideInLauncherEnabled = false
+        launcherHomeVisible = false
+        launcherHomeProbedAt = 0L
+        launcherHomeProbeTask?.let { followHandler.removeCallbacks(it) }
+        launcherHomeProbeTask = null
+        launcherHomeProbePending.set(false)
+        launcherHomeComponents = emptySet()
         attachTransitionEnabled = false
         state.clear()
         hostAlphas.clear()
@@ -231,6 +278,136 @@ object HideBottomBarHooker : StaticHooker() {
                 DebugLog.d(TAG, "launcher overview=$visible")
             }
         }
+        // Upgrades from versions that saved no feature state, and any start where the switch is
+        // already on, need the desktop answer before the first frame can be decided.
+        refreshLauncherHome("package ready")
+    }
+
+    // ── Launcher Home surface ────────────────────────────────────────────────────
+
+    /**
+     * Re-reads what currently owns the primary display.
+     *
+     * The answer changes only when a task moves, Recents opens or closes, or the keyguard appears,
+     * so it is refreshed from those events and from a throttled check in the draw gate instead of
+     * being queried per frame. A pending probe is never doubled, and the draw gate keeps using the
+     * last answer until a new one arrives.
+     */
+    private fun refreshLauncherHome(reason: String) {
+        if (!hideInLauncherEnabled || !followGenerationActive) return
+        // Never inline. The callers are platform callbacks (a binder thread, or the keyguard state
+        // machine on the main thread) and the draw gate itself; asking the activity manager inside
+        // either would put that round trip on a path that must stay cheap. The gate keeps its
+        // previous answer for the current frame and repaints as soon as the probe returns.
+        if (!launcherHomeProbePending.compareAndSet(false, true)) return
+        val probe = Runnable {
+            launcherHomeProbeTask = null
+            try {
+                probeLauncherHome(reason)
+            } finally {
+                launcherHomeProbePending.set(false)
+            }
+        }
+        launcherHomeProbeTask = probe
+        followHandler.post(probe)
+    }
+
+    private fun probeLauncherHome(reason: String) {
+        if (!followGenerationActive) return
+        val context = hostContext.get() ?: return
+        val keyguardLocked = runCatching {
+            context.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+        }.getOrDefault(false)
+        val probe = LauncherHomeProbe(
+            topTaskIsHome = runCatching { queryTopTaskIsLauncherHome(context) }.getOrElse {
+                DebugLog.d(TAG, "launcher Home probe failed: ${it.javaClass.simpleName}")
+                null
+            },
+            keyguardLocked = keyguardLocked
+        )
+        launcherHomeProbedAt = SystemClock.uptimeMillis()
+        // HYOS runs Recents inside the launcher activity, so the newest task keeps being Home
+        // while the recent-task list owns the bottom of the screen. Recents must keep deciding
+        // that surface itself; the launcher's authenticated Overview report outranks Shell's map,
+        // which keeps answering false for the Dart implementation.
+        val overviewOnScreen = state.isOverviewOnScreen(PRIMARY_DISPLAY) ||
+            queryOverviewVisible(PRIMARY_DISPLAY) == true
+        val next = LauncherHomePolicy.resolve(probe, overviewOnScreen, launcherHomeVisible)
+        if (next == launcherHomeVisible) return
+        launcherHomeVisible = next
+        DebugLog.i(TAG, "launcher Home visible=$next ($reason) " +
+            "top=${probe.topTaskIsHome} keyguard=${probe.keyguardLocked} " +
+            "overview=$overviewOnScreen")
+        // The gate lives in onDraw, and skipping a draw never schedules the next frame.
+        repaintGestureBarViews()
+    }
+
+    /** Whether the newest task of the primary display is the launcher's HOME component. */
+    private fun queryTopTaskIsLauncherHome(context: Context): Boolean? {
+        val homes = launcherHomeComponents(context)
+        if (homes.isEmpty()) {
+            DebugLog.d(TAG, "launcher Home probe unavailable: no resolved HOME component")
+            return null
+        }
+        val manager = context.getSystemService(ActivityManager::class.java) ?: return null
+        // REAL_GET_TASKS is declared by SystemUI; an unreadable list is not an answer.
+        // Same query shape as the shipped back-gesture runtime: most recent first, and the first
+        // task that belongs to this display is the one on screen. Visibility is deliberately not
+        // filtered on - skipping a task would fall through to the launcher sitting behind it.
+        val tasks = manager.getRunningTasks(MAX_TASKS_FOR_PROBE) ?: return null
+        for (task in tasks) {
+            if (taskDisplayId(task)?.let { it != PRIMARY_DISPLAY } == true) continue
+            val top = task.topActivity ?: continue
+            return LauncherHomePolicy.matchesHome(
+                LauncherHomePolicy.flatten(top.packageName, top.className), homes
+            )
+        }
+        // No task reported for this display at all: the platform has no answer right now.
+        return null
+    }
+
+    /**
+     * The display a running task belongs to, or null when the platform does not expose it.
+     *
+     * `TaskInfo.displayId` and `getDisplayId()` are both hidden from the SDK; SystemUI itself
+     * reads them, so one of the two shapes is present on every supported build.
+     */
+    private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int? {
+        (runCatching { StatusIconHostAccess.read(task, "displayId") }.getOrNull() as? Int)
+            ?.let { return it }
+        return runCatching {
+            StatusIconHostAccess.method(task, "getDisplayId")?.invoke(task) as? Int
+        }.getOrNull()
+    }
+
+    /**
+     * Resolves the launcher's HOME components.
+     *
+     * The same default resolution the shipped back-gesture runtime uses, including the alias case:
+     * a launcher may publish its desktop through a target activity, and both flattened names are
+     * accepted. Resolution is cached only after it succeeds, so a package-manager answer that
+     * arrives late (a launcher update, a user switch) is retried instead of pinning an empty set.
+     */
+    private fun launcherHomeComponents(context: Context): Set<String> {
+        launcherHomeComponents.takeIf { it.isNotEmpty() }?.let { return it }
+        val resolved = runCatching {
+            val intent = Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .setPackage(LauncherHomePolicy.LAUNCHER_PACKAGE)
+            val info = context.packageManager.resolveActivity(
+                intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+            )?.activityInfo
+            if (info == null || info.packageName != LauncherHomePolicy.LAUNCHER_PACKAGE) emptySet()
+            else buildSet {
+                add(LauncherHomePolicy.flatten(info.packageName, info.name))
+                info.targetActivity?.let {
+                    add(LauncherHomePolicy.flatten(info.packageName, it))
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "failed to resolve the launcher HOME component", it) }
+            .getOrDefault(emptySet())
+        if (resolved.isNotEmpty()) launcherHomeComponents = resolved
+        return resolved
     }
 
     /** Adopts the SystemUI application context, keeping the last usable one across hot reload. */
@@ -252,15 +429,27 @@ object HideBottomBarHooker : StaticHooker() {
         val previousHide = hideGestureBarEnabled
         val previousRaise = raiseLayoutEnabled
         val previousRecents = hideInRecentsEnabled
+        val previousLauncher = hideInLauncherEnabled
         val previousAttach = attachTransitionEnabled
         loadSettings()
         if (previousHide == hideGestureBarEnabled && previousRaise == raiseLayoutEnabled &&
-            previousRecents == hideInRecentsEnabled && previousAttach == attachTransitionEnabled
+            previousRecents == hideInRecentsEnabled && previousLauncher == hideInLauncherEnabled &&
+            previousAttach == attachTransitionEnabled
         ) return
         DebugLog.i(TAG, "live settings applied hide=$hideGestureBarEnabled raise=$raiseLayoutEnabled " +
-            "recents=$hideInRecentsEnabled attach=$attachTransitionEnabled")
+            "recents=$hideInRecentsEnabled launcher=$hideInLauncherEnabled " +
+            "attach=$attachTransitionEnabled")
         if (previousHide != hideGestureBarEnabled || previousRaise != raiseLayoutEnabled) {
             refreshNavigationLayout()
+        }
+        if (previousLauncher != hideInLauncherEnabled) {
+            // Turning the switch off must hand the display back immediately, and turning it back
+            // on must re-read the surface instead of trusting an answer from another session. A
+            // value restored across replacement is kept: the switch did not change here, and the
+            // forced re-probe below corrects it without drawing the bar for a frame in between.
+            if (!hideInLauncherEnabled) launcherHomeVisible = false
+            launcherHomeProbedAt = 0L
+            refreshLauncherHome("settings")
         }
         if (!anyEnabled) {
             // Turning the feature off must hand every display back immediately, including a
@@ -284,6 +473,7 @@ object HideBottomBarHooker : StaticHooker() {
         hideGestureBarEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
         raiseLayoutEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
         hideInRecentsEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+        hideInLauncherEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
         attachTransitionEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
     }
 
@@ -297,6 +487,9 @@ object HideBottomBarHooker : StaticHooker() {
             ?: return false
         applyAction(display, action)
         applyCurrentState()
+        // The desktop decision must yield to Recents: HYOS keeps the launcher task on top while
+        // the recent-task list is open, so only this report can tell the two surfaces apart.
+        refreshLauncherHome("overview=$visible")
         return true
     }
 
@@ -655,6 +848,7 @@ object HideBottomBarHooker : StaticHooker() {
         hookHandleAlpha(cl)
         hookAttachmentSampling(cl)
         hookTransitionFinished(cl)
+        hookLauncherHomeSurface(cl)
         navigationHandleClassNames.forEach { hookOnDraw(cl, it) }
         hookDecorationView(cl)
         hookAuthContainer(cl)
@@ -662,7 +856,47 @@ object HideBottomBarHooker : StaticHooker() {
         // silently skipped hook only shows up as "the feature does nothing".
         DebugLog.i(TAG, "dynamic hooks installed " +
             "handles=${handleViews.snapshot().size} hide=$hideGestureBarEnabled " +
-            "recents=$hideInRecentsEnabled attach=$attachTransitionEnabled")
+            "recents=$hideInRecentsEnabled launcher=$hideInLauncherEnabled " +
+            "attach=$attachTransitionEnabled")
+    }
+
+    /**
+     * Re-reads the launcher Home surface when the platform says the bottom of the screen may have
+     * changed owner.
+     *
+     * SystemUI already owns the task-stack client that produces these callbacks, so they arrive on
+     * the main thread and cost nothing while the switch is off. They are preferred over a timer
+     * because each one is a real transition: another task to the front, a display change, or the
+     * keyguard appearing over the desktop.
+     */
+    private fun hookLauncherHomeSurface(cl: ClassLoader) {
+        val targets = listOf(
+            "com.android.systemui.shared.system.TaskStackChangeListeners\$Impl" to listOf(
+                "onTaskMovedToFront" to arrayOf<Class<*>>(ActivityManager.RunningTaskInfo::class.java),
+                "onTaskStackChanged" to arrayOf<Class<*>>(),
+                "onTaskDisplayChanged" to arrayOf<Class<*>>(
+                    Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!
+                )
+            ),
+            // The keyguard covers the desktop without moving any task, so it needs its own event.
+            "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl" to listOf(
+                "notifyKeyguardState" to arrayOf<Class<*>>(
+                    Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!
+                )
+            )
+        )
+        targets.forEach { (className, methods) ->
+            runCatching {
+                val type = cl.loadClass(className)
+                methods.forEach { (name, parameters) ->
+                    runCatching {
+                        type.getDeclaredMethod(name, *parameters).hook {
+                            after { refreshLauncherHome("$className.$name") }
+                        }
+                    }.onFailure { DebugLog.hookSkipped(TAG, "$className#$name", "${it.message}") }
+                }
+            }.onFailure { DebugLog.hookFailed(TAG, className, it) }
+        }
     }
 
     /**
@@ -810,7 +1044,7 @@ object HideBottomBarHooker : StaticHooker() {
                         // the app and is only suppressed once the leaving transition finished - and
                         // even then it must keep drawing while its own fade-out animation runs.
                         val display = view.display?.displayId ?: PRIMARY_DISPLAY
-                        if (hideGestureBarEnabled ||
+                        if (hideGestureBarEnabled || launcherHomeSuppresses(display) ||
                             (state.isSuppressed(display) && display !in fadingDisplays)
                         ) {
                             param.result = null
@@ -821,6 +1055,22 @@ object HideBottomBarHooker : StaticHooker() {
         } catch (t: Throwable) {
             DebugLog.hookFailed(TAG, target, t)
         }
+    }
+
+    /**
+     * Whether the desktop switch hides the bar on this display right now.
+     *
+     * Only the primary display has a launcher Home surface. The draw gate also throttles its own
+     * platform query here: draws are far more frequent than the top task changes, and the answer is
+     * only re-read after [LAUNCHER_HOME_STALE_MS] or when a host event already invalidated it.
+     */
+    private fun launcherHomeSuppresses(display: Int): Boolean {
+        if (!hideInLauncherEnabled || display != PRIMARY_DISPLAY) return false
+        val now = SystemClock.uptimeMillis()
+        if (launcherHomeProbedAt == 0L || now - launcherHomeProbedAt >= LAUNCHER_HOME_STALE_MS) {
+            refreshLauncherHome("draw")
+        }
+        return launcherHomeVisible
     }
 
     private fun hookDecorationView(cl: ClassLoader) {
@@ -870,4 +1120,14 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Depth bound for the one-off handle discovery; SystemUI window trees are far shallower. */
     private const val MAX_VIEW_DEPTH = 40
+
+    /**
+     * How long a launcher-Home answer stays usable before the draw gate asks again. The answer
+     * changes on task moves, which the module observes directly; this only bounds how long a missed
+     * event can keep a stale decision.
+     */
+    private const val LAUNCHER_HOME_STALE_MS = 700L
+
+    /** The probe only needs the newest few tasks; the launcher Home task is always at the top. */
+    private const val MAX_TASKS_FOR_PROBE = 8
 }

@@ -1094,6 +1094,8 @@
     <string name="tweaks_raise_layout_title">上移布局</string>
     <string name="tweaks_hide_gesture_bar_recents_title">最近任务中隐藏小白条</string>
     <string name="tweaks_hide_gesture_bar_recents_summary">在最近任务界面隐藏小白条，退出后恢复</string>
+    <string name="tweaks_hide_gesture_bar_launcher_title">桌面隐藏小白条</string>
+    <string name="tweaks_hide_gesture_bar_launcher_summary">仅在系统桌面隐藏小白条，进入应用后恢复</string>
     <string name="tweaks_gesture_bar_attach_transition_title">小白条跟手上滑</string>
     <string name="tweaks_gesture_bar_attach_transition_summary">上滑进入最近任务时让小白条跟随手指移动</string>
     <string name="tweaks_slider_show_percentage_summary">在亮度与音量滑块上显示百分比</string>

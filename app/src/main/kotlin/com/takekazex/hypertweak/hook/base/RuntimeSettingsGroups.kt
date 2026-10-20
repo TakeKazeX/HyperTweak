@@ -54,7 +54,8 @@ internal object RuntimeSettingsGroups {
         // captured at install time and the switch only applies after a SystemUI restart.
         GESTURE_BAR_UI to Group(systemUi) {
             it == Preferences.KEY_HIDE_GESTURE_BAR || it == Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT ||
-                it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION
+                it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION ||
+                it == Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
         }
     )
     val targets: Set<String> get() = groups.values.flatMap { it.targets }.toSet()

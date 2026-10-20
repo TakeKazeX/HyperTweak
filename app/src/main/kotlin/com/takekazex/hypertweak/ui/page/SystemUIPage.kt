@@ -112,6 +112,8 @@ fun SystemUIPage(
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
     hideGestureBarRecents: Boolean,
     onHideGestureBarRecentsChange: (Boolean) -> Unit,
+    hideGestureBarLauncher: Boolean,
+    onHideGestureBarLauncherChange: (Boolean) -> Unit,
     gestureBarAttachTransition: Boolean,
     onGestureBarAttachTransitionChange: (Boolean) -> Unit,
     powerButtonAction: Int,
@@ -637,6 +639,13 @@ fun SystemUIPage(
                         onCheckedChange = onHideGestureBarRecentsChange,
                         title = stringResource(R.string.tweaks_hide_gesture_bar_recents_title),
                         summary = stringResource(R.string.tweaks_hide_gesture_bar_recents_summary),
+                        enabled = !hideGestureBar
+                    )
+                    SwitchPreference(
+                        checked = hideGestureBarLauncher,
+                        onCheckedChange = onHideGestureBarLauncherChange,
+                        title = stringResource(R.string.tweaks_hide_gesture_bar_launcher_title),
+                        summary = stringResource(R.string.tweaks_hide_gesture_bar_launcher_summary),
                         enabled = !hideGestureBar
                     )
                     SwitchPreference(

@@ -364,6 +364,7 @@ class MainActivity : ComponentActivity() {
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
             var hideGestureBarRecents by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)) }
+            var hideGestureBarLauncher by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)) }
             var gestureBarAttachTransition by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)) }
             var powerButtonAction by remember {
                 mutableIntStateOf(Preferences.powerButtonAction())
@@ -882,6 +883,7 @@ class MainActivity : ComponentActivity() {
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
                     hideGestureBarRecents = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+                    hideGestureBarLauncher = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
                     gestureBarAttachTransition = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
                     powerButtonAction = Preferences.powerButtonAction()
                     contextualSearchLongPress = Preferences.contextualSearchLongPress()
@@ -1216,6 +1218,13 @@ class MainActivity : ComponentActivity() {
                     onHideGestureBarRecentsChange = { checked ->
                         hideGestureBarRecents = checked
                         Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, checked)
+                    },
+                    hideGestureBarLauncher = hideGestureBarLauncher,
+                    onHideGestureBarLauncherChange = { checked ->
+                        // SystemUI re-reads the top task from its own task-stack callbacks, so
+                        // the switch applies on the next task move without a restart.
+                        hideGestureBarLauncher = checked
+                        Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER, checked)
                     },
                     gestureBarAttachTransition = gestureBarAttachTransition,
                     onGestureBarAttachTransitionChange = { checked ->

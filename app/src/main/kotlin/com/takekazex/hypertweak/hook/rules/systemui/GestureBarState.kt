@@ -225,6 +225,16 @@ internal class GestureBarState {
             it.phase == Phase.HIDDEN || it.phase == Phase.RETURNING
         } == true
 
+    /**
+     * Whether Recents currently owns the bottom of this display.
+     *
+     * The desktop switch asks this before hiding: HYOS implements Recents inside the launcher
+     * activity, so the newest task keeps being Home while the recent-task list is on screen, and
+     * hiding "the desktop" must not silently swallow that surface too.
+     */
+    @Synchronized fun isOverviewOnScreen(display: Int?): Boolean =
+        display != null && displays[display]?.overviewVisible == true
+
     /** Whether a session exists at all. */
     @Synchronized fun isTracked(display: Int?): Boolean =
         display != null && displays[display]?.let { it.phase != Phase.IDLE } == true

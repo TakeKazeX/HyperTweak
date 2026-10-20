@@ -151,6 +151,36 @@ class GestureBarHostContractTest {
         assertTrue(notify >= 0 && restore > notify)
     }
 
+    @Test fun `launcher Home probe has a registered task-stack source and a keyguard event`() {
+        val ui = classes("GESTURE_BAR_SYSTEMUI_APK")
+        val impl = ui.getValue("Lcom/android/systemui/shared/system/TaskStackChangeListeners\$Impl;")
+        for ((name, parameters) in listOf(
+            "onTaskMovedToFront" to listOf("Landroid/app/ActivityManager\$RunningTaskInfo;"),
+            "onTaskStackChanged" to emptyList(),
+            "onTaskDisplayChanged" to listOf("I", "I")
+        )) {
+            val method = impl.methods.single {
+                it.name == name && it.parameterTypes.map(CharSequence::toString) == parameters
+            }
+            assertEquals("V", method.returnType)
+        }
+        // The callbacks only fire because the shared Impl registers itself with the task service.
+        assertTrue(impl.methods.single { it.name == "addListener" }.calls().any {
+            it.name == "registerTaskStackListener" &&
+                it.definingClass == "Landroid/app/IActivityTaskManager;"
+        })
+        val keyguard = ui.getValue("Lcom/android/systemui/statusbar/policy/KeyguardStateControllerImpl;")
+            .methods.single {
+                it.name == "notifyKeyguardState" &&
+                    it.parameterTypes.map(CharSequence::toString) == listOf("Z", "Z")
+            }
+        assertEquals("V", keyguard.returnType)
+        // SystemUI reads the task display through the getter, which is the reflection shape used
+        // when the hidden TaskInfo field is absent.
+        assertTrue(ui.getValue("Lcom/miui/systemui/functions/MiuiTopActivityObserver;")
+            .methods.single { it.name == "onTaskMovedToFront" }.calls().any { it.name == "getDisplayId" })
+    }
+
     @Test fun `shell records both overview directions before notifying its listeners`() {
         val shell = classes("GESTURE_BAR_SHELL_JAR").getValue("Lcom/android/wm/shell/sysui/ShellController;")
         for (name in listOf("onOverviewShown", "onOverviewHidden")) {

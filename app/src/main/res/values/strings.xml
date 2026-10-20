@@ -1099,6 +1099,8 @@
     <string name="tweaks_raise_layout_title">Raise Layout</string>
     <string name="tweaks_hide_gesture_bar_recents_title">Hide Gesture Bar in Recents</string>
     <string name="tweaks_hide_gesture_bar_recents_summary">Hide the gesture bar in recent tasks and restore it on exit</string>
+    <string name="tweaks_hide_gesture_bar_launcher_title">Hide Gesture Bar on Home</string>
+    <string name="tweaks_hide_gesture_bar_launcher_summary">Hide the gesture bar on the launcher Home screen and restore it in apps</string>
     <string name="tweaks_gesture_bar_attach_transition_title">Gesture Bar Follows Swipe-up</string>
     <string name="tweaks_gesture_bar_attach_transition_summary">Move the gesture bar with the finger during the swipe-up to recents animation</string>
     <string name="tweaks_slider_show_percentage_summary">Show percentages on the brightness and volume sliders</string>
