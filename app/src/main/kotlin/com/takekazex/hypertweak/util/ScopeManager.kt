@@ -83,18 +83,18 @@ object ScopeManager {
      * from [requiredScope]: `com.miui.home` is not recommended to every installation, only to the
      * ones that turned on a native launcher rule.
      *
-     * Three switches need the launcher scope. The recents clear button and the opened-folder column
-     * count patch Dart code in MiuiHome's Flutter snapshot; the gesture-bar contextual-search long
-     * press (长按小白条呼出圈定即搜) replaces the launcher's own gesture terminal. All three run in
-     * the payload, and the module's Java is what hands it the preference — so the launcher has to be
-     * in scope or the switch silently does nothing. The only recommendation is to *add* the
-     * launcher while one of them is on; the module never asks for its scope back.
+     * Native launcher rules and the recent-task gesture-bar state need the launcher scope.
+     * On HYOS, the latter consumes the existing Dart Overview state bridge in MiuiHome;
+     * SystemUI's Shell callbacks alone do not cover that native path. Recommend adding
+     * the launcher while a dependent feature is on; never remove scope automatically.
      */
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
         val launcherNeeded = Preferences.hideRecentsClearButton() ||
             Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS ||
             Preferences.contextualSearchLongPress() ||
+            (PlatformLevel.isOs4 &&
+                Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
             (PlatformLevel.isOs4 && com.takekazex.hypertweak.dock.DockConfig.decode(Preferences.getString(
                 com.takekazex.hypertweak.dock.DockConfig.KEY, com.takekazex.hypertweak.dock.DockConfig().encode()))?.enabled == true)
         return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {

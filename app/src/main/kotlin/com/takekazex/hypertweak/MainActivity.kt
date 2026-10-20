@@ -93,8 +93,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME to RestartScopeSelection(systemUi = true),
     Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_HIDE_GESTURE_BAR to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
     // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
@@ -365,6 +363,8 @@ class MainActivity : ComponentActivity() {
             var showInSettings by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)) }
             var hideGestureBar by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)) }
             var gestureBarRaiseLayout by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)) }
+            var hideGestureBarRecents by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)) }
+            var gestureBarAttachTransition by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)) }
             var powerButtonAction by remember {
                 mutableIntStateOf(Preferences.powerButtonAction())
             }
@@ -881,6 +881,8 @@ class MainActivity : ComponentActivity() {
                     )
                     hideGestureBar = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
                     gestureBarRaiseLayout = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+                    hideGestureBarRecents = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+                    gestureBarAttachTransition = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
                     powerButtonAction = Preferences.powerButtonAction()
                     contextualSearchLongPress = Preferences.contextualSearchLongPress()
                     contextualSearchHaptics = Preferences.getBoolean(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS, false)
@@ -1202,15 +1204,25 @@ class MainActivity : ComponentActivity() {
                     },
                     hideGestureBar = hideGestureBar,
                     onHideGestureBarChange = { checked ->
-                        markTweaked(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                         hideGestureBar = checked
                         Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR, checked)
                     },
                     gestureBarRaiseLayout = gestureBarRaiseLayout,
                     onGestureBarRaiseLayoutChange = { checked ->
-                        markTweaked(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
                         gestureBarRaiseLayout = checked
                         Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
+                    },
+                    hideGestureBarRecents = hideGestureBarRecents,
+                    onHideGestureBarRecentsChange = { checked ->
+                        hideGestureBarRecents = checked
+                        Preferences.putBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, checked)
+                    },
+                    gestureBarAttachTransition = gestureBarAttachTransition,
+                    onGestureBarAttachTransitionChange = { checked ->
+                        // Shared settings reach system_server; its native transition gate reads
+                        // the accepted value on the next swipe, including after APK replacement.
+                        gestureBarAttachTransition = checked
+                        Preferences.putBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, checked)
                     },
                     contextualSearchHaptics = contextualSearchHaptics,
                     onContextualSearchHapticsChange = { enabled ->

@@ -132,6 +132,7 @@ import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemServerReadinessHooker
+import com.takekazex.hypertweak.hook.rules.system.GestureBarTransitionHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
@@ -196,6 +197,19 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.NATIVE) { publishNativeRuleSwitches(); true }
             registerForProcess(RuntimeSettingsGroups.DOCK) { com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
             registerForProcess(RuntimeSettingsGroups.VOLUME) { if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
+            // system_server: the hooker re-reads the attach switch per transition.
+            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) {
+                Preferences.invalidateRuntimeReadCache()
+                GestureBarTransitionHooker.refreshSettings()
+                true
+            }
+            // SystemUI: the draw hooks cache the switches, so refresh those copies. Disabling also
+            // repaints the handle views, because suppressing onDraw leaves the last frame on screen.
+            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR_UI) {
+                Preferences.invalidateRuntimeReadCache()
+                HideBottomBarHooker.refreshSettings()
+                true
+            }
             registerForProcess(RuntimeSettingsGroups.XMSF) { Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.ISLANDS) {
                 if (generationRetired) true else {
@@ -253,6 +267,9 @@ class HookEntry : XposedModule() {
                 StackedSignalHooker.onPackageReady(context)
                 ControlCenterCarrierBlockHooker.onPackageReady(context)
                 LeftContainerHooker.onPackageReady(context)
+                // The icon snapshot is only re-read on events now, so a committed settings change
+                // must reconcile explicitly instead of waiting for a periodic timer.
+                LeftContainerHooker.requestReconcile()
                 com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context)
             }
         )
@@ -389,7 +406,13 @@ class HookEntry : XposedModule() {
             }
 
             if (param.packageName == "com.android.systemui") {
-                HideBottomBarHooker.onPackageReady(packageStates[param.packageName]?.appContext, param.classLoader)
+                val appContext = packageStates[param.packageName]?.appContext
+                    ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+                HideBottomBarHooker.onPackageReady(appContext, param.classLoader)
+                // The launcher Overview bridge needs an application context, which package load
+                // does not have yet. Without this the authoritative recent-tasks exit signal is
+                // never registered and the gesture bar falls back to a polling watchdog.
+                AospBackSystemUiHooker.onApplicationContextReady(appContext)
             }
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "package ready handling failed package=${param.packageName}", t)
@@ -618,12 +641,12 @@ class HookEntry : XposedModule() {
     }
 
     private fun restoreHookerStates(states: Map<String, Any?>) {
-        rootHookers.forEach { hooker ->
-            if (states.containsKey(hooker.hookerName)) {
-                runCatching { hooker.restoreHotReloadState(states[hooker.hookerName]) }
-                    .onFailure { DebugLog.e("HookEntry", "failed to restore ${hooker.hookerName}", it) }
-            }
-        }
+        com.takekazex.hypertweak.hook.base.HotReloadHostRecovery.run(
+            rootHookers.toList(), states, { it.hookerName },
+            { hooker, state -> hooker.restoreHotReloadState(state) },
+            { it.recoverHotReloadHosts() },
+            { hooker, error -> DebugLog.e("HookEntry", "failed to restore/recover ${hooker.hookerName}", error) }
+        )
     }
 
     private fun recordPackageState(
@@ -722,6 +745,12 @@ class HookEntry : XposedModule() {
         // The battery monitor needs a Context to register its receiver; appContext is null while
         // hooks are attached at package load.
         BatteryAutoPowerSaveHooker.onPackageReady(context)
+        // The launcher Overview bridge needs an application context, and this is the path that
+        // actually runs for SystemUI: package load has no context, so the earlier registration
+        // attempt inside installSystemUiHooks only logs and defers. Without this call the module
+        // never receives the authoritative Overview enter/exit, and recent-task hiding degrades to
+        // guessing from timers. Device logs on 2026-10-20 confirmed zero registrations.
+        AospBackSystemUiHooker.onApplicationContextReady(context)
     }
 
     private fun hotReloadModeSummary(): String {
@@ -766,6 +795,8 @@ class HookEntry : XposedModule() {
             }.onFailure { t ->
                 DebugLog.e("HookEntry", "failed to restore SystemUI package ready hooks", t)
             }
+            runCatching { AospBackSystemUiHooker.onApplicationContextReady(appContext) }
+                .onFailure { t -> DebugLog.e("HookEntry", "failed to restore the launcher overview bridge", t) }
             SystemUIPluginHooker.setHotReloadReplacementHandles(replacementHandles)
             runCatching {
                 SystemUIPluginHooker.restoreHotReloadPlugins(state.pluginStates)
@@ -884,6 +915,10 @@ class HookEntry : XposedModule() {
         attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker, classLoader, ctx, replacementHandles)
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
+        // The enabled com.android.systemui.gesture.line.overlay turns
+        // config_attachNavBarToAppDuringTransition off, so the gesture bar stays a separate layer
+        // during the swipe-up recents transition. DisplayPolicy caches it in system_server.
+        attachHooker(GestureBarTransitionHooker, classLoader, ctx, replacementHandles)
         attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)
         // Aligns the AOSP assistant setting with the assistant selected in 默认应用 so the

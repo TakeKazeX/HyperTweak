@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderWeatherHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderClockSecondsHooker
@@ -46,6 +47,7 @@ internal object StatusIconHotReloadRecovery {
             // Header restoration must not depend on native status-icon group availability.
             val existingViews = windowViews()
             if (!iconsOnly) {
+                recoverFeature("gesture bar") { HideBottomBarHooker.recoverExistingViews(existingViews, component) }
                 recoverFeature("notification header") {
                     val headers = NotificationHeaderHooker.recoverExistingHosts(component, existingViews)
                     val headerViews = ArrayList<View>()

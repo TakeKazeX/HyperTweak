@@ -26,7 +26,15 @@ internal object ManagedHookReload {
             reset = { reset(it.first) },
             install = { (old, next) -> install(old, next) },
             restore = { (_, next), state -> next.restoreHotReloadState(state) },
-            recover = recover
+            recover = {
+                val failures = replacements.mapNotNull { (_, next) ->
+                    runCatching { next.recoverHotReloadHosts() }.exceptionOrNull()
+                }.toMutableList()
+                runCatching(recover).onFailure(failures::add)
+                if (failures.isNotEmpty()) throw failures.first().apply {
+                    failures.drop(1).forEach(::addSuppressed)
+                }
+            }
         )
     }
 }

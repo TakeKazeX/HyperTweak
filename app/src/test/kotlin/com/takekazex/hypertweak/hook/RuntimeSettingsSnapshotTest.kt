@@ -61,7 +61,7 @@ class RuntimeSettingsSnapshotTest {
         }
         assertEquals(setOf(RuntimeSettingsGroups.ICONS), RuntimeSettingsGroups.affected("icon_duo_enabled"))
         assertTrue(RuntimeSettingsGroups.affected("unrelated").isEmpty())
-        assertEquals(8, RuntimeSettingsGroups.affected(null).size)
+        assertEquals(10, RuntimeSettingsGroups.affected(null).size)
         assertTrue(RuntimeSettingsGroups.affected(null).containsAll(setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS)))
     }
     @Test fun malformedIncompleteAndOversizedValuesAreRejected() {

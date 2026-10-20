@@ -117,6 +117,9 @@ sealed class BaseHooker {
     /** Restores state captured by [saveHotReloadState] after hooks are attached. */
     open fun restoreHotReloadState(state: Any?) {}
 
+    /** Recover living hosts even when the previous APK had no state for this feature. */
+    open fun recoverHotReloadHosts() {}
+
     protected val dexCacheDirectory: java.io.File?
         get() = DexRuntime.cacheDirectory(hookParam.appInfo)
 

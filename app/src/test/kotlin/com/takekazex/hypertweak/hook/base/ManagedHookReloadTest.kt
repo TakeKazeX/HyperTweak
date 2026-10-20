@@ -17,11 +17,13 @@ class ManagedHookReloadTest {
     private class Participant(private val enabled: Boolean) : DynamicHooker() {
         var host: Host? = null
         var retired = false
+        var hostsRecovered = false
         val handle = Handle()
         override fun onHook() { check(!retired); adoptManagedHookHandle(handle) }
         override fun saveHotReloadState(): Any? = host
         override fun onPrepareHotReload() { retired = true; host?.extended = false; host = null }
         override fun restoreHotReloadState(state: Any?) { host = state as? Host; host?.extended = enabled }
+        override fun recoverHotReloadHosts() { hostsRecovered = true }
     }
     @Test fun repeatedReplacementRetiresEveryOldHandleAndRecoversExistingHostOnFreshInstances() {
         val host = Host()
@@ -34,6 +36,7 @@ class ManagedHookReloadTest {
             val next = Participant(enabled)
             var recovery = false
             ManagedHookReload.run(listOf(old to next), recover = {
+                assertTrue(next.hostsRecovered)
                 assertSame(host, next.host)
                 assertEquals(enabled, host.extended)
                 recovery = true

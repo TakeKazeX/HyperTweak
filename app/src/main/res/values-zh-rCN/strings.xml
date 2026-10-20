@@ -1092,6 +1092,10 @@
     <string name="tweaks_ask_about_screen_summary">在即圈即搜中启用「针对屏幕提问」</string>
     <string name="tweaks_raise_layout_summary">保留导航栏高度，让内容位于手势区上方</string>
     <string name="tweaks_raise_layout_title">上移布局</string>
+    <string name="tweaks_hide_gesture_bar_recents_title">最近任务中隐藏小白条</string>
+    <string name="tweaks_hide_gesture_bar_recents_summary">在最近任务界面隐藏小白条，退出后恢复</string>
+    <string name="tweaks_gesture_bar_attach_transition_title">小白条跟手上滑</string>
+    <string name="tweaks_gesture_bar_attach_transition_summary">上滑进入最近任务时让小白条跟随手指移动</string>
     <string name="tweaks_slider_show_percentage_summary">在亮度与音量滑块上显示百分比</string>
     <string name="tweaks_slider_show_percentage_title">滑块显示百分比数值</string>
     <string name="tweaks_cc_corner_enabled_summary">自定义控制中心各类元素的圆角</string>

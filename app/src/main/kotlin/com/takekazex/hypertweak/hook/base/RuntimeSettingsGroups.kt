@@ -15,6 +15,8 @@ internal object RuntimeSettingsGroups {
     const val DOCK = "launcher.dock"
     const val VOLUME = "system.volume"
     const val XMSF = "xmsf.focus"
+    const val GESTURE_BAR = "system.gesture_bar"
+    const val GESTURE_BAR_UI = "systemui.gesture_bar"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -42,7 +44,18 @@ internal object RuntimeSettingsGroups {
         NATIVE to Group(systemUi + "com.miui.home") { it in nativeKeys },
         DOCK to Group(setOf("android")) { it == DockConfig.KEY },
         VOLUME to Group(systemUi + "android") { it == Preferences.KEY_VOLUME_KEY_STEP_COUNT || it == Preferences.KEY_VOLUME_KEY_STEP_SCOPE },
-        XMSF to Group(setOf("com.xiaomi.xmsf")) { it == Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH }
+        XMSF to Group(setOf("com.xiaomi.xmsf")) { it == Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH },
+        // system_server: DisplayPolicy asks for the attach state on every recents transition.
+        GESTURE_BAR to Group(setOf("android")) {
+            it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION || it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS
+        },
+        // SystemUI: HideBottomBarHooker caches its switches in volatile fields, so a committed
+        // change must reach it through the dispatcher. Without this route the hooks keep the value
+        // captured at install time and the switch only applies after a SystemUI restart.
+        GESTURE_BAR_UI to Group(systemUi) {
+            it == Preferences.KEY_HIDE_GESTURE_BAR || it == Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT ||
+                it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION
+        }
     )
     val targets: Set<String> get() = groups.values.flatMap { it.targets }.toSet()
     fun target(process: String, systemServer: Boolean = false): String = if (systemServer || process == "system_server") "android" else process.substringBefore(':')

@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.backgesture
 
+import android.content.Context
 import android.os.Build
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -41,6 +42,42 @@ object AospBackSystemUiHooker : StaticHooker() {
 
     fun refreshPreferences() {
         if (isHooked) BackGestureRuntimeProvider.runtime.refreshBackGesturePreferences()
+    }
+
+    fun setOverviewVisibilityListener(listener: java.util.function.Consumer<Boolean?>?) {
+        if (Build.VERSION.SDK_INT >= 37 && isHooked) {
+            BackGestureRuntimeProvider.runtime.setOverviewVisibilityListener(listener)
+        }
+    }
+
+    fun clearLauncherOverviewVisibility() {
+        if (Build.VERSION.SDK_INT >= 37 && isHooked) {
+            BackGestureRuntimeProvider.runtime.clearLauncherOverviewVisibility()
+        }
+    }
+
+    /**
+     * Registers the MiuiHome Overview-state receiver once a SystemUI application context exists.
+     *
+     * The receiver needs an application context, and package-load has none yet, so the runtime's
+     * own install attempt logs a warning and defers to "the input owner". Device logs from
+     * 2026-10-20 show that fallback never ran: no registration line appeared for any SystemUI
+     * start, so every launcher-driven Overview transition was invisible to the module. Package
+     * ready is the first reliable point where the context exists, so it is wired explicitly.
+     */
+    /**
+     * Registers the launcher Overview bridge once a SystemUI application context exists.
+     *
+     * This deliberately does not require [isHooked]: the context becomes available during
+     * package-ready handling, which runs before the root hookers are attached for this process.
+     * Gating on [isHooked] therefore skipped the registration on every start, which is exactly
+     * the "zero registrations" the device logs showed. The runtime object is a process-wide
+     * singleton and tolerates the call arriving before its hooks are installed; the receiver is
+     * independent of them.
+     */
+    fun onApplicationContextReady(context: Context?) {
+        if (Build.VERSION.SDK_INT < 37 || context == null) return
+        BackGestureRuntimeProvider.runtime.onApplicationContextReady(context)
     }
 
     /** Called before HyperTweak begins saving or retiring any process-owned state. */

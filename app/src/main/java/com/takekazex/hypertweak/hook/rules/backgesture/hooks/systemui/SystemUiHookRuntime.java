@@ -6518,11 +6518,69 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
         return result;
     }
 
+    // Shares the already authenticated native launcher state with other SystemUI features.
+    // A null value means no native owner has been observed; Shell remains the fallback.
+    private java.util.function.Consumer<Boolean> overviewVisibilityListener;
+
+    public final synchronized void setOverviewVisibilityListener(
+            java.util.function.Consumer<Boolean> listener) {
+        overviewVisibilityListener = listener;
+        notifyOverviewVisibilityListener();
+    }
+
+    protected final synchronized void notifyOverviewVisibilityListener() {
+        java.util.function.Consumer<Boolean> listener = overviewVisibilityListener;
+        if (listener == null) return;
+        try {
+            listener.accept(miuiLauncherDartStateOwnerEpoch > 0L
+                    ? Boolean.valueOf(miuiOverviewVisible) : null);
+        } catch (Throwable throwable) {
+            moduleLog(Log.WARN, TAG, "Failed to notify launcher overview observer", throwable);
+        }
+    }
+
+    protected final synchronized void setMiuiOverviewVisible(boolean visible) {
+        miuiOverviewVisible = visible;
+        notifyOverviewVisibilityListener();
+    }
+
+    public final synchronized void clearLauncherOverviewVisibility() {
+        // Preserve the owner epoch fence so delayed retired broadcasts stay rejected.
+        miuiOverviewDismissPendingUntilUptime = 0L;
+        setMiuiOverviewVisible(false);
+    }
+
+    /**
+     * Registers the MiuiHome launcher-state receiver as soon as a real SystemUI application
+     * context exists.
+     *
+     * Package load resolves no application yet, so the install path logs "will retry from the
+     * input owner" and depends on the edge-back hook for that retry. Device logs on 2026-10-20 show
+     * the retry never happened on any SystemUI start: the registration line is absent from every
+     * session, so launcher-driven Overview changes never reached the module and recent-task hiding
+     * had to fall back to a polling watchdog. Package ready is the first reliable point that has a
+     * context, and this call is idempotent.
+     */
+    public final void onApplicationContextReady(Context context) {
+        if (context == null) {
+            moduleLog(Log.WARN, TAG, "Launcher overview bridge skipped: null context");
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        ensureMiuiOverviewStateReceiver(appContext != null ? appContext : context);
+        moduleLog(Log.INFO, TAG, "Launcher overview bridge requested, registered="
+                + (miuiOverviewReceiver != null));
+    }
+
     protected synchronized void ensureMiuiOverviewStateReceiver(Context context) {
         if (miuiOverviewReceiver != null || context == null) {
             return;
         }
-        Context appContext = context.getApplicationContext();
+        // getApplicationContext() can return null for a context that is itself the application
+        // (or for a partially initialised one). Falling back to the supplied context is what keeps
+        // the registration below from dereferencing null.
+        Context resolved = context.getApplicationContext();
+        Context appContext = resolved != null ? resolved : context;
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context receiverContext, Intent intent) {
@@ -6603,7 +6661,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
                         miuiLauncherDartStateOwnerEpoch = ownerEpoch;
                         acceptedInputToken.set(null);
                         miuiDrawerVisible = false;
-                        miuiOverviewVisible = false;
+                        setMiuiOverviewVisible(false);
                         miuiLauncherEditing = false;
                         miuiLauncherHomeSurfaceVisible = false;
                         miuiOverviewDismissPendingUntilUptime = 0L;
@@ -7181,7 +7239,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
                 // short post-exit guard so quickly reopening Recents cannot leave SystemUI
                 // permanently believing that launcher Home is visible.
                 miuiOverviewDismissPendingUntilUptime = 0L;
-                miuiOverviewVisible = true;
+                setMiuiOverviewVisible(true);
                 moduleLog(Log.INFO, TAG, "Confirmed new Miui Recents entry during dismiss pending"
                         + ", state=" + state
                         + ", source=" + source
@@ -7199,7 +7257,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
         if (!overviewVisible && pendingUntil > now) {
             long guardUntil = now + MIUI_OVERVIEW_EXIT_GUARD_MS;
             miuiOverviewDismissPendingUntilUptime = guardUntil;
-            miuiOverviewVisible = false;
+            setMiuiOverviewVisible(false);
             moduleLog(Log.INFO, TAG, "Confirmed Miui Recents dismiss"
                     + ", state=" + state
                     + ", source=" + source
@@ -7210,7 +7268,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
         if (!overviewVisible || pendingUntil != 0L) {
             miuiOverviewDismissPendingUntilUptime = 0L;
         }
-        miuiOverviewVisible = overviewVisible;
+        setMiuiOverviewVisible(overviewVisible);
         moduleLog(Log.INFO, TAG, "Miui launcher state changed"
                 + ", state=" + state
                 + ", source=" + source
@@ -7220,7 +7278,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
     protected synchronized void beginMiuiOverviewDismiss(String reason) {
         long pendingUntil = SystemClock.uptimeMillis() + MIUI_OVERVIEW_DISMISS_TIMEOUT_MS;
         miuiOverviewDismissPendingUntilUptime = pendingUntil;
-        miuiOverviewVisible = false;
+        setMiuiOverviewVisible(false);
         new Handler(Looper.getMainLooper()).postDelayed(
                 () -> restoreMiuiOverviewAfterDismissTimeout(pendingUntil),
                 MIUI_OVERVIEW_DISMISS_TIMEOUT_MS);
@@ -7235,7 +7293,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             return;
         }
         miuiOverviewDismissPendingUntilUptime = 0L;
-        miuiOverviewVisible = true;
+        setMiuiOverviewVisible(true);
         moduleLog(Log.WARN, TAG, "Miui Recents dismiss confirmation timed out"
                 + ", restoredOverviewVisible=true");
     }

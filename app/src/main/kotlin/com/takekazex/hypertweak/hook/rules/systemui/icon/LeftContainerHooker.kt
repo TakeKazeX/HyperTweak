@@ -351,6 +351,8 @@ object LeftContainerHooker : StaticHooker() {
             }
         }
         reconcileAll()
+        // Recovery runs once; a timer only continues if the shade is genuinely open.
+        if (panelVisible || panelProgress > 0f) scheduleReconcile()
         DebugLog.i(TAG, "hot reload left roots=${states.size} rows=${ccRows.size}")
     }
 
@@ -574,8 +576,8 @@ object LeftContainerHooker : StaticHooker() {
         hookControlCenterHandover()
 
         reloadSnapshot()
-        mainHandler.removeCallbacks(reconcileRunnable)
-        mainHandler.postDelayed(reconcileRunnable, RECONCILE_INTERVAL_MS)
+        // One repair pass after installation; the timer only continues while the shade is open.
+        scheduleReconcile()
         DebugLog.i(
             TAG,
             "LeftContainer hooks installed (clone + policy merge, panelProgress=$panelProgressHooked, " +
@@ -700,6 +702,9 @@ object LeftContainerHooker : StaticHooker() {
         } else if (panelProgress > 0f) {
             panelVisible = true
         }
+        // The host drives this callback per frame while the shade moves, which is exactly when a
+        // dropped frame can leave a clone behind. Arm the repair tick for the duration.
+        if (panelVisible || panelProgress > 0f) scheduleReconcile()
         applyHandoverGuarded(panelProgress)
     }
 
@@ -818,6 +823,7 @@ object LeftContainerHooker : StaticHooker() {
         panelVisible = controlCenterVisible
         panelProgress = if (controlCenterVisible) 1f else 0f
         shadeSwitchSettledToControlCenter = controlCenterVisible
+        if (controlCenterVisible) scheduleReconcile() else requestReconcile()
         applyHandoverGuarded(panelProgress)
     }
 
@@ -1110,13 +1116,46 @@ object LeftContainerHooker : StaticHooker() {
         slotGetter = null
     }
 
-    // ─── Periodic reconciliation (main thread only) ──────────────────────────────
+    // ─── Event-driven reconciliation (main thread only) ─────────────────────────
 
+    /**
+     * Repairs what a dropped frame left behind. It is only worth running while the shade owns the
+     * screen: that is the one path driven per frame by the host, so that is the only place a frame
+     * can be lost. When the shade is closed the same work is triggered by the events that can
+     * actually change the result (settings commit, clone attach, Duo ownership, hot reload), so an
+     * unconditional timer would only re-read the whole icon snapshot forever.
+     *
+     * Device sampling on 2026-10-20 attributed the module's only visible CPU samples in SystemUI to
+     * this tick (LeftContainerHooker via the 1.5 s timer), with the shade closed.
+     */
     private fun reconcileTick() {
         if (retiring) return
         runCatching { reconcileAll() }.onFailure { t ->
             DebugLog.w(TAG, "LeftContainer reconcile failed", t)
         }
+        // Keep repairing while the shade is on screen or still moving; stop once it settles.
+        if (panelVisible || panelProgress > 0f) scheduleReconcile()
+    }
+
+    /**
+     * Reconciles now, for an event that changed the outcome. This is what replaces the old
+     * unconditional timer when the shade is closed: settings commits, clone attach and Duo
+     * ownership all land here.
+     */
+    internal fun requestReconcile() {
+        if (retiring) return
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { if (!retiring) requestReconcile() }
+            return
+        }
+        mainHandler.removeCallbacks(reconcileRunnable)
+        runCatching { reconcileAll() }
+            .onFailure { DebugLog.w(TAG, "LeftContainer reconcile failed", it) }
+        if (panelVisible || panelProgress > 0f) scheduleReconcile()
+    }
+
+    private fun scheduleReconcile() {
+        mainHandler.removeCallbacks(reconcileRunnable)
         mainHandler.postDelayed(reconcileRunnable, RECONCILE_INTERVAL_MS)
     }
 

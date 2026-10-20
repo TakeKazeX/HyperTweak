@@ -13,6 +13,7 @@
 ## Hook and UI changes
 - Before changing a host hook, establish the target build's class, signature, executing processes, and effect path. Reuse a verified matching baseline; recheck affected targets after an OTA or target APK change.
 - Isolate exceptions at process, reflection, and system-callback boundaries; use null-safe platform casts and cache reflection on hot paths. Resolve obfuscated targets by signatures and behavior, not names alone.
+- New features must support live setting changes through the shared runtime-settings registry/dispatcher and APK-update migration through the existing lifecycle. Refresh existing host instances, restore state across generations, and recover hosts when upgrading from a version with no saved feature state; verify enable, disable, reset, and upgrade paths. Document any host limitation explicitly.
 - Read runtime and cross-process settings through `Preferences`; keep hook handles in the existing lifecycle layer. Cover every executing manifest-declared process and the applicable LSPosed scope.
 - Preserve the Compose/Miuix design. For affected UI, account for narrow screens, large fonts, scrolling, applicable loading/empty states, and state retention.
 - Keep extracted APK/JARs and decompiler output outside the repository under `/Users/ink/developer/reverse`; identify reused artifacts by complete SHA-256.

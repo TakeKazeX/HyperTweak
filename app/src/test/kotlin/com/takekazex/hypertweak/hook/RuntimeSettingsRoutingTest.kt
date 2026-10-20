@@ -6,13 +6,45 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun recentsGestureBarSwitchUsesSystemUiSnapshotAndReset() {
+        val key = Preferences.KEY_HIDE_GESTURE_BAR_RECENTS
+        assertEquals(setOf(Groups.GESTURE_BAR_UI, Groups.GESTURE_BAR), Groups.affected(key))
+        assertEquals(mapOf(key to true), Groups.subset("com.android.systemui", mapOf(key to true)))
+        assertEquals(mapOf(key to true), Groups.subset("android", mapOf(key to true)))
+        val ledger = RuntimeSettingsLedger()
+        assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(1, mapOf(key to true), setOf(Groups.GESTURE_BAR_UI))!!))
+        val reset = RuntimeSettingsSnapshot.read(2, emptyMap<String, Any>(), setOf(Groups.GESTURE_BAR_UI))!!
+        assertEquals(setOf(Groups.GESTURE_BAR_UI, Groups.GESTURE_BAR), ledger.changedGroups(reset))
+        assertTrue(ledger.accept(reset))
+        assertNull(ledger.value(key))
+    }
+
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME), Groups.forProcess("system_server", true))
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR),
+            Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))
         assertTrue(Groups.forProcess("unrelated.package").isEmpty())
+        // The paired recents switches reach both surface ownership and cached drawing policy.
+        assertEquals(setOf(Groups.GESTURE_BAR, Groups.GESTURE_BAR_UI), Groups.affected(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION))
+        assertEquals(setOf(Groups.GESTURE_BAR_UI), Groups.affected(Preferences.KEY_HIDE_GESTURE_BAR))
+        assertEquals(setOf(Groups.GESTURE_BAR_UI), Groups.affected(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT))
+        val systemUi = Groups.subset("com.android.systemui", mapOf(
+            Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION to true,
+            Preferences.KEY_HIDE_GESTURE_BAR to true,
+            Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT to true))
+        assertEquals(setOf(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION,
+            Preferences.KEY_HIDE_GESTURE_BAR, Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT),
+            systemUi.keys)
+        assertEquals(setOf(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION),
+            Groups.subset("android", mapOf(
+                Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION to true,
+                Preferences.KEY_HIDE_GESTURE_BAR to true)).keys)
+        assertTrue(Groups.forProcess("com.android.systemui").contains(Groups.GESTURE_BAR_UI))
+        assertTrue(Groups.forProcess("system_server", true).contains(Groups.GESTURE_BAR))
+        assertFalse(Groups.forProcess("system_server", true).contains(Groups.GESTURE_BAR_UI))
     }
     @Test fun eachDestinationReceivesOnlyItsCompleteRegisteredSubset() {
         val values = mapOf<String, Any>(Preferences.KEY_THREE_ISLANDS to true,

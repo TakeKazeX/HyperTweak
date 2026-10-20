@@ -198,7 +198,17 @@ object Preferences {
     const val KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS = "lockscreen_charging_detail_interval_ms"
 
     const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
+    const val KEY_HIDE_GESTURE_BAR_RECENTS = "hide_gesture_bar_recents"
     const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
+
+    /**
+     * Keeps the gesture bar attached to the app while the swipe-up recents transition plays
+     * (小白条跟手上滑). HyperOS's enabled `com.android.systemui.gesture.line.overlay` sets
+     * `config_attachNavBarToAppDuringTransition` to false, so the navigation bar stays a separate
+     * layer and does not follow the finger. Read live by `GestureBarTransitionHooker` in
+     * system_server on every configuration change; the hooker itself installs at boot.
+     */
+    const val KEY_GESTURE_BAR_ATTACH_TRANSITION = "gesture_bar_attach_transition"
 
     /**
      * Long-press power button action (长按电源键操作). `PowerButtonCtsHooker` intercepts

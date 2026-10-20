@@ -110,6 +110,10 @@ fun SystemUIPage(
     onHideGestureBarChange: (Boolean) -> Unit,
     gestureBarRaiseLayout: Boolean,
     onGestureBarRaiseLayoutChange: (Boolean) -> Unit,
+    hideGestureBarRecents: Boolean,
+    onHideGestureBarRecentsChange: (Boolean) -> Unit,
+    gestureBarAttachTransition: Boolean,
+    onGestureBarAttachTransitionChange: (Boolean) -> Unit,
     powerButtonAction: Int,
     onPowerButtonActionChange: (Int) -> Unit,
     contextualSearchHaptics: Boolean,
@@ -620,6 +624,20 @@ fun SystemUIPage(
                         title = stringResource(R.string.tweaks_raise_layout_title),
                         summary = stringResource(R.string.tweaks_raise_layout_summary),
                         enabled = hideGestureBar
+                    )
+                    SwitchPreference(
+                        checked = gestureBarAttachTransition,
+                        onCheckedChange = onGestureBarAttachTransitionChange,
+                        title = stringResource(R.string.tweaks_gesture_bar_attach_transition_title),
+                        summary = stringResource(R.string.tweaks_gesture_bar_attach_transition_summary),
+                        enabled = !hideGestureBar
+                    )
+                    SwitchPreference(
+                        checked = hideGestureBarRecents,
+                        onCheckedChange = onHideGestureBarRecentsChange,
+                        title = stringResource(R.string.tweaks_hide_gesture_bar_recents_title),
+                        summary = stringResource(R.string.tweaks_hide_gesture_bar_recents_summary),
+                        enabled = !hideGestureBar
                     )
                     SwitchPreference(
                         checked = contextualSearchLongPress,

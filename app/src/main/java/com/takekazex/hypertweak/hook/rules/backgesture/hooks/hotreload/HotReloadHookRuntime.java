@@ -203,7 +203,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
             if (state.length >= 2 && state[0] instanceof Object[][]
                     && state[1] instanceof Boolean) {
                 inputStateObject = state[0];
-                miuiOverviewVisible = ((Boolean) state[1]).booleanValue();
+                setMiuiOverviewVisible(((Boolean) state[1]).booleanValue());
                 if (state.length >= 3 && state[2] instanceof Long) {
                     miuiOverviewDismissPendingUntilUptime = ((Long) state[2]).longValue();
                 }
@@ -250,6 +250,9 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
             }
         }
         restoreMiuiOverviewDismissTimeoutAfterHotReload();
+        // Package-ready observers may register before this runtime's saved owner is restored.
+        // Replay only after both the visibility/deadline and owner epoch have been adopted.
+        notifyOverviewVisibilityListener();
         Object[][] inputState = inputStateObject instanceof Object[][]
                 ? (Object[][]) inputStateObject : new Object[0][0];
         if (SYSTEM_UI.equals(processName)) {
@@ -291,7 +294,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         long remaining = deadline - SystemClock.uptimeMillis();
         if (remaining <= 0L) {
             miuiOverviewDismissPendingUntilUptime = 0L;
-            miuiOverviewVisible = true;
+            setMiuiOverviewVisible(true);
             moduleLog(Log.WARN, TAG, "Expired Recents dismiss deadline during hot reload"
                     + ", restoredOverviewVisible=true");
             return;
