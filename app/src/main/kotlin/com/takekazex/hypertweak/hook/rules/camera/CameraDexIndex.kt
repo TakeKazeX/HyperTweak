@@ -87,6 +87,9 @@ internal class CameraDexIndex private constructor(apk: File) {
     }
 
     fun definition(reference: MethodReference): Method? = byDescriptor[descriptor(reference)]
+    fun code(descriptor: String): Code = codeCache.getOrPut(descriptor) {
+        decode(byDescriptor[descriptor])
+    }
     fun hasNumber(reference: MethodReference, value: Long): Boolean =
         definition(reference)?.implementation?.instructions?.any {
             it is WideLiteralInstruction && it.wideLiteral == value

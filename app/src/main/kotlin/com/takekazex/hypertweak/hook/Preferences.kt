@@ -272,6 +272,21 @@ object Preferences {
     /** Makes GuardProvider's verified su/root environment predicates report a clean device. */
     const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
 
+    /** Skips Security Center's four verified local File.exists() su probes. */
+    const val KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK = "securitycenter_skip_local_su_check"
+    /** Disables the independent SafePay automatic app-scan preference. */
+    const val KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN = "securitycenter_disable_safepay_auto_scan"
+    /** Hides the independent root scan item from Security Center's scan configuration. */
+    const val KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM = "securitycenter_disable_root_scan_item"
+    /** Disables Security Center's USB-install permission interception. */
+    const val KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT = "securitycenter_disable_usb_install_intercept"
+    /** Skips network verification only when enabling USB installation (is_input=false). */
+    const val KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY = "securitycenter_bypass_usb_install_network_verify"
+    /** Ignores carrier offline metadata in Network Assistant's business flows. */
+    const val KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE = "network_assistant_ignore_offline"
+    /** Ignores carrier offline metadata in Contacts' mobile business hall. */
+    const val KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE = "contacts_business_hall_ignore_offline"
+
     /** Stops GuardProvider from serializing/uploading its non-system installed-app list. */
     const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"
 

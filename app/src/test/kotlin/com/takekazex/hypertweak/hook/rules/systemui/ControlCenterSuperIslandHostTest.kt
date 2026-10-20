@@ -6,6 +6,7 @@ import org.jf.dexlib2.iface.ClassDef
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
+import org.jf.dexlib2.iface.reference.FieldReference
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -75,5 +76,23 @@ class ControlCenterSuperIslandHostTest {
         val consumer = classes.getValue("Lmiui/systemui/dynamicisland/event/IslandTempHiddenEventCoordinator;")
             .methods.single { it.name == "handleAppEvent" }
         assertTrue(consumer.calls().any { it.name == "setTempHide" })
+    }
+
+    @Test fun `nullable readiness fields cover the throwing getter and native event no-op`() {
+        val view = classes().getValue("${prefix}DynamicIslandWindowView;")
+        val componentGetter = view.methods.single { it.name == "getViewComponent" }
+        val component = view.fields.single { it.type == componentGetter.returnType && it.accessFlags and 8 == 0 }
+        assertTrue("component publication remains volatile", component.accessFlags and 0x40 != 0)
+        val event = view.methods.single { it.name == "onIslandTempHide" }
+        val coordinator = view.fields.single {
+            it.type == "Lmiui/systemui/dynamicisland/event/DynamicIslandEventCoordinator;" && it.accessFlags and 8 == 0
+        }
+        fun Method.reads(field: String): Boolean = implementation!!.instructions
+            .filterIsInstance<ReferenceInstruction>().mapNotNull { it.reference as? FieldReference }
+            .any { it.definingClass == view.type && it.name == field }
+        assertTrue(componentGetter.reads(component.name))
+        assertTrue(event.reads(coordinator.name))
+        assertFalse("original event is safe before component initialization",
+            event.calls().any { it.name == "getWindowViewController" || it.name == "getViewComponent" })
     }
 }

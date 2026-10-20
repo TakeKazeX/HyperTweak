@@ -13,6 +13,7 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
             var size = 0
             for ((key, raw) in source) {
                 if (RuntimeSettingsGroups.owners(key).none(groups::contains)) continue
+                if (key in RuntimeSettingsGroups.strictBooleanKeys && raw !is Boolean) return null
                 val value = when (raw) {
                     is Boolean, is Int, is Long -> raw
                     is Float -> raw.takeIf { it.isFinite() } ?: return null

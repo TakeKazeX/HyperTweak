@@ -77,6 +77,9 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyChecksHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterUsbInstallNetworkVerifyHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.CarrierOfflineConfigHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
@@ -109,7 +112,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenDateHooker
-import com.takekazex.hypertweak.hook.rules.systemui.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
@@ -212,6 +214,8 @@ class HookEntry : XposedModule() {
                 true
             }
             registerForProcess(RuntimeSettingsGroups.XMSF) { Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.ISLANDS) {
                 if (generationRetired) true else {
                     Preferences.invalidateRuntimeReadCache()
@@ -512,7 +516,7 @@ class HookEntry : XposedModule() {
         NativeRules.bindProcess(processName)
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
-        val restoredState = HotReloadState.restore(param.savedInstanceState)
+        val restoredState = HotReloadState.restore(param.savedInstanceState) ?: recoverSecurityHostState()
         nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
         RuntimeSettingsStore.restore(restoredState?.hookerStates?.get("HyperTweak.RuntimeSettings")
             ?: (restoredState?.hookerStates?.get("HyperTweak.NativeSettings") as? Array<*>)?.getOrNull(2))
@@ -619,6 +623,36 @@ class HookEntry : XposedModule() {
         }
         if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
         DebugLog.i("HookEntry", "hot reload replacement ready process=$processName roots=${rootHookers.size}")
+    }
+
+    /** An older module may have no package snapshot; recover only an already living verified host. */
+    private fun recoverSecurityHostState(): HotReloadTargetState? {
+        val owner = SecurityHostRecovery.owner(processName, isSystemServer) ?: return null
+        return runCatching {
+            val app = Class.forName("android.app.ActivityThread")
+                .getMethod("currentApplication").invoke(null) as? android.app.Application
+                ?: return@runCatching null
+            val info = app.applicationInfo
+            if (app.packageName != owner || info.packageName != owner ||
+                info.uid != android.os.Process.myUid() || info.sourceDir.isNullOrBlank()
+            ) return@runCatching null
+            DebugLog.i("HookEntry", "recovering live security host without prior state package=$owner process=$processName")
+            HotReloadTargetState(
+                processName = processName,
+                isSystemServer = false,
+                systemServerClassLoader = null,
+                packages = listOf(HotReloadPackageState(
+                    packageName = owner,
+                    processName = processName,
+                    classLoader = app.classLoader,
+                    appInfo = info,
+                    isFirstPackage = true,
+                    isPackageReady = true,
+                    appContext = app,
+                )),
+            )
+        }.onFailure { DebugLog.w("HookEntry", "state-free security host recovery failed process=$processName", it) }
+            .getOrNull()
     }
 
     /** Recover a hooker whose in-place replacement failed without restarting the host process. */
@@ -1034,7 +1068,6 @@ class HookEntry : XposedModule() {
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ControlCenterCardsEditHooker(), classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
@@ -1051,7 +1084,8 @@ class HookEntry : XposedModule() {
                 // SystemUI class loader resolves them (same channel as HideBottomBarHooker's
                 // MiuiDecorationBottomView).
                 attachHooker(FreeformBlurTransitionHooker, classLoader, ctx, replacementHandles)
-                // ControlCenterCardResizeHooker is NOT attached here: its target classes live in
+                // ControlCenterCardsEditHooker and ControlCenterCardResizeHooker attach only
+                // through SystemUIPluginHooker: their target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
                 // loader (see attachPluginHooker).
@@ -1160,6 +1194,15 @@ class HookEntry : XposedModule() {
                     // Security Center ships its own copy of the vendor clipboard-read overlay and is the
                     // one that actually builds it; see LbeClipboardToastHooker.
                     attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
+                    if (processName == packageName || processName == "$packageName.cache" || processName == "$packageName.remote") {
+                        attachHooker(SecurityCenterSafetyChecksHooker, classLoader, ctx, replacementHandles)
+                    }
+                    if (processName == packageName) {
+                        attachHooker(SecurityCenterUsbInstallNetworkVerifyHooker, classLoader, ctx, replacementHandles)
+                    }
+                    if (processName == packageName || processName == "$packageName.remote") {
+                        attachHooker(CarrierOfflineConfigHooker, classLoader, ctx, replacementHandles)
+                    }
                 }
                 attachSecurityCenterHookers()
             }
@@ -1236,6 +1279,10 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderEnvironmentCheckHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderUploadAppListHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.contacts" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(CarrierOfflineConfigHooker, classLoader, ctx, replacementHandles)
             }
             "com.milink.service" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

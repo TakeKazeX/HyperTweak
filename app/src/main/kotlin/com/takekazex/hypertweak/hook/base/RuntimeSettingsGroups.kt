@@ -17,6 +17,8 @@ internal object RuntimeSettingsGroups {
     const val XMSF = "xmsf.focus"
     const val GESTURE_BAR = "system.gesture_bar"
     const val GESTURE_BAR_UI = "systemui.gesture_bar"
+    const val SECURITY_CHECKS = "securitycenter.checks"
+    const val OFFLINE_CONFIG = "carrier.offline_config"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -32,6 +34,16 @@ internal object RuntimeSettingsGroups {
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, "prefs_epoch")
+    val strictBooleanKeys = setOf(
+        Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
+        Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,
+        Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN,
+        Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM,
+        Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT,
+        Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY,
+        Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE,
+        Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE,
+    )
     private data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     private val groups = linkedMapOf(
@@ -56,10 +68,30 @@ internal object RuntimeSettingsGroups {
             it == Preferences.KEY_HIDE_GESTURE_BAR || it == Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT ||
                 it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION ||
                 it == Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
+        },
+        SECURITY_CHECKS to Group(setOf("com.miui.securitycenter", "com.miui.guardprovider")) {
+            it == Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK ||
+                it == Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK ||
+                it == Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN ||
+                it == Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM ||
+                it == Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT ||
+                it == Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY
+        },
+        // The Network Assistant classes are packaged in Security Center; its activities run in
+        // the main process and its service/provider consumers also use the .remote process.
+        OFFLINE_CONFIG to Group(setOf("com.miui.securitycenter", "com.android.contacts")) {
+            it == Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE ||
+                it == Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
         }
     )
     val targets: Set<String> get() = groups.values.flatMap { it.targets }.toSet()
-    fun target(process: String, systemServer: Boolean = false): String = if (systemServer || process == "system_server") "android" else process.substringBefore(':')
+    fun target(process: String, systemServer: Boolean = false): String = if (systemServer || process == "system_server") "android" else {
+        val base = process.substringBefore(':')
+        when {
+            base == "com.miui.securitycenter.remote" || base == "com.miui.securitycenter.cache" -> "com.miui.securitycenter"
+            else -> base
+        }
+    }
     fun forTarget(target: String): Set<String> = groups.filterValues { target in it.targets }.keys
     fun forProcess(process: String, systemServer: Boolean = false): Set<String> = forTarget(target(process, systemServer))
     fun owners(key: String): Set<String> = groups.filterValues { it.owns(key) }.keys

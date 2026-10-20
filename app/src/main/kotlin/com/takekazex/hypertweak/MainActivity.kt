@@ -143,9 +143,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_TRUST_SERVICE)
     ),
-    Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
-    ),
     Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
     ),
@@ -1350,7 +1347,6 @@ class MainActivity : ComponentActivity() {
                     },
                     disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
                     onDisableGuardEnvironmentCheckChange = { checked ->
-                        markTweaked(Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK, checked)
                         disableGuardEnvironmentCheck = checked
                         Preferences.putBoolean(
                             Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,

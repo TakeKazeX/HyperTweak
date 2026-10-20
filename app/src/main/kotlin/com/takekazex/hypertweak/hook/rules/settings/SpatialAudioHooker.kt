@@ -56,6 +56,7 @@ class SpatialAudioHooker(
 
     private fun resolveViaDirectLoad(): Class<*>? {
         val candidates = listOf(
+            "com.android.settings.bluetooth.BluetoothDetailsSpatialAudioController",
             "com.android.settings.bluetooth.SpatialAudioPreferenceController",
             "com.android.settings.bluetooth.SpatialAudioController",
             "com.android.settings.connecteddevice.SpatialAudioPreferenceController",

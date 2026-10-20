@@ -108,6 +108,9 @@
                 <action android:name="com.takekazex.hypertweak.action.RUNTIME_SETTINGS_REQUEST" />
             </intent-filter>
         </receiver>
+        <receiver android:name="com.takekazex.hypertweak.hook.SystemRuntimeSettingsSyncReceiver"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS" />
         <activity
             android:name="com.takekazex.hypertweak.MainActivity"
             android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection|colorMode|fontWeightAdjustment|fontScale"

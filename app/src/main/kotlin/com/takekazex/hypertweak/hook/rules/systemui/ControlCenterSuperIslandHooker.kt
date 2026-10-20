@@ -55,6 +55,10 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         val type = getter(state, "getTempHiddenType")
         val getState = getter(controller, "getWindowState")
         val getController = getter(view, "getWindowViewController")
+        val coordinator = "miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator".toClassOrNull()
+            ?: return
+        val readyController = ReadyIslandController.resolve(view, getController,
+            getter(view, "getViewComponent").returnType, coordinator) ?: return
         val getView = controller.getDeclaredMethod("access\$getView", controller).apply { isAccessible = true }
         val hiddenGate = ext.getDeclaredMethod("isTempHiddenExt", state, Int::class.javaObjectType)
         val hideEvent = view.getDeclaredMethod("onIslandTempHide", Boolean::class.javaPrimitiveType!!, type.returnType)
@@ -78,6 +82,9 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             val previous = synchronized(forcedControllers) { forcedControllers[owner] == true }
             if (forced == previous) return
             val islandView = getView.invoke(null, owner) ?: return
+            // The native event is a no-op before its coordinator exists. Leave the
+            // edge unrecorded so a later ready callback can still apply it.
+            if (!readyController.isReady(islandView)) return
             // Native combined tempHidden may stay false when only Control Center changes.
             // Explicitly dispatch its event on our edge, preserving all other native hide causes.
             hideEvent.invoke(islandView, forced || value(windowState, tempHidden, hiddenValue), type.invoke(windowState))
@@ -99,7 +106,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         hideEvent.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, "onIslandTempHide", Unit) {
-                    val owner = getController.invoke(param.thisObject) ?: return@open
+                    val owner = readyController.get(param.thisObject) ?: return@open
                     val windowState = getState.invoke(owner) ?: return@open
                     if (shouldHide(windowState)) {
                         param.args[0] = true

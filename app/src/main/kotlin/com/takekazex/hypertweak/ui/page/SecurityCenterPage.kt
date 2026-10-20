@@ -143,6 +143,27 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
             )
         )
     }
+    var skipLocalSuCheck by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, false))
+    }
+    var disableSafePayAutoScan by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, false))
+    }
+    var disableRootScanItem by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, false))
+    }
+    var disableUsbInstallIntercept by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, false))
+    }
+    var bypassUsbInstallNetworkVerify by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false))
+    }
+    var networkAssistantIgnoreOffline by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, false))
+    }
+    var contactsBusinessHallIgnoreOffline by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, false))
+    }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
 
@@ -242,6 +263,77 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     summary = stringResource(
                         R.string.security_center_call_privacy_camera_entry_summary
                     )
+                )
+            }
+
+            SmallTitle(stringResource(R.string.security_center_checks_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = skipLocalSuCheck,
+                    onCheckedChange = { enabled ->
+                        skipLocalSuCheck = enabled
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, enabled)
+                    },
+                    title = stringResource(R.string.security_center_skip_local_su_check),
+                    summary = stringResource(R.string.security_center_skip_local_su_check_summary)
+                )
+                SwitchPreference(
+                    checked = disableSafePayAutoScan,
+                    onCheckedChange = { enabled ->
+                        disableSafePayAutoScan = enabled
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, enabled)
+                    },
+                    title = stringResource(R.string.security_center_disable_safepay_auto_scan),
+                    summary = stringResource(R.string.security_center_disable_safepay_auto_scan_summary)
+                )
+                SwitchPreference(
+                    checked = disableRootScanItem,
+                    onCheckedChange = { enabled ->
+                        disableRootScanItem = enabled
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, enabled)
+                    },
+                    title = stringResource(R.string.security_center_disable_root_scan_item),
+                    summary = stringResource(R.string.security_center_disable_root_scan_item_summary)
+                )
+                SwitchPreference(
+                    checked = disableUsbInstallIntercept,
+                    onCheckedChange = { enabled ->
+                        disableUsbInstallIntercept = enabled
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, enabled)
+                    },
+                    title = stringResource(R.string.security_center_disable_usb_install_intercept),
+                    summary = stringResource(R.string.security_center_disable_usb_install_intercept_summary)
+                )
+                SwitchPreference(
+                    checked = bypassUsbInstallNetworkVerify,
+                    onCheckedChange = { enabled ->
+                        bypassUsbInstallNetworkVerify = enabled
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, enabled)
+                    },
+                    title = stringResource(R.string.security_center_bypass_usb_install_network_verify),
+                    summary = stringResource(R.string.security_center_bypass_usb_install_network_verify_summary)
+                )
+            }
+
+            SmallTitle(stringResource(R.string.security_center_carrier_offline_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = networkAssistantIgnoreOffline,
+                    onCheckedChange = { enabled ->
+                        networkAssistantIgnoreOffline = enabled
+                        Preferences.putBoolean(Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, enabled)
+                    },
+                    title = stringResource(R.string.security_center_network_assistant_ignore_offline),
+                    summary = stringResource(R.string.security_center_carrier_offline_summary)
+                )
+                SwitchPreference(
+                    checked = contactsBusinessHallIgnoreOffline,
+                    onCheckedChange = { enabled ->
+                        contactsBusinessHallIgnoreOffline = enabled
+                        Preferences.putBoolean(Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, enabled)
+                    },
+                    title = stringResource(R.string.security_center_contacts_business_hall_ignore_offline),
+                    summary = stringResource(R.string.security_center_carrier_offline_summary)
                 )
             }
 
