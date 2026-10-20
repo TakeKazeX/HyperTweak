@@ -20,6 +20,42 @@ import com.takekazex.hypertweak.hook.rules.systemui.GestureBarState.Action.*
 class GestureBarStateTest {
     private val t0 = 1_000_000L
 
+    @Test fun `repeated attachment cannot postpone the in-app fade`() {
+        val state = GestureBarState()
+        state.onAttachment(0, true, t0)
+        val deadline = state.deadlineFor(0)
+        repeat(19) { index ->
+            assertEquals(NONE, state.onAttachment(0, true, t0 + index + 1))
+            assertEquals(deadline, state.deadlineFor(0))
+        }
+        assertEquals(FADE_OUT, state.onDeadline(0, deadline, true))
+    }
+
+    @Test fun `replayed overview does not extend the hidden deadline or change the return`() {
+        val state = GestureBarState()
+        state.onOverview(0, true, t0)
+        state.onAttachment(0, false, t0 + 1000)
+        val deadline = state.deadlineFor(0)
+        repeat(19) { state.onOverview(0, true, t0 + 1100 + it) }
+        assertEquals(deadline, state.deadlineFor(0))
+        assertTrue(state.hasOverviewReport(0))
+        assertFalse(state.needsTransitionQuery(0))
+        state.onOverview(0, false, t0 + 2000)
+        assertEquals(SHOW, state.onTransitionFinished(0, null))
+        assertFalse(state.hasOverviewReport(0))
+    }
+
+    @Test fun `platform transition query is limited to an unreported hidden session`() {
+        val state = GestureBarState()
+        assertFalse(state.needsTransitionQuery(0))
+        state.onAttachment(0, true, t0)
+        assertFalse(state.needsTransitionQuery(0))
+        state.onAttachment(0, false, t0 + 1000)
+        assertTrue(state.needsTransitionQuery(0))
+        assertEquals(SHOW, state.onTransitionFinished(0, false))
+        assertFalse(state.needsTransitionQuery(0))
+    }
+
     @Test fun `the bar is drawn for the whole swipe-up transition`() {
         val state = GestureBarState()
         // The attachment arrives when the gesture starts.

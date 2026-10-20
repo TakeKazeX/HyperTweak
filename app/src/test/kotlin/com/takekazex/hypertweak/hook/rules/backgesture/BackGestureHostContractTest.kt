@@ -18,6 +18,27 @@ class BackGestureHostContractTest {
             .associateBy { it.type }
     }
 
+    @Test fun `Shell has a received-null fallback before dispatching predictive threshold progress`() {
+        val shell = classes("BACK_GESTURE_SHELL_JAR")
+            .getValue("Lcom/android/wm/shell/back/BackAnimationController;")
+        assertEquals("Z", shell.fields.single { it.name == "mReceivedNullNavigationInfo" }.type)
+        assertEquals("Landroid/window/BackNavigationInfo;",
+            shell.fields.single { it.name == "mBackNavigationInfo" }.type)
+        val threshold = shell.methods.single { it.name == "onThresholdCrossed" && it.parameterTypes.isEmpty() }
+        val refs = threshold.implementation!!.instructions
+            .filterIsInstance<org.jf.dexlib2.iface.instruction.ReferenceInstruction>().map { it.reference }.toList()
+        val nullFlag = refs.indexOfFirst {
+            (it as? org.jf.dexlib2.iface.reference.FieldReference)?.name == "mReceivedNullNavigationInfo"
+        }
+        val pilfer = refs.indexOfFirst {
+            (it as? org.jf.dexlib2.iface.reference.MethodReference)?.name == "tryPilferPointers"
+        }
+        val predictive = refs.indexOfFirst {
+            (it as? org.jf.dexlib2.iface.reference.MethodReference)?.name == "startPredictiveBackAnimationIfNeeded"
+        }
+        assertTrue("Native null fallback must precede predictive dispatch", nullFlag >= 0 && pilfer > nullFlag && predictive > pilfer)
+    }
+
     @Test fun `SystemUI supplies per-display native panels and Android 17 Shell back ABI`() {
         val classes = classes("BACK_GESTURE_SYSTEMUI_APK")
         val edge = classes.getValue("Lcom/android/systemui/navigationbar/gestural/EdgeBackGestureHandler;")

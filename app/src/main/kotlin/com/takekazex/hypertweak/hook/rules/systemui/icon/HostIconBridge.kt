@@ -108,6 +108,7 @@ class HostIconBridge(
                 return false
             }
             return runCatching {
+                if (holderVisible(holder) == visible) return true
                 resolveVisibilityMethod().invoke(controller, slot, visible)
                 val current = findHolder(slot)
                 current != null && holderPackage(current) == MODULE_PACKAGE &&
@@ -156,7 +157,11 @@ class HostIconBridge(
         synchronized(lock) { ownedSlots.toList().forEach(::removeOwned) }
     }
 
-    fun owns(slot: String): Boolean = synchronized(lock) { slot in ownedSlots }
+    fun owns(slot: String): Boolean = synchronized(lock) {
+        slot in ownedSlots && findHolder(slot)?.let { holder ->
+            holderPackage(holder) == MODULE_PACKAGE && isOrdinary(holder) && isOwnedHolder(slot, holder)
+        } == true
+    }
 
     private fun isOwnedHolder(slot: String, holder: Any): Boolean = runCatching {
         val expectedIcon = ownedIcons[slot] ?: return false

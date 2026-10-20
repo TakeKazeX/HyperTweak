@@ -100,6 +100,16 @@ object StackedSignalHooker : StaticHooker() {
     private var slotIndices: Map<Int, Int> = emptyMap()
     private var publishedSignalRows: List<DuoSignalRow> = emptyList()
     private var publishedSignalPicture: Picture? = null
+    private data class SignalRenderKey(
+        val levels: List<Int>,
+        val config: IconSvgRenderConfig,
+        val badge: MobileTypeOutput?,
+        val badgeConfig: MobileTypeConfig?
+    )
+    private var publishedSignalKey: SignalRenderKey? = null
+    private var publishedTypeBitmap: android.graphics.Bitmap? = null
+    private var publishedTypeSuppressed = false
+    private var pendingRender: Runnable? = null
 
     /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
     @Volatile
@@ -246,6 +256,10 @@ object StackedSignalHooker : StaticHooker() {
         adapterFlowsReady = false
         typeFade.cancel()
         typeCollapsed = false
+        pendingRender?.let(mainHandler::removeCallbacks)
+        pendingRender = null
+        publishedSignalKey = null
+        publishedTypeBitmap = null
 
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
         // thread-safe; pass every exposed Pair through its original value before unregistering the
@@ -815,7 +829,7 @@ object StackedSignalHooker : StaticHooker() {
             val pending = pendingEvents.remove(id) ?: return@forEach
             pending.ordered().forEach { signalState = signalState.reduce(it) }
         }
-        renderCurrent()
+        scheduleRender(bindingGeneration)
     }
 
     /** Re-registers existing `(AOSP VM, scope, MIUI VM)` triples after hot reload. */
@@ -857,7 +871,7 @@ object StackedSignalHooker : StaticHooker() {
             }
         }
         factoryViewModelIds = (extractSubscriptionIds(value) + cachedTriples.keys).toSet()
-        renderCurrent()
+        scheduleRender(bindingGeneration)
     }
 
     private fun reduceOnMain(event: MobileSignalEvent, bindingGeneration: Long) {
@@ -882,21 +896,30 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         signalState = signalState.reduce(event)
-        renderCurrent()
+        scheduleRender(bindingGeneration)
     }
 
     private fun scheduleRender(bindingGeneration: Long) {
-        mainHandler.post {
-            if (enabled && generation.get() == bindingGeneration) renderCurrent()
-        }
-    }
-
-    /** Renders only after the adapter and every current subscription have complete flow sets. */
-    private fun renderCurrent() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post(::renderCurrent)
+            mainHandler.post { scheduleRender(bindingGeneration) }
             return
         }
+        if (!enabled || generation.get() != bindingGeneration || pendingRender != null) return
+        val task = Runnable {
+            pendingRender = null
+            if (enabled && generation.get() == bindingGeneration) renderCurrent()
+        }
+        pendingRender = task
+        mainHandler.post(task)
+    }
+
+    /** Coalesces a burst of flow emissions before rendering the final complete state. */
+    private fun renderCurrent() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            scheduleRender(generation.get())
+            return
+        }
+        if (!enabled) return
         val state = signalState
         slotIndices = state.subscriptionOrder.associateWith {
             runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
@@ -970,57 +993,68 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         val renderRows = orderedSignalRows(state)
-        val bitmap = runCatching {
-            val config = renderConfig()
-            val typeOutput = MobileTypePolicy.resolve(state, typeConfig)
-            val badge = renderInternalTypeBadge(typeOutput, state, config)
-            if (state.rows.size == 1) {
-                if (badge == null) {
-                    IconSvgRenderer.renderSingle(assets.single.document, renderRows[0].level, config)
-                } else {
-                    IconSvgRenderer.renderSingleWithBadge(
-                        assets.single.document,
-                        renderRows[0].level,
-                        config,
-                        badge
-                    )
-                }
-            } else {
-                if (badge == null) {
-                    IconSvgRenderer.renderStacked(
-                        assets.stacked.document,
-                        renderRows[0].level,
-                        renderRows[1].level,
-                        config
-                    )
-                } else {
-                    IconSvgRenderer.renderStackedWithBadge(
-                        assets.stacked.document,
-                        renderRows[0].level,
-                        renderRows[1].level,
-                        config,
-                        badge
-                    )
-                }
-            }
-        }.onFailure { DebugLog.w(TAG, "cellular signal SVG render failed", it) }.getOrNull()
-            ?: run {
-                if (!hasPublishedReplacement()) restoreNative()
-                return
-            }
-
         val bridge = iconBridge ?: run {
             restoreNative()
             return
         }
-        val hadPublishedReplacement = bridge.owns(SLOT_STACKED)
-        val published = bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")
-        if (!published) {
-            // HostIconBridge restores an already-owned holder on update failure. Keeping the
-            // native mask would be unsafe on a first publish, but is correct when the previous
-            // module holder is still intact.
-            if (!hadPublishedReplacement) restoreNative()
-            return
+        val config = renderConfig()
+        val typeOutput = MobileTypePolicy.resolve(state, typeConfig)
+        val hasBadge = typeOutput.text.isNotBlank() && !typeOutput.suppressed &&
+            MobileTypePolicy.showInternalBadge(state, typeConfig)
+        val renderKey = SignalRenderKey(renderRows.map { it.level }, config,
+            typeOutput.takeIf { hasBadge }, typeConfig.takeIf { hasBadge })
+        // Visibility/masking and the separate type slot still reconcile on every state update.
+        // Only an intact owned holder may reuse the last successfully published artwork.
+        if (renderKey != publishedSignalKey || !bridge.owns(SLOT_STACKED)) {
+            val bitmap = runCatching {
+                val badge = renderInternalTypeBadge(typeOutput, state, config)
+                if (state.rows.size == 1) {
+                    if (badge == null) {
+                        IconSvgRenderer.renderSingle(assets.single.document, renderRows[0].level, config)
+                    } else {
+                        IconSvgRenderer.renderSingleWithBadge(
+                            assets.single.document,
+                            renderRows[0].level,
+                            config,
+                            badge
+                        )
+                    }
+                } else {
+                    if (badge == null) {
+                        IconSvgRenderer.renderStacked(
+                            assets.stacked.document,
+                            renderRows[0].level,
+                            renderRows[1].level,
+                            config
+                        )
+                    } else {
+                        IconSvgRenderer.renderStackedWithBadge(
+                            assets.stacked.document,
+                            renderRows[0].level,
+                            renderRows[1].level,
+                            config,
+                            badge
+                        )
+                    }
+                }
+            }.onFailure { DebugLog.w(TAG, "cellular signal SVG render failed", it) }.getOrNull()
+                ?: run {
+                    if (!hasPublishedReplacement()) restoreNative()
+                    return
+                }
+
+            val hadPublishedReplacement = bridge.owns(SLOT_STACKED)
+            val published = bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")
+            if (!published) {
+                // HostIconBridge restores an already-owned holder on update failure. Keeping the
+                // native mask would be unsafe on a first publish, but is correct when the previous
+                // module holder is still intact.
+                if (!hadPublishedReplacement) restoreNative()
+                return
+            }
+            publishedSignalKey = renderKey
+            DebugLog.d(TAG,
+                "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}")
         }
         val replacementVisible = options.ignoreSystemHide || state.rows.any { it.originalVisible }
         if (!bridge.setVisible(SLOT_STACKED, replacementVisible)) {
@@ -1035,11 +1069,7 @@ object StackedSignalHooker : StaticHooker() {
         bridge.removeOwned(SLOT_SINGLE_SIM2)
         // This is the first point at which a complete replacement exists.
         MobileSignalVisibility.setHiddenForSubIds(
-            state.replacementMask(published, options.ignoreSystemHide)
-        )
-        DebugLog.d(
-            TAG,
-            "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}"
+            state.replacementMask(true, options.ignoreSystemHide)
         )
         publishedSignalRows = renderRows
         publishedSignalPicture = if (replacementVisible) IconSvgRenderer.signalPicture(
@@ -1190,10 +1220,16 @@ object StackedSignalHooker : StaticHooker() {
             releaseTypeSlot(bridge)
             return
         }
+        if (publishedTypeBitmap === bitmap && publishedTypeSuppressed == output.suppressed &&
+            bridge.owns(SLOT_STACKED_TYPE)) return
+        publishedTypeBitmap = bitmap
+        publishedTypeSuppressed = output.suppressed
         val publish: (Float) -> Unit = { alpha ->
             val frame = if (alpha >= 1f) bitmap else scaledAlphaBitmap(bitmap, alpha)
             if (bridge.publish(SLOT_STACKED_TYPE, frame, output.text)) {
-                bridge.setVisible(SLOT_STACKED_TYPE, true)
+                if (!bridge.setVisible(SLOT_STACKED_TYPE, true)) publishedTypeBitmap = null
+            } else {
+                publishedTypeBitmap = null
             }
         }
         if (output.suppressed) {
@@ -1226,6 +1262,7 @@ object StackedSignalHooker : StaticHooker() {
         bridge ?: return
         typeFade.cancel()
         typeCollapsed = false
+        publishedTypeBitmap = null
         bridge.removeOwned(SLOT_STACKED_TYPE)
     }
 

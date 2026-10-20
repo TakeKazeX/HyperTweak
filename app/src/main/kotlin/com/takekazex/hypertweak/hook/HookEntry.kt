@@ -114,6 +114,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
@@ -304,6 +305,7 @@ class HookEntry : XposedModule() {
             runtimePreferencesSource = source
         }.onFailure { DebugLog.w("NativeRules", "runtime settings listener unavailable", it) }
     }
+    private var skipGoogleProcess = false
     private lateinit var processName: String
     private var isSystemServer: Boolean = false
     private var systemServerClassLoader: ClassLoader? = null
@@ -314,6 +316,8 @@ class HookEntry : XposedModule() {
         // here must be logged, not thrown back into the host's module-load path.
         processName = param.processName
         isSystemServer = param.isSystemServer
+        skipGoogleProcess = !isSystemServer && GoogleAppProcessPolicy.shouldSkipProcess(processName)
+        if (skipGoogleProcess) return
         RuntimeSettingsStore.configure(processName, isSystemServer)
         try {
             preferenceRetryGeneration.incrementAndGet()
@@ -353,6 +357,7 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
+        if (skipGoogleProcess) return
         if (!injectedPackages.add(param.packageName)) return
         // Process boundary: a failure while installing this package's hooks must be isolated and
         // logged rather than escaping into the host app's own package-load path.
@@ -384,6 +389,7 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
+        if (skipGoogleProcess) return
         // Process boundary, same rationale as onPackageLoaded.
         try {
             // Establishes the target snapshot required for hot reload state restore.
@@ -420,6 +426,7 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
+        if (skipGoogleProcess) return true
         preferenceRetryGeneration.incrementAndGet()
         DebugLog.d(
             "HookEntry",
@@ -485,6 +492,18 @@ class HookEntry : XposedModule() {
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
+        skipGoogleProcess = !isSystemServer && GoogleAppProcessPolicy.shouldSkipProcess(processName)
+        if (skipGoogleProcess) {
+            // An upgrade may carry handles from a version that hooked all Google processes.
+            // Retire them without restoring package state, preference listeners or DEX workers.
+            if (param.oldHookHandles.isNotEmpty()) {
+                DebugLog.setProcessTag(processName)
+                DebugLog.bindXposed(this)
+                unhookRemainingOldHandles(HotReloadHandleStore(param.oldHookHandles))
+                DebugLog.prepareForHotReload()
+            }
+            return
+        }
         RuntimeSettingsStore.configure(processName, isSystemServer)
         generationRetired = false
         if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
@@ -1158,9 +1177,10 @@ class HookEntry : XposedModule() {
                 attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
             }
             "com.google.android.googlequicksearchbox" -> {
-                // The coordinator owns both independent Google features and one shared DexKit
-                // bridge. Their callbacks still gate each feature by its own preference.
-                attachHooker(GoogleAppRuntime, classLoader, ctx, replacementHandles)
+                // Keep the package scope for Lens/OMNI features, but dispatch only in their UI process.
+                if (GoogleAppProcessPolicy.ownsUi(packageName, processName)) {
+                    attachHooker(GoogleAppRuntime, classLoader, ctx, replacementHandles)
+                }
             }
             "com.miui.mediaeditor" -> {
                 attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)

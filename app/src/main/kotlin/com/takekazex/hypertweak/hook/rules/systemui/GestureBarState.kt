@@ -71,9 +71,6 @@ internal class GestureBarState {
                 state.phase = Phase.LEAVING
                 // Fade while the bar still belongs to the application, never at display level.
                 state.deadlineAt = now + LEAVE_FADE_DELAY_MS
-            } else if (state.phase == Phase.LEAVING) {
-                // A re-armed notification during the same transition only refreshes the budget.
-                state.deadlineAt = now + LEAVE_FADE_DELAY_MS
             }
             // HIDDEN and RETURNING already keep the bar off screen; a new attachment must not
             // restart the visible phase in the middle of a return.
@@ -101,6 +98,7 @@ internal class GestureBarState {
         // The launcher's authenticated report is the only authority for this flag. The platform
         // query is a fallback used when no report ever arrived; overwriting this with it would let
         // a stale platform answer contradict the launcher while Recents is genuinely on screen.
+        if (state.overviewReported && state.overviewVisible == visible) return Action.NONE
         state.overviewVisible = visible
         state.overviewReported = true
         if (visible) {
@@ -234,6 +232,13 @@ internal class GestureBarState {
      */
     @Synchronized fun isOverviewOnScreen(display: Int?): Boolean =
         display != null && displays[display]?.overviewVisible == true
+
+    /** Only an unreported hidden session needs the platform's cancellation answer. */
+    @Synchronized fun needsTransitionQuery(display: Int): Boolean =
+        displays[display]?.let { it.phase == Phase.HIDDEN && !it.overviewReported } == true
+
+    @Synchronized fun hasOverviewReport(display: Int): Boolean =
+        displays[display]?.overviewReported == true
 
     /** Whether a session exists at all. */
     @Synchronized fun isTracked(display: Int?): Boolean =

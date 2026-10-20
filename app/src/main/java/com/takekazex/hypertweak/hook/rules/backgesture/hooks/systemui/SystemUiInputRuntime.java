@@ -3101,18 +3101,23 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                 cleanupRejectedShellGesture(session);
                 return false;
             }
-            if (info == null || receivedNull) {
-                moduleLog(Log.WARN, TAG, "Shell rejected back navigation"
+            // A received-null result is not a predictive target. Check it before any target
+            // handling, and never carry an inconsistent non-null target into the legacy path.
+            if (!ShellNavigationIdentity.isConsistent(info, receivedNull)) {
+                cleanupRejectedShellGesture(session);
+                moduleLog(Log.WARN, TAG, "Rejected inconsistent Shell navigation result"
                         + ", info=" + shortObject(info)
-                        + ", receivedNull=" + receivedNull
-                        + ", state=" + start.stateDescription);
+                        + ", receivedNull=" + receivedNull);
+                return false;
+            }
+            if (receivedNull || info == null) {
                 if (launcherOverviewGesture) {
                     recentsVisualOnlyGesture = true;
                 }
                 if (launcherCallbackOnly) {
                     cleanupRejectedShellGesture(session);
                     if (launcherOverviewGesture) {
-                        moduleLog(Log.INFO, TAG, "Rejected null Recents BackNavigationInfo"
+                        moduleLog(Log.DEBUG, TAG, "Rejected null Recents BackNavigationInfo"
                                 + ", mode=visual-only"
                                 + ", retry=false");
                     }
@@ -3146,12 +3151,16 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                 }
                 if (authenticatedNullStart) {
                     scheduleRecentsIdleNavigationRetry(session);
-                    moduleLog(Log.INFO, TAG, "Continuing authenticated in-app gesture with AOSP "
+                    moduleLog(Log.DEBUG, TAG, "Continuing authenticated in-app gesture with AOSP "
                             + "null-navigation fallback"
                             + ", input=" + shortObject(acceptedInputIdentity)
                             + ", edge=" + activeEdge);
                     return true;
                 }
+                moduleLog(Log.WARN, TAG, "Shell rejected back navigation"
+                        + ", info=" + shortObject(info)
+                        + ", receivedNull=" + receivedNull
+                        + ", state=" + start.stateDescription);
                 cleanupRejectedShellGesture(session);
                 return false;
             }
@@ -4447,10 +4456,9 @@ public abstract class SystemUiInputRuntime extends HookRuntimeCore {
                                 session.controller,
                                 "mReceivedNullNavigationInfo"));
                         if (tracker != session.tracker
-                                || navigation != session.navigation
-                                || (session.navigation == null
-                                && receivedNull
-                                != session.receivedNullNavigation)) {
+                                || !ShellNavigationIdentity.matches(
+                                        session.navigation, session.receivedNullNavigation,
+                                        navigation, receivedNull)) {
                             throw new IllegalStateException(
                                     "Shell MOVE identity changed"
                                             + ", tracker="

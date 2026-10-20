@@ -40,7 +40,7 @@ object GoogleAppRuntime : StaticHooker() {
         // The current manifest was verified against 693c70e37b329840e93fe1b1683a251fea773f511adb4aa01b396193b8936ae2.
         // Interactor/search/background providers never own these UI gates; scanning their entire
         // APK at boot needlessly blocks bindApplication before the voice service can publish.
-        if (hookParam.processName != "$PACKAGE:googleapp") return
+        if (!GoogleAppProcessPolicy.ownsUi(hookParam.packageName, hookParam.processName)) return
         installationStarted = true
 
         // The children are lifecycle participants so BaseHooker can collect and replace their

@@ -19,9 +19,6 @@ object DebugLog {
     private const val TAG = "HyperTweak"
     private const val FLUSH_DELAY_MS = 750L
 
-    /** Hard cap on the in-memory queue so a hot path (DEBUG flood) can't grow it without bound. */
-    private const val MAX_PENDING_QUEUE = 512
-
     /** Default threshold: drop VERBOSE/DEBUG, keep INFO and above. */
     const val DEFAULT_LEVEL = Log.INFO
 
@@ -100,14 +97,16 @@ object DebugLog {
     }
 
     fun prepareForHotReload() {
+        repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
         synchronized(this) {
-            repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
             pendingFlush?.cancel(false)
-            flushPendingLines()
+            pendingFlush = null
             flushExecutor?.shutdown()
             flushExecutor = null
-            xposed = null
         }
+        // Never hold the scheduling monitor across log IO: producers must stay non-blocking.
+        flushPendingLines()
+        xposed = null
     }
 
     fun d(scope: String, message: String) = write(Log.DEBUG, scope, message, null)
@@ -121,9 +120,8 @@ object DebugLog {
 
     private val repeatLimiter = LogRepeatLimiter()
     private data class Pending(val record: LogRecord, val throwable: Throwable?, val logger: XposedInterface?)
-    private val queueLock = Any()
-    private val records = ArrayDeque<Pending>()
-    private var dropped = 0
+    private val flushLock = Any()
+    private val records = PendingLogQueue<Pending>()
 
     private fun currentThreshold(): Int = Preferences.logLevel(DEFAULT_LEVEL)
 
@@ -145,20 +143,12 @@ object DebugLog {
     private fun enqueue(record: LogRecord, throwable: Throwable? = null) {
         val priority = when (record.level) { "E", "F" -> Log.ERROR; "W" -> Log.WARN; "I" -> Log.INFO; else -> Log.DEBUG }
         if (record.event == "REPEATED" && priority < currentThreshold()) return
-        synchronized(queueLock) {
-            if (records.size >= MAX_PENDING_QUEUE) {
-                // Preserve warnings/errors preferentially, but never allow an error storm to
-                // allocate an unbounded executor queue. Emit the loss count on the next drain.
-                val discard = records.indexOfFirst { it.record.level !in listOf("W", "E", "F") }
-                if (discard >= 0) records.removeAt(discard) else records.removeFirst()
-                dropped++
-            }
-            records.addLast(Pending(
-                if (record.event == "REPEATED") record.copy(time = formatter.get()!!.format(Date())) else record,
-                throwable, xposed
-            ))
-        }
-        scheduleFlush(record.level in listOf("W", "E", "F"))
+        val timedRecord = if (record.event == "REPEATED") {
+            record.copy(time = formatter.get()!!.format(Date()))
+        } else record
+        val expedite = records.offer(record.level, Pending(timedRecord, throwable, xposed),
+            timedRecord.message.length + timedRecord.stack.length + timedRecord.scope.length + 128)
+        scheduleFlush(expedite || priority >= Log.WARN)
     }
 
     @Synchronized
@@ -193,19 +183,16 @@ object DebugLog {
         }
     }
 
-    @Synchronized
-    private fun flushPendingLines() {
-        val pending = synchronized(queueLock) {
-            val batch = records.toList()
-            records.clear()
-            if (dropped > 0) {
-                val loss = LogRecord(formatter.get()!!.format(Date()), "W", Process.myPid().toString(),
-                    "DebugLog", "DROPPED", "log queue overflow: dropped=$dropped", process = processTag)
-                dropped = 0
-                batch + Pending(loss, null, xposed)
-            } else batch
-        }
-        if (pending.isEmpty()) return
+    private fun flushPendingLines() = synchronized(flushLock) {
+        val batch = records.drain()
+        val pending = if (batch.dropped.isNotEmpty()) {
+            val loss = LogRecord(formatter.get()!!.format(Date()), "W", Process.myPid().toString(),
+                "DebugLog", "DROPPED",
+                "log queue overflow: dropped=${batch.dropped.values.sum()} byLevel=${batch.dropped}",
+                process = processTag, source = if (xposed == null) "app" else "LSPosed")
+            listOf(Pending(loss, null, xposed)) + batch.values
+        } else batch.values
+        if (pending.isEmpty()) return@synchronized
         val localLines = mutableListOf<String>()
         for ((record, throwable, logger) in pending) {
             val priority = when (record.level) { "E", "F" -> Log.ERROR; "W" -> Log.WARN; "I" -> Log.INFO; else -> Log.DEBUG }

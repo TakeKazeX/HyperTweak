@@ -481,6 +481,7 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Overview visibility for one display. Returns whether the value changed the session. */
     private fun onOverview(display: Int, visible: Boolean): Boolean {
+        if (state.hasOverviewReport(display) && state.isOverviewOnScreen(display) == visible) return false
         val action = runCatching {
             state.onOverview(display, visible, SystemClock.uptimeMillis())
         }.onFailure { DebugLog.w(TAG, "failed to apply overview visibility", it) }.getOrNull()
@@ -495,7 +496,9 @@ object HideBottomBarHooker : StaticHooker() {
 
     private fun onAttachment(display: Int, attached: Boolean) {
         runCatching {
+            val previousDeadline = state.deadlineFor(display)
             val action = state.onAttachment(display, attached, SystemClock.uptimeMillis())
+            if (action == GestureBarState.Action.NONE && state.deadlineFor(display) == previousDeadline) return
             // The bar is still drawn while leaving; only the transition end fades it out.
             applyAction(display, action)
         }.onFailure { DebugLog.w(TAG, "failed to apply navigation attachment", it) }
@@ -504,14 +507,16 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     private fun onTransitionFinished(display: Int) {
-        if (!followGenerationActive) return
+        if (!followGenerationActive || !state.isTracked(display)) return
         runCatching {
-            // The same callback covers both directions; the platform decides which one this was.
-            val overview = queryOverviewVisible(display)
+            // Query only the cancelled-swipe fallback; authenticated Overview owns other sessions.
+            val overview = if (state.needsTransitionQuery(display)) queryOverviewVisible(display) else null
             val action = state.onTransitionFinished(display, overview)
-            DebugLog.d(TAG, "transition finished display=$display overview=$overview " +
-                "suppressed=${state.isSuppressed(display)} action=$action")
-            applyAction(display, action)
+            if (action != GestureBarState.Action.NONE) {
+                DebugLog.d(TAG, "transition finished display=$display overview=$overview " +
+                    "suppressed=${state.isSuppressed(display)} action=$action")
+                applyAction(display, action)
+            }
         }.onFailure { DebugLog.w(TAG, "failed to restore the gesture bar", it) }
     }
 
