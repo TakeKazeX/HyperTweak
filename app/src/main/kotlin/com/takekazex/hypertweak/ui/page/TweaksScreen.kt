@@ -57,16 +57,6 @@ fun TweaksScreenContent(
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
     unlockThirdPartyDarkMode: Boolean,
     onUnlockThirdPartyDarkModeChange: (Boolean) -> Unit,
-    disableVideoRingback: Boolean,
-    onDisableVideoRingbackChange: (Boolean) -> Unit,
-    disableMiTrustRiskMonitoring: Boolean,
-    onDisableMiTrustRiskMonitoringChange: (Boolean) -> Unit,
-    disableGuardEnvironmentCheck: Boolean,
-    onDisableGuardEnvironmentCheckChange: (Boolean) -> Unit,
-    blockGuardUploadAppList: Boolean,
-    onBlockGuardUploadAppListChange: (Boolean) -> Unit,
-    blockMiLinkHpplayFiles: Boolean,
-    onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
     allowThirdPartyTheme: Boolean,
     onAllowThirdPartyThemeChange: (Boolean) -> Unit,
     disableSpatialAudio: Boolean,
@@ -74,6 +64,7 @@ fun TweaksScreenContent(
     forceAdaptiveAnc: Boolean,
     onForceAdaptiveAncChange: (Boolean) -> Unit,
     onNavigateToSuperIsland: () -> Unit,
+    onNavigateToPurification: () -> Unit,
     backdrop: LayerBackdrop
 ) {
     var aicrCopyDirectDefaultBrowser by remember {
@@ -209,6 +200,15 @@ fun TweaksScreenContent(
                 }
             }
 
+            SmallTitle(text = stringResource(R.string.purification_title))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.purification_title),
+                    summary = stringResource(R.string.purification_summary),
+                    onClick = onNavigateToPurification
+                )
+            }
+
             SmallTitle(text = stringResource(R.string.tweaks_aicr_section))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(
@@ -222,16 +222,6 @@ fun TweaksScreenContent(
                 )
             }
 
-            SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = disableMiTrustRiskMonitoring,
-                    onCheckedChange = onDisableMiTrustRiskMonitoringChange,
-                    title = stringResource(R.string.tweaks_disable_risk_monitoring_title),
-                    summary = stringResource(R.string.tweaks_disable_risk_monitoring_summary)
-                )
-            }
-
             SmallTitle(text = stringResource(R.string.tweaks_theme_manager_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(
@@ -239,34 +229,6 @@ fun TweaksScreenContent(
                     onCheckedChange = onAllowThirdPartyThemeChange,
                     title = stringResource(R.string.tweaks_allow_third_party_theme_title),
                     summary = stringResource(R.string.tweaks_allow_third_party_theme_summary)
-                )
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_guard_provider_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = disableGuardEnvironmentCheck,
-                        onCheckedChange = onDisableGuardEnvironmentCheckChange,
-                        title = stringResource(R.string.tweaks_disable_environment_check_title),
-                        summary = stringResource(R.string.tweaks_disable_environment_check_summary)
-                    )
-                    SwitchPreference(
-                        checked = blockGuardUploadAppList,
-                        onCheckedChange = onBlockGuardUploadAppListChange,
-                        title = stringResource(R.string.tweaks_block_upload_app_list_title),
-                        summary = stringResource(R.string.tweaks_block_upload_app_list_summary)
-                    )
-                }
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_milink_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = blockMiLinkHpplayFiles,
-                    onCheckedChange = onBlockMiLinkHpplayFilesChange,
-                    title = stringResource(R.string.tweaks_block_milink_hpplay_files_title),
-                    summary = stringResource(R.string.tweaks_block_milink_hpplay_files_summary)
                 )
             }
 
@@ -296,16 +258,6 @@ fun TweaksScreenContent(
                     onCheckedChange = onUnlockThirdPartyDarkModeChange,
                     title = stringResource(R.string.settings_unlock_third_party_dark_mode_title),
                     summary = stringResource(R.string.settings_unlock_third_party_dark_mode_summary)
-                )
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_phone_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = disableVideoRingback,
-                    onCheckedChange = onDisableVideoRingbackChange,
-                    title = stringResource(R.string.settings_disable_video_ringback_title),
-                    summary = stringResource(R.string.settings_disable_video_ringback_summary)
                 )
             }
 

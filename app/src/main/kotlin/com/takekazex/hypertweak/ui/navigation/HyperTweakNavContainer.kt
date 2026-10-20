@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.ui.page.IconTunerPage
 import com.takekazex.hypertweak.ui.page.IconOrderPage
 import com.takekazex.hypertweak.ui.page.ControlCenterIconRowsPage
 import com.takekazex.hypertweak.ui.page.GlassTunerPage
+import com.takekazex.hypertweak.ui.page.PurificationPage
 import com.takekazex.hypertweak.ui.page.SuperIslandPage
 import com.takekazex.hypertweak.ui.page.GoogleServicesPage
 import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
@@ -289,13 +290,12 @@ fun HyperTweakNavContainer(
                     navController.push(Route.DownloadManager)
                 },
                 onNavigateToSuperIsland = { navController.push(Route.SuperIsland) },
+                onNavigateToPurification = { navController.push(Route.Purification) },
                 onNavigateToSecurityCenter = {
                     navController.push(Route.SecurityCenter)
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
-                disableVideoRingback = disableVideoRingback,
-                onDisableVideoRingbackChange = onDisableVideoRingbackChange,
                 hideLauncherIcon = hideLauncherIcon,
                 onHideLauncherIconChange = onHideLauncherIconChange,
                  unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
@@ -304,14 +304,6 @@ fun HyperTweakNavContainer(
                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                 forceAdaptiveAnc = forceAdaptiveAnc,
                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
-                disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
-                onDisableMiTrustRiskMonitoringChange = onDisableMiTrustRiskMonitoringChange,
-                disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
-                onDisableGuardEnvironmentCheckChange = onDisableGuardEnvironmentCheckChange,
-                blockGuardUploadAppList = blockGuardUploadAppList,
-                onBlockGuardUploadAppListChange = onBlockGuardUploadAppListChange,
-                blockMiLinkHpplayFiles = blockMiLinkHpplayFiles,
-                onBlockMiLinkHpplayFilesChange = onBlockMiLinkHpplayFilesChange,
                 allowThirdPartyTheme = allowThirdPartyTheme,
                 onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,
                 themeMode = themeMode,
@@ -612,6 +604,22 @@ fun HyperTweakNavContainer(
                 onBack = { navController.pop() }
             )
         }
+        entry<Route.Purification> {
+            PurificationPage(
+                onBack = { navController.pop() },
+                disableVideoRingback = disableVideoRingback,
+                onDisableVideoRingbackChange = onDisableVideoRingbackChange,
+                disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
+                onDisableMiTrustRiskMonitoringChange = onDisableMiTrustRiskMonitoringChange,
+                disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
+                onDisableGuardEnvironmentCheckChange = onDisableGuardEnvironmentCheckChange,
+                blockGuardUploadAppList = blockGuardUploadAppList,
+                onBlockGuardUploadAppListChange = onBlockGuardUploadAppListChange,
+                blockMiLinkHpplayFiles = blockMiLinkHpplayFiles,
+                onBlockMiLinkHpplayFilesChange = onBlockMiLinkHpplayFilesChange,
+            )
+        }
+
         entry<Route.SuperIsland> {
             SuperIslandPage(
                 onBack = { navController.pop() },

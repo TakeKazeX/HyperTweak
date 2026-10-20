@@ -14,6 +14,14 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns hook lifecycle. `hook/base/dex` owns feature descriptors, APK identity caches, serialized resolution and cancellable background preparation; `DexKitManager` is the native bridge backend; consumers use `DexRuntime` and `BaseHooker.prepareDexTargets` instead of managing bridge, worker, cache or cancellation state. Runtime settings refresh existing island policies without reinstalling or scanning DEX on the main thread.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
+Features → Purification & optimization (`Route.Purification`, `ui/page/PurificationPage.kt`)
+contains the MiTrust / GuardProvider / MiLink / video-ringback switches with their original
+MainActivity callbacks. Its wireless diagnostics section uses app-side bounded root commands
+(`util/WirelessDiagnostics.kt`), verified vendor properties and fresh service/usage reads;
+there is no injected-process destination or boot-time replay. The two Preferences values are
+verified device mirrors, excluded from portable backups. Module reset/restore does not alter
+these device-persistent properties; entering the page reads actual state, including after upgrades.
+
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.
 `NavController` centralizes push/pop while `Route.saveKey` keeps the restored stack stable across
 updates; Miuix owns gesture cancellation,

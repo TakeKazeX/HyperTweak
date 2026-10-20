@@ -13,13 +13,17 @@ import top.yukonga.miuix.kmp.nav.core.NavKey
 
 class NavigationStateTest {
     @Test fun controllerUsesTheRestoredStackWithoutChangingSavedKeys() {
-        val saved = listOf("Main", "SystemUi", "Appearance")
-        val stack = saved.mapNotNull { routeFromSaveKey(it) as NavKey? }.toMutableStateList()
-        val controller = NavController(stack)
-        assertEquals(saved, stack.map { (it as Route).saveKey })
-        assertTrue(controller.pop())
-        controller.push(Route.About)
-        assertEquals(listOf("Main", "SystemUi", "About"), stack.map { (it as Route).saveKey })
+        listOf(
+            listOf("Main", "SystemUi", "Appearance"),
+            listOf("Main", "Purification")
+        ).forEach { saved ->
+            val stack = saved.mapNotNull { routeFromSaveKey(it) as NavKey? }.toMutableStateList()
+            val controller = NavController(stack)
+            assertEquals(saved, stack.map { (it as Route).saveKey })
+            assertTrue(controller.pop())
+            controller.push(Route.About)
+            assertEquals(saved.dropLast(1) + "About", stack.map { (it as Route).saveKey })
+        }
     }
 
     @Test fun repeatedBackCannotRemoveRoot() {

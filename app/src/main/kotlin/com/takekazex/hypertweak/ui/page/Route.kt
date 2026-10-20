@@ -20,6 +20,7 @@ sealed interface Route : NavKey {
     data object AodIcons : Route
     data object NotificationHeader : Route
     data object DownloadManager : Route
+    data object Purification : Route
     data object SuperIsland : Route
     data object GoogleServices : Route
     data object PrivacyIndicator : Route
@@ -66,6 +67,7 @@ val Route.saveKey: String
         Route.AodIcons -> "AodIcons"
         Route.NotificationHeader -> "NotificationHeader"
         Route.DownloadManager -> "DownloadManager"
+        Route.Purification -> "Purification"
         Route.SuperIsland -> "SuperIsland"
         Route.GoogleServices -> "GoogleServices"
         Route.PrivacyIndicator -> "PrivacyIndicator"
@@ -107,6 +109,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "AodIcons" -> Route.AodIcons
     "NotificationHeader" -> Route.NotificationHeader
     "DownloadManager" -> Route.DownloadManager
+    "Purification" -> Route.Purification
     "SuperIsland" -> Route.SuperIsland
     "GoogleServices" -> Route.GoogleServices
     "PrivacyIndicator" -> Route.PrivacyIndicator

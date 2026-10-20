@@ -254,6 +254,10 @@ object Preferences {
     const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
     /** Makes Settings follow its own international-build UI branches in this process. */
     const val KEY_SETTINGS_GLOBAL_INTERFACE = "settings_global_interface"
+    // Verified mirrors of device-persistent vendor properties; never replayed at boot or upgrade.
+    const val KEY_WIFI_CNSS_DIAG_ENABLED = "wifi_cnss_diag_enabled"
+    const val KEY_WIFI_TCPDUMP_ENABLED = "wifi_tcpdump_enabled"
+
     /** Forces the Phone service to keep video ringback disabled and exposes its native switch. */
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
     /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
@@ -1378,6 +1382,10 @@ object Preferences {
     private fun isRuntimeKey(key: String): Boolean =
         key == RuntimeSettingsGroups.REVISION ||
             key == ScreenshotSettingsSnapshot.REVISION ||
+            // Device-side properties are not portable configuration. Reset/restore does not
+            // authorize root commands; the page always re-reads the actual device state.
+            key == KEY_WIFI_CNSS_DIAG_ENABLED ||
+            key == KEY_WIFI_TCPDUMP_ENABLED ||
             key == KEY_PREFS_EPOCH ||
             key == KEY_NATIVE_RULE_REVISION ||
             key == BackGestureSettingsSnapshot.REVISION ||

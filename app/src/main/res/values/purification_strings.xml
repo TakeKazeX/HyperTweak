@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="purification_title">Purification &amp; optimization</string>
+    <string name="purification_summary">Risk checks, app list uploads, generated files, video ringback and wireless logs</string>
+    <string name="wireless_title">Wireless diagnostics logs</string>
+    <string name="wireless_cnss_title">Wi-Fi diagnostic logs</string>
+    <string name="wireless_cnss_summary">%1$s · About 10 GB/day when enabled</string>
+    <string name="wireless_tcpdump_title">Network packet capture</string>
+    <string name="wireless_tcpdump_summary">%1$s · Headers only, up to 15 MB</string>
+    <string name="wireless_usage">%1$s MB</string>
+    <string name="wireless_usage_unknown">Usage unavailable</string>
+    <string name="wireless_loading">Working…</string>
+    <string name="wireless_unsupported">Not supported on this device</string>
+    <string name="wireless_error_root">Root access unavailable. Grant access and retry.</string>
+    <string name="wireless_error_query">Could not read status. Refresh to retry.</string>
+    <string name="wireless_error_prop">Property write failed. Check root and SELinux access.</string>
+    <string name="wireless_error_service">Service did not respond. Refresh or reboot.</string>
+    <string name="wireless_error_cleanup">Cleanup failed or the directory is unsafe.</string>
+    <string name="wireless_error_storage">Could not read log usage.</string>
+    <string name="wireless_footer">Changes take effect immediately and persist after reboot.</string>
+    <string name="wireless_refresh">Refresh status</string>
+    <string name="wireless_clear">Clear logs</string>
+    <string name="wireless_clear_confirmation">Delete all saved Wi-Fi diagnostic and packet capture logs? This cannot be undone.</string>
+    <string name="wireless_cancel">Cancel</string>
+    <string name="wireless_clear_confirm">Clear</string>
+    <string name="wireless_running">Running</string>
+    <string name="wireless_stopped">Stopped</string>
+    <string name="wireless_unknown">Unknown</string>
+    <string name="wireless_abnormal_hint">Still running; reboot to stop</string>
+    <string name="wireless_clear_dialog_title">Clear logs?</string>
+    <string name="wireless_error_details">View details</string>
+    <string name="wireless_done">Got it</string>
+    <string name="wireless_clear_running_hint">Turn off logging first to prevent new logs.</string>
+</resources>
