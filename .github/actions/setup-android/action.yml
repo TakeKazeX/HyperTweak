@@ -1,0 +1,34 @@
+name: Prepare Android native toolchain
+description: Accept SDK licenses and install the native toolchain pinned by the app.
+runs:
+  using: composite
+  steps:
+    - name: Install pinned NDK and CMake
+      shell: bash
+      run: |
+        set -euo pipefail
+        SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:?Android SDK path is required}}"
+        SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+        # Read versions without configuring Gradle: configuration itself needs
+        # the NDK license, so it cannot bootstrap a clean runner.
+        PACKAGE_LIST="$(python3 - <<'PY'
+        import pathlib
+        import re
+
+        source = pathlib.Path('app/build.gradle.kts').read_text()
+        for package, pattern in (
+            ('ndk', r'^\s*ndkVersion\s*=\s*"([0-9.]+)"'),
+            ('cmake', r'^\s*version\s*=\s*"([0-9.]+)"'),
+        ):
+            versions = re.findall(pattern, source, re.MULTILINE)
+            if len(versions) != 1:
+                raise SystemExit(f'Expected exactly one pinned {package} version')
+            print(f'{package};{versions[0]}')
+        PY
+        )"
+        mapfile -t PACKAGES <<< "$PACKAGE_LIST"
+        [[ "${#PACKAGES[@]}" -eq 2 ]]
+        # yes receives SIGPIPE when sdkmanager finishes. Preserve sdkmanager's
+        # exit status while allowing that expected producer exit.
+        (set +o pipefail; yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses --channel=3)
+        "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install "${PACKAGES[@]}" --channel=3

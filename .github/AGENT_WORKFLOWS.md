@@ -94,6 +94,11 @@ Trigger: the user asks for release readiness, a stable release, or a release aud
 
 ## Rolling CI publication
 
+All build jobs use `.github/actions/setup-android` before configuring Gradle.
+It accepts SDK licenses and installs the NDK and CMake versions pinned in
+`app/build.gradle.kts`, including preview-channel packages. Keep toolchain
+versions in that source file so CI and formal releases use the same versions.
+
 `ci.yml` retains the existing `ci-latest` prerelease and fixed download URLs. After
 the monotonicity guard permits publication and the anonymous asset self-check
 passes, it moves the rolling `ci-latest` tag to the verified build commit and

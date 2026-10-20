@@ -34,6 +34,9 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
 
+      - name: Prepare Android native toolchain
+        uses: ./.github/actions/setup-android
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
