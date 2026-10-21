@@ -34,7 +34,7 @@ struct Profile { uintptr_t rstring_vtable_offset = 1; };
 static Profile profile;
 static uint8_t base[8];
 static uint8_t* g_launcher_base = base;
-const Profile* CurrentLauncherProfile() { return &profile; }
+const Profile* CurrentBroadcastProfile() { return &profile; }
 size_t ConstStringLength(const char* s) { return std::strlen(s); }
 static uint32_t g_native_broadcast_send_state;
 template<class T> void AtomicStore(T* p, T v) { *p = v; }

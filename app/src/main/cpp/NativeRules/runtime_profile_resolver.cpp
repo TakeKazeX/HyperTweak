@@ -1450,6 +1450,25 @@ bool ValidateEntry(const ElfView& view, void* app_entry_point,
 
 }  // namespace
 
+bool ResolveBroadcastSupportProfile(const uint8_t* base, void* app_entry_point,
+                                    ResolutionStorage* storage) {
+    if (storage == nullptr) return false;
+    *storage = {};
+    ElfView view{};
+    uintptr_t entry = 0u, pointer = 0u, state = 0u, strings = 0u;
+    uint32_t confirmations = 0u, candidates = 0u;
+    RequiredImports imports{};
+    if (!ParseElf(base, &view) || !ValidateEntry(view, app_entry_point, &entry) ||
+            !ResolveImports(view, &imports) ||
+            !ResolveRuntime(view, imports, &pointer, &state, &confirmations) ||
+            !ResolveRString(view, imports, &strings, &candidates)) return false;
+    storage->profile.id = "runtime-broadcast-only";
+    storage->profile.runtime_pointer_offset = pointer;
+    storage->profile.runtime_state_offset = state;
+    storage->profile.rstring_vtable_offset = strings;
+    return true;
+}
+
 bool ResolveSideBoundaryProfile(const uint8_t* base, void* app_entry_point,
                                 ResolutionStorage* storage,
                                 ResolutionDiagnostics* diagnostics) {

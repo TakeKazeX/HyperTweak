@@ -92,6 +92,24 @@ int main(int argc, char** argv) {
     memcpy(identity, note_header, sizeof(note_header));
     dart::Image image{};
     assert(dart::ParseImage(snapshot.data(), &image));
+    // Capture the verified current-image widget contract before any patching.
+    // Fixed fixture RVAs/CIDs made the lifecycle test reject newer launchers
+    // even though the production structural resolver had succeeded.
+    const auto widget_contract = dart::ResolveTarget(image, dart::kAssistantWidgetTarget);
+    assert(widget_contract.resolved && widget_contract.verified);
+    uintptr_t widget_offset = 0u, widget_type_offset = 0u;
+    for (size_t i = 0; i < widget_contract.site_count; ++i) {
+        const auto& site = widget_contract.sites[i];
+        if (strcmp(site.name, "widget_eligibility") == 0) widget_offset = site.offset;
+        if (strcmp(site.name, "app_widget_type") == 0) widget_type_offset = site.offset;
+    }
+    assert(widget_offset != 0u && widget_type_offset != 0u);
+    uint32_t widget_field_read = 0u, widget_branch = 0u, widget_type_test = 0u;
+    memcpy(&widget_field_read, snapshot.data() + widget_offset, 4u);
+    memcpy(&widget_branch, snapshot.data() + widget_offset + 8u, 4u);
+    memcpy(&widget_type_test, snapshot.data() + widget_type_offset, 4u);
+    int32_t widget_reject_delta = static_cast<int32_t>((widget_branch >> 5u) & 0x3fffu);
+    if ((widget_reject_delta & 0x2000) != 0) widget_reject_delta -= 0x4000;
     const auto& spec = dart::kFolderColumnsTarget;
     const auto found = dart::ResolveTarget(image, spec);
     if (!found.resolved || !found.verified) {
@@ -207,10 +225,11 @@ int main(int argc, char** argv) {
     assert(PrepareDartRuleTargets(reinterpret_cast<void*>(1), false, false, true));
     assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)));
     const uintptr_t widget = AssistantWidgetTargetAddress();
-    assert(widget == reinterpret_cast<uintptr_t>(snapshot.data()) + 0xc9bd18);
-    assert(hypertweak_assistant_widget_reject == reinterpret_cast<uintptr_t>(snapshot.data()) + 0xc9bdc0);
+    assert(widget == reinterpret_cast<uintptr_t>(snapshot.data()) + widget_offset);
+    assert(hypertweak_assistant_widget_reject == widget + 8u + static_cast<intptr_t>(widget_reject_delta) * 4);
     assert(hypertweak_assistant_widget_accepted == widget + 28);
-    assert(hypertweak_assistant_widget_field == 0xfb && hypertweak_assistant_widget_cid == 0x7f1);
+    assert(hypertweak_assistant_widget_field == ((widget_field_read >> 12u) & 0x1ffu));
+    assert(hypertweak_assistant_widget_cid == ((widget_type_test >> 10u) & 0xfffu));
     const unsigned before = installs;
     assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && installs == before);
     auto* widget_bytes = reinterpret_cast<uint8_t*>(widget);

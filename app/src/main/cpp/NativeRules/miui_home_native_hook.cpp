@@ -13,6 +13,7 @@
 #include "native_rule_runtime.h"
 #include "native_rule_events.h"
 #include "runtime_profile_resolver.h"
+#include "standalone_gesture_owner.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -1015,6 +1016,15 @@ const miui_home_profiles::LauncherProfile* CurrentLauncherProfile() {
     return AtomicLoad(&g_launcher_profile);
 }
 
+miui_home_runtime_profile::ResolutionStorage g_rule_broadcast_profile{};
+uint32_t g_rule_broadcast_state = 0u;
+uint32_t g_rule_broadcast_installing = 0u;
+const miui_home_profiles::LauncherProfile* CurrentBroadcastProfile() {
+    const auto* profile = CurrentLauncherProfile();
+    if (profile != nullptr) return profile;
+    return AtomicLoad(&g_rule_broadcast_state) == 3u ? &g_rule_broadcast_profile.profile : nullptr;
+}
+
 bool NeedsDartFeatureResolution(
         const miui_home_profiles::LauncherProfile* profile) {
     return profile != nullptr &&
@@ -1086,7 +1096,7 @@ bool IsExactCallbackName(const char* value, size_t length,
 }
 
 bool MakeOwnedRString(const char* source, RString* output) {
-    const auto* profile = CurrentLauncherProfile();
+    const auto* profile = CurrentBroadcastProfile();
     if (source == nullptr || output == nullptr || g_launcher_base == nullptr ||
             profile == nullptr || profile->rstring_vtable_offset == 0u) {
         return false;
@@ -1550,7 +1560,7 @@ bool RestoreBroadcastIntentWithFeatureGot() {
 }
 
 bool InstallBroadcastIntentWithFeatureGot(void* resolved, void* expected_base,
-                                          void** slot) {
+                                          void** slot, bool allow_upstream_chain = false) {
     AtomicStore(&g_native_receiver_state, uint32_t{100});
     Dl_info image{};
     if (resolved == nullptr || dladdr(resolved, &image) == 0 ||
@@ -1564,7 +1574,13 @@ bool InstallBroadcastIntentWithFeatureGot(void* resolved, void* expected_base,
         AtomicStore(&g_native_receiver_state, uint32_t{103});
         return false;
     }
-    if (AtomicLoad(slot) != resolved) {
+    void* forward = AtomicLoad(slot);
+    Dl_info upstream{};
+    const bool upstream_chain = allow_upstream_chain && forward != nullptr &&
+            dladdr(forward, &upstream) != 0 &&
+            hypertweak::native::IsStandaloneGestureImage(upstream.dli_fname);
+    if ((allow_upstream_chain && !upstream_chain) ||
+            (!allow_upstream_chain && forward != resolved)) {
         AtomicStore(&g_native_receiver_state, uint32_t{104});
         return false;
     }
@@ -1575,9 +1591,9 @@ bool InstallBroadcastIntentWithFeatureGot(void* resolved, void* expected_base,
 
     // Publish the callable original before changing the live slot: another
     // launcher thread may enter the hook immediately after the atomic swap.
-    AtomicStore(&miui_home_hyos_broadcast_original, resolved);
+    AtomicStore(&miui_home_hyos_broadcast_original, forward);
     AtomicStore(&g_broadcast_intent_with_feature_slot, slot);
-    void* expected = resolved;
+    void* expected = forward;
     const bool replaced = __atomic_compare_exchange_n(
             slot, &expected,
             reinterpret_cast<void*>(MiuiHomeHyosBroadcastOptionsTailHook),
@@ -1601,7 +1617,7 @@ bool InstallBroadcastIntentWithFeatureGot(void* resolved, void* expected_base,
         // Best-effort rollback while the page is unexpectedly still writable.
         void* hook = reinterpret_cast<void*>(
                 MiuiHomeHyosBroadcastOptionsTailHook);
-        __atomic_compare_exchange_n(slot, &hook, resolved, false,
+        __atomic_compare_exchange_n(slot, &hook, forward, false,
                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
         SetBroadcastPrivateGotWritable(slot, PROT_READ);
     }
@@ -1610,6 +1626,29 @@ bool InstallBroadcastIntentWithFeatureGot(void* resolved, void* expected_base,
     AtomicStore(&g_native_receiver_state,
                 replaced ? uint32_t{107} : uint32_t{106});
     return false;
+}
+
+bool EnsureRuleBroadcastOptions() {
+    void** slot = AtomicLoad(&g_broadcast_intent_with_feature_slot);
+    if (slot != nullptr) return AtomicLoad(slot) ==
+            reinterpret_cast<void*>(MiuiHomeHyosBroadcastOptionsTailHook);
+    if (AtomicLoad(&g_rule_broadcast_state) != 3u) return false;
+    uint32_t expected = 0u;
+    if (!__atomic_compare_exchange_n(&g_rule_broadcast_installing, &expected, 1u, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return false;
+    // Upstream must install its strict original-only GOT bridge first. Chain
+    // only its verified loaded image, preserving the existing callable entry.
+    hypertweak::native::NativeRuleLibraryQuery internal;
+    auto* resolver = NewNativeSymbolResolver(kBroadcastPrivatePath, nullptr);
+    void* base = resolver == nullptr ? nullptr : GetNativeBaseAddress(resolver);
+    void* resolved = resolver == nullptr ? nullptr : LookupNativeSymbol(
+            resolver, kBroadcastIntentWithFeatureSymbol, false, nullptr);
+    slot = resolver == nullptr ? nullptr : LookupNativePltSlot(resolver, kBroadcastIntentWithFeatureSymbol);
+    const bool ready = base != nullptr && resolved != nullptr && slot != nullptr &&
+            InstallBroadcastIntentWithFeatureGot(resolved, base, slot, true);
+    if (resolver != nullptr) FreeNativeSymbolResolver(resolver);
+    AtomicStore(&g_rule_broadcast_installing, uint32_t{0});
+    return ready;
 }
 
 bool SendNativeBroadcast(const char* action, void* extras) {
@@ -1646,7 +1685,7 @@ bool SendNativeBroadcast(const char* action, void* extras) {
             "Bundle_default");
     BundleDropFn bundle_drop = ResolveLauncherSymbol<BundleDropFn>(
             "Bundle_drop");
-    const auto* profile = CurrentLauncherProfile();
+    const auto* profile = CurrentBroadcastProfile();
     void* captured_runtime = __atomic_load_n(&g_last_broadcast_runtime,
                                              __ATOMIC_ACQUIRE);
     const uint32_t runtime_state = g_launcher_base != nullptr && profile != nullptr
@@ -1663,6 +1702,7 @@ bool SendNativeBroadcast(const char* action, void* extras) {
         AtomicStore(&g_native_broadcast_send_state, uint32_t{2});
         return false;
     }
+    if (!EnsureRuleBroadcastOptions()) return false;
     if (intent_default == nullptr || intent_drop == nullptr ||
             set_action == nullptr || set_package == nullptr ||
             send == nullptr || inc == nullptr || dec == nullptr ||
@@ -4918,6 +4958,54 @@ void ObserveLauncherSymbol(void* handle, const char* symbol, void* result) {
 
 void OnLsposedLibraryLoaded(const char* name, void* handle);
 
+void PrepareRuleBroadcastSupport(void* handle) {
+    uint32_t expected = 0u;
+    if (!__atomic_compare_exchange_n(&g_rule_broadcast_state, &expected, 1u, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;
+    void* entry = dlsym(handle, kLauncherEntrySymbol);
+    Dl_info image{};
+    const bool resolved = entry != nullptr && dladdr(entry, &image) != 0 &&
+            image.dli_fbase != nullptr && IsLauncherLibraryPath(image.dli_fname) &&
+            miui_home_runtime_profile::ResolveBroadcastSupportProfile(
+                    static_cast<uint8_t*>(image.dli_fbase), entry, &g_rule_broadcast_profile);
+    const auto send = ResolveLauncherSymbol<BroadcastSendFn>("Broadcast_send_broadcast");
+    Dl_info public_image{};
+    // Observe the public wrapper's private-call import. The upstream inline
+    // target is forwarded unchanged, so it can keep its own runtime capture.
+    const bool wrapper = send != nullptr && dladdr(reinterpret_cast<void*>(send), &public_image) != 0 &&
+            public_image.dli_fbase != nullptr &&
+            StringsEqual(public_image.dli_fname, "/system_ext/lib64/libhyper_os_broadcast_public.so");
+    if (!resolved || !wrapper || InstallPltHook(public_image.dli_fbase, kBroadcastSendSymbol,
+            reinterpret_cast<void*>(MiuiHomeHyosBroadcastSendHook),
+            &g_original_broadcast_send) != kHookSuccess ||
+            AtomicLoad(&g_original_broadcast_send) == nullptr) {
+        AtomicStore(&g_rule_broadcast_state, uint32_t{4});
+        Log(ANDROID_LOG_WARN, "independent native rule broadcast support unresolved");
+        return;
+    }
+    g_launcher_base = static_cast<uint8_t*>(image.dli_fbase);
+    AtomicStore(&g_rule_broadcast_state, uint32_t{3});
+    Log(ANDROID_LOG_INFO, "independent native rule broadcast metadata and public send observer ready");
+}
+
+bool StandaloneGestureOwnerLoaded() {
+    // Only queried at library boundaries, never on a motion/frame hot path.
+    // Do not cache a negative result: LSPosed can initialize us before upstream.
+    bool found = false;
+    dl_iterate_phdr([](dl_phdr_info* info, size_t, void* data) {
+        if (!hypertweak::native::IsStandaloneGestureImage(info->dlpi_name)) return 0;
+        for (ElfW(Half) i = 0u; i < info->dlpi_phnum; ++i) {
+            if (info->dlpi_phdr[i].p_type == PT_LOAD &&
+                    (info->dlpi_phdr[i].p_flags & PF_X) != 0u) {
+                *static_cast<bool*>(data) = true;
+                return 1;
+            }
+        }
+        return 0;
+    }, &found);
+    return found;
+}
+
 // The HYOS launcher can preload its native images before LSPosed invokes the
 // module's native_init entry.  LSPosed's on-library-loaded callback only
 // covers subsequent loads, so explicitly replay the small set of library
@@ -4945,6 +5033,11 @@ void BackfillLoadedLibraries() {
 void OnLsposedLibraryLoaded(const char* name, void* handle) {
     if (hypertweak::native::NativeRuleLibraryQueryActive()) return;
     if (name == nullptr || handle == nullptr) return;
+    const bool standalone_owner = StandaloneGestureOwnerLoaded();
+    if (standalone_owner && IsLauncherLibraryPath(name)) {
+        Log(ANDROID_LOG_INFO,
+            "standalone gesture owner loaded; leaving shared input, contextual-search and Dart-state hooks untouched");
+    }
     if (IsLauncherProcess() &&
             !EnsureDartStateOwnerForCurrentProcess()) {
         Log(ANDROID_LOG_ERROR,
@@ -4956,7 +5049,8 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
         EnsureLsposedMadviseGuard(name);
     }
     ObserveLauncherHandle(name, handle);
-    if (IsLauncherLibraryPath(name) && IsLauncherHookProcess()) {
+    if (standalone_owner && IsLauncherLibraryPath(name)) PrepareRuleBroadcastSupport(handle);
+    if (!standalone_owner && IsLauncherLibraryPath(name) && IsLauncherHookProcess()) {
         if (!EnsureLsposedMadviseGuard()) {
             Log(ANDROID_LOG_ERROR,
                 "LSPosed launcher hooks rejected without madvise guard");
@@ -4976,7 +5070,10 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
     }
 
     if (IsDartLibraryPath(name) && IsLauncherHookProcess()) {
-        const auto* profile = ResolveDartFeatureProfile(handle);
+        // Independent rules still need the current Dart handle when shared
+        // state observers are owned by upstream. No foreign patch is removed.
+        AtomicStore(&g_dart_app_handle, handle);
+        const auto* profile = standalone_owner ? nullptr : ResolveDartFeatureProfile(handle);
         if (profile != nullptr) {
             TryInstallDartDrawerStateHook(handle, profile);
             TryInstallDartOverviewStateHook(handle, profile);
@@ -4990,7 +5087,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
     hypertweak::native::OnClearButtonLibraryLoaded(name, handle);
     hypertweak::native::OnFolderColumnsLibraryLoaded(name, handle);
     hypertweak::native::OnAssistantWidgetLibraryLoaded(name, handle);
-    TryInstallArbiterBridge();
+    if (!standalone_owner) TryInstallArbiterBridge();
 }
 
 // HyperTweak: the contextual-search enable gate used to arrive in the
