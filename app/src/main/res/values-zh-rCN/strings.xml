@@ -1575,4 +1575,6 @@
     <string name="tweaks_super_island_summary">布局、图标、时间字体与白名单设置</string>
     <string name="settings_recents_card_haptic_title">最近任务卡片切换震动</string>
     <string name="settings_recents_card_haptic_summary">在横向最近任务中，滑动切换卡片时轻微震动</string>
+    <string name="settings_folder_stack_preview_title">大文件夹层叠预览</string>
+    <string name="settings_folder_stack_preview_summary">将大文件夹末尾的小图标区改为三层堆叠，开关实时生效</string>
 </resources>

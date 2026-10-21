@@ -7,6 +7,7 @@
 // JNI_OnLoad/RegisterNatives is needed.
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
+#include "folder_stack_rule.h"
 #include "assistant_widget_rule.h"
 #include "native_config.h"
 #include "native_rule_runtime.h"
@@ -23,7 +24,7 @@ jstring BuildStatus(JNIEnv* env) {
     snprintf(buffer, sizeof(buffer),
              "clearButton=%s/%s target=0x%zx hits=%u "
              "folderColumns=%d/%s target=0x%zx hits=%u "
-             "assistantWidgets=%d/%s target=0x%zx hits=%u config=%s source=%s",
+             "assistantWidgets=%d/%s target=0x%zx hits=%u folderStack=%d/%s config=%s source=%s",
              hypertweak::native::ClearButtonHiddenRequested() ? "hide" : "keep",
              hypertweak::native::ClearButtonRuleReason(),
              static_cast<size_t>(hypertweak::native::ClearButtonTargetAddress()),
@@ -36,6 +37,8 @@ jstring BuildStatus(JNIEnv* env) {
              hypertweak::native::AssistantWidgetRuleReason(),
              static_cast<size_t>(hypertweak::native::AssistantWidgetTargetAddress()),
              hypertweak::native::AssistantWidgetHookHits(),
+             hypertweak::native::FolderStackRequested() ? 1 : 0,
+             hypertweak::native::FolderStackRuleReason(),
              hypertweak::native::ConfigChannelPath(),
              hypertweak::native::NativeRuleRuntimeSource());
     return env->NewStringUTF(buffer);
@@ -64,12 +67,21 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeStatus(JNIEnv* env, jobject
 // in the launcher's own DE directory and wakes its preparation worker. The two
 // Dart rules install at a subsequent input/load boundary, never on this JNI call.
 extern "C" JNIEXPORT void JNICALL
-Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
+Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV2(
         JNIEnv* env, jobject thiz, jboolean hide_recents_clear, jint folder_columns,
-        jboolean contextual_search_long_press, jboolean assistant_widgets, jboolean recents_haptic) {
+        jboolean contextual_search_long_press, jboolean assistant_widgets, jboolean recents_haptic, jboolean folder_stack) {
     (void)env;
     (void)thiz;
     hypertweak::native::UpdateNativeRuleSettings(
             hide_recents_clear == JNI_TRUE, static_cast<int32_t>(folder_columns),
-            contextual_search_long_press == JNI_TRUE, assistant_widgets == JNI_TRUE, recents_haptic == JNI_TRUE);
+            contextual_search_long_press == JNI_TRUE, assistant_widgets == JNI_TRUE, recents_haptic == JNI_TRUE, folder_stack == JNI_TRUE);
+}
+
+// Keep the pre-stack JNI ABI valid for older Java participants during APK hot reload.
+extern "C" JNIEXPORT void JNICALL
+Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
+        JNIEnv* env, jobject thiz, jboolean hidden, jint columns,
+        jboolean contextual, jboolean widgets, jboolean haptic) {
+    Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV2(
+        env, thiz, hidden, columns, contextual, widgets, haptic, JNI_FALSE);
 }

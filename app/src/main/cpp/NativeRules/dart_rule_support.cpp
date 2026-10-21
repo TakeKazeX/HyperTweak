@@ -232,7 +232,7 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
     return true;
 }
 
-bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame, bool recents_haptic) {
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame, bool recents_haptic, bool folder_stack) {
     g_allow_scan = true;
     DartResolution result{};
     bool success = true;
@@ -241,6 +241,7 @@ bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns
     if (assistant_widgets) success = ResolveDartSites(handle, dart::kAssistantWidgetTarget, &result) && success;
     if (dock_frame) success = ResolveDartSites(handle, dart::kDockFrameTarget, &result) && success;
     if (recents_haptic) success = ResolveDartSites(handle, dart::kRecentsHapticTarget, &result) && success;
+    if (folder_stack) success = ResolveDartSites(handle, dart::kFolderStackTarget, &result) && success;
     g_allow_scan = false;
     return success;
 }

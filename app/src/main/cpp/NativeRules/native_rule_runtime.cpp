@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "native_rule_runtime.h"
+#include "native_rule_settings_record.h"
 #include "dock_frame_rule.h"
 #include "recents_haptic_rule.h"
+#include "folder_stack_rule.h"
 #include "native_rule_events.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
@@ -26,17 +28,7 @@ extern "C" bool HyperTweakIsLauncherProcess();
 extern "C" bool HyperTweakNotifyNativeRulePrepared();
 namespace hypertweak::native {
 namespace {
-struct SettingsRecord {
-    uint32_t schema;
-    uint32_t hidden;
-    int32_t columns;
-    uint32_t options; // bit 0 contextual search, bit 1 Android widgets, bit 2 card haptics
-    uint32_t checksum;
-};
-uint32_t Checksum(const SettingsRecord& record) {
-    return 0x48545231u ^ record.schema ^ (record.hidden << 8u) ^
-           (static_cast<uint32_t>(record.columns) << 16u) ^ (record.options << 24u);
-}
+using SettingsRecord = NativeRuleSettingsRecord;
 uint64_t Now() {
     timespec time{};
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -88,6 +80,7 @@ void ApplySettings(const SettingsRecord& record) {
     HyperTweakSetContextualSearchLongPress((record.options & 1u) != 0u);
     SetAssistantWidgetAllowed((record.options & 2u) != 0u);
     SetRecentsHapticEnabled((record.options & 4u) != 0u);
+    SetFolderStackEnabled((record.options & 8u) != 0u);
 }
 bool Prepare() {
     NativeRuleLibraryQuery internal_query;
@@ -98,11 +91,10 @@ bool Prepare() {
     if (!g_received_settings && !g_bootstrap_read) {
         g_bootstrap_read = true; // A missing file is not a reason to poll storage.
         SettingsRecord record{};
+        bool migrated = false;
         if (ReadNativeRecord("settings", &record, sizeof(record)) &&
-            (record.schema >= 1u && record.schema <= 3u) && record.hidden <= 1u &&
-            record.options <= (record.schema == 1u ? 1u : record.schema == 2u ? 3u : 7u) &&
-            record.columns >= 3 && record.columns <= 5 && record.checksum == Checksum(record)) {
-            if (record.schema != 3u) { record.schema = 3u; record.checksum = Checksum(record); g_settings_dirty = true; }
+            RestoreNativeRuleSettings(&record, &migrated)) {
+            if (migrated) g_settings_dirty = true;
             g_settings = record;
             ApplySettings(record);
             __atomic_store_n(&g_source, "snapshot_restored", __ATOMIC_RELEASE);
@@ -122,7 +114,8 @@ bool Prepare() {
     pthread_mutex_unlock(&g_settings_lock);
     const bool dock = DockFrameRequested();
     const bool haptic = RecentsHapticRequested();
-    if (!clear && !folder && !widgets && !dock && !haptic) return true;
+    const bool stack = FolderStackRequested();
+    if (!clear && !folder && !widgets && !dock && !haptic && !stack) return true;
     if (handle == nullptr) {
         // Fallback for an AOT image loaded before our observer. Keep this one
         // reference for the process lifetime; ready inputs never repeat dlopen.
@@ -133,7 +126,7 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic);
+    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack);
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
@@ -194,7 +187,7 @@ void ObserveNativeRuleDartLibrary(void* handle) {
     pthread_mutex_unlock(&g_settings_lock);
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
 }
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic) {
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic, bool folder_stack) {
     if (!HyperTweakIsLauncherProcess() || columns < 3 || columns > 5 || revision < 0) return false;
     pthread_mutex_lock(&g_settings_lock);
     // JNI remains a fallback. The authenticated SystemUI publisher owns live
@@ -203,9 +196,9 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
         pthread_mutex_unlock(&g_settings_lock);
         return false;
     }
-    SettingsRecord next{3u, hidden ? 1u : 0u, columns,
-        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u), 0u};
-    next.checksum = Checksum(next);
+    SettingsRecord next{kNativeRuleSettingsSchema, hidden ? 1u : 0u, columns,
+        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u) | (folder_stack ? 8u : 0u), 0u};
+    next.checksum = NativeRuleSettingsChecksum(next);
     const bool changed = !g_received_settings || next.hidden != g_settings.hidden ||
                          next.columns != g_settings.columns || next.options != g_settings.options;
     if (revision > 0 && revision == g_systemui_revision && changed) {
@@ -228,8 +221,8 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
     return true;
 }
-void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets, bool recents_haptic) {
-    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0, assistant_widgets, recents_haptic);
+void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets, bool recents_haptic, bool folder_stack) {
+    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0, assistant_widgets, recents_haptic, folder_stack);
 }
 void ApplyPreparedNativeRules() {
     if (!HyperTweakIsLauncherProcess() || NativeRuleLibraryQueryActive()) return;
@@ -239,10 +232,12 @@ void ApplyPreparedNativeRules() {
     ApplyAssistantWidgetRule(handle);
     (void)ApplyDockFrameRule(handle);
     (void)ApplyRecentsHapticRule(handle);
+    (void)ApplyFolderStackRule(handle);
     const bool missing = strcmp(ClearButtonRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(AssistantWidgetRuleReason(), "dart_preparation_pending") == 0 ||
-                         strcmp(RecentsHapticRuleReason(), "dart_preparation_pending") == 0;
+                         strcmp(RecentsHapticRuleReason(), "dart_preparation_pending") == 0 ||
+                         strcmp(FolderStackRuleReason(), "dart_preparation_pending") == 0;
     if (missing) {
         pthread_mutex_lock(&g_settings_lock);
         if (!g_gate.needed) g_gate.Changed(); // Same handle, new image identity.
@@ -282,6 +277,7 @@ void NotifyDockFramePreparation() {
 void ResetNativeRuleRuntimeAfterFork() {
     ResetDockFrameAfterFork();
     ResetRecentsHapticAfterFork();
+    ResetFolderStackAfterFork();
     if (g_wakeup >= 0) close(g_wakeup);
     g_wakeup = -1;
     g_worker_state = 0u;

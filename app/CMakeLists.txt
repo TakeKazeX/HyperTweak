@@ -63,6 +63,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/folder_stack_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/folder_stack_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/clear_button_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/folder_columns_rule.cpp"
@@ -107,6 +109,7 @@ target_link_libraries(${HYPERTWEAK_NATIVE_TARGET} PRIVATE log dl lsplt::lsplt)
 set_target_properties(${HYPERTWEAK_NATIVE_TARGET} PROPERTIES
     CXX_EXTENSIONS OFF
     OUTPUT_NAME "${HYPERTWEAK_NATIVE_TARGET}"
+    LINK_DEPENDS "${HYPERTWEAK_NATIVE_DIR}/exports.map"
 )
 
 # Persisted offsets are invalidated on module version changes as well as AOT identity.

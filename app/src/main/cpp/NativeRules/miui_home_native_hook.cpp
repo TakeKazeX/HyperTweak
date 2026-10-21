@@ -3,6 +3,7 @@
 #include "folder_columns_rule.h"
 #include "assistant_widget_rule.h"
 #include "recents_haptic_rule.h"
+#include "folder_stack_rule.h"
 #include "native_rule_settings_dispatch.h"
 #include "dart_runtime_resolver.h"
 #include "dart_state_publication.h"
@@ -1384,6 +1385,7 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     // SystemUI built before this feature, and a launcher payload built before it, remain
     // mutually compatible. A present but malformed value is treated as the default.
     (void)ReadNativeBool(extras, "hypertweak_rule_recents_haptic", &output->recents_haptic);
+    (void)ReadNativeBool(extras, "hypertweak_rule_folder_stack", &output->folder_stack);
     bool channel = false;
     if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
         if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
@@ -1404,7 +1406,7 @@ extern "C" bool HyperTweakSendRecentsHaptic() {
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic)) {
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack)) {
         if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
     }
@@ -3382,6 +3384,8 @@ void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
             hypertweak::native::NativeRuleCurrentDartHandle());
     // Consume only prepared targets on the same maintenance boundary as the other rules.
     (void)hypertweak::native::ApplyRecentsHapticRule(
+            hypertweak::native::NativeRuleCurrentDartHandle());
+    (void)hypertweak::native::ApplyFolderStackRule(
             hypertweak::native::NativeRuleCurrentDartHandle());
 }
 

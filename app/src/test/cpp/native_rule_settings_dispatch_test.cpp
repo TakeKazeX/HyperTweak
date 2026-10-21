@@ -22,13 +22,13 @@ void Forward(void* receiver, void* context, void* intent) {
     delete static_cast<Intent*>(intent); // Original consumes the boxed argument.
 }
 void Accept(const NativeRuleSettingsSnapshot& snapshot) {
-    assert(forwarded == 1 && snapshot.widgets && snapshot.columns == 4 && snapshot.revision == 31);
+    assert(forwarded == 1 && snapshot.widgets && snapshot.columns == 4 && snapshot.revision == 31 && snapshot.folder_stack);
     ++accepted;
 }
 }
 int main() {
     DispatchNativeRuleSettings(expected_receiver, expected_context,
-        new Intent{true,{true,4,false,true,31}}, Capture, Forward, Accept);
+        new Intent{true,{true,4,false,true,31,false,true}}, Capture, Forward, Accept);
     assert(captures == 1 && forwarded == 1 && accepted == 1);
     captures = forwarded = accepted = 0;
     DispatchNativeRuleSettings(expected_receiver, expected_context,

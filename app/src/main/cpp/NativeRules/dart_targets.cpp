@@ -547,6 +547,7 @@ const TargetSpec kAssistantWidgetTarget = {
 
 #include "dock_frame_target.inc"
 #include "recents_haptic_target.inc"
+#include "folder_stack_target.inc"
 
 const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
@@ -554,6 +555,7 @@ const TargetSpec* const kTargetSpecs[] = {
     &kAssistantWidgetTarget,
     &kDockFrameTarget,
     &kRecentsHapticTarget,
+    &kFolderStackTarget,
 };
 
 const size_t kTargetSpecCount =

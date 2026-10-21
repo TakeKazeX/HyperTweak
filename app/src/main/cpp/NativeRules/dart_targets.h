@@ -135,6 +135,26 @@ extern const TargetSpec kFolderColumnsTarget;
 extern const TargetSpec kAssistantWidgetTarget;
 extern const TargetSpec kDockFrameTarget;
 extern const TargetSpec kRecentsHapticTarget;
+extern const TargetSpec kFolderStackTarget;
+struct FolderStackLayout {
+    uintptr_t patch, children_count, children_loop;
+    uintptr_t frame_return, refresh, refresh_id, refresh_return;
+    uint32_t layout_id_pool, preview_id_pool, typeargs_pool;
+    uint32_t model_slot, registry_slot;
+    uint32_t strategy, item;
+    uint32_t strategies[8];
+    uint8_t strategy_count;
+    uint16_t controller_strategy;
+    uint16_t list, count, x, y, padding_x, padding_y;
+    uint16_t large_w, large_h, small_w, small_h, gap_x, gap_y, small_gap;
+};
+bool DecodeFolderStackLayout(const Image&, uintptr_t getter, uintptr_t producer,
+                            uintptr_t factory, uintptr_t builder, uintptr_t children, FolderStackLayout*);
+bool DecodeFolderStackRefresh(const Image&, uintptr_t frame, uintptr_t refresh, uintptr_t owner, FolderStackLayout*, const uint8_t* owned_identity = nullptr);
+bool VerifyFolderStackFrame(uintptr_t address);
+bool VerifyFolderStackIdentity(const Image&, uintptr_t address, const FolderStackLayout&);
+bool VerifyFolderStackReturn(uintptr_t address);
+bool VerifyFolderStackChildren(uintptr_t address, bool loop);
 bool VerifyDockUnlockLayout(const Image&, uintptr_t);
 struct DockTickLayout { uintptr_t site; int receiver, scale, y, value; };
 bool DecodeDockTickLayout(const Image&, uintptr_t, DockTickLayout*);

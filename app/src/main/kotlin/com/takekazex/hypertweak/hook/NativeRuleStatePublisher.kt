@@ -129,6 +129,7 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_contextual_search", snapshot.contextualSearch)
                 .putExtra("hypertweak_rule_assistant_widgets", snapshot.assistantWidgets)
                 .putExtra("hypertweak_rule_recents_haptic", snapshot.recentsHaptic)
+                .putExtra("hypertweak_rule_folder_stack", snapshot.folderStack)
                 .putExtra("sender_uid", Process.myUid())
             if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)
                 .putExtra("hypertweak_rule_dock_port", dockPort)

@@ -85,17 +85,26 @@ object NativeRules {
         openedFolderColumns: Int,
         contextualSearchLongPress: Boolean,
         assistantWidgets: Boolean,
-        recentsHaptic: Boolean = Preferences.recentsCardHaptic()
+        recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
+        folderStack: Boolean = Preferences.folderStackPreview()
     ): Boolean {
         if (!ensureLoaded()) return false
         return try {
-            nativeApplyRuleSwitches(
-                hideRecentsClearButton,
-                openedFolderColumns,
-                contextualSearchLongPress,
-                assistantWidgets,
-                recentsHaptic
-            )
+            try {
+                nativeApplyRuleSwitchesV2(
+                    hideRecentsClearButton,
+                    openedFolderColumns,
+                    contextualSearchLongPress,
+                    assistantWidgets,
+                    recentsHaptic,
+                    folderStack
+                )
+            } catch (_: UnsatisfiedLinkError) {
+                // A hot APK replacement can leave the old native payload mapped until
+                // launcher refresh. Keep its existing switches usable during that interval.
+                nativeApplyRuleSwitches(hideRecentsClearButton, openedFolderColumns,
+                    contextualSearchLongPress, assistantWidgets, recentsHaptic)
+            }
             true
         } catch (t: Throwable) {
             DebugLog.w("NativeRules", "native rule switch push failed", t)
@@ -107,6 +116,15 @@ object NativeRules {
     private external fun nativeStatus(): String
 
     // Bound by name, so this class and this method must survive R8 unchanged.
+    private external fun nativeApplyRuleSwitchesV2(
+        hideRecentsClearButton: Boolean,
+        openedFolderColumns: Int,
+        contextualSearchLongPress: Boolean,
+        assistantWidgets: Boolean,
+        recentsHaptic: Boolean,
+        folderStack: Boolean
+    )
+
     private external fun nativeApplyRuleSwitches(
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int,

@@ -5,9 +5,9 @@ namespace hypertweak::native {
 const char* NativeRuleRuntimeSource();
 void* NativeRuleCurrentDartHandle();
 void ObserveNativeRuleDartLibrary(void* handle);
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets = false, bool recents_haptic = false);
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false);
 void ApplyPreparedNativeRules();
-void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets = false, bool recents_haptic = false);
+void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false);
 void RequestNativeRulePreparation();
 void NotifyDockFramePreparation();
 void MarkNativeRuntimeInitialized();

@@ -1584,4 +1584,6 @@
     <string name="tweaks_super_island_summary">Layout, icons, time font and whitelist settings</string>
     <string name="settings_recents_card_haptic_title">Recent task card haptics</string>
     <string name="settings_recents_card_haptic_summary">Vibrate lightly when swiping between cards in horizontal recent tasks</string>
+    <string name="settings_folder_stack_preview_title">Stacked folder preview</string>
+    <string name="settings_folder_stack_preview_summary">Stack up to three icons in the final small-icon area of large folders. Changes apply live.</string>
 </resources>

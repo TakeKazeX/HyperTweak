@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 namespace {
-std::atomic<bool> hidden{false}, recents_haptic{false};
+std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false};
 std::atomic<int32_t> columns{3};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<bool> block{false}, entered{false};
@@ -45,6 +45,11 @@ bool ApplyClearButtonRule(void*) { return true; }
 bool DockFrameRequested() { return false; }
 bool ApplyDockFrameRule(void*) { return true; }
 void ResetDockFrameAfterFork() {}
+void SetFolderStackEnabled(bool value) { folder_stack.store(value); }
+bool FolderStackRequested() { return folder_stack.load(); }
+bool ApplyFolderStackRule(void*) { return true; }
+const char* FolderStackRuleReason() { return "disabled"; }
+void ResetFolderStackAfterFork() {}
 void SetRecentsHapticEnabled(bool value) { recents_haptic.store(value); }
 bool RecentsHapticRequested() { return recents_haptic.load(); }
 bool ApplyRecentsHapticRule(void*) { return true; }
@@ -61,7 +66,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
@@ -108,5 +113,11 @@ int main() {
     Wait(ready, 4);
     usleep(100000);
     assert(ready.load() == 4 && preparations.load() == 5);
-    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic enable/conflict/disable");
+    assert(ReceiveNativeRuleSettings(true, 4, false, 105, false, false, true));
+    Wait(preparations, 6); assert(folder_stack.load());
+    assert(!ReceiveNativeRuleSettings(true, 4, false, 105, false, false, false));
+    assert(folder_stack.load());
+    assert(ReceiveNativeRuleSettings(true, 4, false, 106, false, false, false));
+    Wait(preparations, 7); assert(!folder_stack.load());
+    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic and folder stack enable/conflict/disable");
 }

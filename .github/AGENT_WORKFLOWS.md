@@ -37,6 +37,25 @@ Run `run_recents_haptic_abi_test.py <NDK-clang>` with Unicorn and pyelftools for
 the production observer's enabled/disabled state and complete register/FP state.
 Actual card-switch timing and haptic strength remain manual device acceptance.
 
+For stacked-folder preview changes, compile `folder_stack_rule_test.cpp` with
+`dart_image.cpp`, `dart_targets.cpp` and `dart_resolution_cache.cpp` under ASan/UBSan against the verified external
+snapshot. It covers complete target contracts, corrupt/ambiguous discovery, dynamic
+allocation CIDs, whole-function relocation, shifted strategy fields and inconsistent-field rejection, target-cache identity/evidence, existing-cache enable/disable, foreign geometry, fresh hosts, and
+three-layer count/order mapping without changing the source application list,
+all-stage rollback, callback lock contention, refresh generations, scaled singleton
+slots, scheduler call relationships and patch ownership/remap. Execute
+`run_folder_stack_abi_test.py <NDK-clang>` with Unicorn and pyelftools to verify
+the production getter/count/order/frame/identity/completion shims, including compressed return pointers,
+primitive count/index results, replayed frame stores, continuations, native/Dart
+stacks, SIMD and condition/FP registers. Cover pending/equal epochs, disable
+restoration, uninitialized model/DI, missing targets and a newer epoch arriving
+during refresh; parent layout ID versus original monochrome ID, foreign-isolate
+isolation, actual compressed-array stores and completion ordering. Verify the original frame is popped before the Dart tail transfer. A successful
+lookup is not a frame repaint: preview refresh timing, opening/closing, clicks and
+drag/drop remain manual device acceptance. Run `native_rule_settings_record_test.cpp`
+under ASan/UBSan for persisted schemas 1–4, disabled defaults on migration and
+invalid-field/checksum rejection.
+
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
 
 ```sh

@@ -55,6 +55,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(Preferences.hideRecentsClearButton()) }
+    var folderStack by rememberSaveable { mutableStateOf(Preferences.folderStackPreview()) }
     var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by rememberSaveable { mutableIntStateOf(Preferences.openedFolderColumns()) }
@@ -127,6 +128,16 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             },
                             title = stringResource(R.string.settings_assistant_android_widgets_title),
                             summary = stringResource(R.string.settings_assistant_android_widgets_summary)
+                        )
+                        SwitchPreference(
+                            checked = folderStack,
+                            onCheckedChange = {
+                                folderStack = it
+                                Preferences.putBoolean(Preferences.KEY_FOLDER_STACK_PREVIEW, it)
+                                NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, folderStack = it)
+                            },
+                            title = stringResource(R.string.settings_folder_stack_preview_title),
+                            summary = stringResource(R.string.settings_folder_stack_preview_summary)
                         )
                         OverlayDropdownPreference(
                             title = stringResource(R.string.settings_opened_folder_columns_title),
