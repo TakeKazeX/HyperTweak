@@ -39,7 +39,8 @@ object NativeRuleConfig {
         contextualSearchLongPress: Boolean = Preferences.contextualSearchLongPress(),
         assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant(),
         recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
-        folderStack: Boolean = Preferences.folderStackPreview()
+        folderStack: Boolean = Preferences.folderStackPreview(),
+        widgetStack: Boolean = Preferences.androidWidgetStack()
     ) {
         val contents = buildString {
             append(KEY_HIDE_RECENTS_CLEAR)
@@ -58,6 +59,10 @@ object NativeRuleConfig {
             append(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT)
             append('=')
             append(if (assistantWidgets) '1' else '0')
+            append('\n')
+            append(Preferences.KEY_ANDROID_WIDGET_STACK)
+            append('=')
+            append(if (widgetStack) '1' else '0')
             append('\n')
             append(Preferences.KEY_FOLDER_STACK_PREVIEW)
             append('=')

@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 namespace {
-std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false};
+std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false};
 std::atomic<int32_t> columns{3};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<bool> block{false}, entered{false};
@@ -45,6 +45,11 @@ bool ApplyClearButtonRule(void*) { return true; }
 bool DockFrameRequested() { return false; }
 bool ApplyDockFrameRule(void*) { return true; }
 void ResetDockFrameAfterFork() {}
+void SetAndroidWidgetStackEnabled(bool value) { widget_stack.store(value); }
+bool AndroidWidgetStackRequested() { return widget_stack.load(); }
+bool ApplyAndroidWidgetStackRule(void*) { return true; }
+const char* AndroidWidgetStackRuleReason() { return "disabled"; }
+void ResetAndroidWidgetStackAfterFork() {}
 void SetFolderStackEnabled(bool value) { folder_stack.store(value); }
 bool FolderStackRequested() { return folder_stack.load(); }
 bool ApplyFolderStackRule(void*) { return true; }
@@ -66,7 +71,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
@@ -119,5 +124,13 @@ int main() {
     assert(folder_stack.load());
     assert(ReceiveNativeRuleSettings(true, 4, false, 106, false, false, false));
     Wait(preparations, 7); assert(!folder_stack.load());
-    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic and folder stack enable/conflict/disable");
+    // The widget-stack bit rides the same schema and revision rules: an accepted
+    // snapshot enables it, a stale revision is rejected without changing it.
+    assert(ReceiveNativeRuleSettings(true, 4, false, 107, false, false, false, true));
+    Wait(preparations, 8); assert(widget_stack.load());
+    assert(!ReceiveNativeRuleSettings(true, 4, false, 107, false, false, false, false));
+    assert(widget_stack.load());
+    assert(ReceiveNativeRuleSettings(true, 4, false, 108, false, false, false, false));
+    Wait(preparations, 9); assert(!widget_stack.load());
+    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic, folder stack and widget stack enable/conflict/disable");
 }

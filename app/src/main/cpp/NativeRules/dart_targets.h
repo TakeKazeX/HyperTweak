@@ -136,6 +136,10 @@ extern const TargetSpec kAssistantWidgetTarget;
 extern const TargetSpec kDockFrameTarget;
 extern const TargetSpec kRecentsHapticTarget;
 extern const TargetSpec kFolderStackTarget;
+extern const TargetSpec kWidgetStackTarget;
+struct WidgetStackLayout { uint32_t field, cid; uintptr_t drag_success, target_success; };
+bool DecodeWidgetStackLayout(const Image&, uintptr_t drag, uintptr_t target,
+                             uintptr_t serializer, WidgetStackLayout*);
 struct FolderStackLayout {
     uintptr_t patch, children_count, children_loop;
     uintptr_t frame_return, refresh, refresh_id, refresh_return;

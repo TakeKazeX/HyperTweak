@@ -1207,6 +1207,9 @@ object Preferences {
      */
     const val KEY_HIDE_RECENTS_CLEAR_BUTTON = "hide_recents_clear_button"
 
+    /** Native same-span Android AppWidget stack eligibility. */
+    const val KEY_ANDROID_WIDGET_STACK = "android_widget_stack"
+
     /** Live stacked preview in the final small-icon cell of native large folders. */
     const val KEY_FOLDER_STACK_PREVIEW = "folder_stack_preview"
 
@@ -1281,6 +1284,7 @@ object Preferences {
         }
     }
 
+    fun androidWidgetStack(): Boolean = getBoolean(KEY_ANDROID_WIDGET_STACK, false)
     fun folderStackPreview(): Boolean = getBoolean(KEY_FOLDER_STACK_PREVIEW, false)
 
     fun recentsCardHaptic(): Boolean = getBoolean(KEY_RECENTS_CARD_HAPTIC, false)
@@ -1702,6 +1706,7 @@ object Preferences {
                         editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
                         editor.putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
                         editor.putBoolean(KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
+                        editor.putBoolean(KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
                         editor.putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
@@ -1722,6 +1727,7 @@ object Preferences {
                                     putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
                                     putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
                                     putBoolean(KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
+                                    putBoolean(KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
                                     putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
                                     putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                                 }
@@ -1982,7 +1988,7 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == KEY_RECENTS_CARD_HAPTIC || key == KEY_FOLDER_STACK_PREVIEW) key to value else null,
+        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == KEY_RECENTS_CARD_HAPTIC || key == KEY_FOLDER_STACK_PREVIEW || key == KEY_ANDROID_WIDGET_STACK) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 

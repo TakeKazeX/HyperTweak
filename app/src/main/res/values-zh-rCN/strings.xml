@@ -1581,4 +1581,6 @@
     <string name="settings_recents_card_haptic_summary">在横向最近任务中，滑动切换卡片时轻微震动</string>
     <string name="settings_folder_stack_preview_title">大文件夹层叠预览</string>
     <string name="settings_folder_stack_preview_summary">将大文件夹末尾的小图标区改为三层堆叠，开关实时生效</string>
+    <string name="settings_android_widget_stack_title">安卓小组件支持堆叠</string>
+    <string name="settings_android_widget_stack_summary">允许安卓小组件加入同尺寸的 Widget 堆叠</string>
 </resources>

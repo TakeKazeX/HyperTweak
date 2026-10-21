@@ -5,6 +5,7 @@
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
 #include "assistant_widget_rule.h"
+#include "widget_stack_rule.h"
 #include <assert.h>
 #include <fstream>
 #include <iterator>
@@ -58,10 +59,19 @@ extern "C" void HyperTweakFolderPreviewItemsMaxCountHook() {}
 extern "C" void HyperTweakFolderPreviewSetItemsHook() {}
 extern "C" void HyperTweakFolderOpenHook() {}
 extern "C" void HyperTweakAssistantWidgetGateHook() {}
+extern "C" void HyperTweakWidgetStackDragHook() {}
+extern "C" void HyperTweakWidgetStackTargetHook() {}
 extern "C" uintptr_t hypertweak_assistant_widget_reject;
 extern "C" uintptr_t hypertweak_assistant_widget_accepted;
 extern "C" uintptr_t hypertweak_assistant_widget_field;
 extern "C" uint32_t hypertweak_assistant_widget_cid;
+extern "C" uint32_t hypertweak_widget_stack_requested;
+extern "C" uint32_t hypertweak_widget_stack_ready;
+extern "C" uintptr_t hypertweak_widget_stack_field;
+extern "C" uintptr_t hypertweak_widget_stack_drag_success;
+extern "C" uintptr_t hypertweak_widget_stack_drag_reject;
+extern "C" uintptr_t hypertweak_widget_stack_target_success;
+extern "C" uintptr_t hypertweak_widget_stack_target_reject;
 namespace hypertweak::native {
 void* NativeRuleCurrentDartHandle() { return reinterpret_cast<void*>(1); }
 void LogInfo(const char*, ...) {}
@@ -97,6 +107,10 @@ int main(int argc, char** argv) {
     // even though the production structural resolver had succeeded.
     const auto widget_contract = dart::ResolveTarget(image, dart::kAssistantWidgetTarget);
     assert(widget_contract.resolved && widget_contract.verified);
+    // Same reason: the paired widget-stack gates must be captured from the
+    // unpatched image, because later assertions patch them.
+    const auto stack_contract = dart::ResolveTarget(image, dart::kWidgetStackTarget);
+    assert(stack_contract.resolved && stack_contract.verified && stack_contract.site_count == 3u);
     uintptr_t widget_offset = 0u, widget_type_offset = 0u;
     for (size_t i = 0; i < widget_contract.site_count; ++i) {
         const auto& site = widget_contract.sites[i];
@@ -244,5 +258,55 @@ int main(int argc, char** argv) {
     assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && installs == before + 2u);
     SetAssistantWidgetAllowed(false);
     assert(ApplyAssistantWidgetRule(reinterpret_cast<void*>(1)) && hooks.size() == 1u);
+
+    // Android widget stack: prepared targets only, paired gates, disable is passive.
+    SetAndroidWidgetStackEnabled(true);
+    assert(!ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1))); // no input scan
+    assert(strcmp(AndroidWidgetStackRuleReason(), "dart_preparation_pending") == 0);
+    assert(PrepareDartRuleTargets(reinterpret_cast<void*>(1), false, false, false, false, false, false, true));
+    auto* drag_gate = snapshot.data() + stack_contract.sites[0].offset;
+    auto* target_gate = snapshot.data() + stack_contract.sites[1].offset;
+    uint32_t drag_word = 0u, target_word = 0u, drag_branch = 0u, target_branch = 0u;
+    memcpy(&drag_word, drag_gate, 4u);
+    memcpy(&target_word, target_gate, 4u);
+    memcpy(&drag_branch, drag_gate - 4, 4u);
+    memcpy(&target_branch, target_gate - 4, 4u);
+    const unsigned stack_before = installs;
+    assert(ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)));
+    assert(installs == stack_before + 2u && hooks.size() == 3u);
+    assert(hypertweak_widget_stack_field == ((drag_word >> 12u) & 0x1ffu));
+    assert(hypertweak_widget_stack_field == ((target_word >> 12u) & 0x1ffu));
+    // The shim replaces the conditional branch itself, so success resumes at
+    // that branch's target (the b.ne and the tbz agree on it); rejection resumes
+    // one instruction past the four replayed words.
+    uintptr_t drag_target = 0u, target_target = 0u;
+    assert(dart::DecodeTestBranchTarget(
+        static_cast<uintptr_t>(drag_gate - snapshot.data()) - 4u, drag_branch, &drag_target));
+    assert(dart::DecodeTestBranchTarget(
+        static_cast<uintptr_t>(target_gate - snapshot.data()) - 4u, target_branch, &target_target));
+    assert(hypertweak_widget_stack_drag_success ==
+           reinterpret_cast<uintptr_t>(snapshot.data()) + drag_target);
+    assert(hypertweak_widget_stack_target_success ==
+           reinterpret_cast<uintptr_t>(snapshot.data()) + target_target);
+    assert(hypertweak_widget_stack_drag_reject == reinterpret_cast<uintptr_t>(drag_gate) + 16u);
+    assert(hypertweak_widget_stack_target_reject == reinterpret_cast<uintptr_t>(target_gate) + 16u);
+    const unsigned stack_installed = installs;
+    // Repeated application is idempotent while the owned patch is intact.
+    assert(ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)) && installs == stack_installed);
+    // A remap restores stock bytes; the rule repairs its own two sites only.
+    for (const auto& hook : hooks) memcpy(hook.first, hook.second.data(), 16u);
+    assert(ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)) && installs == stack_installed + 2u);
+    // Another owner's patch at either gate must never inherit our continuations.
+    target_gate[0] ^= 1u;
+    assert(!ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)));
+    assert(strcmp(AndroidWidgetStackRuleReason(), "foreign_patch_detected") == 0);
+    target_gate[0] ^= 1u;
+    assert(ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)));
+    // Disable keeps the passive shims: they read the live flag and run stock.
+    SetAndroidWidgetStackEnabled(false);
+    assert(ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1)));
+    assert(strcmp(AndroidWidgetStackRuleReason(), "disabled") == 0);
+    assert(hypertweak_widget_stack_requested == 0u);
+    assert(hypertweak_widget_stack_ready == 0u);
     puts("PASS: cache identity/corruption/bounds/relocation, readiness, input deferral, idempotent apply, remap repair, and foreign-hook preservation");
 }

@@ -53,7 +53,7 @@ during refresh; parent layout ID versus original monochrome ID, foreign-isolate
 isolation, actual compressed-array stores and completion ordering. Verify the original frame is popped before the Dart tail transfer. A successful
 lookup is not a frame repaint: preview refresh timing, opening/closing, clicks and
 drag/drop remain manual device acceptance. Run `native_rule_settings_record_test.cpp`
-under ASan/UBSan for persisted schemas 1–4, disabled defaults on migration and
+under ASan/UBSan for persisted schemas 1–5, disabled defaults on migration and
 invalid-field/checksum rejection.
 
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
@@ -63,6 +63,19 @@ python3 app/src/test/cpp/run_dart_rule_cache_test.py /absolute/path/to/verified/
 ```
 
 It covers cache identity and corruption, relocation, readiness/input deferral, repeated application, remap recovery, preservation of another owner's patch, and the event-generation gate including self-generated library notifications. The executable and compiler output are temporary; target artifacts remain outside the repository.
+
+For Android-widget-stack target or shim changes, compile `widget_stack_target_test.cpp`
+with `dart_image.cpp` / `dart_targets.cpp` / `dart_resolution_cache.cpp` under ASan/UBSan
+against the verified snapshot. It covers the paired drag/target gates, the shared
+serializer agreement, shifted CID/field operands, span/capacity/serialization/branch
+rejection, whole-family relocation, ambiguous duplicates and persistent-cache evidence.
+Execute the production assembly offline with `run_widget_stack_abi_test.py <NDK-clang>`
+(Unicorn + pyelftools): two gates x enable/disable/partial preparation x MIUI/native flag x
+shifted field x compressed heap base x three NZCV states, asserting register, SIMD, SP, FPCR/FPSR
+and object-memory preservation. `run_dart_rule_cache_test.py` additionally exercises its
+preparation deferral, paired install, remap repair, foreign-patch rejection and passive disable.
+Provider binding, RemoteViews rendering, card paging, drag/dissolve and restart recovery remain
+manual device acceptance.
 
 For assistant-widget target or shim changes, compile `assistant_widget_target_test.cpp`
 with `dart_image.cpp` / `dart_targets.cpp` against the verified snapshot, and execute

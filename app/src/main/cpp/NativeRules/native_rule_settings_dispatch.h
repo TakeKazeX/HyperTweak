@@ -10,6 +10,7 @@ struct NativeRuleSettingsSnapshot {
     int64_t revision = 0;
     bool recents_haptic = false;
     bool folder_stack = false;
+    bool widget_stack = false;
     bool dock_channel = false;
     int32_t dock_port = 0;
     int64_t dock_token0 = 0, dock_token1 = 0;

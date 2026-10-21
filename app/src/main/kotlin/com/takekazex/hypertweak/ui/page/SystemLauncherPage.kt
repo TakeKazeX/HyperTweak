@@ -58,6 +58,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(Preferences.hideRecentsClearButton()) }
+    var widgetStack by rememberSaveable { mutableStateOf(Preferences.androidWidgetStack()) }
     var folderStack by rememberSaveable { mutableStateOf(Preferences.folderStackPreview()) }
     var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
@@ -131,6 +132,16 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             },
                             title = stringResource(R.string.settings_assistant_android_widgets_title),
                             summary = stringResource(R.string.settings_assistant_android_widgets_summary)
+                        )
+                        SwitchPreference(
+                            checked = widgetStack,
+                            onCheckedChange = {
+                                widgetStack = it
+                                Preferences.putBoolean(Preferences.KEY_ANDROID_WIDGET_STACK, it)
+                                NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, widgetStack = it)
+                            },
+                            title = stringResource(R.string.settings_android_widget_stack_title),
+                            summary = stringResource(R.string.settings_android_widget_stack_summary)
                         )
                         SwitchPreference(
                             checked = folderStack,

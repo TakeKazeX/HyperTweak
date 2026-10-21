@@ -33,7 +33,7 @@ internal object RuntimeSettingsGroups {
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
-        Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, "prefs_epoch")
+        Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, "prefs_epoch")
     val strictBooleanKeys = setOf(
         Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
         Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,

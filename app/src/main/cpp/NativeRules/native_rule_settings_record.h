@@ -2,12 +2,12 @@
 #pragma once
 #include <stdint.h>
 namespace hypertweak::native {
-constexpr uint32_t kNativeRuleSettingsSchema = 4u;
+constexpr uint32_t kNativeRuleSettingsSchema = 5u;
 struct NativeRuleSettingsRecord {
     uint32_t schema;
     uint32_t hidden;
     int32_t columns;
-    // Contextual search, Android widgets, card haptics, stacked folder preview.
+    // Contextual search, Android widgets, card haptics, stacked folder preview, Android widget stack.
     uint32_t options;
     uint32_t checksum;
 };

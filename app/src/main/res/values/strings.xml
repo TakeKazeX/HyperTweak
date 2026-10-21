@@ -1590,4 +1590,6 @@
     <string name="settings_recents_card_haptic_summary">Vibrate lightly when swiping between cards in horizontal recent tasks</string>
     <string name="settings_folder_stack_preview_title">Stacked folder preview</string>
     <string name="settings_folder_stack_preview_summary">Stack up to three icons in the final small-icon area of large folders. Changes apply live.</string>
+    <string name="settings_android_widget_stack_title">Stack Android widgets</string>
+    <string name="settings_android_widget_stack_summary">Allow Android widgets to join widget stacks of the same size</string>
 </resources>
