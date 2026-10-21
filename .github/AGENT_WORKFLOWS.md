@@ -162,5 +162,7 @@ Trigger: requested installation or device verification. Reuse that authorization
 Trigger: a commit or cleanup request, not every implementation task.
 
 - Inspect the final diff and selectively stage intended files; run `git diff --check` and `git diff --cached --check`. Commit with a Conventional Commit prefix, then report the hash and remaining status. Do not rerun passed tests solely because a commit was requested.
+- For an authorized PR merge, reuse matching local build/test/lint and device evidence. Do not wait for a duplicate remote build unless branch protection or the user requires it; inspect available CI status and report pending checks accurately. A real failure still needs investigation.
+- Choose the target branch before organizing PR commits. When linear history is requested, rebase onto that baseline and use GitHub rebase merge; avoid creating a temporary merge graph and then rebuilding it. Preserve contributor authorship and unrelated history.
 - Keep local research in ignored `docs/` unless the user explicitly requests tracking it; do not force-add it as part of a general commit.
 - Limit cleanup to requested items or disposable outputs created for this task. Do not infer deletion of pre-existing caches, research, branches, or uncommitted changes. Record any retained evidence needed for reproducibility before deleting task outputs.
