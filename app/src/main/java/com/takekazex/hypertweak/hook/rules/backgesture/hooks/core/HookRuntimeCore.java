@@ -281,15 +281,15 @@ public abstract class HookRuntimeCore {
     protected static final int EDGE_LEFT = 0;
     protected static final int EDGE_RIGHT = 1;
     protected static final String MODULE_MIUI_OVERVIEW_STATE_CHANGE =
-            "dev.codex.miuibackgesturehook.action.MIUI_OVERVIEW_STATE_CHANGE";
+            "com.takekazex.hypertweak.backgesture.action.MIUI_OVERVIEW_STATE_CHANGE";
     protected static final String MODULE_MIUI_HOME_OPEN_BREAK_COMMAND =
-            "dev.codex.miuibackgesturehook.action.MIUI_HOME_OPEN_BREAK";
+            "com.takekazex.hypertweak.backgesture.action.MIUI_HOME_OPEN_BREAK";
     protected static final String MODULE_SYSTEMUI_INPUT_ARBITER_STATE =
             NativeHookStatusProtocol.ACTION_SYSTEMUI_STATE;
     protected static final String MODULE_MIUI_HOME_INPUT_ARBITER_QUERY =
-            "dev.codex.miuibackgesturehook.action.MIUI_HOME_INPUT_ARBITER_QUERY";
+            "com.takekazex.hypertweak.backgesture.action.MIUI_HOME_INPUT_ARBITER_QUERY";
     protected static final String MODULE_CONTEXTUAL_SEARCH_TRIGGERED =
-            "dev.codex.miuibackgesturehook.action.CONTEXTUAL_SEARCH_TRIGGERED";
+            "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_TRIGGERED";
     protected static final String MODULE_RUNTIME_STATUS_QUERY =
             NativeHookStatusProtocol.ACTION_QUERY;
     protected static final String MODULE_RUNTIME_STATUS_REPLY =
@@ -346,8 +346,12 @@ public abstract class HookRuntimeCore {
             NativeHookStatusProtocol.EXTRA_SYSTEMUI_MONITORS;
     protected static final String EXTRA_STATUS_REASON = NativeHookStatusProtocol.EXTRA_REASON;
     protected static final String EXTRA_INPUT_ARBITER_READY = "input_arbiter_ready";
+    // Namespaced so the standalone dev.codex.miuibackgesturehook module, which can be
+    // installed alongside and uses the same Xiaomi fsgesture carrier on Android 17,
+    // never adopts this runtime's arbiter generation (and vice versa). Keep in sync
+    // with kInputArbiterGenerationExtra in NativeRules/miui_home_native_hook.cpp.
     protected static final String EXTRA_INPUT_ARBITER_GENERATION =
-            "input_arbiter_generation";
+            "hypertweak_input_arbiter_generation";
     protected static final String EXTRA_LAUNCHER_STATE_OWNER_EPOCH =
             "launcher_state_owner_epoch";
     protected static final String EXTRA_CONTEXTUAL_SEARCH_ENABLED =

@@ -797,8 +797,13 @@ void MarkLsposedLauncherSpecialized() {
 
 constexpr char kSystemUiPackage[] = "com.android.systemui";
 constexpr char kArbiterStateAction[] =
-        "dev.codex.miuibackgesturehook.action.SYSTEMUI_INPUT_ARBITER_STATE";
+        "com.takekazex.hypertweak.backgesture.action.SYSTEMUI_INPUT_ARBITER_STATE";
 constexpr char kArbiterStateCarrierAction[] = "com.android.systemui.fsgesture";
+// The carrier action is shared with the standalone dev.codex.miuibackgesturehook
+// module. A namespaced generation key keeps the two runtimes from adopting each
+// other's arbiter state. Must match HookRuntimeCore.EXTRA_INPUT_ARBITER_GENERATION.
+constexpr char kInputArbiterGenerationExtra[] =
+        "hypertweak_input_arbiter_generation";
 // `contextual_search_enabled` is intentionally not read from the arbiter broadcast;
 // see ObserveArbiterStateIntent for why the launcher's switch is module-owned.
 constexpr char kPlatformContextualSearchFeature[] =
@@ -806,15 +811,15 @@ constexpr char kPlatformContextualSearchFeature[] =
 constexpr char kGoogleContextualSearchFeature[] =
         "com.google.android.feature.CONTEXTUAL_SEARCH";
 constexpr char kArbiterQueryAction[] =
-        "dev.codex.miuibackgesturehook.action.MIUI_HOME_INPUT_ARBITER_QUERY";
+        "com.takekazex.hypertweak.backgesture.action.MIUI_HOME_INPUT_ARBITER_QUERY";
 constexpr char kContextualSearchTriggeredAction[] =
-        "dev.codex.miuibackgesturehook.action.CONTEXTUAL_SEARCH_TRIGGERED";
+        "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_TRIGGERED";
 constexpr char kRuntimeStatusResponseAction[] =
-        "dev.codex.miuibackgesturehook.action.RUNTIME_STATUS_REPLY";
+        "com.takekazex.hypertweak.backgesture.action.RUNTIME_STATUS_REPLY";
 constexpr char kRuntimeStatusQueryExtra[] = "status_query";
 constexpr char kRuntimeStatusNonceExtra[] = "status_nonce";
 constexpr char kAcceptedStateAction[] =
-        "dev.codex.miuibackgesturehook.action.MIUI_OVERVIEW_STATE_CHANGE";
+        "com.takekazex.hypertweak.backgesture.action.MIUI_OVERVIEW_STATE_CHANGE";
 constexpr char kLauncherStateOwnerEpochExtra[] =
         "launcher_state_owner_epoch";
 
@@ -1216,7 +1221,7 @@ void ObserveArbiterStateIntent(void* intent) {
     // not a feature switch.
     if (!ReadNativeBool(extras, "input_arbiter_ready", &ready) ||
             !ReadNativeI32(extras, "sender_uid", &sender_uid) ||
-            !ReadNativeI64(extras, "input_arbiter_generation", &generation) ||
+            !ReadNativeI64(extras, kInputArbiterGenerationExtra, &generation) ||
             generation <= 0 || !VerifySystemUiUid(sender_uid)) {
         Log(ANDROID_LOG_WARN, "rejected invalid SystemUI arbiter state");
         return;
@@ -1270,7 +1275,7 @@ bool HasArbiterStateMarker(void* intent) {
     if (intent == nullptr || get_extras == nullptr) return false;
     void* extras = get_extras(intent);
     int64_t generation = 0;
-    return ReadNativeI64(extras, "input_arbiter_generation", &generation) &&
+    return ReadNativeI64(extras, kInputArbiterGenerationExtra, &generation) &&
             generation > 0;
 }
 
@@ -1803,7 +1808,7 @@ void PublishDrawerStateForCurrentGeneration() {
             AddBundleBool(extras, "drawer_visible", observed == 2u) &&
             AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
                          static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, "input_arbiter_generation", generation) &&
+            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
             SendNativeBroadcast(kAcceptedStateAction, extras);
     if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
             &g_drawer_published_state, &g_drawer_published_generation,
@@ -1874,7 +1879,7 @@ void PublishOverviewStateForCurrentGeneration() {
             AddBundleBool(extras, "overview_visible", observed == 2u) &&
             AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
                          static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, "input_arbiter_generation", generation) &&
+            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
             SendNativeBroadcast(kAcceptedStateAction, extras);
     if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
             &g_overview_published_state, &g_overview_published_generation,
@@ -1916,7 +1921,7 @@ void PublishHomeSurfaceStateForCurrentGeneration() {
             AddBundleBool(extras, "launcher_home_surface_visible", observed == 2u) &&
             AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
                          static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, "input_arbiter_generation", generation) &&
+            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
             SendNativeBroadcast(kAcceptedStateAction, extras);
     if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
             &g_editing_published_state, &g_editing_published_generation,
@@ -1951,7 +1956,7 @@ bool PublishDartStateOwnerForCurrentGeneration(uint64_t owner_epoch) {
     const bool sent = extras != nullptr &&
             AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
                          static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, "input_arbiter_generation", generation) &&
+            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
             SendNativeBroadcast(kAcceptedStateAction, extras);
     if (sent && AtomicLoad(&g_dart_state_owner_epoch) == owner_epoch &&
             AtomicLoad(&g_systemui_arbiter_generation) == generation) {
@@ -2278,7 +2283,7 @@ void PublishXiaoAiStateForCurrentGeneration() {
     void* extras = bundle_default == nullptr ? nullptr : bundle_default();
     const bool sent = extras != nullptr &&
             AddBundleBool(extras, "xiaoai_visible", observed == 2u) &&
-            AddBundleI64(extras, "input_arbiter_generation", generation) &&
+            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
             SendNativeBroadcast(kAcceptedStateAction, extras);
     if (sent && AtomicLoad(&g_xiaoai_state_observed) == observed &&
             AtomicLoad(&g_systemui_arbiter_generation) == generation) {
@@ -2652,7 +2657,7 @@ bool PublishAcceptedDown(uint32_t edge) {
             !AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
                           static_cast<int64_t>(AtomicLoad(
                                   &g_dart_state_owner_epoch))) ||
-            !AddBundleI64(extras, "input_arbiter_generation", generation)) {
+            !AddBundleI64(extras, kInputArbiterGenerationExtra, generation)) {
         return false;
     }
     return SendNativeBroadcast(kAcceptedStateAction, extras);
