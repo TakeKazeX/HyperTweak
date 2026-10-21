@@ -61,6 +61,11 @@ bool ResolveSideBoundaryProfile(const uint8_t* base, void* app_entry_point,
                                 ResolutionStorage* storage,
                                 ResolutionDiagnostics* diagnostics);
 
+// Read-only broadcast metadata, independent of any side/contextual/Dart hook.
+// This remains resolvable when another gesture owner has patched its own entry.
+bool ResolveBroadcastSupportProfile(const uint8_t* base, void* app_entry_point,
+                                    ResolutionStorage* storage);
+
 // Resolves only the optional Android 17 contextual-search terminal family
 // and overlays it onto an already-validated static launcher profile. This is
 // intentionally independent of the legacy runtime-singleton resolver: newer

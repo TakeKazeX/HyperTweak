@@ -53,13 +53,23 @@ int main(int argc, char** argv) {
     assert(strcmp(storage.profile.id, "runtime-side-v1") == 0);
     assert(storage.profile.side_handler_offset > 0);
     const auto side = diagnostics.side_handler_offset;
+    ResolutionStorage broadcast{};
+    assert(ResolveBroadcastSupportProfile(mapped.data(), mapped.data()+entry, &broadcast));
+    const auto broadcast_profile = broadcast.profile;
+    assert(broadcast_profile.runtime_pointer_offset == storage.profile.runtime_pointer_offset);
+    assert(broadcast_profile.rstring_vtable_offset == storage.profile.rstring_vtable_offset);
+    assert(broadcast_profile.side_handler_offset == 0u);
     uint8_t saved_side[48];
     memcpy(saved_side, mapped.data()+side, sizeof(saved_side));
     memset(mapped.data()+side, 0, sizeof(saved_side));
+    assert(ResolveBroadcastSupportProfile(mapped.data(), mapped.data()+entry, &broadcast));
+    assert(broadcast.profile.runtime_pointer_offset == broadcast_profile.runtime_pointer_offset);
+    assert(broadcast.profile.rstring_vtable_offset == broadcast_profile.rstring_vtable_offset);
     assert(!ResolveSideBoundaryProfile(mapped.data(), mapped.data()+entry, &storage, &diagnostics));
     assert(diagnostics.stage == ResolveStage::kRejectedSideBoundary);
     memcpy(mapped.data()+side, saved_side, sizeof(saved_side));
     memset(mapped.data()+entry, 0, 48);
+    assert(!ResolveBroadcastSupportProfile(mapped.data(), mapped.data()+entry, &broadcast));
     assert(!ResolveSideBoundaryProfile(mapped.data(), mapped.data()+entry, &storage, &diagnostics));
     assert(diagnostics.stage == ResolveStage::kRejectedElf);
 }
