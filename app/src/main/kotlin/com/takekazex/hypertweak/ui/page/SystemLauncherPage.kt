@@ -52,6 +52,9 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
+    val upstreamInstalled = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
+    val backOptionsAvailable = upstreamInstalled == false
+    val upstreamOpenFailed = stringResource(R.string.back_gesture_upstream_open_failed)
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(Preferences.hideRecentsClearButton()) }
@@ -59,7 +62,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by rememberSaveable { mutableIntStateOf(Preferences.openedFolderColumns()) }
-    var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureEnabled()) }
+    var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, false)) }
     var hyperosIndicator by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
     var hyperosHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
     var enhancedHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
@@ -193,13 +196,26 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                     Column(Modifier.fillMaxWidth()) {
                         SwitchPreference(
                             title = stringResource(R.string.back_gesture_enabled_title),
-                            summary = stringResource(R.string.back_gesture_enabled_summary),
+                            summary = stringResource(if (upstreamInstalled == true)
+                                R.string.back_gesture_upstream_summary else R.string.back_gesture_enabled_summary),
                             checked = backGestureEnabled,
+                            enabled = backOptionsAvailable,
                             onCheckedChange = {
                                 backGestureEnabled = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, it)
                             }
                         )
+                        if (upstreamInstalled == true) {
+                            ArrowPreference(
+                                title = stringResource(R.string.back_gesture_open_upstream),
+                                summary = stringResource(R.string.back_gesture_open_upstream_summary),
+                                onClick = {
+                                    if (!com.takekazex.hypertweak.util.UpstreamBackGesture.openSettings(context)) {
+                                        android.widget.Toast.makeText(context, upstreamOpenFailed, android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                        }
                         OverlayDropdownPreference(
                             title = stringResource(R.string.fullscreen_back_behavior_title),
                             summary = stringResource(
@@ -211,7 +227,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                                 stringResource(R.string.fullscreen_back_direct)
                             ),
                             selectedIndex = if (fullscreenDirectBack) 1 else 0,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
                                 fullscreenDirectBack = it == 1
                                 Preferences.putBoolean(Preferences.KEY_FULLSCREEN_DIRECT_BACK, fullscreenDirectBack)
@@ -221,7 +237,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.back_indicator_style_title),
                             items = listOf("AOSP", "HyperOS"),
                             selectedIndex = if (hyperosIndicator) 1 else 0,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
                                 hyperosIndicator = it == 1
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, hyperosIndicator)
@@ -231,7 +247,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.haptic_feedback_effect_title),
                             items = listOf("AOSP", "HyperOS"),
                             selectedIndex = if (hyperosHaptics) 1 else 0,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
                                 hyperosHaptics = it == 1
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, hyperosHaptics)
@@ -241,7 +257,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.hyperos_haptics_enhanced_title),
                             summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
                             checked = enhancedHaptics,
-                            enabled = backGestureEnabled && hyperosHaptics,
+                            enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics,
                             onCheckedChange = {
                                 enhancedHaptics = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
@@ -251,7 +267,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.hyperos_slide_animation_title),
                             summary = stringResource(R.string.hyperos_slide_animation_summary),
                             checked = slideAnimation,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 slideAnimation = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
@@ -261,7 +277,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.back_cross_activity_wallpaper_title),
                             summary = stringResource(R.string.back_cross_activity_wallpaper_summary),
                             checked = crossActivityWallpaper,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 crossActivityWallpaper = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
@@ -271,7 +287,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.back_cross_task_wallpaper_title),
                             summary = stringResource(R.string.back_cross_task_wallpaper_summary),
                             checked = crossTaskWallpaper,
-                            enabled = backGestureEnabled,
+                            enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 crossTaskWallpaper = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)

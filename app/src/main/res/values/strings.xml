@@ -1539,6 +1539,10 @@
     <string name="back_gesture_section">Back gesture</string>
     <string name="back_gesture_enabled_title">Fix predictive back gestures</string>
     <string name="back_gesture_enabled_summary">Customize the back indicator, haptics and animation</string>
+    <string name="back_gesture_upstream_summary">MiuiBackGestureHook is installed. Configure back gestures there to avoid conflicts.</string>
+    <string name="back_gesture_open_upstream">Open MiuiBackGestureHook</string>
+    <string name="back_gesture_open_upstream_summary">Open the module settings without a launcher icon</string>
+    <string name="back_gesture_upstream_open_failed">Unable to open MiuiBackGestureHook settings</string>
     <string name="ime_layout_summary">%1$s · Gesture bar · %2$s</string>
     <string name="back_cross_activity_wallpaper_title">Cross-activity blurred background</string>
     <string name="back_cross_activity_wallpaper_summary">Show blurred home wallpaper when going back within an app</string>

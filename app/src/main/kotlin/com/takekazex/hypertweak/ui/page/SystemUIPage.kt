@@ -128,6 +128,7 @@ fun SystemUIPage(
     onNavigateToAodIcons: () -> Unit
 ) {
     val context = LocalContext.current
+    val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     val scrollBehavior = MiuixScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
     val requestRestartScopes = LocalRestartScopeRequest.current
@@ -663,7 +664,9 @@ fun SystemUIPage(
                             )
                         },
                         title = stringResource(R.string.tweaks_cts_long_press_title),
-                        summary = stringResource(R.string.tweaks_cts_long_press_summary)
+                        summary = stringResource(if (upstreamBackGesture == true)
+                            R.string.back_gesture_upstream_summary else R.string.tweaks_cts_long_press_summary),
+                        enabled = upstreamBackGesture == false
                     )
                     if (PlatformLevel.isOs4) {
                         SwitchPreference(
@@ -671,7 +674,7 @@ fun SystemUIPage(
                             onCheckedChange = onContextualSearchHapticsChange,
                             title = stringResource(R.string.tweaks_cts_haptics_title),
                             summary = stringResource(R.string.tweaks_cts_haptics_summary),
-                            enabled = contextualSearchLongPress
+                            enabled = upstreamBackGesture == false && contextualSearchLongPress
                         )
                     }
                     OverlayDropdownPreference(

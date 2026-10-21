@@ -1530,6 +1530,10 @@
     <string name="back_gesture_section">返回手势</string>
     <string name="back_gesture_enabled_title">修复预测性返回手势</string>
     <string name="back_gesture_enabled_summary">调整返回指示器、震动和动画</string>
+    <string name="back_gesture_upstream_summary">检测到 MiuiBackGestureHook，请在上游模块中配置返回手势，避免冲突。</string>
+    <string name="back_gesture_open_upstream">打开 MiuiBackGestureHook</string>
+    <string name="back_gesture_open_upstream_summary">无需桌面图标，直接进入模块设置</string>
+    <string name="back_gesture_upstream_open_failed">无法打开 MiuiBackGestureHook 设置</string>
     <string name="ime_layout_summary">%1$s · 手势条 · %2$s</string>
     <string name="back_cross_activity_wallpaper_title">跨页面模糊背景</string>
     <string name="back_cross_activity_wallpaper_summary">在应用内返回时显示模糊桌面壁纸</string>
