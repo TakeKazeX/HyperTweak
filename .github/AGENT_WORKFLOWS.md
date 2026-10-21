@@ -92,6 +92,24 @@ Combine selected tasks in one invocation where useful; do not separately repeat 
 
 Fix failures caused by the change and rerun affected checks. Report unrelated failures or unavailable dependencies accurately; they do not justify unrelated repairs or repeated identical attempts. A code-delivery task can finish with explicitly pending manual acceptance; a request to prove device behavior cannot be marked verified without that evidence.
 
+For back-gesture IPC changes, run
+`python3 app/src/test/cpp/run_backgesture_ipc_test.py` and
+`python3 app/src/test/cpp/run_backgesture_owner_test.py`, plus
+`python3 app/src/test/cpp/run_backgesture_broadcast_test.py` in addition to the focused
+back-gesture JVM/host contracts and release build. This compiles the production
+native marker/admission path under ASan/UBSan to reject foreign generations and
+untrusted senders while retaining local generation fencing and feature ownership.
+The owner harness executes the production library callback in both ownership
+modes: upstream owns shared input/contextual/Dart-state hooks while independent
+HyperTweak rules and their authenticated settings receiver continue to run.
+The broadcast harness covers direct/upstream/unknown GOT owners, retaining the
+upstream continuation, install serialization, concurrent mutation and rollback.
+For broadcast-metadata resolver changes, also run `run_launcher_profile_target_test.py`
+against the verified launcher ELF; its side-patched negative control must retain
+read-only broadcast metadata while rejecting shared gesture target discovery.
+Protocol namespace changes require both SystemUI Java and launcher native refresh
+for device delivery; Java hot reload alone cannot update a mapped native payload.
+
 ## Reverse engineering
 
 Use this section when inspecting host APK/JAR behavior or changing the target baseline.
