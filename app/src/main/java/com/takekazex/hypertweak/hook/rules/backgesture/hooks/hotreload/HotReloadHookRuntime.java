@@ -321,6 +321,10 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         installSystemServerHooks(loader);
     }
     public void restoreHotReloadState(Object savedState) {
+        if (com.takekazex.hypertweak.util.UpstreamBackGesture.INSTANCE.getInstalled()) {
+            moduleLog(Log.INFO, TAG, "Upstream module present; back input hosts remain detached after hot reload");
+            return;
+        }
         restoreHotReloadInput(savedState);
         if (SYSTEM_UI.equals(processName)) {
             restoreSystemUiHotReloadLifecycle(runtimeClassLoader);

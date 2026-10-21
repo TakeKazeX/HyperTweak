@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.UpstreamBackGesture
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 
@@ -23,7 +24,8 @@ private fun BaseHooker.backGestureRegistrar() = object : HookRuntimeCore.HookReg
                 id.startsWith("systemui_navigation_bar_controller_") ||
                 id.startsWith("systemui_contextual_search_nav_") ||
                 id == "server_back_navigation_done_cleanup"
-            if (lifecycle || BackGestureRuntimeProvider.runtime.shouldRunBackGestureHooks()) {
+            if (!UpstreamBackGesture.installed &&
+                (lifecycle || BackGestureRuntimeProvider.runtime.shouldRunBackGestureHooks())) {
                 hooker.intercept(chain)
             } else chain.proceed()
         }
@@ -77,6 +79,7 @@ object AospBackSystemUiHooker : StaticHooker() {
      */
     fun onApplicationContextReady(context: Context?) {
         if (Build.VERSION.SDK_INT < 37 || context == null) return
+        UpstreamBackGesture.refresh(context)
         BackGestureRuntimeProvider.runtime.onApplicationContextReady(context)
     }
 
