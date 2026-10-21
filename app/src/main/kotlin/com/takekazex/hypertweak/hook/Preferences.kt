@@ -34,7 +34,8 @@ object Preferences {
     const val KEY_FULLSCREEN_DIRECT_BACK = "fullscreen_direct_back"
 
     private val liveBackSettings = BackGestureSettingsLedger()
-    fun backGestureEnabled(): Boolean = backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
+    fun backGestureEnabled(): Boolean = !com.takekazex.hypertweak.util.UpstreamBackGesture.installed &&
+        backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
         if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {
             if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue

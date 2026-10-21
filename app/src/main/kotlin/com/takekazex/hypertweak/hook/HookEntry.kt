@@ -248,6 +248,9 @@ class HookEntry : XposedModule() {
         })
     }
     private fun attachRuntimeSettingsContext(context: Context) {
+        if (isSystemServer || processName == "com.android.systemui") {
+            com.takekazex.hypertweak.util.UpstreamBackGesture.refresh(context)
+        }
         if (!generationRetired && RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.attach(context)
     }
 

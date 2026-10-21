@@ -30,6 +30,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
+        <package android:name="dev.codex.miuibackgesturehook" />
         <package android:name="com.android.systemui" />
         <!-- Read the stock MIUI glass/color tokens for the native preview surface. -->
         <package android:name="miui.systemui.plugin" />

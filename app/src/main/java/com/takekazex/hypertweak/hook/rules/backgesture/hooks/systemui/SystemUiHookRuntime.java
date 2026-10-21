@@ -6521,6 +6521,10 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
     // Shares the already authenticated native launcher state with other SystemUI features.
     // A null value means no native owner has been observed; Shell remains the fallback.
     private java.util.function.Consumer<Boolean> overviewVisibilityListener;
+    private static final String UPSTREAM_OVERVIEW_ACTION =
+            "dev.codex.miuibackgesturehook.action.MIUI_OVERVIEW_STATE_CHANGE";
+    private final com.takekazex.hypertweak.hook.rules.backgesture.UpstreamOverviewState
+            upstreamOverviewState = new com.takekazex.hypertweak.hook.rules.backgesture.UpstreamOverviewState();
 
     public final synchronized void setOverviewVisibilityListener(
             java.util.function.Consumer<Boolean> listener) {
@@ -6532,7 +6536,8 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
         java.util.function.Consumer<Boolean> listener = overviewVisibilityListener;
         if (listener == null) return;
         try {
-            listener.accept(miuiLauncherDartStateOwnerEpoch > 0L
+            listener.accept(com.takekazex.hypertweak.util.UpstreamBackGesture.INSTANCE.getInstalled()
+                    ? upstreamOverviewState.visible() : miuiLauncherDartStateOwnerEpoch > 0L
                     ? Boolean.valueOf(miuiOverviewVisible) : null);
         } catch (Throwable throwable) {
             moduleLog(Log.WARN, TAG, "Failed to notify launcher overview observer", throwable);
@@ -6585,6 +6590,10 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
             @Override
             public void onReceive(Context receiverContext, Intent intent) {
                 String action = intent == null ? null : intent.getAction();
+                if (UPSTREAM_OVERVIEW_ACTION.equals(action)) {
+                    observeUpstreamOverview(receiverContext, getSentFromUid(), getSentFromPackage(), intent);
+                    return;
+                }
                 if (MODULE_RUNTIME_STATUS_QUERY.equals(action)) {
                     handleModuleRuntimeStatusQuery(receiverContext,
                             getSentFromUid(), getSentFromPackage(), intent);
@@ -6827,6 +6836,7 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
         };
         try {
             IntentFilter filter = new IntentFilter(MODULE_MIUI_OVERVIEW_STATE_CHANGE);
+            filter.addAction(UPSTREAM_OVERVIEW_ACTION);
             filter.addAction(MODULE_MIUI_HOME_INPUT_ARBITER_QUERY);
             filter.addAction(MODULE_CONTEXTUAL_SEARCH_TRIGGERED);
             filter.addAction(MODULE_RUNTIME_STATUS_QUERY);
@@ -7201,6 +7211,25 @@ public abstract class SystemUiHookRuntime extends SystemUiInputRuntime {
                     throwable);
         }
         return false;
+    }
+
+    @SuppressWarnings("deprecation") // Bundle.get preserves strict wire types before primitive reads.
+    private synchronized void observeUpstreamOverview(Context context, int uid,
+                                                       String sender, Intent intent) {
+        if (!com.takekazex.hypertweak.util.UpstreamBackGesture.INSTANCE.getInstalled()
+                || !isTrustedMiuiHomeBroadcastSender(context, uid, sender)) return;
+        Bundle extras = intent.getExtras();
+        if (extras == null) return;
+        Object owner = extras.get(EXTRA_LAUNCHER_STATE_OWNER_EPOCH);
+        Object generation = extras.get("input_arbiter_generation");
+        Object overview = extras.get("overview_visible");
+        if (!(owner instanceof Long) || !(generation instanceof Long)
+                || (extras.containsKey("overview_visible") && !(overview instanceof Boolean))) return;
+        if (upstreamOverviewState.offer((Long) owner, (Long) generation, (Boolean) overview)) {
+            // Visibility is shared with gesture-bar hiding only. Neither accepted
+            // input, HyperTweak's arbiter generation nor native settings are adopted.
+            notifyOverviewVisibilityListener();
+        }
     }
 
     protected synchronized void unregisterMiuiOverviewStateReceiver() {
