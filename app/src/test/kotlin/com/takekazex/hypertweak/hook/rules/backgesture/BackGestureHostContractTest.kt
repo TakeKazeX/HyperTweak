@@ -152,4 +152,27 @@ class BackGestureHostContractTest {
         }
     }
 
+    @Test fun `fullscreen side swipe preserves the native DisplayPolicy callback ownership`() {
+        val classes = classes("BACK_GESTURE_SERVICES_JAR")
+        val policy = classes.getValue("Lcom/android/server/wm/DisplayPolicy;")
+        val callbacks = classes.getValue("Lcom/android/server/wm/DisplayPolicy\$1;")
+        assertTrue(callbacks.interfaces.contains("Lcom/android/server/wm/SystemGesturesPointerEventListener\$Callbacks;"))
+        assertEquals(policy.type, callbacks.fields.single { it.name == "this\$0" }.type)
+        for (name in listOf("onSwipeFromLeft", "onSwipeFromRight")) {
+            val method = callbacks.methods.single { it.name == name && it.parameterTypes.isEmpty() }
+            assertEquals("V", method.returnType)
+            val refs = method.implementation!!.instructions
+                .filterIsInstance<org.jf.dexlib2.iface.instruction.ReferenceInstruction>().map { it.reference }.toList()
+            assertTrue(refs.filterIsInstance<org.jf.dexlib2.iface.reference.MethodReference>()
+                .any { it.name == "requestTransientBars" && it.definingClass == policy.type })
+        }
+        for (name in listOf("mNavigationBar", "mLeftGestureHost", "mRightGestureHost", "mSystemGestures", "mLock")) {
+            assertTrue("Missing native policy field $name", policy.fields.any { it.name == name })
+        }
+        val gestures = classes.getValue("Lcom/android/server/wm/SystemGesturesPointerEventListener;")
+        for (name in listOf("mMouseHoveringAtLeft", "mMouseHoveringAtRight")) {
+            assertEquals("Z", gestures.fields.single { it.name == name }.type)
+        }
+    }
+
 }

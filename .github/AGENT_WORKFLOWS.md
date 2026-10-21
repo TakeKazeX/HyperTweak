@@ -92,6 +92,13 @@ checks the independent native footer lifecycle, both catalog producers, navigato
 `native_rule_settings_dispatch_test.cpp` under ASan/UBSan, which covers an original
 receiver consuming its Intent and ensures capture precedes forwarding.
 
+For native back-gesture status query or receiver changes, run
+`python3 app/src/test/cpp/run_backgesture_status_query_test.py`. It executes the
+production capture and dispatch functions with a consuming OEM receiver under
+ASan/UBSan: ordinary settings publications, authenticated queries, foreign/malformed
+requests, unavailable APIs, owner retirement and original-callback failure. Capture
+borrowed Intent data before forwarding and reply only after the original succeeds.
+
 For native broadcast owned-string allocation/cleanup changes, run
 `python3 app/src/test/cpp/run_owned_rstring_test.py`. It compiles the production
 allocation and pre-setter branch with malloc failure injection and consuming

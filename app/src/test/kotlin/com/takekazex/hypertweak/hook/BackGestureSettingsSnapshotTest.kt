@@ -117,4 +117,28 @@ class BackGestureSettingsSnapshotTest {
             assertNull(BackGestureSettingsSnapshot.read(mapOf("prefs_epoch" to bad)))
         }
     }
+    @Test fun `nine-flag upgrade preserves style and defaults new material and mute off`() {
+        val old = arrayOf<Any>(31L, 5L, true, true, true, true, false, false, false, false, true)
+        val restored = requireNotNull(BackGestureSettingsSnapshot.restore(old))
+        assertEquals(31L, restored.revision)
+        assertEquals(5L, restored.epoch)
+        assertEquals(true, restored.value(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS))
+        assertEquals(false, restored.value(Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR))
+        assertEquals(false, restored.value(Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED))
+    }
+
+    @Test fun `material and mute follow acknowledged reload disable and reset`() {
+        val material = Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR
+        val mute = Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED
+        val enabled = baseline().mutate(material, true, 1).mutate(mute, true, 2)
+        val disabled = enabled.mutate(material, false, 3).mutate(mute, false, 4)
+        val ledger = BackGestureSettingsLedger()
+        assertTrue(ledger.offer(requireNotNull(BackGestureSettingsSnapshot.restore(disabled.save()))))
+        assertFalse(ledger.offer(enabled))
+        assertEquals(false, ledger.latest()?.value(material))
+        assertEquals(false, ledger.latest()?.value(mute))
+        assertTrue(ledger.offer(baseline().copy(epoch = 1)))
+        assertFalse(ledger.offer(enabled.copy(revision = 999)))
+    }
+
 }

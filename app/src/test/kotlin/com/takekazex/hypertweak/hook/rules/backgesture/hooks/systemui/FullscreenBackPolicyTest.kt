@@ -84,7 +84,7 @@ class FullscreenBackPolicyTest {
         transient: Boolean = false,
         headless: Boolean = false,
         directBack: Boolean = false,
-    ) = SystemUiInputRuntime.FullscreenBackPolicy(flags, hidden, transient, headless, directBack)
+    ) = SystemUiInputPolicyRuntime.FullscreenBackPolicy(flags, hidden, transient, headless, directBack)
 
     private companion object {
         const val NAV_BAR_HIDDEN = 1L shl 1

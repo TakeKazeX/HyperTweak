@@ -65,6 +65,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var openedFolderColumns by rememberSaveable { mutableIntStateOf(Preferences.openedFolderColumns()) }
     var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, false)) }
     var hyperosIndicator by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
+    var indicatorBlur by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR, false)) }
+    var hapticsDisabled by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED, false)) }
     var hyperosHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
     var enhancedHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
     var slideAnimation by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
@@ -246,29 +248,37 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                         )
                         OverlayDropdownPreference(
                             title = stringResource(R.string.back_indicator_style_title),
-                            items = listOf("AOSP", "HyperOS"),
-                            selectedIndex = if (hyperosIndicator) 1 else 0,
+                            items = listOf("AOSP", "HyperOS", stringResource(R.string.back_indicator_material_title)),
+                            selectedIndex = if (!hyperosIndicator) 0 else if (indicatorBlur) 2 else 1,
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
-                                hyperosIndicator = it == 1
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, hyperosIndicator)
+                                hyperosIndicator = it != 0
+                                indicatorBlur = it == 2
+                                Preferences.putBackGestureAppearance(mapOf(
+                                    Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR to hyperosIndicator,
+                                    Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR to indicatorBlur
+                                ))
                             }
                         )
                         OverlayDropdownPreference(
                             title = stringResource(R.string.haptic_feedback_effect_title),
-                            items = listOf("AOSP", "HyperOS"),
-                            selectedIndex = if (hyperosHaptics) 1 else 0,
+                            items = listOf("AOSP", "HyperOS", stringResource(R.string.back_gesture_haptics_none)),
+                            selectedIndex = if (hapticsDisabled) 2 else if (hyperosHaptics) 1 else 0,
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
-                                hyperosHaptics = it == 1
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, hyperosHaptics)
+                                hapticsDisabled = it == 2
+                                if (!hapticsDisabled) hyperosHaptics = it == 1
+                                Preferences.putBackGestureAppearance(mapOf(
+                                    Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED to hapticsDisabled,
+                                    Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS to hyperosHaptics
+                                ))
                             }
                         )
                         SwitchPreference(
                             title = stringResource(R.string.hyperos_haptics_enhanced_title),
                             summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
                             checked = enhancedHaptics,
-                            enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics,
+                            enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics && !hapticsDisabled,
                             onCheckedChange = {
                                 enhancedHaptics = it
                                 Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)

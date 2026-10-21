@@ -1048,7 +1048,8 @@ const miui_home_profiles::LauncherProfile* CurrentDartFeatureProfile() {
             ? launcher : nullptr;
 }
 
-bool HandleRuntimeStatusQuery(void* intent);
+int64_t CaptureRuntimeStatusQuery(void* intent);
+bool HandleRuntimeStatusQuery(int64_t nonce);
 void PublishDrawerStateForCurrentGeneration();
 void PublishOverviewStateForCurrentGeneration();
 void PublishHomeSurfaceStateForCurrentGeneration();
@@ -1322,6 +1323,9 @@ void HookBroadcastReceiverOnReceive(void* receiver, void* context, void* intent)
         __atomic_fetch_add(&g_arbiter_state_marked_count, uint32_t{1},
                            __ATOMIC_RELAXED);
         ObserveArbiterStateIntent(intent);
+        // Xiaomi may consume the borrowed Intent. Retain only the authenticated
+        // primitive query identity before forwarding; readiness is evaluated afterwards.
+        const int64_t status_nonce = CaptureRuntimeStatusQuery(intent);
         // Android 17 reuses Xiaomi's protected fsgesture receiver as the
         // carrier. Its native callback owns launcher-side FSG-region refresh;
         // consuming the marked broadcast here leaves later app gestures
@@ -1348,7 +1352,7 @@ void HookBroadcastReceiverOnReceive(void* receiver, void* context, void* intent)
         // A status query deliberately rides this authenticated action. Reply
         // after the original receiver and publisher setup so readiness covers
         // the actual safe drain boundary.
-        HandleRuntimeStatusQuery(intent);
+        if (status_nonce > 0) HandleRuntimeStatusQuery(status_nonce);
         return;
     }
     (void)TryCallOriginalBroadcastReceiverOnReceive(receiver, context, intent);
@@ -2345,42 +2349,42 @@ void PublishXiaoAiStateForCurrentGeneration() {
     AtomicStore(&g_xiaoai_state_publish_in_flight, uint32_t{0});
 }
 
-bool HandleRuntimeStatusQuery(void* intent) {
-    IntentGetSenderPackageFn get_sender =
-            ResolveLauncherSymbol<IntentGetSenderPackageFn>(
-                    "Intent_get_sender_package_name");
-    IntentGetExtrasFn get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>(
-            "Intent_get_extras");
-    if (intent == nullptr || get_sender == nullptr || get_extras == nullptr) {
-        __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                "runtime status query rejected: symbols intent=%p sender=%p extras=%p",
-                intent, reinterpret_cast<void*>(get_sender),
-                reinterpret_cast<void*>(get_extras));
-        return false;
+// Zero means this is not an authenticated status request. Ordinary arbiter/settings
+// publications share the carrier and must neither reply nor log a query rejection.
+int64_t CaptureRuntimeStatusQuery(void* intent) {
+    const auto get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>("Intent_get_extras");
+    if (intent == nullptr || get_extras == nullptr) return 0;
+    void* extras = get_extras(intent);
+    bool query = false;
+    if (!ReadNativeBool(extras, kRuntimeStatusQueryExtra, &query) || !query) return 0;
+    const auto get_sender = ResolveLauncherSymbol<IntentGetSenderPackageFn>(
+            "Intent_get_sender_package_name");
+    if (get_sender == nullptr) {
+        Log(ANDROID_LOG_WARN, "runtime status query rejected: sender API unavailable");
+        return 0;
     }
     const BorrowedROptionRString sender = get_sender(intent);
     if (sender.tag != 0u || sender.data == nullptr ||
             sender.length != ConstStringLength(kSystemUiPackage) ||
             memcmp(sender.data, kSystemUiPackage, sender.length) != 0) {
-        __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                "runtime status query rejected: sender tag=%u data=%p length=%zu",
-                sender.tag, sender.data, sender.length);
-        return false;
+        Log(ANDROID_LOG_WARN, "runtime status query rejected: sender package");
+        return 0;
     }
-    void* extras = get_extras(intent);
-    bool query = false;
     int32_t sender_uid = -1;
     int64_t nonce = 0;
-    if (!ReadNativeBool(extras, kRuntimeStatusQueryExtra, &query) || !query ||
-            !ReadNativeI32(extras, "sender_uid", &sender_uid) ||
+    if (!ReadNativeI32(extras, "sender_uid", &sender_uid) ||
             !ReadNativeI64(extras, kRuntimeStatusNonceExtra, &nonce) ||
             nonce <= 0 || !VerifySystemUiUid(sender_uid)) {
         __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                "runtime status query rejected: extras=%p query=%u uid=%d nonce=%lld",
-                extras, query ? 1u : 0u, sender_uid,
-                static_cast<long long>(nonce));
-        return false;
+                "runtime status query rejected: uid=%d nonce=%lld",
+                sender_uid, static_cast<long long>(nonce));
+        return 0;
     }
+    return nonce;
+}
+
+bool HandleRuntimeStatusQuery(int64_t nonce) {
+    if (nonce <= 0) return false;
     __atomic_fetch_add(&g_runtime_status_query_count, uint32_t{1},
                        __ATOMIC_RELAXED);
     __atomic_store_n(&g_runtime_status_last_nonce,

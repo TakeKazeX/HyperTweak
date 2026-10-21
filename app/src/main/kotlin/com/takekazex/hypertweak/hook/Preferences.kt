@@ -25,6 +25,8 @@ object Preferences {
     const val NAME = "hypertweak_settings"
     const val KEY_BACK_GESTURE_ENABLED = "back_gesture_enabled"
     const val KEY_BACK_GESTURE_HYPEROS_INDICATOR = "hyperos_indicator_style"
+    const val KEY_BACK_GESTURE_INDICATOR_BLUR = "hyperos_indicator_blur"
+    const val KEY_BACK_GESTURE_HAPTICS_DISABLED = "back_gesture_haptics_disabled"
     const val KEY_BACK_GESTURE_HYPEROS_HAPTICS = "hyperos_indicator_haptics"
     const val KEY_BACK_GESTURE_ENHANCED_HAPTICS = "hyperos_indicator_haptics_enhanced"
     const val KEY_BACK_GESTURE_SLIDE_ANIMATION = "hyperos_slide_back_animation"
@@ -1664,7 +1666,7 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, runtimeChanges: Map<String, Any> = emptyMap(), block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
@@ -1691,7 +1693,7 @@ object Preferences {
                             ?: error("native settings baseline unavailable")
                         NativeRuleMutation.apply(baseline, mutation.first, mutation.second, revision)
                     }
-                    val changes = runtimeMutation?.let { mapOf(it) }.orEmpty() + snapshot?.settingsValues().orEmpty()
+                    val changes = runtimeMutation?.let { mapOf(it) }.orEmpty() + runtimeChanges + snapshot?.settingsValues().orEmpty()
                     val runtime = if (changes.isNotEmpty()) RuntimeSettingsSignal.prepare(changes)
                         else RuntimeSettingsSignal.lastAcknowledged()
                     val editor = remotePrefs.edit()
@@ -1990,6 +1992,18 @@ object Preferences {
         memoInvalidate(key)
         write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == KEY_RECENTS_CARD_HAPTIC || key == KEY_FOLDER_STACK_PREVIEW || key == KEY_ANDROID_WIDGET_STACK) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
+    }
+
+    /** Publish a dropdown selection as one acknowledged snapshot, without intermediate styles. */
+    fun putBackGestureAppearance(values: Map<String, Boolean>) {
+        val allowed = setOf(KEY_BACK_GESTURE_HYPEROS_INDICATOR, KEY_BACK_GESTURE_INDICATOR_BLUR,
+            KEY_BACK_GESTURE_HYPEROS_HAPTICS, KEY_BACK_GESTURE_HAPTICS_DISABLED)
+        require(values.isNotEmpty() && values.keys.all { it in allowed })
+        val changes = values.toMap()
+        changes.keys.forEach(::memoInvalidate)
+        write(runtimeChanges = changes) {
+            changes.forEach { (key, value) -> putBoolean(key, value) }
+        }
     }
 
     fun putInt(key: String, value: Int) {

@@ -59,15 +59,6 @@ object AospBackSystemUiHooker : StaticHooker() {
     }
 
     /**
-     * Registers the MiuiHome Overview-state receiver once a SystemUI application context exists.
-     *
-     * The receiver needs an application context, and package-load has none yet, so the runtime's
-     * own install attempt logs a warning and defers to "the input owner". Device logs from
-     * 2026-10-20 show that fallback never ran: no registration line appeared for any SystemUI
-     * start, so every launcher-driven Overview transition was invisible to the module. Package
-     * ready is the first reliable point where the context exists, so it is wired explicitly.
-     */
-    /**
      * Registers the launcher Overview bridge once a SystemUI application context exists.
      *
      * This deliberately does not require [isHooked]: the context becomes available during

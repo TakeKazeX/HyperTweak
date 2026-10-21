@@ -1,6 +1,20 @@
 package com.takekazex.hypertweak.hook.rules.backgesture;
 
 public final class PredictiveBackPreferences {
+    public static final String KEY_HYPEROS_INDICATOR_BLUR = "hyperos_indicator_blur";
+    public static final boolean DEFAULT_HYPEROS_INDICATOR_BLUR = false;
+    public static final String KEY_GESTURE_HAPTICS_DISABLED = "back_gesture_haptics_disabled";
+    public static final int GESTURE_HAPTIC_AOSP = 0;
+    public static final int GESTURE_HAPTIC_HYPEROS = 1;
+    public static final int GESTURE_HAPTIC_DISABLED = 2;
+
+    /** Keep the existing acknowledged Boolean schema and previous haptic selection. */
+    public static int readGestureHapticEffect(android.content.SharedPreferences preferences) {
+        if (preferences.getBoolean(KEY_GESTURE_HAPTICS_DISABLED, false)) return GESTURE_HAPTIC_DISABLED;
+        return preferences.getBoolean(KEY_HYPEROS_HAPTICS, DEFAULT_HYPEROS_HAPTICS)
+                ? GESTURE_HAPTIC_HYPEROS : GESTURE_HAPTIC_AOSP;
+    }
+
     public static final String GROUP = "hypertweak_settings";
     public static final String KEY_PACKAGES = "back_gesture_predictive_packages";
     public static final String KEY_HYPEROS_INDICATOR = "hyperos_indicator_style";
@@ -20,9 +34,6 @@ public final class PredictiveBackPreferences {
     public static final boolean DEFAULT_CROSS_ACTIVITY_WALLPAPER = false;
     public static final String KEY_CROSS_TASK_WALLPAPER = "back_gesture_cross_task_wallpaper";
     public static final boolean DEFAULT_CROSS_TASK_WALLPAPER = false;
-    public static final String KEY_ONEUI_CROSS_TASK_ANIMATION =
-            "oneui_cross_task_animation";
-    public static final boolean DEFAULT_ONEUI_CROSS_TASK_ANIMATION = false;
     public static final String KEY_MODULE_LOGGING = "module_logging";
     public static final boolean DEFAULT_MODULE_LOGGING = true;
     public static final String KEY_CONTEXTUAL_SEARCH_LONG_PRESS =

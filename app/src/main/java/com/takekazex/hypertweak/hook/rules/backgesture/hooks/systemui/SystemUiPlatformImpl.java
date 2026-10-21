@@ -1,18 +1,20 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import android.animation.Animator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
+@SuppressLint("PrivateApi")
 abstract class SystemUiPlatformImpl {
     abstract String name();
 
     abstract Class<?> backAnimationParameterClass(ClassLoader classLoader) throws Exception;
 
     abstract boolean isNavigationOverlayExcluded(Object edgeBackGestureHandler,
-                                                  int x, int y) throws Exception;
+                                                 int x, int y) throws Exception;
 
     abstract Object findNativeEdgeBackPlugin(Object edgeBackGestureHandler) throws Exception;
 

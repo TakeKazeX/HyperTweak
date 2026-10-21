@@ -86,6 +86,16 @@ Download detail hooks select a semantically evidenced renderer, derive the downl
 
 `SecurityCenterPrivacyResolver` reuses the operand/call-graph index to recover privacy gates, native function-card builders and the beauty initializer/support path. No obfuscated owner/member names or ROM-version branches are stored. Missing optional capabilities remain independent; selecting an absent anti-peeping variant preserves the native gates/visibility. Beauty support overrides are scoped to the native initializer with nested/exception-safe thread ownership.
 
+The vendored Android-17 back runtime is split under `hooks/systemui/` into input
+policy/driver/monitor, open-transition tracking, navigation lifecycle, prepared
+transitions, and animation rendering/commit. `NativeLauncherBridgeRuntime` owns
+SystemUI's authenticated native launcher messages; the unused Java launcher
+controller hierarchy and Android-16 back adapters have been removed. Material and
+back-haptic mute are choices in the indicator/haptic dropdowns and join the shared
+Boolean snapshot (both default off). Each dropdown commits its two flags together; mute preserves
+the selected haptic scheme and does not mute contextual search. See
+`docs/BACK_GESTURE_UPSTREAM.md` for the upstream pin and integration boundaries.
+
 ## Shared runtime settings reload
 
 `RuntimeSettingsGroups` registers setting ownership, destinations and resync authorization.

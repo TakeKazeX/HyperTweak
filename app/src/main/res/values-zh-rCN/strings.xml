@@ -1583,4 +1583,6 @@
     <string name="settings_folder_stack_preview_summary">将大文件夹末尾的小图标区改为三层堆叠，开关实时生效</string>
     <string name="settings_android_widget_stack_title">安卓小组件支持堆叠</string>
     <string name="settings_android_widget_stack_summary">允许安卓小组件加入同尺寸的 Widget 堆叠</string>
+    <string name="back_indicator_material_title">HyperOS（高级材质）</string>
+    <string name="back_gesture_haptics_none">关闭</string>
 </resources>

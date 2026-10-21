@@ -25,7 +25,7 @@
 
 **Features → System Launcher** includes OS4 launcher controls such as **Allow Android widgets in Personal assistant**, which supports dragging ordinary Android widgets from the home screen and adding them through the assistant’s classic-widget catalog entry, using native binding, configuration and persistence with ordinary-widget size eligibility restrictions removed and final placement owned by the native layout.
 
-**Features → System Launcher** also includes predictive back gesture repairs, with AOSP/HyperOS indicators and haptic effects, a release haptic, and HyperOS slide animation. Changes apply to the next gesture, and blurred home-wallpaper backgrounds can be enabled separately for cross-activity and cross-task animations (off by default). The first launcher component update requires a launcher refresh or phone restart. Do not enable the standalone MiuiBackGestureHook module at the same time.
+**Features → System Launcher** also includes predictive back gesture repairs, with AOSP/HyperOS indicators and haptic effects, a release haptic, and HyperOS slide animation. The indicator menu also offers HyperOS advanced material, and the haptic menu includes None. Changes apply to the next gesture, and blurred home-wallpaper backgrounds can be enabled separately for cross-activity and cross-task animations (off by default). The first launcher component update requires a launcher refresh or phone restart. Do not enable the standalone MiuiBackGestureHook module at the same time.
 
 ---
 

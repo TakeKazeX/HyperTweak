@@ -28,7 +28,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST
     )
     val backKeys = BackGestureSettingsSnapshot.KEYS.toSet() + setOf(
-        "back_gesture_predictive_packages", "oneui_cross_task_animation", "contextual_search_long_press",
+        "back_gesture_predictive_packages", "contextual_search_long_press",
         "gesture_trigger_height_percent", "gesture_trigger_position_percent", "aosp_gesture_hyperos_haptics"
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,

@@ -135,4 +135,24 @@ class RuntimeSettingsSnapshotTest {
             Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to "true"
         )))
     }
+    @Test fun dropdownSelectionKeepsBothFlagsInOneAcknowledgedGeneration() {
+        val indicator = Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR
+        val material = Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR
+        val baseline = RuntimeSettingsSnapshot.read(1, mapOf(indicator to false, material to false))!!
+        val selection = RuntimeSettingsSnapshot.read(2, baseline.values + mapOf(indicator to true, material to true))!!
+        val ledger = RuntimeSettingsLedger()
+        assertTrue(ledger.accept(baseline))
+        assertEquals(setOf(RuntimeSettingsGroups.BACK), ledger.changedGroups(selection))
+        assertTrue(ledger.accept(selection))
+        val replacement = RuntimeSettingsLedger()
+        replacement.restore(ledger.save())
+        assertEquals(true, replacement.value(indicator))
+        assertEquals(true, replacement.value(material))
+        // A delayed intermediate/failed edit cannot turn the restored material back off.
+        assertFalse(replacement.accept(baseline.mutate(indicator, true, 2)!!))
+        assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>())!!))
+        assertNull(replacement.value(indicator))
+        assertNull(replacement.value(material))
+    }
+
 }

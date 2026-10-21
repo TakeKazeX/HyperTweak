@@ -3,24 +3,19 @@ package com.takekazex.hypertweak.hook.rules.backgesture.hooks.core;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
-import android.view.IRemoteAnimationFinishedCallback;
-import android.view.IRemoteAnimationRunner;
 import android.view.MotionEvent;
 import android.view.SurfaceControl;
 import android.view.View;
 import android.window.BackNavigationInfo;
-import android.window.IOnBackInvokedCallback;
 import android.window.TransitionInfo;
 import android.window.WindowOnBackInvokedDispatcher;
 
@@ -39,7 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.takekazex.hypertweak.BuildConfig;
-import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences;
 import com.takekazex.hypertweak.hook.rules.backgesture.NativeHookStatusProtocol;
 import io.github.libxposed.api.XposedInterface;
 import com.takekazex.hypertweak.hook.Preferences;
@@ -93,8 +87,6 @@ public abstract class HookRuntimeCore {
 
     protected abstract boolean isHyperOsSlideAnimationEnabled();
 
-    protected abstract boolean isOneUiCrossTaskAnimationEnabled();
-
     protected abstract Method requireExactDeclaredMethod(
             Class<?> owner, String methodName, String returnTypeName,
             String... parameterTypeNames) throws NoSuchMethodException;
@@ -111,9 +103,6 @@ public abstract class HookRuntimeCore {
     protected static final int APPLICATION_PREDICTIVE_BACK_ENABLE_FLAG = 0x8;
     protected static final int ACTIVITY_PREDICTIVE_BACK_ENABLE_FLAG = 0x4;
     protected static final int ACTIVITY_PREDICTIVE_BACK_DISABLE_FLAG = 0x8;
-    protected static final int UNIFIED_CONFIG_HOOK_PENDING = 0;
-    protected static final int UNIFIED_CONFIG_HOOK_RUNNING = 1;
-    protected static final int UNIFIED_CONFIG_HOOK_COMPLETED = 2;
 
     protected static final String EDGE_BACK_GESTURE_HANDLER =
             "com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler";
@@ -123,99 +112,7 @@ public abstract class HookRuntimeCore {
             "com.android.systemui.navigationbar.gestural.BackPanel";
     protected static final String MIUI_OVERVIEW_PROXY =
             "com.android.systemui.recents.MiuiOverviewProxy";
-    protected static final String MIUI_HOME_GESTURE_STUB =
-            "com.miui.home.recents.GestureStubView";
-    protected static final String MIUI_HOME_GESTURE_PROCESSOR =
-            "com.miui.home.recents.GesturesBackTouchProcessor";
-    protected static final String MIUI_HOME_RECENTS_CONTAINER =
-            "com.miui.home.recents.views.RecentsContainer";
-    protected static final String MIUI_HOME_TASK_VIEW =
-            "com.miui.home.recents.views.TaskView";
-    protected static final String MIUI_HOME_STATE_NOTIFY_UTILS =
-            "com.miui.home.recents.util.StateNotifyUtils";
-    protected static final String MIUI_HOME_BACK_GESTURE_BREAK_CONTROLLER =
-            "com.miui.home.recents.BackGestureBreakController";
-    protected static final String MIUI_HOME_WINDOW_ELEMENT_ANIM_LISTENER =
-            "com.miui.home.recents.anim.StateManager$windowElementAnimListener$1";
-    protected static final String MIUI_HOME_STATE_MANAGER =
-            "com.miui.home.recents.anim.StateManager";
-    protected static final String MIUI_HOME_WINDOW_ELEMENT =
-            "com.miui.home.recents.anim.WindowElement";
-    protected static final String MIUI_HOME_REMOTE_TRANSITION_INFO =
-            "com.miui.home.recents.event.RemoteTransitionInfo";
-    protected static final String MIUI_HOME_WINDOW_TRANSITION_COMPAT =
-            "com.android.systemui.shared.recents.system.WindowTransitionCompat";
-    protected static final String MIUI_HOME_WINDOW_TRANSITION_CALLBACK_HELPER =
-            "com.android.systemui.shared.recents.utilities.WindowTransitionCallbackHelper";
-    protected static final String MIUI_HOME_ANIM_BACKGROUND_THREAD =
-            "com.miui.launcher.common.AnimBackgroundThread";
-    protected static final String MIUI_HOME_SHELL_TRANSITION_CALLBACK =
-            "com.android.systemui.shared.recents.utilities.ShellTransitionCallback";
-    protected static final String MIUI_HOME_RECENT_BLUR_PARAMS =
-            "com.miui.home.recents.anim.RecentBlurParams";
-    protected static final String MIUI_HOME_LAUNCHER_STATE_MANAGER =
-            "com.miui.home.launcher.LauncherStateManager";
-    protected static final String MIUI_HOME_LAUNCHER_STATE =
-            "com.miui.home.launcher.LauncherState";
-    protected static final String MIUI_HOME_BASE_LAUNCHER =
-            "com.miui.home.launcher.BaseLauncher";
-    protected static final String MIUI_HOME_SMALL_WINDOW_STATE_HELPER =
-            "com.miui.home.smallwindow.SmallWindowStateHelper";
-    protected static final String MIUI_HOME_APPLICATION =
-            "com.miui.home.launcher.Application";
-    protected static final String MIUI_HOME_OVERVIEW_PROXY_IMPL =
-            "com.miui.home.recents.OverviewProxyImpl";
-    protected static final String MIUI_HOME_REMOTE_ANIMATION_TARGET_COMPAT =
-            "com.android.systemui.shared.recents.system.RemoteAnimationTargetCompat";
-    protected static final String MIUI_HOME_REMOTE_ANIMATION_TARGET_SET =
-            "com.miui.home.recents.util.RemoteAnimationTargetSet";
-    protected static final String MIUI_HOME_WINDOW_ANIM_PARAMS =
-            "com.miui.home.recents.util.WindowAnimParams";
-    protected static final String MIUI_HOME_RECTF_PARAMS =
-            "com.miui.home.recents.anim.RectFParams";
-    protected static final String MIUI_HOME_RECTF_SPRING_ANIM =
-            "com.miui.home.recents.util.RectFSpringAnim";
-    protected static final String MIUI_HOME_RECTF_SPRING_ANIM_TYPE =
-            MIUI_HOME_RECTF_SPRING_ANIM + "$AnimType";
-    protected static final String MIUI_HOME_WINDOW_ANIM_LISTENER =
-            "com.miui.home.recents.anim.windowanim.WindowAnimListener";
-    protected static final String MIUI_HOME_GESTURE_HOME_CALCULATOR =
-            "com.miui.home.recents.GestureHomeCalculator";
-    protected static final String MIUI_HOME_ANIM_STATUS_PARAM =
-            "com.miui.home.recents.anim.windowanim.sfanim.AnimStatusParam";
-    protected static final String MIUI_HOME_LOCAL_WINDOW_ANIM_IMPLEMENTOR =
-            "com.miui.home.recents.anim.windowanim.LocalWindowAnimImplementor";
-    protected static final String MIUI_HOME_CLIP_ANIMATION_HELPER =
-            "com.miui.home.recents.util.ClipAnimationHelper";
-    protected static final String MIUI_HOME_SYNC_RT_SURFACE_APPLIER =
-            "com.android.systemui.shared.recents.system."
-                    + "SyncRtSurfaceTransactionApplierCompat";
-    protected static final String MIUI_HOME_TRANSACTION_COMPAT =
-            "com.android.systemui.shared.recents.system.TransactionCompat";
-    protected static final String MIUI_HOME_TRANSITION_UTIL =
-            "com.android.wm.shell.util.TransitionUtil";
-    protected static final String MIUI_HOME_SURFACE_PARAMS =
-            MIUI_HOME_SYNC_RT_SURFACE_APPLIER + "$SurfaceParams";
-    protected static final String MIUI_HOME_SURFACE_PARAMS_ARRAY =
-            "[L" + MIUI_HOME_SURFACE_PARAMS + ";";
-    protected static final String MIUI_HOME_CORNER_RADII =
-            "com.android.systemui.shared.recents.utilities.CornerRadii";
-    protected static final String MIUI_HOME_VALUE_CALLBACK =
-            "com.miui.home.recents.anim.IValueCallBack";
-    protected static final String MIUI_HOME_SHORTCUT_MENU_LAYER_ELEMENT =
-            "com.miui.home.recents.anim.ShortcutMenuLayerElement";
-    protected static final String MIUI_HOME_SHORTCUT_MENU_LAYER_PARAMS =
-            "com.miui.home.recents.anim.ShortcutMenuLayerParams";
-    protected static final String MIUI_HOME_BASE_WALLPAPER_ELEMENT =
-            "com.miui.home.recents.anim.BaseWallpaperElement";
-    protected static final String MIUI_HOME_SYSTEM_WALLPAPER_ELEMENT =
-            "com.miui.home.recents.anim.SystemWallpaperElement";
-    protected static final String MIUI_HOME_WALLPAPER_PARAMS =
-            "com.miui.home.recents.anim.WallpaperParam";
-    protected static final String MIUI_HOME_DEVICE_LEVEL_UTILS =
-            "com.miui.home.common.utils.DeviceLevelUtils";
-    protected static final String MIUI_HOME_WINDOW_CORNER_RADIUS_UTIL =
-            "com.miui.home.recents.util.WindowCornerRadiusUtil";
+
     protected static final String NAVIGATION_BAR =
             "com.android.systemui.navigationbar.views.NavigationBar";
     protected static final String NAV_BAR_HELPER =
@@ -237,13 +134,12 @@ public abstract class HookRuntimeCore {
             "com.android.wm.shell.back.CrossActivityBackAnimation";
     protected static final String DEFAULT_CROSS_ACTIVITY_BACK_ANIMATION =
             "com.android.wm.shell.back.DefaultCrossActivityBackAnimation";
-    protected static final String CROSS_TASK_BACK_ANIMATION =
-            "com.android.wm.shell.back.CrossTaskBackAnimation";
+
     protected static final String BACK_ANIMATION_BACKGROUND =
             "com.android.wm.shell.back.BackAnimationBackground";
     // The hard-coded color CrossTaskBackAnimation passes to ensureBackground (0x43433A);
     // used to distinguish its background from cross-activity's task-colored one.
-    protected static final int CROSS_TASK_BACKGROUND_COLOR = 4408122;
+
     protected static final String BACK_TRANSITION_HANDLER =
             "com.android.wm.shell.back.BackAnimationController$BackTransitionHandler";
     protected static final String DEFAULT_TRANSITION_HANDLER =
@@ -260,14 +156,14 @@ public abstract class HookRuntimeCore {
     protected static final String DISPLAY_POLICY = "com.android.server.wm.DisplayPolicy";
 
     protected static final int TRANSACTION_MIUI_ON_GESTURE_LINE_PROGRESS = 4;
-    protected static final int TRANSIT_OPEN = 1;
+
     protected static final int TRANSIT_CLOSE = 2;
     protected static final int TRANSIT_PREDICTIVE_BACK = 13;
     protected static final int TRANSIT_TO_FRONT = 3;
     protected static final int TRANSIT_TO_BACK = 4;
     protected static final int TRANSIT_CHANGE = 6;
     protected static final int FLAG_IS_WALLPAPER = 1 << 1;
-    protected static final int FLAG_TRANSLUCENT = 1 << 2;
+
     protected static final int FLAG_FILLS_TASK = 1 << 10;
     protected static final int FLAG_IS_OCCLUDED = 1 << 15;
     protected static final int FLAG_BACK_GESTURE_ANIMATED = 1 << 17;
@@ -277,7 +173,7 @@ public abstract class HookRuntimeCore {
     protected static final int XIAOMI_PREPARED_HOME_NO_WALLPAPER_CHANGE_FLAGS =
             0x00028000;
     protected static final int XIAOMI_ELEMENT_HOME_CHANGE_FLAGS = 0x00120001;
-    protected static final int FLAG_ONLY_ACTIVITY_RECORD = 1 << 26;
+
     protected static final int EDGE_LEFT = 0;
     protected static final int EDGE_RIGHT = 1;
     protected static final String MODULE_MIUI_OVERVIEW_STATE_CHANGE =
@@ -417,13 +313,11 @@ public abstract class HookRuntimeCore {
     protected static final int WINDOWING_MODE_FREEFORM = 5;
     protected static final float EDGE_TOUCH_WIDTH_DP = 24.0f;
     protected static final float PILFER_THRESHOLD_DP = 8.0f;
-    protected static final float RETURN_HOME_PREVIEW_BLUR_DISTANCE_DP = 48.0f;
+
     protected static final float MIUI_STYLE_SWIPE_START_PX = 20.0f;
     protected static final float MIUI_STYLE_ARROW_SHOW_PX = 180.0f;
     protected static final float AOSP_PROGRESS_THRESHOLD_DP = 412.0f;
-    protected static final float RETURN_HOME_MIN_WINDOW_SCALE = 0.85f;
-    protected static final float RETURN_HOME_WINDOW_MARGIN_DP = 8.0f;
-    protected static final float RETURN_HOME_END_CORNER_RADIUS_DP = 28.0f;
+
     protected static final String MIUI_SIDEBAR_BOUNDS = "sidebar_bounds";
     protected static final float MIUI_SIDEBAR_EXCLUSION_PADDING_DP = 8.0f;
     protected static final long MIUI_OVERVIEW_DISMISS_TIMEOUT_MS = 2500L;
@@ -432,32 +326,7 @@ public abstract class HookRuntimeCore {
     protected static final long DUPLICATE_BACK_PAIR_TIMEOUT_MS = 700L;
     protected static final long DUPLICATE_BACK_UP_INTERVAL_MS = 200L;
     protected static final long INPUT_ACCEPTED_TOKEN_TIMEOUT_MS = 750L;
-    protected static final long RETURN_HOME_DIRECT_CANCEL_CLEANUP_GUARD_MS = 500L;
-    protected static final long RETURN_HOME_NATIVE_TIMEOUT_MS = 1800L;
-    protected static final int RETURN_HOME_GEOMETRY_SOURCE_ANIM_UPDATE = 1;
-    protected static final int RETURN_HOME_GEOMETRY_SOURCE_SURFACE_PARAMS = 2;
-    protected static final int MIUI_SURFACE_PARAM_FLAG_MATRIX = 2;
-    protected static final int MIUI_SURFACE_PARAM_FLAG_WINDOW_CROP = 4;
-    protected static final int MIUI_SURFACE_PARAM_FLAG_CORNER_RADIUS = 16;
-    protected static final int MIUI_SURFACE_PARAM_FLAG_SHOW = 512;
-    protected static final String MIUI_HOME_ICON_CLICK_WITHOUT_RECENT_REASON =
-            "Icon click without recent.";
-    protected static final ComponentName PERMISSION_GRANT_ACTIVITY = new ComponentName(
-            "com.android.permissioncontroller",
-            "com.android.permissioncontroller.permission.ui.GrantPermissionsActivity");
-    protected static final String SHELL_BACK_ANIMATION_DESCRIPTOR =
-            "com.android.wm.shell.back.IBackAnimation";
-    protected static final String ON_BACK_INVOKED_CALLBACK_DESCRIPTOR =
-            IOnBackInvokedCallback.class.getName();
-    protected static final String REMOTE_ANIMATION_RUNNER_DESCRIPTOR =
-            IRemoteAnimationRunner.class.getName();
-    protected static final String REMOTE_ANIMATION_FINISHED_DESCRIPTOR =
-            IRemoteAnimationFinishedCallback.class.getName();
-    protected static final int SHELL_BACK_SET_LAUNCHER_CALLBACK_TRANSACTION = 1;
-    protected static final int SHELL_BACK_CLEAR_LAUNCHER_CALLBACK_TRANSACTION = 2;
-    protected static final int RETURN_HOME_TERMINAL_NONE = 0;
-    protected static final int RETURN_HOME_TERMINAL_CANCEL = 1;
-    protected static final int RETURN_HOME_TERMINAL_INVOKE = 2;
+
     protected static final int REMOTE_RUNNER_MISSING = 0;
     protected static final int REMOTE_RUNNER_CANCELLED = 1;
     protected static final int REMOTE_RUNNER_WAITING = 2;
@@ -489,22 +358,15 @@ public abstract class HookRuntimeCore {
     protected final AtomicLong headlessNavBarLifecycleGeneration = new AtomicLong();
     protected final AtomicLong launcherOpenBreakAttemptIds = new AtomicLong();
     protected final AtomicInteger launcherOpenBreakCommandsInFlight = new AtomicInteger();
-    protected final AtomicLong miuiHomeOpenBreakGenerationIds =
-            new AtomicLong(SystemClock.elapsedRealtimeNanos());
-    protected final AtomicLong miuiHomeOpenBreakCallbackEpoch = new AtomicLong();
+
     protected final AtomicInteger systemUiInputArbiterMonitorCount = new AtomicInteger();
     protected final AtomicLong pendingModuleStatusNonce = new AtomicLong();
-    protected final AtomicLong miuiHomeReturnHomeGenerationIds =
-            new AtomicLong(SystemClock.elapsedRealtimeNanos());
-    protected final AtomicLong miuiHomeLauncherOpenSnapshotIds =
-            new AtomicLong(SystemClock.elapsedRealtimeNanos());
-    protected final AtomicLong miuiHomeNativeGeometryFrameIds = new AtomicLong();
+
     protected final AtomicLong systemUiReturnHomeCommitAttemptIds =
             new AtomicLong(SystemClock.elapsedRealtimeNanos());
     protected final AtomicLong systemUiShellGestureSessionIds =
             new AtomicLong(SystemClock.elapsedRealtimeNanos());
-    protected final ThreadLocal<ReturnHomeNativeGeometrySnapshot>
-            miuiHomePendingNativeGeometry = new ThreadLocal<>();
+
     protected final ThreadLocal<ReturnHomeFinishTransferCandidate>
             returnHomeFinishTransferCandidate = new ThreadLocal<>();
     protected volatile boolean backCommitCompositionHookReady;
@@ -512,18 +374,10 @@ public abstract class HookRuntimeCore {
     protected volatile boolean backFinishOpenCallerDeoptimized;
     protected final AtomicReference<MiuiHomeAcceptedInputToken> acceptedInputToken =
             new AtomicReference<>();
-    protected final AtomicReference<MiuiHomeAcceptedInputToken>
-            miuiHomeAcceptedInputIdentity = new AtomicReference<>();
-    protected final AtomicReference<EndedLauncherOpenWallpaperReset>
-            endedLauncherOpenWallpaperReset = new AtomicReference<>();
+
     protected final AtomicReference<SystemUiReturnHomeCommitIdentity>
             systemUiReturnHomeCommitIdentity = new AtomicReference<>();
-    protected final AtomicReference<MiuiHomeLocalHandoffToken> miuiHomeLocalHandoffToken =
-            new AtomicReference<>();
-    protected final AtomicReference<MiuiHomeLauncherOpenSnapshot>
-            miuiHomeLauncherOpenSnapshot = new AtomicReference<>();
-    protected final AtomicReference<MiuiHomePermissionMergeToken>
-            miuiHomePermissionMergeToken = new AtomicReference<>();
+
     protected final long systemUiInputArbiterGeneration =
             Math.max(1L, SystemClock.elapsedRealtimeNanos());
     protected volatile boolean acceptingOpenSnapshots = true;
@@ -536,53 +390,23 @@ public abstract class HookRuntimeCore {
     protected volatile boolean miuiLauncherHomeSurfaceVisible;
     protected volatile long miuiLauncherDartStateOwnerEpoch;
     protected volatile boolean miuiLauncherXiaoAiVisible;
-    protected volatile boolean miuiHomeEditingStatePublished;
+
     protected volatile boolean miuiLauncherOpenActive;
     protected volatile boolean miuiLauncherOpenBreakAvailable;
     protected volatile long miuiLauncherOpenBreakGeneration;
     protected volatile long miuiOverviewDismissPendingUntilUptime;
     protected Context miuiOverviewReceiverContext;
     protected BroadcastReceiver miuiOverviewReceiver;
-    protected volatile Object miuiHomeOpenBreakController;
-    protected volatile boolean miuiHomeOpenBreakCommandPending;
-    protected volatile long miuiHomeOpenBreakGeneration;
-    protected volatile Object miuiHomeOpenBreakStateManager;
-    protected volatile Object miuiHomeOpenBreakAnimationIdentity;
+
     // The exact native Shell cross-task animation object sourced from the registry.
     // Diagnostic hooks use this identity instead of guessing from color or call stacks.
     protected volatile Object aospCrossTaskAnimation;
-    protected volatile boolean miuiHomeOpenBreakGenerationPrepared;
-    protected volatile boolean miuiHomeOpenBreakAnimationActive;
-    protected Context miuiHomeOpenBreakContext;
-    protected Context miuiHomeOpenBreakCommandReceiverContext;
-    protected BroadcastReceiver miuiHomeOpenBreakCommandReceiver;
-    protected Context miuiHomeInputArbiterReceiverContext;
-    protected BroadcastReceiver miuiHomeInputArbiterReceiver;
-    protected volatile IBinder miuiHomeReturnHomeBinder;
-    protected volatile IBinder pendingMiuiHomeReturnHomeBinder;
-    protected volatile ClassLoader pendingMiuiHomeReturnHomeClassLoader;
-    protected volatile Context pendingMiuiHomeReturnHomeContext;
-    protected volatile String pendingMiuiHomeReturnHomeReason;
-    protected volatile boolean miuiHomeSystemUiInputArbiterReady;
-    protected volatile long miuiHomeSystemUiInputArbiterGeneration;
+
     protected volatile SharedPreferences predictiveBackPreferences;
     protected volatile boolean predictiveBackPreferencesFailureLogged;
     protected volatile boolean predictiveBackApplicationMetadataFailureLogged;
     protected String processName;
 
-    /**
-     * Android 17 MiuiHome is protected from every LSPosed hook in this module. The package
-     * remains in the static scope solely so the same APK can continue supporting Android 16;
-     * libxposed does not provide a platform-conditional scope list.
-     */
-    protected static boolean blockMiuiHomeXposedHooks() {
-        return Build.VERSION.SDK_INT >= ANDROID_17_API_LEVEL;
-    }
-
-    protected static boolean isMiuiHomeProcess(String candidate) {
-        return MIUI_HOME.equals(candidate)
-                || (candidate != null && candidate.startsWith(MIUI_HOME + ":"));
-    }
     protected boolean nativePluginDiagnosticsLogged;
     protected boolean headlessSysUiStateLogged;
     protected volatile Field defaultTransitionAnimationsField;
@@ -600,42 +424,6 @@ public abstract class HookRuntimeCore {
     protected HeadlessNavBarLease headlessNavBarLease;
     protected volatile Object[][] pendingHotReloadInputState = new Object[0][0];
     protected volatile Object[][] pendingHotReloadHeadlessState = new Object[0][0];
-
-    public static final class ReturnHomeNativeGeometrySnapshot {
-        public final long generation;
-        public final Object animationIdentity;
-        public final long frameTraceId;
-        public final int sourceKind;
-        public final float[] matrixValues;
-        public final Rect windowCrop;
-        public final float[] surfaceCornerRadii;
-
-        public ReturnHomeNativeGeometrySnapshot(
-                long generation, Object animationIdentity,
-                float[] matrixValues, Rect windowCrop,
-                float[] surfaceCornerRadii, long frameTraceId,
-                int sourceKind) {
-            this.generation = generation;
-            this.animationIdentity = animationIdentity;
-            this.frameTraceId = frameTraceId;
-            this.sourceKind = sourceKind;
-            this.matrixValues = matrixValues.clone();
-            this.windowCrop = new Rect(windowCrop);
-            this.surfaceCornerRadii = surfaceCornerRadii.clone();
-        }
-
-        public float[] copyMatrixValues() {
-            return matrixValues.clone();
-        }
-
-        public Rect copyWindowCrop() {
-            return new Rect(windowCrop);
-        }
-
-        public float[] copySurfaceCornerRadii() {
-            return surfaceCornerRadii.clone();
-        }
-    }
 
     public static final class HeadlessNavBarLease {
         public final Object controller;
@@ -780,121 +568,6 @@ public abstract class HookRuntimeCore {
             this.controller = controller;
             this.runningTransitionInfo = runningTransitionInfo;
             this.startedUptime = startedUptime;
-        }
-    }
-
-    public static final class MiuiHomeLocalHandoffToken {
-        public final long generation;
-        public final Object session;
-        public final Object windowElement;
-        public final Object windowAnimContext;
-        public final Object status;
-
-        public MiuiHomeLocalHandoffToken(long generation, Object session,
-                                         Object windowElement, Object windowAnimContext,
-                                         Object status) {
-            this.generation = generation;
-            this.session = session;
-            this.windowElement = windowElement;
-            this.windowAnimContext = windowAnimContext;
-            this.status = status;
-        }
-    }
-
-    public static final class LauncherOpenMainTask {
-        public final int taskId;
-        public final int displayId;
-        public final ComponentName component;
-        public final Rect bounds;
-
-        public LauncherOpenMainTask(int taskId, int displayId,
-                                    ComponentName component, Rect bounds) {
-            this.taskId = taskId;
-            this.displayId = displayId;
-            this.component = component;
-            this.bounds = bounds;
-        }
-    }
-
-    public static final class MiuiHomeLauncherOpenSnapshot {
-        public final long generation;
-        public final long nativeGeneration;
-        public final long callbackEpoch;
-        public final Object stateManager;
-        public final Object windowElement;
-        public final Object animationIdentity;
-        public final String animationType;
-        public final Object windowTransitionCompat;
-        public final Object helper;
-        public final Object mainTransitionToken;
-        public final Object mainTransitionInfo;
-        public final int mainTransitionDebugId;
-        public final LauncherOpenMainTask mainTask;
-
-        public MiuiHomeLauncherOpenSnapshot(
-                long generation, long nativeGeneration, long callbackEpoch,
-                Object stateManager,
-                Object windowElement, Object animationIdentity,
-                String animationType, Object windowTransitionCompat,
-                Object helper, Object mainTransitionToken,
-                Object mainTransitionInfo, int mainTransitionDebugId,
-                LauncherOpenMainTask mainTask) {
-            this.generation = generation;
-            this.nativeGeneration = nativeGeneration;
-            this.callbackEpoch = callbackEpoch;
-            this.stateManager = stateManager;
-            this.windowElement = windowElement;
-            this.animationIdentity = animationIdentity;
-            this.animationType = animationType;
-            this.windowTransitionCompat = windowTransitionCompat;
-            this.helper = helper;
-            this.mainTransitionToken = mainTransitionToken;
-            this.mainTransitionInfo = mainTransitionInfo;
-            this.mainTransitionDebugId = mainTransitionDebugId;
-            this.mainTask = mainTask;
-        }
-    }
-
-    public static final class PermissionActivityTransition {
-        public final Object container;
-        public final Object parent;
-        public final SurfaceControl leash;
-        public final ComponentName component;
-        public final Rect startBounds;
-        public final Rect endBounds;
-        public final int debugId;
-        public final int backgroundColor;
-        public final int startDisplayId;
-        public final int endDisplayId;
-
-        public PermissionActivityTransition(
-                Object container, Object parent, SurfaceControl leash,
-                ComponentName component,
-                Rect startBounds, Rect endBounds, int debugId,
-                int backgroundColor, int startDisplayId, int endDisplayId) {
-            this.container = container;
-            this.parent = parent;
-            this.leash = leash;
-            this.component = component;
-            this.startBounds = startBounds;
-            this.endBounds = endBounds;
-            this.debugId = debugId;
-            this.backgroundColor = backgroundColor;
-            this.startDisplayId = startDisplayId;
-            this.endDisplayId = endDisplayId;
-        }
-    }
-
-    public static final class MiuiHomePermissionMergeToken {
-        public final MiuiHomeLauncherOpenSnapshot launcherOpen;
-        public final PermissionActivityTransition permissionOpen;
-        public final AtomicInteger consumed = new AtomicInteger();
-
-        public MiuiHomePermissionMergeToken(
-                MiuiHomeLauncherOpenSnapshot launcherOpen,
-                PermissionActivityTransition permissionOpen) {
-            this.launcherOpen = launcherOpen;
-            this.permissionOpen = permissionOpen;
         }
     }
 
@@ -1052,25 +725,6 @@ public abstract class HookRuntimeCore {
         }
     }
 
-    public static final class ObjectIdentityKey {
-        public final Object object;
-
-        public ObjectIdentityKey(Object object) {
-            this.object = object;
-        }
-
-        @Override
-        public boolean equals(Object candidate) {
-            return candidate instanceof ObjectIdentityKey
-                    && object == ((ObjectIdentityKey) candidate).object;
-        }
-
-        @Override
-        public int hashCode() {
-            return System.identityHashCode(object);
-        }
-    }
-
     // HyperTweak owns configuration, logging and process lifecycle.
     public interface HookRegistrar {
         XposedInterface.HookHandle register(Method method, String id, XposedInterface.Hooker hooker);
@@ -1114,7 +768,6 @@ public abstract class HookRuntimeCore {
         else if (Log.isLoggable(tag, Log.VERBOSE))
             DebugLog.INSTANCE.d(tag, message);
     }
-
 
     public static final class ReturnHomeFinishTransferCandidate {
         public final Object handler;
@@ -1253,33 +906,6 @@ public abstract class HookRuntimeCore {
             return now - receivedUptime > INPUT_ACCEPTED_TOKEN_TIMEOUT_MS
                     || streamAge < 0L
                     || streamAge > INPUT_ACCEPTED_TOKEN_TIMEOUT_MS;
-        }
-    }
-
-    public static final class EndedLauncherOpenWallpaperReset {
-        public final MiuiHomeAcceptedInputToken inputIdentity;
-        public final long callbackEpoch;
-        public final Object stateManager;
-        public final Object animationIdentity;
-        public final Object wallpaperElement;
-        public final float homeZoom;
-
-        public EndedLauncherOpenWallpaperReset(
-                MiuiHomeAcceptedInputToken inputIdentity,
-                long callbackEpoch, Object stateManager,
-                Object animationIdentity,
-                Object wallpaperElement, float homeZoom) {
-            this.inputIdentity = inputIdentity;
-            this.callbackEpoch = callbackEpoch;
-            this.stateManager = stateManager;
-            this.animationIdentity = animationIdentity;
-            this.wallpaperElement = wallpaperElement;
-            this.homeZoom = homeZoom;
-        }
-
-        public boolean matchesCommand(Object element, float zoom) {
-            return wallpaperElement == element
-                    && Float.compare(homeZoom, zoom) == 0;
         }
     }
 

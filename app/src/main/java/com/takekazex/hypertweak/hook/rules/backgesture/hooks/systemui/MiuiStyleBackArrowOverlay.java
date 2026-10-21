@@ -9,11 +9,17 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BitmapShader;
+import android.graphics.BlendMode;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -22,6 +28,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 
@@ -34,6 +41,7 @@ import androidx.annotation.NonNull;
  * appearance stays pixel-identical to the stock HyperOS indicator. All entry points must
  * run on the main Looper except {@link #detach()}, which reposts itself.
  */
+@SuppressLint("DiscouragedApi")
 final class MiuiStyleBackArrowOverlay {
 
     interface Logger {
@@ -67,10 +75,17 @@ final class MiuiStyleBackArrowOverlay {
     private ArrowView view;
     private int attachedEdge = -1;
     private boolean windowAdded;
+    private boolean attachedMaterialRequested;
 
     private Bitmap leftBackground;
     private Bitmap rightBackground;
     private Bitmap arrow;
+    private Bitmap leftMaterialMask;
+    private Bitmap rightMaterialMask;
+    private Bitmap leftMaterialStroke;
+    private Bitmap rightMaterialStroke;
+    private boolean materialRequested;
+    private boolean materialMaskFailureLogged;
     private int loadedDensityDpi = -1;
     private int loadedUiNightMode = -1;
     private boolean resourceFailureLogged;
@@ -123,13 +138,14 @@ final class MiuiStyleBackArrowOverlay {
      * Returns false when the HyperOS skin cannot be shown; callers must then leave the
      * native AOSP panel visible.
      */
-    boolean prepare(int edge) {
+    boolean prepare(int edge, boolean blurEnabled) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             return false;
         }
         if (!loadResources()) {
             return false;
         }
+        materialRequested = blurEnabled && loadMaterialMasks();
         try {
             ensureWindow(edge);
             return view != null && windowAdded;
@@ -183,6 +199,7 @@ final class MiuiStyleBackArrowOverlay {
         ArrowView current = view;
         view = null;
         attachedEdge = -1;
+        attachedMaterialRequested = false;
         boolean added = windowAdded;
         windowAdded = false;
         if (current != null) {
@@ -202,7 +219,8 @@ final class MiuiStyleBackArrowOverlay {
     }
 
     private void ensureWindow(int edge) {
-        if (view != null && windowAdded && attachedEdge == edge) {
+        if (view != null && windowAdded && attachedEdge == edge
+                && attachedMaterialRequested == materialRequested) {
             // prepare() is called for every ACTION_DOWN.  A cancelled gesture may
             // still be running its 100ms retract animation, so clear the reused
             // view before the next stream gets a chance to draw it.
@@ -216,10 +234,9 @@ final class MiuiStyleBackArrowOverlay {
             attachWindow(windowManager, edge);
             return;
         }
-        // Do not move a visible ViewRoot/Surface between edges. WindowManager applies
-        // that relayout asynchronously, and the old buffer can be displayed at the
-        // new location for one frame. A fresh window starts with a transparent view
-        // and therefore cannot carry the previous edge's buffer across the switch.
+        // Recreate the ViewRoot when the edge or material sampling width changes.
+        // Relayout is asynchronous and can display an old buffer for one frame;
+        // a fresh window starts with a transparent view and the required extent.
         ArrowView oldView = view;
         oldView.resetForNewGesture(edge == EDGE_LEFT
                 ? ArrowView.POSITION_LEFT : ArrowView.POSITION_RIGHT);
@@ -240,6 +257,7 @@ final class MiuiStyleBackArrowOverlay {
         view = null;
         windowAdded = false;
         attachedEdge = -1;
+        attachedMaterialRequested = false;
         attachWindow(windowManager, edge);
     }
 
@@ -252,6 +270,7 @@ final class MiuiStyleBackArrowOverlay {
         view = created;
         windowAdded = true;
         attachedEdge = edge;
+        attachedMaterialRequested = materialRequested;
         logger.log(Log.INFO, "Attached HyperOS-style back indicator window"
                 + ", edge=" + edge
                 + ", width=" + params.width, null);
@@ -270,8 +289,12 @@ final class MiuiStyleBackArrowOverlay {
     }
 
     private WindowManager.LayoutParams buildLayoutParams(int edge) {
-        int width = Math.max(1, Math.round(
-                leftBackground.getWidth() * MAX_BACKGROUND_SCALE) + 1);
+        // PassBlur's source coordinates and consumer extent belong to the window.
+        // Use a display-wide sampler for material, while its owned child remains
+        // clipped to the existing water-drop contour. The window receives no input.
+        int width = materialRequested ? WindowManager.LayoutParams.MATCH_PARENT
+                : Math.max(1, Math.round(
+                        leftBackground.getWidth() * MAX_BACKGROUND_SCALE) + 1);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 width,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -279,6 +302,7 @@ final class MiuiStyleBackArrowOverlay {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                         | WindowManager.LayoutParams.FLAG_SPLIT_TOUCH,
                 PixelFormat.TRANSLUCENT);
         params.setTitle("MiuiBackGestureHookIndicator");
@@ -294,7 +318,6 @@ final class MiuiStyleBackArrowOverlay {
         return Gravity.TOP | (edge == EDGE_LEFT ? Gravity.LEFT : Gravity.RIGHT);
     }
 
-    @SuppressLint("DiscouragedApi")
     private boolean loadResources() {
         Configuration configuration = context.getResources().getConfiguration();
         int densityDpi = configuration.densityDpi;
@@ -329,6 +352,10 @@ final class MiuiStyleBackArrowOverlay {
                     loadedBackground.getWidth(), loadedBackground.getHeight(),
                     rotate, true);
             arrow = loadedArrow;
+            leftMaterialMask = null;
+            rightMaterialMask = null;
+            leftMaterialStroke = null;
+            rightMaterialStroke = null;
             loadedDensityDpi = densityDpi;
             loadedUiNightMode = uiNightMode;
             resourceFailureLogged = false;
@@ -349,13 +376,57 @@ final class MiuiStyleBackArrowOverlay {
         }
     }
 
+    private boolean loadMaterialMasks() {
+        if (leftMaterialMask != null && rightMaterialMask != null
+                && leftMaterialStroke != null && rightMaterialStroke != null) {
+            return true;
+        }
+        try {
+            // Keep the resource's fractional edge coverage. Thresholding it into a
+            // Region loses antialiasing and leaves a staircase around the material.
+            int width = leftBackground.getWidth();
+            int height = leftBackground.getHeight();
+            if ((long) width * height > 2_000_000L) {
+                throw new IllegalStateException("Indicator mask exceeds bounded bitmap size");
+            }
+            int[] pixels = new int[width * height];
+            leftBackground.getPixels(pixels, 0, width, 0, 0, width, height);
+            int[] strokePixels = pixels.clone();
+            MiuiIndicatorMask.isolateWhiteStroke(strokePixels);
+            Bitmap leftStroke = Bitmap.createBitmap(
+                    strokePixels, width, height, Bitmap.Config.ARGB_8888);
+            MiuiIndicatorMask.normalizeAlpha(pixels);
+            Bitmap left = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888);
+            Matrix mirror = new Matrix();
+            mirror.setScale(-1.0f, -1.0f);
+            mirror.postTranslate(width, height);
+            Bitmap right = Bitmap.createBitmap(left, 0, 0, width, height, mirror, true);
+            Bitmap rightStroke = Bitmap.createBitmap(
+                    leftStroke, 0, 0, width, height, mirror, true);
+            leftMaterialMask = left;
+            rightMaterialMask = right;
+            leftMaterialStroke = leftStroke;
+            rightMaterialStroke = rightStroke;
+            materialMaskFailureLogged = false;
+            return true;
+        } catch (Throwable throwable) {
+            if (!materialMaskFailureLogged) {
+                materialMaskFailureLogged = true;
+                logger.log(Log.WARN,
+                        "HyperOS indicator material mask unavailable; keeping bitmap",
+                        throwable);
+            }
+            return false;
+        }
+    }
+
     /**
      * Drawing port of {@code com.miui.home.recents.GestureBackArrowView}. The background
      * water-drop scales with {@code laterFriction} damping and the arrow fades in/out with
      * the original 100ms/50ms cubic-ease animations. Haptics stay with the hidden native
      * BackPanelController, so this view never vibrates.
      */
-    private static final class ArrowView extends View {
+    private static final class ArrowView extends FrameLayout {
         static final int POSITION_LEFT = 0;
         static final int POSITION_RIGHT = 1;
 
@@ -369,6 +440,7 @@ final class MiuiStyleBackArrowOverlay {
         private final Paint arrowPaint;
         private final Rect backgroundDstRect = new Rect();
         private final Rect arrowDstRect = new Rect();
+        private final MaterialView materialView;
 
         private ValueAnimator arrowAnimator;
         private ValueAnimator finishAnimator;
@@ -392,6 +464,11 @@ final class MiuiStyleBackArrowOverlay {
             arrowPaint.setFilterBitmap(true);
             arrowPaint.setDither(true);
             arrowPaint.setAlpha(0);
+            // Only this child receives Xiaomi blur properties. The stock white
+            // edge, arrow and bitmap fallback stay on the unblurred parent.
+            materialView = new MaterialView(context, overlay);
+            addView(materialView, new FrameLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         }
 
         // Mirrors BackGestureUtils.convertOffset(): linear for the first 80% of
@@ -437,6 +514,7 @@ final class MiuiStyleBackArrowOverlay {
          * origin and must remain threshold-gated.
          */
         void resetForNewGesture(int newPosition) {
+            materialView.resetForNewGesture();
             if (arrowAnimator != null) {
                 arrowAnimator.cancel();
             }
@@ -486,6 +564,7 @@ final class MiuiStyleBackArrowOverlay {
                 arrowAnimator.cancel();
             }
             cancelFinishAnimation();
+            materialView.releaseMaterial();
         }
 
         private void cancelFinishAnimation() {
@@ -501,8 +580,7 @@ final class MiuiStyleBackArrowOverlay {
         }
 
         @Override
-        protected void onDraw(@NonNull Canvas canvas) {
-            super.onDraw(canvas);
+        protected void dispatchDraw(@NonNull Canvas canvas) {
             Bitmap background = currentBackground();
             Bitmap arrowBitmap = overlay.arrow;
             if (background == null || arrowBitmap == null) {
@@ -530,7 +608,18 @@ final class MiuiStyleBackArrowOverlay {
                     (int) (startY - (expectBackHeight / 2.0f)),
                     backgroundRight,
                     (int) (startY + (expectBackHeight / 2.0f)));
-            canvas.drawBitmap(background, null, backgroundDstRect, backgroundPaint);
+            Bitmap materialMask = position == POSITION_LEFT
+                    ? overlay.leftMaterialMask : overlay.rightMaterialMask;
+            boolean materialVisible = materialView.updateMaterial(
+                    materialMask, backgroundDstRect, overlay.materialRequested);
+            super.dispatchDraw(canvas);
+            if (materialVisible) {
+                Bitmap stroke = position == POSITION_LEFT
+                        ? overlay.leftMaterialStroke : overlay.rightMaterialStroke;
+                canvas.drawBitmap(stroke, null, backgroundDstRect, backgroundPaint);
+            } else {
+                canvas.drawBitmap(background, null, backgroundDstRect, backgroundPaint);
+            }
             if (arrowLit) {
                 if (!arrowShown) {
                     iconNeedDraw = true;
@@ -591,6 +680,154 @@ final class MiuiStyleBackArrowOverlay {
             }
             arrowAnimator = animator;
             animator.start();
+        }
+    }
+
+    private static final class MaterialView extends FrameLayout {
+        private final MiuiStyleBackArrowOverlay overlay;
+        private final View background;
+        private final Paint materialPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Rect lastBounds = new Rect();
+        private final Matrix shapeMatrix = new Matrix();
+        private MiuiIndicatorMaterial.Api api;
+        private boolean apiResolved;
+        private boolean failedForGesture;
+        private boolean failureLogged;
+        private boolean configured;
+        private Bitmap lastSourceMask;
+        private BitmapShader maskShader;
+        private Path samplingShape;
+
+        MaterialView(Context context, MiuiStyleBackArrowOverlay overlay) {
+            super(context);
+            this.overlay = overlay;
+            // Xiaomi's indicator keeps a dark surface and a white arrow in both themes.
+            materialPaint.setColor(0x10000000);
+            setVisibility(INVISIBLE);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            // The mask belongs to this unblurred container. Xiaomi may draw its
+            // background after a RenderEffect installed on the blur node itself.
+            background = new View(context) {
+                @Override
+                protected void onDraw(@NonNull Canvas canvas) {
+                    super.onDraw(canvas);
+                    if (configured && !lastBounds.isEmpty()) {
+                        canvas.drawRect(lastBounds, materialPaint);
+                    }
+                }
+            };
+            background.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            addView(background, new FrameLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }
+
+        boolean updateMaterial(Bitmap sourceMask, Rect bounds,
+                boolean requested) {
+            if (!requested || sourceMask == null || bounds.isEmpty()) {
+                releaseMaterial();
+                return false;
+            }
+            boolean attached = isAttachedToWindow();
+            boolean hardware = isHardwareAccelerated();
+            if (failedForGesture || !attached || !hardware) {
+                return false;
+            }
+            try {
+                if (!apiResolved) {
+                    apiResolved = true;
+                    api = MiuiIndicatorMaterial.resolve();
+                }
+                if (api == null) {
+                    failedForGesture = true;
+                    return false;
+                }
+                boolean shapeChanged = maskShader == null
+                        || lastSourceMask != sourceMask || !lastBounds.equals(bounds);
+                if (shapeChanged) {
+                    shapeMatrix.setRectToRect(
+                            new RectF(0, 0, sourceMask.getWidth(), sourceMask.getHeight()),
+                            new RectF(bounds), Matrix.ScaleToFit.FILL);
+                    if (maskShader == null || lastSourceMask != sourceMask) {
+                        maskShader = new BitmapShader(sourceMask,
+                                Shader.TileMode.DECAL, Shader.TileMode.DECAL);
+                        maskShader.setFilterMode(BitmapShader.FILTER_MODE_LINEAR);
+                    }
+                    maskShader.setLocalMatrix(shapeMatrix);
+                    setRenderEffect(RenderEffect.createBlendModeEffect(
+                            RenderEffect.createOffsetEffect(0, 0),
+                            RenderEffect.createShaderEffect(maskShader), BlendMode.DST_IN));
+                    // Native sampling stays rectangular. The container masks the
+                    // complete child output, including Xiaomi's background draw.
+                    samplingShape = new Path();
+                    samplingShape.addRect(new RectF(bounds), Path.Direction.CW);
+                    lastSourceMask = sourceMask;
+                    lastBounds.set(bounds);
+                }
+                if (!configured) {
+                    int radius = Math.min(400, Math.max(1, Math.round(
+                            50.0f * getResources().getDisplayMetrics().density)));
+                    configured = api.enable(background, samplingShape, radius,
+                            0x99000000);
+                    if (!configured) {
+                        failedForGesture = true;
+                        overlay.logger.log(Log.INFO,
+                                "HyperOS indicator material unsupported by ViewRootImpl", null);
+                        return false;
+                    }
+                    failureLogged = false;
+                } else if (shapeChanged) {
+                    api.updatePath(background, samplingShape);
+                }
+                setVisibility(VISIBLE);
+                if (shapeChanged) {
+                    background.invalidate();
+                    invalidate();
+                }
+                return true;
+            } catch (Throwable throwable) {
+                failedForGesture = true;
+                // Hide this node even if a partial native rollback cannot complete.
+                // The parent's unchanged bitmap fallback never receives blur properties.
+                releaseMaterial();
+                if (!failureLogged) {
+                    failureLogged = true;
+                    overlay.logger.log(Log.WARN,
+                            "HyperOS indicator material rejected; keeping bitmap", throwable);
+                }
+                return false;
+            }
+        }
+
+        void resetForNewGesture() {
+            releaseMaterial();
+            failedForGesture = false;
+        }
+
+        void releaseMaterial() {
+            setVisibility(INVISIBLE);
+            setRenderEffect(null);
+            if (configured) {
+                configured = false;
+                try {
+                    api.clear(background);
+                } catch (Throwable throwable) {
+                    if (!failureLogged) {
+                        failureLogged = true;
+                        overlay.logger.log(Log.WARN,
+                                "Failed to clear hidden indicator material", throwable);
+                    }
+                }
+            }
+            samplingShape = null;
+            lastSourceMask = null;
+            maskShader = null;
+            lastBounds.setEmpty();
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            releaseMaterial();
+            super.onDetachedFromWindow();
         }
     }
 }
