@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_panel_title">分享面板</string>
+    <string name="share_panel_show_all">直接显示全部渠道</string>
+    <string name="share_panel_show_all_summary">打开小米分享面板时，直接显示完整应用列表。</string>
+</resources>

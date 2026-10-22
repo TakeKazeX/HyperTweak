@@ -135,6 +135,7 @@ import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooke
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
+import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
 import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
 import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
@@ -234,6 +235,10 @@ class HookEntry : XposedModule() {
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->
+                SharePanelHooker.refreshSettings()
+                true
+            }
             // Keyguard battery row: SystemUI's keyguard status bar (Duo) and the AOD plugin rows
             // (SystemUI-hosted plugin or the standalone AOD process).
             registerForProcess(RuntimeSettingsGroups.AOD) { _ -> applyLiveAodSettings() }
@@ -1422,6 +1427,9 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderEnvironmentCheckHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderUploadAppListHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.intentresolver" -> {
+                attachHooker(SharePanelHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.contacts" -> {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)

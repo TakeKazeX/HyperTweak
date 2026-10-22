@@ -21,6 +21,7 @@ internal object RuntimeSettingsGroups {
     const val APP_DETAILS = "securitycenter.app_details"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val OFFLINE_CONFIG = "carrier.offline_config"
+    const val SHARE_PANEL = "intentresolver.share_panel"
     /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
     const val AOD = "systemui.aod"
     /** Keyguard host surfaces whose policy is cached at install time (status bar, clock date, FOD). */
@@ -67,6 +68,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_SHARE_PANEL_SHOW_ALL,
         Preferences.KEY_APP_DETAILS_ICON_LAUNCH,
         Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
         Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,
@@ -123,6 +125,7 @@ internal object RuntimeSettingsGroups {
                 it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION ||
                 it == Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
         },
+        SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == Preferences.KEY_SHARE_PANEL_SHOW_ALL },
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == Preferences.KEY_APP_DETAILS_ICON_LAUNCH },
         SECURITY_CHECKS to Group(setOf("com.miui.securitycenter", "com.miui.guardprovider")) {
             it == Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK ||

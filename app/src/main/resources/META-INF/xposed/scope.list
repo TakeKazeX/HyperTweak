@@ -12,6 +12,7 @@ com.miui.securitycore
 com.xiaomi.trustservice
 com.miui.guardprovider
 com.android.contacts
+com.android.intentresolver
 com.miui.powerkeeper
 com.xiaomi.scanner
 com.milink.service

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_panel_title">Share panel</string>
+    <string name="share_panel_show_all">Show all share targets</string>
+    <string name="share_panel_show_all_summary">Show the full app list when opening Xiaomi’s share panel.</string>
+</resources>

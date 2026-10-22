@@ -296,6 +296,7 @@ object Preferences {
     const val KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE = "network_assistant_ignore_offline"
     /** Ignores carrier offline metadata in Contacts' mobile business hall. */
     const val KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE = "contacts_business_hall_ignore_offline"
+    const val KEY_SHARE_PANEL_SHOW_ALL = "share_panel_show_all"
 
     /** Stops GuardProvider from serializing/uploading its non-system installed-app list. */
     const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"

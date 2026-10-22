@@ -58,6 +58,7 @@ fun PurificationPage(
                 .verticalScroll(scrollState)
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            SharePanelSection()
             SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

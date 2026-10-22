@@ -6,6 +6,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun sharePanelReachesBothManifestProcessesAndSurvivesUpgradeDisableAndReset() {
+        val key = Preferences.KEY_SHARE_PANEL_SHOW_ALL
+        assertEquals(setOf(Groups.SHARE_PANEL), Groups.forProcess("com.android.intentresolver"))
+        assertEquals(setOf(Groups.SHARE_PANEL), Groups.forProcess("com.android.intentresolver:chooser"))
+        assertEquals(setOf(Groups.SHARE_PANEL), Groups.affected(key))
+        assertTrue(Groups.subset("com.miui.gallery", mapOf(key to true)).isEmpty())
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), setOf(Groups.SHARE_PANEL)))
+        val ledger = RuntimeSettingsLedger().also {
+            it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true)))
+        }
+        val enabled = RuntimeSettingsSnapshot.read(2, mapOf(key to true), setOf(Groups.SHARE_PANEL))!!
+        assertTrue(Groups.SHARE_PANEL in ledger.changedGroups(enabled))
+        assertTrue(ledger.accept(enabled))
+        val restored = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(true, restored.value(key))
+        val disabled = RuntimeSettingsSnapshot.read(3, mapOf(key to false), setOf(Groups.SHARE_PANEL))!!
+        assertEquals(setOf(Groups.SHARE_PANEL), restored.changedGroups(disabled))
+        assertTrue(restored.accept(disabled))
+        val reset = RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>(), setOf(Groups.SHARE_PANEL))!!
+        assertEquals(setOf(Groups.SHARE_PANEL), restored.changedGroups(reset))
+        assertTrue(restored.accept(reset))
+        assertNull(restored.value(key))
+    }
+
     @Test fun appDetailsSettingMigratesAndResetsWithoutLeakingToOtherPackages() {
         val key = Preferences.KEY_APP_DETAILS_ICON_LAUNCH
         assertEquals(setOf(Groups.APP_DETAILS), Groups.affected(key))
