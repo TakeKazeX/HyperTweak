@@ -29,6 +29,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.NotificationMonetTextColorHo
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationFontWeightHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationAbsoluteTimeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiScreenshotSoundHooker
+import com.takekazex.hypertweak.hook.rules.systemui.SystemUiLiveSettings
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotAutoFrameHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
 import com.takekazex.hypertweak.hook.rules.systemui.KeyguardFingerprintAvoidHooker
@@ -137,6 +138,7 @@ import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckH
 import com.takekazex.hypertweak.hook.rules.system.SystemServerReadinessHooker
 import com.takekazex.hypertweak.hook.rules.system.GestureBarTransitionHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import io.github.libxposed.api.XposedModule
@@ -158,6 +160,9 @@ class HookEntry : XposedModule() {
          * rules) and this module's Java (which is the only side able to read the preferences).
          */
         const val LAUNCHER_PACKAGE = "com.miui.home"
+
+        /** Header clock seconds: owned by the header domain and applied by its own participant. */
+        const val KEY_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
     }
 
     /** Bounded retry window for the transient daemon remote-preferences outage. */
@@ -175,7 +180,11 @@ class HookEntry : XposedModule() {
         if (generationRetired || processName != "com.android.systemui") return null
         return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
     }
-    private val runtimeSettingsReceiver by lazy { RuntimeSettingsReceiver(::requestSettingsReload) }
+    private val runtimeSettingsReceiver by lazy {
+        RuntimeSettingsReceiver(object : (Set<String>, Set<String>) -> Unit {
+            override fun invoke(groups: Set<String>, keys: Set<String>) = requestSettingsReload(groups, keys)
+        })
+    }
     private val iconSettingsLock = java.util.concurrent.locks.ReentrantLock()
     private val settingsHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private val settingsReload by lazy {
@@ -184,39 +193,93 @@ class HookEntry : XposedModule() {
             remove = { settingsHandler.removeCallbacks(it) },
             failure = { id, error -> DebugLog.w("RuntimeSettings", "reload failed participant=$id", error) }
         ).apply {
-            fun registerForProcess(id: String, apply: () -> Boolean) {
+            // Participants receive the committed keys that changed, so a shared domain can route
+            // each key to the hooker that owns it instead of re-running every consumer.
+            fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) {
                 if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) register(id, apply)
             }
-            registerForProcess(RuntimeSettingsGroups.ICONS) {
+            registerForProcess(RuntimeSettingsGroups.ICONS) { _ ->
                 if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
                 finally { iconSettingsLock.unlock() }
             }
-            registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.BACK) {
+            registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.BACK) { _ ->
                 RuntimeSettingsPreferences.dispatch(setOf(RuntimeSettingsGroups.BACK))
                 if (processName == "com.android.systemui") AospBackSystemUiHooker.refreshPreferences()
                 true
             }
-            registerForProcess(RuntimeSettingsGroups.NATIVE) { publishNativeRuleSwitches(); true }
-            registerForProcess(RuntimeSettingsGroups.DOCK) { com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
-            registerForProcess(RuntimeSettingsGroups.VOLUME) { if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
+            registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> publishNativeRuleSwitches(); true }
+            registerForProcess(RuntimeSettingsGroups.DOCK) { _ -> com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
+            registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
             // system_server: the hooker re-reads the attach switch per transition.
-            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) {
+            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) { _ ->
                 Preferences.invalidateRuntimeReadCache()
                 GestureBarTransitionHooker.refreshSettings()
                 true
             }
             // SystemUI: the draw hooks cache the switches, so refresh those copies. Disabling also
             // repaints the handle views, because suppressing onDraw leaves the last frame on screen.
-            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR_UI) {
+            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR_UI) { _ ->
                 Preferences.invalidateRuntimeReadCache()
                 HideBottomBarHooker.refreshSettings()
                 true
             }
-            registerForProcess(RuntimeSettingsGroups.XMSF) { Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.ISLANDS) {
+            registerForProcess(RuntimeSettingsGroups.XMSF) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            // Keyguard battery row: SystemUI's keyguard status bar (Duo) and the AOD plugin rows
+            // (SystemUI-hosted plugin or the standalone AOD process).
+            registerForProcess(RuntimeSettingsGroups.AOD) { _ -> applyLiveAodSettings() }
+            registerForProcess(RuntimeSettingsGroups.AOD_CAPABILITY) { _ ->
+                AODHooker.refreshSettings()
+                if (processName == "com.android.systemui") applyLiveAodSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.FREEFORM_BLUR) { _ ->
+                FreeformBlurTransitionHooker.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.KEYGUARD) { _ ->
+                Preferences.invalidateRuntimeReadCache()
+                HideLockscreenStatusBarHooker.refreshSettings()
+                LockscreenDateHooker.refreshSettings()
+                HideFingerprintIcon.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.HEADER) { keys ->
+                applyHeaderSettings(keys)
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_TEXT) { keys ->
+                applyNotificationTextSettings(keys)
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.MEDIA_CARD) { _ ->
+                MediaCardHideAppIconHooker.refreshSettings()
+                MediaCardHideDeviceSwitchHooker.refreshSettings()
+                SystemUIPluginHooker.reloadControlCenterSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.CONTROL_CENTER_PLUGIN) { _ ->
+                SystemUIPluginHooker.reloadControlCenterSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.GLASS) { _ ->
+                GlassMaterialHooker.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.LOCKSCREEN) { _ ->
+                Preferences.invalidateRuntimeReadCache()
+                LockscreenBottomTextHooker.refreshSettings()
+                LockscreenChargingDetailHooker.refreshSettings()
+                KeyguardFingerprintAvoidHooker.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.POWER_SAVE) { _ ->
+                BatteryAutoPowerSaveHooker.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.ISLANDS) { _ ->
                 if (generationRetired) true else {
                     Preferences.invalidateRuntimeReadCache()
                     SystemUIPluginHooker.reloadIslandSettings()
@@ -224,9 +287,13 @@ class HookEntry : XposedModule() {
             }
         }
     }
-    private fun requestSettingsReload(groups: Set<String>) {
+    private fun requestSettingsReload(groups: Set<String>, keys: Set<String> = emptySet()) {
         if (groups.isEmpty()) return
-        settingsHandler.post { if (!generationRetired) settingsReload.request(groups.intersect(RuntimeSettingsGroups.forProcess(processName, isSystemServer))) }
+        settingsHandler.post {
+            if (!generationRetired) settingsReload.request(
+                groups.intersect(RuntimeSettingsGroups.forProcess(processName, isSystemServer)), keys
+            )
+        }
     }
     private fun cancelSettingsReload() {
         // API-102 preparation can run off-main; serialize retirement with live replacement.
@@ -261,6 +328,65 @@ class HookEntry : XposedModule() {
         ControlCenterHeaderHooker, CcBatteryStyleHooker, ControlCenterCarrierBlockHooker,
         ControlCenterPrivacyHooker, RegionSamplingHooker, CellularTypeIconHooker, NotificationMaxNumberHooker
     )
+
+    /**
+     * Applies an acknowledged AOD snapshot to every living host without recreating hooks.
+     *
+     * The AOD options never recreate the SystemUI keyguard row: `DuoSignalHooker` re-derives its
+     * row ownership per pass. The plugin row is refreshed in place through its parent session,
+     * which keeps the plugin's handle ownership and the standalone AOD process symmetric.
+     */
+    private fun applyLiveAodSettings(): Boolean {
+        if (generationRetired) return true
+        return when (processName) {
+            "com.miui.aod" -> {
+                AodStatusIconHooker.refreshAll()
+                true
+            }
+            "com.android.systemui" -> {
+                if (!PlatformLevel.isOs4) return true
+                DuoSignalHooker.refreshAodSettings()
+                SystemUIPluginHooker.reloadAodSettings()
+                true
+            }
+            else -> true
+        }
+    }
+
+    /**
+     * Applies a committed header snapshot. Each key is routed to the hooker that owns it: the
+     * clock-seconds key changes the header clock, the layout keys rebuild the header rows, and the
+     * weather keys refresh the date suffix. An empty key set (resync/resume) runs all of them.
+     */
+    private fun applyHeaderSettings(keys: Set<String>) {
+        if (keys.isNotEmpty() && keys.none { it in SystemUiLiveSettings.HEADER_KEYS }) return
+        val layoutKeys = SystemUiLiveSettings.HEADER_KEYS - KEY_HEADER_CLOCK_SECONDS
+        val weatherKeys = setOf(
+            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
+            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
+            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_TYPE
+        )
+        if (keys.isEmpty() || keys.any { it in layoutKeys }) NotificationHeaderHooker.refreshSettings()
+        if (keys.isEmpty() || keys.any { it in weatherKeys }) NotificationHeaderWeatherHooker.refreshSettings()
+        // The clock-seconds key belongs to this domain too; a seconds-only snapshot must reach it.
+        if (keys.isEmpty() || KEY_HEADER_CLOCK_SECONDS in keys) {
+            NotificationHeaderClockSecondsHooker.refreshSettings()
+        }
+    }
+
+    /** Applies a committed notification-text snapshot to the displayed notifications. */
+    private fun applyNotificationTextSettings(keys: Set<String>) {
+        if (keys.isNotEmpty() && keys.none { it in SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS }) return
+        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR in keys) {
+            NotificationMonetTextColorHooker.refreshSettings()
+        }
+        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME in keys) {
+            NotificationAbsoluteTimeHooker.refreshSettings()
+        }
+        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_FONT_WEIGHT in keys) {
+            NotificationFontWeightHooker.refreshSettings()
+        }
+    }
 
     /** Retire current callbacks before reattaching; real module hot reload uses framework handles. */
     private fun applyLiveIconSettings(): Boolean {
@@ -791,6 +917,7 @@ class HookEntry : XposedModule() {
 
     /** Cold startup and hot reload must publish the same host environment to every consumer. */
     private fun onSystemUiContextReady(context: Context) {
+        AODHooker.refreshSettings()
         nativePublisher()?.attach(context)
         attachRuntimeSettingsContext(context)
         ProxyLaunchHooker.register(context)
@@ -807,6 +934,9 @@ class HookEntry : XposedModule() {
         // never receives the authoritative Overview enter/exit, and recent-task hiding degrades to
         // guessing from timers. Device logs on 2026-10-20 confirmed zero registrations.
         AospBackSystemUiHooker.onApplicationContextReady(context)
+        // Readiness signal for the keyguard status bar discovery fallback; the hooker never treats
+        // the context as a View.
+        HideLockscreenStatusBarHooker.onApplicationContextReady(context)
     }
 
     private fun hotReloadModeSummary(): String {

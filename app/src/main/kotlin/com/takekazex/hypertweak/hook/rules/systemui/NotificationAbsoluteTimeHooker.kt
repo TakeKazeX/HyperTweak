@@ -162,6 +162,23 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
         callbacks.remove(view)?.let { view.removeCallbacks(it) }
     }
 
+    /**
+     * Accepted-snapshot refresh. Enabling re-renders the enrolled headers immediately; disabling
+     * lets the framework rewrite the relative time on every enrolled view, so already displayed
+     * notifications return to the stock label without waiting for a new notification.
+     */
+    fun refreshSettings() {
+        StatusIconHostAccess.onMain {
+            views.keys.toList().filter { it.isAttachedToWindow }.forEach { view -> boundary("settings") {
+                if (isEnabled()) render(view) else updateMethod?.invoke(view)
+            } }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + isEnabled() + " views=" + views.size)
+    }
+
+    private fun isEnabled(): Boolean = !retiring &&
+        Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
+
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { views.keys.toList() }
 
     override fun restoreHotReloadState(state: Any?) {

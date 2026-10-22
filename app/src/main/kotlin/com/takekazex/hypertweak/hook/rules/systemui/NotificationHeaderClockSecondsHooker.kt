@@ -73,6 +73,32 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         }
     }
 
+    /**
+     * Accepted-snapshot refresh. Enabling starts the header clock without a second restart;
+     * disabling stops the tick and restores the stock clock on the existing header views.
+     */
+    fun refreshSettings() {
+        val next = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+        val changed = next != persistentHeaderEnabled
+        persistentHeaderEnabled = next
+        StatusIconHostAccess.onMain {
+            if (retiring) return@onMain
+            val views = (tickCallbacks.keys + longPressInstalled.keys + temporaryOverrides.keys)
+                .filterIsInstance<TextView>().distinct()
+            if (next) {
+                views.filter { it.isAttachedToWindow }.forEach { view ->
+                    targetOf(view)?.let { refresh(view, it, forceStock = true) }
+                }
+            } else if (changed) {
+                views.forEach { view ->
+                    cancelTick(view)
+                    restoreStock(view)
+                }
+            }
+        }
+        DebugLog.i(TAG, "settings applied persistentHeader=" + persistentHeaderEnabled)
+    }
+
     override fun onPrepareHotReload() {
         retiring = true
         StatusIconHostAccess.onMain {

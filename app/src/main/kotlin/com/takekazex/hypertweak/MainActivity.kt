@@ -65,11 +65,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     Preferences.KEY_ICON_DUO_AIRPLANE_SCALE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_ICON_DUO_BATTERY_SCALE to RestartScopeSelection(systemUi = true),
     Preferences.KEY_ICON_DUO_PERCENT_SCALE to RestartScopeSelection(systemUi = true),
-    Preferences.KEY_AOD_FULLSCREEN to RestartScopeSelection(
-        systemUi = true,
-        settings = true,
-        aod = true
-    ),
     Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS)
     ),
@@ -1059,7 +1054,6 @@ class MainActivity : ComponentActivity() {
                     pendingRestartScopes = pendingRestartScopes,
                     aodFullscreen = aodFullscreen,
                     onAodFullscreenChange = { checked ->
-                        markTweaked(Preferences.KEY_AOD_FULLSCREEN, checked)
                         aodFullscreen = checked
                         Preferences.putBoolean(Preferences.KEY_AOD_FULLSCREEN, checked)
                     },

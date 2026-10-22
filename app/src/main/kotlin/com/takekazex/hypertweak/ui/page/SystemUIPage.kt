@@ -186,7 +186,6 @@ fun SystemUIPage(
     var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
     var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
-    var freeformBlurRestartPending by rememberSaveable { mutableStateOf(false) }
 
     val powerButtonActionOptions = remember {
         listOf(
@@ -426,33 +425,10 @@ fun SystemUIPage(
                         onCheckedChange = { value ->
                             freeformBlur = value
                             Preferences.putBoolean(Preferences.KEY_FREEFORM_BLUR_TRANSITION, value)
-                            Preferences.flush()
-                            freeformBlurRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                         },
                         title = stringResource(R.string.settings_freeform_blur_title),
                         summary = stringResource(R.string.settings_freeform_blur_summary)
                     )
-                    if (freeformBlurRestartPending) {
-                        val restartSelection = RestartScopeSelection(systemUi = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_system_ui),
-                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
-                            enabled = !restartInProgress(restartSelection),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection,
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) freeformBlurRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
                 }
             }
 

@@ -225,6 +225,39 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         Log.i(TAG, "ControlCenterCardsEdit: card span hook installed")
     }
 
+    /**
+     * Accepted-snapshot refresh. The editor hooks are installed for the plugin session and read
+     * the switch in every callback; this pass tracks the live adapter and asks it to re-distribute
+     * now, so a first enable applies to the panel that is already laid out instead of waiting
+     * for the next mode switch. A disable additionally restores the host touch listeners the
+     * blocker replaced.
+     */
+    fun refreshSettings() {
+        val live = enabled()
+        val adapter = lastAdapter
+        mainHandler.post {
+            runCatching {
+                if (adapter == null) return@runCatching
+                if (!live) {
+                    restoreManagedTouchListeners(adapter, itemViewFieldOf(adapter))
+                    clearResidualTransforms(adapter)
+                }
+                invalidateSpanCaches(adapter)
+                refreshAdapter(adapter, animate = false)
+            }.onFailure { Log.e(TAG, "ControlCenterCardsEdit: settings apply", it) }
+        }
+        Log.i(TAG, "ControlCenterCardsEdit: applied enabled=" + live + " adapter=" + (adapter != null))
+    }
+
+    /** The most recently seen MainPanelAdapter; it owns the layout a settings pass must refresh. */
+    @Volatile
+    private var lastAdapter: Any? = null
+
+    /** The itemView field of a panel adapter, resolved once per adapter class. */
+    private fun itemViewFieldOf(adapter: Any): Field? = runCatching {
+        adapter.javaClass.getField("itemView").apply { isAccessible = true }
+    }.getOrNull()
+
     private fun enabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
 
@@ -515,6 +548,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val mapField = findContentMapField(adapter) ?: return
         distribute.hook {
             after { param ->
+                lastAdapter = param.thisObject
                 if (!enabled()) return@after
                 runCatching {
                     @Suppress("UNCHECKED_CAST") // Host section map read through the resolved field.
@@ -826,6 +860,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         // resolveAnimatorSuppressor for why the editor's unsuppressed move animations leave views
         // stuck at wrong translations. A single big-card swap is the exception — it slides like a
         // native tile move, so `animate` un-suppresses (a no-op when the animator is already on).
+        lastAdapter = adapter
         suppressAnimator?.invoke(adapter, !animate)
         notifyChanged.invoke(adapter, false, false)
     }

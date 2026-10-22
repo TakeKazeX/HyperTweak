@@ -96,6 +96,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private var compactIdsLogged = false
 
     internal fun recoverExistingViews(views: List<View>) {
+        views.filter { it.javaClass.name == NUM_STATE_VIEW }.forEach { knownIndicationViews += it }
         // The stock repeatWhenAttached binder replays DND/count state, visibility and Folme.
         // Recollect the real native inputs instead of guessing whether a masked label was visible.
         views.filter { it.javaClass.name == NUM_STATE_VIEW && it.isAttachedToWindow }
@@ -111,13 +112,29 @@ object LockscreenBottomTextHooker : StaticHooker() {
         compactIdsLogged = false
     }
 
+    /**
+     * Accepted-snapshot refresh. Enabling binds the living indication/compact views right away
+     * (the stock binder replays DND/count state) and starts hiding; disabling replays the native
+     * attachment path so the current message returns without waiting for the next system event.
+     */
+    fun refreshSettings() {
+        val wasEnabled = enabled
+        enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+        if (wasEnabled != enabled) {
+            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess.onMain {
+                knownIndicationViews.toList().filter { it.isAttachedToWindow }
+                    .forEach { runCatching { NativeViewAttachmentReplay.replay(it) } }
+            }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled)
+    }
+
+    /** Living rotating-indication views; weak, because the keyguard owns them. */
+    private val knownIndicationViews: MutableSet<View> =
+        java.util.Collections.newSetFromMap(java.util.WeakHashMap<View, Boolean>())
+
     override fun onHook() {
         enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "lockscreen bottom text hooks", "disabled")
-            return
-        }
-
         hookRotatingIndications()
         hookCompactStatusText()
         hookCompactStatusAnimations()
@@ -179,6 +196,9 @@ object LockscreenBottomTextHooker : StaticHooker() {
                 before { param ->
                     HookFailurePolicy.open(TAG, "compact status visibility", Unit) {
                         val view = param.thisObject as? View ?: return@open
+                        // The interceptor stays installed while the feature is off; only the
+                        // accepted snapshot decides whether it may change the host's result.
+                        if (!enabled) return@open
                         if (isCompactStatusContainer(view) && !hasAllowedCompactStatus()) {
                             param.args[0] = View.GONE
                             return@open
@@ -273,6 +293,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
                 before { param ->
                     HookFailurePolicy.open(TAG, "compact status measurement", Unit) {
                         val view = param.thisObject as? View ?: return@open
+                        if (!enabled) return@open
                         if (isCompactStatusContainer(view) && !hasAllowedCompactStatus()) {
                             param.args[0] = View.MeasureSpec.makeMeasureSpec(
                                 0,
@@ -303,6 +324,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     }
 
     private fun shouldHideIndicationType(type: Int): Boolean {
+        if (!enabled) return false
         val category = when (type) {
             OWNER_INFO_TYPE -> CATEGORY_OWNER_INFO
             DISCLOSURE_TYPE -> CATEGORY_DISCLOSURE

@@ -1476,9 +1476,6 @@
     <string name="aod_icons_percent_left">左侧</string>
     <string name="aod_icons_percent_right">右侧</string>
     <string name="aod_icons_percent_duo_center">圆环下方居中</string>
-    <string name="aod_icons_section_apply">应用更改</string>
-    <string name="aod_icons_restart_title">重启 SystemUI</string>
-    <string name="aod_icons_restart_summary">重启 SystemUI 以应用 AOD 图标设置。</string>
     <string name="icon_mirror_airplane">镜像飞行模式图标</string>
     <string name="icon_mirror_airplane_summary">将飞行模式图标朝向右侧</string>
     <string name="logs_refresh">刷新日志</string>

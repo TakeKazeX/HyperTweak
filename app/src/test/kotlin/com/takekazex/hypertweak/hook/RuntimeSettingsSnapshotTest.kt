@@ -61,7 +61,10 @@ class RuntimeSettingsSnapshotTest {
         }
         assertEquals(setOf(RuntimeSettingsGroups.ICONS), RuntimeSettingsGroups.affected("icon_duo_enabled"))
         assertTrue(RuntimeSettingsGroups.affected("unrelated").isEmpty())
-        assertEquals(12, RuntimeSettingsGroups.affected(null).size)
+        // 12 routing groups before the 2026-10-22 SystemUI live-settings audit added the AOD,
+        // keyguard, header, notification-text, media-card, control-center-plugin, glass,
+        // lock-screen and power-save domains, then fullscreen capability and transition blur.
+        assertEquals(23, RuntimeSettingsGroups.affected(null).size)
         assertTrue(RuntimeSettingsGroups.affected(null).containsAll(setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS)))
     }
     @Test fun malformedIncompleteAndOversizedValuesAreRejected() {

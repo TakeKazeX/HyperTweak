@@ -106,6 +106,69 @@ object SliderHookHelper {
         return tags[obj]?.remove(key)
     }
 
+    /**
+     * Live slider records, so a committed change reaches the sliders that are on screen now
+     * instead of waiting for their next bind. Weak keys: the plugin owns the holders.
+     */
+    private val liveSliders = java.util.WeakHashMap<Any, SliderRecord>()
+
+    private class SliderRecord(
+        val controller: Any,
+        val type: String,
+        var topText: TextView?,
+        /** The host's own label visibility/typeface before the module showed the percentage. */
+        var originalVisibility: Int?,
+        var originalTypeface: android.graphics.Typeface?
+    )
+
+    /** Remembers the slider a bind just touched; used by [applyCommittedState]. */
+    fun trackSlider(sliderController: Any, type: String, topText: TextView) {
+        val record = liveSliders[sliderController]
+        if (record == null) {
+            liveSliders[sliderController] = SliderRecord(sliderController, type, topText,
+                topText.visibility, topText.typeface)
+        } else {
+            // The holder view can be recycled; the visibility/typeface baseline stays with the
+            // controller, but the text view reference follows the current holder.
+            record.topText = topText
+            if (record.originalVisibility == null) record.originalVisibility = topText.visibility
+            if (record.originalTypeface == null) record.originalTypeface = topText.typeface
+        }
+    }
+
+    /**
+     * Applies the committed percentage policy to every living slider: enabled renders the value
+     * on the current holder, disabled restores the host's own visibility and weight. The caller
+     * passes the resolved switch value so this file never reads preferences on the render path.
+     */
+    fun applyCommittedState(showPercentage: Boolean) {
+        liveSliders.values.toList().forEach { record ->
+            val view = record.topText ?: getTag(record.controller, "cached_topText") as? TextView
+            if (view == null || !view.isAttachedToWindow) return@forEach
+            if (showPercentage) {
+                trackSlider(record.controller, record.type, view)
+                initTopText(view)
+                updatePercentageText(record.controller, record.type)
+            } else {
+                restoreTopText(record, view)
+            }
+        }
+    }
+
+    /** Puts one label back exactly as the host left it before the percentage was shown. */
+    private fun restoreTopText(record: SliderRecord, view: TextView) {
+        record.originalTypeface?.let { view.typeface = it }
+        record.originalVisibility?.let { if (view.visibility != it) view.visibility = it }
+        view.clearMiBlur()
+        removeTag(record.controller, "cached_topText")
+        removeTag(record.controller, "cached_slider")
+    }
+
+    /** One settings generation changed: controller caches are dropped, live holders re-applied. */
+    fun onSettingsChanged() {
+        tags.clear()
+    }
+
     /** Drops the cached holder views for a controller so a recycled ViewHolder re-resolves them. */
     fun invalidateHolderViews(sliderController: Any) {
         removeTag(sliderController, "cached_topText")
@@ -562,6 +625,7 @@ object SliderHookHelper {
 
             setPercentIfChanged(topText, pct)
             applyTopTextStyle(topText, sliderType = type)
+            trackSlider(sliderController, type, topText)
         }
 
         result.onFailure { t ->

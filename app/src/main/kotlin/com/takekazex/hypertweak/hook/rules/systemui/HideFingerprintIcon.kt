@@ -43,6 +43,25 @@ object HideFingerprintIcon : StaticHooker() {
     private val animationStateFields = ConcurrentHashMap<Class<*>, StateFields>()
     private val reportedClears = ConcurrentHashMap.newKeySet<Surface>()
 
+    /**
+     * Accepted-snapshot refresh. The draw hooks read these switches on every frame anyway; the
+     * cached copies exist because [onHook] used to skip installation when all three were off.
+     * Refreshing them here makes the first enable in a running SystemUI behave exactly like a
+     * fresh install, without recreating the hooked methods.
+     */
+    fun refreshSettings() {
+        val aod = Preferences.hideFingerprintAodEnabled()
+        val lockscreen = Preferences.hideFingerprintLockscreenEnabled()
+        val appAuth = Preferences.hideFingerprintAppAuthEnabled()
+        if (aod == hideAodEnabled && lockscreen == hideLockscreenEnabled && appAuth == hideAppAuthEnabled) return
+        hideAodEnabled = aod
+        hideLockscreenEnabled = lockscreen
+        hideAppAuthEnabled = appAuth
+        reportedClears.clear()
+        DebugLog.i("HideFingerprint", "settings applied aod=" + aod + " lockscreen=" + lockscreen +
+            " appAuth=" + appAuth + " installed=" + isHooked)
+    }
+
     override fun onPrepareHotReload() {
         iconDozingField = null
         iconKeyguardAuthenField = null
@@ -58,10 +77,10 @@ object HideFingerprintIcon : StaticHooker() {
         hideAodEnabled = Preferences.hideFingerprintAodEnabled()
         hideLockscreenEnabled = Preferences.hideFingerprintLockscreenEnabled()
         hideAppAuthEnabled = Preferences.hideFingerprintAppAuthEnabled()
-        if (!hideAodEnabled && !hideLockscreenEnabled && !hideAppAuthEnabled) {
-            DebugLog.hookSkippedDebug("HideFingerprint", "fingerprint icon hooks", "disabled")
-            return
-        }
+        // The hooks install even with every surface off (RuntimeSettingsGroups.KEYGUARD owns these
+        // keys): the three switches are read per draw, and an accepted change reaches this cached
+        // copy through refreshSettings. Skipping the install here would make the first enable in a
+        // running SystemUI need a restart.
 
         val clzAnimationView = resolveAppClass(
             "com.miui.keyguard.biometrics.fod.MiuiGxzwAnimationView",

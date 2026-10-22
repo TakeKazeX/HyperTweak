@@ -31,11 +31,17 @@ object SystemUIPluginHooker : StaticHooker() {
         val threeIslandHooker: ThreeIslandHooker,
         val liveUpdateIconHooker: LiveUpdateIconHooker,
         val timeFontHooker: IslandTimeFontHooker,
-        val cardsEditHooker: ControlCenterCardsEditHooker?,
-        val cardResizeHooker: ControlCenterCardResizeHooker?,
-        val mediaDeviceIconHooker: MediaPlayerDeviceIconHooker?,
-        val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker
-    )
+        var cardsEditHooker: ControlCenterCardsEditHooker? = null,
+        var cardResizeHooker: ControlCenterCardResizeHooker? = null,
+        var mediaDeviceIconHooker: MediaPlayerDeviceIconHooker? = null,
+        val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker,
+        /** The plugin's own loader; optional sub-hookers attach with the same one. */
+        val classLoader: ClassLoader
+    ) {
+        fun attachCardsEdit(hooker: ControlCenterCardsEditHooker?) { cardsEditHooker = hooker }
+        fun attachCardResize(hooker: ControlCenterCardResizeHooker?) { cardResizeHooker = hooker }
+        fun attachMediaDeviceIcon(hooker: MediaPlayerDeviceIconHooker?) { mediaDeviceIconHooker = hooker }
+    }
 
     private data class AodPluginSession(
         val state: HotReloadPluginState,
@@ -55,6 +61,73 @@ object SystemUIPluginHooker : StaticHooker() {
         }
         // A plugin arriving later attaches directly against the current committed snapshot.
         return true
+    }
+
+    /**
+     * Applies an accepted AOD snapshot to every living AOD plugin session. Sessions keep their
+     * parent-owned hooks, so this never recreates a hooker or rescans the plugin APK.
+     */
+    fun reloadAodSettings(): Boolean {
+        activeAodSessions.values.forEach { session ->
+            runCatching { session.hooker.refreshSettings() }
+                .onFailure { DebugLog.w("SystemUIPlugin", "AOD plugin refresh failed", it) }
+        }
+        return true
+    }
+
+    /**
+     * Applies accepted control-center plugin settings (slider percentage, corner radius, editor,
+     * resize). A session's sub-hookers are attached for the session lifetime, so this only
+     * refreshes their policies; nothing is recreated and the parent keeps handle ownership.
+     * A sub-hooker that was chosen at session creation is attached here on the first enable.
+     */
+    fun reloadControlCenterSettings(): Boolean {
+        activeSessions.sessions().forEach { session ->
+            runCatching {
+                session.sliderPercentHooker.refreshSettings()
+                session.cornerHooker.refreshSettings()
+            }.onFailure { DebugLog.w("SystemUIPlugin", "control-center settings refresh failed", it) }
+            // Optional sub-hookers are attached on the first enable, then refresh in place. The
+            // attach happens before the refresh so a freshly attached hooker also sees the
+            // committed value for the surfaces that are already on screen.
+            runCatching { ensureOptionalHookers(session) }
+                .onFailure { DebugLog.w("SystemUIPlugin", "optional plugin hooks attach failed", it) }
+            listOf(session.cardsEditHooker, session.cardResizeHooker, session.mediaDeviceIconHooker)
+                .filterNotNull()
+                .forEach { hooker ->
+                    runCatching {
+                        when (hooker) {
+                            is ControlCenterCardsEditHooker -> hooker.refreshSettings()
+                            is ControlCenterCardResizeHooker -> hooker.refreshSettings()
+                            is MediaPlayerDeviceIconHooker -> hooker.refreshSettings()
+                        }
+                    }.onFailure { DebugLog.w("SystemUIPlugin", "optional plugin hook refresh failed", it) }
+                }
+        }
+        return true
+    }
+
+    /** Attaches an optional sub-hooker the first time its switch is on; the switch alone skips it. */
+    private fun ensureOptionalHookers(session: PluginHookSession) {
+        val edit = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
+        val resize = Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)
+        val deviceIcon = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val loader = session.classLoader
+        if (edit && session.cardsEditHooker == null) {
+            val hooker = ControlCenterCardsEditHooker()
+            runCatching { attach(hooker, loader) }.onSuccess { session.attachCardsEdit(hooker) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", it) }
+        }
+        if (resize && session.cardResizeHooker == null) {
+            val hooker = ControlCenterCardResizeHooker()
+            runCatching { attach(hooker, loader) }.onSuccess { session.attachCardResize(hooker) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach card-resize plugin hook", it) }
+        }
+        if (deviceIcon && session.mediaDeviceIconHooker == null) {
+            val hooker = MediaPlayerDeviceIconHooker()
+            runCatching { attach(hooker, loader) }.onSuccess { session.attachMediaDeviceIcon(hooker) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", it) }
+        }
     }
 
     override fun saveHotReloadState(): Any = activeSessions.bindings().map { (owner, session) ->
@@ -260,36 +333,31 @@ object SystemUIPluginHooker : StaticHooker() {
         val threeIslandHooker = ThreeIslandHooker(state.pluginApkPath, classLoader)
         val liveUpdateIconHooker = LiveUpdateIconHooker()
         val timeFontHooker = IslandTimeFontHooker()
-        val cardsEditHooker = if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
-            ControlCenterCardsEditHooker()
-        } else {
-            null
-        }
-        val cardResizeHooker = if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
-            ControlCenterCardResizeHooker()
-        } else {
-            null
-        }
-        val mediaDeviceIconHooker = if (Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
-            MediaPlayerDeviceIconHooker()
-        } else {
-            null
-        }
         val mediaSuperIslandWhitelistHooker = MediaSuperIslandWhitelistHooker()
 
+        // The optional sub-hookers are created only when their switch is already on at session
+        // creation; [ensureOptionalHookers] attaches the missing ones on the first live enable.
         return PluginHookSession(
-                hooker,
-                cornerHooker,
-                volumeKeyHooker,
-                superIslandHooker,
-                threeIslandHooker,
-                liveUpdateIconHooker,
-                timeFontHooker,
-                cardsEditHooker,
-                cardResizeHooker,
-                mediaDeviceIconHooker,
-                mediaSuperIslandWhitelistHooker
-            )
+                sliderPercentHooker = hooker,
+                cornerHooker = cornerHooker,
+                volumeKeyHooker = volumeKeyHooker,
+                superIslandHooker = superIslandHooker,
+                threeIslandHooker = threeIslandHooker,
+                liveUpdateIconHooker = liveUpdateIconHooker,
+                timeFontHooker = timeFontHooker,
+                mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
+                classLoader = state.classLoader
+            ).also { session ->
+                if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
+                    session.cardsEditHooker = ControlCenterCardsEditHooker()
+                }
+                if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
+                    session.cardResizeHooker = ControlCenterCardResizeHooker()
+                }
+                if (Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
+                    session.mediaDeviceIconHooker = MediaPlayerDeviceIconHooker()
+                }
+            }
     }
 
     private fun attachPluginHooker(state: HotReloadPluginState) {

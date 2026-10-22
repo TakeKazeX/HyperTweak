@@ -122,16 +122,34 @@ class SliderPercentageHooker(
         SliderHookHelper.clearHotReloadCaches()
     }
 
+    /**
+     * Accepted-snapshot refresh for the living plugin session. The child hooks are attached for
+     * the session lifetime and every render reads these switches, so a first enable no longer
+     * waits for the next plugin load and a disable releases the percentage rendering in place.
+     */
+    fun refreshSettings() {
+        val show = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
+        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        val changed = show != showPercentageEnabled || sameStyle != sameStyleEnabled
+        showPercentageEnabled = show
+        sameStyleEnabled = sameStyle
+        SliderHookHelper.sameStyleEnabled = sameStyle
+        if (changed) {
+            SliderHookHelper.onSettingsChanged()
+            // Existing holders: render the percentage now, or restore the host's own label.
+            SliderHookHelper.applyCommittedState(show || sameStyle)
+        }
+        android.util.Log.i("HyperTweak", "SliderPercentage: applied show=$show sameStyle=$sameStyle changed=$changed")
+    }
+
     override fun onHook() {
         showPercentageEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
         sameStyleEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
         SliderHookHelper.sameStyleEnabled = sameStyleEnabled
-        if (!showPercentageEnabled) return
-
-        // Attach child hookers which perform the actual hooks on the classes
+        // The plugin session owns these hooks for its whole life; the master switch is read at
+        // render time, so a later enable does not need a new plugin session or a restart.
         attach(BrightnessSliderHooker(this))
         attach(VolumeSliderHooker(this))
         attach(CommonSliderHooker(this))
-
     }
 }

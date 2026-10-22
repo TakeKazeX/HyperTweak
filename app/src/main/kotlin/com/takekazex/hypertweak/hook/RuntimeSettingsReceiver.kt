@@ -9,7 +9,7 @@ import android.os.Looper
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Process-owned settings transport, independent of native-rule publication and feature hooks. */
-internal class RuntimeSettingsReceiver(private val changed: (Set<String>) -> Unit) {
+internal class RuntimeSettingsReceiver(private val changed: (Set<String>, Set<String>) -> Unit) {
     private val main = Handler(Looper.getMainLooper())
     private var context: Context? = null
     @Volatile private var retired = false
@@ -24,9 +24,13 @@ internal class RuntimeSettingsReceiver(private val changed: (Set<String>) -> Uni
                 !SettingsTransport.trusted(context, sentFromPackage, sentFromUid, SettingsTransport.MODULE)) return
             val snapshot = RuntimeSettingsProtocol.decode(intent) ?: return
             val groups = RuntimeSettingsStore.changedGroups(snapshot)
+            // The participant needs the keys too: a shared domain can own several hooks and must
+            // route each committed change to the hooker that applies it.
+            val keys = RuntimeSettingsStore.changedKeys(snapshot)
             if (!RuntimeSettingsStore.accept(snapshot)) return
-            DebugLog.i("RuntimeSettings", "snapshot received revision=${snapshot.revision} groups=$groups keys=${snapshot.values.size}")
-            changed(groups)
+            DebugLog.i("RuntimeSettings", "snapshot received revision=${snapshot.revision} " +
+                "groups=$groups keys=${keys.size} values=${snapshot.values.size}")
+            changed(groups, keys)
         }
     }
     fun attach(host: Context) {

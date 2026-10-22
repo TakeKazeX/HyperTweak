@@ -133,10 +133,64 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
         weatherType = NotificationHeaderModel.WEATHER_CONDITION
     }
 
+    /**
+     * Accepted-snapshot refresh for the weather suffix.
+     *
+     * Disabling restores every header's native date text, the layout limits the module set and the
+     * fetcher's own state; enabling binds the living headers and fetches once. The hooks stay
+     * installed for the process generation, exactly like a fresh install, so this needs no restart.
+     */
+    fun refreshSettings() {
+        val nextEnabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+        val nextRegion = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+        val nextType = NotificationHeaderModel.normalizeWeatherType(
+            Preferences.getInt(
+                Preferences.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
+                NotificationHeaderModel.WEATHER_CONDITION
+            )
+        )
+        val changed = nextEnabled != enabled || nextRegion != showRegion || nextType != weatherType
+        if (!changed) return
+        retiring = false
+        enabled = nextEnabled
+        showRegion = nextRegion
+        weatherType = nextType
+        StatusIconHostAccess.onMain {
+            if (enabled) {
+                (headers.keys.toList() + StatusIconHostAccess.headerRoots()).distinct()
+                    .filter { it.isAttachedToWindow }.forEach(::registerHeader)
+                headers.values.toList().forEach { state -> render(state.date); requestWeather(state.date) }
+            } else if (changed) {
+                releaseWeather()
+            }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled + " region=" + showRegion + " type=" + weatherType)
+    }
+
+    /** Releases the weather suffix and the state this module owns without retiring the hooks. */
+    private fun releaseWeather() {
+        runCatching { fetcher?.javaClass?.methods?.firstOrNull {
+            it.name == "reset" && it.parameterCount == 0
+        }?.invoke(fetcher) }
+        headers.forEach { (root, state) -> root.removeOnLayoutChangeListener(state.listener) }
+        baseTexts.forEach { (view, base) -> if (view.isAttachedToWindow) view.text = base }
+        dateLayouts.forEach { (view, state) ->
+            view.maxWidth = state.maxWidth
+            view.maxLines = state.maxLines
+            view.ellipsize = state.ellipsize
+        }
+        headers.clear()
+        baseTexts.clear()
+        dateLayouts.clear()
+        weatherSnapshot = null
+        fetchInFlight = false
+        lastSuccessElapsed = Long.MIN_VALUE
+        lastAttemptElapsed = Long.MIN_VALUE
+    }
+
     override fun onHook() {
         retiring = false
         enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
-        if (!enabled) return
         showRegion = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
         weatherType = NotificationHeaderModel.normalizeWeatherType(
             Preferences.getInt(
@@ -144,6 +198,8 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
                 NotificationHeaderModel.WEATHER_CONDITION
             )
         )
+        // Install for the generation even while disabled: an accepted change reaches the living
+        // header through refreshSettings instead of requiring a SystemUI restart.
 
         val headerClass = HEADER_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, HEADER_CLASS, "class not found")
@@ -192,6 +248,10 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "notification header weather hooks", "no hook methods found")
             return
         }
+        if (!enabled) {
+            DebugLog.hookRegistered(TAG, "date weather hooks installed; weather disabled")
+            return
+        }
         prepareFetcher()
         DebugLog.hookRegistered(
             TAG,
@@ -201,6 +261,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     private fun registerHeader(root: ViewGroup) {
         if (retiring || !enabled || headers.containsKey(root)) return
+        StatusIconHostAccess.noteHeaderRoot(root)
         val date = (read(root, "mDateView") as? TextView)
             ?: root.findViewById(id(root, "date_time"))
             ?: return

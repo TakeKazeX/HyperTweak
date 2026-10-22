@@ -99,9 +99,21 @@ the selected haptic scheme and does not mute contextual search. See
 ## Shared runtime settings reload
 
 `RuntimeSettingsGroups` registers setting ownership, destinations and resync authorization.
-All eight existing explicit live-settings groups use the common snapshot/dispatcher:
-icons, islands, screenshot, back gesture, native launcher settings, Dock, volume-key steps
-and XMSF focus authentication. `Preferences` commits complete acknowledged subsets through
+Every explicit live-settings group uses the common snapshot/dispatcher: icons, islands,
+screenshot, back gesture, native launcher settings, Dock, volume-key steps, XMSF focus
+authentication, gesture-bar surfaces, security/offline checks, and the SystemUI domains added
+by the 2026-10-22 live-settings audit (`systemui.aod`, `.keyguard`, `.notification_header`,
+`.notification_text`, `.media_card`, `.control_center_plugin`, `.glass`, `.lockscreen`,
+`.power_save`). Those participants keep their hooks installed for the process generation and
+re-derive the policy on living hosts. The keyguard battery row uses `AodKeyguardPolicy`: an
+explicit host phase from `MiuiFullAodManager.isDozing` (`mToLockScreen` alone is not a dozing flag) keeps the native row in every
+lit/unknown state, and only the accepted ordinary Duo switch replaces it; AOD options apply
+only in AOD phases, and every suppression sets one release-able ownership flag.
+Snapshots carry their committed changed keys, so a domain that owns several hooks
+routes each key to the hooker that applies it. A switchable feature never substitutes
+zero for "no override" (corner radius) and keeps the host request separate from the
+module suppression (lockscreen status bar).
+`Preferences` commits complete acknowledged subsets through
 `RuntimeSettingsSignal`; `RuntimeSettingsReceiver` delivers per-destination scoped snapshots
 to `SettingsReloadDispatcher`. Legacy saved scopes cannot invent defaults for newly migrated
 features. Bulk reset/restore and Dock commits use the same acknowledgement and rollback path.

@@ -100,6 +100,9 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     @Volatile private var enabled = false
     private var applyingVisibility = false
     private val originals = WeakHashMap<View, Int>()
+    /** Every transfer/device chip the hooks have seen, for a settings pass that re-applies. */
+    private val knownViews: MutableSet<View> =
+        java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
 
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
@@ -111,6 +114,29 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     internal fun recoverExistingViews(views: List<View>) {
         if (!enabled) return
         views.filter(::isMediaSwitchView).forEach(::hideSeamless)
+    }
+
+    /**
+     * Accepted-snapshot refresh. The host hooks are installed for the generation and every
+     * callback reads [enabled]; this pass hides the chip on the living cards when enabled and
+     * restores the visibility the host last requested when disabled.
+     */
+    fun refreshSettings() {
+        val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val changed = next != enabled
+        enabled = next
+        StatusIconHostAccess.onMain {
+            if (enabled) {
+                knownViews.filter { it.isAttachedToWindow }.forEach(::hideSeamless)
+            } else if (changed) {
+                applyingVisibility = true
+                try {
+                    originals.forEach { (view, visibility) -> view.visibility = visibility }
+                    originals.clear()
+                } finally { applyingVisibility = false }
+            }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled + " chips=" + originals.size)
     }
 
     override fun onHook() {
@@ -128,10 +154,6 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         mediaSwitchVisibilityIds.clear()
         visibilityGuardLogged.set(false)
         enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "media card device switch", "disabled")
-            return
-        }
         installVisibilityGuard()
         installShadeHook()
         installIslandHook()
@@ -142,8 +164,11 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         enabled = false
         StatusIconHostAccess.onMain {
-            originals.forEach { (view, visibility) -> view.visibility = visibility }
+            applyingVisibility = true
+            try { originals.forEach { (view, visibility) -> view.visibility = visibility } }
+            finally { applyingVisibility = false }
             originals.clear()
+            knownViews.clear()
         }
         shadeHolderField = null
         shadeSeamlessField = null
@@ -418,7 +443,9 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     }
 
     private fun hideSeamless(view: View?) {
-        if (!enabled || view == null) return
+        if (view == null) return
+        knownViews += view
+        if (!enabled) return
         originals.putIfAbsent(view, view.visibility)
         applyingVisibility = true
         try { if (view.visibility != View.GONE) view.visibility = View.GONE }

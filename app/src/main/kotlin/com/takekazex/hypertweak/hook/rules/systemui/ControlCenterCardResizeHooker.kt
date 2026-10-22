@@ -108,6 +108,28 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
         Log.i(TAG, "ControlCenterResize: hooks installed")
     }
 
+    /**
+     * Accepted-snapshot refresh. Sizes are read per bind; this pass invalidates the applied
+     * signature and asks the panel to re-distribute, so a committed size reaches the cards that
+     * are already laid out. Disabling clears the signature so the stock sizes apply again.
+     */
+    fun refreshSettings() {
+        lastAppliedSignature = null
+        val live = enabled()
+        lastAdapter?.let { adapter ->
+            runCatching { refreshAdapter?.invoke(adapter, false, false) }
+                .onFailure { Log.e(TAG, "ControlCenterResize: settings apply", it) }
+        }
+        Log.i(TAG, "ControlCenterResize: applied enabled=" + live)
+    }
+
+    /** The most recently seen panel adapter and its own change notification. */
+    @Volatile
+    private var lastAdapter: Any? = null
+
+    @Volatile
+    private var refreshAdapter: java.lang.reflect.Method? = null
+
     private fun enabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)
 
@@ -507,8 +529,10 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
         }?.apply { isAccessible = true } ?: return
         val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        refreshAdapter = notifyChanged
         changeVisible.hook {
             after { param ->
+                lastAdapter = param.thisObject
                 runCatching {
                     if (!enabled()) {
                         lastAppliedSignature = null

@@ -109,6 +109,47 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         materialLogCount = 0
     }
 
+    /**
+     * Accepted-snapshot refresh. The colour is read through [isEnabled] on every hook, so an
+     * enable needs no reinstall; it re-renders the wrappers and hybrids this module already
+     * touched, so notifications that are already displayed change colour now instead of waiting
+     * for their next bind. A disable restores the colours this module replaced.
+     */
+    fun refreshSettings() {
+        StatusIconHostAccess.onMain {
+            if (isEnabled()) {
+                wrappers.entries.toList().forEach { (wrapper, rowRef) ->
+                    val row = rowRef.get() ?: return@forEach
+                    HookFailurePolicy.open(TAG, "wrapper enable", Unit) { forceWrapperText(wrapper, row) }
+                }
+                hybrids.keys.toList().forEach { view ->
+                    HookFailurePolicy.open(TAG, "hybrid enable", Unit) { forceHybridText(view) }
+                }
+                DebugLog.i(TAG, "settings applied enabled=true wrappers=" + wrappers.size +
+                    " hybrids=" + hybrids.size)
+                return@onMain
+            }
+            texts.entries.toList().forEach { (view, state) ->
+                HookFailurePolicy.open(TAG, "text disable", Unit) {
+                    if (isApplied(view.textColors, state.color)) view.setTextColor(state.original)
+                }
+            }
+            texts.clear()
+            hybrids.clear()
+            wrappers.clear()
+            rowEffects.clear()
+            synchronized(paletteLock) {
+                palettes.forEach { (palette, state) ->
+                    HookFailurePolicy.open(TAG, "palette disable", Unit) {
+                        textColorField?.let { if (it.getInt(palette) == state.color) it.setInt(palette, state.original) }
+                    }
+                }
+                palettes.clear()
+            }
+            DebugLog.i(TAG, "settings applied enabled=false")
+        }
+    }
+
     internal fun recoverHybrid(view: View) {
         if (isEnabled() && hierarchy(view).contains(HYBRID)) forceHybridText(view)
     }

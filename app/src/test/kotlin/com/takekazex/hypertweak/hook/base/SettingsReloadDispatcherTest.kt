@@ -57,4 +57,29 @@ class SettingsReloadDispatcherTest {
         assertTrue(restored)
         assertEquals(listOf("island"), loop.failures)
     }
+    @Test fun fullRefreshSurvivesKeyedChangesAndRetry() {
+        val loop = Loop()
+        val seen = arrayListOf<Set<String>>()
+        loop.reload.register("header") { keys -> seen += keys; seen.size > 1 }
+        loop.reload.resume()
+        loop.reload.request(setOf("header"), setOf("notification_header_hide_date"))
+        loop.tick()
+        assertEquals(listOf(emptySet<String>()), seen)
+        loop.reload.request(setOf("header"), setOf("notification_header_hide_time"))
+        loop.tick()
+        assertEquals(listOf(emptySet<String>(), emptySet<String>()), seen)
+    }
+
+    @Test fun keyedRefreshNeverRunsAnotherGroupsFeatureKeys() {
+        val loop = Loop()
+        val seen = linkedMapOf<String, Set<String>>()
+        loop.reload.register("header") { keys -> seen["header"] = keys; true }
+        loop.reload.register("lockscreen") { keys -> seen["lockscreen"] = keys; true }
+        loop.reload.request(setOf("header"), setOf("seconds"))
+        loop.reload.request(setOf("lockscreen"), setOf("bottom_text"))
+        loop.tick()
+        assertEquals(setOf("seconds"), seen["header"])
+        assertEquals(setOf("bottom_text"), seen["lockscreen"])
+    }
+
 }

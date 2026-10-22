@@ -53,15 +53,26 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
         mode = Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
     }
 
+    /**
+     * Accepted-snapshot refresh. The transform reads [mode] when the combine body runs, so a new
+     * mode applies to the next recomposition of the lock screen transform; leaving the host's own
+     * inputs untouched in the default mode is the disable path.
+     */
+    fun refreshSettings() {
+        mode = Preferences.getInt(
+            Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
+            Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+        )
+        DebugLog.i(TAG, "settings applied mode=$mode")
+    }
+
     override fun onHook() {
         mode = Preferences.getInt(
             Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
             Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
         )
-        if (mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) {
-            DebugLog.hookSkippedDebug(TAG, "nsslLockYPosition combine", "mode is system default")
-            return
-        }
+        // Installed for the generation regardless of the mode: the body reads [mode] at run time,
+        // so the first non-default choice applies to the living lock screen.
 
         val combineLambda = resolveCombineLambdaClass()
         val invoke = combineLambda?.declaredMethods?.firstOrNull {
@@ -78,6 +89,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
 
         invoke.hook {
             before { param ->
+                if (mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) return@before
                 val values = param.args.getOrNull(1) as? Array<*> ?: return@before
                 if (values.size != 7) return@before
                 val booleanIndices = values.indices.filter { values[it] is Boolean }
@@ -86,9 +98,12 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
                     return@before
                 }
                 val forced = mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS
+                // Never pollute the combine operator's cached source array: returning to native
+                // mode must see the original booleans, not our previous override.
                 @Suppress("UNCHECKED_CAST")
-                val anyValues = values as Array<Any?>
+                val anyValues = values.copyOf() as Array<Any?>
                 booleanIndices.forEach { anyValues[it] = forced }
+                param.args[1] = anyValues
             }
         }
         DebugLog.d(TAG, "hooked DexKit nsslLockYPosition transform (mode=$mode)")

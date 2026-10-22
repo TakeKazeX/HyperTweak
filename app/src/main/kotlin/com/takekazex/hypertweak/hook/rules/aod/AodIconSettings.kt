@@ -16,6 +16,15 @@ internal data class AodIconSettings(
         percentPosition != Preferences.AOD_PERCENT_POSITION_RIGHT
 
     companion object {
+        /** The all-default configuration, used wherever a lit lock screen must ignore AOD options. */
+        fun defaults(): AodIconSettings = AodIconSettings(
+            batteryIcon = true,
+            duo = false,
+            percent = true,
+            centerSignal = false,
+            percentPosition = Preferences.AOD_PERCENT_POSITION_RIGHT
+        )
+
         fun current(): AodIconSettings {
             val duo = Preferences.getBoolean(Preferences.KEY_AOD_DUO_ENABLED, false)
             val centerSignal = Preferences.getInt(

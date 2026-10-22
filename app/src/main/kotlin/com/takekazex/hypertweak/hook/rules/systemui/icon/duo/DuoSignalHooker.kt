@@ -82,6 +82,8 @@ object DuoSignalHooker : StaticHooker() {
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var currentNetwork: Network? = null
     private var networkPending: Runnable? = null
+    /** Live dozing read: `MiuiFullAodManager.isDozing`, resolved once from the running host. */
+    private var dozingRead: (() -> Boolean?)? = null
     private var batteryLayoutField: Field? = null
     private var statusIconsField: Field? = null
     private var wifiTintResourceMethod: Method? = null
@@ -135,6 +137,11 @@ object DuoSignalHooker : StaticHooker() {
         var aodPercent: TextView? = null
         var aodNativeSuppressed = false
         var fullAodNativeState: FullAodNativeState? = null
+        /**
+         * Last keyguard phase proven for this row. The host's dozing flag decides it; while the
+         * host cannot answer, the recorded phase is kept so a transient read cannot flip the row.
+         */
+        var rowPhase: AodHostPhase = AodHostPhase.UNKNOWN
         var dotsInMotion = false
         var reconciling = false
         // Preserve whether the host/user already ignored the native airplane slot before Duo.
@@ -439,16 +446,17 @@ object DuoSignalHooker : StaticHooker() {
     private var dataFirst = false
 
     override fun onHook() {
+        epoch++
         dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         small5GaEnabled = Preferences.getBoolean(
             Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
         standardEnabled = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
-        enabled = PlatformLevel.isOs4 && isMainProcess &&
-            (standardEnabled || AodIconSettings.current().customized)
+        // The keyguard row is always owned by this hooker: an accepted AOD snapshot refreshes it
+        // through [refreshAodSettings], so the first AOD option does not need a SystemUI restart.
+        enabled = PlatformLevel.isOs4 && isMainProcess
         if (!enabled) return
-        epoch++
         expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
         iconSizeDp = DuoLayout.safeSizeDp(
@@ -467,6 +475,7 @@ object DuoSignalHooker : StaticHooker() {
             battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
             percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
+        resolveDozingSource()
         IconTunerFlows.init(classLoader)
         val batteryClass = BATTERY.toClassOrNull() ?: run { enabled = false; return }
         val parentClass = CONTAINER.toClassOrNull() ?: run { enabled = false; return }
@@ -501,9 +510,9 @@ object DuoSignalHooker : StaticHooker() {
             after { param -> (param.thisObject as? View)?.let { battery ->
                 val token = epoch
                 if (Looper.myLooper() == Looper.getMainLooper()) {
-                    if (enabled && epoch == token && battery.isAttachedToWindow) guarded { attach(battery) }
+                    if (epoch == token && battery.isAttachedToWindow) guarded { attach(battery) }
                 } else {
-                    main.post { if (enabled && epoch == token && battery.isAttachedToWindow) guarded { attach(battery) } }
+                    main.post { if (epoch == token && battery.isAttachedToWindow) guarded { attach(battery) } }
                 }
             } }
         }
@@ -579,7 +588,15 @@ object DuoSignalHooker : StaticHooker() {
                 parameterTypes(Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)
             }?.let { method ->
                 deoptimize(method)
-                method.hook { after { guarded { refresh() } } }
+                method.hook { after { param ->
+                    val toLockScreen = param.args.getOrNull(0) as? Boolean ?: true
+                    guarded {
+                        bindings.values.toList().filter { it.surface == DuoSurface.KEYGUARD }.forEach {
+                            observeHandshake(it, toLockScreen)
+                            reconcile(it)
+                        }
+                    }
+                } }
             }
         hookProxyCompensation()
         hookWifi()
@@ -762,6 +779,7 @@ object DuoSignalHooker : StaticHooker() {
                 ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null,
             panelVisible && panelProgress >= 0.999f)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
+        binding.rowPhase = phaseFor(binding.keyguardRoot)
         binding.view.iconSizeDp = iconSizeDp
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
@@ -835,19 +853,34 @@ object DuoSignalHooker : StaticHooker() {
                 DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
-            val aod = binding.keyguardRoot?.takeIf { read(it, "mToLockScreen") == false }
-                ?.let { AodIconSettings.current() }
-            if (aod != null && !aod.duo) {
-                // The opt-in only forces support on unsupported ROMs. Native full-screen AOD
-                // devices also need the SystemUI battery row, even when that opt-in is off.
-                if (AODHooker.isFullscreenSupported()) {
-                    showNativeFullAod(binding, aod)
-                } else {
-                    // Legacy AOD draws its own battery row while the keyguard header fades.
-                    holdHiddenAod(binding)
-                }
+            if (!enabled && binding.keyguardRoot != null) {
+                releaseKeyguardRow(binding, AodHostPhase.UNKNOWN)
                 return
             }
+            val decision = keyguardDecision(binding)
+            // Nothing owns this keyguard row: release every borrowed reference, mask and native
+            // child so a lit lock screen keeps exactly the host's result.
+            if (decision.owner == KeyguardRowOwner.NONE) {
+                releaseKeyguardRow(binding, decision.phase)
+                return
+            }
+            val aod = if (decision.phase == AodHostPhase.DOZING ||
+                decision.phase == AodHostPhase.TRANSITIONING) AodIconSettings.current() else null
+            if (decision.aodMarksNativeRow && aod != null && !aod.duo) {
+                // The opt-in only forces support on unsupported ROMs. Native full-screen AOD
+                // devices also need the SystemUI battery row, even when that opt-in is off.
+                showNativeFullAod(binding, aod)
+                binding.rowPhase = decision.phase
+                return
+            }
+            if (decision.owner == KeyguardRowOwner.AOD_HOLD) {
+                // Legacy AOD draws its own battery row while the keyguard header fades.
+                holdHiddenAod(binding)
+                binding.rowPhase = decision.phase
+                return
+            }
+            // Leaving the AOD row: restore native children, row visibility and layout before this
+            // pass either renders Duo for a lit lock screen or hides as the host asks.
             restoreNativeFullAod(binding)
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
             val charging = read(battery, "mCharging") as? Boolean
@@ -875,22 +908,24 @@ object DuoSignalHooker : StaticHooker() {
                 (binding.surface == DuoSurface.KEYGUARD || read(battery, "mIsAodAnimate") != true) &&
                 (aod != null || standardEnabled)
             if (aod != null && binding.failed) {
-                battery.visibility = View.GONE
-                binding.view.visibility = View.INVISIBLE
+                hideForAod(binding)
+                binding.rowPhase = decision.phase
                 return
             }
             if (aod != null && content == null) {
                 // The AOD target has already been selected. Never expose the stock row while
                 // battery and network callbacks are still being delivered.
-                battery.visibility = View.GONE
-                binding.view.visibility = View.INVISIBLE
+                hideForAod(binding)
+                binding.rowPhase = decision.phase
                 return
             }
             if (!enabled || binding.failed || content == null || !visible || battery.parent !== binding.parent ||
                 !DuoPolicy.replaces(surface(battery), expandedStyle)) {
                 restore(binding)
+                binding.rowPhase = decision.phase
                 return
             }
+            binding.rowPhase = decision.phase
             binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
             binding.view.icon.nativeWifi = nativeWifiGlyph(binding)
@@ -903,8 +938,7 @@ object DuoSignalHooker : StaticHooker() {
                 Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false))
             val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
             if (batteryOnly && batteryGlyph == null) {
-                if (aod != null) { battery.visibility = View.GONE; binding.view.visibility = View.INVISIBLE }
-                else restore(binding)
+                if (aod != null) hideForAod(binding) else restore(binding)
                 return
             }
             if (aod != null) {
@@ -978,14 +1012,114 @@ object DuoSignalHooker : StaticHooker() {
         } catch (error: Throwable) {
             binding.failed = true
             restore(binding)
-            if (binding.keyguardRoot?.let { read(it, "mToLockScreen") } == false) {
-                binding.battery.visibility = View.GONE
-                binding.view.visibility = View.INVISIBLE
+            // A failure is not an AOD state: only an AOD-owned row may stay suppressed, a lit
+            // lock screen keeps the host result instead of hiding both representations.
+            if (binding.surface == DuoSurface.KEYGUARD && binding.rowPhase != AodHostPhase.LIT) {
+                hideForAod(binding)
             }
             DebugLog.w(TAG, "container failed", error)
         } finally { binding.reconciling = false }
     }
 
+    /**
+     * Resolves the host's authoritative dozing source once: `MiuiFullAodManager.isDozing` is
+     * written by `StatusBarStateController.StateListener.onDozingChanged`, so it describes the
+     * surface that is actually showing. `mToLockScreen` is not used for this decision.
+     */
+    private fun resolveDozingSource() {
+        if (dozingRead != null) return
+        val managerClass = "com.android.keyguard.fullaod.MiuiFullAodManager".toClassOrNull() ?: run {
+            DebugLog.w(TAG, "full-AOD manager missing; AOD options stay off the lock-screen row")
+            return
+        }
+        val target = fullAodManagerInstance()?.takeIf(managerClass::isInstance) ?: run {
+            DebugLog.w(TAG, "full-AOD manager unavailable; AOD options stay off the lock-screen row")
+            return
+        }
+        val field = runCatching { managerClass.getField("isDozing").apply { isAccessible = true } }.getOrNull()
+        if (field == null) {
+            DebugLog.w(TAG, "full-AOD manager has no isDozing field")
+            return
+        }
+        dozingRead = { runCatching { field.getBoolean(target) }.getOrNull() }
+        DebugLog.d(TAG, "dozing source resolved")
+    }
+
+    /** The registered full-AOD manager, from the host's interface registry. */
+    private fun fullAodManagerInstance(): Any? = runCatching {
+        val registry = "miui.util.InterfacesImplManager".toClassOrNull() ?: return@runCatching null
+        val iface = "com.miui.interfaces.keyguard.IMiuiFullAodManager".toClassOrNull() ?: return@runCatching null
+        val getImpl = registry.methods.firstOrNull {
+            it.name == "getImpl" && it.parameterCount == 1 && it.parameterTypes[0] == Class::class.java
+        } ?: return@runCatching null
+        getImpl.invoke(null, iface)
+    }.getOrNull()
+
+    /** Current keyguard phase, from the dozing flag and the attached keyguard host. */
+    private fun phaseFor(keyguardRoot: View?): AodHostPhase {
+        val root = keyguardRoot ?: return AodHostPhase.UNKNOWN
+        if (!root.isAttachedToWindow) return AodHostPhase.UNKNOWN
+        return AodKeyguardPolicy.phaseFromDozing(dozingRead?.invoke(), true)
+    }
+
+    /** Keyguard-row decision for one pass; every non-keyguard surface is unconditionally Duo. */
+    private fun keyguardDecision(binding: Binding): KeyguardRowDecision {
+        val root = binding.keyguardRoot
+            ?: return KeyguardRowDecision.of(AodHostPhase.UNKNOWN, KeyguardRowOwner.DUO)
+        val phase = when {
+            !enabled -> AodHostPhase.UNKNOWN
+            // A recorded transition is confirmed by the dozing flag; without one the host can
+            // prove neither state, so the transition keeps the row for this pass.
+            binding.rowPhase == AodHostPhase.TRANSITIONING && dozingRead?.invoke() == null ->
+                AodKeyguardPolicy.phaseAfterTransitionFrame(null, root.isAttachedToWindow)
+            else -> phaseFor(root)
+        }
+        val settings = if (phase == AodHostPhase.LIT || phase == AodHostPhase.UNKNOWN)
+            AodIconSettings.defaults() else AodIconSettings.current()
+        return AodKeyguardPolicy.decide(
+            phase = phase,
+            standardDuo = standardEnabled,
+            aodCustomized = settings.customized,
+            aodDuo = settings.duo,
+            // Capability, never the current mode: it selects the AOD renderer only inside an
+            // AOD phase, where the dozing flag has already proven the AOD surface is showing.
+            fullAodRendering = AODHooker.isFullscreenSupported()
+        )
+    }
+
+    /** A full-AOD handshake may change the keyguard state outside a reconciliation. */
+    private fun observeHandshake(binding: Binding, toLockScreen: Boolean) {
+        if (binding.surface != DuoSurface.KEYGUARD) return
+        val root = binding.keyguardRoot ?: return
+        val phase = AodKeyguardPolicy.phaseAfterHandshake(
+            toLockScreen, root.isAttachedToWindow, dozingRead?.invoke())
+        if (binding.rowPhase == phase) return
+        val previous = binding.rowPhase
+        binding.rowPhase = phase
+        DebugLog.d(TAG, "keyguard handshake toLockScreen=" + toLockScreen +
+            " phase=" + previous.name + "->" + phase.name)
+    }
+
+    /**
+     * Hides the native row for an AOD frame that cannot render. Only an AOD phase owns that: a
+     * lit lock screen keeps whatever the host and the regular Duo columns decided.
+     */
+    private fun hideForAod(binding: Binding) {
+        if (keyguardDecision(binding).keepsNativeRow) {
+            restore(binding)
+            return
+        }
+        binding.view.visibility = View.INVISIBLE
+        binding.battery.visibility = View.GONE
+        binding.aodNativeSuppressed = true
+    }
+
+    /** Releases every keyguard-row change this binding owns and returns the native row. */
+    private fun releaseKeyguardRow(binding: Binding, phase: AodHostPhase) {
+        restoreNativeFullAod(binding)
+        restore(binding)
+        binding.rowPhase = phase
+    }
     /** Keep the keyguard icon lease through AOD so the host's fade never exposes stock icons. */
     private fun holdHiddenAod(binding: Binding) {
         binding.view.visibility = View.INVISIBLE
@@ -1027,6 +1161,7 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun applyFullAodNativeChildren(binding: Binding) {
         val state = binding.fullAodNativeState ?: return
+        if (binding.surface != DuoSurface.KEYGUARD || binding.rowPhase == AodHostPhase.LIT) return
         if (binding.keyguardRoot?.let { read(it, "mToLockScreen") } != false) return
         val settings = AodIconSettings.current()
         if (settings.duo) return
@@ -1682,6 +1817,8 @@ object DuoSignalHooker : StaticHooker() {
         IconPositionHooker.setDuoMask(binding.icons, false)
         setNativeAirplaneMasked(binding, false)
         if (!binding.active) {
+            // Only a suppression the module made may be released by replaying the host's own
+            // visibility; otherwise the host result is already the truth.
             if (binding.aodNativeSuppressed) visibilityMethod?.invoke(binding.battery)
             binding.aodNativeSuppressed = false
             return
@@ -1701,6 +1838,7 @@ object DuoSignalHooker : StaticHooker() {
         val binding = bindings.remove(battery) ?: return
         binding.reconciling = true
         restore(binding)
+        binding.rowPhase = AodHostPhase.UNKNOWN
         binding.preDraw?.let { listener -> binding.observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener) }
         // Removal during the parent's detach traversal can skip sibling detach callbacks.
         if (!enabled && Looper.myLooper() == Looper.getMainLooper()) {
@@ -1789,6 +1927,46 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun refresh() { bindings.values.toList().forEach { guarded { reconcile(it) } } }
+
+    /**
+     * Applies an acknowledged AOD snapshot without recreating hooks or rescanning the host.
+     *
+     * Every hooked entry point stays installed for the process lifetime and the row decision is
+     * re-derived per pass from [keyguardDecision], so this pass only refreshes the derived options
+     * and reconciles the existing bindings. A host that was already attached while the first AOD
+     * option was off is covered; a transient dozing read never overwrites a proven phase.
+     */
+    fun refreshAodSettings() {
+        if (!enabled) {
+            DebugLog.hookSkippedDebug(TAG, "AOD settings refresh", "Duo module disabled")
+            return
+        }
+        standardEnabled = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
+        expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
+            DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
+        iconSizeDp = DuoLayout.safeSizeDp(
+            Preferences.getInt(Preferences.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
+        )
+        componentSizes = DuoSizes(
+            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+        )
+        val token = epoch
+        main.post { if (enabled && token == epoch) guarded {
+            bindings.values.toList().forEach { binding ->
+                binding.view.iconSizeDp = iconSizeDp
+                reconcile(binding)
+            }
+            DebugLog.i(TAG, "AOD settings refreshed records=" + bindings.size +
+                " standardDuo=" + standardEnabled)
+        } }
+    }
     private fun field(type: Class<*>, name: String): Field? {
         val key = type to name
         if (fields.containsKey(key)) return fields[key]

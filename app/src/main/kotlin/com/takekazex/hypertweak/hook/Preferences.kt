@@ -1191,7 +1191,8 @@ object Preferences {
      * [KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD] percent while unplugged;
      * [KEY_EXIT_POWER_SAVE_WHEN_CHARGING] leaves power save once on connection, then selects
      * on/off on unplug from the same threshold. Manual changes while charging are preserved.
-     * Both switches need one SystemUI restart after changing.
+     * Both switches and the threshold apply live through the runtime settings group
+     * `systemui.power_save`; the SystemUI battery monitor is registered regardless of them.
      */
     const val KEY_BATTERY_AUTO_POWER_SAVE_ENABLED = "battery_auto_power_save_enabled"
     const val KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD = "battery_auto_power_save_threshold"

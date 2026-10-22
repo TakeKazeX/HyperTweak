@@ -18,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
@@ -37,7 +38,22 @@ import androidx.core.view.isVisible
 class AodStatusIconHooker : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
-    private companion object {
+    companion object {
+        /** Never retains a retired hooker: the host owns the views the records point at. */
+        private val live = java.util.WeakHashMap<AodStatusIconHooker, Boolean>()
+
+        /**
+         * The standalone AOD process attaches a hooker that no plugin session owns. An accepted
+         * AOD snapshot must reach it as well, so instances register themselves weakly here.
+         */
+        internal fun refreshAll() {
+            val instances = synchronized(live) { live.keys.toList() }
+            instances.forEach { hooker ->
+                runCatching { hooker.refreshSettings() }
+                    .onFailure { DebugLog.w("AodStatusIcon", "AOD settings refresh failed", it) }
+            }
+        }
+
         const val TAG = "AodStatusIcon"
         const val BATTERY_METER = "com.miui.aod.components.view.AODBatteryMeterView"
         const val AOD_CONTAINER = "com.miui.aod.components.view.AodContainerView"
@@ -52,6 +68,10 @@ class AodStatusIconHooker : DynamicHooker() {
     private val main = Handler(Looper.getMainLooper())
     private val bindings = IdentityHashMap<View, Binding>()
     private var signalObserver: AodSignalObserver? = null
+    /** Invalidates queued refreshes of a retired generation or a newer settings snapshot. */
+    @Volatile private var revision = 0L
+    /** Living AOD containers (the view whose row gate owns the battery widget). */
+    private val containers = java.util.WeakHashMap<View, Boolean>()
 
     private data class NativeChild(
         val view: View,
@@ -76,20 +96,49 @@ class AodStatusIconHooker : DynamicHooker() {
         var lastCenterSignal: Boolean? = null
         var composed = false
         var refreshing = false
+        /** The module hid the native row; clearing it lets the host's container gate decide again. */
+        var hiddenByModule = false
     }
 
     override fun onPrepareHotReload() {
+        AODHooker.applyAodPluginCapability(classLoader, retiring = true)
+        revision++ // separates this generation's queued refreshes from the next one
+        synchronized(live) { live.remove(this) }
         bindings.values.toList().forEach { binding -> runCatching { restore(binding) } }
         bindings.clear()
+        containers.clear()
         signalObserver?.stop()
         signalObserver = null
     }
 
     override fun onHook() {
-        if (!PlatformLevel.isOs4 || !isMainProcess || !AodIconSettings.current().customized) return
+        // The AOD battery row stays hooked for this process generation: every committed AOD
+        // setting is applied through [refreshSettings], including the first option that turns the
+        // customised row on, which used to require a SystemUI restart.
+        if (!PlatformLevel.isOs4 || !isMainProcess) return
+        AODHooker.applyAodPluginCapability(classLoader)
         hookBatteryMeter()
         hookAodContainer()
         hookLinkageBattery()
+    }
+
+    /**
+     * Re-applies the acknowledged AOD snapshot to every living host: reorders or restores the
+     * native percentage, re-composes or releases the Duo row, and re-evaluates the container
+     * gates. No hook is recreated and the plugin session keeps its parent's handle ownership.
+     */
+    fun refreshSettings() {
+        val token = ++revision
+        onMain {
+            if (revision != token) return@onMain
+            AODHooker.applyAodPluginCapability(classLoader)
+            bindings.values.toList().forEach { binding ->
+                if (!binding.root.isAttachedToWindow) return@forEach
+                refresh(binding)
+            }
+            containers.keys.toList().filter { it.isAttachedToWindow }.forEach(::applyContainerGates)
+            updateObserver()
+        }
     }
 
     private fun hookBatteryMeter() {
@@ -169,7 +218,12 @@ class AodStatusIconHooker : DynamicHooker() {
             deoptimize(method)
             method.hook {
                 before { param ->
-                    param.args[0] = AodIconSettings.current().showRow
+                    val container = param.thisObject as? View ?: return@before
+                    val requested = param.args[0] as? Boolean ?: return@before
+                    // A native false also means a preview layout with no battery/step stub.
+                    // Promoting it to true enters inflateBattery with a null native container.
+                    containers[container] = requested
+                    param.args[0] = AodRowPolicy.showNativeRow(requested, AodIconSettings.current().showRow)
                 }
                 after { param ->
                     val container = param.thisObject as? View ?: return@after
@@ -223,8 +277,16 @@ class AodStatusIconHooker : DynamicHooker() {
         try {
             val settings = AodIconSettings.current()
             if (!settings.showRow) {
+                // Nothing customises the row any more: release the composition and the visibility
+                // the module took, so the host's own battery widget policy applies again.
+                val changed = binding.composed || binding.hiddenByModule
                 restoreComposition(binding)
                 binding.root.visibility = View.GONE
+                binding.hiddenByModule = true
+                if (changed) {
+                    binding.root.post { applyContainerGates(binding.root) }
+                    DebugLog.i(TAG, "AOD row released; native battery policy restored")
+                }
                 return
             }
             binding.root.visibility = View.VISIBLE
@@ -254,6 +316,7 @@ class AodStatusIconHooker : DynamicHooker() {
             DebugLog.w(TAG, "AOD battery view update failed", error)
             binding.duoView?.visibility = View.INVISIBLE
             binding.root.visibility = View.GONE
+            binding.hiddenByModule = true
         } finally {
             binding.refreshing = false
             updateObserver()
@@ -480,7 +543,37 @@ class AodStatusIconHooker : DynamicHooker() {
         return DuoBattery((level * 100 / scale).coerceIn(0, 100), charging, powerSave)
     }
 
+    /**
+     * Container-level gate: re-inflate the native battery widget when the row is wanted, otherwise
+     * keep it out of composition. Runs on every accepted AOD snapshot, so the first option that
+     * shows the row does not wait for a host rebuild.
+     */
+    private fun applyContainerGates(container: View) {
+        if (containers[container] != true) return
+        val keep = AodIconSettings.current().showRow
+        var widget = (read(container, "mBatteryWidget") as? View)
+            ?: resourceId(container.context, BATTERY_CONTAINER_ID).takeIf { it != 0 }?.let(container::findViewById)
+        if (widget == null && keep) {
+            // The host builds the separate battery stub lazily; ask for it once the row is wanted.
+            read(container, "mStyleInfo")?.let { style ->
+                invokeMethod(container, "inflateBatteryAndStepContainerIfNeeded", style)
+                invokeMethod(container, "updateBatteryWidget")
+                widget = (read(container, "mBatteryWidget") as? View)
+                    ?: resourceId(container.context, BATTERY_CONTAINER_ID).takeIf { it != 0 }?.let(container::findViewById)
+            }
+        }
+        val current = widget ?: return
+        if (!keep) {
+            current.visibility = View.GONE
+            disableMamlBattery(container)
+        } else if (findViews(current, BATTERY_METER).isNotEmpty()) {
+            current.visibility = View.VISIBLE
+            findViews(current, BATTERY_METER).forEach(::bind)
+        }
+    }
+
     private fun applyContainer(container: View) {
+        if (containers[container] != true) return
         val keep = AodIconSettings.current().showRow
         invokeMethod(container, "updateBatteryWidget")
         val batteryId = resourceId(container.context, BATTERY_CONTAINER_ID)
@@ -608,6 +701,10 @@ class AodStatusIconHooker : DynamicHooker() {
         is FrameLayout.LayoutParams -> FrameLayout.LayoutParams(params)
         is ViewGroup.MarginLayoutParams -> ViewGroup.MarginLayoutParams(params)
         else -> ViewGroup.LayoutParams(params)
+    }
+
+    init {
+        synchronized(live) { live[this] = true }
     }
 
     private fun guarded(block: () -> Unit) {

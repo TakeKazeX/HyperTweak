@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.view.View
+import androidx.core.view.isGone
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -43,6 +44,17 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
     @Volatile
     private var getDeviceIcon: Method? = null
 
+    /**
+     * Living holders with the visibility the host asked for before the module hid the icon.
+     * Restoring the host value (never an assumed VISIBLE) keeps a card whose detail is genuinely
+     * unavailable unchanged when the switch is turned off.
+     */
+    private val hiddenIcons = java.util.WeakHashMap<Any, HostIconState>()
+
+    @Volatile private var retiring = false
+
+    private class HostIconState(val view: View, val visibility: Int)
+
     override fun onHook() {
         bindingField = null
         getDeviceIcon = null
@@ -73,19 +85,52 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
         setDetail.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "plugin setDetailAvailable", Unit) {
-                    if (!Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
-                        return@open
-                    }
                     val binding = bindingField?.get(param.thisObject) ?: return@open
                     val icon = getDeviceIcon?.invoke(binding) as? View ?: return@open
-                    if (icon.visibility != View.GONE) icon.visibility = View.GONE
+                    if (isEnabled()) hideIcon(param.thisObject, icon)
+                    else showIcon(param.thisObject, icon)
                 }
             }
         }
         DebugLog.d(TAG, "plugin media card device icon hidden after setDetailAvailable")
     }
 
+    /**
+     * Accepted-snapshot refresh. Enabling hides the icon on the cards that are on screen now;
+     * disabling hands each one back the visibility the host last asked for. `detailAvailable`
+     * and the card click behaviour are never touched, so the detail entry keeps working.
+     */
+    fun refreshSettings() {
+        if (retiring) return
+        val enabled = isEnabled()
+        hiddenIcons.keys.toList().forEach { holder ->
+            val state = hiddenIcons[holder] ?: return@forEach
+            if (enabled) hideIcon(holder, state.view) else showIcon(holder, state.view)
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled + " icons=" + hiddenIcons.size)
+    }
+
+    private fun isEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+
+    private fun hideIcon(holder: Any, icon: View) {
+        val known = hiddenIcons[holder]
+        // A rebind can swap the icon view; the host value of the new one is read again.
+        if (known == null || known.view !== icon) hiddenIcons[holder] = HostIconState(icon, icon.visibility)
+        if (!icon.isGone) icon.visibility = View.GONE
+    }
+
+    /** The host's own value, unless the host hid it after the module captured it. */
+    private fun showIcon(holder: Any, icon: View) {
+        val state = hiddenIcons[holder] ?: return
+        if (state.view !== icon) { hiddenIcons.remove(holder); return }
+        if (icon.isGone && state.visibility != View.GONE) icon.visibility = state.visibility
+        hiddenIcons.remove(holder)
+    }
+
     override fun onPrepareHotReload() {
+        retiring = true
+        hiddenIcons.clear()
         bindingField = null
         getDeviceIcon = null
     }

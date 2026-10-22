@@ -9,7 +9,7 @@ import java.lang.reflect.Field
 
 /** Keeps a visible lockscreen's wallpaper scale for the native lockscreen-to-full-AOD animation. */
 object AodWallpaperHandoffHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "AodWallpaperHandoff"
     private const val SLEEP_CALLBACK = "com.android.systemui.keyguard.KeyguardService\$2"
@@ -23,8 +23,7 @@ object AodWallpaperHandoffHooker : StaticHooker() {
     private var keyguardOccludedField: Field? = null
 
     override fun onHook() {
-        if (!PlatformLevel.isOs4 || !isMainProcess ||
-            !Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) return
+        if (!PlatformLevel.isOs4 || !isMainProcess) return
 
         val sleep = SLEEP_CALLBACK.toClassOrNull()?.declaredMethods?.singleOrNull {
             it.name == "onStartedGoingToSleep" &&
@@ -50,6 +49,7 @@ object AodWallpaperHandoffHooker : StaticHooker() {
         deoptimize(update)
         sleep.hook {
             before {
+                if (!Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) return@before
                 val stack = calls.get() ?: mutableListOf<SleepCall>().also(calls::set)
                 stack.add(SleepCall())
             }

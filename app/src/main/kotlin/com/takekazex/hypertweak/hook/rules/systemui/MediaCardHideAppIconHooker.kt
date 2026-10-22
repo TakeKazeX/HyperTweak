@@ -51,6 +51,9 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     private var islandAppIconField: Field? = null
 
     private val originals = WeakHashMap<View, Int>()
+    /** Every media app-icon overlay the hooks have seen, for a settings pass that re-applies. */
+    private val knownViews: MutableSet<View> =
+        java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
     @Volatile private var enabled = false
 
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
@@ -76,19 +79,36 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     }
 
     private fun hideIcon(icon: View) {
+        knownViews += icon
         if (!enabled) return
         originals.putIfAbsent(icon, icon.visibility)
         icon.visibility = View.GONE
+    }
+
+    /**
+     * Accepted-snapshot refresh. The host hooks stay installed for the generation and read
+     * [enabled] per bind, so enabling only needs the overlay hidden on the living cards while
+     * disabling restores the original visibility of every icon this module hid.
+     */
+    fun refreshSettings() {
+        val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        val changed = next != enabled
+        enabled = next
+        StatusIconHostAccess.onMain {
+            if (enabled) {
+                knownViews.filter { it.isAttachedToWindow }.forEach(::hideIcon)
+            } else if (changed) {
+                originals.forEach { (view, visibility) -> view.visibility = visibility }
+                originals.clear()
+            }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled + " icons=" + originals.size)
     }
 
     override fun onHook() {
         shadeAppIconField = null
         islandAppIconField = null
         enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "media card app icon", "disabled")
-            return
-        }
         installShadeHook()
         installIslandHook()
     }
@@ -98,6 +118,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         StatusIconHostAccess.onMain {
             originals.forEach { (view, visibility) -> view.visibility = visibility }
             originals.clear()
+            knownViews.clear()
         }
         shadeAppIconField = null
         islandAppIconField = null

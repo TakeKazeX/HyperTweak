@@ -318,6 +318,23 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         }
     }
 
+    /**
+     * Accepted-snapshot refresh for the charging detail. The options are read per pass, so this
+     * only asks the living lock-screen indication to reconcile now instead of waiting for the
+     * next battery broadcast or sampling tick; the master switch restores the native text.
+     */
+    fun refreshSettings() {
+        refreshGeneration++
+        if (detailEnabled()) {
+            reconcile()
+            scheduleHostSync()
+        } else {
+            stopRefresh()
+            scheduleHostSync()
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + detailEnabled() + " fields=" + fields())
+    }
+
     private fun scheduleHostSync() {
         if (hostSyncPending || indicationHost.get() == null) return
         hostSyncPending = true

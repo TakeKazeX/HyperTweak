@@ -10,6 +10,9 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.util.StaticFieldWriter
+import java.util.WeakHashMap
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
@@ -56,10 +59,10 @@ import java.util.concurrent.ConcurrentHashMap
  *   fallback are decompiler / dead-code artifacts: neither exists in the WM Shell jar or in SystemUI.
  *   Both are dropped.
  *
- * Read once at hook-install time; a SystemUI restart applies a change.
+ * Installed once; acknowledged settings update the gates before the next native transition.
  */
 object FreeformBlurTransitionHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "FreeformBlur"
 
@@ -84,15 +87,10 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     private const val BOTTOM_BOARD_ALPHA_FIELD = "bottomBoardAlpha"
     private const val TRANSACTION_FIELD = "mTransaction"
 
-    /**
-     * `com.android.wm.shell` allocates resource ids in the 0x70 application range while SystemUI
-     * allocates in 0x7f, so a bare-id cache cannot cross-contaminate the two. These two ids are the
-     * fast path; [isBottomBoardColor]'s name check is the authoritative one — it also covers the
-     * `sosc_decor_*` pair the original module missed, and survives a resource-id reassignment.
-     */
-    private const val DRAG_BOTTOM_BOARD_COLOR_ID = 0x700600a3
-    private const val DRAG_BOTTOM_BOARD_STROKE_ID = 0x700600a4
-    private const val BOTTOM_BOARD_MARKER = "bottom_board"
+    private val bottomBoardNames = setOf(
+        "drag_bottom_board_color", "drag_bottom_board_stoke_color",
+        "sosc_decor_bottom_board_color", "sosc_decor_bottom_board_stoke_color"
+    )
 
     // ─── SystemProperties keys ─────────────────────────────────────────────────────────────────
 
@@ -135,8 +133,28 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         val coverHideEase: Any
     )
 
+    private val nativeCapabilities = linkedMapOf<Field, Boolean>()
+    private val backgrounds = WeakHashMap<View, Int>()
+
+    fun refreshSettings() = StatusIconHostAccess.onMain {
+        enabled = Preferences.freeformBlurTransition()
+        nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original || enabled) }
+        if (!enabled) restoreBackgrounds()
+        DebugLog.i(TAG, "settings applied enabled=$enabled capabilityCaches=${nativeCapabilities.size}")
+    }
+
+    private fun restoreBackgrounds() {
+        backgrounds.forEach { (view, color) -> view.setBackgroundColor(color); view.invalidate() }
+        backgrounds.clear()
+    }
+
     override fun onPrepareHotReload() {
         enabled = false
+        StatusIconHostAccess.onMain {
+            restoreBackgrounds()
+            nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original) }
+            nativeCapabilities.clear()
+        }
         targets = null
         dynamicMethods.clear()
         knownBottomBoardIds.clear()
@@ -145,10 +163,22 @@ object FreeformBlurTransitionHooker : StaticHooker() {
 
     override fun onHook() {
         enabled = Preferences.freeformBlurTransition()
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "freeform blur transition", "disabled")
-            return
+        // Resolve original cached capabilities before installing property overrides. Direct-read
+        // consumers must observe the acknowledged switch too, including a default-off startup.
+        listOf(
+            "com.android.miui.miuixx.core.util.HyperMaterialUtils" to "mIsSupport",
+            "com.android.wm.shell.multitasking.miuifreeform.miuiminifocus.FreeFormRecommendLayout" to "SUPPORT_MIUI_BLUR",
+            "com.android.wm.shell.multitasking.miuifreeform.miuiminifocus.SplitScreenRecommendLayout" to "SUPPORT_MIUI_BLUR"
+        ).forEach { (name, member) ->
+            runCatching {
+                val type = name.toClassOrNull() ?: return@runCatching
+                val field = type.getDeclaredField(member).apply { isAccessible = true }
+                nativeCapabilities[field] = field.getBoolean(null)
+            }.onFailure { DebugLog.w(TAG, "capability cache unavailable $name.$member", it) }
         }
+        "com.android.wm.shell.multitasking.common.MultiTaskingBlurHelper".toClassOrNull()
+            ?.declaredMethods?.filter { it.name == "clearBlur" || it.name == "setViewBlur" }
+            ?.forEach(::deoptimize)
 
         // The three groups are independent: a host build that moved one of them must not disable the
         // rest, so each installs behind its own boundary and reports its own count.
@@ -160,6 +190,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "freeform blur transition", "no target resolved")
             return
         }
+        refreshSettings()
         DebugLog.i(
             TAG,
             "freeform blur transition armed: gates=$gates cover=$cover smooth=$smooth"
@@ -258,7 +289,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
                     return@forEach
                 }
                 if (!prepare(method, "$COMMON_UTILS#$name")) return@forEach
-                method.hook("freeform_blur_$name") { returnConstant(true) }
+                method.hook("freeform_blur_$name") { after { param -> if (enabled) param.result = true } }
                 installed++
             }
         }
@@ -316,8 +347,10 @@ object FreeformBlurTransitionHooker : StaticHooker() {
                     if (!enabled) return@before
                     val viewClass = shapeViewClass ?: return@before
                     if (!viewClass.isInstance(param.thisObject)) return@before
-                    if (param.args.getOrNull(0) as? Int == Color.TRANSPARENT) return@before
                     HookFailurePolicy.open(TAG, "clear shape view background", Unit) {
+                        val view = param.thisObject as? View ?: return@open
+                        val requested = param.args[0] as? Int ?: return@open
+                        backgrounds[view] = requested
                         param.args[0] = Color.TRANSPARENT
                     }
                 }
@@ -349,13 +382,14 @@ object FreeformBlurTransitionHooker : StaticHooker() {
                     runCatching {
                         method.isAccessible = true
                         method.hook("freeform_blur_shape_view_on_draw_${method.parameterCount}") {
-                            before { param ->
-                                if (!enabled) return@before
-                                HookFailurePolicy.open(TAG, "blank bottom board alpha", Unit) {
-                                    val shapeView = param.thisObjectOrNull ?: return@open
-                                    val animInfo = typeAnimInfoField.get(shapeView) ?: return@open
-                                    alphaField.setFloat(animInfo, 0f)
-                                }
+                            intercept { chain ->
+                                if (!enabled) return@intercept chain.proceed()
+                                val animInfo = runCatching { typeAnimInfoField.get(chain.thisObject) }
+                                    .onFailure { DebugLog.w(TAG, "bottom board state unavailable", it) }.getOrNull()
+                                    ?: return@intercept chain.proceed()
+                                val original = alphaField.getFloat(animInfo)
+                                alphaField.setFloat(animInfo, 0f)
+                                try { chain.proceed() } finally { alphaField.setFloat(animInfo, original) }
                             }
                         }
                         installed++
@@ -368,17 +402,17 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }
 
     /**
-     * True when [id] is one of the WM Shell bottom-board colours. The fast path is the two compiled
-     * ids; the authoritative path is the resource name. Verdicts are cached because this runs on
+     * Match the current resource package/name rather than ids from an older APK. Cache because
+     * this runs on
      * every `Resources.getColor` call in SystemUI.
      */
     private fun isBottomBoardColor(resources: Resources, id: Int): Boolean {
         if (id == 0) return false
-        if (id == DRAG_BOTTOM_BOARD_COLOR_ID || id == DRAG_BOTTOM_BOARD_STROKE_ID) return true
         if (id in knownBottomBoardIds) return true
         if (id in missedBottomBoardIds) return false
         val name = runCatching { resources.getResourceEntryName(id) }.getOrNull()
-        val match = name != null && name.contains(BOTTOM_BOARD_MARKER)
+        val match = name in bottomBoardNames &&
+            runCatching { resources.getResourcePackageName(id) == "com.android.wm.shell" }.getOrDefault(false)
         if (match) knownBottomBoardIds += id else missedBottomBoardIds += id
         return match
     }

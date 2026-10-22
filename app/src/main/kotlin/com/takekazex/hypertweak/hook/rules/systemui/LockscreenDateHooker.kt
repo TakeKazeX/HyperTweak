@@ -22,13 +22,17 @@ object LockscreenDateHooker : StaticHooker() {
     @Volatile private var enabled = false
 
     private var bindExisting: ((ViewGroup) -> Unit)? = null
+    private var bind: ((ViewGroup) -> Unit)? = null
+    /** Every living clock root; weak because the host owns the views. */
+    private val roots = java.util.WeakHashMap<ViewGroup, Boolean>()
 
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { bindings.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
         StatusIconHostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
     }
     internal fun recoverExistingViews(views: List<View>) {
-        if (!enabled) return
+        // Also runs for an upgrade whose previous generation hid the dates but saved no enabled
+        // flag here: the clock container is bound first, so [bindExisting] sees the restored value.
         views.filterIsInstance<ViewGroup>()
             .filter { it.javaClass.name == "com.android.keyguard.clock.KeyguardClockContainer" }
             .forEach { bindExisting?.invoke(it) }
@@ -39,14 +43,40 @@ object LockscreenDateHooker : StaticHooker() {
         StatusIconHostAccess.onMain {
             bindings.values.toList().forEach { it.dispose() }
             bindings.clear()
+            roots.clear()
             bindExisting = null
+            bind = null
         }
+    }
+
+    /**
+     * Accepted-snapshot refresh: enabling binds the clock hosts that already exist (the hook no
+     * longer waits for their next attachment or for a SystemUI restart); disabling restores every
+     * suppressed date and stops observing until the switch is on again.
+     */
+    fun refreshSettings() {
+        val next = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
+        val changed = next != enabled
+        enabled = next
+        StatusIconHostAccess.onMain {
+            if (enabled) {
+                roots.keys.toList().filter { it.isAttachedToWindow }.forEach { root -> runCatching { bind?.invoke(root) } }
+            } else if (changed) {
+                // Restore while the switch is already false: the bindings' pre-draw pass reads
+                // [enabled] and returns, so releasing the recorded dates stays the last word.
+                bindings.values.toList().forEach { it.restoreNow() }
+            }
+        }
+        DebugLog.i("LockscreenDate", "settings applied enabled=" + enabled + " hosts=" + roots.size)
     }
 
     override fun onHook() {
         if (!isMainProcess) return
         enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
-        if (!enabled) return
+        // The contract is resolved and the host hook installed regardless of the switch: an
+        // accepted change reaches the living clock through [refreshSettings], and a generation
+        // that starts disabled still needs [bind] and the root registry for the first enable.
+        // The hiding policy itself stays behind [enabled] inside every pass.
         runCatching {
             val container = classLoader.loadClass("com.android.keyguard.clock.KeyguardClockContainer")
             val controller = classLoader.loadClass("com.miui.clock.MiuiClockController")
@@ -74,13 +104,20 @@ object LockscreenDateHooker : StaticHooker() {
                 }
             }.getOrNull()
             val textAreaRole = runCatching { role.getField("TEXT_AREA").get(null) }.getOrNull()
-            bindExisting = { root ->
-                if (enabled && !bindings.containsKey(root)) {
-                    val binding = Binding(root, controllers, activeClock, getView, dateRoles, contentType, textAreaRole)
-                    bindings[root] = binding
-                    binding.attach()
-                    binding.onPreDraw()
-                }
+            bind = bind@{ root ->
+                if (!enabled || bindings.containsKey(root) || !root.isAttachedToWindow) return@bind
+                val binding = Binding(root, controllers, activeClock, getView, dateRoles, contentType, textAreaRole)
+                bindings[root] = binding
+                binding.attach()
+                binding.onPreDraw()
+            }
+            // Registries run even while the switch is off: the host's own attachment callback is
+            // the only place that rewrites `enabled` from the committed value, so a generation
+            // that starts disabled still classifies the living clock on its next attach.
+            bindExisting = bind@{ root ->
+                if (root.isAttachedToWindow) roots[root] = true
+                enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
+                bind?.invoke(root)
             }
             val attach = container.getDeclaredMethod("onAttachedToWindow")
             attach.hook {
@@ -215,6 +252,13 @@ object LockscreenDateHooker : StaticHooker() {
                 }.onFailure { DebugLog.hookFailed("LockscreenDate", "restore date visibility", it) }
             }
             originals.clear()
+        }
+
+        /** Disable path: restore once immediately so no further frame paints hidden dates. */
+        fun restoreNow() {
+            dirty = true
+            restore()
+            onPreDraw()
         }
 
         fun dispose() {

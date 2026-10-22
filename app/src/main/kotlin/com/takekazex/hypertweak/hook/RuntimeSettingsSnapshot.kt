@@ -47,6 +47,20 @@ internal class RuntimeSettingsLedger {
     fun changedGroups(next: RuntimeSettingsSnapshot): Set<String> = snapshot?.let {
         RuntimeSettingsGroups.changed(it.values, next.values) + (next.groups - it.groups)
     } ?: next.groups
+
+    /**
+     * The committed keys whose values actually changed (including removals). Empty means a
+     * full application: new scopes can own default/absent keys that have no value diff.
+     */
+    fun changedKeys(next: RuntimeSettingsSnapshot): Set<String> = snapshot?.let { previous ->
+        if ((next.groups - previous.groups).isNotEmpty()) return emptySet()
+        val keys = LinkedHashSet<String>()
+        for (key in previous.values.keys + next.values.keys) {
+            if (key == "prefs_epoch" || key == Preferences.KEY_NATIVE_RULE_REVISION) continue
+            if (previous.values[key] != next.values[key]) keys += key
+        }
+        keys
+    } ?: emptySet()
     @Synchronized fun accept(next: RuntimeSettingsSnapshot): Boolean {
         if (snapshot?.revision?.let { next.revision <= it } == true) return false
         snapshot = next
@@ -73,6 +87,7 @@ internal object RuntimeSettingsStore {
     fun values(): Map<String, Any>? = ledger.latest()?.values
 
     fun changedGroups(next: RuntimeSettingsSnapshot): Set<String> = ledger.changedGroups(next)
+    fun changedKeys(next: RuntimeSettingsSnapshot): Set<String> = ledger.changedKeys(next)
     fun owns(key: String): Boolean = ledger.owns(key) && (target?.let { RuntimeSettingsGroups.owns(it, key) } ?: true)
     fun value(key: String): Any? = ledger.value(key)
     fun accept(next: RuntimeSettingsSnapshot): Boolean = ledger.accept(next).also {

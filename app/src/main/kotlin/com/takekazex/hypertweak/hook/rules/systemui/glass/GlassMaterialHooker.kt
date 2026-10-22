@@ -103,7 +103,8 @@ object GlassMaterialHooker : StaticHooker() {
         "cc_tile_default_blend_colors"
     )
 
-    // Snapshotted at hook-install time; a SystemUI restart applies new values.
+    // Re-read by an accepted settings change (refreshSettings); the hooks stay installed for the
+    // process generation and read these copies on every resource/View funnel.
     @Volatile
     private var enabled = false
     @Volatile
@@ -124,13 +125,39 @@ object GlassMaterialHooker : StaticHooker() {
     // the two packages. Each identity costs exactly one package+name lookup.
     private val knownKinds = ConcurrentHashMap<String, Kind>()
     private val missedKeys = ConcurrentHashMap.newKeySet<String>()
+    /** The funnels are installed once per hook generation, whichever entry point runs first. */
+    @Volatile private var installed = false
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         enabled = false
+        installed = false
         knownIds.clear()
         missedIds.clear()
+    }
+
+    /**
+     * Accepted-snapshot refresh. The resource and View funnels are hot, so the coefficients stay
+     * in volatile copies; this pass re-reads them and re-registers the resource identities, which
+     * also lets a first enable install the funnels instead of waiting for a SystemUI restart.
+     */
+    fun refreshSettings() {
+        val wasEnabled = enabled
+        enabled = Preferences.getBoolean(Preferences.KEY_GLASS_TUNER_ENABLED, false)
+        blendAlpha = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+        blendLightness = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+        radiusScale = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+        glassOpacity = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+        glassTone = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        if (wasEnabled != enabled || !enabled) {
+            if (enabled) installFunnels()
+            // Let the host rebuild the current surfaces with the new tokens.
+            knownIds.clear()
+            missedIds.clear()
+        }
+        DebugLog.i(TAG, "settings applied enabled=$enabled blendAlpha=$blendAlpha " +
+            "radiusScale=$radiusScale glassOpacity=$glassOpacity glassTone=$glassTone")
     }
 
     override fun onHook() {
@@ -140,6 +167,11 @@ object GlassMaterialHooker : StaticHooker() {
         radiusScale = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
         glassOpacity = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
         glassTone = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        installFunnels()
+    }
+
+    /** Installs the resource and View funnels once per hook generation. */
+    private fun installFunnels() {
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "Resources#get* / View#setMiGlass", "glass tuner disabled")
             return
@@ -150,6 +182,9 @@ object GlassMaterialHooker : StaticHooker() {
                 "radiusScale=$radiusScale glassOpacity=$glassOpacity glassTone=$glassTone"
         )
 
+        // Re-entrant installs (a first live enable) must not stack a second hook per method.
+        if (installed) return
+        installed = true
         val resources = Resources::class.java
         val targets = listOf(
             resources.getMethod("getDimensionPixelSize", Int::class.javaPrimitiveType),

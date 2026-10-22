@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.base
 
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.BackGestureSettingsSnapshot
+import com.takekazex.hypertweak.hook.rules.systemui.SystemUiLiveSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.dock.DockConfig
 
@@ -19,6 +20,26 @@ internal object RuntimeSettingsGroups {
     const val GESTURE_BAR_UI = "systemui.gesture_bar"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val OFFLINE_CONFIG = "carrier.offline_config"
+    /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
+    const val AOD = "systemui.aod"
+    /** Keyguard host surfaces whose policy is cached at install time (status bar, clock date, FOD). */
+    const val KEYGUARD = "systemui.keyguard"
+    /** Notification header layout, size and weather. */
+    const val HEADER = "systemui.notification_header"
+    /** Styling of already displayed notifications (clock seconds, Monet colour, absolute time, weight). */
+    const val NOTIFICATION_TEXT = "systemui.notification_text"
+    /** Media-card renderers in the host and in the control-center plugin. */
+    const val MEDIA_CARD = "systemui.media_card"
+    /** Control-center plugin sub-hooks whose presence a session used to decide at creation. */
+    const val CONTROL_CENTER_PLUGIN = "systemui.control_center_plugin"
+    /** Glass material tuner coefficients read from the resource/View funnels. */
+    const val GLASS = "systemui.glass"
+    /** Automatic power saving, its threshold and charging exit. */
+    const val POWER_SAVE = "systemui.power_save"
+    /** Lock-screen indication surfaces: bottom text, charging detail, fingerprint avoidance. */
+    const val LOCKSCREEN = "systemui.lockscreen"
+    const val AOD_CAPABILITY = "aod.capability"
+    const val FREEFORM_BLUR = "systemui.freeform_blur"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -30,6 +51,16 @@ internal object RuntimeSettingsGroups {
     val backKeys = BackGestureSettingsSnapshot.KEYS.toSet() + setOf(
         "back_gesture_predictive_packages", "contextual_search_long_press",
         "gesture_trigger_height_percent", "gesture_trigger_position_percent", "aosp_gesture_hyperos_haptics"
+    )
+    private val aodKeys = setOf(
+        Preferences.KEY_AOD_BATTERY_ICON_VISIBLE, Preferences.KEY_AOD_DUO_ENABLED,
+        Preferences.KEY_AOD_BATTERY_PERCENT_VISIBLE, Preferences.KEY_AOD_PERCENT_POSITION,
+        Preferences.KEY_AOD_DUO_CENTER_CONTENT
+    )
+    private val keyguardKeys = setOf(
+        Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, Preferences.KEY_HIDE_LOCKSCREEN_DATE,
+        Preferences.KEY_HIDE_FINGERPRINT, Preferences.KEY_HIDE_FINGERPRINT_AOD,
+        Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN, Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
@@ -49,6 +80,26 @@ internal object RuntimeSettingsGroups {
     private val groups = linkedMapOf(
         ICONS to Group(systemUi) { it != "prefs_epoch" && it !in islandKeys && IconSettingsPreferencePolicy.affectsIcons(it) },
         ISLANDS to Group(systemUi) { it in islandKeys },
+        // Both AOD hosts: SystemUI's keyguard battery row and the AOD plugin (hosted by SystemUI
+        // and by the standalone com.miui.aod process).
+        AOD to Group(systemUi + "com.miui.aod") { it in aodKeys },
+        AOD_CAPABILITY to Group(systemUi + setOf("com.miui.aod", "com.android.settings")) {
+            it == Preferences.KEY_AOD_FULLSCREEN
+        },
+        FREEFORM_BLUR to Group(systemUi) { it == Preferences.KEY_FREEFORM_BLUR_TRANSITION },
+        KEYGUARD to Group(systemUi) { it in keyguardKeys },
+        HEADER to Group(systemUi) { it in SystemUiLiveSettings.HEADER_KEYS },
+        NOTIFICATION_TEXT to Group(systemUi) { it in SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS },
+        // Both media-card renderers: the host hooks in SystemUI and the control-center plugin's
+        // device-icon child hook, which is chosen when a plugin session is created.
+        MEDIA_CARD to Group(systemUi) { it in SystemUiLiveSettings.MEDIA_CARD_KEYS },
+        // Control-center plugin sub-hooks (editor, resize, slider, corner): the plugin session
+        // applies these to its living instances instead of choosing them at creation time.
+        CONTROL_CENTER_PLUGIN to Group(systemUi) { it in SystemUiLiveSettings.CONTROL_CENTER_PLUGIN_KEYS },
+        GLASS to Group(systemUi) { it in SystemUiLiveSettings.GLASS_KEYS },
+        // The battery monitor lives in SystemUI; charging itself is handled by the AOD/battery rules.
+        LOCKSCREEN to Group(systemUi) { it in SystemUiLiveSettings.LOCKSCREEN_KEYS },
+        POWER_SAVE to Group(systemUi) { it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED || it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD || it == Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {
             it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE
         },

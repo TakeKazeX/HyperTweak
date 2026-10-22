@@ -40,6 +40,13 @@ object NotificationFontWeightHooker : StaticHooker() {
     @Volatile private var retiring = false
     private val originals = WeakHashMap<TextView, Typeface?>()
     private val applied = WeakHashMap<TextView, Int>()
+    /**
+     * Native owners (hybrid views and template wrappers) this module has styled. Their text views
+     * are replaced on every rebind, so the owner is the only stable handle for re-applying or
+     * releasing the weight on notifications that are already displayed.
+     */
+    private val owners: MutableSet<Any> =
+        java.util.Collections.newSetFromMap(WeakHashMap<Any, Boolean>())
 
     override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
         applied.entries.map { (view, weight) -> listOf(view, weight) }
@@ -60,12 +67,47 @@ object NotificationFontWeightHooker : StaticHooker() {
             originals.forEach { (view, typeface) -> view.typeface = typeface }
             originals.clear()
             applied.clear()
+            owners.clear()
         }
     }
     internal fun recoverHybrid(view: View) {
         if (isEnabled() && generateSequence<Class<*>>(view.javaClass) { it.superclass }
             .any { it.name == HYBRID_VIEW_CLASS }) forceHybridTypeface(view)
     }
+    /**
+     * Accepted-snapshot refresh. Enabling re-runs every tracked owner's own styling entry point,
+     * which walks the current children of already displayed notifications; disabling restores
+     * each original typeface. Neither waits for the next bind or a SystemUI restart.
+     */
+    fun refreshSettings() {
+        StatusIconHostAccess.onMain {
+            val live = owners.toList().filter { it is View && it.isAttachedToWindow }
+            if (isEnabled()) live.forEach(::restyle)
+            else {
+                originals.forEach { (view, typeface) -> view.typeface = typeface }
+                originals.clear()
+                applied.clear()
+                owners.clear()
+            }
+            DebugLog.d(TAG, "settings applied enabled=" + isEnabled() +
+                " owners=" + live.size + " textViews=" + applied.size)
+        }
+    }
+
+    /** Re-applies the weight through the styling path that owns this native object. */
+    private fun restyle(owner: Any) {
+        runCatching {
+            when {
+                owner.javaClass.name.endsWith("MiuiNotificationBigTextViewWrapper") ||
+                    owner.javaClass.name.endsWith("MiuiNotificationTemplateViewWrapper") ->
+                    forceMiuiWrapperTypeface(owner)
+                owner.javaClass.name.endsWith("NotificationTemplateViewWrapper") ->
+                    forceNativeWrapperTypeface(owner)
+                else -> forceHybridTypeface(owner)
+            }
+        }.onFailure { DebugLog.w(TAG, "restyle failed", it) }
+    }
+
     private fun applyTypeface(view: TextView, typeface: Typeface, weight: Int) {
         if (!isEnabled()) return
         if (!originals.containsKey(view)) originals[view] = view.typeface
@@ -144,6 +186,7 @@ object NotificationFontWeightHooker : StaticHooker() {
 
     private fun forceHybridTypeface(target: Any?) {
         val view = target as? View ?: return
+        if (isEnabled()) owners += view
         invokeTextViewGetter(target, "getTitleView")?.let { applyTypeface(it, titleTypeface, TITLE_WEIGHT) }
         invokeTextViewGetter(target, "getTextView")?.let { applyTypeface(it, bodyTypeface, BODY_WEIGHT) }
         invokeTextViewGetter(target, "getConversationSenderNameView")?.let { applyTypeface(it, bodyTypeface, BODY_WEIGHT) }
@@ -153,6 +196,7 @@ object NotificationFontWeightHooker : StaticHooker() {
 
     private fun forceNativeWrapperTypeface(target: Any?) {
         if (target == null) return
+        if (isEnabled()) owners += target
         setFieldTypeface(target, "mTitle", titleTypeface)
         setFieldTypeface(target, "mAltTitle", titleTypeface)
         setFieldTypeface(target, "mText", bodyTypeface)
@@ -164,6 +208,7 @@ object NotificationFontWeightHooker : StaticHooker() {
 
     private fun forceMiuiWrapperTypeface(target: Any?) {
         if (target == null) return
+        if (isEnabled()) owners += target
         setFieldTypeface(target, "mTitle", titleTypeface)
         setFieldTypeface(target, "mBigText", bodyTypeface)
         setFieldTypeface(target, "mText", bodyTypeface)

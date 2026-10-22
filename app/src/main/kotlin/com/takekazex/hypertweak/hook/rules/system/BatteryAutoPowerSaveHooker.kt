@@ -46,7 +46,9 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
         if (hookParam.packageName != PACKAGE || monitor != null) return
         val appContext = context.applicationContext ?: context
         if (appContext.packageName != PACKAGE) return
-        if (!Preferences.batteryAutoPowerSaveEnabled() && !Preferences.exitPowerSaveWhenCharging()) return
+        // The monitor registers regardless of the two switches: an accepted change reaches the
+        // living monitor through refreshSettings instead of needing a SystemUI restart. An idle
+        // monitor whose features are both off performs no battery work (see [BatteryMonitor.evaluate]).
         var next: BatteryMonitor? = null
         runCatching {
             BatteryMonitor(appContext).also {
@@ -59,6 +61,18 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
                 next?.close()
                 DebugLog.hookFailed(TAG, "register battery monitor", it)
             }
+    }
+
+    /**
+     * Accepted-snapshot refresh. The monitor is registered independently of the two switches; a
+     * change re-evaluates the living monitor immediately instead of waiting for a battery event.
+     */
+    fun refreshSettings() {
+        val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull() ?: return
+        onPackageReady(context)
+        monitor?.let { it.postEvaluation() }
+        DebugLog.i(TAG, "settings applied autoSave=" + Preferences.batteryAutoPowerSaveEnabled() +
+            " exitOnCharge=" + Preferences.exitPowerSaveWhenCharging())
     }
 
     @Synchronized
@@ -205,7 +219,21 @@ private class BatteryMonitor(private val context: Context) {
         }
     }
 
+    /** Queue one evaluation on the monitor's worker; used by an accepted settings change. */
+    fun postEvaluation() {
+        if (closed) return
+        handler.post { evaluateSafely("settings") }
+    }
+
     private fun evaluate(trigger: String): Long? {
+        // Both features off: no battery work, no requested mode change. This keeps a monitor that
+        // was registered while idle from doing anything until a switch turns one on.
+        if (!Preferences.batteryAutoPowerSaveEnabled() && !Preferences.exitPowerSaveWhenCharging()) {
+            reconciler.cancel()
+            unplugEnablePending = false
+            lastConfig = null
+            return null
+        }
         // Always use the latest sticky, including for queued broadcasts: their Intent may describe
         // a connection that has already changed again before this worker got to it.
         val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

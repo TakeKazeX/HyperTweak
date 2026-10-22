@@ -36,4 +36,13 @@ internal object StatusIconHostAccess {
 
     fun invoke(owner: Any, name: String): Any? = method(owner, name)?.invoke(owner)
     fun provider(component: Any, name: String): Any? = read(component, name)?.let { invoke(it, "get") }
+
+    /** Living shareable notification header roots recorded by the header hookers. */
+    private val headerRoots = java.util.WeakHashMap<android.view.ViewGroup, Boolean>()
+
+    fun noteHeaderRoot(root: android.view.ViewGroup) {
+        synchronized(headerRoots) { headerRoots[root] = true }
+    }
+
+    fun headerRoots(): List<android.view.ViewGroup> = synchronized(headerRoots) { headerRoots.keys.toList() }
 }

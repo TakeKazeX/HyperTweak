@@ -150,9 +150,72 @@ object NotificationHeaderHooker : StaticHooker() {
         return roots
     }
 
+    /**
+     * Anything to do for the living header. While nothing is configured this is false, so the
+     * retained hooks behave exactly like a stock header instead of replaying stale options.
+     */
     private fun hasHeaderWork(): Boolean = hideCarrier || hideTime || hideDate || dateAboveTime ||
         dateAlignment != NotificationHeaderModel.ALIGN_START || timeAlignment != NotificationHeaderModel.ALIGN_START ||
         timeScale != NotificationHeaderModel.DEFAULT_TIME_SCALE
+
+    /**
+     * Applies an accepted notification-header snapshot to every living header.
+     *
+     * The options are re-read from the acknowledged preferences, pushed into the layout
+     * controller, and each known header (plus the expand controller that owns the clock size) is
+     * re-applied. Turning every option off restores the native host state here; it never relies on
+     * the host rebuilding the header.
+     */
+    fun refreshSettings() {
+        val previousWork = hasHeaderWork()
+        hideCarrier = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
+        hideTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
+        hideDate = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
+        dateAboveTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
+        dateAlignment = NotificationHeaderModel.normalizeAlignment(
+            Preferences.getInt(Preferences.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+        )
+        timeAlignment = NotificationHeaderModel.normalizeAlignment(
+            Preferences.getInt(Preferences.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+        )
+        timeScale = NotificationHeaderModel.normalizeTimeScale(Preferences.getNotificationHeaderTimeScale())
+        layoutController.configure(
+            NotificationHeaderLayoutController.Options(
+                hideCarrier = hideCarrier,
+                hideTime = hideTime,
+                hideDate = hideDate,
+                dateAboveTime = dateAboveTime,
+                dateAlignment = dateAlignment,
+                timeAlignment = timeAlignment,
+                timeScale = timeScale
+            )
+        )
+        val work = hasHeaderWork()
+        main.post {
+            guarded("settings refresh") {
+                val roots = layoutController.roots()
+                if (!work) {
+                    // Release everything this module owns in the header before the native values
+                    // are applied; the sessions are dropped so the next enable rebuilds them.
+                    layoutController.restoreAll()
+                    controllerSizes.keys.toList().forEach { guarded("restore expansion") { replayExpansion(it) } }
+                    controllerSizes.clear()
+                    roots.forEach { guarded("restore header host") {
+                        updateCarrierFromHost(it)
+                        it.requestLayout()
+                    } }
+                    syncShadeHeaderClipHeight()
+                    refreshNotificationTopPadding()
+                } else {
+                    roots.forEach { guarded("header settings apply") { layoutController.apply(it, it.rootWindowInsets); applyHeader(it) } }
+                    controllerSizes.keys.toList().forEach { guarded("clock size apply") { applyClockSize(it); replayExpansion(it) } }
+                    refreshNotificationTopPadding()
+                }
+            }
+        }
+        DebugLog.i(TAG, "settings applied work=" + work + " previous=" + previousWork +
+            " roots=" + layoutController.roots().size)
+    }
 
     private fun replayExpansion(controller: Any) {
         NotificationHeaderExpansionReplay.replay(controller, generatedCallbacks?.notificationExpansion)
@@ -302,13 +365,15 @@ object NotificationHeaderHooker : StaticHooker() {
             dateAlignment != NotificationHeaderModel.ALIGN_START ||
             timeAlignment != NotificationHeaderModel.ALIGN_START
         val hasSizeWork = timeScale != NotificationHeaderModel.DEFAULT_TIME_SCALE
-        if (!hasViewWork && !hasSizeWork) return
-
+        // The header hooks stay installed for the process generation (RuntimeSettingsGroups
+        // .HEADER owns these keys). Every entry point re-reads the current options through
+        // layoutController and [hasHeaderWork], so a first enable, a size change or a disable is
+        // applied by [refreshSettings] to the living header instead of needing a restart.
         generatedCallbacks = resolveGeneratedCallbacks()
 
-        if (hasViewWork || hasSizeWork) installHeaderHooks()
-        if (hasSizeWork) installClockSizeHooks()
-        if (hasViewWork || hasSizeWork) installHeaderHeightAccounting()
+        installHeaderHooks()
+        installClockSizeHooks()
+        installHeaderHeightAccounting()
         DebugLog.hookRegistered(
             TAG,
             "new-control-center header carrier=$hideCarrier time=$hideTime date=$hideDate " +
@@ -441,6 +506,7 @@ object NotificationHeaderHooker : StaticHooker() {
     }
 
     private fun applyHeader(root: ViewGroup) {
+        StatusIconHostAccess.noteHeaderRoot(root)
         if (!root.isAttachedToWindow || resettingHeaders.containsKey(root)) return
         layoutController.apply(root, root.rootWindowInsets)
         val time = layoutController.views(root)?.time as? TextView ?: return
