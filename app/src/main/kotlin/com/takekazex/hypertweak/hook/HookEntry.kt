@@ -68,6 +68,7 @@ import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
@@ -227,6 +228,10 @@ class HookEntry : XposedModule() {
                 true
             }
             registerForProcess(RuntimeSettingsGroups.XMSF) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
+                if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
+                true
+            }
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             // Keyguard battery row: SystemUI's keyguard status bar (Duo) and the AOD plugin rows
@@ -1335,6 +1340,7 @@ class HookEntry : XposedModule() {
                         attachHooker(SecurityCenterSafetyChecksHooker, classLoader, ctx, replacementHandles)
                     }
                     if (processName == packageName) {
+                        attachHooker(AppDetailsIconLaunchHooker, classLoader, ctx, replacementHandles)
                         attachHooker(SecurityCenterUsbInstallNetworkVerifyHooker, classLoader, ctx, replacementHandles)
                     }
                     if (processName == packageName || processName == "$packageName.remote") {

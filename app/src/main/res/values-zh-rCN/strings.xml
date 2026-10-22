@@ -1582,4 +1582,7 @@
     <string name="settings_android_widget_stack_summary">允许安卓小组件加入同尺寸的 Widget 堆叠</string>
     <string name="back_indicator_material_title">HyperOS（高级材质）</string>
     <string name="back_gesture_haptics_none">关闭</string>
+    <string name="security_center_app_details_section">应用详情</string>
+    <string name="security_center_icon_launch">点击图标打开应用</string>
+    <string name="security_center_icon_launch_summary">点击应用详情页顶部的图标打开应用</string>
 </resources>

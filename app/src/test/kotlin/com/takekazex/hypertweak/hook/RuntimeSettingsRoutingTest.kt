@@ -6,6 +6,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun appDetailsSettingMigratesAndResetsWithoutLeakingToOtherPackages() {
+        val key = Preferences.KEY_APP_DETAILS_ICON_LAUNCH
+        assertEquals(setOf(Groups.APP_DETAILS), Groups.affected(key))
+        assertEquals(mapOf(key to true), Groups.subset("com.miui.securitycenter", mapOf(key to true)))
+        assertTrue(Groups.subset("com.android.settings", mapOf(key to true)).isEmpty())
+        assertTrue(Groups.subset("com.miui.guardprovider", mapOf(key to true)).isEmpty())
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), setOf(Groups.APP_DETAILS)))
+        val ledger = RuntimeSettingsLedger().also {
+            it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true)))
+        }
+        val enabled = RuntimeSettingsSnapshot.read(2, mapOf(key to true), setOf(Groups.APP_DETAILS))!!
+        assertTrue(Groups.APP_DETAILS in ledger.changedGroups(enabled))
+        assertTrue(ledger.accept(enabled))
+        val restored = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(true, restored.value(key))
+        val reset = RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), setOf(Groups.APP_DETAILS))!!
+        assertEquals(setOf(Groups.APP_DETAILS), restored.changedGroups(reset))
+        assertTrue(restored.accept(reset))
+        assertNull(restored.value(key))
+    }
+
     @Test fun recentsGestureBarSwitchUsesSystemUiSnapshotAndReset() {
         val key = Preferences.KEY_HIDE_GESTURE_BAR_RECENTS
         assertEquals(setOf(Groups.GESTURE_BAR_UI, Groups.GESTURE_BAR), Groups.affected(key))

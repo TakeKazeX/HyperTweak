@@ -52,6 +52,9 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
+    var iconLaunch by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_APP_DETAILS_ICON_LAUNCH, false))
+    }
     var lbeClipboardToast by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false))
     }
@@ -198,6 +201,18 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                 Modifier.height(padding.calculateTopPadding() + 8.dp)
             )
 
+            SmallTitle(stringResource(R.string.security_center_app_details_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = iconLaunch,
+                    onCheckedChange = { enabled ->
+                        iconLaunch = enabled
+                        Preferences.putBoolean(Preferences.KEY_APP_DETAILS_ICON_LAUNCH, enabled)
+                    },
+                    title = stringResource(R.string.security_center_icon_launch),
+                    summary = stringResource(R.string.security_center_icon_launch_summary)
+                )
+            }
             SmallTitle(stringResource(R.string.security_center_privacy_entries_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

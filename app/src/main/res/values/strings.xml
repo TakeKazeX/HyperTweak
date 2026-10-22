@@ -1591,4 +1591,7 @@
     <string name="settings_android_widget_stack_summary">Allow Android widgets to join widget stacks of the same size</string>
     <string name="back_indicator_material_title">HyperOS (advanced material)</string>
     <string name="back_gesture_haptics_none">None</string>
+    <string name="security_center_app_details_section">App details</string>
+    <string name="security_center_icon_launch">Tap icon to open app</string>
+    <string name="security_center_icon_launch_summary">Open the app by tapping its icon on the app details page.</string>
 </resources>
