@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.NotificationContentHotReload
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
+import com.takekazex.hypertweak.hook.rules.systemui.NotificationMiniWindowHooker
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -55,6 +56,7 @@ internal object StatusIconHotReloadRecovery {
                     NotificationHeaderClockSecondsHooker.recoverExistingViews((existingViews + headerViews).distinct())
                     NotificationHeaderWeatherHooker.recoverExistingHeaders(headers)
                 }
+                recoverFeature("notification mini window") { NotificationMiniWindowHooker.recoverExistingViews(existingViews) }
                 recoverFeature("notification content") { NotificationContentHotReloadRecovery.recover(existingViews) }
                 recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }
                 recoverFeature("media output switch") { MediaCardHideDeviceSwitchHooker.recoverExistingViews(existingViews) }

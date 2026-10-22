@@ -40,6 +40,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHoo
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.systemui.NotificationMiniWindowHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationBlockFoldHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
@@ -245,6 +246,10 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.AOD_CAPABILITY) { _ ->
                 AODHooker.refreshSettings()
                 if (processName == "com.android.systemui") applyLiveAodSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW) { _ ->
+                NotificationMiniWindowHooker.refreshSettings()
                 true
             }
             registerForProcess(RuntimeSettingsGroups.FREEFORM_BLUR) { _ ->
@@ -1218,6 +1223,7 @@ class HookEntry : XposedModule() {
                 attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
+                attachHooker(NotificationMiniWindowHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 // Notification fold suppression (its own switch) and the status-bar "silent
                 // notification" filter repair, which rides on the 恢复更多通知设置 switch and has no

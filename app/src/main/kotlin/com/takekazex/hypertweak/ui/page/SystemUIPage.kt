@@ -182,6 +182,7 @@ fun SystemUIPage(
 
     var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
     var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
+    var notifMiniWindow by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, false)) }
     var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
     var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
     var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
@@ -324,6 +325,16 @@ fun SystemUIPage(
                         },
                         title = stringResource(R.string.settings_notification_badge_title),
                         summary = stringResource(R.string.settings_notification_badge_summary)
+                    )
+                    SwitchPreference(
+                        checked = notifMiniWindow,
+                        onCheckedChange = { value ->
+                            notifMiniWindow = value
+                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, value)
+                            Preferences.flush()
+                        },
+                        title = stringResource(R.string.settings_notification_mini_window_title),
+                        summary = stringResource(R.string.settings_notification_mini_window_summary)
                     )
                     SwitchPreference(
                         checked = notifBlockFold,

@@ -1585,4 +1585,6 @@
     <string name="security_center_app_details_section">应用详情</string>
     <string name="security_center_icon_launch">点击图标打开应用</string>
     <string name="security_center_icon_launch_summary">点击应用详情页顶部的图标打开应用</string>
+    <string name="settings_notification_mini_window_title">解锁横幅通知小窗手势</string>
+    <string name="settings_notification_mini_window_summary">移除应用白名单，允许更多横幅通知显示手势条并下拉打开小窗</string>
 </resources>

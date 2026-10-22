@@ -1594,4 +1594,6 @@
     <string name="security_center_app_details_section">App details</string>
     <string name="security_center_icon_launch">Tap icon to open app</string>
     <string name="security_center_icon_launch_summary">Open the app by tapping its icon on the app details page.</string>
+    <string name="settings_notification_mini_window_title">Unlock banner mini-window gesture</string>
+    <string name="settings_notification_mini_window_summary">Remove the app whitelist for the native banner handle and pull-down floating window gesture</string>
 </resources>
