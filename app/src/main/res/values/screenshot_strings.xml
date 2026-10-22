@@ -10,4 +10,6 @@
     <string name="screenshot_frame_editor_crop">Crop whole image</string>
     <string name="screenshot_copy_to_clipboard_title">Copy to Clipboard</string>
     <string name="screenshot_copy_to_clipboard_summary">Copies each saved screenshot to the clipboard, including annotated and framed ones.</string>
+    <string name="screenshot_pictures_directory_title">Standard Screenshot Folder</string>
+    <string name="screenshot_pictures_directory_summary">Save new screenshots to Pictures/Screenshots. Existing files stay in place.</string>
 </resources>

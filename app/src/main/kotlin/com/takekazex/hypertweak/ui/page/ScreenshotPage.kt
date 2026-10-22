@@ -32,6 +32,9 @@ fun ScreenshotPage(onBack: () -> Unit) {
     var copyToClipboard by rememberSaveable {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
     }
+    var picturesDirectory by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY, false))
+    }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.screenshot_section),
@@ -79,7 +82,15 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         title = stringResource(R.string.screenshot_copy_to_clipboard_title),
                         summary = stringResource(R.string.screenshot_copy_to_clipboard_summary)
                     )
-
+                    SwitchPreference(
+                        checked = picturesDirectory,
+                        onCheckedChange = {
+                            picturesDirectory = it
+                            Preferences.putBoolean(Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY, it)
+                        },
+                        title = stringResource(R.string.screenshot_pictures_directory_title),
+                        summary = stringResource(R.string.screenshot_pictures_directory_summary)
+                    )
                 }
             }
             Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))

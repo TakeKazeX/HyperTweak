@@ -74,19 +74,20 @@ class ScreenshotFrameHostContractTest {
     private fun fieldKey(ref: FieldReference) = "${ref.definingClass}->${ref.name}:${ref.type}"
 
     /** Repackage real DEX after independently changing every resolved obfuscated type/member. */
-    private fun fixture(duplicate: Boolean = false, removeWriter: Boolean = false, check: (File) -> Unit) {
+    private fun fixture(duplicate: Boolean = false, removeWriter: Boolean = false, removeDirectory: Boolean = false, check: (File) -> Unit) {
         classes()
         val apk = File(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val source = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
         val clipboard = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
+        val directoryContract = ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve()
         val types = (contract.methods.values.map { it.definingClass } + contract.fields.values.flatMap { listOf(it.definingClass) } +
             contract.methods.getValue("taskConstructor").parameterTypes.map(CharSequence::toString) +
-            (clipboard.callers + clipboard.gate).map { it.substringBefore("->") })
+            (clipboard.callers + clipboard.gate + directoryContract.predicate + directoryContract.callers + directoryContract.workers).map { it.substringBefore("->") })
             .filter { it.startsWith("L") && !it.startsWith("Landroid/") && it != "Lcom/miui/gallery/editor/photo/app/ExportTask;" && !it.contains("/interfaces/") && !it.contains("/core/") }
             .distinct().mapIndexed { index, type -> type to "Lfixture/adaptive/Type$index;" }.toMap()
         fun type(value: String): String = if (value.startsWith("[")) "[" + type(value.substring(1)) else types[value] ?: value
         val methodNames = (contract.methods.values.filter { it.name != "<init>" && it.name != "doInBackground" }
-            .map(CameraDexIndex::descriptor) + clipboard.callers + clipboard.gate)
+            .map(CameraDexIndex::descriptor) + clipboard.callers + clipboard.gate + directoryContract.predicate + directoryContract.callers + directoryContract.workers)
             .distinct().filter { it.substringAfter("->").substringBefore("(") != "doInBackground" }
             .mapIndexed { index, ref -> ref to "operation$index" }.toMap()
         val fieldNames = contract.fields.values.mapIndexed { index, ref -> fieldKey(ref) to "slot$index" }.toMap()
@@ -108,7 +109,8 @@ class ScreenshotFrameHostContractTest {
                     val original = source.getEntry(name)!!.dexFile
                     val rewritten = rewrite.dexFileRewriter.rewrite(original)
                     val selected = rewritten.classes.filter { owner ->
-                        !removeWriter || owner.type != type(contract.methods.getValue("write").definingClass)
+                        (!removeWriter || owner.type != type(contract.methods.getValue("write").definingClass)) &&
+                            (!removeDirectory || owner.type != type(directoryContract.predicate.substringBefore("->")))
                     }.toMutableSet()
                     if (duplicate) selected.addAll(original.classes.filter { it.type in types.keys })
                     val dex = object : DexFile {
@@ -184,6 +186,33 @@ class ScreenshotFrameHostContractTest {
 
     @Test fun `duplicate clipboard graph rejects the contract`() = fixture(duplicate = true) { apk ->
         assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve() }
+    }
+
+    @Test fun `directory decision is shared by filesystem and MediaStore`() {
+        classes()
+        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val resolved = ScreenshotDirectoryResolver(dex).resolve()
+        val callerBodies = resolved.callers.map(dex::code)
+        assertTrue(callerBodies.any { it.hasString("relative_path") && it.calls.any { c -> c.method.name == "insert" } })
+        assertTrue(callerBodies.any { it.calls.any { c -> c.method.name == "getExternalStoragePublicDirectory" } })
+        assertTrue(resolved.workers.all { worker -> dex.code(worker).calls.any { CameraDexIndex.descriptor(it.method) in resolved.callers } })
+        assertEquals("Z", dex.definition(dex.code(resolved.callers.first()).calls.first {
+            CameraDexIndex.descriptor(it.method) == resolved.predicate }.method)!!.returnType)
+    }
+
+    @Test fun `renamed directory decision still covers both storage paths`() = fixture { apk ->
+        val resolved = ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve()
+        assertTrue(resolved.predicate.startsWith("Lfixture/adaptive/"))
+        assertTrue(resolved.workers.any { it.contains("->operation") })
+    }
+
+    @Test fun `ambiguous or missing native save graph rejects directory redirection`() {
+        fixture(duplicate = true) { apk ->
+            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve() }
+        }
+        fixture(removeDirectory = true) { apk ->
+            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve() }
+        }
     }
 
     @Test fun `native frame uses model resources and creates an independent output without recycling input`() {

@@ -10,4 +10,6 @@
     <string name="screenshot_frame_editor_crop">整張裁剪</string>
     <string name="screenshot_copy_to_clipboard_title">截圖後複製到剪貼簿</string>
     <string name="screenshot_copy_to_clipboard_summary">儲存截圖後同時複製到剪貼簿，標註與加框截圖同樣適用。</string>
+    <string name="screenshot_pictures_directory_title">規範儲存目錄</string>
+    <string name="screenshot_pictures_directory_summary">將新螢幕截圖儲存至 Pictures/Screenshots，不移動現有截圖</string>
 </resources>

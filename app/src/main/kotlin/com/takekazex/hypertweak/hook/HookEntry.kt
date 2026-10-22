@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.NotificationFontWeightHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationAbsoluteTimeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiScreenshotSoundHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiLiveSettings
+import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSaveDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotClipboardHooker
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotAutoFrameHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
@@ -1229,6 +1230,7 @@ class HookEntry : XposedModule() {
                 // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect
                 // that URI to the ROM's longer shutter sound when the lockscreen-bar tweak is on.
                 attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
+                attachHooker(ScreenshotSaveDirectoryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ScreenshotClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ScreenshotAutoFrameHooker, classLoader, ctx, replacementHandles)
             }

@@ -183,3 +183,10 @@ cache validation, cache-only startup replay and `prepareDexTargets` on misses. N
 APKs retain native behavior until preparation finishes. Stable managed handles and the shared
 SCREENSHOT settings group own hot replacement and live changes. `SCREENSHOT_APK` exercises real
 bytecode, renamed, duplicate and disconnected save graphs; actual image paste remains manual.
+
+`ScreenshotSaveDirectoryHooker` resolves the shared native Pictures/DCIM decision from both
+filesystem and MediaStore insert paths. It redirects future screenshots to Pictures/Screenshots
+without moving existing files; each AsyncTask save fixes its choice across path calculations.
+It uses the same unified cache/preparation/managed-hook/settings lifecycle as clipboard copying.
+Directory tests cover both storage paths, rename/ambiguity/missing-target rejection, per-save
+consistency and legacy snapshot restoration. New files and MediaStore paths require device checks.

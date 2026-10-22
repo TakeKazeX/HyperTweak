@@ -73,6 +73,22 @@ class ScreenshotSettingsSnapshotTest {
         assertEquals(3L, legacy.latest()!!.revision)
     }
 
+    @Test fun `directory enable disable reset and legacy hot reload use acknowledged values`() {
+        val key = Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY
+        val baseline = ScreenshotSettingsSnapshot(1, true, 1, true)
+        val enabled = baseline.mutate(key, true, 2)!!
+        assertTrue(enabled.picturesDirectory)
+        assertTrue(enabled.copyToClipboard)
+        val ledger = ScreenshotSettingsLedger().also { it.accept(enabled) }
+        assertEquals(enabled, ScreenshotSettingsLedger().also { it.restore(ledger.save()) }.latest())
+        assertFalse(enabled.mutate(key, false, 3)!!.picturesDirectory)
+        assertFalse(ScreenshotSettingsSnapshot.read(4, emptyMap<String, Any>())!!.picturesDirectory)
+        val legacy = ScreenshotSettingsLedger().also { it.restore(arrayOf<Any>(3L, true, 1, true)) }
+        assertTrue(legacy.latest()!!.copyToClipboard)
+        assertFalse(legacy.latest()!!.picturesDirectory)
+        assertNull(ScreenshotSettingsSnapshot.read(5, mapOf(key to "true")))
+    }
+
     @Test fun `malformed types revisions and modes cannot become runtime settings`() {
         assertNull(ScreenshotSettingsSnapshot.read(0, emptyMap<String, Any>()))
         assertNull(ScreenshotSettingsSnapshot.read(1, mapOf(enabledKey to "true")))
