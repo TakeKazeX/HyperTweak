@@ -42,6 +42,7 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.HotReloadReport
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -49,6 +50,7 @@ import com.takekazex.hypertweak.util.ScopePrompt
 import com.takekazex.hypertweak.util.ScopePromptAction
 import com.takekazex.hypertweak.util.ScopePromptStore
 import com.takekazex.hypertweak.util.ScopeManager
+import com.takekazex.hypertweak.util.deviceModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,8 +64,6 @@ fun HomeScreenContent(
     hotReloading: Boolean,
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
-    packageName: String,
-    targetSdk: Int,
     backdrop: LayerBackdrop,
     pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
@@ -213,12 +213,12 @@ fun HomeScreenContent(
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     BasicComponent(
-                        title = stringResource(R.string.home_diagnostics_module_package),
-                        summary = packageName
+                        title = stringResource(R.string.home_build_version_title),
+                        summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
                     )
                     BasicComponent(
-                        title = stringResource(R.string.home_diagnostics_target_sdk),
-                        summary = targetSdk.toString()
+                        title = stringResource(R.string.home_device_model_title),
+                        summary = deviceModel
                     )
                     BasicComponent(
                         title = stringResource(R.string.home_device_system_title),

@@ -272,8 +272,6 @@ fun MainPagerScreen(
                                 hotReloading = hotReloading,
                                 hotReloadTargets = hotReloadTargets,
                                 hotReloadReport = hotReloadReport,
-                                packageName = "com.takekazex.hypertweak",
-                                targetSdk = 37,
                                 backdrop = backdrop,
                                 pendingRestartScopes = pendingRestartScopes,
                                 onNavigateToHiddenFeatures = onNavigateToHiddenFeatures,

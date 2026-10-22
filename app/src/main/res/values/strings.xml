@@ -478,8 +478,8 @@
     <string name="home_cancel">Cancel</string>
     <string name="home_device_system_summary">%1$s (API %2$d)</string>
     <string name="home_device_system_title">Device System</string>
-    <string name="home_diagnostics_module_package">Module Package</string>
-    <string name="home_diagnostics_target_sdk">Target SDK</string>
+    <string name="home_build_version_title">Build Version</string>
+    <string name="home_device_model_title">Device Model</string>
     <string name="home_diagnostics_title">Diagnostics Details</string>
     <string name="home_framework_detail">%1$s %2$s (API %3$d)</string>
     <string name="home_framework_fallback">Xposed Framework</string>

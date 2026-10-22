@@ -476,8 +476,8 @@
     <string name="home_cancel">取消</string>
     <string name="home_device_system_summary">%1$s（API %2$d）</string>
     <string name="home_device_system_title">设备系统</string>
-    <string name="home_diagnostics_module_package">模块包名</string>
-    <string name="home_diagnostics_target_sdk">目标 SDK</string>
+    <string name="home_build_version_title">构建版本号</string>
+    <string name="home_device_model_title">设备型号</string>
     <string name="home_diagnostics_title">诊断详情</string>
     <string name="home_framework_detail">%1$s %2$s（API %3$d）</string>
     <string name="home_framework_fallback">Xposed 框架</string>
