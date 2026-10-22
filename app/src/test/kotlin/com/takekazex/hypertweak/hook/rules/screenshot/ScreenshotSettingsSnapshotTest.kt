@@ -60,6 +60,19 @@ class ScreenshotSettingsSnapshotTest {
         assertEquals(1, sessions.mode(current))
     }
 
+    @Test fun `clipboard copy survives hot reload and a pre-copy payload restores it off`() {
+        val ledger = ScreenshotSettingsLedger()
+        val old = ScreenshotSettingsSnapshot.read(1, mapOf(enabledKey to false, modeKey to 0))!!
+        assertFalse(old.copyToClipboard)
+        ledger.accept(old)
+        assertTrue(ledger.latest()!!.mutate(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, true, 2)!!.let(ledger::accept))
+        assertTrue(ScreenshotSettingsLedger().also { it.restore(ledger.save()) }.latest()!!.copyToClipboard)
+        // An older payload that predates the switch cannot resurrect a copy request.
+        val legacy = ScreenshotSettingsLedger().also { it.restore(arrayOf<Any>(3L, false, 0)) }
+        assertFalse(legacy.latest()!!.copyToClipboard)
+        assertEquals(3L, legacy.latest()!!.revision)
+    }
+
     @Test fun `malformed types revisions and modes cannot become runtime settings`() {
         assertNull(ScreenshotSettingsSnapshot.read(0, emptyMap<String, Any>()))
         assertNull(ScreenshotSettingsSnapshot.read(1, mapOf(enabledKey to "true")))

@@ -127,11 +127,15 @@ object Preferences {
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
     const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
     const val KEY_SCREENSHOT_FRAME_EDITOR_MODE = "screenshot_frame_editor_mode"
+    /** Copies each screenshot into the clipboard through the host's own write path. */
+    const val KEY_SCREENSHOT_COPY_TO_CLIPBOARD = "screenshot_copy_to_clipboard"
     private val screenshotSettings = ScreenshotSettingsLedger()
     fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
         ?: getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false)
     fun screenshotEditorMode(): Int = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_FRAME_EDITOR_MODE)) getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) else screenshotSettings.latest()?.editorMode
         ?: getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
+    fun screenshotCopyToClipboard(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_COPY_TO_CLIPBOARD)) getBoolean(KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) else screenshotSettings.latest()?.copyToClipboard
+        ?: getBoolean(KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
     internal fun acceptScreenshotSettings(snapshot: ScreenshotSettingsSnapshot): Boolean = screenshotSettings.accept(snapshot)
     internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
     internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)

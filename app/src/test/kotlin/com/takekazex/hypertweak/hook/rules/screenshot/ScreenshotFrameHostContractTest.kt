@@ -78,13 +78,17 @@ class ScreenshotFrameHostContractTest {
         classes()
         val apk = File(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val source = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
+        val clipboard = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
         val types = (contract.methods.values.map { it.definingClass } + contract.fields.values.flatMap { listOf(it.definingClass) } +
-            contract.methods.getValue("taskConstructor").parameterTypes.map(CharSequence::toString))
-            .filter { it.startsWith("Lcom/miui/screenshot/") && !it.contains("/interfaces/") && !it.contains("/core/") }
+            contract.methods.getValue("taskConstructor").parameterTypes.map(CharSequence::toString) +
+            (clipboard.callers + clipboard.gate).map { it.substringBefore("->") })
+            .filter { it.startsWith("L") && !it.startsWith("Landroid/") && it != "Lcom/miui/gallery/editor/photo/app/ExportTask;" && !it.contains("/interfaces/") && !it.contains("/core/") }
             .distinct().mapIndexed { index, type -> type to "Lfixture/adaptive/Type$index;" }.toMap()
         fun type(value: String): String = if (value.startsWith("[")) "[" + type(value.substring(1)) else types[value] ?: value
-        val methodNames = contract.methods.values.filter { it.name != "<init>" && it.name != "doInBackground" }
-            .mapIndexed { index, ref -> CameraDexIndex.descriptor(ref) to "operation$index" }.toMap()
+        val methodNames = (contract.methods.values.filter { it.name != "<init>" && it.name != "doInBackground" }
+            .map(CameraDexIndex::descriptor) + clipboard.callers + clipboard.gate)
+            .distinct().filter { it.substringAfter("->").substringBefore("(") != "doInBackground" }
+            .mapIndexed { index, ref -> ref to "operation$index" }.toMap()
         val fieldNames = contract.fields.values.mapIndexed { index, ref -> fieldKey(ref) to "slot$index" }.toMap()
         val rewrite = DexRewriter(object : RewriterModule() {
             override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
@@ -136,6 +140,50 @@ class ScreenshotFrameHostContractTest {
 
     @Test fun `missing worker is rejected before any save can enroll`() = fixture(removeWriter = true) { apk ->
         assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(apk.path).resolve() }
+    }
+
+    @Test fun `clipboard gate is consumed before publication and task flag only controls the later tip`() {
+        classes()
+        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val resolved = ScreenshotClipboardResolver(dex).resolve()
+        val copy = dex.code(resolved.copy)
+        val gate = copy.calls.single { CameraDexIndex.descriptor(it.method) == resolved.gate }
+        val publish = copy.calls.single { it.method.definingClass == "Landroid/content/ClipboardManager;" && it.method.name == "setPrimaryClip" }
+        assertTrue(gate.address < publish.address)
+        assertTrue(copy.branches.any { branch ->
+            (branch.value as? CameraDexIndex.Value.Call)?.method?.let(CameraDexIndex::descriptor) == resolved.gate &&
+                branch.skipsWhenFalse && branch.end <= publish.address
+        })
+        // The boolean cannot be the copy gate: its only guarded call is after publication.
+        val tip = copy.calls.single { it.method.definingClass == resolved.gate.substringBefore("->") &&
+            it.method.parameterTypes.map(CharSequence::toString) == listOf("Landroid/content/Context;", "Z") }
+        assertTrue(publish.address < tip.address)
+        val write = CameraDexIndex.descriptor(contract.methods.getValue("write"))
+        assertTrue(resolved.callers.contains(write))
+        // Prove actual edges, rather than adding a desired target to a set before asserting it.
+        var reachable = setOf(write)
+        repeat(8) { reachable = reachable + reachable.flatMap { dex.code(it).calls.map { c -> CameraDexIndex.descriptor(c.method) } } }
+        val directPublishers = dex.methods.filter { method ->
+            method.implementation != null && method.references().filterIsInstance<MethodReference>()
+                .any { CameraDexIndex.descriptor(it) == resolved.copy }
+        }.map(CameraDexIndex::descriptor)
+        assertTrue("Export and long-save callers must not retain inlined publishers", resolved.callers.containsAll(directPublishers))
+        assertTrue(resolved.copy in reachable)
+        assertTrue(resolved.gate in reachable)
+    }
+
+    @Test fun `renamed clipboard gate and publisher follow the save graph`() = fixture { apk ->
+        val resolved = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
+        assertTrue(resolved.gate.startsWith("Lfixture/adaptive/"))
+        assertTrue(resolved.copy.contains("->operation"))
+    }
+
+    @Test fun `disconnected clipboard publisher rejects the contract`() = fixture(removeWriter = true) { apk ->
+        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve() }
+    }
+
+    @Test fun `duplicate clipboard graph rejects the contract`() = fixture(duplicate = true) { apk ->
+        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve() }
     }
 
     @Test fun `native frame uses model resources and creates an independent output without recycling input`() {

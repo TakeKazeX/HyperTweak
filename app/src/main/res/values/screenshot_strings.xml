@@ -8,4 +8,6 @@
     <string name="screenshot_frame_editor_mode_summary">Applies when you next open the editor. Cropping saves a flattened image.</string>
     <string name="screenshot_frame_editor_removable">Removable frame</string>
     <string name="screenshot_frame_editor_crop">Crop whole image</string>
+    <string name="screenshot_copy_to_clipboard_title">Copy to Clipboard</string>
+    <string name="screenshot_copy_to_clipboard_summary">Copies each saved screenshot to the clipboard, including annotated and framed ones.</string>
 </resources>

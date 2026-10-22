@@ -173,3 +173,13 @@ contract tests against a real APK. `FRAMEWORK_JAR` checks Dock native capture an
 The Dock host uses only its own ViewRoot/RenderNode sampling state when the platform rejects
 its cross-window blur admission; it never edits the global admission policy. IME raising obtains
 the current layout from `InputMethodService.mRootView`, without private resource integers.
+
+Screenshot clipboard copying has its own `ScreenshotClipboardHooker`, independent of frame resolution.
+Its structural resolver follows the native clipboard gate/publisher back to the save writer. Only
+one gate read inside that publisher follows the module switch, including blocking copies when
+off despite an enabled OS setting; no Secure setting is changed and
+native notifications retain their policy. Targets use `DexRuntime.resolve` with SHA-256/schema
+cache validation, cache-only startup replay and `prepareDexTargets` on misses. New/changed host
+APKs retain native behavior until preparation finishes. Stable managed handles and the shared
+SCREENSHOT settings group own hot replacement and live changes. `SCREENSHOT_APK` exercises real
+bytecode, renamed, duplicate and disconnected save graphs; actual image paste remains manual.

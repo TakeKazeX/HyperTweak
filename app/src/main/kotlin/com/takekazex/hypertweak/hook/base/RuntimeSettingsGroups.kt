@@ -101,7 +101,8 @@ internal object RuntimeSettingsGroups {
         LOCKSCREEN to Group(systemUi) { it in SystemUiLiveSettings.LOCKSCREEN_KEYS },
         POWER_SAVE to Group(systemUi) { it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED || it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD || it == Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {
-            it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE
+            it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE ||
+                it == Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD
         },
         BACK to Group(systemUi + setOf("android", "com.miui.home")) { it in backKeys },
         NATIVE to Group(systemUi + "com.miui.home") { it in nativeKeys },

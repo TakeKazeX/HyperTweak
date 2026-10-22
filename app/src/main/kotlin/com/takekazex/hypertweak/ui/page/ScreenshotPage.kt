@@ -29,6 +29,9 @@ fun ScreenshotPage(onBack: () -> Unit) {
     var editorMode by rememberSaveable {
         mutableIntStateOf(Preferences.getInt(Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 })
     }
+    var copyToClipboard by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
+    }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.screenshot_section),
@@ -66,6 +69,15 @@ fun ScreenshotPage(onBack: () -> Unit) {
                             editorMode = mode
                             Preferences.putInt(Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE, mode)
                         }
+                    )
+                    SwitchPreference(
+                        checked = copyToClipboard,
+                        onCheckedChange = {
+                            copyToClipboard = it
+                            Preferences.putBoolean(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, it)
+                        },
+                        title = stringResource(R.string.screenshot_copy_to_clipboard_title),
+                        summary = stringResource(R.string.screenshot_copy_to_clipboard_summary)
                     )
 
                 }

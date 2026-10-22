@@ -8,4 +8,6 @@
     <string name="screenshot_frame_editor_mode_summary">下次進入編輯器生效。整張裁切儲存後無法移除外框。</string>
     <string name="screenshot_frame_editor_removable">可移除外框</string>
     <string name="screenshot_frame_editor_crop">整張裁切</string>
+    <string name="screenshot_copy_to_clipboard_title">截圖後複製到剪貼簿</string>
+    <string name="screenshot_copy_to_clipboard_summary">儲存截圖後同時複製到剪貼簿，標註與加框截圖同樣適用。</string>
 </resources>
