@@ -52,8 +52,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Compact control-center rows. Subscription names follow Settings; host carrier text remains the
- * fallback. The shared mobile reducer owns connectivity and expanded-container signal masks.
+ * Compact control-center rows. Settings custom carrier names precede SIM subscription names,
+ * with native text as the final fallback. The shared mobile reducer owns connectivity and masks.
  */
 @SuppressLint("StaticFieldLeak")
 object ControlCenterCarrierBlockHooker : StaticHooker() {
@@ -648,6 +648,20 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }
             } }
         } ?: DebugLog.hookSkipped(TAG, "carrier text callback", "unique DexKit target not found")
+        // Native text notifications are deduplicated. Clearing an override equal to the SPN
+        // still needs a repaint, because our fallback is the SIM name rather than that SPN.
+        val customNameChanged = runCatching {
+            hierarchyField(rowClass, "carrierTextController")?.type
+                ?.getDeclaredMethod("onCustomCarrierChanged", Array<String>::class.java)
+                ?.takeIf { it.returnType == Void.TYPE }?.apply { isAccessible = true }
+        }.getOrNull()
+        customNameChanged?.let { method ->
+            deoptimize(method)
+            method.hook { after {
+                runCatching { scheduleRender() }
+                    .onFailure { DebugLog.w(TAG, "custom carrier refresh failed", it) }
+            } }
+        } ?: DebugLog.hookSkipped(TAG, "custom carrier refresh", "controller callback unavailable")
         listOf("onMiuiThemeChanged", "onConfigChanged").forEach { methodName ->
             layoutClass.findMethodOrNull { name(methodName); paramCount(1) }?.let { method ->
                 method.hook { after { param ->
@@ -1371,7 +1385,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val art = artwork
         val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
         parts.model = model
-        val name = model?.subId?.let(simNames::get) ?: parts.nativeCarrierText
+        // Read the controller's raw custom value, not its merged carrier/SPN output: only the
+        // explicit Settings override may take priority over a renamed SIM. Controller and row
+        // callbacks schedule renders when custom names change; reflection is cached by class.
+        val controller = readField(parts.row, "carrierTextController")
+        val customName = controller?.let { readField(it, "mCustomCarrier") as? Array<*> }
+            ?.getOrNull(parts.slot) as? CharSequence
+        val name = CarrierBlockPolicy.carrierName(
+            customName, model?.subId?.let(simNames::get), parts.nativeCarrierText
+        )
         if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
         parts.carrierText.visibility = if (mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
         parts.airplaneText.visibility = if (model?.airplane == true && art != null) View.VISIBLE else View.GONE

@@ -48,6 +48,12 @@ data class CarrierBlockConfig(
  * Subscription-flow order is never used as a substitute for physical slot identity.
  */
 object CarrierBlockPolicy {
+    /** Custom operator names belong to physical slots, SIM names to subscription identities. */
+    fun carrierName(customName: CharSequence?, simName: CharSequence?, nativeName: CharSequence): CharSequence =
+        customName?.takeIf { it.isNotBlank() }
+            ?: simName?.takeIf { it.isNotBlank() }
+            ?: nativeName
+
     /** The control-center carrier layout owns exactly two rows. */
     const val ROW_COUNT = 2
 

@@ -8,6 +8,17 @@ import org.junit.Test
 
 class CarrierBlockModelTest {
     @Test
+    fun customCarrierNamesOverrideSimNamesAndClearingRestoresFallbacks() {
+        assertEquals("哈基米", CarrierBlockPolicy.carrierName("哈基米", "电", "中国电信"))
+        assertEquals("大狗", CarrierBlockPolicy.carrierName("大狗", "信", "中国联通"))
+        assertEquals("电", CarrierBlockPolicy.carrierName("", "电", "中国电信"))
+        assertEquals("信", CarrierBlockPolicy.carrierName(" \t", "信", "中国联通"))
+        assertEquals("中国电信", CarrierBlockPolicy.carrierName(null, null, "中国电信"))
+        assertEquals("中国联通", CarrierBlockPolicy.carrierName("", " ", "中国联通"))
+        assertEquals("哈基米", CarrierBlockPolicy.carrierName("哈基米", null, ""))
+    }
+
+    @Test
     fun labelsAreIndependentAndKeepUnicode() {
         assertEquals("工作", CarrierBlockPolicy.badgeText(0, " 工作 "))
         assertEquals("🌐 私人", CarrierBlockPolicy.badgeText(1, "🌐 私人"))
