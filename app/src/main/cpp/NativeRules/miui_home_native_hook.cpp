@@ -200,7 +200,6 @@ using GestureBackTouchProcessorFn = void (*)(void*, void*, void*);
 using GestureStubBackHandlerFn = void (*)(void*, void*);
 using ContextualLongPressHandlerFn = void (*)(void*, uint32_t);
 using ContextualSearchInvokeFn = uint8_t (*)(uint32_t);
-using ContextualClosureCleanupFn = void (*)(void*);
 using DrawerStateHandlerFn = void (*)(int64_t, uint8_t*, uint32_t, uint32_t);
 
 struct RString {
@@ -814,8 +813,6 @@ constexpr char kGoogleContextualSearchFeature[] =
         "com.google.android.feature.CONTEXTUAL_SEARCH";
 constexpr char kArbiterQueryAction[] =
         "com.takekazex.hypertweak.backgesture.action.MIUI_HOME_INPUT_ARBITER_QUERY";
-constexpr char kContextualSearchTriggeredAction[] =
-        "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_TRIGGERED";
 constexpr char kRuntimeStatusResponseAction[] =
         "com.takekazex.hypertweak.backgesture.action.RUNTIME_STATUS_REPLY";
 constexpr char kRuntimeStatusQueryExtra[] = "status_query";
@@ -3504,32 +3501,6 @@ int32_t HookMotionGetActionMasked3(void* event) {
     return HookMotionGetActionForSlot(event, 3u, true);
 }
 
-// The captured native Fn owns a small closure whose tail releases the temporary
-// callback object after the completion marker is published.  We replace only
-// the Flutter terminal call, so this exact cleanup must still run or the native
-// LongPressDetector eventually remains in its completed state.
-bool CleanupContextualLongPressClosure(void* closure) {
-    if (closure == nullptr) return false;
-    void* storage = *reinterpret_cast<void**>(
-            reinterpret_cast<uint8_t*>(closure) + 0x8u);
-    void* owner = *reinterpret_cast<void**>(
-            reinterpret_cast<uint8_t*>(closure) + 0x10u);
-    // The native function legitimately takes the no-storage branch for some
-    // trigger modes; in that shape there is no temporary object to release.
-    if (storage == nullptr) return true;
-    if (owner == nullptr) return false;
-    const uintptr_t object_size = *reinterpret_cast<uintptr_t*>(
-            reinterpret_cast<uint8_t*>(owner) + 0x10u);
-    ContextualClosureCleanupFn cleanup =
-            *reinterpret_cast<ContextualClosureCleanupFn*>(
-                    reinterpret_cast<uint8_t*>(owner) + 0x28u);
-    if (object_size == 0u || cleanup == nullptr) return false;
-    const uintptr_t aligned_offset = (object_size - 1u) &
-            ~static_cast<uintptr_t>(0xfu);
-    cleanup(reinterpret_cast<uint8_t*>(storage) + aligned_offset + 0x10u);
-    return true;
-}
-
 bool ContextualLongPressHasUpwardIntent() {
     if (__atomic_load_n(&g_contextual_motion_snapshot_valid,
                         __ATOMIC_ACQUIRE) == 0u) {
@@ -3585,42 +3556,16 @@ void HookContextualLongPressHandler(void* closure, uint32_t trigger_mode) {
         if (original != nullptr) original(closure, trigger_mode);
         return;
     }
-    // Validate the same closure tail used by the captured native function
-    // before either terminal routing or cancellation cleanup.  A layout
-    // mismatch must remain stock rather than risking a stale detector or an
-    // invalid release call.
-    void* closure_storage = *reinterpret_cast<void**>(
-            reinterpret_cast<uint8_t*>(closure) + 0x8u);
-    void* closure_owner = *reinterpret_cast<void**>(
-            reinterpret_cast<uint8_t*>(closure) + 0x10u);
-    if ((closure_storage != nullptr && closure_owner == nullptr) ||
-            (closure_storage != nullptr &&
-                    (*reinterpret_cast<uintptr_t*>(
-                            reinterpret_cast<uint8_t*>(closure_owner) + 0x10u) ==
-                            0u ||
-                     *reinterpret_cast<ContextualClosureCleanupFn*>(
-                            reinterpret_cast<uint8_t*>(closure_owner) + 0x28u) ==
-                            nullptr))) {
-        __atomic_fetch_add(&g_contextual_long_press_passthrough_count,
-                           uint32_t{1}, __ATOMIC_RELAXED);
-        if (original != nullptr) original(closure, trigger_mode);
-        return;
-    }
     // An upward desktop transition must cancel the detector even when the
     // module's contextual-search preference is currently disabled.  Do not
     // call the original terminal handler here: that function would continue
-    // into Xiaomi's CTS route.  Reproduce only its completion marker and
-    // closure cleanup, leaving the detector in the same finished state without
-    // invoking the service.
+    // into Xiaomi's CTS route. Reproduce only its completion marker, leaving
+    // the detector finished without invoking the service or Flutter callback.
     if (upward_intent) {
         __atomic_fetch_add(&g_contextual_long_press_upward_cancel_count,
                            uint32_t{1}, __ATOMIC_RELAXED);
         __atomic_store_n(static_cast<uint8_t*>(completion_state) + 0x10u,
                          uint8_t{1}, __ATOMIC_RELEASE);
-        if (!CleanupContextualLongPressClosure(closure)) {
-            __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                                "contextual-search upward cancellation cleanup unavailable");
-        }
         return;
     }
     if (AtomicLoad(&g_contextual_search_enabled) == 0u || invoke == nullptr) {
@@ -3639,18 +3584,11 @@ void HookContextualLongPressHandler(void* closure, uint32_t trigger_mode) {
     __android_log_print(ANDROID_LOG_INFO, kLogTag,
                         "native contextual-search terminal invoked result=%u",
                         static_cast<unsigned int>(result));
-    if (result != 0u && !SendNativeBroadcast(
-            kContextualSearchTriggeredAction, nullptr)) {
-        Log(ANDROID_LOG_WARN,
-            "contextual-search trigger haptic signal could not reach SystemUI");
-    }
-    if (!CleanupContextualLongPressClosure(closure)) {
-        // This should be unreachable after the validation above.  Keep the
-        // native callback as the safety net if the object changed concurrently.
-        __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                            "contextual-search closure cleanup unavailable");
-        if (original != nullptr) original(closure, trigger_mode);
-    }
+    // closure[1]/closure[2] describe the optional Fn(trigger_mode), not a
+    // destructor. Its vtable+0x28 dispatch is the Flutter action we replaced;
+    // calling it as "cleanup" launches a second action with an undefined mode.
+    // The marker above completes the native detector. SystemUI owns admission
+    // and feedback after the system-server bridge forwards this request.
 }
 
 bool InstallContextualSearchLongPressHook(

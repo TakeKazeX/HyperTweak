@@ -186,6 +186,8 @@ public abstract class HookRuntimeCore {
             "com.takekazex.hypertweak.backgesture.action.MIUI_HOME_INPUT_ARBITER_QUERY";
     protected static final String MODULE_CONTEXTUAL_SEARCH_TRIGGERED =
             "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_TRIGGERED";
+    protected static final String MODULE_CONTEXTUAL_SEARCH_REQUEST =
+            "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_REQUEST";
     protected static final String MODULE_RUNTIME_STATUS_QUERY =
             NativeHookStatusProtocol.ACTION_QUERY;
     protected static final String MODULE_RUNTIME_STATUS_REPLY =
@@ -395,8 +397,8 @@ public abstract class HookRuntimeCore {
     protected volatile boolean miuiLauncherOpenBreakAvailable;
     protected volatile long miuiLauncherOpenBreakGeneration;
     protected volatile long miuiOverviewDismissPendingUntilUptime;
-    protected Context miuiOverviewReceiverContext;
-    protected BroadcastReceiver miuiOverviewReceiver;
+    protected volatile Context miuiOverviewReceiverContext;
+    protected volatile BroadcastReceiver miuiOverviewReceiver;
 
     // The exact native Shell cross-task animation object sourced from the registry.
     // Diagnostic hooks use this identity instead of guessing from color or call stacks.

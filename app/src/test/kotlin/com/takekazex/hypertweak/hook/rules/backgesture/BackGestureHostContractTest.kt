@@ -10,6 +10,29 @@ import java.io.File
 
 /** Validate the adapter's actual host ABI, independent of module compilation. */
 class BackGestureHostContractTest {
+    @Test fun nativeContextualSearchUsesLiveNavigationOwnerAndIndependentTransientState() {
+        val host = classes("BACK_GESTURE_SYSTEMUI_APK")
+        val bar = host.getValue("Lcom/android/systemui/navigationbar/views/NavigationBar;")
+        assertEquals("I", bar.fields.single { it.name == "mNavigationBarWindowState" }.type)
+        assertEquals("Z", bar.fields.single { it.name == "mTransientShown" }.type)
+        fun fieldWrites(method: String) = bar.methods.single { it.name == method }
+            .implementation!!.instructions
+            .filterIsInstance<org.jf.dexlib2.iface.instruction.ReferenceInstruction>()
+            .filter { it.opcode.toString().startsWith("IPUT") }
+            .mapNotNull { (it.reference as? org.jf.dexlib2.iface.reference.FieldReference)?.name }
+        assertTrue(fieldWrites("setWindowState").contains("mNavigationBarWindowState"))
+        val transientWrites = fieldWrites("showTransient")
+        assertTrue(transientWrites.contains("mTransientShown"))
+        assertFalse(transientWrites.contains("mNavigationBarWindowState"))
+        val dependency = host.getValue("Lcom/android/systemui/Dependency;")
+        assertTrue(dependency.fields.any { it.name == "sDependency" })
+        assertTrue(dependency.fields.any { it.name == "mNavigationBarController" })
+        val controller = host.getValue("Lcom/android/systemui/navigationbar/NavigationBarControllerImpl;")
+        assertEquals("Landroid/util/SparseArray;", controller.fields.single { it.name == "mNavigationBars" }.type)
+        val ancestors = generateSequence(bar) { it.superclass?.let(host::get) }
+        assertTrue(ancestors.any { cls -> cls.fields.any { it.name == "mView" } })
+    }
+
     private fun classes(variable: String): Map<String, ClassDef> {
         val file = System.getenv(variable)?.let(::File)
         assumeTrue("Set $variable to run target bytecode validation", file?.isFile == true)

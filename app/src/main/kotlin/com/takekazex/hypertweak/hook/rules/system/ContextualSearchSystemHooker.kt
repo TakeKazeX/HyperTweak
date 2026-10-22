@@ -1,10 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.system
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
+import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.SettingsTransport
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -22,6 +25,8 @@ object ContextualSearchSystemHooker : StaticHooker() {
     private val activeBridgedInvocation = ThreadLocal<Boolean>()
 
     private val resolvedUids = mutableMapOf<String, Int>()
+
+    @Volatile private var systemContext: Context? = null
 
     @Volatile
     private var systemPackageManager: PackageManager? = null
@@ -133,6 +138,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
             before { param ->
                 val context = param.args.getOrNull(0) as? Context
                 if (context != null) {
+                    systemContext = context
                     systemPackageManager = context.packageManager
                     resolveUid(SYSTEM_UI_PACKAGE)
                 }
@@ -161,6 +167,16 @@ object ContextualSearchSystemHooker : StaticHooker() {
         } else {
             startMethod.hook("gesture_bar_cts_entry_call") {
                 intercept { chain ->
+                    // Native MiuiHome owns detection; SystemUI owns actual handle visibility,
+                    // transient reveal and successful-trigger feedback. This also migrates an
+                    // already-mapped old/native-upstream payload without replacing its hooks.
+                    if (Preferences.contextualSearchLongPress() &&
+                        chain.args.getOrNull(0) == ENTRY_POINT &&
+                        Binder.getCallingUid() == resolveUid(MIUI_HOME_PACKAGE)
+                    ) {
+                        dispatchNavigationHandleRequest()
+                        return@intercept null
+                    }
                     // Two callers reach this AIDL: SystemUI when the power button is bound to
                     // Circle to Search, and the launcher when the native payload owns the
                     // gesture-bar long press (the Android 17 arrangement, where the launcher --
@@ -214,6 +230,28 @@ object ContextualSearchSystemHooker : StaticHooker() {
                     chain.proceed()
                 }
             }
+        }
+    }
+
+    private fun dispatchNavigationHandleRequest() {
+        try {
+            val context = systemContext ?: run {
+                val activityThread = classLoader.loadClass("android.app.ActivityThread")
+                val thread = activityThread.getMethod("currentActivityThread").invoke(null)
+                (activityThread.getMethod("getSystemContext").invoke(thread) as? Context)
+                    ?.also { systemContext = it }
+            } ?: return
+            val identity = Binder.clearCallingIdentity()
+            try {
+                SettingsTransport.send(context, Intent(
+                    "com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_REQUEST"
+                ).setPackage(SYSTEM_UI_PACKAGE)
+                    .putExtra("request_elapsed", SystemClock.elapsedRealtime()))
+            } finally {
+                Binder.restoreCallingIdentity(identity)
+            }
+        } catch (t: Throwable) {
+            DebugLog.w(SCOPE, "failed to dispatch navigation-handle request", t)
         }
     }
 

@@ -33,6 +33,8 @@ import org.luckypray.dexkit.result.MethodData;
 @SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
 
+    private final SystemUiBridgeLease launcherBridgeLease = new SystemUiBridgeLease();
+
     protected volatile SharedPreferences contextualSearchStatePreferences;
     protected volatile Context contextualSearchStateContext;
     protected final SharedPreferences.OnSharedPreferenceChangeListener
@@ -136,6 +138,48 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             attachContextualSearchInputReceiver(chain.getThisObject());
         }
         return result;
+    }
+
+    private final ContextualSearchRequestPolicy contextualSearchRequests =
+            new ContextualSearchRequestPolicy();
+
+    private void handleNativeContextualSearchRequest(Context context, long requestedAt) {
+        if (!isContextualSearchLongPressEnabled()) return;
+        boolean eligible = false;
+        try {
+            // Resolve the live controller on every request. This also recovers existing
+            // NavigationBars when upgrading from an APK that never saved CTS host state.
+            Object controller = findNavigationBarControllerFromDependency(context.getClassLoader());
+            Object bars = controller == null ? null : readField(controller, "mNavigationBars");
+            Object bar = bars == null ? null : invokeAnyMethod(bars, "get",
+                    new Object[]{Integer.valueOf(0)});
+            if (bar != null) {
+                Object viewObject = readField(bar, "mView");
+                if (viewObject instanceof android.view.View) {
+                    android.view.View view = (android.view.View) viewObject;
+                    android.app.KeyguardManager keyguard = context.getSystemService(
+                            android.app.KeyguardManager.class);
+                    Object state = readField(bar, "mNavigationBarWindowState");
+                    // Native MiuiHome already detected the long press. Do not hit-test
+                    // the drawn pill again: our hide/no-raise feature makes it transparent
+                    // or zero-height while leaving native input ownership intact.
+                    eligible = state instanceof Integer && keyguard != null
+                            && ContextualSearchRequestPolicy.allowsNativeCompletion((Integer) state,
+                            Boolean.TRUE.equals(readField(bar, "mTransientShown")),
+                            view.isAttachedToWindow(), keyguard.isKeyguardLocked());
+                }
+            }
+        } catch (Throwable throwable) {
+            moduleLog(Log.WARN, TAG, "Native contextual-search navigation owner unavailable", throwable);
+        }
+        if (!contextualSearchRequests.admit(android.os.SystemClock.elapsedRealtime(), requestedAt, eligible)) {
+            moduleLog(Log.INFO, TAG, "Rejected native contextual-search request; ownerEligible=" + eligible);
+            return;
+        }
+        if (launcherBridgeLease.isActive() && invokeContextualSearchService()
+                && launcherBridgeLease.isActive() && acceptingBackInputInstalls) {
+            playContextualSearchHaptic(context);
+        }
     }
 
     protected Object detachContextualSearchBeforeNavigationBarDetached(
@@ -530,7 +574,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     }
 
     protected synchronized void ensureMiuiOverviewStateReceiver(Context context) {
-        if (miuiOverviewReceiver != null || context == null) {
+        if (!acceptingBackInputInstalls || miuiOverviewReceiver != null || context == null) {
             return;
         }
         // getApplicationContext() can return null for a context that is itself the application
@@ -541,6 +585,10 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context receiverContext, Intent intent) {
+                // Unregister can fail during APK replacement. Such an old dispatcher
+                // must stay inert, including across separate module class loaders.
+                if (!acceptingBackInputInstalls || miuiOverviewReceiver != this
+                        || !launcherBridgeLease.isActive()) return;
                 String action = intent == null ? null : intent.getAction();
                 if (UPSTREAM_OVERVIEW_ACTION.equals(action)) {
                     observeUpstreamOverview(receiverContext, getSentFromUid(), getSentFromPackage(), intent);
@@ -556,7 +604,21 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
                             getSentFromUid(), getSentFromPackage(), intent);
                     return;
                 }
+                if (MODULE_CONTEXTUAL_SEARCH_REQUEST.equals(action)) {
+                    if (getSentFromUid() != android.os.Process.SYSTEM_UID) {
+                        moduleLog(Log.WARN, TAG, "Rejected foreign contextual-search request");
+                        return;
+                    }
+                    handleNativeContextualSearchRequest(receiverContext,
+                            intent.getLongExtra("request_elapsed", -1));
+                    return;
+                }
                 if (MODULE_CONTEXTUAL_SEARCH_TRIGGERED.equals(action)) {
+                    // Old/upstream native payloads report Binder transport success before
+                    // SystemUI admission. Feedback now belongs to the admitted request.
+                    if (requireSystemUiPlatformImpl().nativeLauncherOwnsContextualSearchLongPress()) {
+                        return;
+                    }
                     int senderUid = getSentFromUid();
                     String senderPackage = getSentFromPackage();
                     if (!isTrustedMiuiHomeBroadcastSender(
@@ -791,16 +853,21 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             filter.addAction(UPSTREAM_OVERVIEW_ACTION);
             filter.addAction(MODULE_MIUI_HOME_INPUT_ARBITER_QUERY);
             filter.addAction(MODULE_CONTEXTUAL_SEARCH_TRIGGERED);
+            filter.addAction(MODULE_CONTEXTUAL_SEARCH_REQUEST);
             filter.addAction(MODULE_RUNTIME_STATUS_QUERY);
             filter.addAction(MODULE_RUNTIME_STATUS_REPLY);
-            appContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             miuiOverviewReceiverContext = appContext;
             miuiOverviewReceiver = receiver;
+            launcherBridgeLease.claim();
+            appContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
             predictiveBackWallpaper = new PredictiveBackWallpaper(appContext);
             ensureContextualSearchStatePreferenceListener(appContext);
             moduleLog(Log.INFO, TAG, "Registered Miui launcher overview-state receiver"
                     + ", currentOverviewVisible=" + miuiOverviewVisible);
         } catch (Throwable throwable) {
+            launcherBridgeLease.retire();
+            miuiOverviewReceiver = null;
+            miuiOverviewReceiverContext = null;
             moduleLog(Log.ERROR, TAG, "Failed to register Miui overview-state receiver",
                     throwable);
         }
@@ -1127,6 +1194,8 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     }
 
     protected synchronized void unregisterMiuiOverviewStateReceiver() {
+        // Revoke before touching framework registration or other teardown work.
+        launcherBridgeLease.retire();
         PredictiveBackWallpaper wallpaper = predictiveBackWallpaper;
         predictiveBackWallpaper = null;
         if (wallpaper != null) wallpaper.close();
