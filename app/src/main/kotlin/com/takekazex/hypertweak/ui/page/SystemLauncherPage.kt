@@ -58,6 +58,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(Preferences.hideRecentsClearButton()) }
+    var xiaoaiOptions by rememberSaveable { mutableStateOf(Preferences.xiaoaiGestureOptions()) }
     var widgetStack by rememberSaveable { mutableStateOf(Preferences.androidWidgetStack()) }
     var folderStack by rememberSaveable { mutableStateOf(Preferences.folderStackPreview()) }
     var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
@@ -94,6 +95,20 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+
+            SmallTitle(stringResource(R.string.settings_xiaoai_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = xiaoaiOptions,
+                    onCheckedChange = {
+                        xiaoaiOptions = it
+                        Preferences.putBoolean(Preferences.KEY_XIAOAI_GESTURE_OPTIONS, it)
+                        NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, xiaoaiOptions = it)
+                    },
+                    title = stringResource(R.string.settings_xiaoai_gesture_options_title),
+                    summary = stringResource(R.string.settings_xiaoai_gesture_options_summary)
+                )
+            }
 
             // Preserve the launcher controls' original platform gates.
             SmallTitle(stringResource(R.string.settings_launcher_section))

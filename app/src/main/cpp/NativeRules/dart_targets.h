@@ -137,6 +137,12 @@ extern const TargetSpec kDockFrameTarget;
 extern const TargetSpec kRecentsHapticTarget;
 extern const TargetSpec kFolderStackTarget;
 extern const TargetSpec kWidgetStackTarget;
+extern const TargetSpec kXiaoaiGestureOptionsTarget;
+struct XiaoaiGestureLayout {
+    uint32_t cid,context_field,trigger_field,mask_field,entity_field,long_press_pool,double_click_pool;
+};
+bool DecodeXiaoaiGestureLayout(const Image&, uintptr_t predicate, uintptr_t decoder, XiaoaiGestureLayout*);
+
 struct WidgetStackLayout { uint32_t field, cid; uintptr_t drag_success, target_success; };
 bool DecodeWidgetStackLayout(const Image&, uintptr_t drag, uintptr_t target,
                              uintptr_t serializer, WidgetStackLayout*);

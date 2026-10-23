@@ -21,6 +21,7 @@ internal object RuntimeSettingsGroups {
     const val APP_DETAILS = "securitycenter.app_details"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val OFFLINE_CONFIG = "carrier.offline_config"
+    const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SHARE_PANEL = "intentresolver.share_panel"
     /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
     const val AOD = "systemui.aod"
@@ -70,8 +71,9 @@ internal object RuntimeSettingsGroups {
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
-        Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, "prefs_epoch")
+        Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, Preferences.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_XIAOAI_GESTURE_OPTIONS,
         Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS,
         Preferences.KEY_SHARE_PANEL_SHOW_ALL,
         Preferences.KEY_APP_DETAILS_ICON_LAUNCH,
@@ -133,6 +135,7 @@ internal object RuntimeSettingsGroups {
                 it == Preferences.KEY_HIDE_GESTURE_BAR_RECENTS || it == Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION ||
                 it == Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
         },
+        XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == Preferences.KEY_XIAOAI_GESTURE_OPTIONS },
         SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == Preferences.KEY_SHARE_PANEL_SHOW_ALL },
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == Preferences.KEY_APP_DETAILS_ICON_LAUNCH },
         SECURITY_CHECKS to Group(setOf("com.miui.securitycenter", "com.miui.guardprovider")) {

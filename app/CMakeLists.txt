@@ -61,6 +61,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/xiaoai_gesture_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/xiaoai_gesture_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/widget_stack_rule.cpp"

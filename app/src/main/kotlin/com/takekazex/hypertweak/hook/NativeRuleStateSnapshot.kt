@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook
 
 internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: Int, val contextualSearch: Boolean,
-    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false) {
+    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false, val xiaoaiOptions: Boolean = false) {
     fun settingsValues(): Map<String, Any> = mapOf(
         Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to hidden, Preferences.KEY_OPENED_FOLDER_COLUMNS to columns,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to contextualSearch,
@@ -9,6 +9,7 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
         Preferences.KEY_RECENTS_CARD_HAPTIC to recentsHaptic,
         Preferences.KEY_FOLDER_STACK_PREVIEW to folderStack,
         Preferences.KEY_ANDROID_WIDGET_STACK to widgetStack,
+        Preferences.KEY_XIAOAI_GESTURE_OPTIONS to xiaoaiOptions,
         Preferences.KEY_NATIVE_RULE_REVISION to revision, "prefs_epoch" to epoch)
     companion object {
         val REPLAY_DELAYS_MS = longArrayOf(0, 250, 1_000, 3_000, 10_000)
@@ -20,13 +21,14 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val columns = values[Preferences.KEY_OPENED_FOLDER_COLUMNS]
             val contextual = values[Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS]
             val widgets = values[Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT]
+            val xiaoaiOptions = values[Preferences.KEY_XIAOAI_GESTURE_OPTIONS]
             val widgetStack = values[Preferences.KEY_ANDROID_WIDGET_STACK]
             val stack = values[Preferences.KEY_FOLDER_STACK_PREVIEW]
             val haptic = values[Preferences.KEY_RECENTS_CARD_HAPTIC]
             val revision = values[Preferences.KEY_NATIVE_RULE_REVISION]
             val epoch = values["prefs_epoch"]
             // Reject the whole snapshot on any type mismatch; a partial read is never a default.
-            if ((widgetStack != null && widgetStack !is Boolean) || (stack != null && stack !is Boolean) || (hidden != null && hidden !is Boolean) || (columns != null && columns !is Int) ||
+            if ((xiaoaiOptions != null && xiaoaiOptions !is Boolean) || (widgetStack != null && widgetStack !is Boolean) || (stack != null && stack !is Boolean) || (hidden != null && hidden !is Boolean) || (columns != null && columns !is Int) ||
                 (haptic != null && haptic !is Boolean) || (contextual != null && contextual !is Boolean) ||
                 (widgets != null && widgets !is Boolean) || (revision != null && revision !is Long) ||
                 (epoch != null && epoch !is Long)) return null
@@ -36,7 +38,7 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val resolvedEpoch = epoch ?: 0L
             if (resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5) return null
             NativeRuleStateSnapshot(hidden ?: false, resolvedColumns, contextual ?: false,
-                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false)
+                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false)
         }.getOrNull()
     }
 }

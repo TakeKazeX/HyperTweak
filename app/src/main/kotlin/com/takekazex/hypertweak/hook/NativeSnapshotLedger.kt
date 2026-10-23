@@ -20,16 +20,17 @@ internal class NativeSnapshotLedger {
     }
     @Synchronized fun latest(): NativeRuleStateSnapshot? = current
     @Synchronized fun save(): Array<Any>? = current?.let {
-        arrayOf(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack)
+        arrayOf(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack, it.xiaoaiOptions)
     }
     fun restore(state: Any?) {
         val values = state as? Array<*> ?: return
-        if (values.size !in 6..9 || values.any { it == null }) return
+        if (values.size !in 6..10 || values.any { it == null }) return
         NativeRuleStateSnapshot.read { mapOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to values[0],
             Preferences.KEY_OPENED_FOLDER_COLUMNS to values[1], Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to values[2],
             Preferences.KEY_NATIVE_RULE_REVISION to values[3], "prefs_epoch" to values[4], Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to values[5],
             Preferences.KEY_RECENTS_CARD_HAPTIC to (values.getOrNull(6) ?: false),
             Preferences.KEY_FOLDER_STACK_PREVIEW to (values.getOrNull(7) ?: false),
-            Preferences.KEY_ANDROID_WIDGET_STACK to (values.getOrNull(8) ?: false)) }?.let(::offer)
+            Preferences.KEY_ANDROID_WIDGET_STACK to (values.getOrNull(8) ?: false),
+            Preferences.KEY_XIAOAI_GESTURE_OPTIONS to (values.getOrNull(9) ?: false)) }?.let(::offer)
     }
 }

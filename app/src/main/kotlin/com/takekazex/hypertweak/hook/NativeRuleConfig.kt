@@ -40,7 +40,8 @@ object NativeRuleConfig {
         assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant(),
         recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
         folderStack: Boolean = Preferences.folderStackPreview(),
-        widgetStack: Boolean = Preferences.androidWidgetStack()
+        widgetStack: Boolean = Preferences.androidWidgetStack(),
+        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions()
     ) {
         val contents = buildString {
             append(KEY_HIDE_RECENTS_CLEAR)
@@ -71,6 +72,10 @@ object NativeRuleConfig {
             append(Preferences.KEY_RECENTS_CARD_HAPTIC)
             append('=')
             append(if (recentsHaptic) '1' else '0')
+            append('\n')
+            append(Preferences.KEY_XIAOAI_GESTURE_OPTIONS)
+            append('=')
+            append(if (xiaoaiOptions) '1' else '0')
             append('\n')
             append(KEY_CONTEXTUAL_SEARCH_LONG_PRESS)
             append('=')

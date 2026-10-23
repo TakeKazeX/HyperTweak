@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 namespace {
-std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false};
+std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false}, xiaoai_options{false};
 std::atomic<int32_t> columns{3};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<bool> block{false}, entered{false};
@@ -50,6 +50,11 @@ bool AndroidWidgetStackRequested() { return widget_stack.load(); }
 bool ApplyAndroidWidgetStackRule(void*) { return true; }
 const char* AndroidWidgetStackRuleReason() { return "disabled"; }
 void ResetAndroidWidgetStackAfterFork() {}
+void SetXiaoaiGestureOptionsEnabled(bool v) { xiaoai_options.store(v); }
+bool XiaoaiGestureOptionsRequested() { return xiaoai_options.load(); }
+bool ApplyXiaoaiGestureOptionsRule(void*) { return true; }
+const char* XiaoaiGestureOptionsReason() { return "disabled"; }
+void ResetXiaoaiGestureOptionsAfterFork() {}
 void SetFolderStackEnabled(bool value) { folder_stack.store(value); }
 bool FolderStackRequested() { return folder_stack.load(); }
 bool ApplyFolderStackRule(void*) { return true; }
@@ -71,7 +76,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
@@ -132,5 +137,10 @@ int main() {
     assert(widget_stack.load());
     assert(ReceiveNativeRuleSettings(true, 4, false, 108, false, false, false, false));
     Wait(preparations, 9); assert(!widget_stack.load());
+    assert(ReceiveNativeRuleSettings(true, 4, false, 109, false, false, false, false, true));
+    Wait(preparations, 10); assert(xiaoai_options.load());
+    assert(!ReceiveNativeRuleSettings(true, 4, false, 109, false, false, false, false, false));
+    assert(ReceiveNativeRuleSettings(true, 4, false, 110, false, false, false, false, false));
+    Wait(preparations, 11); assert(!xiaoai_options.load());
     puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic, folder stack and widget stack enable/conflict/disable");
 }

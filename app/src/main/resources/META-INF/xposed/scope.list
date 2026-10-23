@@ -1,6 +1,7 @@
 system
 com.android.systemui
 com.miui.home
+com.miui.voiceassist
 com.lbe.security.miui
 com.miui.screenshot
 com.takekazex.hypertweak

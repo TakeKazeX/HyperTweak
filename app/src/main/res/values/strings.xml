@@ -1624,4 +1624,7 @@
     <string name="notification_batch_hide_details">Hide details</string>
     <string name="notification_batch_close">OK</string>
     <string name="notification_batch_partial_error">Some items failed; other items may already have changed. View details and scan again.</string>
+    <string name="settings_xiaoai_section">Super XiaoAI</string>
+    <string name="settings_xiaoai_gesture_options_title">More gesture line actions</string>
+    <string name="settings_xiaoai_gesture_options_summary">Adds text input to long press, and screen recognition and voice input to double tap. Reopen System navigation to refresh the choices.</string>
 </resources>

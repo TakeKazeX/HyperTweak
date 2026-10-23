@@ -137,6 +137,7 @@ import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooke
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
+import com.takekazex.hypertweak.hook.rules.voiceassist.XiaoaiGestureHooker
 import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
 import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
@@ -237,6 +238,7 @@ class HookEntry : XposedModule() {
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            registerForProcess(RuntimeSettingsGroups.XIAOAI_GESTURES) { _ -> true }
             registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->
                 SharePanelHooker.refreshSettings()
                 true
@@ -1250,6 +1252,10 @@ class HookEntry : XposedModule() {
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after
                 // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
                 // loader (see attachPluginHooker).
+            }
+            "com.miui.voiceassist" -> {
+                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
+                attachHooker(XiaoaiGestureHooker, classLoader, ctx, replacementHandles)
             }
             "com.miui.screenshot" -> {
                 // HyperOS delegates normal screenshots to this process. Its provider hard-codes

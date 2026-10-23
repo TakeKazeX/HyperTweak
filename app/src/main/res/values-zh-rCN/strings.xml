@@ -1615,4 +1615,7 @@
     <string name="notification_batch_hide_details">收起详情</string>
     <string name="notification_batch_close">知道了</string>
     <string name="notification_batch_partial_error">部分项目未完成，其余项目可能已经生效。请查看详情后重新扫描。</string>
+    <string name="settings_xiaoai_section">超级小爱</string>
+    <string name="settings_xiaoai_gesture_options_title">扩展手势提示线功能</string>
+    <string name="settings_xiaoai_gesture_options_summary">长按增加文字输入，双击增加识屏、语音输入。选项列表需重新进入系统导航方式刷新。</string>
 </resources>

@@ -549,6 +549,7 @@ const TargetSpec kAssistantWidgetTarget = {
 #include "recents_haptic_target.inc"
 #include "folder_stack_target.inc"
 #include "widget_stack_target.inc"
+#include "xiaoai_gesture_target.inc"
 
 const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
@@ -558,6 +559,7 @@ const TargetSpec* const kTargetSpecs[] = {
     &kRecentsHapticTarget,
     &kFolderStackTarget,
     &kWidgetStackTarget,
+    &kXiaoaiGestureOptionsTarget,
 };
 
 const size_t kTargetSpecCount =

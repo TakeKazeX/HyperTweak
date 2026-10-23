@@ -96,3 +96,12 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitches(
     Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV2(
         env, thiz, hidden, columns, contextual, widgets, haptic, JNI_FALSE);
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV4(
+        JNIEnv*, jobject, jboolean hidden, jint columns, jboolean contextual,
+        jboolean widgets, jboolean haptic, jboolean stack, jboolean widget_stack, jboolean xiaoai) {
+    hypertweak::native::UpdateNativeRuleSettings(hidden == JNI_TRUE, columns, contextual == JNI_TRUE,
+        widgets == JNI_TRUE, haptic == JNI_TRUE, stack == JNI_TRUE, widget_stack == JNI_TRUE, xiaoai == JNI_TRUE);
+    hypertweak::native::ApplyPreparedNativeRules();
+}
