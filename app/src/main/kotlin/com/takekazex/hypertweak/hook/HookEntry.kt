@@ -83,6 +83,8 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHost
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyChecksHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterUsbInstallNetworkVerifyHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.CarrierOfflineConfigHooker
@@ -235,6 +237,9 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
                 if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
                 true
+            }
+            registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK) { _ ->
+                if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterDockHooker.refreshSettings() else true
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
@@ -1365,6 +1370,9 @@ class HookEntry : XposedModule() {
                     attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
                     if (processName == packageName || processName == "$packageName.cache" || processName == "$packageName.remote") {
                         attachHooker(SecurityCenterSafetyChecksHooker, classLoader, ctx, replacementHandles)
+                    }
+                    if (processName == SecurityCenterDockHost.PROCESS) {
+                        attachHooker(SecurityCenterDockHooker, classLoader, ctx, replacementHandles)
                     }
                     if (processName == packageName) {
                         attachHooker(AppDetailsIconLaunchHooker, classLoader, ctx, replacementHandles)

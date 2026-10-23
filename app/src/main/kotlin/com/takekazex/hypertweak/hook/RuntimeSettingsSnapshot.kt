@@ -30,6 +30,8 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
                 com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSnapshot.read(revision, values) == null) return null
             if (RuntimeSettingsGroups.NATIVE in groups && NativeRuleStateSnapshot.read { values } == null) return null
             if (RuntimeSettingsGroups.BACK in groups && BackGestureSettingsSnapshot.read(values) == null) return null
+            val predictionLimit = values[Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT]
+            if (predictionLimit != null && (predictionLimit !is Int || predictionLimit !in 0..15)) return null
             val dock = values[com.takekazex.hypertweak.dock.DockConfig.KEY]
             if (dock != null && (dock !is String || com.takekazex.hypertweak.dock.DockConfig.decode(dock) == null)) return null
             return RuntimeSettingsSnapshot(revision, values.toMap(), groups.toSet())

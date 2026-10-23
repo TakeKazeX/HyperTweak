@@ -1632,4 +1632,11 @@
     <string name="cc_tile_message_duration_value">%1$s s</string>
     <string name="cc_tile_message_duration_input_summary">Enter 0–5 seconds, with one decimal place</string>
     <string name="cc_tile_message_duration_unit">s</string>
+    <string name="security_center_dock_section">Sidebar</string>
+    <string name="security_center_dock_unlimited">Unlimited pinned app additions</string>
+    <string name="security_center_dock_unlimited_summary">Allow adding and dragging pinned apps after reaching 16.</string>
+    <string name="security_center_dock_predictions">Predicted app count</string>
+    <string name="security_center_dock_predictions_summary">Default: 8. Independent of pinned additions; 0 hides predictions. Extra apps scroll within the panel.</string>
+    <string name="security_center_dock_unlimited_predictions">Show predictions beyond 16 apps</string>
+    <string name="security_center_dock_unlimited_predictions_summary">Allow predicted apps beyond the 16-app display limit. The slider still controls their count.</string>
 </resources>

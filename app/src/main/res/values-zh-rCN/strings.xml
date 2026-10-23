@@ -1623,4 +1623,11 @@
     <string name="cc_tile_message_duration_value">%1$s 秒</string>
     <string name="cc_tile_message_duration_input_summary">输入 0–5 秒，精确到一位小数</string>
     <string name="cc_tile_message_duration_unit">秒</string>
+    <string name="security_center_dock_section">侧边栏</string>
+    <string name="security_center_dock_unlimited">无限制添加固定应用</string>
+    <string name="security_center_dock_unlimited_summary">固定应用达到 16 个后，仍可继续点击加号或拖拽添加</string>
+    <string name="security_center_dock_predictions">预测应用数量调整</string>
+    <string name="security_center_dock_predictions_summary">原生默认 8 个，与固定应用开关独立；0 为不显示，超出面板高度时滚动显示</string>
+    <string name="security_center_dock_unlimited_predictions">无限制显示预测应用</string>
+    <string name="security_center_dock_unlimited_predictions_summary">预测应用不受总共 16 个应用的显示限制，数量仍由下方滑条调整</string>
 </resources>

@@ -163,7 +163,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "") {
+internal fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "") {
     var showEditor by remember(title) { mutableStateOf(false) }
     ArrowPreference(
         title = title, summary = summary,

@@ -52,6 +52,15 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
+    var dockUnlimited by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false))
+    }
+    var dockUnlimitedPredictions by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false))
+    }
+    var dockPredictions by rememberSaveable {
+        mutableIntStateOf(Preferences.getInt(Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
+    }
     var iconLaunch by rememberSaveable {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_APP_DETAILS_ICON_LAUNCH, false))
     }
@@ -278,6 +287,37 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     summary = stringResource(
                         R.string.security_center_call_privacy_camera_entry_summary
                     )
+                )
+            }
+
+            SmallTitle(stringResource(R.string.security_center_dock_section))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = dockUnlimited,
+                    onCheckedChange = {
+                        dockUnlimited = it
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, it)
+                    },
+                    title = stringResource(R.string.security_center_dock_unlimited),
+                    summary = stringResource(R.string.security_center_dock_unlimited_summary)
+                )
+                SwitchPreference(
+                    checked = dockUnlimitedPredictions,
+                    onCheckedChange = {
+                        dockUnlimitedPredictions = it
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, it)
+                    },
+                    title = stringResource(R.string.security_center_dock_unlimited_predictions),
+                    summary = stringResource(R.string.security_center_dock_unlimited_predictions_summary)
+                )
+                DockSlider(
+                    title = stringResource(R.string.security_center_dock_predictions),
+                    value = dockPredictions, range = 0..15, defaultValue = 8, unit = "",
+                    onChange = {
+                        dockPredictions = it
+                        Preferences.putInt(Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, it)
+                    },
+                    summary = stringResource(R.string.security_center_dock_predictions_summary)
                 )
             }
 

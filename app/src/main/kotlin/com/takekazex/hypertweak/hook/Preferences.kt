@@ -283,6 +283,9 @@ object Preferences {
     const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
 
     /** Skips Security Center's four verified local File.exists() su probes. */
+    const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED = "securitycenter_dock_unlimited_pinned"
+    const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS = "securitycenter_dock_unlimited_predictions"
+    const val KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT = "securitycenter_dock_predict_limit"
     const val KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK = "securitycenter_skip_local_su_check"
     /** Disables the independent SafePay automatic app-scan preference. */
     const val KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN = "securitycenter_disable_safepay_auto_scan"

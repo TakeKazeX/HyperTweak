@@ -6,6 +6,7 @@ import org.junit.Test
 
 class SecurityHostRecoveryTest {
     @Test fun stateFreeUpgradeRecoversTheActualPackageOfDottedAndColonHosts() {
+        assertEquals("com.miui.securitycenter", SecurityHostRecovery.owner("com.miui.securitycenter:ui", false))
         assertEquals("com.miui.securitycenter", SecurityHostRecovery.owner("com.miui.securitycenter.remote", false))
         assertEquals("com.miui.securitycenter", SecurityHostRecovery.owner("com.miui.securitycenter.cache", false))
         assertEquals("com.android.contacts", SecurityHostRecovery.owner("com.android.contacts:business", false))

@@ -6,6 +6,43 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun securityDockSettingsMigrateDisableAndResetTogether() {
+        val enabledKey = Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED
+        val limitKey = Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT
+        val displayKey = Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS
+        val group = setOf(Groups.SECURITY_DOCK)
+        assertEquals(group, Groups.affected(enabledKey))
+        assertEquals(group, Groups.affected(limitKey))
+        assertEquals(group, Groups.affected(displayKey))
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(displayKey to 1), group))
+        assertTrue(Groups.SECURITY_DOCK in Groups.forProcess("com.miui.securitycenter:ui"))
+        assertEquals("com.miui.securitycenter", Groups.target("com.miui.securitycenter:ui"))
+        assertEquals("com.miui.securitycenter:ui", com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHost.PROCESS)
+        assertFalse(Groups.SECURITY_DOCK in Groups.forProcess("com.miui.home"))
+        assertTrue(Groups.subset("com.miui.guardprovider", mapOf(enabledKey to true, limitKey to 15)).isEmpty())
+        for (invalid in listOf(-1, 16, "8", 8L)) {
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(limitKey to invalid), group))
+        }
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(enabledKey to "true"), group))
+        val ledger = RuntimeSettingsLedger().also {
+            it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true)))
+        }
+        val on = RuntimeSettingsSnapshot.read(2, mapOf(enabledKey to true, displayKey to true, limitKey to 0), group)!!
+        assertTrue(Groups.SECURITY_DOCK in ledger.changedGroups(on))
+        assertTrue(ledger.accept(on))
+        val migrated = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(0, migrated.value(limitKey))
+        assertEquals(true, migrated.value(displayKey))
+        val off = RuntimeSettingsSnapshot.read(3, mapOf(enabledKey to false, limitKey to 15), group)!!
+        assertEquals(group, migrated.changedGroups(off))
+        assertTrue(migrated.accept(off))
+        val reset = RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>(), group)!!
+        assertEquals(group, migrated.changedGroups(reset))
+        assertTrue(migrated.accept(reset))
+        assertNull(migrated.value(limitKey))
+        assertNull(migrated.value(displayKey))
+    }
+
     @Test fun sharePanelReachesBothManifestProcessesAndSurvivesUpgradeDisableAndReset() {
         val key = Preferences.KEY_SHARE_PANEL_SHOW_ALL
         assertEquals(setOf(Groups.SHARE_PANEL), Groups.forProcess("com.android.intentresolver"))
