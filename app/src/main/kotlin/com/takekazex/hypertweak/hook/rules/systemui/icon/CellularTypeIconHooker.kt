@@ -59,7 +59,6 @@ object CellularTypeIconHooker : StaticHooker() {
     private data class NativeDrawableFields(
         val label: Field,
         val mainPaint: Field,
-        val suffixPaint: Field,
         val width: Field,
         val height: Field,
         val extraWidth: Field,
@@ -167,7 +166,6 @@ object CellularTypeIconHooker : StaticHooker() {
         val fields = NativeDrawableFields(
             label = requiredField("mMobileType") ?: return,
             mainPaint = requiredField("mMobileTypeTextPaint") ?: return,
-            suffixPaint = requiredField("mMobileTypePlusPaint") ?: return,
             width = requiredField("mWidth") ?: return,
             height = requiredField("mHeight") ?: return,
             extraWidth = requiredField("mExtraWidth") ?: return,
@@ -205,8 +203,7 @@ object CellularTypeIconHooker : StaticHooker() {
                     fields.label.set(target, state.originalLabel)
                     val canvas = param.args.getOrNull(0) as? Canvas ?: return@runCatching
                     val mainPaint = fields.mainPaint.get(target) as? Paint ?: return@runCatching
-                    val suffixPaint = fields.suffixPaint.get(target) as? Paint ?: return@runCatching
-                    val suffix = prepareNativeSmallSuffixPaint(mainPaint, suffixPaint)
+                    val suffix = prepareNativeSmallSuffixPaint(mainPaint)
                     canvas.drawText(
                         state.parts.suffixText,
                         fields.width.getInt(target).toFloat(),
@@ -226,8 +223,7 @@ object CellularTypeIconHooker : StaticHooker() {
             if (fields.doublePlus.getBoolean(target)) return
             modifiedDrawables[target] = true
             val mainPaint = fields.mainPaint.get(target) as? Paint ?: return
-            val suffixPaint = fields.suffixPaint.get(target) as? Paint ?: return
-            val suffix = prepareNativeSmallSuffixPaint(mainPaint, suffixPaint)
+            val suffix = prepareNativeSmallSuffixPaint(mainPaint)
             val bounds = Rect()
             mainPaint.getTextBounds(parts.baseText, 0, parts.baseText.length, bounds)
             fields.width.setInt(target, ceil(mainPaint.measureText(parts.baseText).toDouble()).toInt())
@@ -240,9 +236,13 @@ object CellularTypeIconHooker : StaticHooker() {
         }
     }
 
-    private fun prepareNativeSmallSuffixPaint(mainPaint: Paint, hostSuffixPaint: Paint): Paint =
+    private fun prepareNativeSmallSuffixPaint(mainPaint: Paint): Paint =
         currentNativeSmallSuffixPaint().apply {
-            set(hostSuffixPaint)
+            // A is part of the type label, not the native ++ decoration. Copy the current
+            // label paint on every measure/draw so its typeface (including variation axes),
+            // weight, scale, skew and colour stay in step with 5G after host font updates.
+            // Keep the host paints untouched, including the separate native ++ styling.
+            set(mainPaint)
             textSize = mainPaint.textSize * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE
         }
 
