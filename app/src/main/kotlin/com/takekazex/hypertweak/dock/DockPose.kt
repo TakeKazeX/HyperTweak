@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.dock
 
 internal data class DockPose(val x: Float, val y: Float, val scale: Float) {
+    /** Material stays at its desktop-local position inside the full viewport capture root. */
+    fun inViewport(bounds: DockBounds) = DockPose(x - bounds.x * scale, y - bounds.y * scale, scale)
+
     companion object {
         /** Native nesting: row gesture -> Hotseat UnlockWidget -> desktop root controller. */
         fun resolve(width: Int, height: Int, density: Float, bounds: DockBounds, motion: DockMotion?): DockPose {

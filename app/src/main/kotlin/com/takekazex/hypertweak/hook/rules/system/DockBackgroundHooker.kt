@@ -123,7 +123,7 @@ object DockBackgroundHooker : StaticHooker() {
         var materialRevision: Long = 0,
         val owner: IBinder = Binder(), var parcel: SurfaceControlViewHost.SurfacePackage? = null,
         var renderer: IBinder? = null, var death: IBinder.DeathRecipient? = null,
-        var ready: Boolean = false, var probePending: Boolean = false, var attempts: Int = 0,
+        var captureStarted: Boolean = false, var ready: Boolean = false, var probePending: Boolean = false, var attempts: Int = 0,
         var probeAllowed: Boolean = false, var applied: String? = null,
         var bounds: com.takekazex.hypertweak.dock.DockBounds? = null, var frame: Rect = Rect(), var density: Float = 1f,
         var surfaceVisible: Boolean = false, val lease: Long = 0L)
@@ -271,12 +271,12 @@ object DockBackgroundHooker : StaticHooker() {
         val configuration = DockReflection.call(window, "getConfiguration") as? Configuration ?: return
         val bounds = DockGeometry.resolve(frame.width(), frame.height(), configuration.densityDpi / 160f, config) ?: run { retire(window); return }
         val dark = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        val rotation = displays?.getDisplay(0)?.rotation ?: 0
         val windowRotation = runCatching {
             val windowConfig = requireNotNull(DockReflection.field(configuration, "windowConfiguration").get(configuration))
             DockReflection.call(windowConfig, "getRotation") as? Int
-        }.getOrNull()?.takeIf { it in 0..3 } ?: rotation
-        val key = "$bounds/$rotation/$windowRotation"
+        }.getOrNull()?.takeIf { it in 0..3 } ?: return
+        // A foreground application's display rotation is not a desktop host change.
+        val key = "${frame.width()}x${frame.height()}/$bounds/${configuration.densityDpi}/$windowRotation"
         val materialKey = config.materialKey(dark)
         var entry = entries[window]
         if (entry != null && (entry.key != key || entry.parent !== parent || DockReflection.call(entry.effect, "isValid") != true)) {
@@ -293,8 +293,10 @@ object DockBackgroundHooker : StaticHooker() {
             entries[window] = entry
             val args = Bundle().apply {
                 putLong("lease", entry.lease); putString("config", config.encode()); putInt("width", bounds.width); putInt("height", bounds.height)
+                putInt("viewportWidth", frame.width()); putInt("viewportHeight", frame.height())
+                putInt("x", bounds.x); putInt("y", bounds.y)
                 putFloat("radius", bounds.radius); putBoolean("dark", dark); putBinder("owner", entry.owner)
-                putInt("rotation", windowRotation)
+                putParcelable("configuration", Configuration(configuration))
                 putBoolean("motionReady", motion != null)
             }
             create(window, entry, args)
@@ -340,10 +342,12 @@ object DockBackgroundHooker : StaticHooker() {
         if (entry.applied == appearance) return
         DockReflection.call(transaction, "setLayer", entry.effect, -1)
         val pose = com.takekazex.hypertweak.dock.DockPose.resolve(frame.width(), frame.height(), entry.density, bounds, motion)
+            .inViewport(bounds)
         DockReflection.call(transaction, "setMatrix", entry.effect, pose.scale, 0f, 0f, pose.scale)
         DockReflection.call(transaction, "setPosition", entry.effect, pose.x, pose.y)
-        DockReflection.call(transaction, "setWindowCrop", entry.effect, bounds.width, bounds.height)
-        DockReflection.call(transaction, "setCornerRadius", entry.effect, bounds.radius)
+        // The native RenderNode clips the material. Cropping/rounding the viewport here
+        // would cut off its bottom-positioned child and change the capture coordinate space.
+        DockReflection.call(transaction, "setWindowCrop", entry.effect, frame.width(), frame.height())
         DockReflection.call(transaction, "setAlpha", entry.effect, if (entry.ready) motion?.alpha?.toFloat() ?: 0f else 0.001f)
         DockReflection.call(transaction, if (visible) "show" else "hide", entry.effect)
         entry.applied = appearance
@@ -353,12 +357,12 @@ object DockBackgroundHooker : StaticHooker() {
         val windowRef = WeakReference(window)
         val generation = epoch.get()
         val ipcContext = context
-        val resultHandler = handler
+        val resultHandler = handler ?: return
         worker.execute {
             val reply = ipc("create", entry.id, args, ipcContext)
             val parcel = reply?.getParcelable("surface", SurfaceControlViewHost.SurfacePackage::class.java)
             val renderer = reply?.getBinder("renderer")
-            resultHandler?.post {
+            resultHandler.post {
                 synchronized(wmLock) {
                     val current = windowRef.get()
                     if (current == null || stopped || generation != epoch.get() || entries[current] !== entry) {
@@ -377,22 +381,60 @@ object DockBackgroundHooker : StaticHooker() {
                         entry.death = death
                         renderer.linkToDeath(death, 0)
                         val surface = requireNotNull(DockReflection.call(parcel, "getSurfaceControl"))
+                        update(current, schedulePose = false)
+                        if (entries[current] !== entry) return@synchronized
                         val transaction = newTransaction()
-                        DockReflection.call(transaction, "reparent", surface, entry.effect)
-                        DockReflection.call(transaction, "setLayer", surface, 0)
-                        DockReflection.call(transaction, "show", surface)
-                        DockReflection.call(transaction, "apply")
-                        DockReflection.call(transaction, "close")
-                        probe(windowRef, entry, generation)
+                        try {
+                            DockReflection.call(transaction, "reparent", surface, entry.effect)
+                            DockReflection.call(transaction, "setLayer", surface, 0)
+                            DockReflection.call(transaction, "show", surface)
+                            applyPose(transaction, entry)
+                            val listenerType = Class.forName("android.view.SurfaceControl\$TransactionCommittedListener")
+                            val listener = java.lang.reflect.Proxy.newProxyInstance(listenerType.classLoader, arrayOf(listenerType)) { proxy, method, arguments ->
+                                when (method.name) {
+                                    "onTransactionCommitted" -> {
+                                        activate(windowRef, entry, generation, ipcContext, resultHandler)
+                                        null
+                                    }
+                                    "hashCode" -> System.identityHashCode(proxy)
+                                    "equals" -> proxy === arguments?.firstOrNull()
+                                    "toString" -> "DockCaptureCommit"
+                                    else -> null
+                                }
+                            }
+                            DockReflection.call(transaction, "addTransactionCommittedListener", worker, listener)
+                            DockReflection.call(transaction, "apply")
+                            resultHandler.postDelayed({ synchronized(wmLock) {
+                                if (!stopped && epoch.get() == generation && entries[current] === entry && !entry.captureStarted) {
+                                    DebugLog.w(TAG, "surface attachment commit unavailable")
+                                    fail(current, entry)
+                                }
+                            } }, 5_000)
+                        } finally { DockReflection.call(transaction, "close") }
                     }.onFailure { DebugLog.w(TAG, "surface attach failed", it); fail(current, entry) }
                 }
                 requestRefresh()
-            } ?: run { parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease) }
+            }.also { posted ->
+                if (!posted) { parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease) }
+            }
         }
     }
 
+    /** Runs on the IPC worker after SurfaceFlinger commits the initial position. */
+    private fun activate(window: WeakReference<Any>, entry: Entry, generation: Long, ipcContext: Context?, resultHandler: Handler) {
+        if (stopped || epoch.get() != generation) return
+        val result = ipc("activate", entry.id, Bundle().apply { putLong("lease", entry.lease) }, ipcContext)
+        resultHandler.post { synchronized(wmLock) {
+            val current = window.get() ?: return@synchronized
+            if (stopped || epoch.get() != generation || entries[current] !== entry) return@synchronized
+            if (result?.getBoolean("active") != true) { fail(current, entry); return@synchronized }
+            entry.captureStarted = true
+            probe(window, entry, generation)
+        } }
+    }
+
     private fun probe(window: WeakReference<Any>, entry: Entry, generation: Long) {
-        if (entry.probePending || entry.ready || stopped || !entry.probeAllowed) return
+        if (!entry.captureStarted || entry.probePending || entry.ready || stopped || !entry.probeAllowed) return
         entry.probePending = true
         val ipcContext = context
         val resultHandler = handler

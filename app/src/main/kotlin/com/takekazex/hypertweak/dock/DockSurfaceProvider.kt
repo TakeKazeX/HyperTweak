@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.dock
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.res.Configuration
 import android.database.Cursor
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -15,6 +16,7 @@ import android.os.Process
 import android.view.Display
 import android.view.SurfaceControlViewHost
 import android.view.WindowManager
+import android.widget.FrameLayout
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
@@ -25,7 +27,7 @@ class DockSurfaceProvider : ContentProvider() {
     private val main = Handler(Looper.getMainLooper())
     private data class Entry(val host: SurfaceControlViewHost, val view: DockMaterialView, val width: Int, val height: Int,
         val owner: IBinder, val death: IBinder.DeathRecipient, val lease: Long,
-        var parcel: SurfaceControlViewHost.SurfacePackage? = null)
+        var parcel: SurfaceControlViewHost.SurfacePackage? = null, var active: Boolean = false)
     private val entries = mutableMapOf<String, Entry>() // Main thread only.
     private var lastStatus = "idle"
     private var motionReady = false
@@ -75,20 +77,31 @@ class DockSurfaceProvider : ContentProvider() {
             if (motionReady != ready) { motionReady = ready; context?.contentResolver?.notifyChange("content://com.takekazex.hypertweak.dock".toUri(), null) }
             return Bundle.EMPTY
         }
+        if (method == "activate") {
+            val entry = entries[id] ?: return Bundle().apply { putString("error", "Renderer retired") }
+            // WMS has committed both parent attachment and the initial Dock position.
+            // No capture buffer from the detached host's origin may pass readiness.
+            if (!entry.active) {
+                entry.active = true
+                entry.view.startCapture()
+            }
+            return Bundle().apply { putBoolean("active", true) }
+        }
         if (method == "update") {
             val entry = entries[id] ?: return Bundle().apply { putString("error", "Renderer retired") }
             val config = DockConfig.decode(args.getString("config") ?: "") ?: error("Invalid Dock configuration")
             val radius = args.getFloat("radius")
             require(radius.isFinite() && radius in 0f..minOf(entry.width, entry.height) / 2f)
-            entry.view.apply(config, args.getBoolean("dark"), radius, crossWindow = true)
+            entry.view.apply(config, args.getBoolean("dark"), radius, crossWindow = entry.active)
             return Bundle().apply { putBoolean("updated", true) }
         }
         if (method == "probe") {
             val entry = entries[id] ?: return Bundle().apply { putString("error", "Renderer retired") }
-            if (entry.view.frameCommitted && entry.view.textureTimestamp() > 0) status("ready")
+            val texture = entry.view.textureTimestamp()
+            if (entry.view.frameCommitted && texture > 0) status("ready")
             return Bundle().apply {
                 putBoolean("committed", entry.view.frameCommitted)
-                putLong("texture", entry.view.textureTimestamp())
+                putLong("texture", texture)
             }
         }
         require(method == "create")
@@ -97,8 +110,14 @@ class DockSurfaceProvider : ContentProvider() {
         check(config.enabled)
         val width = args.getInt("width")
         val height = args.getInt("height")
+        val viewportWidth = args.getInt("viewportWidth")
+        val viewportHeight = args.getInt("viewportHeight")
+        val x = args.getInt("x", -1)
+        val y = args.getInt("y", -1)
         val radius = args.getFloat("radius")
         require(width in 1..4096 && height in 1..4096 && radius.isFinite() && radius in 0f..minOf(width, height) / 2f)
+        require(viewportWidth in 1..8192 && viewportHeight in 1..8192 &&
+            x in 0..viewportWidth - width && y in 0..viewportHeight - height) { "Invalid desktop capture viewport" }
         val owner = requireNotNull(args.getBinder("owner"))
         check(owner.isBinderAlive)
         release(id)
@@ -106,9 +125,24 @@ class DockSurfaceProvider : ContentProvider() {
         DockReflection.allowOwnViewApis()
         val context = requireNotNull(context)
         val display = requireNotNull(context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY))
-        val displayContext = context.createDisplayContext(display)
+        val sourceConfiguration = requireNotNull(args.getParcelable("configuration", Configuration::class.java)) {
+            "Desktop configuration missing; reload Java Hook"
+        }
+        // The desktop can remain portrait while the foreground app/display rotates.
+        // Give both Resources and the windowless WM the desktop's configuration before
+        // setView; native relayout then owns the complete sampling/rotation contract.
+        val displayContext = context.createDisplayContext(display).createConfigurationContext(sourceConfiguration)
         val view = DockMaterialView(displayContext)
-        view.sourceRotation = args.getInt("rotation", -1).takeIf { it in 0..3 }
+        // PassBlur/HWUI maps its snapshot in ViewRoot/window coordinates. Keep the
+        // capture viewport aligned with the desktop and place the material inside it,
+        // instead of asking an externally translated Dock-sized root to sample it.
+        val root = FrameLayout(displayContext).apply {
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            addView(view, FrameLayout.LayoutParams(width, height).apply {
+                leftMargin = x
+                topMargin = y
+            })
+        }
         val host = SurfaceControlViewHost(displayContext, display, Binder())
         val death = IBinder.DeathRecipient { main.post { release(id) } }
         val entry = Entry(host, view, width, height, owner, death, lease)
@@ -118,25 +152,19 @@ class DockSurfaceProvider : ContentProvider() {
             status("unavailable")
         } }
         try {
+            val windowless = requireNotNull(DockReflection.call(host, "getWindowlessWM"))
+            DockReflection.call(windowless, "setConfiguration", sourceConfiguration)
             owner.linkToDeath(death, 0)
-            val params = WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_APPLICATION,
+            val params = WindowManager.LayoutParams(viewportWidth, viewportHeight, WindowManager.LayoutParams.TYPE_APPLICATION,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, PixelFormat.TRANSLUCENT).apply {
                 title = "HyperTweak Dock material"
             }
-            DockReflection.call(host, "setView", view, params)
-            view.post {
-                if (entries[id] !== entry) return@post
-                runCatching {
-                    view.apply(config, args.getBoolean("dark"), radius, crossWindow = true)
-                    view.invalidate()
-                    status("loading")
-                }.onFailure { error ->
-                    DebugLog.w("DockHost", "native material unavailable", error)
-                    release(id)
-                    status("unavailable")
-                }
-            }
+            // Publish the initial spec before attachment. Layout/activation consume the
+            // latest pending spec; a delayed initial Runnable must not overwrite updates.
+            view.apply(config, args.getBoolean("dark"), radius)
+            DockReflection.call(host, "setView", root, params)
+            status("loading")
             return Bundle().apply {
                 val parcel = requireNotNull(host.surfacePackage)
                 entry.parcel = parcel

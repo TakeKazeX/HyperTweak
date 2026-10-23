@@ -6,6 +6,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DockMotionTest {
+    @Test fun viewportKeepsDesktopSamplingOriginAtRestAndRootScalePivotDuringReturn() {
+        for ((width, height) in listOf(1200 to 2608, 2608 to 1200)) {
+            val bounds = requireNotNull(DockGeometry.resolve(width, height, 3f, DockConfig()))
+            val idle = DockPose.resolve(width, height, 3f, bounds, null).inViewport(bounds)
+            assertEquals(0f, idle.x, .001f)
+            assertEquals(0f, idle.y, .001f)
+            assertEquals(1f, idle.scale, .001f)
+            val motion = DockMotion(1, 0.0, 0.0, 1.0, 0.0, 1.0, screenScale = .8)
+            val returning = DockPose.resolve(width, height, 3f, bounds, motion).inViewport(bounds)
+            assertEquals(width * .1f, returning.x, .001f)
+            assertEquals(height * .1f, returning.y, .001f)
+            assertEquals(.8f, returning.scale, .001f)
+        }
+    }
+
+    @Test fun viewportPreservesAllMaterialCornersDuringCombinedNativeMotion() {
+        val bounds = requireNotNull(DockGeometry.resolve(1200, 2608, 3f, DockConfig()))
+        val motion = DockMotion(1, 4.0, -12.0, .86, 118.0, .7,
+            screenScale = .8, unlockScale = .9, unlockX = 3.0, unlockY = 10.0)
+        val material = DockPose.resolve(1200, 2608, 3f, bounds, motion)
+        val viewport = material.inViewport(bounds)
+        for (dx in listOf(0, bounds.width)) for (dy in listOf(0, bounds.height)) {
+            assertEquals(material.x + dx * material.scale, viewport.x + (bounds.x + dx) * viewport.scale, .001f)
+            assertEquals(material.y + dy * material.scale, viewport.y + (bounds.y + dy) * viewport.scale, .001f)
+        }
+    }
+
     private fun packet(sequence: Long = 1, alpha: Double = 1.0, scale: Double = 1.0, kind: Int = 0, epoch: Long = 0L) =
         ByteBuffer.allocate(72).order(ByteOrder.LITTLE_ENDIAN)
             .putLong(0x444bL + (kind.toLong() shl 16) + (epoch shl 32)).putLong(101).putLong(-202).putLong(sequence)

@@ -55,4 +55,58 @@ class DockFrameworkContractTest {
         assertTrue(calls.any { it.name == "inflate" })
         assertTrue(calls.any { it.name == "setContentView" })
     }
+
+    @Test fun `relayout can reset capture rotation after initial readiness`() {
+        val classes = classes()
+        val root = classes.getValue("Landroid/view/ViewRootImpl;")
+        fun calls(name: String) = root.methods.single { it.name == name }.references()
+            .filterIsInstance<MethodReference>()
+        assertTrue(calls("relayoutWindow").any { it.name == "checkSurTexSize" })
+        assertTrue(calls("checkSurTexSize").any { it.name == "checkConfigRot" })
+        assertTrue(calls("checkConfigRot").any {
+            it.definingClass == "Landroid/app/WindowConfiguration;" && it.name == "getRotation"
+        })
+        mapOf("mConfigRot" to "I", "mSurfaceSize" to "Landroid/graphics/Point;",
+            "mDispRect" to "Landroid/graphics/Rect;", "mTexScale" to "F",
+            "mSurTex" to "Landroid/graphics/SurfaceTexture;", "mLastSfState" to "I",
+            "mTextureVis" to "Z").forEach { (name, type) ->
+            assertEquals(type, root.fields.single { it.name == name }.type)
+        }
+        val available = classes.getValue("Landroid/view/View;").methods.single { it.name == "setTextureAvailable" }
+        assertEquals(listOf("Z", "I", "F"), available.parameterTypes.map { it.toString() })
+    }
+
+    @Test fun `windowless host retains its supplied configuration for native relayout`() {
+        val classes = classes()
+        val host = classes.getValue("Landroid/view/SurfaceControlViewHost;")
+        assertEquals("Landroid/view/WindowlessWindowManager;", host.methods.single { it.name == "getWindowlessWM" }.returnType)
+        val wm = classes.getValue("Landroid/view/WindowlessWindowManager;")
+        val setter = wm.methods.single { it.name == "setConfiguration" }
+        assertEquals(listOf("Landroid/content/res/Configuration;"), setter.parameterTypes.map { it.toString() })
+        assertTrue(setter.references().filterIsInstance<MethodReference>().any {
+            it.definingClass == "Landroid/content/res/Configuration;" && it.name == "setTo"
+        })
+        assertTrue(setter.references().filterIsInstance<MethodReference>().any { it.name == "dispatchStateToClients" })
+        val relayout = wm.methods.single { it.name == "relayoutInner" }.references()
+        assertTrue(relayout.filterIsInstance<FieldReference>().any { it.name == "mConfiguration" })
+        assertTrue(relayout.filterIsInstance<MethodReference>().any {
+            it.definingClass == "Landroid/util/MergedConfiguration;" && it.name == "setConfiguration" &&
+                it.parameterTypes.map { type -> type.toString() } == List(2) { "Landroid/content/res/Configuration;" }
+        })
+        val context = classes.getValue("Landroid/content/Context;")
+        assertEquals(listOf("Landroid/content/res/Configuration;"), context.methods.single {
+            it.name == "createConfigurationContext"
+        }.parameterTypes.map { it.toString() })
+    }
+
+    @Test fun `capture can start on the worker after the surface attachment commits`() {
+        val classes = classes()
+        val transaction = classes.getValue("Landroid/view/SurfaceControl\$Transaction;")
+        val listener = "Landroid/view/SurfaceControl\$TransactionCommittedListener;"
+        val add = transaction.methods.single { it.name == "addTransactionCommittedListener" }
+        assertEquals(listOf("Ljava/util/concurrent/Executor;", listener), add.parameterTypes.map { it.toString() })
+        val callback = classes.getValue(listener).methods.single { it.name == "onTransactionCommitted" }
+        assertTrue(callback.parameterTypes.isEmpty())
+        assertEquals("V", callback.returnType)
+    }
 }

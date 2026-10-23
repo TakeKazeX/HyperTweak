@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.dock
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Point
-import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.graphics.drawable.GradientDrawable
 import android.view.View
@@ -19,8 +18,6 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
     private var pending: Spec? = null
     private var applied: Pair<Spec, Pair<Int, Int>>? = null
     private var frameEpoch = 0L
-    var sourceRotation: Int? = null
-    private var requireTextureAfter = 0L
     var frameCommitted = false
         private set
     var onMaterialState: (Boolean) -> Unit = {}
@@ -116,31 +113,16 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         capture = true
     }
 
+    fun startCapture() {
+        pending?.let { apply(it.config, it.dark, it.radius, it.scale, crossWindow = true) }
+    }
+
     fun textureTimestamp(): Long = if (!configured || !capture) 0 else runCatching {
         val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
         val texture = DockReflection.field(root, "mSurTex").get(root) as? SurfaceTexture
         if (texture == null || texture.isReleased || DockReflection.field(root, "mLastSfState").getInt(root) != 1 ||
             !DockReflection.field(root, "mTextureVis").getBoolean(root)) return@runCatching 0L
-        sourceRotation?.let { rotation ->
-            val install = (DockReflection.call(requireNotNull(display), "getInstallOrientation") as? Int) ?: 0
-            val expected = DockCaptureGeometry.rotation(rotation, install) ?: error("Unknown capture rotation")
-            val rotationField = DockReflection.field(root, "mConfigRot")
-            if (rotationField.getInt(root) != expected) {
-                // Windowless roots do not receive the launcher's relayout. Correct ONLY our root,
-                // using the framework's checked rotation/texture-size contract, before showing it.
-                requireTextureAfter = texture.timestamp
-                val size = DockReflection.field(root, "mSurfaceSize").get(root) as? Point ?: error("Capture size missing")
-                val scale = DockReflection.field(root, "mTexScale").getFloat(root)
-                val buffer = DockCaptureGeometry.buffer(size.x, size.y, expected, scale) ?: error("Invalid capture buffer")
-                rotationField.setInt(root, expected)
-                (DockReflection.field(root, "mDispRect").get(root) as? Rect)?.set(0, 0, buffer.first, buffer.second)
-                texture.setDefaultBufferSize(buffer.first, buffer.second)
-                DockReflection.call(this, "setTextureAvailable", true, expected, scale)
-                postInvalidateOnAnimation()
-                return@runCatching 0L
-            }
-        }
-        texture.timestamp.takeIf { it > requireTextureAfter } ?: 0L
+        texture.timestamp
     }.getOrDefault(0L)
 
     fun stop() {
@@ -161,7 +143,6 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         applied = null
         frameCommitted = false
         frameEpoch++
-        requireTextureAfter = 0
     }
 
     private class Tokens(val shader: FloatArray,
