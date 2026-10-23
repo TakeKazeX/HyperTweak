@@ -209,6 +209,8 @@ fun TweaksScreenContent(
                 )
             }
 
+            ForceScreenshotSection()
+
             SmallTitle(text = stringResource(R.string.tweaks_aicr_section))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

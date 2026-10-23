@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.dock.DockConfig
 internal object RuntimeSettingsGroups {
     const val ICONS = "systemui.icons"
     const val ISLANDS = "systemui.islands"
+    const val FORCE_SCREENSHOT = "system.force_screenshot"
     const val SCREENSHOT = "screenshot.frame"
     const val BACK = "gesture.back"
     const val NATIVE = "launcher.native"
@@ -75,6 +76,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, Preferences.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_FORCE_SCREENSHOT,
         Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
         Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
         Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
@@ -120,6 +122,7 @@ internal object RuntimeSettingsGroups {
         // The battery monitor lives in SystemUI; charging itself is handled by the AOD/battery rules.
         LOCKSCREEN to Group(systemUi) { it in SystemUiLiveSettings.LOCKSCREEN_KEYS },
         POWER_SAVE to Group(systemUi) { it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED || it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD || it == Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING },
+        FORCE_SCREENSHOT to Group(setOf("android")) { it == Preferences.KEY_FORCE_SCREENSHOT },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {
             it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE ||
                 it == Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD || it == Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY

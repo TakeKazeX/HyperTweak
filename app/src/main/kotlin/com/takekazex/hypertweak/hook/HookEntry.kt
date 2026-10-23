@@ -212,6 +212,9 @@ class HookEntry : XposedModule() {
                 if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
                 finally { iconSettingsLock.unlock() }
             }
+            registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
+                com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
+            }
             registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.BACK) { _ ->
                 RuntimeSettingsPreferences.dispatch(setOf(RuntimeSettingsGroups.BACK))
@@ -1137,6 +1140,7 @@ class HookEntry : XposedModule() {
         attachHooker(SystemServerReadinessHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
         attachHooker(com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker, classLoader, ctx, replacementHandles)
+        attachHooker(com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker, classLoader, ctx, replacementHandles)
         attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
         // The enabled com.android.systemui.gesture.line.overlay turns
         // config_attachNavBarToAppDuringTransition off, so the gesture bar stays a separate layer

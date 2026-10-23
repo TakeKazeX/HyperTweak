@@ -174,6 +174,24 @@ class ScreenshotFrameHostContractTest {
         assertTrue(resolved.gate in reachable)
     }
 
+    @Test fun `native pending URI publication precedes commit and commit writer is resolved`() {
+        classes()
+        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val resolved = ScreenshotClipboardResolver(dex).resolve()
+        val body = dex.code(resolved.commitWriter)
+        assertTrue(body.hasString("is_pending"))
+        val publish = body.calls.single { CameraDexIndex.descriptor(it.method) == resolved.copy }
+        assertTrue(body.calls.any { it.address > publish.address && it.method.name == "update" &&
+            it.method.definingClass == "Landroid/content/ContentResolver;" })
+        assertTrue(resolved.commitWriter in resolved.callers)
+        assertEquals(resolved.commitWriter, resolved.encode()["commitWriter"])
+        assertEquals("V", dex.methods.single { CameraDexIndex.descriptor(it) == resolved.saveWriter }.returnType)
+        assertTrue(dex.code(resolved.saveWriter).writes.any { (field, _) ->
+            "${field.definingClass}->${field.name}:${field.type}" == resolved.success
+        })
+        assertTrue(resolved.saveWriter in resolved.callers)
+    }
+
     @Test fun `renamed clipboard gate and publisher follow the save graph`() = fixture { apk ->
         val resolved = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
         assertTrue(resolved.gate.startsWith("Lfixture/adaptive/"))

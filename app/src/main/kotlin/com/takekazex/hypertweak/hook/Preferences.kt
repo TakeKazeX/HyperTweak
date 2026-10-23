@@ -404,6 +404,8 @@ object Preferences {
      */
     const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
 
+    const val KEY_FORCE_SCREENSHOT = "system_force_screenshot"
+
     /**
      * Number of volume-index steps from minimum to maximum for hardware volume-key adjustments.
      * Applied live through the remote preference listener in system_server and SystemUI.

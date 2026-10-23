@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="force_screenshot_section">系統框架</string>
+    <string name="force_screenshot_title">強制截圖</string>
+    <string name="force_screenshot_summary">允許系統擷取安全視窗，下次截圖生效。不支援主動排除的圖層與受保護影片。</string>
+</resources>

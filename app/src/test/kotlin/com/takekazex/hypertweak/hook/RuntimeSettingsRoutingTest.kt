@@ -6,6 +6,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun forceScreenshotRoutesOnlyToSystemServerAndSurvivesReplacementAndReset() {
+        val key = Preferences.KEY_FORCE_SCREENSHOT
+        val groups = setOf(Groups.FORCE_SCREENSHOT)
+        assertEquals(groups, Groups.affected(key))
+        assertTrue(Groups.owns("android", key))
+        assertFalse(Groups.owns("com.miui.screenshot", key))
+        assertFalse(Groups.owns("com.android.systemui", key))
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to 1), groups))
+        val ledger = RuntimeSettingsLedger()
+        val on = RuntimeSettingsSnapshot.read(1, mapOf(key to true), groups)!!
+        assertTrue(ledger.accept(on))
+        val replacement = RuntimeSettingsLedger()
+        replacement.restore(ledger.save())
+        assertEquals(true, replacement.value(key))
+        assertTrue(replacement.accept(on.mutate(key, false, 2)!!))
+        assertEquals(false, replacement.value(key))
+        assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), groups)!!))
+        assertNull(replacement.value(key))
+        assertFalse(replacement.accept(on))
+    }
+
     @Test fun securityDockSettingsMigrateDisableAndResetTogether() {
         val enabledKey = Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED
         val limitKey = Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT
@@ -119,7 +140,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR),
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

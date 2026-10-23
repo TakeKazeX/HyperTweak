@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="force_screenshot_section">System Framework</string>
+    <string name="force_screenshot_title">Force screenshots</string>
+    <string name="force_screenshot_summary">Allow system screenshots of secure windows. Applies to the next screenshot; excluded layers and protected video remain unavailable.</string>
+</resources>

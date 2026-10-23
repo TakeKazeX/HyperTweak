@@ -6,9 +6,9 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
 
 /** Descriptors only: no live DEX objects survive resolution or enter the disk cache. */
-internal data class ScreenshotClipboardContract(val gate: String, val copy: String, val callers: List<String>) {
-    fun encode(): Map<String, String> = mapOf("gate" to gate, "copy" to copy,
-        "callers" to callers.joinToString("\n"))
+internal data class ScreenshotClipboardContract(val gate: String, val copy: String, val callers: List<String>, val commitWriter: String, val saveWriter: String, val notify: String, val success: String) {
+    fun encode(): Map<String, String> = mapOf("gate" to gate, "copy" to copy, "commitWriter" to commitWriter,
+        "callers" to callers.joinToString("\n"), "saveWriter" to saveWriter, "notify" to notify, "success" to success)
 }
 
 /** Resolve the actual clipboard gate and prove a path from the AsyncTask writer to it. */
@@ -70,8 +70,27 @@ internal class ScreenshotClipboardResolver(private val dex: CameraDexIndex) {
                 .distinctBy(::key).filter { key(it) !in inlineFamily }
             frontier.forEach { inlineFamily[key(it)] = it }
         }
+        val commitWriter = incoming[key(copy)].orEmpty().filter { method ->
+            val body = dex.code(method)
+            method.returnType == "Z" && params(method).take(5) == listOf("Landroid/content/Context;",
+                "Landroid/graphics/Bitmap;", "Landroid/net/Uri;", "Ljava/io/OutputStream;",
+                "Landroid/graphics/Bitmap\$CompressFormat;") && body.hasString("is_pending") &&
+                body.calls.any { call -> key(call.method) == key(copy) && body.calls.any { update ->
+                    update.address > call.address && update.method.definingClass == "Landroid/content/ContentResolver;" &&
+                        update.method.name == "update"
+                } }
+        }.distinctBy(::key).singleOrNull() ?: error("Screenshot clipboard commit writer missing or ambiguous")
         val callers = (paths.flatten() + inlineFamily.values).map(::key).distinct()
         check(callers.size <= 128) { "Screenshot clipboard caller family unexpectedly large" }
-        return ScreenshotClipboardContract(key(gate), key(copy), callers)
+        val saveWriter = paths.map { it.last() }.distinctBy(::key).single()
+        val success = dex.code(saveWriter).writes.filter { (field, value) ->
+            field.type == "Ljava/lang/Boolean;" && (value as? CameraDexIndex.Value.Field)?.field?.let {
+                it.definingClass == "Ljava/lang/Boolean;" && it.name == "TRUE"
+            } == true
+        }.map { it.first }.distinct().single()
+        val notify = dex.classDefinition(saveWriter.definingClass)!!.fields.single { it.type == success.definingClass }
+        fun field(ref: org.jf.dexlib2.iface.reference.FieldReference) = "${ref.definingClass}->${ref.name}:${ref.type}"
+        return ScreenshotClipboardContract(key(gate), key(copy), callers, key(commitWriter),
+            key(saveWriter), field(notify), field(success))
     }
 }
