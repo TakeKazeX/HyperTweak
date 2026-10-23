@@ -325,6 +325,9 @@ object Preferences {
     const val KEY_CC_CORNER_CARD = "systemui_control_center_corner_card_dp"
     const val KEY_CC_CORNER_DEVICE = "systemui_control_center_corner_device_dp"
     const val KEY_CC_CORNER_MEDIA = "systemui_control_center_corner_media_dp"
+    /** Native tile-state header dwell after the show animation; milliseconds, 0..5000. */
+    const val KEY_CC_TILE_MESSAGE_DURATION_MS = "systemui_control_center_tile_message_duration_ms"
+
     /** Comma-separated top-card specs, e.g. `cell,wifi`. Empty = follow the system order. */
     const val KEY_CC_TOP_CARD_ORDER = "systemui_control_center_top_card_order"
     /**

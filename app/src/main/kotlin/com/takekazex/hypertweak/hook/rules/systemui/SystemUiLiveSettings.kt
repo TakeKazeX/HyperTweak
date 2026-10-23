@@ -44,6 +44,7 @@ internal object SystemUiLiveSettings {
 
     /** Control-center plugin sub-hooks whose presence the session chooses when it is created. */
     val CONTROL_CENTER_PLUGIN_KEYS = setOf(
+        Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS,
         Preferences.KEY_CC_EDIT_ENABLED,
         Preferences.KEY_CC_RESIZE_ENABLED,
         Preferences.KEY_SLIDER_SHOW_PERCENTAGE,

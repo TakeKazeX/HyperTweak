@@ -71,6 +71,7 @@ class SystemUiLiveSettingsRoutingTest {
         assertEquals(setOf(Groups.POWER_SAVE), Groups.affected(Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING))
         assertEquals(setOf(Groups.MEDIA_CARD), Groups.affected(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH))
         assertEquals(setOf(Groups.CONTROL_CENTER_PLUGIN), Groups.affected(Preferences.KEY_SLIDER_SHOW_PERCENTAGE))
+        assertEquals(setOf(Groups.CONTROL_CENTER_PLUGIN), Groups.affected(Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS))
         assertEquals(setOf(Groups.GLASS), Groups.affected(Preferences.KEY_GLASS_TUNER_GLASS_TONE))
     }
 

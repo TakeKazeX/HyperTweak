@@ -27,6 +27,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
+        val tileMessageHooker: TileStateMessageHooker,
         val superIslandHooker: ControlCenterSuperIslandHooker,
         val threeIslandHooker: ThreeIslandHooker,
         val liveUpdateIconHooker: LiveUpdateIconHooker,
@@ -86,6 +87,7 @@ object SystemUIPluginHooker : StaticHooker() {
             runCatching {
                 session.sliderPercentHooker.refreshSettings()
                 session.cornerHooker.refreshSettings()
+                session.tileMessageHooker.refreshSettings()
             }.onFailure { DebugLog.w("SystemUIPlugin", "control-center settings refresh failed", it) }
             // Optional sub-hookers are attached on the first enable, then refresh in place. The
             // attach happens before the refresh so a freshly attached hooker also sees the
@@ -132,7 +134,8 @@ object SystemUIPluginHooker : StaticHooker() {
 
     override fun saveHotReloadState(): Any = activeSessions.bindings().map { (owner, session) ->
         listOf(owner, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
-            session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders())
+            session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders(),
+            session.tileMessageHooker.snapshotSlots())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -143,6 +146,7 @@ object SystemUIPluginHooker : StaticHooker() {
             session.superIslandHooker.restoreControllers((entry.getOrNull(2) as? List<*>)?.filterNotNull().orEmpty())
             session.liveUpdateIconHooker.restoreHolders((entry.getOrNull(3) as? List<*>)?.filterNotNull().orEmpty())
             session.timeFontHooker.restoreHolders((entry.getOrNull(4) as? List<*>)?.filterNotNull().orEmpty())
+            session.tileMessageHooker.restoreSlots(entry.getOrNull(5) as? List<*> ?: emptyList<Any>())
             session.timeFontHooker.restoreIslandOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
         }
     }
@@ -228,6 +232,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
                             detach(session.volumeKeyHooker)
+                            runCatching { session.tileMessageHooker.prepareForHotReload() }
+                            detach(session.tileMessageHooker)
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
                         }
@@ -341,6 +347,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 sliderPercentHooker = hooker,
                 cornerHooker = cornerHooker,
                 volumeKeyHooker = volumeKeyHooker,
+                tileMessageHooker = TileStateMessageHooker(),
                 superIslandHooker = superIslandHooker,
                 threeIslandHooker = threeIslandHooker,
                 liveUpdateIconHooker = liveUpdateIconHooker,
@@ -402,6 +409,8 @@ object SystemUIPluginHooker : StaticHooker() {
                     DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
                     Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
                 }
+            runCatching { attach(session.tileMessageHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach tile-message duration", it) }
             runCatching { attach(volumeKeyHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach volume-key plugin hook", it) }
             if (cardsEditHooker != null) {

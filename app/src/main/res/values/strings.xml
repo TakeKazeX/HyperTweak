@@ -1627,4 +1627,9 @@
     <string name="settings_xiaoai_section">Super XiaoAI</string>
     <string name="settings_xiaoai_gesture_options_title">More gesture line actions</string>
     <string name="settings_xiaoai_gesture_options_summary">Adds text input to long press, and screen recognition and voice input to double tap. Reopen System navigation to refresh the choices.</string>
+    <string name="cc_tile_message_duration_title">Tile state message duration</string>
+    <string name="cc_tile_message_duration_summary">Dwell after the entrance animation; 0 exits immediately</string>
+    <string name="cc_tile_message_duration_value">%1$s s</string>
+    <string name="cc_tile_message_duration_input_summary">Enter 0–5 seconds, with one decimal place</string>
+    <string name="cc_tile_message_duration_unit">s</string>
 </resources>

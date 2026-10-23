@@ -38,6 +38,7 @@ import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.TileStateMessageDuration
 import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -166,6 +167,20 @@ fun SystemUIPage(
         )
         volumeKeyStepScope = resolved
         Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
+        Preferences.flush()
+    }
+
+    var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
+    var tileMessageSeconds by rememberSaveable {
+        mutableFloatStateOf(TileStateMessageDuration.normalize(Preferences.getInt(
+            Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS
+        )) / 1000f)
+    }
+
+    fun setTileMessageSeconds(value: Float) {
+        val milliseconds = TileStateMessageDuration.normalize((value * 1000).roundToInt())
+        tileMessageSeconds = milliseconds / 1000f
+        Preferences.putInt(Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS, milliseconds)
         Preferences.flush()
     }
 
@@ -427,6 +442,31 @@ fun SystemUIPage(
             SmallTitle(stringResource(R.string.tweaks_control_center_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.cc_tile_message_duration_title),
+                        summary = stringResource(R.string.cc_tile_message_duration_summary),
+                        onClick = { tileMessageDialog = true },
+                        holdDownState = tileMessageDialog,
+                        endActions = {
+                            Text(stringResource(R.string.cc_tile_message_duration_value,
+                                java.text.DecimalFormat("0.0").format(tileMessageSeconds)),
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions)
+                        },
+                        bottomAction = {
+                            Slider(
+                                value = tileMessageSeconds,
+                                onValueChange = {
+                                    tileMessageSeconds = TileStateMessageDuration.normalize((it * 1000).roundToInt()) / 1000f
+                                },
+                                onValueChangeFinished = { setTileMessageSeconds(tileMessageSeconds) },
+                                valueRange = 0f..5f,
+                                steps = 49,
+                                showKeyPoints = true,
+                                keyPoints = TileStateMessageDuration.SNAP_SECONDS,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    )
                     SwitchPreference(
                         checked = sliderShowPercentage,
                         onCheckedChange = onSliderShowPercentageChange,
@@ -442,6 +482,13 @@ fun SystemUIPage(
                     )
                 }
             }
+
+            TileStateMessageDurationDialog(
+                show = tileMessageDialog,
+                current = tileMessageSeconds,
+                onConfirm = ::setTileMessageSeconds,
+                onDismiss = { tileMessageDialog = false }
+            )
 
             SmallTitle(stringResource(R.string.tweaks_navigation_bar_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
