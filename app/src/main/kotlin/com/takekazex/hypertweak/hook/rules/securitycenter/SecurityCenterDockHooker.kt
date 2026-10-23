@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.util.WeakHashMap
 
 internal object SecurityCenterDockHost {
@@ -229,7 +230,9 @@ object SecurityCenterDockHooker : DynamicHooker() {
         t.methods.getValue("bind").hook {
             after { param -> (param.thisObject as? View)?.let { synchronized(layouts) { layouts[it] = true } } }
         }
-        t.methods.values.forEach(::deoptimize)
+        // The base edit-state getter is an abstract contract; only concrete bodies can be
+        // inlined. Its App/Shortcut implementations and their callers are deoptimized here.
+        t.methods.values.filterNot { Modifier.isAbstract(it.modifiers) }.forEach(::deoptimize)
         targets = t
         refreshSettings()
         DebugLog.i(TAG, "native dock quota and edit capacity hooks installed")

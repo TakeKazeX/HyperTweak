@@ -1028,32 +1028,28 @@ object DuoSignalHooker : StaticHooker() {
      */
     private fun resolveDozingSource() {
         if (dozingRead != null) return
-        val managerClass = "com.android.keyguard.fullaod.MiuiFullAodManager".toClassOrNull() ?: run {
+        val managerClass = FullAodDozingSource.MANAGER.toClassOrNull() ?: run {
             DebugLog.w(TAG, "full-AOD manager missing; AOD options stay off the lock-screen row")
             return
         }
-        val target = fullAodManagerInstance()?.takeIf(managerClass::isInstance) ?: run {
-            DebugLog.w(TAG, "full-AOD manager unavailable; AOD options stay off the lock-screen row")
-            return
+        runCatching {
+            val source = FullAodDozingSource(managerClass,
+                requireNotNull(FullAodDozingSource.REGISTRY.toClassOrNull()),
+                requireNotNull(FullAodDozingSource.API.toClassOrNull()))
+            // Also cover cold startup before the registry has published its lazy manager.
+            val token = epoch
+            managerClass.hookAllConstructors {
+                after { param ->
+                    source.bind(param.thisObject)
+                    main.post { if (enabled && token == epoch) guarded { refresh() } }
+                }
+            }
+            dozingRead = { runCatching(source::read).getOrNull() }
+            DebugLog.d(TAG, if (source.read() == null) "dozing source waiting for native manager" else "dozing source resolved")
+        }.onFailure {
+            DebugLog.w(TAG, "full-AOD dozing contract unavailable; preserving native row", it)
         }
-        val field = runCatching { managerClass.getField("isDozing").apply { isAccessible = true } }.getOrNull()
-        if (field == null) {
-            DebugLog.w(TAG, "full-AOD manager has no isDozing field")
-            return
-        }
-        dozingRead = { runCatching { field.getBoolean(target) }.getOrNull() }
-        DebugLog.d(TAG, "dozing source resolved")
     }
-
-    /** The registered full-AOD manager, from the host's interface registry. */
-    private fun fullAodManagerInstance(): Any? = runCatching {
-        val registry = "miui.util.InterfacesImplManager".toClassOrNull() ?: return@runCatching null
-        val iface = "com.miui.interfaces.keyguard.IMiuiFullAodManager".toClassOrNull() ?: return@runCatching null
-        val getImpl = registry.methods.firstOrNull {
-            it.name == "getImpl" && it.parameterCount == 1 && it.parameterTypes[0] == Class::class.java
-        } ?: return@runCatching null
-        getImpl.invoke(null, iface)
-    }.getOrNull()
 
     /** Current keyguard phase, from the dozing flag and the attached keyguard host. */
     private fun phaseFor(keyguardRoot: View?): AodHostPhase {
@@ -2027,6 +2023,7 @@ object DuoSignalHooker : StaticHooker() {
             callback?.let { listener -> runCatching { connectivity?.unregisterNetworkCallback(listener) } }
             networkPending?.let(main::removeCallbacks)
             networkPending = null
+            dozingRead = null
             wifiTintResourceMethod = null
             callback = null; connectivity = null; currentNetwork = null
             wifiHandles.forEach { it.cancel() }; wifiHandles.clear()

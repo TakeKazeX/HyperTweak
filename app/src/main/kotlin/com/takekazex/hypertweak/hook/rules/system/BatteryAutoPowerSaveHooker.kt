@@ -99,6 +99,15 @@ private class BatteryMonitor(private val context: Context) {
     private val thread = HandlerThread("HT-PowerSave").apply { start() }
     private val handler = Handler(thread.looper)
     private val powerManager = context.getSystemService(PowerManager::class.java)
+    private val exitRequest = PowerSaveExitRequest(
+        dispatch = { userId ->
+            PowerSaveSetter.requestNative(context, userId, false)
+            DebugLog.i(TAG, "connection power-save exit dispatched user=$userId")
+        },
+        onFailure = { userId, failure, exhausted ->
+            DebugLog.hookFailed(TAG, "connection power-save exit user=$userId exhausted=$exhausted", failure)
+        },
+    )
     private val reconciler = PowerSaveReconciler(
         backend = object : PowerSaveReconciler.Backend {
             override fun read(userId: Int) = PowerSaveReconciler.State(
@@ -230,6 +239,7 @@ private class BatteryMonitor(private val context: Context) {
         // was registered while idle from doing anything until a switch turns one on.
         if (!Preferences.batteryAutoPowerSaveEnabled() && !Preferences.exitPowerSaveWhenCharging()) {
             reconciler.cancel()
+            exitRequest.cancel()
             unplugEnablePending = false
             lastConfig = null
             return null
@@ -257,6 +267,10 @@ private class BatteryMonitor(private val context: Context) {
         )
         val justUnplugged = connectionTracker.justDisconnected
         val changed = config != lastConfig || userId != lastUserId
+        // Retries belong to this physical transition and user, never a later charging session.
+        if (changed || justPlugged || justUnplugged || trigger == Intent.ACTION_POWER_DISCONNECTED) {
+            exitRequest.cancel()
+        }
         if (changed) {
             reconciler.cancel()
             unplugEnablePending = false
@@ -271,15 +285,15 @@ private class BatteryMonitor(private val context: Context) {
             config.exitCharging && sample.level <= config.threshold
         ) desired = true
         if (desired == false) {
-            // One command for the connection boundary. No persistent charging enforcement.
+            // A failed provider acquisition must not consume the connection command. Retry only
+            // until dispatch, with a finite budget; later manual changes remain authoritative.
             reconciler.cancel()
             unplugEnablePending = false
             lastSample = sample
             lastConfig = config
             lastUserId = userId
-            PowerSaveSetter.requestNative(context, userId, false)
-            DebugLog.i(TAG, "connection power-save exit dispatched plugged=${sample.charging} level=${sample.level} user=$userId")
-            return null
+            exitRequest.submit(userId)
+            return exitRequest.step(SystemClock.elapsedRealtime())
         }
         if (desired == null) {
             reconciler.cancel()
@@ -293,6 +307,7 @@ private class BatteryMonitor(private val context: Context) {
         lastSample = sample
         lastConfig = config
         lastUserId = userId
+        if (exitRequest.pending) return exitRequest.step(SystemClock.elapsedRealtime())
         val result = reconciler.step(SystemClock.elapsedRealtime())
         DebugLog.d(TAG, "evaluate[$trigger] level=${sample.level} plugged=${sample.charging} desired=$desired result=$result")
         when (result) {
