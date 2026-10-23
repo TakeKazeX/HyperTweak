@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.root;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Batch execution policy independent of Binder/ContentResolver, shared by scan and apply. */
@@ -13,9 +14,8 @@ public final class BannerBatchProcessor {
         public final String id;
         public final int importance;
         public final boolean blockedGroup;
-        public final Object nativeChannel;
-        public Channel(String id, int importance, boolean blockedGroup, Object nativeChannel) {
-            this.id = id; this.importance = importance; this.blockedGroup = blockedGroup; this.nativeChannel = nativeChannel;
+        public Channel(String id, int importance, boolean blockedGroup) {
+            this.id = id; this.importance = importance; this.blockedGroup = blockedGroup;
         }
     }
     public interface Backend {
@@ -23,14 +23,31 @@ public final class BannerBatchProcessor {
         List<Channel> channels(App app) throws Exception;
         boolean canFloat(App app, Channel channel) throws Exception;
         void allowFloat(App app, Channel channel) throws Exception;
-        void raiseImportance(App app, Channel channel) throws Exception;
     }
     public static final class Result {
         public int apps, channels, skipped, failed, changed;
+        /** Bounded diagnostic trail for partial failures. */
+        public final List<String> failures = new ArrayList<>();
+    }
+    private static final int MAX_FAILURE_NOTES = 20;
+
+    private static String scope(App app, Channel channel) {
+        return app.pkg + (channel == null ? "" : ":" + channel.id);
+    }
+
+    private static void note(Result result, App app, Channel channel, Exception failure) {
+        if (result.failures.size() >= MAX_FAILURE_NOTES) return;
+        Throwable cause = failure;
+        while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+        String message = cause.getMessage();
+        if (message != null && message.length() > 80) message = message.substring(0, 80);
+        result.failures.add(scope(app, channel) + " " + cause.getClass().getSimpleName()
+                + (message == null || message.isEmpty() ? "" : ": " + message));
     }
     private static boolean allow(Backend backend, App app, Channel channel, boolean apply) throws Exception {
-        boolean allowed = backend.canFloat(app, channel);
-        if (!apply || allowed) return false;
+        // An effective true may only come from a whitelist or our live bypass. Persist an
+        // explicit true even then, so the batch survives turning the bypass off.
+        if (!apply) { backend.canFloat(app, channel); return false; }
         backend.allowFloat(app, channel);
         if (!backend.canFloat(app, channel)) throw new IllegalStateException("Float setting readback failed");
         return true;
@@ -46,7 +63,8 @@ public final class BannerBatchProcessor {
                 if (channels.isEmpty()) { result.skipped++; continue; }
                 boolean countedApp = false;
                 for (Channel channel : channels) {
-                    if (channel.importance <= 0 || channel.blockedGroup) { result.skipped++; continue; }
+                    // Only DEFAULT (3) and higher; never promote a quiet channel.
+                    if (channel.importance < 3 || channel.blockedGroup) { result.skipped++; continue; }
                     if (!countedApp) {
                         countedApp = true;
                         result.apps++;
@@ -54,11 +72,10 @@ public final class BannerBatchProcessor {
                     }
                     result.channels++;
                     try {
-                        if (apply && channel.importance < 4) { backend.raiseImportance(app, channel); result.changed++; }
                         if (allow(backend, app, channel, apply)) result.changed++;
-                    } catch (Exception failure) { result.failed++; }
+                    } catch (Exception failure) { result.failed++; note(result, app, channel, failure); }
                 }
-            } catch (Exception failure) { result.failed++; }
+            } catch (Exception failure) { result.failed++; note(result, app, null, failure); }
         }
         return result;
     }

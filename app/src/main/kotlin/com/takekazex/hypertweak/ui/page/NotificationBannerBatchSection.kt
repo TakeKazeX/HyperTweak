@@ -10,9 +10,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.NotificationBannerBatch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -24,6 +26,9 @@ internal fun NotificationBannerBatchSection() {
     var waitingForScan by rememberSaveable { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
+    var whitelistBypass by rememberSaveable {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
+    }
     val result = state.result
 
     fun dismissReport() {
@@ -38,7 +43,8 @@ internal fun NotificationBannerBatchSection() {
 
     LaunchedEffect(state) {
         if (!state.busy && (state.result != null || state.error != null)) {
-            if ((waitingForScan || confirmation == 2) && state.error == null && state.result?.let { it.failed == 0 && it.channels > 0 } == true && !state.applied) {
+            val scanned = state.result
+            if ((waitingForScan || confirmation == 2) && state.error == null && scanned != null && scanned.failed == 0 && scanned.channels > 0 && !state.applied) {
                 confirmation = 2
             } else {
                 showDetails = false
@@ -54,13 +60,25 @@ internal fun NotificationBannerBatchSection() {
 
     SmallTitle(stringResource(R.string.notification_batch_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        ArrowPreference(
-            title = stringResource(R.string.notification_batch_enable),
-            summary = stringResource(if (state.busy) R.string.notification_batch_busy else R.string.notification_batch_summary),
-            enabled = !state.busy,
-            onClick = { confirmation = 1 },
-            endActions = { if (state.busy) InfiniteProgressIndicator() }
-        )
+        Column(Modifier.fillMaxWidth()) {
+            ArrowPreference(
+                title = stringResource(R.string.notification_batch_enable),
+                summary = stringResource(if (state.busy) R.string.notification_batch_busy else R.string.notification_batch_summary),
+                enabled = !state.busy,
+                onClick = { confirmation = 1 },
+                endActions = { if (state.busy) InfiniteProgressIndicator() }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.notification_batch_whitelist_title),
+                summary = stringResource(R.string.notification_batch_whitelist_summary),
+                checked = whitelistBypass,
+                onCheckedChange = {
+                    whitelistBypass = it
+                    Preferences.putBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
+                    Preferences.flush()
+                },
+            )
+        }
     }
 
     val preview = result?.let {
@@ -102,7 +120,7 @@ internal fun NotificationBannerBatchSection() {
     }
     val reportSummary = when {
         state.error != null -> stringResource(if (state.applied) R.string.notification_batch_error else R.string.notification_batch_scan_error)
-        !state.applied && (result?.failed ?: 0) > 0 -> listOfNotNull(preview, stringResource(R.string.notification_batch_scan_error)).joinToString("\n\n")
+        (result?.failed ?: 0) > 0 -> listOfNotNull(preview, stringResource(if (state.applied) R.string.notification_batch_partial_error else R.string.notification_batch_scan_error)).joinToString("\n\n")
         else -> preview
     }
     AppWindowDialog(
@@ -113,9 +131,10 @@ internal fun NotificationBannerBatchSection() {
     ) {
         val dismiss = LocalDismissState.current
         Column {
-            if (showDetails && state.error != null) {
+            val failureDetail = state.error ?: result?.failureNotes?.takeIf { it.isNotEmpty() }?.joinToString("\n") { it }
+            if (showDetails && failureDetail != null) {
                 Text(
-                    text = state.error.orEmpty(),
+                    text = failureDetail,
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
@@ -123,7 +142,7 @@ internal fun NotificationBannerBatchSection() {
                 )
             }
             Row {
-                if (state.error != null) {
+                if (failureDetail != null) {
                     TextButton(
                         text = stringResource(if (showDetails) R.string.notification_batch_hide_details else R.string.notification_batch_details),
                         modifier = Modifier.weight(1f),

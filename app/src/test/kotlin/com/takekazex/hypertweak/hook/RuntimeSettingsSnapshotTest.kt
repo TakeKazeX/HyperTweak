@@ -68,6 +68,27 @@ class RuntimeSettingsSnapshotTest {
             RuntimeSettingsGroups.NOTIFICATION_ICONS, RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW
         )))
     }
+    @Test fun floatWhitelistSwitchRoutesLiveAndResetDropsOldPackageSnapshot() {
+        val key = Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS
+        assertEquals(setOf(RuntimeSettingsGroups.NOTIFICATION_WHITELIST), RuntimeSettingsGroups.affected(key))
+        assertTrue(RuntimeSettingsGroups.owns("com.android.systemui", key))
+        assertFalse(RuntimeSettingsGroups.owns("com.android.settings", key))
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to setOf("app.old"))))
+        val ledger = RuntimeSettingsLedger()
+        val old = RuntimeSettingsSnapshot.read(1, mapOf("notification_whitelist_bypass" to setOf("app.old")))!!
+        assertTrue(ledger.accept(old))
+        assertNull(ledger.value(key))
+        val on = old.mutate(key, true, 2)!!
+        assertEquals(setOf(RuntimeSettingsGroups.NOTIFICATION_WHITELIST), ledger.changedGroups(on))
+        assertTrue(ledger.accept(on))
+        assertEquals(true, ledger.value(key))
+        assertTrue(ledger.accept(on.mutate(key, false, 3)!!))
+        assertEquals(false, ledger.value(key))
+        assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>())!!))
+        assertNull(ledger.value(key))
+        assertFalse(ledger.accept(on))
+    }
+
     @Test fun malformedIncompleteAndOversizedValuesAreRejected() {
         assertNull(RuntimeSettingsSnapshot.read(0, emptyMap<String, Any>()))
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf("icon_duo_enabled" to Any())))

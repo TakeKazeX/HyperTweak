@@ -43,6 +43,8 @@ internal object RuntimeSettingsGroups {
     const val AOD_CAPABILITY = "aod.capability"
     const val NOTIFICATION_ICONS = "systemui.notification_icons"
     const val NOTIFICATION_MINI_WINDOW = "systemui.notification_mini_window"
+    /** Live floating-notification whitelist switch. */
+    const val NOTIFICATION_WHITELIST = "systemui.notification_whitelist"
     const val FREEFORM_BLUR = "systemui.freeform_blur"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
@@ -70,6 +72,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS,
         Preferences.KEY_SHARE_PANEL_SHOW_ALL,
         Preferences.KEY_APP_DETAILS_ICON_LAUNCH,
         Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
@@ -94,6 +97,7 @@ internal object RuntimeSettingsGroups {
         },
         NOTIFICATION_ICONS to Group(systemUi) { it == Preferences.KEY_NOTIFICATION_ICON_FILTER_MODE || it == Preferences.KEY_NOTIFICATION_MORE_SETTINGS },
         NOTIFICATION_MINI_WINDOW to Group(systemUi) { it == Preferences.KEY_NOTIFICATION_MINI_WINDOW },
+        NOTIFICATION_WHITELIST to Group(systemUi) { it == Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS },
         FREEFORM_BLUR to Group(systemUi) { it == Preferences.KEY_FREEFORM_BLUR_TRANSITION },
         KEYGUARD to Group(systemUi) { it in keyguardKeys },
         HEADER to Group(systemUi) { it in SystemUiLiveSettings.HEADER_KEYS },

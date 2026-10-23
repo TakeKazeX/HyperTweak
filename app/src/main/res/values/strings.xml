@@ -1598,15 +1598,17 @@
     <string name="notification_menu_summary">Notification behavior, icon filtering and shade appearance</string>
     <string name="media_card_menu_summary">Media card icons and output switch</string>
     <string name="notification_icon_threshold_title">Status bar notification icon level</string>
-    <string name="notification_batch_title">Batch settings</string>
-    <string name="notification_batch_enable">Enable all banner notifications</string>
-    <string name="notification_batch_summary">Enable banners for existing apps and channels in the current user</string>
+    <string name="notification_batch_title">Floating notifications</string>
+    <string name="notification_batch_enable">Allow floating notifications in bulk</string>
+    <string name="notification_batch_summary">Enable app and channel float permissions for channels of default importance or higher; keep importance unchanged</string>
     <string name="notification_batch_busy">Processing…</string>
-    <string name="notification_batch_warning">This enables MIUI app and channel banners and raises existing enabled channels to high importance (4). It may increase banners, sounds or vibration. Blocked apps and channels are skipped; Do Not Disturb still applies. Only the current user is affected, and future channels are unchanged. Continue to scan before making changes.</string>
-    <string name="notification_batch_confirm_title">Confirm banner changes</string>
-    <string name="notification_batch_confirm">This changes system notification settings. You can adjust each item later in Settings; resetting the module will not undo this batch. Enable banners?</string>
-    <string name="notification_batch_apply">Enable banners</string>
-    <string name="notification_batch_preview">Found %1$d apps and %2$d channels; %3$d skipped, %4$d failed</string>
+    <string name="notification_batch_whitelist_title">Ignore app floating notification whitelist</string>
+    <string name="notification_batch_whitelist_summary">Allow floating notifications outside the whitelist; keep explicit app and channel restrictions</string>
+    <string name="notification_batch_warning">Enable floating notification switches for apps and existing channels of default importance or higher. Channel importance is unchanged. Blocked apps, channels and groups are skipped; Do Not Disturb still applies. Only the current user is affected; future channels are unchanged. Continue to scan before making changes.</string>
+    <string name="notification_batch_confirm_title">Confirm floating notification permissions</string>
+    <string name="notification_batch_confirm">Enable floating notifications for these apps and channels without changing importance. You can adjust each item later in system settings; resetting the module will not undo this batch. Apply?</string>
+    <string name="notification_batch_apply">Apply</string>
+    <string name="notification_batch_preview">Found %1$d apps and %2$d eligible channels; %3$d skipped, %4$d failed</string>
     <string name="notification_batch_result">Finished: %1$d apps and %2$d channels; %3$d skipped, %4$d failed</string>
     <string name="notification_batch_error">Some settings may already have changed. Check root access and system compatibility, then scan again.</string>
     <string name="notification_icon_hyperos">HyperOS (hide Default and below)</string>
@@ -1617,8 +1619,9 @@
     <string name="notification_batch_empty_title">No eligible notification channels</string>
     <string name="notification_batch_done_title">Settings updated</string>
     <string name="notification_batch_scan_title">Scan results</string>
-    <string name="notification_batch_scan_error">No notification settings were changed. Check root access and system compatibility before retrying.</string>
+    <string name="notification_batch_scan_error">The scan did not finish. No batch changes were made. Check root access and system compatibility, then retry.</string>
     <string name="notification_batch_details">View details</string>
     <string name="notification_batch_hide_details">Hide details</string>
     <string name="notification_batch_close">OK</string>
+    <string name="notification_batch_partial_error">Some items failed; other items may already have changed. View details and scan again.</string>
 </resources>

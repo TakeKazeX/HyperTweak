@@ -41,6 +41,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHo
 import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationMiniWindowHooker
+import com.takekazex.hypertweak.hook.rules.systemui.NotificationWhitelistBypassHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationBlockFoldHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
@@ -254,6 +255,10 @@ class HookEntry : XposedModule() {
             }
             registerForProcess(RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW) { _ ->
                 NotificationMiniWindowHooker.refreshSettings()
+                true
+            }
+            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_WHITELIST) { _ ->
+                NotificationWhitelistBypassHooker.refreshSettings()
                 true
             }
             registerForProcess(RuntimeSettingsGroups.FREEFORM_BLUR) { _ ->
@@ -1228,6 +1233,7 @@ class HookEntry : XposedModule() {
                 attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
                 attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 attachHooker(NotificationMiniWindowHooker, classLoader, ctx, replacementHandles)
+                attachHooker(NotificationWhitelistBypassHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 // Notification fold suppression (its own switch) and the status-bar "silent
                 // notification" classifier. Its explicit two-mode icon filter is delivered live;

@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.root;
 
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
-import android.app.NotificationManager;
 import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -17,11 +16,8 @@ public final class NotificationBannerBatch implements AutoCloseable {
     private final Object notificationManager;
     private final RootNotificationProvider provider;
     private final Method channels;
-    private final Method update;
-    private final Method channelById;
     private final Method groups;
     private final Method enabled;
-    private final Method lock;
 
     private NotificationBannerBatch(int user) throws Exception {
         Class<?> services = Class.forName("android.os.ServiceManager");
@@ -30,11 +26,8 @@ public final class NotificationBannerBatch implements AutoCloseable {
                 .getMethod("asInterface", IBinder.class).invoke(null, binder);
         Class<?> api = Class.forName("android.app.INotificationManager");
         channels = api.getMethod("getNotificationChannelsForPackage", String.class, int.class, boolean.class);
-        channelById = api.getMethod("getNotificationChannelForPackage", String.class, int.class, String.class, String.class, boolean.class);
         groups = api.getMethod("getNotificationChannelGroupsForPackage", String.class, int.class, boolean.class);
-        update = api.getMethod("updateNotificationChannelForPackage", String.class, int.class, NotificationChannel.class);
         enabled = api.getMethod("areNotificationsEnabledForPackage", String.class, int.class);
-        lock = NotificationChannel.class.getMethod("lockFields", int.class);
         Class.forName("android.content.pm.ParceledListSlice").getMethod("getList");
         provider = new RootNotificationProvider(user);
     }
@@ -87,9 +80,11 @@ public final class NotificationBannerBatch implements AutoCloseable {
                     if (group.isBlocked()) blocked.add(group.getId());
                 }
                 java.util.ArrayList<BannerBatchProcessor.Channel> result = new java.util.ArrayList<>();
+                // includeDeleted=false excludes deleted channels; closed channels have importance 0.
                 for (Object value : list(channels.invoke(notificationManager, app.pkg, app.uid, false))) {
                     NotificationChannel channel = (NotificationChannel) value;
-                    result.add(new BannerBatchProcessor.Channel(channel.getId(), channel.getImportance(), blocked.contains(channel.getGroup()), channel));
+                    result.add(new BannerBatchProcessor.Channel(channel.getId(), channel.getImportance(),
+                            blocked.contains(channel.getGroup())));
                 }
                 return result;
             }
@@ -99,25 +94,18 @@ public final class NotificationBannerBatch implements AutoCloseable {
             @Override public void allowFloat(BannerBatchProcessor.App app, BannerBatchProcessor.Channel channel) throws Exception {
                 NotificationBannerBatch.this.allowFloat(app.pkg, channel == null ? null : channel.id);
             }
-            @Override public void raiseImportance(BannerBatchProcessor.App app, BannerBatchProcessor.Channel item) throws Exception {
-                NotificationChannel channel = (NotificationChannel) item.nativeChannel;
-                channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-                lock.invoke(channel, 4);
-                update.invoke(notificationManager, app.pkg, app.uid, channel);
-                NotificationChannel actual = (NotificationChannel) channelById.invoke(
-                        notificationManager, app.pkg, app.uid, channel.getId(), channel.getConversationId(), false);
-                if (actual == null || actual.getImportance() < 4) throw new IllegalStateException("Importance readback failed");
-            }
         });
         return new JSONObject().put("apps", result.apps).put("channels", result.channels).put("skipped", result.skipped)
-                .put("failed", result.failed).put("changed", result.changed).put("applied", apply);
+                .put("failed", result.failed).put("changed", result.changed).put("applied", apply)
+                .put("failure_notes", new org.json.JSONArray(result.failures));
     }
 
     @Override public void close() throws Exception { provider.close(); }
 
     public static void main(String[] args) {
         try {
-            if (Process.myUid() != 0 || args.length != 2) throw new SecurityException("Root invocation required");
+            if (Process.myUid() != 0) throw new SecurityException("Root invocation required");
+            if (args.length != 2) throw new IllegalArgumentException("Expected user and scan|apply");
             int user = Integer.parseInt(args[0]);
             if (user < 0 || !("scan".equals(args[1]) || "apply".equals(args[1]))) throw new IllegalArgumentException("Invalid scope");
             if (Looper.getMainLooper() == null) Looper.prepareMainLooper();

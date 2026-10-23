@@ -7,7 +7,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-internal data class BannerBatchResult(val apps: Int, val channels: Int, val skipped: Int, val failed: Int, val changed: Int)
+internal data class BannerBatchResult(val apps: Int, val channels: Int, val skipped: Int, val failed: Int, val changed: Int,
+    val failureNotes: List<String> = emptyList())
 
 internal data class BannerBatchState(val busy: Boolean = false, val applied: Boolean = false,
     val result: BannerBatchResult? = null, val error: String? = null)
@@ -53,6 +54,10 @@ internal object NotificationBannerBatch {
             ?: error("Notification service did not return a result")
         val json = JSONObject(record.removePrefix("HYPERTWEAK_BANNERS "))
         check(json.getBoolean("applied") == apply)
-        BannerBatchResult(json.getInt("apps"), json.getInt("channels"), json.getInt("skipped"), json.getInt("failed"), json.getInt("changed"))
+        val notes = json.optJSONArray("failure_notes")
+        BannerBatchResult(
+            json.getInt("apps"), json.getInt("channels"), json.getInt("skipped"), json.getInt("failed"), json.getInt("changed"),
+            if (notes == null) emptyList() else List(notes.length().coerceAtMost(20)) { notes.optString(it) }.filter { it.isNotBlank() },
+        )
     }
 }

@@ -581,6 +581,8 @@ object Preferences {
      * a SystemUI restart.
      */
     const val KEY_NOTIFICATION_ICON_FILTER_MODE = "notification_icon_filter_mode"
+    /** Ignore only the native floating-notification whitelist fallback. */
+    const val KEY_NOTIFICATION_WHITELIST_BYPASS = "notification_float_whitelist_bypass"
     const val KEY_NOTIFICATION_MINI_WINDOW = "notification_mini_window"
     const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
 
@@ -1435,6 +1437,8 @@ object Preferences {
             key == KEY_MANUAL_PENDING_RESTART_SCOPES ||
             key == KEY_PENDING_RESTART_SCOPES ||
             key == KEY_FIRST_RUN_TOKEN ||
+            // Obsolete per-device package snapshot from the former batch implementation.
+            key == "notification_whitelist_bypass" ||
             key == KEY_FINGERPRINT_SPLIT_BASELINE_MIGRATED ||
             key == LEGACY_KEY_DEBUG_LOG ||
             key.startsWith(KEY_DEBUG_LOG_PREFIX) ||

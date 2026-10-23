@@ -1589,15 +1589,17 @@
     <string name="notification_menu_summary">通知行为、图标过滤与通知中心样式</string>
     <string name="media_card_menu_summary">媒体卡片图标与设备切换按钮</string>
     <string name="notification_icon_threshold_title">状态栏通知图标显示等级</string>
-    <string name="notification_batch_title">批量设置</string>
-    <string name="notification_batch_enable">打开所有横幅通知</string>
-    <string name="notification_batch_summary">一次性开启当前用户已有应用与通知渠道的横幅</string>
+    <string name="notification_batch_title">悬浮通知</string>
+    <string name="notification_batch_enable">批量允许悬浮通知</string>
+    <string name="notification_batch_summary">开启应用和重要性为“高、重要”的渠道悬浮通知，不修改渠道重要性</string>
     <string name="notification_batch_busy">正在处理，请稍候…</string>
-    <string name="notification_batch_warning">这会批量开启 MIUI 应用与渠道的悬浮通知，并将已有且未关闭的通知渠道提升至可显示横幅的重要性。可能增加横幅、声音或振动提醒。已关闭通知权限的应用与渠道会跳过；勿扰等系统限制保留。仅作用于当前用户，不自动处理以后新增的渠道。继续后先扫描，不会立即修改。</string>
-    <string name="notification_batch_confirm_title">确认批量开启横幅通知</string>
-    <string name="notification_batch_confirm">即将修改系统通知设置。执行后可在系统中逐项调整，模块重置不会撤销本次批量修改。确定开启？</string>
-    <string name="notification_batch_apply">确认开启</string>
-    <string name="notification_batch_preview">扫描到 %1$d 个应用、%2$d 个渠道；跳过 %3$d 项，失败 %4$d 项</string>
+    <string name="notification_batch_whitelist_title">忽略应用悬浮通知白名单</string>
+    <string name="notification_batch_whitelist_summary">允许白名单外的应用使用悬浮通知，保留应用和渠道的手动关闭设置</string>
+    <string name="notification_batch_warning">仅开启应用和重要性为“高、重要”的现有渠道的允许悬浮通知开关，不修改重要性。已关闭通知权限的应用、渠道及渠道组会跳过；勿扰等系统限制保留。仅处理当前用户，不自动处理以后新增的渠道。继续后先扫描，不会立即修改。</string>
+    <string name="notification_batch_confirm_title">确认批量允许悬浮通知</string>
+    <string name="notification_batch_confirm">即将开启这些应用和渠道的允许悬浮通知开关，不修改渠道重要性。执行后可在系统中逐项调整，模块重置不会撤销本次批量修改。确定执行？</string>
+    <string name="notification_batch_apply">确认执行</string>
+    <string name="notification_batch_preview">扫描到 %1$d 个应用、%2$d 个符合条件的渠道；跳过 %3$d 项，失败 %4$d 项</string>
     <string name="notification_batch_result">处理完成：%1$d 个应用、%2$d 个渠道；跳过 %3$d 项，失败 %4$d 项</string>
     <string name="notification_batch_error">操作未完成，部分设置可能已修改。请检查 Root 授权或系统兼容性后重新扫描。</string>
     <string name="notification_icon_hyperos">HyperOS（隐藏高及以下）</string>
@@ -1608,8 +1610,9 @@
     <string name="notification_batch_empty_title">没有可处理的通知渠道</string>
     <string name="notification_batch_done_title">设置完成</string>
     <string name="notification_batch_scan_title">扫描结果</string>
-    <string name="notification_batch_scan_error">未修改通知设置。请检查 Root 授权或系统兼容性后重试。</string>
+    <string name="notification_batch_scan_error">扫描未完成，未执行批量修改。请检查 Root 授权或系统兼容性后重试。</string>
     <string name="notification_batch_details">查看详情</string>
     <string name="notification_batch_hide_details">收起详情</string>
     <string name="notification_batch_close">知道了</string>
+    <string name="notification_batch_partial_error">部分项目未完成，其余项目可能已经生效。请查看详情后重新扫描。</string>
 </resources>
