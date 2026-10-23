@@ -356,6 +356,53 @@ object LeftContainerHooker : StaticHooker() {
         DebugLog.i(TAG, "hot reload left roots=${states.size} rows=${ccRows.size}")
     }
 
+    /**
+     * Snapshot left-icon hosts after recovery, including visibility and render eligibility.
+     * Like the host state itself, this must be read on the main thread.
+     */
+    internal fun logStateSummary(stage: String) {
+        runCatching {
+            val keyguard = keyguardShowing()
+            val summary = synchronized(states) {
+                states.values.map { state ->
+                    val left = state.leftContainer
+                    val parent = left?.parent as? ViewGroup
+                    buildString {
+                        append(if (state.isKeyguard) "keyguard" else "home")
+                        append(" attached=").append(state.leftHost.isAttachedToWindow)
+                        append(" hostShown=").append(state.leftHost.isShown)
+                        append(" container=").append(
+                            when {
+                                left == null -> "none"
+                                parent == null -> "detached"
+                                else -> "index=${parent.indexOfChild(left)}/${parent.childCount}"
+                            }
+                        )
+                        left?.let {
+                            append(" vis=").append(visibilityName(it.visibility))
+                            append(" alpha=").append(it.alpha)
+                            append(" w=").append(it.width).append(" h=").append(it.height)
+                        }
+                        append(" render=").append(shouldRender(state))
+                        append(" clones=").append(state.clones.keys.sorted())
+                    }
+                }
+            }
+            DebugLog.i(
+                TAG,
+                "left state stage=$stage mode=$leftMode active=$active keyguard=$keyguard " +
+                    "wanted=${activeSlots.sorted()} rows=${summary.ifEmpty { listOf("none") }.joinToString(" | ")}"
+            )
+        }.onFailure { DebugLog.w(TAG, "left state summary failed", it) }
+    }
+
+    private fun visibilityName(value: Int): String = when (value) {
+        View.VISIBLE -> "V"
+        View.INVISIBLE -> "I"
+        View.GONE -> "G"
+        else -> value.toString()
+    }
+
     override fun onPrepareHotReload() {
         retiring = true
         mainHandler.removeCallbacksAndMessages(null)

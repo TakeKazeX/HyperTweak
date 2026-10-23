@@ -142,6 +142,11 @@ internal object StatusIconHotReloadRecovery {
                 }
             }
             DebugLog.i("IconTuner", "hot reload rebound roots=${roots.size} managers=${managers.size} progress=$progress visible=$visible")
+            // The rebound line above cannot tell a rendered left icon from one that was found but
+            // suppressed (keyguard gate, detached host, no right-side source). Keep one INFO line
+            // per recovery so a "moved but invisible" report is diagnosable from a log export
+            // without a rebuilt module.
+            LeftContainerHooker.logStateSummary("recovery")
         }.onFailure { DebugLog.w("IconTuner", "hot reload host discovery failed", it) }
     }
 
