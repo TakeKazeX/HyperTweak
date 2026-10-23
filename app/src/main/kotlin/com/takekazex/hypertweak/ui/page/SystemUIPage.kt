@@ -82,14 +82,6 @@ fun SystemUIPage(
     onHideFingerprintAppAuthChange: (Boolean) -> Unit,
     hideLockscreenStatusBar: Boolean,
     onHideLockscreenStatusBarChange: (Boolean) -> Unit,
-    notificationHeaderClockSeconds: Boolean,
-    onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
-    notificationMonetTextColor: Boolean,
-    onNotificationMonetTextColorChange: (Boolean) -> Unit,
-    notificationFontWeight: Boolean,
-    onNotificationFontWeightChange: (Boolean) -> Unit,
-    notificationAbsoluteTime: Boolean,
-    onNotificationAbsoluteTimeChange: (Boolean) -> Unit,
     lockscreenFingerprintAvoid: Int,
     onLockscreenFingerprintAvoidChange: (Int) -> Unit,
     onNavigateToChargingDetail: () -> Unit,
@@ -98,10 +90,6 @@ fun SystemUIPage(
     onLockscreenAllNotificationsChange: (Boolean) -> Unit,
     lockscreenKeepNotifications: Boolean,
     onLockscreenKeepNotificationsChange: (Boolean) -> Unit,
-    mediaCardHideAppIcon: Boolean,
-    onMediaCardHideAppIconChange: (Boolean) -> Unit,
-    mediaCardHideDeviceSwitch: Boolean,
-    onMediaCardHideDeviceSwitchChange: (Boolean) -> Unit,
     sliderShowPercentage: Boolean,
     onSliderShowPercentageChange: (Boolean) -> Unit,
     sliderSamePercentageStyle: Boolean,
@@ -122,7 +110,8 @@ fun SystemUIPage(
     onContextualSearchHapticsChange: (Boolean) -> Unit,
     contextualSearchLongPress: Boolean,
     onContextualSearchLongPressChange: (Boolean) -> Unit,
-    onNavigateToNotificationHeader: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToMediaCard: () -> Unit,
     onNavigateToIconTuner: () -> Unit,
     onNavigateToPrivacyIndicator: () -> Unit,
     onNavigateToAodIcons: () -> Unit
@@ -180,12 +169,6 @@ fun SystemUIPage(
         Preferences.flush()
     }
 
-    var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
-    var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
-    var notifMiniWindow by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, false)) }
-    var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
-    var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
-    var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
 
     val powerButtonActionOptions = remember {
@@ -234,7 +217,8 @@ fun SystemUIPage(
                 Column(Modifier.fillMaxWidth()) {
                     OverlayDropdownPreference(
                         title = stringResource(R.string.volume_key_scope_title),
-                        summary = stringResource(R.string.volume_key_scope_summary),
+                        summary = stringResource(if (volumeKeyStepScope == Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
+                        showValue = false,
                         items = listOf(
                             stringResource(R.string.volume_key_scope_media),
                             stringResource(R.string.volume_key_scope_active_stream)
@@ -296,135 +280,19 @@ fun SystemUIPage(
                 onDismissRequest = { volumeKeySliderExpanded = false }
             )
 
-            SmallTitle(stringResource(R.string.settings_system_ui_section_notifications))
+            SmallTitle(stringResource(R.string.notification_media_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = notifMoreSettings,
-                        onCheckedChange = { value ->
-                            notifMoreSettings = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MORE_SETTINGS, value)
-                            Preferences.flush()
-                            notifSettingsRestartPending = true
-                            notifSystemUiRestartPending = true
-                            requestRestartScopes(
-                                RestartScopeSelection(settings = true, systemUi = true)
-                            )
-                        },
-                        title = stringResource(R.string.settings_notification_more_settings_title),
-                        summary = stringResource(R.string.settings_notification_more_settings_summary)
+                Column {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_system_ui_section_notifications),
+                        summary = stringResource(R.string.notification_menu_summary),
+                        onClick = onNavigateToNotifications
                     )
-                    SwitchPreference(
-                        checked = notifBadge,
-                        onCheckedChange = { value ->
-                            notifBadge = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BADGE, value)
-                            Preferences.flush()
-                            notifSettingsRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(settings = true))
-                        },
-                        title = stringResource(R.string.settings_notification_badge_title),
-                        summary = stringResource(R.string.settings_notification_badge_summary)
+                    if (PlatformLevel.isOs4) ArrowPreference(
+                        title = stringResource(R.string.settings_system_ui_section_media),
+                        summary = stringResource(R.string.media_card_menu_summary),
+                        onClick = onNavigateToMediaCard
                     )
-                    SwitchPreference(
-                        checked = notifMiniWindow,
-                        onCheckedChange = { value ->
-                            notifMiniWindow = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, value)
-                            Preferences.flush()
-                        },
-                        title = stringResource(R.string.settings_notification_mini_window_title),
-                        summary = stringResource(R.string.settings_notification_mini_window_summary)
-                    )
-                    SwitchPreference(
-                        checked = notifBlockFold,
-                        onCheckedChange = { value ->
-                            notifBlockFold = value
-                            Preferences.putBoolean(Preferences.KEY_NOTIFICATION_BLOCK_FOLD, value)
-                            Preferences.flush()
-                            notifSystemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
-                        },
-                        title = stringResource(R.string.settings_notification_block_fold_title),
-                        summary = stringResource(R.string.settings_notification_block_fold_summary)
-                    )
-                    if (notifSettingsRestartPending) {
-                        val restartSelection = RestartScopeSelection(settings = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_notification_restart_settings_title),
-                            summary = stringResource(R.string.settings_notification_restart_settings_summary),
-                            enabled = !restartInProgress(restartSelection),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection,
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.settings) notifSettingsRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
-                    if (notifSystemUiRestartPending) {
-                        val restartSelection = RestartScopeSelection(systemUi = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_system_ui),
-                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
-                            enabled = !restartInProgress(restartSelection),
-                            onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection,
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) notifSystemUiRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (PlatformLevel.isOs4) {
-                SmallTitle(stringResource(R.string.settings_system_ui_section_notification_shade))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        SwitchPreference(
-                            checked = notificationHeaderClockSeconds,
-                            onCheckedChange = onNotificationHeaderClockSecondsChange,
-                            title = stringResource(R.string.settings_notification_header_clock_seconds_title),
-                            summary = stringResource(R.string.settings_notification_header_clock_seconds_summary)
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_notification_header_options_title),
-                            summary = stringResource(R.string.settings_notification_header_options_summary),
-                            onClick = onNavigateToNotificationHeader
-                        )
-                        SwitchPreference(
-                            checked = notificationMonetTextColor,
-                            onCheckedChange = onNotificationMonetTextColorChange,
-                            title = stringResource(R.string.settings_notification_monet_text_color_title),
-                            summary = stringResource(R.string.settings_notification_monet_text_color_summary)
-                        )
-                        SwitchPreference(
-                            checked = notificationAbsoluteTime,
-                            onCheckedChange = onNotificationAbsoluteTimeChange,
-                            title = stringResource(R.string.settings_notification_absolute_time_title),
-                            summary = stringResource(R.string.settings_notification_absolute_time_summary)
-                        )
-                        SwitchPreference(
-                            checked = notificationFontWeight,
-                            onCheckedChange = onNotificationFontWeightChange,
-                            title = stringResource(R.string.settings_notification_font_weight_title),
-                            summary = stringResource(R.string.settings_notification_font_weight_summary)
-                        )
-                    }
                 }
             }
 
@@ -551,30 +419,6 @@ fun SystemUIPage(
                             onCheckedChange = onLockscreenKeepNotificationsChange,
                             title = stringResource(R.string.settings_lockscreen_keep_notifications_title),
                             summary = stringResource(R.string.settings_lockscreen_keep_notifications_summary)
-                        )
-                    }
-                }
-            }
-
-            if (PlatformLevel.isOs4) {
-                SmallTitle(stringResource(R.string.settings_system_ui_section_media))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        // Media cards: remove the source app icon overlaid on the cover corner, in
-                        // both the notification shade and the island. The render chains are OS4.
-                        SwitchPreference(
-                            checked = mediaCardHideAppIcon,
-                            onCheckedChange = onMediaCardHideAppIconChange,
-                            title = stringResource(R.string.settings_media_hide_app_icon_title),
-                            summary = stringResource(R.string.settings_media_hide_app_icon_summary)
-                        )
-                        // Media cards: hide the device-switch button (shade + island + plugin main
-                        // card).
-                        SwitchPreference(
-                            checked = mediaCardHideDeviceSwitch,
-                            onCheckedChange = onMediaCardHideDeviceSwitchChange,
-                            title = stringResource(R.string.settings_media_hide_device_switch_title),
-                            summary = stringResource(R.string.settings_media_hide_device_switch_summary)
                         )
                     }
                 }

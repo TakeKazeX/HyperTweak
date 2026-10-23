@@ -248,6 +248,10 @@ class HookEntry : XposedModule() {
                 if (processName == "com.android.systemui") applyLiveAodSettings()
                 true
             }
+            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_ICONS) { _ ->
+                StatusBarHideSilentHooker.refreshSettings()
+                true
+            }
             registerForProcess(RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW) { _ ->
                 NotificationMiniWindowHooker.refreshSettings()
                 true
@@ -1226,8 +1230,8 @@ class HookEntry : XposedModule() {
                 attachHooker(NotificationMiniWindowHooker, classLoader, ctx, replacementHandles)
                 attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
                 // Notification fold suppression (its own switch) and the status-bar "silent
-                // notification" filter repair, which rides on the 恢复更多通知设置 switch and has no
-                // preference of its own — it only makes the stock system switch work again.
+                // notification" classifier. Its explicit two-mode icon filter is delivered live;
+                // the channel-settings repair still belongs to the Settings process.
                 attachHooker(NotificationBlockFoldHooker, classLoader, ctx, replacementHandles)
                 attachHooker(StatusBarHideSilentHooker, classLoader, ctx, replacementHandles)
                 // 多任务过渡模糊: the WM Shell multitasking classes reach this process through the

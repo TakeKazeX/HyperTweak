@@ -580,6 +580,7 @@ object Preferences {
      * every fold entry point. Read by `NotificationBlockFoldHooker` at hook-install time; requires
      * a SystemUI restart.
      */
+    const val KEY_NOTIFICATION_ICON_FILTER_MODE = "notification_icon_filter_mode"
     const val KEY_NOTIFICATION_MINI_WINDOW = "notification_mini_window"
     const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
 

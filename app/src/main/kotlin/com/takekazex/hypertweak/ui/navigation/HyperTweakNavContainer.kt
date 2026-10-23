@@ -24,6 +24,8 @@ import com.takekazex.hypertweak.ui.page.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.AospImePage
 import com.takekazex.hypertweak.ui.page.AodIconsPage
 import com.takekazex.hypertweak.ui.page.SystemUIPage
+import com.takekazex.hypertweak.ui.page.NotificationPage
+import com.takekazex.hypertweak.ui.page.MediaCardPage
 import com.takekazex.hypertweak.ui.page.NotificationHeaderPage
 import com.takekazex.hypertweak.ui.page.PrivacyIndicatorPage
 import com.takekazex.hypertweak.ui.page.IconTunerPage
@@ -519,14 +521,6 @@ fun HyperTweakNavContainer(
                 onHideFingerprintAppAuthChange = onHideFingerprintAppAuthChange,
                 hideLockscreenStatusBar = hideLockscreenStatusBar,
                 onHideLockscreenStatusBarChange = onHideLockscreenStatusBarChange,
-                notificationHeaderClockSeconds = notificationHeaderClockSeconds,
-                onNotificationHeaderClockSecondsChange = onNotificationHeaderClockSecondsChange,
-                notificationMonetTextColor = notificationMonetTextColor,
-                onNotificationMonetTextColorChange = onNotificationMonetTextColorChange,
-                notificationFontWeight = notificationFontWeight,
-                onNotificationFontWeightChange = onNotificationFontWeightChange,
-                notificationAbsoluteTime = notificationAbsoluteTime,
-                onNotificationAbsoluteTimeChange = onNotificationAbsoluteTimeChange,
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {
@@ -539,10 +533,6 @@ fun HyperTweakNavContainer(
                 onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
                 lockscreenKeepNotifications = lockscreenKeepNotifications,
                 onLockscreenKeepNotificationsChange = onLockscreenKeepNotificationsChange,
-                mediaCardHideAppIcon = mediaCardHideAppIcon,
-                onMediaCardHideAppIconChange = onMediaCardHideAppIconChange,
-                mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
-                onMediaCardHideDeviceSwitchChange = onMediaCardHideDeviceSwitchChange,
                 sliderShowPercentage = sliderShowPercentage,
                 onSliderShowPercentageChange = onSliderShowPercentageChange,
                 sliderSamePercentageStyle = sliderSamePercentageStyle,
@@ -563,9 +553,8 @@ fun HyperTweakNavContainer(
                 onContextualSearchHapticsChange = onContextualSearchHapticsChange,
                 contextualSearchLongPress = contextualSearchLongPress,
                 onContextualSearchLongPressChange = onContextualSearchLongPressChange,
-                onNavigateToNotificationHeader = {
-                    navController.push(Route.NotificationHeader)
-                },
+                onNavigateToNotifications = { navController.push(Route.Notifications) },
+                onNavigateToMediaCard = { navController.push(Route.MediaCard) },
                 onNavigateToIconTuner = {
                     navController.push(Route.IconTuner)
                 },
@@ -575,6 +564,28 @@ fun HyperTweakNavContainer(
         }
         entry<Route.AodIcons> {
             AodIconsPage(onBack = { navController.pop() })
+        }
+        entry<Route.Notifications> {
+            NotificationPage(
+                onBack = { navController.pop() },
+                notificationHeaderClockSeconds = notificationHeaderClockSeconds,
+                onNotificationHeaderClockSecondsChange = onNotificationHeaderClockSecondsChange,
+                notificationMonetTextColor = notificationMonetTextColor,
+                onNotificationMonetTextColorChange = onNotificationMonetTextColorChange,
+                notificationFontWeight = notificationFontWeight,
+                onNotificationFontWeightChange = onNotificationFontWeightChange,
+                notificationAbsoluteTime = notificationAbsoluteTime,
+                onNotificationAbsoluteTimeChange = onNotificationAbsoluteTimeChange,
+                onNavigateToNotificationHeader = { navController.push(Route.NotificationHeader) },
+            )
+        }
+        entry<Route.MediaCard> {
+            MediaCardPage(onBack = { navController.pop() },
+                mediaCardHideAppIcon = mediaCardHideAppIcon,
+                onMediaCardHideAppIconChange = onMediaCardHideAppIconChange,
+                mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
+                onMediaCardHideDeviceSwitchChange = onMediaCardHideDeviceSwitchChange,
+            )
         }
         entry<Route.NotificationHeader> {
             NotificationHeaderPage(

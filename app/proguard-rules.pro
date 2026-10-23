@@ -52,3 +52,8 @@
 
 # Suppress missing class warnings for Java reflection (annotated types are resolved by name).
 -dontwarn java.lang.reflect.AnnotatedType
+
+# Invoked by app_process after the user's two confirmations; no static Java caller exists.
+-keep class com.takekazex.hypertweak.root.NotificationBannerBatch {
+    public static void main(java.lang.String[]);
+}

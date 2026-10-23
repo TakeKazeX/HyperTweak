@@ -56,6 +56,7 @@ internal object StatusIconHotReloadRecovery {
                     NotificationHeaderClockSecondsHooker.recoverExistingViews((existingViews + headerViews).distinct())
                     NotificationHeaderWeatherHooker.recoverExistingHeaders(headers)
                 }
+                recoverFeature("notification icon threshold") { com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker.recoverExistingHosts(component) }
                 recoverFeature("notification mini window") { NotificationMiniWindowHooker.recoverExistingViews(existingViews) }
                 recoverFeature("notification content") { NotificationContentHotReloadRecovery.recover(existingViews) }
                 recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }

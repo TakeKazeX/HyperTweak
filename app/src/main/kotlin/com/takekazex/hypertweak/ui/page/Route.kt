@@ -18,6 +18,8 @@ sealed interface Route : NavKey {
     data object SystemUi : Route
     data object Screenshot : Route
     data object AodIcons : Route
+    data object Notifications : Route
+    data object MediaCard : Route
     data object NotificationHeader : Route
     data object DownloadManager : Route
     data object Purification : Route
@@ -65,6 +67,8 @@ val Route.saveKey: String
         Route.SystemUi -> "SystemUi"
         Route.Screenshot -> "Screenshot"
         Route.AodIcons -> "AodIcons"
+        Route.Notifications -> "Notifications"
+        Route.MediaCard -> "MediaCard"
         Route.NotificationHeader -> "NotificationHeader"
         Route.DownloadManager -> "DownloadManager"
         Route.Purification -> "Purification"
@@ -107,6 +111,8 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "SystemUi" -> Route.SystemUi
     "Screenshot" -> Route.Screenshot
     "AodIcons" -> Route.AodIcons
+    "Notifications" -> Route.Notifications
+    "MediaCard" -> Route.MediaCard
     "NotificationHeader" -> Route.NotificationHeader
     "DownloadManager" -> Route.DownloadManager
     "Purification" -> Route.Purification

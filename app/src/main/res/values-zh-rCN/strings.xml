@@ -97,7 +97,6 @@
     <string name="aosp_volume_haptic_miui_summary">AOSP 音量面板使用 HyperOS 的震动反馈</string>
     <string name="volume_key_section">音量键</string>
     <string name="volume_key_scope_title">作用范围</string>
-    <string name="volume_key_scope_summary">选择仅调整媒体音量，或调整所有音量</string>
     <string name="volume_key_scope_media">仅媒体音量</string>
     <string name="volume_key_scope_active_stream">音量键当前控制的音量流</string>
     <string name="volume_key_step_title">音量键档位数</string>
@@ -902,7 +901,7 @@
     <string name="experimental_features_notes">这些开关仍在开发中，可能无法在所有设备上生效</string>
     <string name="settings_system_ui_section_notifications">通知</string>
     <string name="settings_notification_more_settings_title">恢复更多通知设置</string>
-    <string name="settings_notification_more_settings_summary">恢复通知重要性设置和静音通知图标开关</string>
+    <string name="settings_notification_more_settings_summary">恢复通知渠道的重要性设置</string>
     <string name="settings_notification_badge_title">通知角标</string>
     <string name="settings_notification_badge_summary">恢复通知角标开关</string>
     <string name="settings_notification_block_fold_title">禁止折叠通知</string>
@@ -1587,4 +1586,30 @@
     <string name="security_center_icon_launch_summary">点击应用详情页顶部的图标打开应用</string>
     <string name="settings_notification_mini_window_title">解锁横幅通知小窗手势</string>
     <string name="settings_notification_mini_window_summary">移除应用白名单，允许更多横幅通知显示手势条并下拉打开小窗</string>
+    <string name="notification_menu_summary">通知行为、图标过滤与通知中心样式</string>
+    <string name="media_card_menu_summary">媒体卡片图标与设备切换按钮</string>
+    <string name="notification_icon_threshold_title">状态栏通知图标显示等级</string>
+    <string name="notification_batch_title">批量设置</string>
+    <string name="notification_batch_enable">打开所有横幅通知</string>
+    <string name="notification_batch_summary">一次性开启当前用户已有应用与通知渠道的横幅</string>
+    <string name="notification_batch_busy">正在处理，请稍候…</string>
+    <string name="notification_batch_warning">这会批量开启 MIUI 应用与渠道的悬浮通知，并将已有且未关闭的通知渠道提升至可显示横幅的重要性。可能增加横幅、声音或振动提醒。已关闭通知权限的应用与渠道会跳过；勿扰等系统限制保留。仅作用于当前用户，不自动处理以后新增的渠道。继续后先扫描，不会立即修改。</string>
+    <string name="notification_batch_confirm_title">确认批量开启横幅通知</string>
+    <string name="notification_batch_confirm">即将修改系统通知设置。执行后可在系统中逐项调整，模块重置不会撤销本次批量修改。确定开启？</string>
+    <string name="notification_batch_apply">确认开启</string>
+    <string name="notification_batch_preview">扫描到 %1$d 个应用、%2$d 个渠道；跳过 %3$d 项，失败 %4$d 项</string>
+    <string name="notification_batch_result">处理完成：%1$d 个应用、%2$d 个渠道；跳过 %3$d 项，失败 %4$d 项</string>
+    <string name="notification_batch_error">操作未完成，部分设置可能已修改。请检查 Root 授权或系统兼容性后重新扫描。</string>
+    <string name="notification_icon_hyperos">HyperOS（隐藏高及以下）</string>
+    <string name="notification_icon_aosp">AOSP（隐藏中及以下）</string>
+    <string name="notification_media_section">通知与媒体</string>
+    <string name="notification_batch_failed_title">操作失败</string>
+    <string name="notification_batch_partial_title">部分设置未完成</string>
+    <string name="notification_batch_empty_title">没有可处理的通知渠道</string>
+    <string name="notification_batch_done_title">设置完成</string>
+    <string name="notification_batch_scan_title">扫描结果</string>
+    <string name="notification_batch_scan_error">未修改通知设置。请检查 Root 授权或系统兼容性后重试。</string>
+    <string name="notification_batch_details">查看详情</string>
+    <string name="notification_batch_hide_details">收起详情</string>
+    <string name="notification_batch_close">知道了</string>
 </resources>

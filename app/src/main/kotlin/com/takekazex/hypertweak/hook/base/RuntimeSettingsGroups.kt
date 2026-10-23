@@ -41,6 +41,7 @@ internal object RuntimeSettingsGroups {
     /** Lock-screen indication surfaces: bottom text, charging detail, fingerprint avoidance. */
     const val LOCKSCREEN = "systemui.lockscreen"
     const val AOD_CAPABILITY = "aod.capability"
+    const val NOTIFICATION_ICONS = "systemui.notification_icons"
     const val NOTIFICATION_MINI_WINDOW = "systemui.notification_mini_window"
     const val FREEFORM_BLUR = "systemui.freeform_blur"
     const val REVISION = "runtime_settings_revision"
@@ -91,6 +92,7 @@ internal object RuntimeSettingsGroups {
         AOD_CAPABILITY to Group(systemUi + setOf("com.miui.aod", "com.android.settings")) {
             it == Preferences.KEY_AOD_FULLSCREEN
         },
+        NOTIFICATION_ICONS to Group(systemUi) { it == Preferences.KEY_NOTIFICATION_ICON_FILTER_MODE || it == Preferences.KEY_NOTIFICATION_MORE_SETTINGS },
         NOTIFICATION_MINI_WINDOW to Group(systemUi) { it == Preferences.KEY_NOTIFICATION_MINI_WINDOW },
         FREEFORM_BLUR to Group(systemUi) { it == Preferences.KEY_FREEFORM_BLUR_TRANSITION },
         KEYGUARD to Group(systemUi) { it in keyguardKeys },

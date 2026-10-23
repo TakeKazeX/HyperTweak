@@ -6,6 +6,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Bounded root IO, including an unanswered root grant; no orphaned unbounded reader pool. */
 internal object NativeRootCommand {
+    class CommandFailure(val exitCode: Int, val output: ByteArray) :
+        IllegalStateException("root command exited with status $exitCode")
+
     private val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1),
         { task -> Thread(task, "HyperTweak-NativeRoot").apply { isDaemon = true } })
     fun quote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
@@ -31,7 +34,7 @@ internal object NativeRootCommand {
                     out.toByteArray()
                 }
                 process.waitFor()
-                check(process.exitValue() == 0) { "root command rejected (${process.exitValue()})" }
+                if (process.exitValue() != 0) throw CommandFailure(process.exitValue(), bytes)
                 bytes
             } finally { if (process.isAlive) process.destroyForcibly() }
         }

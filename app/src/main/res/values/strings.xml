@@ -97,7 +97,6 @@
     <string name="aosp_volume_haptic_miui_summary">Use HyperOS vibration on the AOSP volume panel</string>
     <string name="volume_key_section">Volume Keys</string>
     <string name="volume_key_scope_title">Apply to</string>
-    <string name="volume_key_scope_summary">Apply the step count to media volume or all volume types</string>
     <string name="volume_key_scope_media">Media volume only</string>
     <string name="volume_key_scope_active_stream">Volume stream currently controlled by the keys</string>
     <string name="volume_key_step_title">Volume key steps</string>
@@ -907,7 +906,7 @@
     <string name="experimental_features_notes">These switches are still in development and may not work on every device</string>
     <string name="settings_system_ui_section_notifications">Notifications</string>
     <string name="settings_notification_more_settings_title">Restore More Notification Settings</string>
-    <string name="settings_notification_more_settings_summary">Restore notification importance settings and the silent-notification icon switch</string>
+    <string name="settings_notification_more_settings_summary">Restore notification channel importance settings</string>
     <string name="settings_notification_badge_title">Notification Badges</string>
     <string name="settings_notification_badge_summary">Restore the notification badge switch</string>
     <string name="settings_notification_block_fold_title">Block Notification Folding</string>
@@ -1596,4 +1595,30 @@
     <string name="security_center_icon_launch_summary">Open the app by tapping its icon on the app details page.</string>
     <string name="settings_notification_mini_window_title">Unlock banner mini-window gesture</string>
     <string name="settings_notification_mini_window_summary">Remove the app whitelist for the native banner handle and pull-down floating window gesture</string>
+    <string name="notification_menu_summary">Notification behavior, icon filtering and shade appearance</string>
+    <string name="media_card_menu_summary">Media card icons and output switch</string>
+    <string name="notification_icon_threshold_title">Status bar notification icon level</string>
+    <string name="notification_batch_title">Batch settings</string>
+    <string name="notification_batch_enable">Enable all banner notifications</string>
+    <string name="notification_batch_summary">Enable banners for existing apps and channels in the current user</string>
+    <string name="notification_batch_busy">Processing…</string>
+    <string name="notification_batch_warning">This enables MIUI app and channel banners and raises existing enabled channels to high importance (4). It may increase banners, sounds or vibration. Blocked apps and channels are skipped; Do Not Disturb still applies. Only the current user is affected, and future channels are unchanged. Continue to scan before making changes.</string>
+    <string name="notification_batch_confirm_title">Confirm banner changes</string>
+    <string name="notification_batch_confirm">This changes system notification settings. You can adjust each item later in Settings; resetting the module will not undo this batch. Enable banners?</string>
+    <string name="notification_batch_apply">Enable banners</string>
+    <string name="notification_batch_preview">Found %1$d apps and %2$d channels; %3$d skipped, %4$d failed</string>
+    <string name="notification_batch_result">Finished: %1$d apps and %2$d channels; %3$d skipped, %4$d failed</string>
+    <string name="notification_batch_error">Some settings may already have changed. Check root access and system compatibility, then scan again.</string>
+    <string name="notification_icon_hyperos">HyperOS (hide Default and below)</string>
+    <string name="notification_icon_aosp">AOSP (hide Low and below)</string>
+    <string name="notification_media_section">Notifications and media</string>
+    <string name="notification_batch_failed_title">Operation failed</string>
+    <string name="notification_batch_partial_title">Some settings could not be changed</string>
+    <string name="notification_batch_empty_title">No eligible notification channels</string>
+    <string name="notification_batch_done_title">Settings updated</string>
+    <string name="notification_batch_scan_title">Scan results</string>
+    <string name="notification_batch_scan_error">No notification settings were changed. Check root access and system compatibility before retrying.</string>
+    <string name="notification_batch_details">View details</string>
+    <string name="notification_batch_hide_details">Hide details</string>
+    <string name="notification_batch_close">OK</string>
 </resources>

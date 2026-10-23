@@ -31,6 +31,18 @@ class NativeRootCommandTest {
         }
         assertTrue(failure.cause?.message?.contains("19") == true)
     }
+    @Test fun `nonzero helper exit retains bounded stdout and stderr for diagnostics`() {
+        val process = ProcessBuilder("sh", "-c", "printf 'HYPERTWEAK_BANNERS_ERROR SecurityException'; printf ' provider caller missing' >&2; exit 1")
+            .redirectErrorStream(true).start()
+        val failure = assertThrows(ExecutionException::class.java) {
+            NativeRootCommand.run("unused", maxBytes = 256, start = { process })
+        }
+        val command = failure.cause as NativeRootCommand.CommandFailure
+        assertEquals(1, command.exitCode)
+        assertEquals("HYPERTWEAK_BANNERS_ERROR SecurityException provider caller missing", command.output.toString(Charsets.UTF_8))
+        val next = ProcessBuilder("sh", "-c", "printf recovered").start()
+        assertEquals("recovered", NativeRootCommand.run("unused", start = { next }).toString(Charsets.UTF_8))
+    }
     @Test fun `quoted paths cannot evaluate shell substitutions or newline commands`() {
         val value = "odd'\n${'$'}(printf bad)`printf bad`"
         val process = ProcessBuilder("sh", "-c", "printf %s " + NativeRootCommand.quote(value)).start()
