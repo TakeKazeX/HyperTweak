@@ -32,8 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
@@ -67,6 +67,7 @@ fun HomeScreenContent(
     backdrop: LayerBackdrop,
     pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
+    onNavigateToDeviceInfo: () -> Unit,
     onNavigateToBatteryInfo: () -> Unit,
     onHotReload: () -> Unit,
     onRestartAllScopes: () -> Unit,
@@ -224,6 +225,12 @@ fun HomeScreenContent(
                         title = stringResource(R.string.home_device_system_title),
                         summary = stringResource(R.string.home_device_system_summary, Build.VERSION.RELEASE, Build.VERSION.SDK_INT)
                     )
+                    BasicComponent(
+                        title = stringResource(R.string.home_system_version_title),
+                        summary = Build.VERSION.INCREMENTAL.takeUnless { it.isBlank() || it == Build.UNKNOWN }
+                            ?: Build.DISPLAY.takeUnless { it.isBlank() || it == Build.UNKNOWN }
+                            ?: stringResource(R.string.battery_unavailable)
+                    )
                 }
             }
 
@@ -235,6 +242,11 @@ fun HomeScreenContent(
                     .padding(horizontal = 12.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.device_info_title),
+                        summary = stringResource(R.string.device_info_menu_summary),
+                        onClick = onNavigateToDeviceInfo
+                    )
                     ArrowPreference(
                         title = stringResource(R.string.battery_info_menu_title),
                         summary = stringResource(R.string.battery_info_menu_summary),
@@ -248,6 +260,7 @@ fun HomeScreenContent(
                         },
                         onClick = onNavigateToBatteryInfo
                     )
+
                     ArrowPreference(
                         title = stringResource(R.string.home_hidden_features),
                         summary = stringResource(R.string.home_hidden_features_summary),

@@ -45,6 +45,7 @@ import com.takekazex.hypertweak.ui.page.ControlCenterResizePage
 import com.takekazex.hypertweak.ui.page.DebugPage
 import com.takekazex.hypertweak.ui.page.DeveloperSettingsPage
 import com.takekazex.hypertweak.ui.page.BatteryInfoPage
+import com.takekazex.hypertweak.ui.page.DeviceInfoPage
 import com.takekazex.hypertweak.ui.page.DownloadManagerPage
 import com.takekazex.hypertweak.ui.page.LogsPage
 import com.takekazex.hypertweak.ui.page.AppearancePage
@@ -365,6 +366,9 @@ fun HyperTweakNavContainer(
                 },
                 onNavigateToControlCenterResize = {
                     navController.push(Route.ControlCenterResize)
+                },
+                onNavigateToDeviceInfo = {
+                    navController.push(Route.DeviceInfo)
                 },
                 onNavigateToBatteryInfo = {
                     navController.push(Route.BatteryInfo)
@@ -742,6 +746,12 @@ fun HyperTweakNavContainer(
                 onBack = {
                     navController.pop()
                 }
+            )
+        }
+        entry<Route.DeviceInfo> {
+            DeviceInfoPage(
+                onBack = { navController.pop() },
+                onBatteryInfo = { navController.push(Route.BatteryInfo) }
             )
         }
         entry<Route.BatteryInfo> {

@@ -173,6 +173,7 @@ object BatteryInfoReader {
             ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_charge_counter)} · charge_counter", BatteryInfoChannel.mah(intProperty(context, 1)) ?: context.getString(R.string.battery_unavailable))
         capacity += Row("${context.getString(R.string.battery_lbl_current)} · current_now", BatteryInfoChannel.ma(intProperty(context, 2)) ?: context.getString(R.string.battery_unavailable))
+        capacity += Row(context.getString(R.string.battery_lbl_hal_counter), snap(snap, BatteryInfoChannel.SLOT_CHARGE_COUNTER) ?: context.getString(R.string.battery_unavailable))
         sections += Section(context.getString(R.string.battery_sec_capacity), capacity)
 
         // 健康与寿命
@@ -190,6 +191,9 @@ object BatteryInfoReader {
         if (soh == null && cycleCount != null) {
             health += Row("${context.getString(R.string.battery_lbl_est_health)} · cycle", "${(100 - cycleCount / 20).coerceIn(0, 100)} %")
         }
+        health += Row(context.getString(R.string.battery_lbl_ui_soh), snap(snap, BatteryInfoChannel.SLOT_UI_SOH) ?: context.getString(R.string.battery_unavailable))
+        if (dual) health += Row(context.getString(R.string.battery_lbl_ui_slave_soh), snap(snap, BatteryInfoChannel.SLOT_UI_SLAVE_SOH) ?: context.getString(R.string.battery_unavailable))
+        health += Row(context.getString(R.string.battery_lbl_life_supported), snap(snap, BatteryInfoChannel.SLOT_BATTERY_LIFE_SUPPORTED) ?: context.getString(R.string.battery_unavailable))
         sections += Section(context.getString(R.string.battery_sec_health), health)
 
         // 标识
@@ -222,6 +226,15 @@ object BatteryInfoReader {
         charging += Row("${context.getString(R.string.battery_lbl_chg_type)} · charge_type", snap(snap, BatteryInfoChannel.SLOT_CHARGE_TYPE) ?: context.getString(R.string.battery_unavailable))
         charging += Row("${context.getString(R.string.battery_lbl_ibat)} · ibat", BatteryInfoChannel.ma(intProperty(context, BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)) ?: context.getString(R.string.battery_unavailable))
         charging += Row("${context.getString(R.string.battery_lbl_board_temp)} · board_temp", sysfsInt("$THERMAL_SYSFS/board_sensor_temp")?.let { "${it / 1000.0} °C" } ?: context.getString(R.string.battery_unavailable))
+        listOf(
+            R.string.battery_lbl_pogo to BatteryInfoChannel.SLOT_POGO_CONNECT,
+            R.string.battery_lbl_lpd to BatteryInfoChannel.SLOT_LPD_CHARGING,
+            R.string.battery_lbl_vbat to BatteryInfoChannel.SLOT_VBAT,
+            R.string.battery_lbl_charger_temp to BatteryInfoChannel.SLOT_CHARGER_TEMP,
+            R.string.battery_lbl_typec_port to BatteryInfoChannel.SLOT_TYPEC_PORT
+        ).forEach { (label, slot) ->
+            charging += Row(context.getString(label), snap(snap, slot) ?: context.getString(R.string.battery_unavailable))
+        }
         sections += Section(context.getString(R.string.battery_sec_charging), charging)
 
         return Reading(sections.filter { it.rows.isNotEmpty() }, snapshotStatus(snap))

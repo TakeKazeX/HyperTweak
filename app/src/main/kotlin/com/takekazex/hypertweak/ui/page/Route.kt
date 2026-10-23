@@ -41,6 +41,7 @@ sealed interface Route : NavKey {
     data object Debug : Route
     data object DeveloperSettings : Route
     data object DebugLogs : Route
+    data object DeviceInfo : Route
     data object BatteryInfo : Route
     data object Update : Route
 }
@@ -90,6 +91,7 @@ val Route.saveKey: String
         Route.Debug -> "Debug"
         Route.DeveloperSettings -> "DeveloperSettings"
         Route.DebugLogs -> "DebugLogs"
+        Route.DeviceInfo -> "DeviceInfo"
         Route.BatteryInfo -> "BatteryInfo"
         Route.Update -> "Update"
     }
@@ -134,6 +136,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "Debug" -> Route.Debug
     "DeveloperSettings" -> Route.DeveloperSettings
     "DebugLogs" -> Route.DebugLogs
+    "DeviceInfo" -> Route.DeviceInfo
     "BatteryInfo" -> Route.BatteryInfo
     "Update" -> Route.Update
     else -> null

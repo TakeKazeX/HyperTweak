@@ -10,11 +10,13 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
         data class File(val path: String) : Query
         data class Path(val key: String) : Query
         data class Method(val name: String) : Query
+        data class TypeC(val key: String) : Query
     }
 
     sealed interface Result {
         data class Value(val text: String) : Result
         data object Unsupported : Result
+        data object ContractMissing : Result
         data object Unavailable : Result
         data object TimedOut : Result
     }
@@ -32,7 +34,8 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
         val queries: List<Query>,
         val normalize: (String) -> String? = ::text,
         val slave: Boolean = false,
-        val charging: Boolean = false
+        val charging: Boolean = false,
+        val once: Boolean = false
     )
 
     private data class Entry(
@@ -87,12 +90,13 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
                 }
             }
             val failures = (old.failures + 1).coerceAtMost(5)
-            val retryAt = if (allUnsupported) STATIC else clock() + (RETRY_MS shl (failures - 1)).coerceAtMost(SLOW_MS)
+            val retryAt = if (allUnsupported || field.once) STATIC else clock() + (RETRY_MS shl (failures - 1)).coerceAtMost(SLOW_MS)
             cache[field.slot] = Entry(old.value, retryAt, failures)
             return old.value
         }
 
         val out = linkedMapOf<String, Value>()
+        HARDWARE_FIELDS.forEach { field -> get(field)?.let { out[field.slot] = it } }
         val topology = get(TOPOLOGY)
         topology?.let { out[TOPOLOGY.slot] = it }
         val dual = topology?.raw == "1"
@@ -128,7 +132,21 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
             it.isFinite() && it > 0 && it <= 100_000_000
         }?.let { raw }
         private fun percent(raw: String): String? = raw.toIntOrNull()?.takeIf { it in 0..100 }?.toString()
-        private fun bit(raw: String): String? = raw.takeIf { it == "0" || it == "1" }
+        private fun bit(raw: String): String? = when (raw.lowercase()) {
+            "true", "1" -> "1"
+            "false", "0" -> "0"
+            else -> null
+        }
+        internal fun sohList(raw: String): String? {
+            val body = raw.removePrefix("[").removeSuffix("]").trim()
+            if (body.isEmpty()) return null
+            val parts = body.split(Regex("[,\\s]+"))
+            if (parts.size != 11) return null
+            val values = parts.map { it.toIntOrNull()?.takeIf { n -> n >= 0 } ?: return null }
+            return values.joinToString(", ")
+        }
+        private fun voltage(raw: String): String? = raw.toIntOrNull()?.takeIf { it in 1..30_000 }?.toString()
+        private fun temperature(raw: String): String? = raw.toIntOrNull()?.takeIf { it in -50_000..200_000 }?.toString()
         private fun serial(raw: String): String? = raw.takeIf { it.length >= 4 && it.any { c -> c != '0' } }
         private fun date(raw: String): String? = runCatching {
             val format = if (raw.length == 8) DateTimeFormatter.BASIC_ISO_DATE else DateTimeFormatter.ISO_LOCAL_DATE
@@ -137,6 +155,13 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
 
         private val TOPOLOGY = Field(Channel.SLOT_BATTERY_NUM, STATIC,
             listOf(file("$FG/battery_num"), path("battery_num")), ::bit)
+
+        private val HARDWARE_FIELDS = listOf(
+            Field(Channel.SLOT_STORAGE_MODEL, STATIC, listOf(file("/sys/block/sda/device/model")), once = true),
+            Field(Channel.SLOT_STORAGE_LIFE, STATIC, listOf(file("/sys/block/sda/device/life_time")), once = true),
+            Field(Channel.SLOT_PANEL_NAME, STATIC, listOf(file("/sys/class/mi_display/disp-DSI-0/panel_info"),
+                    file("/sys/class/drm/card0-DSI-1/panel_info")), once = true)
+        )
 
         private val FIELDS = listOf(
             Field(Channel.SLOT_DESIGN_CAPACITY, STATIC,
@@ -182,6 +207,17 @@ internal class BatteryInfoSampler(private val source: Source, private val clock:
                 listOf(method("getChargingPowerMax")), ::nonNegative, charging = true),
             Field(Channel.SLOT_FCC, SLOW_MS,
                 listOf(file("$BATTERY/charge_full"), method("getBatteryChargeFull")), ::capacity),
+            Field(Channel.SLOT_CHARGE_COUNTER, LIVE_MS, listOf(path("charge_counter")), ::nonNegative),
+            Field(Channel.SLOT_UI_SOH, SLOW_MS, listOf(path("ui_soh")), ::sohList),
+            Field(Channel.SLOT_UI_SLAVE_SOH, SLOW_MS, listOf(path("ui_slave_soh")), ::sohList, slave = true),
+            Field(Channel.SLOT_POGO_CONNECT, LIVE_MS, listOf(path("pogo_connect")), ::bit),
+            Field(Channel.SLOT_LPD_CHARGING, LIVE_MS, listOf(path("lpd_charging"))),
+            Field(Channel.SLOT_VBAT, LIVE_MS, listOf(method("getBatteryVbat")), ::voltage),
+            Field(Channel.SLOT_BATTERY_LIFE_SUPPORTED, STATIC,
+                listOf(method("isBatteryLifeFunctionSupported")), ::bit),
+            Field(Channel.SLOT_CHARGER_TEMP, LIVE_MS,
+                listOf(file("/sys/class/thermal/thermal_message/charger_temp")), ::temperature, charging = true),
+            Field(Channel.SLOT_TYPEC_PORT, STATIC, listOf(Query.TypeC("getTypecPortNum")), ::nonNegative),
             Field(Channel.SLOT_PD_AUTH, LIVE_MS,
                 listOf(method("getPdAuthentication")), ::bit, charging = true)
         )

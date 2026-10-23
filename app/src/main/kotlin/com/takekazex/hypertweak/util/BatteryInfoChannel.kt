@@ -66,19 +66,36 @@ object BatteryInfoChannel {
     const val SLOT_TYPEC_PORT = "get_typec_port_num"
     const val SLOT_PD_AUTH = "get_pd_authentication"
 
+    const val SLOT_CHARGE_COUNTER = "charge_counter"
+    const val SLOT_UI_SOH = "ui_soh"
+    const val SLOT_UI_SLAVE_SOH = "ui_slave_soh"
+    const val SLOT_POGO_CONNECT = "pogo_connect"
+    const val SLOT_LPD_CHARGING = "lpd_charging"
+    const val SLOT_VBAT = "vbat"
+    const val SLOT_BATTERY_LIFE_SUPPORTED = "battery_life_supported"
+    const val SLOT_CHARGER_TEMP = "charger_temp"
+    const val SLOT_STORAGE_MODEL = "storage_model"
+    const val SLOT_STORAGE_LIFE = "storage_life"
+    const val SLOT_PANEL_NAME = "panel_name"
+
     val slots = setOf(
         SLOT_DESIGN_CAPACITY, SLOT_CYCLE_COUNT, SLOT_MODEL_NAME, SLOT_SERIAL_NUMBER,
         SLOT_FG1_DESIGN, SLOT_FG2_DESIGN, SLOT_FG1_RM, SLOT_FG2_RM, SLOT_FG1_SOH, SLOT_FG2_SOH,
         SLOT_FG1_CYCLE, SLOT_FG2_CYCLE, SLOT_BATTERY_SOH, SLOT_BATTERY_CYCLE,
         SLOT_MANUFACTURING_DATE, SLOT_FIRST_USAGE_DATE, SLOT_BATTERY_NUM, SLOT_SOH_SN,
         SLOT_FG2_SOH_SN, SLOT_AUTHENTIC, SLOT_SLAVE_AUTHENTIC, SLOT_CHARGE_TYPE,
-        SLOT_CHARGE_POWER, SLOT_IBAT, SLOT_FCC, SLOT_TYPEC_PORT, SLOT_PD_AUTH
+        SLOT_CHARGE_POWER, SLOT_IBAT, SLOT_FCC, SLOT_TYPEC_PORT, SLOT_PD_AUTH,
+        SLOT_CHARGE_COUNTER, SLOT_UI_SOH, SLOT_UI_SLAVE_SOH, SLOT_POGO_CONNECT,
+        SLOT_LPD_CHARGING, SLOT_VBAT, SLOT_BATTERY_LIFE_SUPPORTED, SLOT_CHARGER_TEMP,
+        SLOT_STORAGE_MODEL, SLOT_STORAGE_LIFE, SLOT_PANEL_NAME
     )
+
+    val hardwareSlots = setOf(SLOT_STORAGE_MODEL, SLOT_STORAGE_LIFE, SLOT_PANEL_NAME)
 
     enum class Status { MISSING, FRESH, STALE }
 
     fun status(values: Set<String>, validUntil: Map<String, Long>, now: Long): Status {
-        val present = values.intersect(slots)
+        val present = values.intersect(slots - hardwareSlots)
         if (present.isEmpty()) return Status.MISSING
         return if (present.all { now < (validUntil[it] ?: 0) }) Status.FRESH else Status.STALE
     }

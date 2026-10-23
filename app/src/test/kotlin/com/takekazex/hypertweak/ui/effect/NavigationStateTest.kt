@@ -15,7 +15,9 @@ class NavigationStateTest {
     @Test fun controllerUsesTheRestoredStackWithoutChangingSavedKeys() {
         listOf(
             listOf("Main", "SystemUi", "Appearance"),
-            listOf("Main", "Purification")
+            listOf("Main", "Purification"),
+            listOf("Main", "DeviceInfo", "BatteryInfo"),
+            listOf("Main", "BatteryInfo")
         ).forEach { saved ->
             val stack = saved.mapNotNull { routeFromSaveKey(it) as NavKey? }.toMutableStateList()
             val controller = NavController(stack)

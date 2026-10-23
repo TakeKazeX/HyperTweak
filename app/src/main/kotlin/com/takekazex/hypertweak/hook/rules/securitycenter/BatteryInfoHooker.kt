@@ -172,17 +172,22 @@ object BatteryInfoHooker : StaticHooker() {
     private fun format(slot: String, raw: String, zh: Boolean): String? = when (slot) {
         BatteryInfoChannel.SLOT_DESIGN_CAPACITY, BatteryInfoChannel.SLOT_FG1_DESIGN,
         BatteryInfoChannel.SLOT_FG2_DESIGN, BatteryInfoChannel.SLOT_FG1_RM,
-        BatteryInfoChannel.SLOT_FG2_RM, BatteryInfoChannel.SLOT_FCC -> BatteryInfoChannel.mah(raw.toDoubleOrNull())
+        BatteryInfoChannel.SLOT_FG2_RM, BatteryInfoChannel.SLOT_FCC,
+        BatteryInfoChannel.SLOT_CHARGE_COUNTER -> BatteryInfoChannel.mah(raw.toDoubleOrNull())
         BatteryInfoChannel.SLOT_CYCLE_COUNT, BatteryInfoChannel.SLOT_BATTERY_CYCLE,
         BatteryInfoChannel.SLOT_FG1_CYCLE, BatteryInfoChannel.SLOT_FG2_CYCLE -> if (zh) "$raw 次" else "$raw cycles"
         BatteryInfoChannel.SLOT_FG1_SOH, BatteryInfoChannel.SLOT_FG2_SOH,
         BatteryInfoChannel.SLOT_BATTERY_SOH -> "$raw %"
         BatteryInfoChannel.SLOT_MANUFACTURING_DATE, BatteryInfoChannel.SLOT_FIRST_USAGE_DATE -> BatteryInfoChannel.date(raw)
-        BatteryInfoChannel.SLOT_AUTHENTIC, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC ->
+        BatteryInfoChannel.SLOT_AUTHENTIC, BatteryInfoChannel.SLOT_SLAVE_AUTHENTIC,
+        BatteryInfoChannel.SLOT_POGO_CONNECT, BatteryInfoChannel.SLOT_BATTERY_LIFE_SUPPORTED ->
             if (zh) { if (raw == "1") "是" else "否" } else { if (raw == "1") "Yes" else "No" }
         BatteryInfoChannel.SLOT_PD_AUTH ->
             if (zh) { if (raw == "1") "已认证" else "未认证" } else { if (raw == "1") "Authenticated" else "Not authenticated" }
         BatteryInfoChannel.SLOT_CHARGE_POWER -> raw.toIntOrNull()?.takeIf { it > 0 }?.let { "$it W" }
+        BatteryInfoChannel.SLOT_VBAT -> raw.toIntOrNull()?.let { "${it / 1000.0} V" }
+        // The charger node unit varies by vendor; retain raw values until verified.
+        BatteryInfoChannel.SLOT_CHARGER_TEMP -> raw
         else -> raw
     }
 
@@ -213,15 +218,18 @@ object BatteryInfoHooker : StaticHooker() {
                 }
                 is BatteryInfoSampler.Query.Path -> invoke("getMiChargePath", query.key)
                 is BatteryInfoSampler.Query.Method -> invoke(query.name, null)
+                is BatteryInfoSampler.Query.TypeC -> invoke("getTypeCCommonInfo", query.key)
             }
         }
 
         private fun invoke(name: String, argument: String?): BatteryInfoSampler.Result {
             if (!classResolved) {
-                chargeClass = runCatching { Class.forName("miui.util.IMiCharge", false, context.classLoader) }.getOrNull()
+                chargeClass = runCatching { Class.forName("miui.util.IMiCharge", false, context.classLoader) }
+                    .onFailure { DebugLog.d(TAG, "platform contract missing: miui.util.IMiCharge (${it.javaClass.simpleName})") }
+                    .getOrNull()
                 classResolved = true
             }
-            val cls = chargeClass ?: return BatteryInfoSampler.Result.Unsupported
+            val cls = chargeClass ?: return BatteryInfoSampler.Result.ContractMissing
             if (!methods.containsKey(name)) {
                 methods[name] = runCatching {
                     if (argument == null) cls.getMethod(name) else cls.getMethod(name, String::class.java)
@@ -239,7 +247,8 @@ object BatteryInfoHooker : StaticHooker() {
                 if (raw == null && SystemClock.elapsedRealtime() - started >= 1_900) {
                     BatteryInfoSampler.Result.TimedOut
                 } else {
-                    raw?.toString()?.let { BatteryInfoSampler.Result.Value(it) } ?: BatteryInfoSampler.Result.Unavailable
+                    val text = if (raw is IntArray) raw.joinToString(", ") else raw?.toString()
+                    text?.let { BatteryInfoSampler.Result.Value(it) } ?: BatteryInfoSampler.Result.Unavailable
                 }
             } catch (failure: Exception) {
                 val cause = (failure as? InvocationTargetException)?.targetException ?: failure

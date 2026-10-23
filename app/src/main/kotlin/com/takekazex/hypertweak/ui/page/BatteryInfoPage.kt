@@ -190,14 +190,7 @@ private fun BatteryInfoRow(row: BatteryInfoReader.Row, onLongPress: () -> Unit) 
     val unavailable = stringResource(R.string.battery_unavailable)
     val unreadable = stringResource(R.string.battery_unreadable)
     val isNa = row.value == unavailable || row.value.startsWith(unavailable) || row.value == unreadable
-    // Long values (e.g. a 33-char serial) get a smaller font so they fit on one line in full.
-    val valueSp = when {
-        row.value.length >= 32 -> 9.sp
-        row.value.length >= 24 -> 10.sp
-        row.value.length >= 18 -> 11.sp
-        row.value.length >= 14 -> 12.sp
-        else -> 15.sp
-    }
+    val valueSp = 15.sp
     val keySp = when {
         key.length >= 16 -> 9.sp
         key.length >= 12 -> 10.sp
@@ -218,7 +211,7 @@ private fun BatteryInfoRow(row: BatteryInfoReader.Row, onLongPress: () -> Unit) 
                 text = name,
                 style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
                 color = MiuixTheme.colorScheme.onSurfaceContainer,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             if (key.isNotEmpty()) {
@@ -237,14 +230,13 @@ private fun BatteryInfoRow(row: BatteryInfoReader.Row, onLongPress: () -> Unit) 
             style = MiuixTheme.textStyles.body1.copy(fontSize = valueSp),
             color = if (isNa) MiuixTheme.colorScheme.onSurfaceVariantActions else MiuixTheme.colorScheme.onSurfaceContainer,
             textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            softWrap = true
         )
     }
 }
 
 private fun copyRow(context: Context, row: BatteryInfoReader.Row) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.battery_info_title), "${row.label}: ${row.value}"))
 }
 
@@ -258,6 +250,6 @@ private fun copyAll(context: Context, sections: List<BatteryInfoReader.Section>)
             section.rows.forEach { row -> appendLine("${row.label}: ${row.value}") }
         }
     }
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.battery_info_title), text))
 }

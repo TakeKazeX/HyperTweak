@@ -20,4 +20,10 @@ class BatteryInfoChannelTest {
         assertEquals(BatteryInfoChannel.Status.FRESH, BatteryInfoChannel.status(expiry.keys, expiry, 1_000))
         assertEquals(BatteryInfoChannel.Status.STALE, BatteryInfoChannel.status(expiry.keys, expiry, 3_000))
     }
+    @Test fun `static hardware alone does not imply a fresh battery snapshot`() {
+        assertEquals(BatteryInfoChannel.Status.MISSING,
+            BatteryInfoChannel.status(BatteryInfoChannel.hardwareSlots,
+                BatteryInfoChannel.hardwareSlots.associateWith { Long.MAX_VALUE }, 1_000))
+    }
+
 }

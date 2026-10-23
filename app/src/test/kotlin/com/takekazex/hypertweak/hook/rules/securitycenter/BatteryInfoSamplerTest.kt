@@ -28,8 +28,8 @@ class BatteryInfoSamplerTest {
 
     private fun slave(query: Query) = when (query) {
         is Query.File -> "/fg_slave/" in query.path || "slave_authentic" in query.path
-        is Query.Path -> query.key.startsWith("fg2_") || query.key == "slave_authentic"
-        is Query.Method -> false
+        is Query.Path -> query.key.startsWith("fg2_") || query.key == "slave_authentic" || query.key == "ui_slave_soh"
+        is Query.Method, is Query.TypeC -> false
     }
 
     @Test fun `no demand means no source reads`() {
@@ -146,14 +146,14 @@ class BatteryInfoSamplerTest {
         val h = Harness()
         h.responses[Query.Path("battery_num")] = Result.TimedOut
         h.collect()
-        assertEquals(listOf(Query.File("/sys/class/xm_power/fuelgauge/strategy_fg/battery_num"), Query.Path("battery_num")), h.calls)
+        assertEquals(listOf(Query.File("/sys/class/xm_power/fuelgauge/strategy_fg/battery_num"), Query.Path("battery_num")), h.calls.takeLast(2))
         h.now += 5_000
         h.collect()
-        assertEquals(2, h.calls.size)
+        assertEquals(1, h.count(Query.Path("battery_num")))
         h.now += BatteryInfoSampler.RETRY_MS
         h.value(Query.Path("battery_num"), "0")
         assertEquals("0", h.collect()[Channel.SLOT_BATTERY_NUM]?.raw)
-        assertTrue(h.calls.size > 2)
+        assertTrue(h.count(Query.Path("battery_num")) > 1)
     }
 
     @Test fun `stop during one source read prevents all subsequent reads`() {
@@ -206,4 +206,70 @@ class BatteryInfoSamplerTest {
         h.value(Query.Path("fg1_rm"), "5000000")
         assertEquals("5000000", h.collect()[Channel.SLOT_FG1_RM]?.raw)
     }
+    @Test fun `health arrays reject malformed lengths and values`() {
+        assertEquals("100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90",
+            BatteryInfoSampler.sohList("[100,99,98,97,96,95,94,93,92,91,90]"))
+        for (raw in listOf("", "99", "1,2", "[-1,0,0,0,0,0,0,0,0,0,0]")) {
+            assertNull(raw, BatteryInfoSampler.sohList(raw))
+        }
+    }
+
+    @Test fun `new live readings normalize booleans and reject invalid voltages`() {
+        val h = Harness()
+        h.value(Query.Method("isBatteryLifeFunctionSupported"), "true")
+        h.value(Query.Path("pogo_connect"), "false")
+        h.value(Query.Method("getBatteryVbat"), "4200")
+        h.value(Query.Path("charge_counter"), "0")
+        val values = h.collect()
+        assertEquals("1", values[Channel.SLOT_BATTERY_LIFE_SUPPORTED]?.raw)
+        assertEquals("0", values[Channel.SLOT_POGO_CONNECT]?.raw)
+        assertEquals("4200", values[Channel.SLOT_VBAT]?.raw)
+        assertEquals("0", values[Channel.SLOT_CHARGE_COUNTER]?.raw)
+        h.now += BatteryInfoSampler.LIVE_MS
+        h.value(Query.Method("getBatteryVbat"), "4200000")
+        assertEquals(values[Channel.SLOT_VBAT], h.collect()[Channel.SLOT_VBAT])
+    }
+
+    @Test fun `platform contract failure remains distinct from unsupported field`() {
+        val h = Harness()
+        val query = Query.Path("charge_counter")
+        h.responses[query] = Result.ContractMissing
+        h.collect()
+        h.now += BatteryInfoSampler.RETRY_MS
+        h.collect()
+        assertEquals(2, h.count(query))
+    }
+
+    @Test fun `health array checksum is preserved above one hundred`() {
+        assertEquals("96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 159",
+            BatteryInfoSampler.sohList("96 0 0 0 0 0 0 0 0 0 159"))
+    }
+
+    @Test fun `static hardware is attempted once even when permission denied`() {
+        val h = Harness()
+        val model = Query.File("/sys/block/sda/device/model")
+        h.responses[model] = Result.Unavailable
+        h.collect()
+        h.now += 10 * BatteryInfoSampler.SLOW_MS
+        h.collect()
+        assertEquals(1, h.count(model))
+    }
+
+    @Test fun `static hardware survives a battery HAL timeout`() {
+        val h = Harness()
+        h.value(Query.File("/sys/block/sda/device/model"), "UFS MODEL")
+        h.responses[Query.Path("battery_num")] = Result.TimedOut
+        assertEquals("UFS MODEL", h.collect()[Channel.SLOT_STORAGE_MODEL]?.raw)
+    }
+
+    @Test fun `type c uses the generic platform entry and is cached`() {
+        val h = Harness()
+        val query = Query.TypeC("getTypecPortNum")
+        h.value(query, "1")
+        assertEquals("1", h.collect()[Channel.SLOT_TYPEC_PORT]?.raw)
+        h.now += BatteryInfoSampler.SLOW_MS
+        h.collect()
+        assertEquals(1, h.count(query))
+    }
+
 }
