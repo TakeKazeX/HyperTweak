@@ -52,6 +52,12 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
+    var hideDolbyPopup by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
+    }
+    var hideGamePopup by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false))
+    }
     var dockUnlimited by rememberSaveable {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false))
     }
@@ -292,6 +298,24 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
 
             SmallTitle(stringResource(R.string.security_center_dock_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = hideGamePopup,
+                    onCheckedChange = {
+                        hideGamePopup = it
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, it)
+                    },
+                    title = stringResource(R.string.security_center_hide_game_popup),
+                    summary = stringResource(R.string.security_center_hide_game_popup_summary)
+                )
+                SwitchPreference(
+                    checked = hideDolbyPopup,
+                    onCheckedChange = {
+                        hideDolbyPopup = it
+                        Preferences.putBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, it)
+                    },
+                    title = stringResource(R.string.security_center_hide_dolby_popup),
+                    summary = stringResource(R.string.security_center_hide_dolby_popup_summary)
+                )
                 SwitchPreference(
                     checked = dockUnlimited,
                     onCheckedChange = {

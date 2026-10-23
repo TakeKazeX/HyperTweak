@@ -19,6 +19,7 @@ internal object RuntimeSettingsGroups {
     const val GESTURE_BAR = "system.gesture_bar"
     const val GESTURE_BAR_UI = "systemui.gesture_bar"
     const val APP_DETAILS = "securitycenter.app_details"
+    const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
     const val SECURITY_DOCK = "securitycenter.dock"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val OFFLINE_CONFIG = "carrier.offline_config"
@@ -74,6 +75,8 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, Preferences.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
+        Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
         Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
         Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS,
         Preferences.KEY_XIAOAI_GESTURE_OPTIONS,
@@ -141,6 +144,9 @@ internal object RuntimeSettingsGroups {
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == Preferences.KEY_XIAOAI_GESTURE_OPTIONS },
         SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == Preferences.KEY_SHARE_PANEL_SHOW_ALL },
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == Preferences.KEY_APP_DETAILS_ICON_LAUNCH },
+        SECURITY_POPUPS to Group(setOf("com.miui.securitycenter")) {
+            it == Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP || it == Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
+        },
         SECURITY_DOCK to Group(setOf("com.miui.securitycenter")) {
             it == Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED ||
                 it == Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS || it == Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT

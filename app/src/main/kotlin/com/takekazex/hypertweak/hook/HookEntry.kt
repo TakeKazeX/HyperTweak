@@ -83,6 +83,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPopupHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHost
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyChecksHooker
@@ -237,6 +238,9 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
                 if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
                 true
+            }
+            registerForProcess(RuntimeSettingsGroups.SECURITY_POPUPS) { _ ->
+                if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterPopupHooker.refreshSettings() else true
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK) { _ ->
                 if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterDockHooker.refreshSettings() else true
@@ -1373,6 +1377,7 @@ class HookEntry : XposedModule() {
                     }
                     if (processName == SecurityCenterDockHost.PROCESS) {
                         attachHooker(SecurityCenterDockHooker, classLoader, ctx, replacementHandles)
+                        attachHooker(SecurityCenterPopupHooker, classLoader, ctx, replacementHandles)
                     }
                     if (processName == packageName) {
                         attachHooker(AppDetailsIconLaunchHooker, classLoader, ctx, replacementHandles)

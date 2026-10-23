@@ -1639,4 +1639,8 @@
     <string name="security_center_dock_predictions_summary">Default: 8. Independent of pinned additions; 0 hides predictions. Extra apps scroll within the panel.</string>
     <string name="security_center_dock_unlimited_predictions">Show predictions beyond 16 apps</string>
     <string name="security_center_dock_unlimited_predictions_summary">Allow predicted apps beyond the 16-app display limit. The slider still controls their count.</string>
+    <string name="security_center_hide_game_popup">Hide Berserk mode popups</string>
+    <string name="security_center_hide_game_popup_summary">Hide game launch awareness cards and Berserk mode tips</string>
+    <string name="security_center_hide_dolby_popup">Hide Dolby popups</string>
+    <string name="security_center_hide_dolby_popup_summary">Hide the sidebar tip that Dolby Atmos is on</string>
 </resources>

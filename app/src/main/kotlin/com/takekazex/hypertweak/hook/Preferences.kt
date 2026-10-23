@@ -285,6 +285,8 @@ object Preferences {
     /** Skips Security Center's four verified local File.exists() su probes. */
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED = "securitycenter_dock_unlimited_pinned"
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS = "securitycenter_dock_unlimited_predictions"
+    const val KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP = "securitycenter_hide_dolby_popup"
+    const val KEY_SECURITY_CENTER_HIDE_GAME_POPUP = "securitycenter_hide_game_popup"
     const val KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT = "securitycenter_dock_predict_limit"
     const val KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK = "securitycenter_skip_local_su_check"
     /** Disables the independent SafePay automatic app-scan preference. */

@@ -1630,4 +1630,8 @@
     <string name="security_center_dock_predictions_summary">原生默认 8 个，与固定应用开关独立；0 为不显示，超出面板高度时滚动显示</string>
     <string name="security_center_dock_unlimited_predictions">无限制显示预测应用</string>
     <string name="security_center_dock_unlimited_predictions_summary">预测应用不受总共 16 个应用的显示限制，数量仍由下方滑条调整</string>
+    <string name="security_center_hide_game_popup">关闭狂暴模式弹窗</string>
+    <string name="security_center_hide_game_popup_summary">隐藏游戏启动感知卡片与狂暴模式提示</string>
+    <string name="security_center_hide_dolby_popup">关闭杜比弹窗</string>
+    <string name="security_center_hide_dolby_popup_summary">隐藏侧边栏的杜比全景声已开启提示</string>
 </resources>
