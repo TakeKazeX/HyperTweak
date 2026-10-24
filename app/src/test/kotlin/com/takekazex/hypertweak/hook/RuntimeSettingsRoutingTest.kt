@@ -6,6 +6,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun nativePickerSwitchesMigrateIndependentlyAndResetWithTheirOwnRoutes() {
+        val legacy = Preferences.KEY_NATIVE_PICKER
+        val photo = Preferences.KEY_NATIVE_PHOTO_PICKER
+        val file = Preferences.KEY_NATIVE_FILE_PICKER
+        val groups = setOf(Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER)
+        assertEquals(groups, Groups.affected(legacy))
+        assertEquals(setOf(Groups.NATIVE_PHOTO_PICKER), Groups.affected(photo))
+        assertEquals(setOf(Groups.NATIVE_FILE_PICKER), Groups.affected(file))
+        assertTrue(Groups.forProcess("system_server", true).containsAll(groups))
+        assertEquals(setOf(Groups.NATIVE_FILE_PICKER), Groups.forProcess("com.android.photopicker"))
+        assertFalse(Groups.owns("com.android.photopicker", photo))
+        assertFalse(Groups.owns("com.android.providers.media.module", file))
+        for (key in listOf(legacy, photo, file)) {
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), groups))
+        }
+        val ledger = RuntimeSettingsLedger().also {
+            it.restore(arrayOf<Any>(1L, hashMapOf(legacy to true), arrayListOf("system.native_picker")))
+        }
+        assertEquals(true, ledger.value(legacy))
+        fun enabled(key: String) = com.takekazex.hypertweak.hook.rules.system.PickerReroutePolicy.enabled(
+            ledger.value(key) as? Boolean, ledger.value(legacy) as? Boolean ?: false)
+        val on = RuntimeSettingsSnapshot.read(2, mapOf(legacy to true), groups)!!
+        assertTrue(ledger.accept(on))
+        assertTrue(enabled(photo))
+        assertTrue(enabled(file))
+        val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(true, replacement.value(legacy))
+        val photoOff = on.mutate(photo, false, 3)!!
+        assertEquals(setOf(Groups.NATIVE_PHOTO_PICKER), ledger.changedGroups(photoOff))
+        assertTrue(ledger.accept(photoOff))
+        assertFalse(enabled(photo))
+        assertTrue(enabled(file))
+        assertTrue(ledger.accept(photoOff.mutate(file, false, 4)!!))
+        assertFalse(enabled(file))
+        assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(5, emptyMap<String, Any>(), groups)!!))
+        assertFalse(enabled(photo))
+        assertFalse(enabled(file))
+        assertFalse(ledger.accept(on))
+    }
+
     @Test fun settingsAiEntriesAreIndependentAndSurviveUpgradeDisableAndReset() {
         val model = Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY
         val gemini = Preferences.KEY_SETTINGS_GEMINI_ENTRY
@@ -169,7 +209,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT),
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

@@ -16,6 +16,14 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For native photo/file picker routing, run `PickerReroute*` and runtime-settings JVM
+regressions with `PICKER_APK`, `PICKER_SERVICES` and `PICKER_MIUI_SERVICES` set to the
+verified Photopicker APK, services.jar and miui-services.jar. The host tests verify the
+private vendor helper and its caller, the PM nine-argument overload, and Hyper's browse
+component chain. After the release build, inspect retained host class/method strings and
+both scope declarations. User checks cover new media/file requests, Hyper browse, disable,
+reset and module upgrade; existing picker windows must be reopened.
+
 For Copy Direct browser routing, set `AICR_APK` to the verified installed AI engine APK when
 running the AICR tests. `AicrPanelDispatchHostContractTest` verifies the unique native AI Panel
 handler reads ToolRequest input before serializing/reporting its EventManager event. An unused

@@ -42,6 +42,15 @@ there is no injected-process destination or boot-time replay. The two Preference
 verified device mirrors, excluded from portable backups. Module reset/restore does not alter
 these device-persistent properties; entering the page reads actual state, including after upgrades.
 
+AOSP / International Restore exposes independent native photo/file picker switches.
+`NativePhotoPickerHooker` filters Hyper candidates only for implicit media picker queries;
+explicit components and packages remain usable. `NativeFilePickerHooker` bypasses the private
+vendor OPEN_DOCUMENT rewrite and redirects Hyper's Browse action through OPEN_DOCUMENT.
+Each hooker owns its installation and live cached flag. Missing independent keys inherit the
+legacy `KEY_NATIVE_PICKER`, while explicit false wins. Photo needs `system`; file additionally
+needs `com.android.photopicker` scope. Changes affect subsequent requests, so active pickers
+must be reopened. See `docs/PICKER_REROUTE_RESEARCH_20261024.md`.
+
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.
 `NavController` centralizes push/pop while `Route.saveKey` keeps the restored stack stable across
 updates; Miuix owns gesture cancellation,

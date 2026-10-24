@@ -117,6 +117,7 @@ fun AospRestorePage(
             SmallTitle(stringResource(R.string.aosp_section_system))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    NativePickerPreferences()
                     SwitchPreference(
                         checked = packageInstaller,
                         onCheckedChange = { enabled ->

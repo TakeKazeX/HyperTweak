@@ -91,6 +91,8 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyCh
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterUsbInstallNetworkVerifyHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.CarrierOfflineConfigHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
+import com.takekazex.hypertweak.hook.rules.system.NativePhotoPickerHooker
+import com.takekazex.hypertweak.hook.rules.system.NativeFilePickerHooker
 import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
 import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
 import com.takekazex.hypertweak.hook.rules.system.ThemeDrmRevalidationHooker
@@ -216,6 +218,12 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.ICONS) { keys ->
                 if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings(keys) }
                 finally { iconSettingsLock.unlock() }
+            }
+            registerForProcess(RuntimeSettingsGroups.NATIVE_PHOTO_PICKER) { _ ->
+                NativePhotoPickerHooker.refreshSettings(); true
+            }
+            registerForProcess(RuntimeSettingsGroups.NATIVE_FILE_PICKER) { _ ->
+                NativeFilePickerHooker.refreshSettings(); true
             }
             registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
                 com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
@@ -1226,6 +1234,8 @@ class HookEntry : XposedModule() {
         attachHooker(CircleToSearchGestureHooker, classLoader, ctx, replacementHandles)
         attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
         attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
+        attachHooker(NativePhotoPickerHooker, classLoader, ctx, replacementHandles)
+        attachHooker(NativeFilePickerHooker, classLoader, ctx, replacementHandles)
         attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
         // AON visual-perception runtime gates (感知锁屏/靠近亮屏/非注视感知) are resource bools read by
         // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
@@ -1542,6 +1552,9 @@ class HookEntry : XposedModule() {
                 attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderEnvironmentCheckHooker, classLoader, ctx, replacementHandles)
                 attachHooker(GuardProviderUploadAppListHooker, classLoader, ctx, replacementHandles)
+            }
+            "com.android.photopicker" -> {
+                attachHooker(NativeFilePickerHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.intentresolver" -> {
                 attachHooker(SharePanelHooker, classLoader, ctx, replacementHandles)

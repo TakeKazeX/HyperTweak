@@ -394,6 +394,11 @@ object Preferences {
     const val KEY_UNLOCK_THIRD_PARTY_DARK_MODE = "unlock_third_party_dark_mode"
 
     // AOSP restore.
+    /** Legacy combined switch: absent independent keys inherit it on upgrade. */
+    const val KEY_NATIVE_PICKER = "native_picker"
+    const val KEY_NATIVE_PHOTO_PICKER = "native_photo_picker"
+    const val KEY_NATIVE_FILE_PICKER = "native_file_picker"
+
     /**
      * Hands package installs back to the AOSP installer. Relaxes MIUI install verification while
      * the installer-selection methods run; see `AospPackageInstallerHooker`.
@@ -1956,6 +1961,13 @@ object Preferences {
         memoPut(key, value)
         return value
     }
+
+    /** Explicit false must beat the legacy combined switch, including runtime snapshot reset. */
+    fun nativePickerEnabled(key: String): Boolean =
+        com.takekazex.hypertweak.hook.rules.system.PickerReroutePolicy.enabled(
+            if (contains(key)) getBoolean(key, false) else null,
+            getBoolean(KEY_NATIVE_PICKER, false)
+        )
 
     /**
      * Reads one scoped fingerprint-hiding switch while preserving the original aggregate switch

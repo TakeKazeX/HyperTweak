@@ -10,6 +10,9 @@ import com.takekazex.hypertweak.dock.DockConfig
 internal object RuntimeSettingsGroups {
     const val ICONS = "systemui.icons"
     const val ISLANDS = "systemui.islands"
+    const val NATIVE_PHOTO_PICKER = "system.native_photo_picker"
+    // Retain the aggregate group ID so pre-split saved snapshots remain readable.
+    const val NATIVE_FILE_PICKER = "system.native_picker"
     const val FORCE_SCREENSHOT = "system.force_screenshot"
     const val SCREENSHOT = "screenshot.frame"
     const val BACK = "gesture.back"
@@ -93,6 +96,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, Preferences.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_NATIVE_PICKER, Preferences.KEY_NATIVE_PHOTO_PICKER, Preferences.KEY_NATIVE_FILE_PICKER,
         Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
         Preferences.KEY_SETTINGS_GEMINI_ENTRY,
         Preferences.KEY_FORCE_SCREENSHOT,
@@ -141,6 +145,12 @@ internal object RuntimeSettingsGroups {
         // The battery monitor lives in SystemUI; charging itself is handled by the AOD/battery rules.
         LOCKSCREEN to Group(systemUi) { it in SystemUiLiveSettings.LOCKSCREEN_KEYS },
         POWER_SAVE to Group(systemUi) { it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED || it == Preferences.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD || it == Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING },
+        NATIVE_PHOTO_PICKER to Group(setOf("android")) {
+            it == Preferences.KEY_NATIVE_PHOTO_PICKER || it == Preferences.KEY_NATIVE_PICKER
+        },
+        NATIVE_FILE_PICKER to Group(setOf("android", "com.android.photopicker")) {
+            it == Preferences.KEY_NATIVE_FILE_PICKER || it == Preferences.KEY_NATIVE_PICKER
+        },
         FORCE_SCREENSHOT to Group(setOf("android")) { it == Preferences.KEY_FORCE_SCREENSHOT },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {
             it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE ||
