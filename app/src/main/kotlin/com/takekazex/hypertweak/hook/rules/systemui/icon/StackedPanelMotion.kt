@@ -32,6 +32,7 @@ internal class StackedPanelMotion(private val callback: Any) {
     private var progress = 0f
     private var rows: List<DuoSignalRow> = emptyList()
     private var picture: Picture? = null
+    private var splitFraction: Float? = null
     private val crop = RectF()
     private val sourceBounds = RectF()
     private val listener = ViewTreeObserver.OnPreDrawListener {
@@ -39,8 +40,8 @@ internal class StackedPanelMotion(private val callback: Any) {
         true
     }
 
-    fun update(nextRows: List<DuoSignalRow>, commands: Picture?, fraction: Float?, showing: Boolean?) {
-        rows = nextRows; picture = commands
+    fun update(nextRows: List<DuoSignalRow>, commands: Picture?, fraction: Float?, showing: Boolean?, stackedSplitFraction: Float?) {
+        rows = nextRows; picture = commands; splitFraction = stackedSplitFraction
         fraction?.takeIf { it.isFinite() }?.let { progress = it.coerceIn(0f, 1f); if (it > 0f) visible = true }
         showing?.let { visible = it }
         if (!visible || picture == null || rows.isEmpty()) { clear(); return }
@@ -65,6 +66,8 @@ internal class StackedPanelMotion(private val callback: Any) {
     private fun render() {
         val host = root ?: return
         val commands = picture ?: return
+        val split = splitFraction?.takeIf { it.isFinite() && it > 0f && it < 1f }
+            ?: run { clearLayers(); return }
         if (!host.isAttachedToWindow) { clear(); return }
         val owner = read(callback, "this\$0") ?: return
         val real = read(owner, "realSystemIcons") as? View ?: return
@@ -103,8 +106,8 @@ internal class StackedPanelMotion(private val callback: Any) {
                 }
                 targets[row.subId] = target
             }
-            val top = if (rows.size > 1 && index == 1) .632f else 0f
-            val bottom = if (rows.size > 1 && index == 0) .632f else 1f
+            val top = if (rows.size > 1 && index == 1) split else 0f
+            val bottom = if (rows.size > 1 && index == 0) split else 1f
             crop.set(0f, top * commands.height, commands.width.toFloat(), bottom * commands.height)
             sourceBounds.set(drawable.bounds)
             source.imageMatrix.mapRect(sourceBounds)

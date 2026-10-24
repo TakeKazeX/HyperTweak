@@ -52,7 +52,6 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         "com.android.systemui.media.controls.ui.controller.MediaControlPanel"
     private const val AOSP_MEDIA_HOLDER =
         "com.android.systemui.media.controls.ui.view.MediaViewHolder"
-    private const val SYSTEMUI_IDS = "com.android.systemui.R\$id"
 
     private val mediaSwitchResourceNames = setOf(
         "media_seamless",

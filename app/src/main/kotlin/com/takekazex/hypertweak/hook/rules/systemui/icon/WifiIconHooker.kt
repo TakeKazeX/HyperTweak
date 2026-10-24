@@ -482,14 +482,4 @@ object WifiIconHooker : StaticHooker() {
     private fun readInt(target: Any?, name: String): Int? =
         (readField(target, name) as? Number)?.toInt()
 
-    private fun findField(type: Class<*>, name: String): Field? {
-        var current: Class<*>? = type
-        while (current != null) {
-            runCatching {
-                return current.getDeclaredField(name).apply { isAccessible = true }
-            }
-            current = current.superclass
-        }
-        return null
-    }
 }

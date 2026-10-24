@@ -14,6 +14,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideSelection
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSavePolicy
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
@@ -745,14 +746,29 @@ object Preferences {
     const val KEY_ICON_DUO_BATTERY_SCALE = "icon_duo_battery_scale"
     const val KEY_ICON_DUO_PERCENT_SCALE = "icon_duo_percent_scale"
 
+    const val KEY_ICON_STACKED_SIGNAL_STYLE = "icon_stacked_signal_style"
+    private const val LEGACY_KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
+
+    /** Compatibility read only: new 0/1 wins; old stacked 3 selects the surviving iOS family. */
+    fun iconStackedSignalStyle(): Int {
+        if (RuntimeSettingsStore.owns(KEY_ICON_STACKED_SIGNAL_STYLE)) {
+            val values = RuntimeSettingsStore.values().orEmpty()
+            return SignalSvgStyle.resolve(
+                values.containsKey(KEY_ICON_STACKED_SIGNAL_STYLE),
+                values[KEY_ICON_STACKED_SIGNAL_STYLE] as? Int,
+                values[LEGACY_KEY_ICON_STACKED_SVG_STACKED] as? Int
+            ).storedValue
+        }
+        val currentPresent = contains(KEY_ICON_STACKED_SIGNAL_STYLE)
+        return SignalSvgStyle.resolve(
+            currentPresent,
+            if (currentPresent) runCatching { getInt(KEY_ICON_STACKED_SIGNAL_STYLE, 0) }.getOrDefault(0) else null,
+            if (!currentPresent) runCatching { getInt(LEGACY_KEY_ICON_STACKED_SVG_STACKED, 0) }.getOrDefault(0) else null
+        ).storedValue
+    }
 
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_WEIGHT = "icon_tuner_stacked_weight"
-    const val KEY_ICON_STACKED_SCALE = "icon_stacked_scale"
-    const val KEY_ICON_STACKED_SVG_SINGLE = "icon_tuner_stacked_icon_svg_single"
-    const val KEY_ICON_STACKED_SVG_SINGLE_NAME = "icon_tuner_stacked_icon_svg_single_name"
-    const val KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
-    const val KEY_ICON_STACKED_SVG_STACKED_NAME = "icon_tuner_stacked_icon_svg_stacked_name"
     const val KEY_ICON_STACKED_ALPHA_FG = "icon_tuner_stacked_icon_alpha_fg"
     const val KEY_ICON_STACKED_ALPHA_BG = "icon_tuner_stacked_icon_alpha_bg"
     const val KEY_ICON_STACKED_ALPHA_ERROR = "icon_tuner_stacked_icon_alpha_error"
@@ -774,13 +790,10 @@ object Preferences {
      * migration source for [cellularTypeKeepsOnWifi].
      */
     const val KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI = "icon_tuner_cellular_type_keep_on_wifi"
-    const val KEY_ICON_STACKED_TYPE_SHOW_SINGLE = "stacked_s_type_show_single"
-    const val KEY_ICON_STACKED_TYPE_SHOW_STACKED = "stacked_s_type_show_stacked"
     const val KEY_ICON_STACKED_TYPE_ROAMING = "stacked_s_type_roaming"
     const val KEY_ICON_STACKED_TYPE_SIZE = "icon_tuner_stacked_type_size_val"
     const val KEY_ICON_STACKED_TYPE_WEIGHT = "stacked_s_type_weight_val"
     const val KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT = "sb_font_stacked_type_single_weight"
-    const val KEY_ICON_STACKED_TYPE_BADGE_SIZE = "stacked_s_type_size"
     const val KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED = "sb_font_stacked_type_width_condensed"
     const val KEY_ICON_STACKED_TYPE_PADDING_START = "icon_tuner_stacked_type_padding_left_val"
     const val KEY_ICON_STACKED_TYPE_PADDING_END = "icon_tuner_stacked_type_padding_right_val"
@@ -977,10 +990,6 @@ object Preferences {
             remove(KEY_CAMERA_LEGENDARY_MOMENT)
         }
     }
-
-    /** True when [key] exists in the authoritative remote store (memo bypassed). */
-    private fun containsKey(key: String): Boolean =
-        isInitialized && runCatching { remotePrefs.contains(key) }.getOrDefault(false)
 
     // Media-editor watermark unlock (com.miui.mediaeditor). See
     // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
@@ -1443,6 +1452,16 @@ object Preferences {
      */
     private const val KEY_PREFS_EPOCH = "prefs_epoch"
     private const val INITIAL_EPOCH = 0L
+
+    /** Module-page saveable state identity; unavailable storage must not invalidate pending edits. */
+    fun settingsEpochForUi(): Long? {
+        if (isInitialized) runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }
+            .getOrNull()?.let { return it }
+        runCatching { localSourcePrefs?.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }
+            .getOrNull()?.let { return it }
+        return runCatching { getLocalCache()?.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }.getOrNull()
+    }
+
     private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
     private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
     private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
@@ -1839,7 +1858,6 @@ object Preferences {
         }
     }
 
-
     /**
      * Blocks until every queued remote write has been applied. The remote copy lives in the
      * LSPosed daemon and is written asynchronously through [serializedWriter], so a hooked
@@ -2176,7 +2194,6 @@ object Preferences {
         else runCatching { serializedWriter.submit<Boolean> { commit() }.get() }
             .onFailure { DebugLog.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
     }
-
 
     /**
      * Writes a string and waits for the remote preferences commit to finish. This is used for

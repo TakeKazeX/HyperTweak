@@ -16,6 +16,17 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For stacked cellular signal artwork, run the `SignalSvgStyle`, `PreferencesSignalSvgStyle`,
+`SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileTypePolicy` and
+`IconTunerPreferenceState` JVM regressions plus the shared settings/hot-reload tests.
+UI/lifecycle changes also require lint and a release build. Inspect all APK DEX files for the
+new `icon_stacked_signal_style` key and the retained old stacked compatibility key; verify
+five bundled SVGs and SHA256SUMS, without iOS26 or the removed internal type-badge settings.
+The geometry test reads real SVG paths and verifies stroke-expanded per-SIM crops; it does
+not prove visible handoff quality. Device acceptance is user-driven: both styles, control-center
+handoff, enable/disable, reset/restore and upgrading existing hosts. Do not automate device UI
+or equate asset-loading/HOOK_OK logs with visible correctness.
+
 For native photo/file picker routing, run `PickerReroute*` and runtime-settings JVM
 regressions with `PICKER_APK`, `PICKER_SERVICES` and `PICKER_MIUI_SERVICES` set to the
 verified Photopicker APK, services.jar and miui-services.jar. The host tests verify the

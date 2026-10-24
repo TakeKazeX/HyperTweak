@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
 import androidx.compose.ui.semantics.contentDescription
@@ -33,7 +34,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
     val context = LocalContext.current
     val artwork = remember(context) {
         val repository = IconSvgRepository(context)
-        repository.loadSignalSingle(0).getOrNull()?.document to repository.loadSignalStacked(0).getOrNull()?.document
+        repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull()?.document to repository.loadSignalStacked(SignalSvgStyle.HYPEROS3).getOrNull()?.document
     }
     val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane) {
         listOf(

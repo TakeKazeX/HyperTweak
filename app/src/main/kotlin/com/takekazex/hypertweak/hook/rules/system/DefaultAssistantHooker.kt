@@ -463,11 +463,6 @@ object DefaultAssistantHooker : StaticHooker() {
             .getOrNull()
             ?.takeIf { it.isNotEmpty() }
 
-    private fun currentVoiceServiceSetting(context: Context): String? =
-        runCatching { Settings.Secure.getString(context.contentResolver, SETTING_VOICE_SERVICE) }
-            .getOrNull()
-            ?.takeIf { it.isNotEmpty() }
-
     /**
      * system_server's own context. This hooker runs in system_server, which has no Application, so
      * `ActivityThread.currentApplication()` is null here; `getSystemContext()` is the usable one.

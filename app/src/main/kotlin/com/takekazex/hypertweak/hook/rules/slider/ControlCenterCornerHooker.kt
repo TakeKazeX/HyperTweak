@@ -296,13 +296,6 @@ class ControlCenterCornerHooker(
             .onFailure { t -> Log.e("HyperTweak", "CC corner: blur outline ${view.javaClass.simpleName}", t) }
     }
 
-    /** Full corner application: GradientDrawables + blur round-rect + outline invalidation. */
-    private fun applyViewCorner(view: View, radius: Float) {
-        setDrawableCorner(view, radius)
-        applyBlurOutline(view, radius)
-        view.invalidateOutline()
-    }
-
     // ─── Reading prefs ────────────────────────────────────────────────────────────
 
     /**

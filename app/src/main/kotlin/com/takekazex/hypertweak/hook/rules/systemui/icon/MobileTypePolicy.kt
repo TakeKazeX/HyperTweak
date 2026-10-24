@@ -8,14 +8,10 @@ data class MobileTypeConfig(
      * instead of absent, so the renderer keeps its box and fades the alpha.
      */
     val hideWhenWifiAvailable: Boolean = false,
-    val showSingleBadge: Boolean = false,
-    val showStackedBadge: Boolean = false,
     val showRoamingPrefix: Boolean = false,
     val textSizeSp: Float = 14f,
     val weight: Int = 630,
     val singleWeight: Int = 400,
-    val badgeTextSizeSp: Float = 7.16f,
-    val badgeWeight: Int = 630,
     val condensedWidthPercent: Int = 80,
     val paddingStartSp: Float = 2f,
     val paddingEndSp: Float = 2f,
@@ -27,8 +23,6 @@ data class MobileTypeConfig(
         textSizeSp = textSizeSp.takeIf(Float::isFinite)?.coerceIn(1f, 48f) ?: 14f,
         weight = weight.coerceIn(100, 900),
         singleWeight = singleWeight.coerceIn(100, 900),
-        badgeTextSizeSp = badgeTextSizeSp.takeIf(Float::isFinite)?.coerceIn(1f, 24f) ?: 7.16f,
-        badgeWeight = badgeWeight.coerceIn(100, 900),
         condensedWidthPercent = condensedWidthPercent.coerceIn(40, 100),
         paddingStartSp = paddingStartSp.takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 2f,
         paddingEndSp = paddingEndSp.takeIf(Float::isFinite)?.coerceIn(0f, 48f) ?: 2f,
@@ -72,12 +66,6 @@ object MobileTypePolicy {
             raw
         }
         return MobileTypeOutput(text, state.subscriptionOrder.size == 1, roaming, suppressed)
-    }
-
-    fun showInternalBadge(state: MobileSignalState, config: MobileTypeConfig): Boolean = when {
-        state.subscriptionOrder.size == 1 -> config.safe().showSingleBadge
-        state.subscriptionOrder.size == 2 -> config.safe().showStackedBadge
-        else -> false
     }
 
     private fun empty(state: MobileSignalState) = MobileTypeOutput(

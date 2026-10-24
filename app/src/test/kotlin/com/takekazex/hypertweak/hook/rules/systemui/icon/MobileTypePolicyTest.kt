@@ -92,17 +92,14 @@ class MobileTypePolicyTest {
     }
 
     @Test
-    fun roamingPrefixIsAddedOnceAndBadgesDependOnRowCount() {
+    fun roamingPrefixIsAddedOnceForBothSingleAndStackedSignals() {
         val one = state(listOf(1), 1, "5G", roaming = true)
         val two = state(listOf(1, 2), 1, "5G", roaming = true)
-        val config = MobileTypeConfig(
-            showRoamingPrefix = true,
-            showSingleBadge = true,
-            showStackedBadge = false
-        )
+        val config = MobileTypeConfig(showRoamingPrefix = true)
 
         assertEquals("R5G", MobileTypePolicy.resolve(one, config).text)
-        assertTrue(MobileTypePolicy.showInternalBadge(one, config))
-        assertFalse(MobileTypePolicy.showInternalBadge(two, config))
+        assertEquals("R5G", MobileTypePolicy.resolve(two, config).text)
+        val prefixed = one.reduce(MobileSignalEvent.NetworkType(1, "R5G"))
+        assertEquals("R5G", MobileTypePolicy.resolve(prefixed, config).text)
     }
 }

@@ -3,25 +3,17 @@ package com.takekazex.hypertweak.ui.page
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -32,23 +24,16 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Camera app (`com.android.camera`) feature unlocks.
@@ -60,30 +45,6 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * Most switches need a camera app restart (the hooks are installed on attach); toggling
  * them afterwards is live unless a summary says otherwise.
  */
-@Composable
-fun CameraUnlockPage(onBack: () -> Unit) {
-    val scrollBehavior = MiuixScrollBehavior()
-
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.camera_unlock_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.camera_unlock_back)) }
-            }
-        )
-    }) { padding ->
-        CameraUnlockContent(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState()),
-            topPadding = padding.calculateTopPadding(),
-            bottomPadding = padding.calculateBottomPadding()
-        )
-    }
-}
 
 /**
  * Camera-unlock controls without any page chrome, so the combined camera/watermark page can host

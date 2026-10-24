@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 class UpdateManager(private val activity: ComponentActivity) {
     private val appContext = activity.applicationContext
     private val stateStore = UpdateStateStore(appContext)
-    private val repository = GitHubUpdateRepository(appContext, stateStore)
+    private val repository = GitHubUpdateRepository(stateStore)
     private val installer = UpdateInstaller(activity, stateStore)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var checkJob: Job? = null

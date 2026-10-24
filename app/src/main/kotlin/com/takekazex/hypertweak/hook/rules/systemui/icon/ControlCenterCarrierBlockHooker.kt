@@ -35,9 +35,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.util.DebugLog
-import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
 import java.io.File
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -69,7 +67,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         "com.android.systemui.statusbar.views.MiuiStatusIconContainer"
     private const val WIFI_VM_CLASS =
         "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
-    private const val ROW_CALLBACK_OWNER_MARKER = "$ROW_CLASS\$mCarrierTextCallback"
     private const val PANEL_MOTION_CACHE_KEY = "carrierBlockPanelMotionOwner"
     private const val PANEL_MOTION_OWNER_MARKER =
         "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
@@ -82,7 +79,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private const val SIGNAL_ALPHA_FG = 1f
     private const val SIGNAL_ALPHA_BG = 0.4f
     private const val SIGNAL_ALPHA_ERROR = 0.2f
-    private const val SIGNAL_SVG_STYLE_IOS = 1
 
     private val main = Handler(Looper.getMainLooper())
     private fun newAssetExecutor() = Executors.newSingleThreadExecutor { runnable ->
@@ -1575,7 +1571,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         assetExecutor.execute {
             val loaded = runCatching {
                 val repository = svgRepository ?: return@runCatching null
-                val single = repository.loadSignalSingle(SIGNAL_SVG_STYLE_IOS).getOrNull()
+                val single = repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull()
                     ?: return@runCatching null
                 val wifi = repository.loadWifi().getOrNull() ?: return@runCatching null
                 Artwork(single, wifi)

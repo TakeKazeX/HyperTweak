@@ -72,20 +72,13 @@ object StackedSignalHooker : StaticHooker() {
     private const val SIGNAL_PADDING_START_PX = 0
     private const val SIGNAL_PADDING_END_PX = 0
 
-    /**
-     * The signal artwork is fixed to the built-in HyperOS 3 SVGs. The style selector was removed
-     * from the settings page, so the iOS and imported styles are no longer reachable and this
-     * index is never read back from a stored preference.
-     */
-    private const val SIGNAL_SVG_STYLE_HYPEROS3 = 0
-
     private val mainHandler = Handler(Looper.getMainLooper())
-    /** SVG parsing and remote-file reads must not delay SystemUI application startup. */
+    /** SVG parsing must not delay SystemUI application startup. */
     private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "HyperTweak-StackedSignalAssets").apply { isDaemon = true }
     }
-    private val assetLoadLock = Any()
     private val generation = AtomicLong(0L)
+    private val assetLoads = SignalAssetLoadState<SignalAssets>(generation, ASSET_LOAD_RETRY_BACKOFF_MS)
     private val installed = AtomicBoolean(false)
     private val adapterFlowInstalled = AtomicBoolean(false)
     private val flowHandles = CopyOnWriteArrayList<HostFlowCollector.Handle>()
@@ -100,12 +93,10 @@ object StackedSignalHooker : StaticHooker() {
     private val panelMotions = IdentityHashMap<Any, StackedPanelMotion>()
     private var slotIndices: Map<Int, Int> = emptyMap()
     private var publishedSignalRows: List<DuoSignalRow> = emptyList()
-    private var publishedSignalPicture: Picture? = null
+    private var publishedSignalPicture: PublishedSignalPicture? = null
     private data class SignalRenderKey(
         val levels: List<Int>,
-        val config: IconSvgRenderConfig,
-        val badge: MobileTypeOutput?,
-        val badgeConfig: MobileTypeConfig?
+        val config: IconSvgRenderConfig
     )
     private var publishedSignalKey: SignalRenderKey? = null
     private var publishedTypeBitmap: android.graphics.Bitmap? = null
@@ -126,27 +117,6 @@ object StackedSignalHooker : StaticHooker() {
 
     @Volatile
     private var svgRepository: IconSvgRepository? = null
-
-    @Volatile
-    private var signalAssets: SignalAssets? = null
-
-    /** Generation whose assets are already resolved (and therefore never re-read). */
-    @Volatile
-    private var assetLoadGeneration = Long.MIN_VALUE
-
-    /** Generation with an asset read currently in flight; prevents duplicate concurrent reads. */
-    @Volatile
-    private var assetLoadInFlightGeneration = Long.MIN_VALUE
-
-    /**
-     * Uptime before which a failed asset read must not be retried.
-     *
-     * Without it, a failed read would either retry on every state-flow event (repeated I/O) or —
-     * as the previous implementation did — never retry at all for the rest of the binding
-     * generation, leaving the custom signal icons missing until a hot reload or process restart.
-     */
-    @Volatile
-    private var assetLoadRetryAfterMs = 0L
 
     @Volatile
     private var iconBridge: HostIconBridge? = null
@@ -183,7 +153,11 @@ object StackedSignalHooker : StaticHooker() {
     /** All mutable reducer state is consumed on the main looper. */
     private var signalState = MobileSignalState()
 
+    private data class PublishedSignalPicture(val picture: Picture, val splitFraction: Float)
+
     private data class SignalAssets(
+        val bindingGeneration: Long,
+        val style: SignalSvgStyle,
         val single: IconSvgSnapshot,
         val stacked: IconSvgSnapshot
     )
@@ -250,9 +224,9 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        val retiredGeneration = generation.incrementAndGet()
-        val retiringBridge = iconBridge
         enabled = false
+        val retiredGeneration = assetLoads.advance()
+        val retiringBridge = iconBridge
         hideMobileOnWifi = false
         adapterFlowsReady = false
         typeFade.cancel()
@@ -279,14 +253,8 @@ object StackedSignalHooker : StaticHooker() {
         factoryViewModelIds = emptySet()
         signalState = MobileSignalState()
         slotIndices = emptyMap()
-        signalAssets = null
         publishedSignalRows = emptyList()
         publishedSignalPicture = null
-        synchronized(assetLoadLock) {
-            assetLoadGeneration = Long.MIN_VALUE
-            assetLoadInFlightGeneration = Long.MIN_VALUE
-            assetLoadRetryAfterMs = 0L
-        }
         MobileTypeRenderer.clearCache()
         iconBridge = null
         adapterReference = null
@@ -323,7 +291,7 @@ object StackedSignalHooker : StaticHooker() {
         if (!installed.compareAndSet(false, true)) return
         // Invalidate any cleanup runnable posted by the retiring generation before it can touch a
         // holder published by this generation.
-        generation.incrementAndGet()
+        assetLoads.advance(SignalSvgStyle.fromStored(Preferences.iconStackedSignalStyle()))
         if (renderStacked && !MobileSignalVisibility.installGetter(this)) {
             DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
@@ -357,7 +325,8 @@ object StackedSignalHooker : StaticHooker() {
                         enabled && hasPublishedReplacement() && !DuoSignalHooker.requiresMobileState &&
                             !(hideMobileOnWifi && signalState.wifiConnected)
                     }
-                    motion.update(publishedSignalRows, drawable, param.args.firstOrNull() as? Float, param.args.firstOrNull() as? Boolean)
+                    motion.update(publishedSignalRows, drawable?.picture, param.args.firstOrNull() as? Float,
+                        param.args.firstOrNull() as? Boolean, drawable?.splitFraction)
                 }.onFailure { motion.clear(); DebugLog.w(TAG, "stacked signal handoff unavailable", it) }
             } }
         }
@@ -999,7 +968,7 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
 
-        val assets = signalAssets ?: run {
+        val assets = assetLoads.current(generation.get())?.takeIf { it.bindingGeneration == generation.get() } ?: run {
             scheduleSignalAssetsLoad(generation.get())
             if (!hasPublishedReplacement()) restoreNative()
             return
@@ -1010,44 +979,17 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         val config = renderConfig()
-        val typeOutput = MobileTypePolicy.resolve(state, typeConfig)
-        val hasBadge = typeOutput.text.isNotBlank() && !typeOutput.suppressed &&
-            MobileTypePolicy.showInternalBadge(state, typeConfig)
-        val renderKey = SignalRenderKey(renderRows.map { it.level }, config,
-            typeOutput.takeIf { hasBadge }, typeConfig.takeIf { hasBadge })
+        val renderKey = SignalRenderKey(renderRows.map { it.level }, config)
         // Visibility/masking and the separate type slot still reconcile on every state update.
         // Only an intact owned holder may reuse the last successfully published artwork.
         if (renderKey != publishedSignalKey || !bridge.owns(SLOT_STACKED)) {
             val bitmap = runCatching {
-                val badge = renderInternalTypeBadge(typeOutput, state, config)
                 if (state.rows.size == 1) {
-                    if (badge == null) {
-                        IconSvgRenderer.renderSingle(assets.single.document, renderRows[0].level, config)
-                    } else {
-                        IconSvgRenderer.renderSingleWithBadge(
-                            assets.single.document,
-                            renderRows[0].level,
-                            config,
-                            badge
-                        )
-                    }
+                    IconSvgRenderer.renderSingle(assets.single.document, renderRows[0].level, config)
                 } else {
-                    if (badge == null) {
-                        IconSvgRenderer.renderStacked(
-                            assets.stacked.document,
-                            renderRows[0].level,
-                            renderRows[1].level,
-                            config
-                        )
-                    } else {
-                        IconSvgRenderer.renderStackedWithBadge(
-                            assets.stacked.document,
-                            renderRows[0].level,
-                            renderRows[1].level,
-                            config,
-                            badge
-                        )
-                    }
+                    IconSvgRenderer.renderStacked(
+                        assets.stacked.document, renderRows[0].level, renderRows[1].level, config
+                    )
                 }
             }.onFailure { DebugLog.w(TAG, "cellular signal SVG render failed", it) }.getOrNull()
                 ?: run {
@@ -1055,6 +997,7 @@ object StackedSignalHooker : StaticHooker() {
                     return
                 }
 
+            if (!enabled || generation.get() != assets.bindingGeneration) return
             val hadPublishedReplacement = bridge.owns(SLOT_STACKED)
             val published = bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")
             if (!published) {
@@ -1084,50 +1027,21 @@ object StackedSignalHooker : StaticHooker() {
             state.replacementMask(true, options.ignoreSystemHide)
         )
         publishedSignalRows = renderRows
-        publishedSignalPicture = if (replacementVisible) IconSvgRenderer.signalPicture(
+        publishedSignalPicture = if (replacementVisible) PublishedSignalPicture(IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
             renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
-            weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f)) else null
+            weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f)),
+            assets.style.stackedSplitFraction) else null
         renderTypeSlot(state, bridge)
         if (panelMotions.isNotEmpty()) {
             val commands = publishedSignalPicture
             panelMotions.values.forEach { motion ->
-                runCatching { motion.update(renderRows, commands, null, null) }.onFailure { motion.clear() }
+                runCatching { motion.update(renderRows, commands?.picture, null, null, commands?.splitFraction) }.onFailure { motion.clear() }
             }
         }
     }
 
     private fun hasPublishedReplacement(): Boolean = iconBridge?.owns(SLOT_STACKED) == true
-
-    private fun renderInternalTypeBadge(
-        output: MobileTypeOutput,
-        state: MobileSignalState,
-        signalConfig: IconSvgRenderConfig
-    ): android.graphics.Bitmap? {
-        // A badge is baked into the signal bitmap, so it cannot fade: a Wi-Fi suppression drops it
-        // outright, exactly like the separate type slot being faded out.
-        if (output.text.isBlank() || output.suppressed ||
-            !MobileTypePolicy.showInternalBadge(state, typeConfig)
-        ) {
-            return null
-        }
-        val badgeConfig = typeConfig.safe().copy(
-            textSizeSp = typeConfig.safe().badgeTextSizeSp,
-            weight = typeConfig.safe().badgeWeight,
-            singleWeight = typeConfig.safe().badgeWeight,
-            paddingStartSp = 0f,
-            paddingEndSp = 0f,
-            verticalOffsetSp = 0f
-        )
-        return MobileTypeRenderer.render(
-            output = output,
-            config = badgeConfig,
-            iconHeightPx = (signalConfig.iconHeightPx * 0.6f).toInt().coerceAtLeast(1),
-            densityDpi = signalConfig.densityDpi,
-            fontScale = signalConfig.fontScale,
-            rtl = signalConfig.rtl
-        )
-    }
 
     private fun restoreNative() {
         publishedSignalRows = emptyList()
@@ -1155,56 +1069,31 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     private fun scheduleSignalAssetsLoad(bindingGeneration: Long) {
-        if (!enabled || !renderStacked || signalAssets != null || svgRepository == null) return
-        synchronized(assetLoadLock) {
-            if (assetLoadGeneration == bindingGeneration) return
-            if (assetLoadInFlightGeneration == bindingGeneration) return
-            if (assetLoadRetryAfterMs > SystemClock.elapsedRealtime()) return
-            assetLoadInFlightGeneration = bindingGeneration
-        }
+        if (!enabled || !renderStacked) return
+        val repository = svgRepository ?: return
+        val ticket = assetLoads.begin(bindingGeneration, SystemClock.elapsedRealtime()) ?: return
         assetExecutor.execute {
-            val assets = runCatching { loadSignalAssets() }
+            val assets = runCatching { loadSignalAssets(repository, ticket) }
                 .onFailure { DebugLog.w(TAG, "asynchronous signal SVG load failed", it) }
                 .getOrNull()
             mainHandler.post {
-                val stillCurrent = generation.get() == bindingGeneration
-                synchronized(assetLoadLock) {
-                    if (assetLoadInFlightGeneration == bindingGeneration) {
-                        assetLoadInFlightGeneration = Long.MIN_VALUE
-                    }
-                    if (assets == null) {
-                        // A transient failure (module service not ready yet, one failed read) must
-                        // not pin this generation to "nothing to load": back off briefly, then let
-                        // the next state event retry instead of waiting for a hot reload.
-                        assetLoadRetryAfterMs = SystemClock.elapsedRealtime() + ASSET_LOAD_RETRY_BACKOFF_MS
-                    } else if (stillCurrent) {
-                        assetLoadGeneration = bindingGeneration
-                    }
-                }
-                if (!stillCurrent) return@post
+                if (!assetLoads.complete(ticket, assets, SystemClock.elapsedRealtime())) return@post
                 if (assets != null) {
-                    signalAssets = assets
-                    DebugLog.d(
-                        TAG,
-                        "signal SVG assets ready style=HyperOS3"
-                    )
+                    DebugLog.d(TAG, "signal SVG assets ready style=${ticket.style.name} generation=${ticket.generation}")
                 }
-                if (enabled) renderCurrent()
+                if (enabled && generation.get() == ticket.generation) renderCurrent()
             }
         }
     }
 
-    private fun loadSignalAssets(): SignalAssets? {
-        val repository = svgRepository ?: return null
-        // No host opener: the fixed HyperOS 3 style resolves straight to the bundled asset, so no
-        // imported or remote artwork is read.
-        val single = repository.loadSignalSingle(SIGNAL_SVG_STYLE_HYPEROS3)
+    private fun loadSignalAssets(repository: IconSvgRepository, ticket: SignalAssetLoadState.Ticket): SignalAssets? {
+        val single = repository.loadSignalSingle(ticket.style)
             .onFailure { DebugLog.w(TAG, "single signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        val stacked = repository.loadSignalStacked(SIGNAL_SVG_STYLE_HYPEROS3)
+        val stacked = repository.loadSignalStacked(ticket.style)
             .onFailure { DebugLog.w(TAG, "stacked signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        return SignalAssets(single, stacked)
+        return SignalAssets(ticket.generation, ticket.style, single, stacked)
     }
 
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {
@@ -1299,14 +1188,6 @@ object StackedSignalHooker : StaticHooker() {
             false
         ),
         hideWhenWifiAvailable = !Preferences.cellularTypeKeepsOnWifi(),
-        showSingleBadge = Preferences.getBoolean(
-            Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE,
-            false
-        ),
-        showStackedBadge = Preferences.getBoolean(
-            Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED,
-            false
-        ),
         showRoamingPrefix = Preferences.getBoolean(
             Preferences.KEY_ICON_STACKED_TYPE_ROAMING,
             false

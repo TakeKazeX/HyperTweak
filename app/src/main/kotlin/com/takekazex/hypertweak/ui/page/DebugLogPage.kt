@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -72,9 +71,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -524,15 +521,6 @@ private fun levelColor(level: String): Color {
         "E" -> Color(0xFFE5484D)
         "W" -> Color(0xFFE6A700)
         else -> MiuixTheme.colorScheme.onSurfaceVariantActions
-    }
-}
-
-@Composable
-private fun actionTint(enabled: Boolean): Color {
-    return if (enabled) {
-        MiuixTheme.colorScheme.onSurfaceVariantActions
-    } else {
-        MiuixTheme.colorScheme.disabledOnSecondaryVariant
     }
 }
 

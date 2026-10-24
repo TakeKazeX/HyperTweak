@@ -818,16 +818,5 @@ object DownloadUiHooker : StaticHooker() {
         return null
     }
 
-    private fun fieldsInHierarchy(type: Class<*>): List<Field> {
-        val fields = mutableListOf<Field>()
-        var current: Class<*>? = type
-        while (current != null) {
-            fields += current.declaredFields
-            current = current.superclass
-        }
-        fields.forEach { it.isAccessible = true }
-        return fields
-    }
-
     private val URL_PATTERN = Regex("^[A-Za-z][A-Za-z0-9+.-]*://\\S+$")
 }

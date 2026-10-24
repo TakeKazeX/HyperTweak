@@ -118,13 +118,6 @@ object GlassMaterialHooker : StaticHooker() {
     @Volatile
     private var glassTone = 1f
 
-    // Resource identity -> kind, filled lazily from the first enabled read. The key is
-    // "<package>#<id>", not the bare id: the SystemUI APK and the miui.systemui.plugin APK both
-    // allocate ids in the 0x7f application range, so the same numeric id means different
-    // resources on different Resources instances and caching by id alone would cross-contaminate
-    // the two packages. Each identity costs exactly one package+name lookup.
-    private val knownKinds = ConcurrentHashMap<String, Kind>()
-    private val missedKeys = ConcurrentHashMap.newKeySet<String>()
     /** The funnels are installed once per hook generation, whichever entry point runs first. */
     @Volatile private var installed = false
 

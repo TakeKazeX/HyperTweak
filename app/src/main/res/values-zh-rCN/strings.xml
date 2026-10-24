@@ -546,10 +546,6 @@
     <string name="icon_stacked_type_hide_disconnect_summary">数据断开时不显示堆叠类型文字</string>
     <string name="icon_stacked_type_keep_on_wifi">连接 WiFi 时依旧显示蜂窝类型</string>
     <string name="icon_stacked_type_keep_on_wifi_summary">连接 Wi-Fi 时仍显示蜂窝网络类型</string>
-    <string name="icon_stacked_type_single_badge">单卡信号显示类型角标</string>
-    <string name="icon_stacked_type_single_badge_summary">在单卡信号图标内显示网络类型</string>
-    <string name="icon_stacked_type_stacked_badge">堆叠信号显示类型角标</string>
-    <string name="icon_stacked_type_stacked_badge_summary">在堆叠信号图标内显示网络类型</string>
     <string name="icon_stacked_type_roaming">漫游类型加 R 前缀</string>
     <string name="icon_stacked_type_roaming_summary">漫游时在活动网络类型前加 R</string>
     <string name="icon_hide_carrier_hd">隐藏 HD 图标</string>
@@ -1698,4 +1694,7 @@
     <string name="native_photo_picker_summary">后续照片和视频选择请求使用 AOSP 选择器，需勾选系统框架作用域。</string>
     <string name="native_file_picker_title">原生文件选择器</string>
     <string name="native_file_picker_summary">文件选择请求和照片选择器的“浏览”使用系统文件选择器，需勾选系统框架和照片选择器作用域。已打开的选择器需重新打开。</string>
+    <string name="icon_stacked_signal_artwork">信号图标样式</string>
+    <string name="icon_stacked_signal_artwork_hyperos3">澎湃 OS 3</string>
+    <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
 </resources>

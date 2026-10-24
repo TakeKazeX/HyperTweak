@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.ui.page
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -35,11 +34,11 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalWeight
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -62,20 +61,9 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 private val iconPrefsSaver = Saver<SnapshotStateMap<String, Any>, ArrayList<Any>>(
-    save = { state ->
-        ArrayList<Any>(state.size * 2).apply {
-            state.forEach { (key, value) ->
-                add(key)
-                add(value)
-            }
-        }
-    },
-    restore = { values ->
-        mutableStateMapOf<String, Any>().apply {
-            values.asSequence().chunked(2).forEach { entry ->
-                if (entry.size == 2 && entry[0] is String) put(entry[0] as String, entry[1])
-            }
-        }
+    save = { IconTunerPreferenceState.save(it) },
+    restore = { payload ->
+        mutableStateMapOf<String, Any>().apply { putAll(IconTunerPreferenceState.restore(payload)) }
     }
 )
 
@@ -130,6 +118,9 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         mutableStateMapOf<String, Any>()
     }
 
+    // Epoch changes invalidate saved page values after reset/restore, including Activity recreation.
+    IconTunerPreferenceState.reconcileEpoch(prefs, Preferences.settingsEpochForUi())
+
     @Suppress("UNCHECKED_CAST")
     fun <T> pref(key: String, default: T): T {
         val existing = prefs[key]
@@ -144,7 +135,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         // Load the stored value once; defaults are only for keys never written.
         val stored: T = when (default) {
             is Boolean -> Preferences.getBoolean(key, default as Boolean) as T
-            is Int -> Preferences.getInt(key, default as Int) as T
+            is Int -> (if (key == Preferences.KEY_ICON_STACKED_SIGNAL_STYLE) Preferences.iconStackedSignalStyle()
+                else Preferences.getInt(key, default as Int)) as T
             is Float -> Preferences.getFloat(key, default as Float) as T
             is String -> Preferences.getString(key, default as String) as T
             is Set<*> -> Preferences.getStringSet(
@@ -321,6 +313,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         StackedSignalSection(
                             enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
+                            artworkStyle = pref(Preferences.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
                             weight = pref(Preferences.KEY_ICON_STACKED_WEIGHT, 0f),
                             hideWhenDisconnected = pref(
                                 Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
@@ -330,8 +323,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                                 Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
                                 false
                             ),
-                            showSingleBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE, false),
-                            showStackedBadge = pref(Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED, false),
                             showRoaming = pref(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, false),
                             onChange = { key, value -> changed(key, value) }
                         )
@@ -437,17 +428,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
 @Composable
 private fun StackedSignalSection(
     enabled: Boolean,
+    artworkStyle: Int,
     weight: Float,
     hideWhenDisconnected: Boolean,
     keepTypeOnWifi: Boolean,
-    showSingleBadge: Boolean,
-    showStackedBadge: Boolean,
     showRoaming: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    // The signal artwork is fixed to the built-in HyperOS 3 SVGs, and icon scale, opacity, signal
-    // padding and SVG import are no longer exposed here, so the hook
-    // renders its built-in values for them.
+    val style = SignalSvgStyle.fromStored(artworkStyle)
+    // Built-in scale and opacity stay fixed; only the artwork family and weight are selectable.
     SmallTitle(stringResource(R.string.icon_stacked_signal_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -468,21 +457,20 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_type_keep_on_wifi_summary)
             ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             if (enabled) {
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.icon_stacked_signal_artwork),
+                    items = listOf(
+                        stringResource(R.string.icon_stacked_signal_artwork_hyperos3),
+                        stringResource(R.string.icon_stacked_signal_artwork_ios27)
+                    ),
+                    selectedIndex = style.storedValue,
+                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SIGNAL_STYLE, it) }
+                )
                 TunerSwitch(
                     hideWhenDisconnected,
                     stringResource(R.string.icon_stacked_type_hide_disconnect),
                     stringResource(R.string.icon_stacked_type_hide_disconnect_summary)
                 ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
-                TunerSwitch(
-                    showSingleBadge,
-                    stringResource(R.string.icon_stacked_type_single_badge),
-                    stringResource(R.string.icon_stacked_type_single_badge_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_SHOW_SINGLE, it) }
-                TunerSwitch(
-                    showStackedBadge,
-                    stringResource(R.string.icon_stacked_type_stacked_badge),
-                    stringResource(R.string.icon_stacked_type_stacked_badge_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_SHOW_STACKED, it) }
                 TunerSwitch(
                     showRoaming,
                     stringResource(R.string.icon_stacked_type_roaming),

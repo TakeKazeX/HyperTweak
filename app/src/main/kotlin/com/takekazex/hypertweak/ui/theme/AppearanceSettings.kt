@@ -38,18 +38,6 @@ fun paletteStyleFromStored(value: Int): PaletteStyleOption =
 fun paletteStyleIndex(value: Int): Int =
     PaletteStyleOption.entries.indexOfFirst { it.persistedId == value }.takeIf { it >= 0 } ?: 0
 
-fun accentSelectionIndex(useMonet: Boolean, seedColor: Int): Int {
-    if (!useMonet) return 0
-    val presetIndex = presetAccentColors.indexOf(seedColor)
-    return if (presetIndex >= 0) presetIndex + 1 else presetAccentColors.size + 1
-}
-
-fun accentSeedForSelection(index: Int, currentSeed: Int): Int = when {
-    index <= 0 -> currentSeed
-    index in 1..presetAccentColors.size -> presetAccentColors[index - 1]
-    else -> currentSeed
-}
-
 fun isEffectivelyDark(themeMode: Int, systemIsDark: Boolean): Boolean = when (themeMode) {
     1 -> false
     2 -> true

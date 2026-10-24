@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.util.update
 
-import android.content.Context
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.Dispatchers
@@ -12,17 +11,14 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
-import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
 class GitHubUpdateRepository(
-    context: Context,
     private val stateStore: UpdateStateStore
 ) {
-    private val appContext = context.applicationContext
 
     suspend fun checkUpdate(
         channel: UpdateChannel,

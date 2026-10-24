@@ -548,10 +548,6 @@
     <string name="icon_stacked_type_hide_disconnect_summary">Hide the stacked type label while data is disconnected</string>
     <string name="icon_stacked_type_keep_on_wifi">Keep the Cellular Type on WiFi</string>
     <string name="icon_stacked_type_keep_on_wifi_summary">Keep the mobile network label visible while connected to Wi-Fi</string>
-    <string name="icon_stacked_type_single_badge">Show Type Badge on Single Signal</string>
-    <string name="icon_stacked_type_single_badge_summary">Draw the network type inside the single-signal icon</string>
-    <string name="icon_stacked_type_stacked_badge">Show Type Badge on Stacked Signal</string>
-    <string name="icon_stacked_type_stacked_badge_summary">Draw the network type inside the stacked-signal icon</string>
     <string name="icon_stacked_type_roaming">Prefix Roaming Type</string>
     <string name="icon_stacked_type_roaming_summary">Prefix the active network type with R while roaming</string>
     <string name="icon_hide_carrier_hd">Hide HD Icon</string>
@@ -1707,4 +1703,7 @@
     <string name="native_photo_picker_summary">Use the AOSP picker for new photo and video requests. Requires System Framework scope.</string>
     <string name="native_file_picker_title">System file picker</string>
     <string name="native_file_picker_summary">Use DocumentsUI for file requests and the photo picker’s Browse action. Requires System Framework and Photo Picker scope. Reopen any active picker.</string>
+    <string name="icon_stacked_signal_artwork">Signal icon style</string>
+    <string name="icon_stacked_signal_artwork_hyperos3">HyperOS 3</string>
+    <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
 </resources>

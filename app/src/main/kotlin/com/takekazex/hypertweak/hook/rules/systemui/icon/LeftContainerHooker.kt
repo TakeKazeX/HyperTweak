@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.core.view.isVisible
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -1101,12 +1100,6 @@ object LeftContainerHooker : StaticHooker() {
         else mainHandler.post { if (!retiring) runCatching(block).onFailure { DebugLog.w(TAG, "main cleanup failed", it) } }
     }
 
-    private fun readRightBlockSeed(): List<String> = runCatching {
-        val utils = Class.forName("com.android.systemui.statusbar.phone.MiuiIconManagerUtils")
-        val field = utils.getDeclaredField("RIGHT_BLOCK_LIST").apply { isAccessible = true }
-        (field.get(null) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-    }.getOrDefault(emptyList())
-
     /** The home status bar's dependency object, which holds the island and shade controllers. */
     private fun statusBarDependency(view: Any): Any? = runCatching {
         hierarchyField(view.javaClass, "mDependence")?.get(view)
@@ -1255,32 +1248,6 @@ object LeftContainerHooker : StaticHooker() {
             synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.barRoot }
         )
         applyHandoverGuarded(if (shadeFullyOpen) 1f else panelProgress)
-    }
-
-    /**
-     * Hot-reload cleanup for leftovers of the earlier view-relocation builds: raw
-     * `android.widget.LinearLayout` children of the left host with no resource id (their
-     * containers carried no tag). System children of `phone_status_bar_left_container` (clock,
-     * stubs, chips, notification area) all have ids or custom classes, so this is safe.
-     */
-    private fun sweepLegacyLeftContainers() {
-        synchronized(states) {
-            states.values.forEach { state ->
-                if (state.isKeyguard) return@forEach
-                runCatching {
-                    val host = state.leftHost
-                    for (i in host.childCount - 1 downTo 0) {
-                        val child = host.getChildAt(i)
-                        if (child.tag == CONTAINER_TAG) continue
-                        if (child.id == View.NO_ID &&
-                            child.javaClass.name == "android.widget.LinearLayout"
-                        ) {
-                            host.removeViewAt(i)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     // ─── Capture / container ─────────────────────────────────────────────────────

@@ -9,7 +9,6 @@ import android.graphics.RectF
 import android.util.Xml
 import androidx.core.graphics.createBitmap
 import com.caverock.androidsvg.SVG
-import com.takekazex.hypertweak.util.DebugLog
 import java.io.StringReader
 import java.security.MessageDigest
 import java.util.LinkedHashMap
@@ -49,7 +48,6 @@ data class IconSvgRenderConfig(
  * here because a host StatusBarIcon may still own a returned bitmap.
  */
 object IconSvgRenderer {
-    private const val TAG = "IconTuner"
     const val MAX_SOURCE_BYTES = 128 * 1024
     private const val MAX_NODES = 512
     private const val MAX_BITMAPS = 48
@@ -95,8 +93,7 @@ object IconSvgRenderer {
         val viewBox: RectF,
         val ids: Map<String, String>,
         val width: Float,
-        val height: Float,
-        val typeContainer: RectF?
+        val height: Float
     )
 
     fun parse(source: String): Result<Document> = runCatching {
@@ -163,14 +160,6 @@ object IconSvgRenderer {
         }
     }
 
-    /** Renders a single-signal mask and centers [badge] on the SVG's type-container anchor. */
-    fun renderSingleWithBadge(
-        document: Document,
-        level: Int,
-        config: IconSvgRenderConfig,
-        badge: Bitmap
-    ): Bitmap = composeBadge(document, renderSingle(document, level, config), config, badge)
-
     fun renderStacked(
         document: Document,
         upperLevel: Int,
@@ -184,20 +173,6 @@ object IconSvgRenderer {
      */
     fun renderWifi(document: Document, level: Int, config: IconSvgRenderConfig): Bitmap =
         render(document, SvgKind.WIFI, listOf(level), config)
-
-    /** Renders a stacked mask and centers [badge] on the SVG's type-container anchor. */
-    fun renderStackedWithBadge(
-        document: Document,
-        upperLevel: Int,
-        lowerLevel: Int,
-        config: IconSvgRenderConfig,
-        badge: Bitmap
-    ): Bitmap = composeBadge(
-        document,
-        renderStacked(document, upperLevel, lowerLevel, config),
-        config,
-        badge
-    )
 
     private fun render(
         document: Document,
@@ -232,42 +207,6 @@ object IconSvgRenderer {
         return bitmap
     }
 
-    private fun composeBadge(
-        document: Document,
-        signal: Bitmap,
-        config: IconSvgRenderConfig,
-        badge: Bitmap
-    ): Bitmap {
-        val anchor = document.metadata.typeContainer ?: return signal
-        val safe = config.safe()
-        val contentHeight = max(1, ceil(safe.iconHeightPx * safe.scale).toInt())
-        val aspect = document.metadata.viewBox.width() / document.metadata.viewBox.height()
-        val contentWidth = max(1, ceil(contentHeight * aspect).toInt())
-        val start = if (safe.rtl) safe.paddingEndPx else safe.paddingStartPx
-        val scaleX = contentWidth / document.metadata.viewBox.width()
-        val scaleY = contentHeight / document.metadata.viewBox.height()
-        val anchorX = start + (anchor.centerX() - document.metadata.viewBox.left) * scaleX
-        val anchorY = (anchor.centerY() - document.metadata.viewBox.top) * scaleY
-        val badgeLeft = kotlin.math.round(anchorX - badge.width / 2f).toInt()
-        val badgeTop = kotlin.math.round(anchorY - badge.height / 2f).toInt()
-        val extraStart = (-badgeLeft).coerceAtLeast(0)
-        val extraEnd = (badgeLeft + badge.width - signal.width).coerceAtLeast(0)
-        val output = if (extraStart == 0 && extraEnd == 0) signal else {
-            createBitmap((signal.width + extraStart + extraEnd).coerceAtMost(2048), signal.height, Bitmap.Config.ARGB_8888)
-                .also { bitmap ->
-                    Canvas(bitmap).drawBitmap(signal, extraStart.toFloat(), 0f, null)
-                }
-        }
-        val canvas = Canvas(output)
-        canvas.drawBitmap(
-            badge,
-            (badgeLeft + extraStart).toFloat(),
-            badgeTop.coerceIn(-badge.height, output.height).toFloat(),
-            null
-        )
-        return output
-    }
-
     private fun opacityMap(
         document: Document,
         kind: SvgKind,
@@ -286,6 +225,7 @@ object IconSvgRenderer {
                 result["wifi_$segment"] = segmentOpacity(levels[0], segment, config)
             }
         }
+        // Bundled HyperOS SVGs retain an invisible template marker, never a visible square.
         document.metadata.ids["type_container"]?.let { result["type_container"] = 0f }
         return result
     }
@@ -358,7 +298,6 @@ object IconSvgRenderer {
         var rootWidth = Float.NaN
         var rootHeight = Float.NaN
         var viewBox: RectF? = null
-        var typeContainer: RectF? = null
         while (true) {
             when (parser.next()) {
                 XmlPullParser.START_TAG -> {
@@ -391,18 +330,9 @@ object IconSvgRenderer {
                                 }
                             }
                         }
-                    if (attrName == "id") {
-                        val id = attrValue.trim()
-                        if (id.isNotEmpty()) require(ids.put(id, name) == null) { "duplicate SVG id=$id" }
-                        if (id == "type_container" && name == "rect") {
-                            val x = numericAttr(parser, "x")
-                            val y = numericAttr(parser, "y")
-                            val width = numericAttr(parser, "width")
-                            val height = numericAttr(parser, "height")
-                            if (x.isFinite() && y.isFinite() && width.isFinite() && height.isFinite()) {
-                                typeContainer = RectF(x, y, x + width, y + height)
-                            }
-                        }
+                        if (attrName == "id") {
+                            val id = attrValue.trim()
+                            if (id.isNotEmpty()) require(ids.put(id, name) == null) { "duplicate SVG id=$id" }
                         }
                     }
                 }
@@ -420,8 +350,7 @@ object IconSvgRenderer {
             box,
             ids,
             rootWidth.takeIf { it.isFinite() } ?: box.width(),
-            rootHeight.takeIf { it.isFinite() } ?: box.height(),
-            typeContainer
+            rootHeight.takeIf { it.isFinite() } ?: box.height()
         )
     }
 

@@ -33,6 +33,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
@@ -705,8 +706,8 @@ object DuoSignalHooker : StaticHooker() {
             )
             val repository = IconSvgRepository(moduleContext)
             CellularSignalAssets(
-                single = repository.loadSignalSingle(0).getOrThrow().document,
-                stacked = repository.loadSignalStacked(0).getOrThrow().document
+                single = repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrThrow().document,
+                stacked = repository.loadSignalStacked(SignalSvgStyle.HYPEROS3).getOrThrow().document
             ).also { cellularSignalAssets = it }
         }.onFailure { DebugLog.w(TAG, "cellular signal artwork unavailable", it) }
             .getOrNull()

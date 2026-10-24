@@ -16,7 +16,6 @@ object IconSlotTintHooker : StaticHooker() {
 
     private const val TAG = "IconTuner"
     private const val VIEW_CLASS = "com.android.systemui.statusbar.StatusBarIconView"
-    private const val DARK_CLASS = "com.android.systemui.statusbar.DarkIconDispatcherExt"
 
     private val moduleSlots = IconSlotPolicy.MODULE_SLOTS.toSet()
 
