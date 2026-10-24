@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dark_mode_schedule_section">Dark mode</string>
+    <string name="dark_mode_schedule_immediate">Apply automatic changes immediately</string>
+    <string name="dark_mode_schedule_immediate_summary">Apply sunset or custom-time changes without waiting for the screen to turn off</string>
+</resources>

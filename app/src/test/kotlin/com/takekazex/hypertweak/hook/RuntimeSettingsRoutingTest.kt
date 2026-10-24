@@ -6,6 +6,26 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun darkModeScheduleRoutesOnlyToSystemServerAndRestoresAfterReplacementAndReset() {
+        val key = Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE
+        val groups = setOf(Groups.DARK_MODE)
+        assertEquals(groups, Groups.affected(key))
+        assertTrue(Groups.DARK_MODE in Groups.forProcess("system_server", true))
+        assertFalse(Groups.owns("com.android.systemui", key))
+        assertFalse(Groups.owns("com.android.settings", key))
+        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), groups))
+        val ledger = RuntimeSettingsLedger()
+        val on = RuntimeSettingsSnapshot.read(1, mapOf(key to true), groups)!!
+        assertTrue(ledger.accept(on))
+        val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(true, replacement.value(key))
+        assertTrue(replacement.accept(on.mutate(key, false, 2)!!))
+        assertEquals(false, replacement.value(key))
+        assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), groups)!!))
+        assertNull(replacement.value(key))
+        assertFalse(replacement.accept(on))
+    }
+
     @Test fun nativePickerSwitchesMigrateIndependentlyAndResetWithTheirOwnRoutes() {
         val legacy = Preferences.KEY_NATIVE_PICKER
         val photo = Preferences.KEY_NATIVE_PHOTO_PICKER
@@ -209,7 +229,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER),
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

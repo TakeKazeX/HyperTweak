@@ -36,6 +36,10 @@ plus the current default, qualified for both HTTP and HTTPS. Its own models, che
 and persisted per-package states remain in use; unrelated embedded web views are excluded.
 Both native state loading and row rendering receive the additional packages; row icons come
 from PackageManager. Browser apps without APP_BROWSER are included when selected as default.
+Its dark-mode switch uses `DarkModeScheduleHooker` in system_server to publish automatic
+sunset/custom-time changes while the display is on. A structural services.jar contract and
+full-digest cache drive the shared preparation/lifecycle; runtime settings also release an
+already pending switch under the native service lock. Disabling restores native scheduling.
 Its wireless diagnostics section uses app-side bounded root commands
 (`util/WirelessDiagnostics.kt`), verified vendor properties and fresh service/usage reads;
 there is no injected-process destination or boot-time replay. The two Preferences values are

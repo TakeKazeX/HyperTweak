@@ -211,7 +211,7 @@ class HookEntry : XposedModule() {
             // each key to the hooker that owns it instead of re-running every consumer.
             fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) {
                 if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) {
-                    if (id == RuntimeSettingsGroups.SECURITY_DOCK) registerWithRetryBudget(id, 120, apply)
+                    if (id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE) registerWithRetryBudget(id, 120, apply)
                     else register(id, apply)
                 }
             }
@@ -227,6 +227,9 @@ class HookEntry : XposedModule() {
             }
             registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
                 com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
+            }
+            registerForProcess(RuntimeSettingsGroups.DARK_MODE) { _ ->
+                com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker.refreshSettings()
             }
             registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.BACK) { _ ->
@@ -1250,6 +1253,7 @@ class HookEntry : XposedModule() {
         attachHooker(AdaptiveRefreshRuntimeHooker, classLoader, ctx, replacementHandles)
         // Dark-mode app data is returned through the uimode Binder. Keep system_server as the
         // single source of truth so Settings and app processes observe the same persistent state.
+        attachHooker(com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker, classLoader, ctx, replacementHandles)
         attachHooker(ForceDarkAppListHooker, classLoader, ctx, replacementHandles)
         // Stops the framework's periodic theme DRM re-validation from restoring the default theme
         // when a locally imported (third-party) theme is applied.

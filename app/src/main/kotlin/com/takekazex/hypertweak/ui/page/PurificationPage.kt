@@ -66,6 +66,7 @@ fun PurificationPage(
                 .verticalScroll(scrollState)
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            DarkModeScheduleSection()
             SharePanelSection()
             SmallTitle(text = stringResource(R.string.tweaks_aicr_section))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

@@ -13,6 +13,7 @@ internal object RuntimeSettingsGroups {
     const val NATIVE_PHOTO_PICKER = "system.native_photo_picker"
     // Retain the aggregate group ID so pre-split saved snapshots remain readable.
     const val NATIVE_FILE_PICKER = "system.native_picker"
+    const val DARK_MODE = "system.dark_mode"
     const val FORCE_SCREENSHOT = "system.force_screenshot"
     const val SCREENSHOT = "screenshot.frame"
     const val BACK = "gesture.back"
@@ -99,7 +100,7 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_NATIVE_PICKER, Preferences.KEY_NATIVE_PHOTO_PICKER, Preferences.KEY_NATIVE_FILE_PICKER,
         Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
         Preferences.KEY_SETTINGS_GEMINI_ENTRY,
-        Preferences.KEY_FORCE_SCREENSHOT,
+        Preferences.KEY_FORCE_SCREENSHOT, Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE,
         Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
         Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
         Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
@@ -151,6 +152,7 @@ internal object RuntimeSettingsGroups {
         NATIVE_FILE_PICKER to Group(setOf("android", "com.android.photopicker")) {
             it == Preferences.KEY_NATIVE_FILE_PICKER || it == Preferences.KEY_NATIVE_PICKER
         },
+        DARK_MODE to Group(setOf("android")) { it == Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE },
         FORCE_SCREENSHOT to Group(setOf("android")) { it == Preferences.KEY_FORCE_SCREENSHOT },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {
             it == Preferences.KEY_SCREENSHOT_AUTO_FRAME || it == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE ||

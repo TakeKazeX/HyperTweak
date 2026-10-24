@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dark_mode_schedule_section">深色模式</string>
+    <string name="dark_mode_schedule_immediate">自動切換立即生效</string>
+    <string name="dark_mode_schedule_immediate_summary">日落或自訂時間到點後直接切換，不再等到螢幕關閉</string>
+</resources>

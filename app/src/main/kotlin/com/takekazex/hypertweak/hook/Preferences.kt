@@ -395,6 +395,7 @@ object Preferences {
 
     // AOSP restore.
     /** Legacy combined switch: absent independent keys inherit it on upgrade. */
+    const val KEY_DARK_MODE_IMMEDIATE_SCHEDULE = "dark_mode_immediate_schedule"
     const val KEY_NATIVE_PICKER = "native_picker"
     const val KEY_NATIVE_PHOTO_PICKER = "native_photo_picker"
     const val KEY_NATIVE_FILE_PICKER = "native_file_picker"
