@@ -57,3 +57,13 @@
 -keep class com.takekazex.hypertweak.root.NotificationBannerBatch {
     public static void main(java.lang.String[]);
 }
+
+# Keep the small host-reflection boundary callable for the isolated Release APK contract probe.
+# Optimization remains enabled so the probe exercises production R8 transformations as well.
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrToolRequestAccess { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrToolRequestAccess$Companion { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrCopyDirectCueBatch { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserCatalog { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserCatalog$Browser { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBubbleTitleRenderer { public *; }
+-keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBubbleTitleRenderer$Companion { public *; }

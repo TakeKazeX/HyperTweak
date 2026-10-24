@@ -16,6 +16,26 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For Copy Direct browser routing, set `AICR_APK` to the verified installed AI engine APK when
+running the AICR tests. `AicrPanelDispatchHostContractTest` verifies the unique native AI Panel
+handler reads ToolRequest input before serializing/reporting its EventManager event. An unused
+service parser alone is not evidence of the production dispatch path. The same host test checks
+the native browser allowlist renderer, model and persistent state loader. After `:app:assembleRelease`,
+run `python3 app/src/test/android/aicr/run_panel_dispatch_probe.py <local-AICR.apk>
+--module-apk <release-HyperTweak.apk> --browsers
+<current-default-package> [other-installed-browser-packages] --output
+/Users/ink/developer/reverse/research/<task>/probe` to exercise production rewriting with the
+host's actual ToolRequest/Kotlin JSON classes and installed application labels in an isolated
+ART process. The Release APK uses a separate loader with a boot parent: sharing the host
+parent can collide with independently obfuscated class names. It also reports the installed
+browser catalog. The same probe instantiates the installed host's unshown BubbleView,
+executes its actual binder, and measures/draws the title into an offscreen Bitmap. Check
+colored pixels, exact span boundaries, preserved widths at 15/24/32 sp, narrow ellipsis,
+repeat-bind idempotence, disable cleanup and existing-view recovery. It initializes the
+system font map explicitly because app_process does not run normal application bootstrap.
+No windows are added and no device screenshots are captured. It checks APK identity and starts no activities; it does not install/restart the
+module or establish visible gradient/color acceptance.
+
 For Dart state-observer assembly changes, execute the production observer offline
 with Unicorn and pyelftools using the installed Android NDK compiler:
 

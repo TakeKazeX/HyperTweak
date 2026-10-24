@@ -4,12 +4,17 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.Preferences
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -37,6 +42,9 @@ fun PurificationPage(
     blockMiLinkHpplayFiles: Boolean,
     onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
 ) {
+    var aicrCopyDirectDefaultBrowser by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
+    }
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     Scaffold(topBar = {
@@ -59,6 +67,18 @@ fun PurificationPage(
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
             SharePanelSection()
+            SmallTitle(text = stringResource(R.string.tweaks_aicr_section))
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                SwitchPreference(
+                    checked = aicrCopyDirectDefaultBrowser,
+                    onCheckedChange = { enabled ->
+                        aicrCopyDirectDefaultBrowser = enabled
+                        Preferences.putBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
+                    },
+                    title = stringResource(R.string.tweaks_aicr_default_browser_title),
+                    summary = stringResource(R.string.tweaks_aicr_default_browser_summary)
+                )
+            }
             SmallTitle(text = stringResource(R.string.tweaks_mitrust_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

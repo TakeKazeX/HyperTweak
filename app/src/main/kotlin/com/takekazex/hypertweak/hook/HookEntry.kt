@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
 import com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
+import com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
@@ -246,7 +247,10 @@ class HookEntry : XposedModule() {
                 Preferences.invalidateRuntimeReadCache()
                 var applied = true
                 rootHookers.toList().forEach { hooker ->
-                    runCatching { hooker.refreshFeatureState() }.onFailure {
+                    runCatching {
+                        hooker.refreshFeatureState()
+                        if (hooker is AicrDefaultBrowserHooker) hooker.refreshPresentation()
+                    }.onFailure {
                         applied = false
                         DebugLog.w("HookEntry", "gated refresh failed hooker=${hooker.hookerName}", it)
                     }
@@ -1551,6 +1555,7 @@ class HookEntry : XposedModule() {
                 attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
             }
             "com.xiaomi.aicr" -> {
+                attachHooker(AicrBrowserWhitelistHooker, classLoader, ctx, replacementHandles)
                 attachHooker(AicrDefaultBrowserHooker, classLoader, ctx, replacementHandles)
             }
             "com.takekazex.hypertweak" -> {

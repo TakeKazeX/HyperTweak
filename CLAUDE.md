@@ -15,8 +15,28 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
 Features → Purification & optimization (`Route.Purification`, `ui/page/PurificationPage.kt`)
-contains the MiTrust / GuardProvider / MiLink / video-ringback switches with their original
-MainActivity callbacks. Its wireless diagnostics section uses app-side bounded root commands
+contains the Copy Direct default-browser switch plus the MiTrust / GuardProvider / MiLink /
+video-ringback switches with their original MainActivity callbacks. Copy Direct resolves the
+system default browser and its PackageManager application label for each new cue batch; the
+native application highlight range, title, application icon and web Intent are rewritten
+together in a copied ToolRequest at the real AI Panel dispatch boundary, before EventManager
+serializes/emits it. A separate IntentBubbleService parser is not this production route.
+No browser-name list is used; incomplete presentation data cannot block browser redirection.
+The current native collapsed BubbleView ignores the model's highlight ranges and calls
+TextView.setText(String). A separately discovered final binder applies a draw-only gradient
+span to the verified browser-name range in its existing bubble_title TextView. It keeps
+native metrics, bidi and ellipsis, clears only its own spans on disable/replacement and
+recovers existing collapsed windows when upgrading from a build with no renderer state.
+Span position lookup guards TextLine measurement re-entry; never call getPrimaryHorizontal
+unguarded from CharacterStyle.updateDrawState. JSON range tests alone do not verify drawing.
+Host JSON classes are derived from the host getInput return type, avoiding R8's adaptation
+of constant Class.forName names to this module's serialization classes.
+The native Open URL supported-app page independently includes installed APP_BROWSER entries
+plus the current default, qualified for both HTTP and HTTPS. Its own models, checkbox listeners
+and persisted per-package states remain in use; unrelated embedded web views are excluded.
+Both native state loading and row rendering receive the additional packages; row icons come
+from PackageManager. Browser apps without APP_BROWSER are included when selected as default.
+Its wireless diagnostics section uses app-side bounded root commands
 (`util/WirelessDiagnostics.kt`), verified vendor properties and fresh service/usage reads;
 there is no injected-process destination or boot-time replay. The two Preferences values are
 verified device mirrors, excluded from portable backups. Module reset/restore does not alter

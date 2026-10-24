@@ -8,6 +8,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -17,11 +21,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.json.JSONObject
 import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
-import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.ConcurrentHashMap
 
 /** Routes only HyperAI Copy Direct web actions to Android's current default browser. */
 object AicrDefaultBrowserHooker : StaticHooker() {
@@ -31,30 +31,20 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     private const val PACKAGE = "com.xiaomi.aicr"
     private const val XIAOMI_BROWSER = AicrCopyDirectBrowserPolicy.XIAOMI_BROWSER
     private const val COPY_DIRECT_TYPE_MARKER = "get_copy_direct_data"
-    private const val LEGACY_URL_MARKER = "clipboard_open"
-    private const val ACTION_PROVIDER_MARKER = "ActionCoreProvider.call"
-    private const val BUBBLE_RENDER_MARKER = "Display 或 BriefCard 为空"
-    private const val CUE_DATA = "com.xiaomi.ai.bubble.core.model.CueData"
-
-    // These IDs are semantic and stable across module releases and host obfuscation changes.
+    // Semantic identifiers, not obfuscated method names.
     private const val HOOK_LEGACY = "aicr_default_browser:legacy_copy_direct"
     private const val HOOK_ACTION_RESPONSE = "aicr_default_browser:copy_direct_response"
-    private const val HOOK_BUBBLE_RENDER = "aicr_default_browser:copy_direct_bubble_render"
-    private val BROWSER_LABEL_PATTERN = Regex("小米浏览器|Xiaomi Browser|Mi Browser", RegexOption.IGNORE_CASE)
-
-    private data class LabelEdit(val start: Int, val end: Int, val replacementLength: Int)
-    private data class LabelRewrite(val text: String, val edits: List<LabelEdit>)
-    private data class HighlightRange(val target: Any, val start: Int, val end: Int)
+    private var titleRenderer: AicrBubbleTitleRenderer? = null
+    private const val HOOK_BUBBLE_TITLE = "aicr_default_browser:render_browser_highlight"
+    private const val HOOK_PANEL_DISPATCH = "aicr_default_browser:copy_direct_panel_dispatch"
 
     internal data class ResolvedTargets(
         val legacyJump: Method?,
         val actionProviderCall: Method?,
-        val bubbleRender: Method?
+        val panelDispatch: Method?,
+        val bubbleBind: Method? = null,
+        val bubbleCallers: List<Method> = emptyList()
     )
-
-    private data class FieldKey(val owner: Class<*>, val name: String)
-    private val fields = ConcurrentHashMap<FieldKey, Field>()
-    private val cueStringFields = ConcurrentHashMap<Class<*>, List<Field>>()
 
     /** Prepare descriptors only while the user enables this feature. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
@@ -77,17 +67,17 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     }
 
     private fun installTargets(targets: ResolvedTargets) {
+        targets.bubbleBind?.let { method ->
+            targets.bubbleCallers.forEach(::deoptimize)
+            hookBubbleTitle(method)
+        }
+            ?: DebugLog.hookSkipped(TAG, "native bubble title", "unique renderer contract not found")
         targets.legacyJump?.let(::hookLegacyJump)
             ?: DebugLog.hookSkipped(TAG, "Copy Direct legacy URL jump", "unique DexKit match not found")
         targets.actionProviderCall?.let(::hookCopyDirectResponse)
             ?: DebugLog.hookSkipped(TAG, "Copy Direct data response", "unique DexKit match not found")
-        targets.bubbleRender?.let(::hookBubbleRender)
-            ?: DebugLog.hookSkipped(TAG, "Copy Direct bubble renderer", "unique DexKit match not found")
-    }
-
-    override fun onPrepareHotReload() {
-        fields.clear()
-        cueStringFields.clear()
+        targets.panelDispatch?.let(::hookPanelDispatch)
+            ?: DebugLog.hookSkipped(TAG, "Copy Direct AI Panel dispatch", "unique DexKit match not found")
     }
 
     /**
@@ -105,11 +95,6 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         compute = { session -> AicrDefaultBrowserCache.descriptors(session, classLoader) },
         decode = { stored, _ -> AicrDefaultBrowserCache.decode(stored, classLoader) },
     )
-    private fun materialize(data: MethodData): Method? =
-        runCatching { data.getMethodInstance(classLoader) }
-            .onFailure { DebugLog.w(TAG, "could not materialize DexKit target ${data.className}#${data.methodName}", it) }
-            .getOrNull()
-
     internal fun isLegacyJumpShape(method: Method): Boolean =
         method.parameterCount == 2 &&
             Context::class.java.isAssignableFrom(method.parameterTypes[0]) &&
@@ -122,11 +107,60 @@ object AicrDefaultBrowserHooker : StaticHooker() {
                 arrayOf(String::class.java, String::class.java, Bundle::class.java)
             ) && method.returnType == Bundle::class.java
 
-    internal fun isBubbleRenderShape(method: Method): Boolean =
-        android.view.View::class.java.isAssignableFrom(method.declaringClass) &&
-            method.parameterCount == 1 &&
-            method.parameterTypes[0].name == CUE_DATA &&
-            method.returnType == Void.TYPE
+    internal fun isPanelDispatchShape(method: Method): Boolean =
+        method.parameterTypes.map { it.name } == listOf(AicrDefaultBrowserCache.TOOL_REQUEST, "kotlin.coroutines.Continuation") &&
+            method.returnType == Any::class.java &&
+            !java.lang.reflect.Modifier.isStatic(method.modifiers)
+
+    internal fun isBubbleBindShape(method: Method): Boolean =
+        method.returnType == Void.TYPE && method.parameterTypes.map { it.name } == listOf(AicrDefaultBrowserCache.CUE_DATA) &&
+            ViewGroup::class.java.isAssignableFrom(method.declaringClass) &&
+            method.declaringClass.methods.any { it.name == "getCueData" && it.parameterCount == 0 && it.returnType == method.parameterTypes[0] }
+
+    private fun hookBubbleTitle(method: Method) {
+        runCatching {
+            val renderer = requireNotNull(AicrBubbleTitleRenderer.resolve(method)) { "native bubble title contract unavailable" }
+            titleRenderer = renderer
+            method.isAccessible = true
+            deoptimize(method)
+            method.hook(HOOK_BUBBLE_TITLE) {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "native title highlight", Unit) {
+                        if (!isEnabled()) return@open
+                        val root = param.thisObject as? View ?: return@open
+                        val cue = param.args.firstOrNull() ?: return@open
+                        val browser = resolveDefaultBrowserPackage(root.context) ?: return@open
+                        val label = applicationLabel(root.context, browser) ?: return@open
+                        if (renderer.bind(root, cue, browser, label)) DebugLog.d(TAG, "applied native browser gradient target=$browser")
+                    }
+                }
+            }
+            refreshPresentation()
+        }.onFailure { DebugLog.hookFailed(TAG, method.toGenericString(), it) }
+    }
+
+    /** Synchronous refresh participates in the existing settings acknowledgment and upgrade recovery. */
+    fun refreshPresentation() = StatusIconHostAccess.onMain {
+        val renderer = titleRenderer ?: return@onMain
+        if (!isEnabled()) { renderer.clear(); return@onMain }
+        val context = currentContext() ?: return@onMain
+        val browser = resolveDefaultBrowserPackage(context) ?: return@onMain
+        val label = applicationLabel(context, browser) ?: return@onMain
+        val type = Class.forName("android.view.WindowManagerGlobal")
+        val global = type.getDeclaredMethod("getInstance").invoke(null)
+        val roots = type.getDeclaredField("mViews").apply { isAccessible = true }.get(global) as? List<*> ?: return@onMain
+        var applied = 0
+        roots.toList().filterIsInstance<View>().forEach { root ->
+            val params = root.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+            if (params.title?.toString() == "com.xiaomi.aicr.bubble.collapsed") applied += renderer.recover(root, browser, label)
+        }
+        DebugLog.d(TAG, "refreshed native browser highlights roots=$applied")
+    }
+
+    override fun onPrepareHotReload() {
+        StatusIconHostAccess.onMain { titleRenderer?.clear(); titleRenderer = null }
+    }
+    override fun recoverHotReloadHosts() { refreshPresentation() }
 
     private fun hookLegacyJump(method: Method) {
         val target = method.toGenericString()
@@ -168,23 +202,50 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         }.onFailure { DebugLog.hookFailed(TAG, target, it) }
     }
 
-    private fun hookBubbleRender(method: Method) {
-        val target = method.toGenericString()
+    private fun hookPanelDispatch(method: Method) {
         runCatching {
+            // Resolve reflection once at installation, never on a clipboard/cue hot path.
+            val access = requireNotNull(AicrToolRequestAccess.resolveHost(method.parameterTypes[0])) {
+                "AI Panel ToolRequest/Json contract is missing or ambiguous"
+            }
             method.isAccessible = true
             deoptimize(method)
-            method.hook(HOOK_BUBBLE_RENDER) {
+            method.hook(HOOK_PANEL_DISPATCH) {
                 before { param ->
-                    HookFailurePolicy.open(TAG, "Copy Direct bubble metadata", Unit) {
+                    HookFailurePolicy.open(TAG, "Copy Direct AI Panel dispatch", Unit) {
                         if (!isEnabled()) return@open
-                        val cueData = param.args.getOrNull(0) ?: return@open
-                        val context = (param.thisObject as? android.view.View)?.context ?: currentContext() ?: return@open
-                        rewriteBubbleMetadata(cueData, context)
+                        val request = param.args.getOrNull(0) ?: return@open
+                        val context = currentContext() ?: return@open
+                        val browser = resolveDefaultBrowserPackage(context) ?: return@open
+                        if (browser == XIAOMI_BROWSER) return@open
+                        val label = applicationLabel(context, browser) ?: return@open
+                        val replacement = access.rewrite(request) { raw -> rewriteCueBatch(raw, context, browser, label) }
+                        if (replacement != null) {
+                            param.args[0] = replacement
+                            DebugLog.d(TAG, "rewrote Copy Direct AI Panel dispatch target=$browser")
+                        }
                     }
                 }
             }
-        }.onFailure { DebugLog.hookFailed(TAG, target, it) }
+        }.onFailure { DebugLog.hookFailed(TAG, method.toGenericString(), it) }
     }
+
+    private fun rewriteCueBatch(raw: String, context: Context, browser: String, label: String): String? =
+        AicrCopyDirectCueBatch.rewrite(raw, browser, label,
+            applicationLabel = { packageName -> applicationLabel(context, packageName) },
+            rewriteWebIntent = { uri ->
+                val intent = runCatching { Intent.parseUri(uri, Intent.URI_INTENT_SCHEME) }.getOrNull()
+                val data = intent?.data
+                if (intent == null || data == null || !isHttpUri(data) ||
+                    (intent.action != null && intent.action != Intent.ACTION_VIEW) ||
+                    !canHandleWebUri(context, browser, data)
+                ) null else {
+                    intent.component = null
+                    intent.`package` = browser
+                    intent.toUri(Intent.URI_INTENT_SCHEME)
+                }
+            }
+        )?.also { DebugLog.d(TAG, "rewrote Copy Direct cue batch target=$browser") }
 
     private fun rewriteCopyDirectResponse(request: Bundle, response: Bundle, context: Context) {
         val requestType = request.getString("type") ?: return
@@ -221,17 +282,9 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         intent.`package` = defaultPackage
         copyDirect.put("intentUri", intent.toUri(Intent.URI_INTENT_SCHEME))
 
-        val browserLabel = defaultPackage?.let { applicationLabel(context, it) ?: it }
-        if (browserLabel != null) {
-            rewriteLabel(copyDirect, "title", browserLabel)
-            rewriteLabel(copyDirect, "description", browserLabel)
-        }
-        val iconUri = copyDirect.optString("iconUri")
-        if (defaultPackage != null && iconUri.contains(XIAOMI_BROWSER) &&
-            !iconUri.startsWith("android.resource://", ignoreCase = true)
-        ) {
-            copyDirect.put("iconUri", iconUri.replace(XIAOMI_BROWSER, defaultPackage))
-        }
+        // The native cue builder searches the title for its original app name to create
+        // highlights. Replacing labels here makes that search fail and drops the color.
+        // Rewrite text together with those ranges at the actual AI Panel dispatch boundary instead.
 
         if (copyDirectValue is String) {
             targetOut.put("copyDirectData", copyDirect.toString())
@@ -240,201 +293,6 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         }
         response.putString("target_out", targetOut.toString())
         DebugLog.d(TAG, "rewrote Copy Direct response target=${defaultPackage ?: "system resolver"}")
-    }
-
-    private fun rewriteBubbleMetadata(cueData: Any, context: Context) {
-        val actions = (readField(cueData, "actions") as? Iterable<*>)?.toList().orEmpty()
-        val actionText = actions.joinToString(separator = "") { it?.toString().orEmpty() }
-        val display = readField(cueData, "display") ?: return
-        val currentPackage = readField(display, "targetPackage") as? String
-        val briefCard = readField(display, "briefCard") ?: return
-        val title = readField(briefCard, "title")
-        val description = readField(briefCard, "description")
-        val titleText = title?.let { readField(it, "text") as? String }.orEmpty()
-        val descriptionText = description?.let { readField(it, "text") as? String }.orEmpty()
-        val visibleBrowserLabel = containsXiaomiBrowserLabel(titleText) || containsXiaomiBrowserLabel(descriptionText)
-        val icons = listOf("startIcon", "endIcon").mapNotNull { iconField ->
-            iconField to readField(briefCard, iconField)
-        }
-        val iconValues = icons.mapNotNull { (_, icon) -> icon?.let { readField(it, "value") as? String } }
-        val targetsXiaomiBrowser = currentPackage == XIAOMI_BROWSER ||
-            actionText.contains(XIAOMI_BROWSER) || iconValues.any(::containsXiaomiBrowserPackage)
-        val hasBrowserMetadata = targetsXiaomiBrowser || visibleBrowserLabel
-        val hasCopyDirectMarker = directStringValues(cueData).any(::isCopyDirectMarker) ||
-            isCopyDirectMarker(actionText)
-        val hasWebAction = actionText.contains("http://", ignoreCase = true) ||
-            actionText.contains("https://", ignoreCase = true) ||
-            actionText.contains("scheme=http", ignoreCase = true) ||
-            actionText.contains("scheme=https", ignoreCase = true)
-        val hasIntentUriAction = actionText.contains("intentUri", ignoreCase = true) ||
-            actionText.contains("resolve_intent", ignoreCase = true)
-        val isCopyDirectBrowserCard = (hasCopyDirectMarker && hasBrowserMetadata) ||
-            (targetsXiaomiBrowser && (visibleBrowserLabel || hasWebAction || hasIntentUriAction)) ||
-            (visibleBrowserLabel && actions.isNotEmpty())
-        if (!isCopyDirectBrowserCard) return
-
-        val defaultPackage = resolveDefaultBrowserPackage(context) ?: return
-        if (defaultPackage == XIAOMI_BROWSER) return
-        val browserLabel = applicationLabel(context, defaultPackage) ?: defaultPackage
-
-        writeField(display, "targetPackage", defaultPackage)
-        rewriteCueText(title, browserLabel)
-        rewriteCueText(description, browserLabel)
-        icons.forEach { (iconField, icon) ->
-            if (icon == null) return@forEach
-            val value = readField(icon, "value") as? String ?: return@forEach
-            val isDefaultBrowserIcon = containsXiaomiBrowserPackage(value) ||
-                containsXiaomiBrowserLabel(value)
-            if (isDefaultBrowserIcon || (iconField == "startIcon" && (visibleBrowserLabel || targetsXiaomiBrowser))) {
-                writeField(icon, "type", "application")
-                writeField(icon, "value", defaultPackage)
-            }
-        }
-        DebugLog.d(TAG, "rewrote Copy Direct bubble metadata target=$defaultPackage")
-    }
-
-    private fun directStringValues(target: Any): List<String> = cueStringFields.computeIfAbsent(target.javaClass) { type ->
-        type.declaredFields.filter { it.type == String::class.java && !it.isSynthetic }
-            .onEach { field -> runCatching { field.isAccessible = true } }
-    }.mapNotNull { field -> runCatching { field.get(target) as? String }.getOrNull() }
-
-    private fun isCopyDirectMarker(value: String): Boolean =
-        value.contains("copy_jump", ignoreCase = true) ||
-            value.contains("copy_text_jump_app", ignoreCase = true) ||
-            value.contains("copy_direct", ignoreCase = true) ||
-            value.contains("get_copy_direct_data", ignoreCase = true) ||
-            value.contains("clipboard_open", ignoreCase = true)
-
-    private fun containsXiaomiBrowserPackage(value: String): Boolean =
-        value == XIAOMI_BROWSER || value.contains(XIAOMI_BROWSER)
-
-    private fun rewriteCueText(value: Any?, browserLabel: String) {
-        if (value == null) return
-        val current = readField(value, "text") as? String ?: return
-        val rewrite = rewriteBrowserLabels(current, browserLabel)
-        if (rewrite.text == current) return
-
-        val highlights = (readField(value, "highlights") as? List<*>)
-            ?.mapNotNull { highlight ->
-                highlight ?: return@mapNotNull null
-                val start = (readField(highlight, "start") as? Number)?.toInt() ?: return@mapNotNull null
-                val end = (readField(highlight, "end") as? Number)?.toInt() ?: return@mapNotNull null
-                HighlightRange(highlight, start, end)
-            }.orEmpty()
-        val normalizedHighlights = normalizeHighlightRanges(current, highlights)
-
-        writeField(value, "text", rewrite.text)
-        if ((readField(value, "text") as? String) != rewrite.text) return
-
-        normalizedHighlights.forEach { highlight ->
-            val start = mapHighlightOffset(highlight.start, rewrite.edits, isEnd = false)
-                .coerceIn(0, rewrite.text.length)
-            val end = mapHighlightOffset(highlight.end, rewrite.edits, isEnd = true)
-                .coerceIn(start, rewrite.text.length)
-            writeField(highlight.target, "start", start)
-            writeField(highlight.target, "end", end)
-        }
-    }
-
-    private fun rewriteLabel(json: JSONObject, key: String, browserLabel: String) {
-        val current = json.optString(key).takeIf(String::isNotEmpty) ?: return
-        val updated = replaceBrowserLabel(current, browserLabel)
-        if (updated != current) json.put(key, updated)
-    }
-
-    private fun replaceBrowserLabel(value: String, browserLabel: String): String =
-        rewriteBrowserLabels(value, browserLabel).text
-
-    private fun rewriteBrowserLabels(value: String, browserLabel: String): LabelRewrite {
-        val matches = BROWSER_LABEL_PATTERN.findAll(value).toList()
-        if (matches.isEmpty()) return LabelRewrite(value, emptyList())
-
-        val rewritten = StringBuilder(value.length)
-        val edits = ArrayList<LabelEdit>(matches.size)
-        var sourceIndex = 0
-        matches.forEach { match ->
-            val start = match.range.first
-            val end = match.range.last + 1
-            rewritten.append(value, sourceIndex, start)
-            rewritten.append(browserLabel)
-            edits += LabelEdit(start, end, browserLabel.length)
-            sourceIndex = end
-        }
-        rewritten.append(value, sourceIndex, value.length)
-        return LabelRewrite(rewritten.toString(), edits)
-    }
-
-    /** AICR accepts both UTF-8 byte offsets and character offsets for gradient ranges. */
-    private fun normalizeHighlightRanges(text: String, highlights: List<HighlightRange>): List<HighlightRange> {
-        val byteLength = text.toByteArray(StandardCharsets.UTF_8).size
-        val usesByteOffsets = highlights.any { it.end > text.length && it.end <= byteLength }
-        if (!usesByteOffsets) {
-            return highlights.map {
-                it.copy(
-                    start = it.start.coerceIn(0, text.length),
-                    end = it.end.coerceIn(0, text.length)
-                )
-            }
-        }
-
-        val byteToCharacter = IntArray(byteLength + 1)
-        var byteIndex = 0
-        text.forEachIndexed { characterIndex, character ->
-            val characterByteLength = character.toString().toByteArray(StandardCharsets.UTF_8).size
-            repeat(characterByteLength) { offset ->
-                val index = byteIndex + offset
-                if (index < byteToCharacter.size) byteToCharacter[index] = characterIndex
-            }
-            byteIndex += characterByteLength
-        }
-        if (byteIndex < byteToCharacter.size) byteToCharacter[byteIndex] = text.length
-
-        return highlights.map { highlight ->
-            highlight.copy(
-                start = byteOffsetToCharacter(highlight.start, byteToCharacter, text.length),
-                end = byteOffsetToCharacter(highlight.end, byteToCharacter, text.length)
-            )
-        }
-    }
-
-    private fun byteOffsetToCharacter(offset: Int, byteToCharacter: IntArray, textLength: Int): Int =
-        if (offset < 0 || offset >= byteToCharacter.size) textLength else byteToCharacter[offset]
-
-    private fun mapHighlightOffset(offset: Int, edits: List<LabelEdit>, isEnd: Boolean): Int {
-        var delta = 0
-        edits.forEach { edit ->
-            val newStart = edit.start + delta
-            val newEnd = newStart + edit.replacementLength
-            when {
-                offset < edit.start -> return offset + delta
-                offset == edit.start -> return newStart
-                offset < edit.end -> return if (isEnd) newEnd else newStart
-                offset == edit.end -> return newEnd
-                else -> delta += edit.replacementLength - (edit.end - edit.start)
-            }
-        }
-        return offset + delta
-    }
-
-    private fun containsXiaomiBrowserLabel(value: String): Boolean =
-        value.contains("小米浏览器", ignoreCase = true) ||
-            value.contains("Mi Browser", ignoreCase = true) ||
-            value.contains("Xiaomi Browser", ignoreCase = true)
-
-    private fun readField(target: Any, name: String): Any? = runCatching {
-        val field = fields.computeIfAbsent(FieldKey(target.javaClass, name)) { key ->
-            key.owner.getDeclaredField(key.name).apply { isAccessible = true }
-        }
-        field.get(target)
-    }.getOrNull()
-
-    private fun writeField(target: Any, name: String, value: Any?) {
-        runCatching {
-            val field = fields.computeIfAbsent(FieldKey(target.javaClass, name)) { key ->
-                key.owner.getDeclaredField(key.name).apply { isAccessible = true }
-            }
-            field.set(target, value)
-        }
     }
 
     private fun startWebIntent(context: Context, original: Intent): Boolean {
@@ -515,19 +373,21 @@ object AicrDefaultBrowserHooker : StaticHooker() {
 /** Persistent feature cache identity. */
 internal object AicrDefaultBrowserFeature : com.takekazex.hypertweak.hook.base.dex.DexFeature {
     override val id = "aicr.copy_direct"
-    override val schema = 2
+    override val schema = 5
 }
 
 /** Descriptor compute/decode for persistent target caching. */
 internal object AicrDefaultBrowserCache {
     private const val LEGACY = "target.legacy"
     private const val ACTION = "target.action"
-    private const val BUBBLE = "target.bubble"
+    private const val PANEL_DISPATCH = "target.panel_dispatch"
+    private const val BUBBLE_BIND = "target.bubble_bind"
+    const val CUE_DATA = "com.xiaomi.ai.bubble.core.model.CueData"
 
     const val LEGACY_URL_MARKER = "clipboard_open"
     const val ACTION_PROVIDER_MARKER = "ActionCoreProvider.call"
-    const val BUBBLE_RENDER_MARKER = "Display 或 BriefCard 为空"
-    const val CUE_DATA = "com.xiaomi.ai.bubble.core.model.CueData"
+    const val PANEL_DISPATCH_MARKER = "AiPanelHandler"
+    const val TOOL_REQUEST = "com.xiaomi.aicr.decisionframework.model.tool.ToolRequest"
 
     fun descriptors(session: com.takekazex.hypertweak.hook.base.dex.DexSession, loader: ClassLoader): Map<String, String> =
         session.dexKit { bridge ->
@@ -538,6 +398,20 @@ internal object AicrDefaultBrowserCache {
                     com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(it)
                 }
             buildMap {
+                val binder = bridge.findMethod(org.luckypray.dexkit.query.FindMethod().apply { matcher {
+                    paramTypes(CUE_DATA)
+                    returnType(Void.TYPE)
+                    addUsingString("schedule_create", StringMatchType.Equals)
+                    addUsingString("document_extract", StringMatchType.Equals)
+                } }).filter { runCatching { AicrDefaultBrowserHooker.isBubbleBindShape(it.getMethodInstance(loader)) }.getOrDefault(false) }
+                    .singleOrNull()
+                if (binder != null) {
+                    put(BUBBLE_BIND, com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(binder.getMethodInstance(loader)))
+                    binder.callers.mapNotNull { runCatching { it.getMethodInstance(loader) }.getOrNull() }.distinct()
+                        .forEachIndexed { index, method ->
+                            put("target.bubble_caller.$index", com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(method))
+                        }
+                }
                 single(org.luckypray.dexkit.query.FindMethod().apply { matcher {
                     paramTypes(null, String::class.java)
                     returnType(Void.TYPE)
@@ -549,10 +423,11 @@ internal object AicrDefaultBrowserCache {
                     addUsingString(ACTION_PROVIDER_MARKER, StringMatchType.Equals)
                 } }, AicrDefaultBrowserHooker::isActionProviderShape)?.let { put(ACTION, it) }
                 single(org.luckypray.dexkit.query.FindMethod().apply { matcher {
-                    paramTypes(CUE_DATA)
-                    returnType(Void.TYPE)
-                    addUsingString(BUBBLE_RENDER_MARKER, StringMatchType.Equals)
-                } }, AicrDefaultBrowserHooker::isBubbleRenderShape)?.let { put(BUBBLE, it) }
+                    paramTypes(TOOL_REQUEST, "kotlin.coroutines.Continuation")
+                    returnType(Any::class.java)
+                    addUsingString(PANEL_DISPATCH_MARKER, StringMatchType.Equals)
+                    addUsingString("EventEntity reported", StringMatchType.Equals)
+                } }, AicrDefaultBrowserHooker::isPanelDispatchShape)?.let { put(PANEL_DISPATCH, it) }
             }
         } ?: emptyMap()
 
@@ -564,12 +439,17 @@ internal object AicrDefaultBrowserCache {
             stored[key]?.let { com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, loader) }
         val legacy = method(LEGACY)
         val action = method(ACTION)
-        val bubble = method(BUBBLE)
+        val panelDispatch = method(PANEL_DISPATCH)
+        val bubbleBind = method(BUBBLE_BIND)
+        val bubbleCallers = stored.filterKeys { it.startsWith("target.bubble_caller.") }.values.map {
+            com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, loader) ?: return null
+        }
+        if (BUBBLE_BIND in stored && (bubbleBind == null || !AicrDefaultBrowserHooker.isBubbleBindShape(bubbleBind))) return null
         if (LEGACY in stored && (legacy == null || !AicrDefaultBrowserHooker.isLegacyJumpShape(legacy))) return null
         if (ACTION in stored && (action == null || !AicrDefaultBrowserHooker.isActionProviderShape(action))) return null
-        if (BUBBLE in stored && (bubble == null || !AicrDefaultBrowserHooker.isBubbleRenderShape(bubble))) return null
+        if (PANEL_DISPATCH in stored && (panelDispatch == null || !AicrDefaultBrowserHooker.isPanelDispatchShape(panelDispatch))) return null
         // An entry that stored nothing usable must be a miss so the next run rescans.
-        if (legacy == null && action == null && bubble == null) return null
-        return AicrDefaultBrowserHooker.ResolvedTargets(legacy, action, bubble)
+        if (legacy == null && action == null && panelDispatch == null && bubbleBind == null) return null
+        return AicrDefaultBrowserHooker.ResolvedTargets(legacy, action, panelDispatch, bubbleBind, bubbleCallers)
     }
 }
