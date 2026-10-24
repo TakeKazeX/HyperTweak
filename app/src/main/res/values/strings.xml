@@ -862,6 +862,10 @@
     <string name="settings_aosp_restore_summary">Restore HyperOS components to AOSP or international behavior</string>
     <string name="settings_global_interface_title">Use the international Settings interface</string>
     <string name="settings_global_interface_summary">Show the global Settings menus; restart Settings to apply</string>
+    <string name="settings_ondevice_model_entry_title">Show the on-device large model entry</string>
+    <string name="settings_ondevice_model_entry_summary">Reveal the on-device large model row on the Xiaomi HyperAI page</string>
+    <string name="settings_gemini_entry_title">Show the Gemini entry</string>
+    <string name="settings_gemini_entry_summary">Show Gemini next to the native Mi AI entry</string>
     <string name="settings_app_shortcuts">App Shortcuts</string>
     <string name="settings_app_shortcuts_summary">Choose the shortcuts in the long-press app icon menu</string>
     <string name="settings_appearance">Appearance</string>

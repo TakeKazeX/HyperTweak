@@ -264,6 +264,16 @@ object Preferences {
     const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
     /** Makes Settings follow its own international-build UI branches in this process. */
     const val KEY_SETTINGS_GLOBAL_INTERFACE = "settings_global_interface"
+    /**
+     * Shows the 小米澎湃AI page's 端侧大模型 row. The ROM hides it because the on-device model
+     * capability answer for this model is negative, while the activity it opens is functional;
+     * see [com.takekazex.hypertweak.hook.rules.settings.HyperOsAiEntriesHooker].
+     */
+    const val KEY_SETTINGS_ONDEVICE_MODEL_ENTRY = "settings_ondevice_model_entry"
+    /**
+     * Shows the 小米澎湃AI page's Gemini row next to the unchanged native 超级小爱 card.
+     */
+    const val KEY_SETTINGS_GEMINI_ENTRY = "settings_gemini_entry"
     // Verified mirrors of device-persistent vendor properties; never replayed at boot or upgrade.
     const val KEY_WIFI_CNSS_DIAG_ENABLED = "wifi_cnss_diag_enabled"
     const val KEY_WIFI_TCPDUMP_ENABLED = "wifi_tcpdump_enabled"

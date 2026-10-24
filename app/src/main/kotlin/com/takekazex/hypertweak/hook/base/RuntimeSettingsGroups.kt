@@ -27,6 +27,7 @@ internal object RuntimeSettingsGroups {
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val OFFLINE_CONFIG = "carrier.offline_config"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
+    const val SETTINGS_AI = "settings.hyperos_ai"
     const val SHARE_PANEL = "intentresolver.share_panel"
     /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
     const val AOD = "systemui.aod"
@@ -92,6 +93,8 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         Preferences.KEY_NATIVE_RULE_REVISION, Preferences.KEY_RECENTS_CARD_HAPTIC, Preferences.KEY_FOLDER_STACK_PREVIEW, Preferences.KEY_ANDROID_WIDGET_STACK, Preferences.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     val strictBooleanKeys = setOf(
+        Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
+        Preferences.KEY_SETTINGS_GEMINI_ENTRY,
         Preferences.KEY_FORCE_SCREENSHOT,
         Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
         Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
@@ -161,6 +164,9 @@ internal object RuntimeSettingsGroups {
                 it == Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER
         },
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == Preferences.KEY_XIAOAI_GESTURE_OPTIONS },
+        SETTINGS_AI to Group(setOf("com.android.settings")) {
+            it == Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY || it == Preferences.KEY_SETTINGS_GEMINI_ENTRY
+        },
         SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == Preferences.KEY_SHARE_PANEL_SHOW_ALL },
         // Presence-deciding switches. These keys make a hooker install or disappear, so the owning
         // process must be told about them even though no visible value changes inside a callback.

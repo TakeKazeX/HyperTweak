@@ -6,6 +6,35 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun settingsAiEntriesAreIndependentAndSurviveUpgradeDisableAndReset() {
+        val model = Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY
+        val gemini = Preferences.KEY_SETTINGS_GEMINI_ENTRY
+        val group = setOf(Groups.SETTINGS_AI)
+        for (key in listOf(model, gemini)) {
+            assertEquals(group, Groups.affected(key))
+            assertTrue(Groups.SETTINGS_AI in Groups.forProcess("com.android.settings"))
+            assertTrue(Groups.subset("com.android.systemui", mapOf(key to true)).isEmpty())
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to 1), group))
+        }
+        val ledger = RuntimeSettingsLedger().also {
+            it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true)))
+        }
+        val enabled = RuntimeSettingsSnapshot.read(2, mapOf(model to true, gemini to true), group)!!
+        assertTrue(Groups.SETTINGS_AI in ledger.changedGroups(enabled))
+        assertTrue(ledger.accept(enabled))
+        val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        val geminiOff = enabled.mutate(gemini, false, 3)!!
+        assertTrue(replacement.accept(geminiOff))
+        assertEquals(true, replacement.value(model))
+        assertEquals(false, replacement.value(gemini))
+        val reset = RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>(), group)!!
+        assertEquals(group, replacement.changedGroups(reset))
+        assertTrue(replacement.accept(reset))
+        assertNull(replacement.value(model))
+        assertNull(replacement.value(gemini))
+        assertFalse(replacement.accept(enabled))
+    }
+
     @Test fun forceScreenshotRoutesOnlyToSystemServerAndSurvivesReplacementAndReset() {
         val key = Preferences.KEY_FORCE_SCREENSHOT
         val groups = setOf(Groups.FORCE_SCREENSHOT)

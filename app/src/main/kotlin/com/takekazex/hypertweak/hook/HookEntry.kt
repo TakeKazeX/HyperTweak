@@ -116,6 +116,7 @@ import com.takekazex.hypertweak.hook.rules.settings.GlobalSettingsInterfaceHooke
 import com.takekazex.hypertweak.hook.rules.settings.NotificationMoreSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.NotificationBadgeSettingsHooker
 import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
+import com.takekazex.hypertweak.hook.rules.settings.HyperOsAiEntriesHooker
 import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
 import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
@@ -276,6 +277,9 @@ class HookEntry : XposedModule() {
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.XIAOAI_GESTURES) { _ -> true }
+            registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->
+                HyperOsAiEntriesHooker.refreshSettings()
+            }
             registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->
                 SharePanelHooker.refreshSettings()
                 true
@@ -1390,6 +1394,8 @@ class HookEntry : XposedModule() {
                 attachHooker(NotificationBadgeSettingsHooker, classLoader, ctx, replacementHandles)
                 // Restore Settings' own Google services home-page header on domestic builds.
                 attachHooker(GoogleServicesSettingsHooker, classLoader, ctx, replacementHandles)
+                // Reveal the 小米澎湃AI page's 端侧大模型 / Gemini rows through the shared dispatcher.
+                attachHooker(HyperOsAiEntriesHooker, classLoader, ctx, replacementHandles)
             }
             "com.android.phone" -> {
                 // The native HyperPhone page delegates the CRBT capability and setter to this

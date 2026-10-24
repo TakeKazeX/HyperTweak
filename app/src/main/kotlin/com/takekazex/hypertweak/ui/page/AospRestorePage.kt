@@ -87,6 +87,12 @@ fun AospRestorePage(
     var appManagerEntry by remember {
         mutableStateOf(Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false))
     }
+    var onDeviceModelEntry by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY, false))
+    }
+    var geminiEntry by remember {
+        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SETTINGS_GEMINI_ENTRY, false))
+    }
     // Keep the local prompt for immediate access on this page. Each affected switch also reports
     // its process to the shared Home restart dialog through LocalRestartScopeRequest.
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
@@ -125,12 +131,32 @@ fun AospRestorePage(
 
             SmallTitle(stringResource(R.string.aosp_section_international))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = settingsGlobalInterface,
-                    onCheckedChange = onSettingsGlobalInterfaceChange,
-                    title = stringResource(R.string.settings_global_interface_title),
-                    summary = stringResource(R.string.settings_global_interface_summary)
-                )
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = settingsGlobalInterface,
+                        onCheckedChange = onSettingsGlobalInterfaceChange,
+                        title = stringResource(R.string.settings_global_interface_title),
+                        summary = stringResource(R.string.settings_global_interface_summary)
+                    )
+                    SwitchPreference(
+                        checked = onDeviceModelEntry,
+                        onCheckedChange = { enabled ->
+                            onDeviceModelEntry = enabled
+                            Preferences.putBoolean(Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY, enabled)
+                        },
+                        title = stringResource(R.string.settings_ondevice_model_entry_title),
+                        summary = stringResource(R.string.settings_ondevice_model_entry_summary)
+                    )
+                    SwitchPreference(
+                        checked = geminiEntry,
+                        onCheckedChange = { enabled ->
+                            geminiEntry = enabled
+                            Preferences.putBoolean(Preferences.KEY_SETTINGS_GEMINI_ENTRY, enabled)
+                        },
+                        title = stringResource(R.string.settings_gemini_entry_title),
+                        summary = stringResource(R.string.settings_gemini_entry_summary)
+                    )
+                }
             }
 
             SmallTitle(stringResource(R.string.aosp_section_system_ui))

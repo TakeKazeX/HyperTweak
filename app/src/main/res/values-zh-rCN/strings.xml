@@ -858,6 +858,10 @@
     <string name="settings_aosp_restore_summary">将 HyperOS 组件还原为 AOSP 或国际版行为</string>
     <string name="settings_global_interface_title">启用国际版设置界面</string>
     <string name="settings_global_interface_summary">显示国际版系统设置菜单；重启设置后生效</string>
+    <string name="settings_ondevice_model_entry_title">显示端侧大模型入口</string>
+    <string name="settings_ondevice_model_entry_summary">在设置的「小米澎湃AI」页显示端侧大模型</string>
+    <string name="settings_gemini_entry_title">显示 Gemini 入口</string>
+    <string name="settings_gemini_entry_summary">在「小米澎湃AI」页与超级小爱并列显示 Gemini</string>
     <string name="settings_app_shortcuts">应用快捷方式</string>
     <string name="settings_app_shortcuts_summary">选择长按应用图标显示的快捷方式</string>
     <string name="settings_appearance">外观</string>
