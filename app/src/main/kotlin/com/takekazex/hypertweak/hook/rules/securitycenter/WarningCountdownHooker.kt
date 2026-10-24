@@ -122,7 +122,8 @@ object WarningCountdownHooker : StaticHooker() {
         hookAdbVerifyPath()
 
         if (mode == Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE) {
-            hookDirectApprovePath()
+            prepareDexTargets(name = WarningCountdownFeature.id,
+                resolve = ::resolveConfirmMethod, install = ::hookDirectApprovePath)
         }
     }
 
@@ -210,7 +211,7 @@ object WarningCountdownHooker : StaticHooker() {
 
     // ─── Mode 2: behavioral confirm-method resolution + after-hook call ───
 
-    private fun hookDirectApprovePath() {
+    private fun hookDirectApprovePath(confirmMethod: Method) {
         val fragmentClass = BASE_FRAGMENT_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "direct approve path", "$BASE_FRAGMENT_CLASS not found")
             return
@@ -222,15 +223,6 @@ object WarningCountdownHooker : StaticHooker() {
                 )
         } ?: run {
             DebugLog.hookSkipped(TAG, "direct approve path", "onInflateView not found")
-            return
-        }
-
-        val confirmMethod = resolveConfirmMethod() ?: run {
-            DebugLog.hookSkipped(
-                TAG,
-                "direct approve path",
-                "confirm method not uniquely resolved; fail closed"
-            )
             return
         }
 
@@ -257,20 +249,25 @@ object WarningCountdownHooker : StaticHooker() {
      * for ADB but is not in this class, so the match here is the shared base path.
      * Returns null unless exactly one candidate matches (fail closed).
      */
+    /**
+     * Cached resolution of the shared confirm method.
+     *
+     * The target is one method, so it reduces to a descriptor. This scan used to run in every
+     * Security Center process on the main thread - five times per boot, 800-1500 ms each, 4.8 s
+     * total (measured 2026-10-24).
+     */
     private fun resolveConfirmMethod(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir
         if (apkPath != null) {
-            val resolved = DexRuntime.query(apkPath, "WarningCountdownHooker.resolveConfirmMethod") { bridge ->
-                bridge.findMethod {
-                    matcher {
-                        declaredClass(BASE_FRAGMENT_CLASS, StringMatchType.Equals)
-                        returnType("void")
-                        addParamType("boolean")
-                        usingNumbers(-1, 0)
-                        modifiers(Modifier.PUBLIC)
-                    }
-                }.singleOrNull()?.getMethodInstance(classLoader)
-            }
+            val resolved = DexRuntime.resolve(
+                feature = WarningCountdownFeature,
+                apkPath = apkPath,
+                cacheDir = dexCacheDirectory,
+                cacheEmpty = true,
+                appInfo = hookParam.appInfo,
+                compute = WarningCountdownCache::descriptors,
+                decode = { stored, _ -> WarningCountdownCache.decode(stored, classLoader) },
+            )
             if (resolved != null) {
                 if (resolved.parameterCount == 1 &&
                     resolved.parameterTypes[0] == java.lang.Boolean.TYPE &&

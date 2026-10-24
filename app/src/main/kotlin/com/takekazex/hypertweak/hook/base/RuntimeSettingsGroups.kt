@@ -19,6 +19,8 @@ internal object RuntimeSettingsGroups {
     const val XMSF = "xmsf.focus"
     const val GESTURE_BAR = "system.gesture_bar"
     const val GESTURE_BAR_UI = "systemui.gesture_bar"
+    /** Switches that decide whether a hooker is installed at all, not just how it behaves. */
+    const val GATED_FEATURES = "features.installation"
     const val APP_DETAILS = "securitycenter.app_details"
     const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
     const val SECURITY_DOCK = "securitycenter.dock"
@@ -71,6 +73,20 @@ internal object RuntimeSettingsGroups {
         Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, Preferences.KEY_HIDE_LOCKSCREEN_DATE,
         Preferences.KEY_HIDE_FINGERPRINT, Preferences.KEY_HIDE_FINGERPRINT_AOD,
         Preferences.KEY_HIDE_FINGERPRINT_LOCKSCREEN, Preferences.KEY_HIDE_FINGERPRINT_APP_AUTH
+    )
+    /** Master and per-group power-save switches that decide whether the override hooker exists. */
+    private val powerSaveKeys = setOf(
+        Preferences.KEY_POWER_SAVE_OVERRIDE_MASTER,
+        Preferences.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
+        Preferences.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+        Preferences.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
+        Preferences.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+    )
+    private val watermarkKeys = setOf(
+        Preferences.KEY_WM_UNLOCK_MASTER, Preferences.KEY_WM_LEICA, Preferences.KEY_WM_XIAOMI,
+        Preferences.KEY_WM_REDMI, Preferences.KEY_WM_POCO, Preferences.KEY_WM_DISNEY1,
+        Preferences.KEY_WM_DISNEY2, Preferences.KEY_WM_DISNEY3, Preferences.KEY_WM_VICTORIA,
+        Preferences.KEY_WM_LCC, Preferences.KEY_WM_DOWNLOAD_ALL, Preferences.KEY_WM_CAMERA,
     )
     private val nativeKeys = setOf(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, Preferences.KEY_OPENED_FOLDER_COLUMNS,
         Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
@@ -146,6 +162,24 @@ internal object RuntimeSettingsGroups {
         },
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == Preferences.KEY_XIAOAI_GESTURE_OPTIONS },
         SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == Preferences.KEY_SHARE_PANEL_SHOW_ALL },
+        // Presence-deciding switches. These keys make a hooker install or disappear, so the owning
+        // process must be told about them even though no visible value changes inside a callback.
+        GATED_FEATURES to Group(
+            setOf(
+                "com.miui.securitycenter", "com.android.camera", "com.xiaomi.aicr",
+                "com.miui.personalassistant", "com.miui.mediaeditor",
+            )
+        ) {
+            it == Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE ||
+                it == Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA ||
+                it == Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING ||
+                it == Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO ||
+                it == Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER ||
+                it == Preferences.KEY_PA_MODEL_SPOOF || it == Preferences.KEY_PA_MODEL_SPOOF_MODEL ||
+                it == Preferences.KEY_PA_MODEL_SPOOF_DEVICE ||
+                it in watermarkKeys ||
+                it in powerSaveKeys
+        },
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == Preferences.KEY_APP_DETAILS_ICON_LAUNCH },
         SECURITY_POPUPS to Group(setOf("com.miui.securitycenter")) {
             it == Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP || it == Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
@@ -173,7 +207,11 @@ internal object RuntimeSettingsGroups {
     fun target(process: String, systemServer: Boolean = false): String = if (systemServer || process == "system_server") "android" else {
         val base = process.substringBefore(':')
         when {
-            base == "com.miui.securitycenter.remote" || base == "com.miui.securitycenter.cache" -> "com.miui.securitycenter"
+            // Every Security Center subprocess hosts part of the same feature set; before this,
+            // `.power` was not normalized and therefore never received a settings snapshot at all
+            // (its PowerSaveOverrideHooker and PowerRankingHooker only ever saw boot values).
+            base in setOf("com.miui.securitycenter", "com.miui.securitycenter.remote",
+                "com.miui.securitycenter.cache", "com.miui.securitycenter.power") -> "com.miui.securitycenter"
             else -> base
         }
     }

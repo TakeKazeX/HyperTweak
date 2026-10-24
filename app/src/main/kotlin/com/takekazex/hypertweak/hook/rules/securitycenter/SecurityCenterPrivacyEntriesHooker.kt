@@ -51,6 +51,17 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
         "#Intent;action=$FRONT_ASSISTANT_ACTION;end"
 
     @Volatile private var supportedAntiPeepingModes: Set<Int> = emptySet()
+    /** False until the semantic profile says which native anti-peeping gates exist. */
+    @Volatile private var antiPeepingSupportKnown: Boolean = false
+
+    /**
+     * A new generation must re-learn support: the profile is re-resolved after an APK update and
+     * the previous answer may no longer describe this build.
+     */
+    override fun onPrepareHotReload() {
+        supportedAntiPeepingModes = emptySet()
+        antiPeepingSupportKnown = false
+    }
 
     private val beautyManageUiGateActive = ThreadActivation()
 
@@ -251,9 +262,16 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
         }
     }
 
-    private fun visibilityOverride(key: String): Boolean? {
-        val antiPeeping = antiPeepingMode().takeIf { it in supportedAntiPeepingModes }
+    /** Preserve native visibility until the current profile proves the requested capability. */
+    private fun effectiveAntiPeepingMode(): Int {
+        val selected = antiPeepingMode()
+        if (!antiPeepingSupportKnown) return Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+        return selected.takeIf { it in supportedAntiPeepingModes }
             ?: Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+    }
+
+    private fun visibilityOverride(key: String): Boolean? {
+        val antiPeeping = effectiveAntiPeepingMode()
         return when (key) {
             PRIVACY_CALL_KEY -> true.takeIf { isPrivacyCallEnabled() }
             PRIVACY_PROTECTION_CATEGORY_KEY ->
@@ -315,6 +333,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             if (v1 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V1)
             if (v2 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V2)
         }
+        antiPeepingSupportKnown = true
         if (antiPeepingMode() !in supportedAntiPeepingModes) {
             DebugLog.w(TAG, "selected anti-peeping capability unavailable; preserving native gates")
             return

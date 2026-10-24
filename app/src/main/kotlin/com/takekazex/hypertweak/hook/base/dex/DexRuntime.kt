@@ -30,15 +30,32 @@ internal class DexSession internal constructor(
  * Features describe *what* to resolve (a [DexFeature] plus encode/decode) and this runtime owns
  * *when* and *where*: it reads the build-keyed cache first, reuses one backend session per package
  * dispatch, writes the cache only when a scan succeeded, and keeps the backend identity in the
- * file so an external engine can produce the same format. Mirrors the hot-reload layer owning
- * hooker lifecycle instead of every hooker owning its own bridge.
+ * file so an external engine can produce the same format.
+ *
+ * Full byte identities are memoized per installed base/split metadata. Features whose targets
+ * are not needed during bindApplication prepare them on the managed background worker.
  */
 internal object DexRuntime {
     private const val TAG = "DexRuntime"
     private val resolutions = DexResolution()
     private val identities = ConcurrentHashMap<String, DexKitCacheIdentity>()
+    private val sourceInfos = ConcurrentHashMap<String, ApplicationInfo>()
+
+    /** PackageLoaded precedes Application creation; retain its split contract for legacy callers. */
+    fun registerSource(info: ApplicationInfo?) {
+        info?.sourceDir?.takeIf(String::isNotBlank)?.let { sourceInfos[it] = info }
+    }
     private val scopes = DexScopes(DexKitManager::beginSharedSession)
     val isResolving: Boolean get() = DexKitManager.hasActiveUsers
+    /**
+     * Background resolution worker.
+     *
+     * Deliberately single-threaded. Each task may open a DexKit bridge over the host APK, and two
+     * concurrent bridges on an 81 MB APK cost more memory than the queueing they save. A slow
+     * feature is therefore fixed by caching it, not by adding a second thread: `PowerRanking` held
+     * this worker for 7.8 s until its descriptors were cached, which is what had been delaying the
+     * Dock install behind it.
+     */
     private val worker = ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(32), { task ->
         Thread({
             runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
@@ -46,12 +63,71 @@ internal object DexRuntime {
         }, "HT-DexPrepare").apply { isDaemon = true }
     }).apply { allowCoreThreadTimeOut(true) }
 
+    private val batches = DexWorkBatch(
+        execute = { worker.execute(it) },
+        withScope = { path, action -> withScope(path, action) },
+        failure = { DebugLog.w(TAG, "background DEX batch failed", it) },
+    )
+
     fun beginSession(apkPath: String): AutoCloseable = scopes.begin(apkPath)
 
     /** The executing package owns caches, including queries against plugin APKs. */
     fun cacheDirectory(info: ApplicationInfo?): File? =
         (info?.deviceProtectedDataDir?.takeIf(String::isNotBlank)
             ?: info?.dataDir?.takeIf(String::isNotBlank))?.let { File(it, "cache") }
+
+    /** Complete base/split byte identity, memoized per installed metadata in this process. */
+    fun identityFor(info: ApplicationInfo?, apkPath: String): DexKitCacheIdentity? {
+        val apk = File(apkPath)
+        val key = apk.absolutePath
+        val modified = apk.lastModified()
+        val size = apk.length()
+        // Callers cannot be trusted to thread ApplicationInfo through: only a handful of the
+        // resolve() sites have it in scope, and a missing one would silently drop split coverage
+        // and reintroduce the stale-descriptor bug. The executing process always has an
+        // ApplicationInfo of its own, so it is used as the fallback rather than the exception.
+        val sourceInfo = info?.takeIf { it.sourceDir == apkPath } ?: sourceInfos[apkPath]
+            ?: selfApplicationInfo()?.takeIf { it.sourceDir == apkPath }
+        val splits = sourceInfo?.splitSourceDirs?.filterNotNull().orEmpty()
+        // The memo is keyed by base APK path, but the identity also covers the splits. A split
+        // that is installed or replaced in place leaves base.apk's size and mtime untouched, so
+        // returning the memoized identity would keep serving the old split stamps - exactly the
+        // stale-descriptor case the split coverage exists to prevent. Split metadata is therefore
+        // re-read on every call; it is a handful of stat calls, not a file read.
+        val stamps = splits.distinct().sorted().map { path ->
+            val split = File(path)
+            DexKitCacheIdentity.SplitStamp(path, split.length(), split.lastModified())
+        }
+        identities[key]?.let { cached ->
+            if (cached.modified == modified && cached.size == size && cached.splits == stamps) return cached
+        }
+        return synchronized(identities) {
+            identities[key]?.takeIf { it.modified == modified && it.size == size && it.splits == stamps }
+                ?: DexKitCacheIdentity.capture(apk, splits, fingerprintFor(apkPath))
+                    ?.let(DexKitCacheIdentity::withFullDigest)
+                    ?.takeIf { !it.fullDigest.isNullOrBlank() }
+                    ?.also { identities[key] = it }
+        }
+    }
+
+    /** The executing process's own ApplicationInfo; available after the application is attached. */
+    private fun selfApplicationInfo(): ApplicationInfo? = runCatching {
+        val activityThread = Class.forName("android.app.ActivityThread")
+        val application = activityThread.getDeclaredMethod("currentApplication").invoke(null)
+        (application as? android.content.Context)?.applicationInfo
+    }.getOrNull()
+
+    /**
+     * System-partition packages keep their path and size across an OTA, so the build fingerprint
+     * is the only cheap metadata that distinguishes builds. Installed apps get a new random
+     * `/data/app` directory instead and need no second factor.
+     */
+    private fun fingerprintFor(apkPath: String): String? {
+        if (!apkPath.startsWith("/system") && !apkPath.startsWith("/product") &&
+            !apkPath.startsWith("/system_ext") && !apkPath.startsWith("/vendor")
+        ) return null
+        return runCatching { android.os.Build.FINGERPRINT }.getOrNull()?.takeIf(String::isNotBlank)
+    }
 
     fun <T> withScope(apkPath: String?, block: () -> T): T {
         val scope = apkPath?.let(::beginSession)
@@ -61,16 +137,20 @@ internal object DexRuntime {
     /** Detached operand indexes share the dispatch lifetime, then release together. */
     fun <T : Any> sourceIndex(apkPath: String, type: Class<T>, create: () -> T): T {
         val apk = File(apkPath)
-        return scopes.artifact(apkPath, type, "$apkPath:${apk.lastModified()}:${apk.length()}", create)
+        return scopes.artifact(apkPath, type, apkPath + ":" + apk.lastModified() + ":" + apk.length(), create)
     }
 
     fun preparation(
+        apkPath: String? = null,
         publish: (() -> Unit) -> Unit,
         failure: (Throwable) -> Unit,
         afterStartup: (() -> Unit) -> Unit = { it() },
     ): DexPreparation = DexPreparation(
-        background = { worker.execute(it) }, publish = publish, failure = failure, afterStartup = afterStartup,
+        background = { batches.submit(apkPath, it) }, publish = publish, failure = failure, afterStartup = afterStartup,
     )
+
+    /** Queues [block] on the single background preparation worker. */
+    fun background(block: () -> Unit): Boolean = runCatching { worker.execute(block) }.isSuccess
 
     /** Compatibility queries share the same session and timing boundary; no bridge escapes. */
     fun <T> query(apkPath: String, feature: String, block: (DexKitBridge) -> T): T? {
@@ -78,7 +158,7 @@ internal object DexRuntime {
         return try { withSession(apkPath) { it.dexKit(block) } } finally {
             val duration = elapsed(started)
             if (duration >= 250L) DebugLog.i(TAG,
-                "query=$feature durationMs=$duration thread=${Thread.currentThread().name}")
+                "query=" + feature + " durationMs=" + duration + " thread=" + Thread.currentThread().name)
         }
     }
 
@@ -90,16 +170,17 @@ internal object DexRuntime {
         queries: Map<String, (DexKitBridge) -> String?>,
         logMissingQueries: Boolean = true,
         validators: Map<String, (Class<*>) -> Boolean> = emptyMap(),
+        appInfo: ApplicationInfo? = null,
     ): Map<String, Class<*>> {
         val scope = beginSession(apkPath)
         return try {
             buildMap {
                 queries.forEach { (key, query) ->
                     val feature = object : DexFeature {
-                        override val id = "class.$key"
+                        override val id = "class." + key
                         override val schema = 1
                     }
-                    val target = resolve(feature, apkPath, cacheDir,
+                    val target = resolve(feature, apkPath, cacheDir, appInfo = appInfo,
                         compute = { session ->
                             session.dexKit { bridge -> query(bridge) }?.let { mapOf("class" to it) }.orEmpty()
                         },
@@ -110,11 +191,35 @@ internal object DexRuntime {
                         },
                     )
                     if (target != null) put(key, target)
-                    else if (logMissingQueries) DebugLog.w(TAG, "class query=$key unavailable; dependent hook skipped")
+                    else if (logMissingQueries) DebugLog.w(TAG, "class query=" + key + " unavailable; dependent hook skipped")
                 }
             }
         } finally { scope.close() }
     }
+
+    /** Persist named optional method targets; reject the entire entry if a stored member is invalid. */
+    fun resolveMethodMap(
+        id: String,
+        apkPath: String,
+        cacheDir: File?,
+        classLoader: ClassLoader,
+        appInfo: ApplicationInfo? = null,
+        validate: (String, java.lang.reflect.Method) -> Boolean,
+        compute: (DexKitBridge) -> Map<String, java.lang.reflect.Method>,
+    ): Map<String, java.lang.reflect.Method>? = resolve(
+        feature = object : DexFeature { override val id = id; override val schema = 1 },
+        apkPath = apkPath, cacheDir = cacheDir, appInfo = appInfo, cacheEmpty = true,
+        compute = { session -> session.dexKit { bridge ->
+            compute(bridge).mapValues { MethodDescriptorCodec.descriptor(it.value) }
+        }.orEmpty() },
+        decode = { values, _ ->
+            val methods = values.mapValues { (key, descriptor) ->
+                MethodDescriptorCodec.method(descriptor, classLoader)?.takeIf { validate(key, it) }
+            }
+            if (methods.values.any { it == null }) null
+            else methods.mapValues { requireNotNull(it.value) }
+        },
+    )
 
     /**
      * Resolves [feature] for [apkPath].
@@ -129,34 +234,36 @@ internal object DexRuntime {
         cacheDir: File?,
         cacheOnly: Boolean = false,
         cacheEmpty: Boolean = false,
+        appInfo: ApplicationInfo? = null,
         compute: (DexSession) -> Map<String, String>,
         decode: (Map<String, String>, Boolean) -> T?,
     ): T? {
         val apk = File(apkPath)
         if (!apk.isFile) return null
-        val identity = cacheIdentity(apk) ?: return null
-        val store = DexCacheStore(feature, cacheDir)
         val started = System.nanoTime()
+        val identity = identityFor(appInfo, apkPath) ?: return null
+        val store = DexCacheStore(feature, cacheDir)
         var backend = DexBackendId.DEXKIT
         return resolutions.resolve(
-            key = "${feature.id}:${feature.schema}:$apkPath:${identity.sha256}",
+            key = feature.id + ":" + feature.schema + ":" + apkPath + ":" + identity.resolutionKey(),
             cacheOnly = cacheOnly,
             read = { store.read(apk, identity) },
             scan = {
                 runCatching {
                     withSession(apkPath) { session -> backend = session.backend; compute(session) }
-                }.onFailure { DebugLog.w(TAG, "feature=${feature.id} resolution failed", it) }.getOrNull()
+                }.onFailure { DebugLog.w(TAG, "feature=" + feature.id + " resolution failed", it) }.getOrNull()
             },
             decode = { values, cached ->
                 decode(values, cached)?.also {
-                    DebugLog.i(TAG, "feature=${feature.id} ${if (cached) "cache hit" else "scanned"} " +
-                        "in ${elapsed(started)}ms values=${values.size} thread=${Thread.currentThread().name}")
+                    DebugLog.i(TAG, "feature=" + feature.id + " " + (if (cached) "cache hit" else "scanned") +
+                        " in " + elapsed(started) + "ms values=" + values.size +
+                        " thread=" + Thread.currentThread().name)
                 }
             },
             write = { values ->
                 if (values.isNotEmpty() || cacheEmpty) store.write(apk, values, identity, backend)
             },
-            invalid = { DebugLog.w(TAG, "feature=${feature.id} descriptors rejected", it) },
+            invalid = { DebugLog.w(TAG, "feature=" + feature.id + " descriptors rejected", it) },
         )
     }
 
@@ -174,14 +281,6 @@ internal object DexRuntime {
         } finally {
             scope.close()
         }
-    }
-
-    /** Installed APK paths are immutable; metadata guards one full digest per process/build. */
-    private fun cacheIdentity(file: File): DexKitCacheIdentity? {
-        identities[file.absolutePath]?.let { cached ->
-            if (cached.modified == file.lastModified() && cached.size == file.length()) return cached
-        }
-        return DexKitCacheIdentity.capture(file)?.also { identities[file.absolutePath] = it }
     }
 
     private fun elapsed(started: Long): Long = (System.nanoTime() - started) / 1_000_000L

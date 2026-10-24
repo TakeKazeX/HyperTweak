@@ -270,8 +270,22 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private fun resolveGeneratedCallbacks(): GeneratedCallbacks? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "NotificationHeaderHooker.resolveGeneratedCallbacks") { bridge ->
-            GeneratedCallbacks(
+        val methods = DexRuntime.resolveMethodMap(
+            "systemui.notification_header_callbacks", apkPath, dexCacheDirectory, classLoader, hookParam.appInfo,
+            validate = { key, method ->
+                val contract = when (key) {
+                    "notification" -> NOTIFICATION_EXPANSION_CALLBACK_OWNER_MARKER to "onExpansionChanged"
+                    "combined" -> COMBINED_EXPANSION_CALLBACK_OWNER_MARKER to "onStretchHeightChanged"
+                    "header" -> COMBINED_HEADER_CONFIG_CALLBACK_OWNER_MARKER to "onConfigChanged"
+                    "expand" -> CONFIG_CALLBACK_OWNER_MARKER to "onConfigChanged"
+                    else -> "" to ""
+                }
+                contract.second.isNotEmpty() && method.declaringClass.name.contains(contract.first) &&
+                    method.name == contract.second && method.parameterCount == 1 &&
+                    method.returnType == Void.TYPE && !java.lang.reflect.Modifier.isStatic(method.modifiers)
+            },
+        ) { bridge ->
+            val targets = GeneratedCallbacks(
                 notificationExpansion = resolveGeneratedCallback(
                     bridge,
                     NOTIFICATION_EXPANSION_CALLBACK_OWNER_MARKER,
@@ -293,7 +307,11 @@ object NotificationHeaderHooker : StaticHooker() {
                     "onConfigChanged"
                 )
             )
-        }
+            mapOf("notification" to targets.notificationExpansion, "combined" to targets.combinedExpansion,
+                "header" to targets.combinedHeaderConfiguration, "expand" to targets.expandConfiguration)
+                .filterValues { it != null }.mapValues { requireNotNull(it.value) }
+        } ?: return null
+        return GeneratedCallbacks(methods["notification"], methods["combined"], methods["header"], methods["expand"])
     }
 
     private fun resolveGeneratedCallback(

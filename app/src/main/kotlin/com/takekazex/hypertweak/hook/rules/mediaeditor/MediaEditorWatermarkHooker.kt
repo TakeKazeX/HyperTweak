@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.mediaeditor
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -66,6 +67,22 @@ import java.util.concurrent.atomic.AtomicBoolean
 object MediaEditorWatermarkHooker : StaticHooker() {
     private const val TAG = "WmUnlock"
     private const val PACKAGE = "com.miui.mediaeditor"
+
+    /** Every switch this hooker serves; any one of them being on justifies installing it. */
+    private val WATERMARK_KEYS = listOf(
+        Preferences.KEY_WM_UNLOCK_MASTER,
+        Preferences.KEY_WM_LEICA,
+        Preferences.KEY_WM_XIAOMI,
+        Preferences.KEY_WM_REDMI,
+        Preferences.KEY_WM_POCO,
+        Preferences.KEY_WM_DISNEY1,
+        Preferences.KEY_WM_DISNEY2,
+        Preferences.KEY_WM_DISNEY3,
+        Preferences.KEY_WM_VICTORIA,
+        Preferences.KEY_WM_LCC,
+        Preferences.KEY_WM_DOWNLOAD_ALL,
+        Preferences.KEY_WM_CAMERA,
+    )
 
     // Stable (non-obfuscated) business classes of the editor.
     private const val CLOUD_WM_DATA = "com.miui.mediaeditor.photo.watermark.model.cloudwatermark.CloudWatermarkData"
@@ -148,11 +165,32 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     private val downloaded = AtomicBoolean(false)
     private var resolved: ResolvedClasses? = null
 
+    /** Prepare optional watermark targets only while at least one category is enabled. */
+    override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
+
+    override fun isFeatureEnabled(): Boolean = WATERMARK_KEYS.any {
+        Preferences.getBoolean(it, false)
+    }
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        val classes = runCatching { resolveClasses() }
-            .onFailure { DebugLog.e(TAG, "class resolution failed", it) }
-            .getOrNull() ?: return
+        if (!isFeatureEnabled()) {
+            DebugLog.hookSkippedDebug(TAG, "watermark categories", "no watermark switch enabled")
+            return
+        }
+        // Materialize the graph in the background and publish hooks on the owning main thread.
+        prepareDexTargets(
+            name = "mediaeditor.watermark",
+            resolve = {
+                runCatching { resolveClasses() }
+                    .onFailure { DebugLog.e(TAG, "class resolution failed", it) }
+                    .getOrNull()
+            },
+            install = ::installResolved,
+        )
+    }
+
+    private fun installResolved(classes: ResolvedClasses) {
         resolved = classes
         installHooks(classes)
     }

@@ -70,12 +70,19 @@ object AndroidWidgetPickerHooker : StaticHooker() {
     override fun onHook() {
         if (!isMainProcess || !PlatformLevel.isOs4) return
         apkPath = hookParam.appInfo?.sourceDir ?: return
-        val resolved = runCatching { DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.onHook") { resolveEntry(it) } }
-            .onFailure { DebugLog.hookFailed(TAG, "native picker contract", it) }.getOrNull()
-        if (resolved == null) {
-            DebugLog.hookSkipped(TAG, "native Android-widget entry", "entry contract unavailable; inspect DexKit failure stage")
-            return
-        }
+        // Resolve the chooser graph off the startup thread; only detached reflection is published.
+        prepareDexTargets(
+            name = "personalassistant.widget_picker",
+            resolve = {
+                runCatching { DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.onHook") { resolveEntry(it) } }
+                    .onFailure { DebugLog.hookFailed(TAG, "native picker contract", it) }
+                    .getOrNull()
+            },
+            install = ::installEntryContract,
+        )
+    }
+
+    private fun installEntryContract(resolved: EntryContract) {
         entryContract = resolved
         resolved.appCatalog?.let { catalog ->
             catalog.entry.declaringClass.declaredMethods.forEach(::deoptimize)

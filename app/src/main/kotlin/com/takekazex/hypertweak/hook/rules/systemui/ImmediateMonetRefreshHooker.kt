@@ -210,9 +210,21 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         val miuiWallpaper: Method?
     )
 
-    private fun resolveGeneratedCallbacks(apkPath: String): GeneratedCallbacks? =
-        DexRuntime.query(apkPath, "ImmediateMonetRefreshHooker.resolveGeneratedCallbacks") { bridge ->
-            GeneratedCallbacks(
+    private fun resolveGeneratedCallbacks(apkPath: String): GeneratedCallbacks? {
+        val methods = DexRuntime.resolveMethodMap(
+            "systemui.monet_callbacks", apkPath, dexCacheDirectory, classLoader, hookParam.appInfo,
+            validate = { key, method ->
+                val owner = when (key) { "theme" -> CONTROLLER_CLASS; "wallpaper" -> MIUI_WALLPAPER_MANAGER_CLASS; else -> null }
+                val name = if (key == "theme") "onColorsChanged" else "onWallpaperChanged"
+                val types = if (key == "theme") arrayOf(WallpaperColors::class.java,
+                    Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+                    else arrayOf(WallpaperColors::class.java, String::class.java, Int::class.javaPrimitiveType)
+                owner != null && method.declaringClass.name.contains(owner) && method.name == name &&
+                    method.returnType == Void.TYPE && method.parameterTypes.contentEquals(types) &&
+                    !java.lang.reflect.Modifier.isStatic(method.modifiers)
+            },
+        ) { bridge ->
+            val targets = GeneratedCallbacks(
                 themeOverlay = resolveCallback(
                     bridge,
                     CONTROLLER_CLASS,
@@ -234,7 +246,11 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
                     )
                 )
             )
-        }
+            mapOf("theme" to targets.themeOverlay, "wallpaper" to targets.miuiWallpaper)
+                .filterValues { it != null }.mapValues { requireNotNull(it.value) }
+        } ?: return null
+        return GeneratedCallbacks(methods["theme"], methods["wallpaper"])
+    }
 
     private fun resolveCallback(
         bridge: DexKitBridge,

@@ -94,4 +94,58 @@ class CameraDexIndexTest {
         )))
         assertEquals(expected.toString(), dex.preferenceFields(key).single().toString())
     }
+    @Test fun `targeted string lookup preserves operand guard discovery and memoizes only the requested key`() {
+        val source = index(guarded("page", "capability"))
+        val target = source.strings(key).single()
+        // Reuse the fixture file through its same public shape, without a native bridge on the host.
+        val file = temporary.root.listFiles()!!.single { it.extension == "dex" }
+        val requested = arrayListOf<String>()
+        val narrow = CameraDexIndex.openWithStringLookup(file.path) { value ->
+            requested += value
+            listOf(CameraDexIndex.descriptor(target))
+        }
+        assertEquals("capability", narrow.preferenceGates(key).single().name)
+        assertEquals("capability", narrow.preferenceGates(key).single().name)
+        assertEquals(listOf(key), requested)
+    }
+
+    @Test fun `a failed targeted lookup never falls back to scanning every method body`() {
+        index(guarded("page", "capability"))
+        val file = temporary.root.listFiles()!!.single { it.extension == "dex" }
+        val narrow = CameraDexIndex.openWithStringLookup(file.path) { null }
+        assertThrows(IllegalArgumentException::class.java) { narrow.strings(key) }
+    }
+
+    @Test fun `a targeted descriptor still has to contain the requested exact string`() {
+        val source = index(guarded("page", "capability"))
+        val descriptor = CameraDexIndex.descriptor(source.strings(key).single())
+        val file = temporary.root.listFiles()!!.single { it.extension == "dex" }
+        val narrow = CameraDexIndex.openWithStringLookup(file.path) { listOf(descriptor) }
+        assertThrows(IllegalArgumentException::class.java) { narrow.strings("different") }
+    }
+
+    @Test fun `APK index includes root multidex and ignores embedded asset DEX`() {
+        index(guarded("page", "capability"))
+        val primary = temporary.root.listFiles()!!.single { it.extension == "dex" }.readBytes()
+        val secondary = temporary.newFile("secondary.dex")
+        val method = ImmutableMethod("Lfixture/Secondary;", "second", emptyList(), "V", 9,
+            emptySet(), emptySet(), guarded("unused", "other").implementation)
+        DexPool.writeTo(secondary.path, ImmutableDexFile(Opcodes.getDefault(), listOf(
+            ImmutableClassDef("Lfixture/Secondary;", 1, "Ljava/lang/Object;", emptyList(), null,
+                emptySet(), emptyList(), listOf(method)),
+        )))
+        val apk = temporary.newFile("fixture.apk")
+        java.util.zip.ZipOutputStream(apk.outputStream()).use { zip ->
+            mapOf("classes.dex" to primary, "classes2.dex" to secondary.readBytes(),
+                "assets/embedded.dex" to primary, "res/raw/image.bin" to byteArrayOf(0, 1)).forEach { (name, bytes) ->
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                zip.write(bytes)
+                zip.closeEntry()
+            }
+        }
+        val methods = CameraDexIndex.open(apk.path).strings(key)
+        assertEquals(2, methods.size)
+        assertEquals(setOf("page", "second"), methods.map { it.name }.toSet())
+    }
+
 }

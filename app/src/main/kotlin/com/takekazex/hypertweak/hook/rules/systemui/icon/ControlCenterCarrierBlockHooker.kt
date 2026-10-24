@@ -633,21 +633,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 if (ownsLayout(param.thisObject as? ViewGroup)) param.result = null
             } }
         }
-        val callbackMethod = resolveCarrierTextCallback()
-        callbackMethod?.let { method ->
-            deoptimize(method)
-            method.hook { after { param ->
-                runCatching {
-                    val row = readOuter(param.thisObject, ROW_CLASS) as? ViewGroup ?: return@runCatching
-                    if (!ownsRow(row)) return@runCatching
-                    rowIndex[row]?.let { parts ->
-                        parts.nativeCarrierText = parts.carrierText.text
-                        parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
-                    }
-                    scheduleRender()
-                }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }
-            } }
-        } ?: DebugLog.hookSkipped(TAG, "carrier text callback", "unique DexKit target not found")
+        prepareDexTargets(name = CarrierTextCallbackFeature.id,
+            resolve = ::resolveCarrierTextCallback, install = ::installCarrierTextCallback)
         // Native text notifications are deduplicated. Clearing an override equal to the SPN
         // still needs a repaint, because our fallback is the SIM name rather than that SPN.
         val customNameChanged = runCatching {
@@ -1873,28 +1860,37 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         SubscriptionManager.getSlotIndex(subId)
     }.getOrDefault(CarrierBlockPolicy.INVALID_SLOT)
 
-    private fun resolveCarrierTextCallback(): Method? {
-        val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "ControlCenterCarrierBlockHooker.resolveCarrierTextCallback") { bridge ->
-            bridge.findMethod {
-                matcher {
-                    declaredClass {
-                        className(ROW_CALLBACK_OWNER_MARKER, StringMatchType.Contains)
+    /**
+     * Cached resolution of the carrier-row callback.
+     *
+     * The installed hook needs one method, so the result is a descriptor. It used to be rescanned
+     * on the SystemUI main thread on every start (577-991 ms, measured 2026-10-24), which lands
+     * inside `bindApplication`.
+     */
+    private fun resolveCarrierTextCallback(): Method? = DexRuntime.resolve(
+        feature = CarrierTextCallbackFeature,
+        apkPath = hookParam.appInfo?.sourceDir ?: return null,
+        cacheDir = dexCacheDirectory,
+        cacheEmpty = true,
+        appInfo = hookParam.appInfo,
+        compute = CarrierTextCallbackCache::descriptors,
+        decode = { stored, _ -> CarrierTextCallbackCache.decode(stored, classLoader) },
+    )
+
+    private fun installCarrierTextCallback(method: Method) {
+            deoptimize(method)
+            method.hook { after { param ->
+                runCatching {
+                    val row = readOuter(param.thisObject, ROW_CLASS) as? ViewGroup ?: return@runCatching
+                    if (!ownsRow(row)) return@runCatching
+                    rowIndex[row]?.let { parts ->
+                        parts.nativeCarrierText = parts.carrierText.text
+                        parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
                     }
-                    name("onCarrierTextChanged")
-                    paramCount(3)
-                    returnType(Void.TYPE)
-                }
-            }.toList().filter { data ->
-                data.className.contains(ROW_CALLBACK_OWNER_MARKER) &&
-                    data.methodName == "onCarrierTextChanged" &&
-                    data.paramCount == 3 && data.returnTypeName == Void.TYPE.name
-            }.mapNotNull { data ->
-                runCatching { data.getMethodInstance(classLoader) }
-                    .onFailure { DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it) }
-                    .getOrNull()
-            }.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }.singleOrNull()
-        }
+                    scheduleRender()
+                }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }
+            } }
+        scheduleRender()
     }
 
     private fun readOuter(target: Any, ownerClassName: String): Any? = runCatching {

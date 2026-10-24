@@ -2,6 +2,20 @@ package com.takekazex.hypertweak.hook.rules.camera
 import org.jf.dexlib2.iface.reference.MethodReference
 /** Optional integration check against an external, hash-identified host APK; no target code runs. */
 class CameraSemanticApkTest {
+@org.junit.Test fun `current framework publishes providers before application onCreate`() {
+ val jar = System.getenv("FRAMEWORK_JAR")
+ org.junit.Assume.assumeTrue("Set FRAMEWORK_JAR to verify the publication boundary", jar != null)
+ val dex = CameraDexIndex.open(jar!!)
+ val methods = dex.declared("Landroid/app/ActivityThread;")
+ val bind = methods.single { it.name == "handleBindApplication" }
+ val install = methods.single { it.name == "installContentProviders" && it.parameterTypes.size == 2 }
+ val calls = dex.code(bind).calls.map { it.method }
+ val providers = calls.indexOfFirst { it.definingClass == "Landroid/app/ActivityThread;" && it.name == "installContentProviders" }
+ val application = calls.indexOfFirst { it.definingClass == "Landroid/app/Instrumentation;" && it.name == "callApplicationOnCreate" }
+ check(providers >= 0 && application > providers)
+ check(dex.code(install).calls.any { it.method.definingClass == "Landroid/app/IActivityManager;" &&
+  it.method.name == "publishContentProviders" })
+}
 @org.junit.Test fun `current camera semantic contracts resolve without a version name table`() {
  val apk = System.getenv("CAMERA_APK")
  org.junit.Assume.assumeTrue("Set CAMERA_APK to run host artifact verification", apk != null)

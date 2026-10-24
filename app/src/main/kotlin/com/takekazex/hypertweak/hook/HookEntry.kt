@@ -206,10 +206,13 @@ class HookEntry : XposedModule() {
             // Participants receive the committed keys that changed, so a shared domain can route
             // each key to the hooker that owns it instead of re-running every consumer.
             fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) {
-                if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) register(id, apply)
+                if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) {
+                    if (id == RuntimeSettingsGroups.SECURITY_DOCK) registerWithRetryBudget(id, 120, apply)
+                    else register(id, apply)
+                }
             }
-            registerForProcess(RuntimeSettingsGroups.ICONS) { _ ->
-                if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings() }
+            registerForProcess(RuntimeSettingsGroups.ICONS) { keys ->
+                if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings(keys) }
                 finally { iconSettingsLock.unlock() }
             }
             registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
@@ -238,6 +241,18 @@ class HookEntry : XposedModule() {
                 true
             }
             registerForProcess(RuntimeSettingsGroups.XMSF) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+            // Re-evaluate presence only; cold targets use each feature's managed preparation.
+            registerForProcess(RuntimeSettingsGroups.GATED_FEATURES) { _ ->
+                Preferences.invalidateRuntimeReadCache()
+                var applied = true
+                rootHookers.toList().forEach { hooker ->
+                    runCatching { hooker.refreshFeatureState() }.onFailure {
+                        applied = false
+                        DebugLog.w("HookEntry", "gated refresh failed hooker=${hooker.hookerName}", it)
+                    }
+                }
+                applied
+            }
             registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
                 if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
                 true
@@ -246,7 +261,13 @@ class HookEntry : XposedModule() {
                 if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterPopupHooker.refreshSettings() else true
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK) { _ ->
-                if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterDockHooker.refreshSettings() else true
+                if (processName != SecurityCenterDockHost.PROCESS) true
+                else when (SecurityCenterDockHooker.refreshSettings()) {
+                    // Keep tracking the asynchronous owner until its main-thread repaint succeeds.
+                    SecurityCenterDockHooker.Refresh.PENDING -> false
+                    SecurityCenterDockHooker.Refresh.APPLIED -> true
+                    SecurityCenterDockHooker.Refresh.UNAVAILABLE -> false
+                }
             }
             registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
             registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
@@ -428,13 +449,30 @@ class HookEntry : XposedModule() {
         }
     }
 
-    /** Retire current callbacks before reattaching; real module hot reload uses framework handles. */
-    private fun applyLiveIconSettings(): Boolean {
+    /**
+     * Retire current callbacks before reattaching; real module hot reload uses framework handles.
+     *
+     * [keys] is empty for a full resync, which is what the boot snapshot looks like: the app
+     * publishes the complete snapshot with `keys=0` once the settings channel comes up. Rebuilding
+     * nineteen icon hookers for that costs a DexKit bridge open plus a carrier-callback query, and
+     * the values have not changed since they were installed moments earlier. A full snapshot
+     * therefore only re-reads the policy unless an icon-relevant value actually differs.
+     */
+    private fun applyLiveIconSettings(keys: Set<String>): Boolean {
         if (generationRetired || processName != "com.android.systemui") return true
         val state = packageStates["com.android.systemui"] ?: return false
         val context = state.appContext ?: return false
         val hooks = iconHookers().filter { it in rootHookers }
         if (hooks.isEmpty()) return false
+        if (keys.isEmpty() && !iconSettingsInstalledFromDifferentValues()) {
+            DebugLog.d("IconTuner", "full snapshot with unchanged icon values; refreshing policy only")
+            StackedSignalHooker.onPackageReady(context)
+            ControlCenterCarrierBlockHooker.onPackageReady(context)
+            LeftContainerHooker.onPackageReady(context)
+            LeftContainerHooker.requestReconcile()
+            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context)
+            return true
+        }
         ManagedHookReload.run(
             replacements = hooks.map { it to it },
             recover = {
@@ -448,7 +486,29 @@ class HookEntry : XposedModule() {
             }
         )
         DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size}; native host recovery queued")
+        iconSnapshotAtInstall = iconValueSnapshot()
         return true
+    }
+
+    /**
+     * The icon-relevant values the current hooks were installed from.
+     *
+     * Compared against the live values so a genuinely changed setting still rebuilds the hooks,
+     * while the boot resync - which republishes identical values - does not.
+     */
+    @Volatile private var iconSnapshotAtInstall: String? = null
+
+    private fun iconValueSnapshot(): String {
+        val values = RuntimeSettingsStore.values() ?: return ""
+        return values.entries
+            .filter { com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy.affectsIcons(it.key) }
+            .sortedBy { it.key }
+            .joinToString("|") { (key, value) -> key + "=" + value }
+    }
+
+    private fun iconSettingsInstalledFromDifferentValues(): Boolean {
+        val installed = iconSnapshotAtInstall ?: return true
+        return installed != iconValueSnapshot()
     }
 
     @Volatile private var runtimePreferencesSource: SharedPreferences? = null
@@ -762,6 +822,7 @@ class HookEntry : XposedModule() {
                     classLoader = state.classLoader,
                     appInfo = state.appInfo,
                     isFirstPackage = false,
+                    isPackageReady = state.isPackageReady,
                     replacementHandles = oldHandles
                 )
                 if (state.isPackageReady) {
@@ -1185,6 +1246,7 @@ class HookEntry : XposedModule() {
         classLoader: ClassLoader,
         appInfo: ApplicationInfo?,
         isFirstPackage: Boolean,
+        isPackageReady: Boolean = false,
         replacementHandles: HotReloadHandleStore? = null
     ) {
         val ctx = ModuleContext(
@@ -1192,11 +1254,12 @@ class HookEntry : XposedModule() {
             packageName = packageName,
             isSystemServer = isSystemServer,
             isFirstPackage = isFirstPackage,
-            isPackageReady = false,
+            isPackageReady = isPackageReady,
             appInfo = appInfo,
             appContext = null
         )
 
+        com.takekazex.hypertweak.hook.base.dex.DexRuntime.registerSource(appInfo)
         // One lazy DexKit scope per package dispatch: every consumer below shares one bridge.
         val sharedSession = appInfo?.sourceDir?.takeIf { it.isNotBlank() }
             ?.let(com.takekazex.hypertweak.hook.base.dex.DexRuntime::beginSession)
@@ -1241,6 +1304,9 @@ class HookEntry : XposedModule() {
                 attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
                 attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
                 iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
+                // Baseline for the boot resync: the first full snapshot must be comparable to the
+                // values these hooks were just installed from, not to "unknown".
+                iconSnapshotAtInstall = iconValueSnapshot()
                 attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
                 attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)

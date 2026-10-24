@@ -126,26 +126,25 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         bridge: DexKitBridge,
         existingHookIds: Set<String> = emptySet()
     ) {
-        if (existingHookIds.containsAll(HOOK_IDS)) {
-            DebugLog.i(TAG, "reused carried Lensient bridge hooks=$HOOK_IDS")
-            return
-        }
-        val thumbnailTarget = resolveThumbnail(bridge)
-        if (thumbnailTarget == null) {
+        prepareInstall(bridge, existingHookIds).invoke()
+    }
+
+    internal fun prepareInstall(bridge: DexKitBridge, existingHookIds: Set<String>): () -> Unit {
+        if (existingHookIds.containsAll(HOOK_IDS)) return {}
+        val thumbnail = resolveThumbnail(bridge) ?: return {
             DebugLog.w(TAG, "Lensient thumbnail bridge unresolved; failing closed")
-            return
         }
-        val targets = resolveTargets(bridge, thumbnailTarget)
-        if (targets == null) {
-            // This is deliberately the same independent fallback as upstream: retaining the
-            // thumbnail is safe on its own, while eligibility/hint remain native when their full
-            // semantic graph is missing or ambiguous.
-            installThumbnail(thumbnailTarget, existingHookIds)
-            DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
-            return
+        val resolved = resolveTargets(bridge, thumbnail)
+        if (resolved == null) {
+            val method = thumbnail.method
+            val deoptimizations = executablesWithCallers(thumbnail.data)
+            return {
+                deoptimizations.forEach(::deoptimize)
+                installThumbnail(method, existingHookIds)
+                DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
+            }
         }
-        this.targets = targets
-        install(targets, existingHookIds)
+        return { targets = resolved; install(resolved, existingHookIds) }
     }
 
     /** Replacement callbacks used before the new generation starts resolving DexKit. */
@@ -173,11 +172,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         // The coordinator caches the server capability while its constructor runs. Hook the
         // original source as well as the later bridge: otherwise a model created after the hook
         // still snapshots Google's false result into a final field before the bridge is reached.
-        t.coordinatorConstructorData?.let(::deoptimizeWithCallers)
-        t.capabilityData?.let(::deoptimizeWithCallers)
-        deoptimizeWithCallers(t.eligibilityData)
-        deoptimizeWithCallers(t.constructorData)
-        deoptimizeWithCallers(t.thumbnailData)
+        t.deoptimizations.forEach(::deoptimize)
 
         t.capability?.let { capability ->
             if (existingHookIds.contains(HOOK_CAPABILITY)) return@let
@@ -225,16 +220,15 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     }
 
     private fun installThumbnail(
-        target: ThumbnailTarget,
+        target: Method,
         existingHookIds: Set<String>
     ) {
         if (existingHookIds.contains(HOOK_THUMBNAIL)) return
-        deoptimizeWithCallers(target.data)
-        target.method.isAccessible = true
-        target.method.hook(HOOK_THUMBNAIL) {
+        target.isAccessible = true
+        target.hook(HOOK_THUMBNAIL) {
             intercept { chain -> retainThumbnail(chain) }
         }
-        DebugLog.i(TAG, "HOOK_OK Lensient thumbnail retention=${target.method}")
+        DebugLog.i(TAG, "HOOK_OK Lensient thumbnail retention=$target")
     }
 
     private fun overrideCapability(chain: XposedInterface.Chain): Any? {
@@ -316,31 +310,13 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
      * Undo AOT inlining for a resolved target and every caller. Resolution is marker-driven, so a
      * renamed caller must not silently keep an inlined copy of the decision we just hooked.
      */
-    private fun deoptimizeWithCallers(data: MethodData) {
-        val executable = runCatching<Executable> {
-            if (data.isConstructor) {
-                data.getConstructorInstance(classLoader)
-            } else {
-                data.getMethodInstance(classLoader)
-            }
-        }.getOrNull() ?: return
-        var attempted = 0
-        deoptimize(executable)
-        attempted++
-        for (caller in data.callers) {
-            if (!caller.isMethod && !caller.isConstructor) continue
-            val callerExecutable = runCatching<Executable> {
-                if (caller.isConstructor) {
-                    caller.getConstructorInstance(classLoader)
-                } else {
-                    caller.getMethodInstance(classLoader)
-                }
-            }.getOrNull() ?: continue
-            deoptimize(callerExecutable)
-            attempted++
-        }
-        DebugLog.d(TAG, "deoptimized target plus callers, attempted=$attempted")
-    }
+    private fun executablesWithCallers(data: MethodData): List<Executable> =
+        (listOf(data) + data.callers.filter { it.isMethod || it.isConstructor }).mapNotNull { target ->
+            runCatching<Executable> {
+                if (target.isConstructor) target.getConstructorInstance(classLoader)
+                else target.getMethodInstance(classLoader)
+            }.getOrNull()
+        }.distinct()
 
     // ─── Resolution (upstream 382c75e) ──────────────────────────────────────────
 
@@ -601,10 +577,11 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         entryOwnerField.isAccessible = true
         entryMethod.isAccessible = true
         return Targets(
-            thumbnail, thumbnailData, eligibility, gate,
-            modelConstructor, constructorData,
+            thumbnail, eligibility, modelConstructor,
             hintField, modelCoordinator, entryOwnerField, entryMethod,
-            coordinatorConstructorData, capabilityData, capability, aimBooleanParameterIndices
+            capability, aimBooleanParameterIndices,
+            listOfNotNull(thumbnailData, gate, constructorData, coordinatorConstructorData, capabilityData)
+                .flatMap(::executablesWithCallers).distinct()
         )
     }
 
@@ -655,19 +632,15 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
 
     private class Targets(
         val thumbnail: Method,
-        val thumbnailData: MethodData,
         val eligibility: Method,
-        val eligibilityData: MethodData,
         val modelConstructor: Constructor<*>,
-        val constructorData: MethodData,
         val hint: Field,
         val modelCoordinator: Field,
         val entryOwner: Field,
         val entry: Method,
-        val coordinatorConstructorData: MethodData?,
-        val capabilityData: MethodData?,
         val capability: Method?,
-        val aimBooleanParameterIndices: IntArray
+        val aimBooleanParameterIndices: IntArray,
+        val deoptimizations: List<Executable>
     ) {
         /** True only when Google's own entrypoint check reports the OMNI overlay. */
         fun isOmni(coordinator: Any?): Boolean {

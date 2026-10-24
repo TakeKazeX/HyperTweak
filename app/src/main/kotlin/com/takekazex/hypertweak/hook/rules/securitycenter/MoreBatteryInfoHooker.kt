@@ -17,11 +17,10 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
-import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
 import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -114,6 +113,12 @@ object MoreBatteryInfoHooker : StaticHooker() {
         clearCapturedPreferences()
     }
 
+    /** Keep the inexpensive host lifecycle hooks early; prepare optional read targets in the background. */
+    override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
+
+    override fun isFeatureEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)) {
@@ -121,7 +126,9 @@ object MoreBatteryInfoHooker : StaticHooker() {
             return
         }
 
-        readMethods = resolveReadMethods(hookParam.appInfo?.sourceDir)
+        prepareDexTargets(name = MoreBatteryInfoFeature.id,
+            resolve = { resolveReadMethods(hookParam.appInfo?.sourceDir) },
+            install = { readMethods = it; refreshBatteryRows() })
         hookPreferenceRemoval()
         hookChargeProtectFragment()
         hookChargeProtectHandler()
@@ -450,45 +457,25 @@ object MoreBatteryInfoHooker : StaticHooker() {
         if (!file.exists()) null else file.bufferedReader().use { it.readLine() }
     }.getOrNull()
 
+    /**
+     * Cached resolution of the four battery read methods.
+     *
+     * Each is an independent zero-argument static method, so the whole set is four descriptors.
+     * This scan used to run in every Security Center process on the main thread - five times per
+     * boot, 431-1416 ms each, 4.7 s total (measured 2026-10-24).
+     */
     private fun resolveReadMethods(apkPath: String?): BatteryReadMethods {
-        val dexResolved = apkPath?.let { path ->
-            DexRuntime.query(path, "MoreBatteryInfoHooker.resolveReadMethods") { bridge ->
-                BatteryReadMethods(
-                    manufacturingDate = findDexMethod(bridge, "manufacturing_date", String::class.java),
-                    firstUsageDate = findDexMethod(bridge, "first_usage_date", String::class.java),
-                    fullCapacity = findDexMethod(bridge, "getBatteryChargeFull", Int::class.javaPrimitiveType!!),
-                    designCapacity = findDexMethod(bridge, "charge_full_design", Int::class.javaPrimitiveType!!)
-                )
-            }
-        }
-        return dexResolved ?: BatteryReadMethods()
+        val path = apkPath ?: return BatteryReadMethods()
+        return DexRuntime.resolve(
+            feature = MoreBatteryInfoFeature,
+            apkPath = path,
+            cacheDir = dexCacheDirectory,
+            cacheEmpty = true,
+            appInfo = hookParam.appInfo,
+            compute = MoreBatteryInfoCache::descriptors,
+            decode = { stored, _ -> MoreBatteryInfoCache.decode(stored, classLoader) },
+        ) ?: BatteryReadMethods()
     }
-
-    private fun findDexMethod(
-        bridge: org.luckypray.dexkit.DexKitBridge,
-        string: String,
-        returnType: Class<*>
-    ): Method? {
-        val candidates = bridge.findMethod {
-            matcher {
-                paramCount(0)
-                addUsingString(string, StringMatchType.Equals)
-            }
-        }.toList()
-        return candidates.mapNotNull(::materialize)
-            .filter { method ->
-                Modifier.isStatic(method.modifiers) &&
-                    method.parameterCount == 0 &&
-                    method.returnType == returnType
-            }
-            .singleOrNull()
-    }
-
-    private fun materialize(data: MethodData): Method? = runCatching {
-        data.getMethodInstance(classLoader)
-    }.onFailure {
-        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
-    }.getOrNull()
 
     private fun clearCapturedPreferences() {
         batteryInfoCategory = null
@@ -501,7 +488,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
         batteryContext = null
     }
 
-    private data class BatteryReadMethods(
+    internal data class BatteryReadMethods(
         val manufacturingDate: Method? = null,
         val firstUsageDate: Method? = null,
         val fullCapacity: Method? = null,

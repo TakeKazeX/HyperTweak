@@ -60,14 +60,33 @@ sealed class BaseHooker {
 
     open val hotReloadMode: HotReloadMode = HotReloadMode.RECREATE
 
+    /** How the user-facing switch decides whether this hooker is installed at all. */
+    open val installPolicy: InstallPolicy = InstallPolicy.ALWAYS
+
     val isMainProcess: Boolean
         get() = hookParam.isMainProcess
 
     private var isSelfEnabled: Boolean = true
     private var isParentEnabled: Boolean = false
+    private var isFeatureAllowed: Boolean = true
 
     private val isEffectiveEnabled: Boolean
-        get() = isSelfEnabled && isParentEnabled
+        get() = isSelfEnabled && isParentEnabled && isFeatureAllowed
+
+    /**
+     * Whether this hooker's own user-facing switch currently allows installation.
+     *
+     * Only consulted when [installPolicy] is [InstallPolicy.WHEN_ENABLED]. Hookers that own a
+     * display-only feature return their preference here so a switch left off costs neither a scan
+     * nor an installed hook, and prepares targets only when enabled.
+     */
+    open fun isFeatureEnabled(): Boolean = true
+
+    /** When the switch is off, should this hooker be absent rather than installed-and-inert? */
+    private val installsWhenEnabledOnly: Boolean
+        get() = installPolicy == InstallPolicy.WHEN_ENABLED
+
+    private fun shouldInstall(): Boolean = !installsWhenEnabledOnly || isFeatureEnabled()
 
     @Synchronized
     fun updateSelfState(enabled: Boolean) {
@@ -76,10 +95,25 @@ sealed class BaseHooker {
         handleStateChange(oldState)
     }
 
+    /**
+     * Re-reads [isFeatureEnabled] and installs or removes accordingly.
+     *
+     * This is the entry point a settings-reload participant calls when the user flips a switch.
+     * A cold cache is prepared by the feature through its managed background task.
+     */
+    @Synchronized
+    fun refreshFeatureState() {
+        if (installPolicy == InstallPolicy.ALWAYS) return
+        val oldState = isEffectiveEnabled
+        isFeatureAllowed = isFeatureEnabled()
+        handleStateChange(oldState)
+    }
+
     @Synchronized
     fun updateParentState(parentEnabled: Boolean) {
         val oldState = isEffectiveEnabled
         isParentEnabled = parentEnabled
+        isFeatureAllowed = shouldInstall()
         handleStateChange(oldState)
     }
 
@@ -88,21 +122,37 @@ sealed class BaseHooker {
         if (oldState != newState) {
             if (newState) {
                 dexPreparations.activate()
-                DebugLog.d("BaseHooker", "hooking $hookerName")
-                if (!isHooked) onHook()
+                installIfNeeded()
             } else {
-                when (this) {
-                    is StaticHooker -> { /* Static hookers survive for the lifetime of the process */ }
-                    is DynamicHooker -> {
-                        cancelDexPreparations()
-                        DebugLog.d("BaseHooker", "unhooking $hookerName")
-                        hookHandles.forEach { it.unhook() }
-                        hookHandles.clear()
-                    }
+                // A switch-gated hooker must restore the host's own behavior, so it is removed even
+                // when it is static: "static" only means "survives a preference hiccup", not
+                // "survives the user turning the feature off".
+                if (this is DynamicHooker || installsWhenEnabledOnly) {
+                    cancelDexPreparations()
+                    DebugLog.d("BaseHooker", "unhooking $hookerName")
+                    hookHandles.forEach { it.unhook() }
+                    hookHandles.clear()
                 }
             }
             childHookers.forEach { it.updateParentState(newState) }
         }
+    }
+
+    /**
+     * Installs this hooker when it is enabled, wanted, and not already installed.
+     *
+     * Presence is derived from [isEffectiveEnabled], [shouldInstall] and [isHooked] on every call
+     * rather than remembered in a flag. An earlier version cached the decision in isSelfEnabled,
+     * which then compared equal on the transition that was supposed to install it.
+     */
+    private fun installIfNeeded() {
+        if (!isEffectiveEnabled || isHooked) return
+        if (!shouldInstall()) {
+            DebugLog.d("BaseHooker", "deferring $hookerName until its switch is enabled")
+            return
+        }
+        DebugLog.d("BaseHooker", "hooking $hookerName")
+        onHook()
     }
 
     open fun onInit() {}
@@ -131,7 +181,14 @@ sealed class BaseHooker {
     ) {
         dexPreparations.prepare(name,
             create = { failure -> DexRuntime.preparation(
-                afterStartup = { action -> check(preparationMain.post { action() }) },
+                apkPath = hookParam.appInfo?.sourceDir,
+                // Resolution is queued straight onto the background worker instead of being
+                // posted to the main looper first. The post looked harmless, but it made every
+                // preparation wait for the main thread to go idle: on a boot where the dispatch is
+                // still installing other hookers, a hooker attached at 20.281 s did not start
+                // resolving until 21.372 s. Publication still runs on the main thread, because hook
+                // registration requires it.
+                afterStartup = { action -> action() },
                 publish = { action -> check(preparationMain.post { action() }) },
                 failure = failure,
             ) },
@@ -554,6 +611,18 @@ sealed class BaseHooker {
 abstract class StaticHooker : BaseHooker()
 
 abstract class DynamicHooker : BaseHooker()
+
+/**
+ * Whether a hooker is installed at all, or only while its switch is on.
+ *
+ * [ALWAYS] keeps the historical behavior: the hook is installed for the process generation and
+ * its callback decides what to do. [WHEN_ENABLED] skips installation entirely while the switch is
+ * off, which avoids resolving targets for an unused feature.
+ */
+enum class InstallPolicy {
+    ALWAYS,
+    WHEN_ENABLED,
+}
 
 enum class HotReloadMode {
     RECREATE,

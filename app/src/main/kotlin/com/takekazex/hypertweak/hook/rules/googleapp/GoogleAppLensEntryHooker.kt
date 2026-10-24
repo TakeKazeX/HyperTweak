@@ -104,6 +104,28 @@ object GoogleAppLensEntryHooker : StaticHooker() {
         installEligibilityHook(bridge, existingHookIds)
     }
 
+    /** Keep the first Lens Activity decision synchronous, replaying its validated descriptor. */
+    internal fun installEntry(apk: String, existingHookIds: Set<String>) {
+        installCallerHook(existingHookIds)
+        if (HOOK_ELIGIBILITY in existingHookIds) return
+        val method = com.takekazex.hypertweak.hook.base.dex.DexRuntime.resolve(
+            feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+                override val id = "googleapp.lens_entry"
+                override val schema = 1
+            }, apkPath = apk, cacheDir = dexCacheDirectory, appInfo = hookParam.appInfo,
+            compute = { session -> session.dexKit { bridge ->
+                resolveEligibilityMethod(bridge)?.let {
+                    mapOf("method" to com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(it))
+                }.orEmpty()
+            }.orEmpty() },
+            decode = { values, _ -> values["method"]?.let {
+                com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, classLoader)
+            }?.takeIf { it.parameterTypes.contentEquals(arrayOf(String::class.java)) &&
+                it.returnType == Int::class.javaPrimitiveType } },
+        ) ?: return
+        installEligibilityMethod(method)
+    }
+
     /** Replacement callbacks used before a hot-reload generation resolves DexKit again. */
     internal fun replacement(id: String): XposedInterface.Hooker? = when (id) {
         HOOK_CALLER, HOOK_CALLER_HIDDEN -> XposedInterface.Hooker { chain ->
@@ -205,6 +227,10 @@ object GoogleAppLensEntryHooker : StaticHooker() {
             return
         }
         val method = resolveEligibilityMethod(bridge) ?: return
+        installEligibilityMethod(method)
+    }
+
+    private fun installEligibilityMethod(method: Method) {
         method.isAccessible = true
         // Small and private, so ART may inline it into its single caller; the hook would then
         // never fire.

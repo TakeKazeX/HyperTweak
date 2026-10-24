@@ -12,6 +12,7 @@ import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.json.JSONObject
@@ -45,7 +46,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     private data class LabelRewrite(val text: String, val edits: List<LabelEdit>)
     private data class HighlightRange(val target: Any, val start: Int, val end: Int)
 
-    private data class ResolvedTargets(
+    internal data class ResolvedTargets(
         val legacyJump: Method?,
         val actionProviderCall: Method?,
         val bubbleRender: Method?
@@ -55,18 +56,27 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     private val fields = ConcurrentHashMap<FieldKey, Field>()
     private val cueStringFields = ConcurrentHashMap<Class<*>, List<Field>>()
 
+    /** Prepare descriptors only while the user enables this feature. */
+    override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
+
+    override fun isFeatureEnabled(): Boolean = isEnabled()
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
+        if (!isEnabled()) {
+            DebugLog.hookSkippedDebug(TAG, "copy-direct default browser", "disabled")
+            return
+        }
 
         val apkPath = hookParam.appInfo?.sourceDir ?: run {
             DebugLog.hookSkipped(TAG, PACKAGE, "source APK unavailable for DexKit")
             return
         }
-        val targets = resolveTargets(apkPath) ?: run {
-            DebugLog.hookSkipped(TAG, PACKAGE, "DexKit bridge unavailable")
-            return
-        }
+        prepareDexTargets(name = AicrDefaultBrowserFeature.id,
+            resolve = { resolveTargets(apkPath) }, install = ::installTargets)
+    }
 
+    private fun installTargets(targets: ResolvedTargets) {
         targets.legacyJump?.let(::hookLegacyJump)
             ?: DebugLog.hookSkipped(TAG, "Copy Direct legacy URL jump", "unique DexKit match not found")
         targets.actionProviderCall?.let(::hookCopyDirectResponse)
@@ -80,60 +90,39 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         cueStringFields.clear()
     }
 
-    private fun resolveTargets(apkPath: String): ResolvedTargets? =
-        DexRuntime.query(apkPath, "AicrDefaultBrowserHooker.resolveTargets") { bridge ->
-            val legacy = bridge.findMethod {
-                matcher {
-                    paramCount(2)
-                    paramTypes(null, String::class.java)
-                    returnType(Void.TYPE)
-                    addUsingString(LEGACY_URL_MARKER, StringMatchType.Equals)
-                }
-            }.mapNotNull(::materialize)
-                .filter(::isLegacyJumpShape)
-                .singleOrNull()
-
-            val actionProvider = bridge.findMethod {
-                matcher {
-                    paramTypes(String::class.java, String::class.java, Bundle::class.java)
-                    returnType(Bundle::class.java)
-                    addUsingString(ACTION_PROVIDER_MARKER, StringMatchType.Equals)
-                }
-            }.mapNotNull(::materialize)
-                .filter(::isActionProviderShape)
-                .singleOrNull()
-
-            val bubble = bridge.findMethod {
-                matcher {
-                    paramTypes(CUE_DATA)
-                    returnType(Void.TYPE)
-                    addUsingString(BUBBLE_RENDER_MARKER, StringMatchType.Equals)
-                }
-            }.mapNotNull(::materialize)
-                .filter(::isBubbleRenderShape)
-                .singleOrNull()
-
-            ResolvedTargets(legacy, actionProvider, bubble)
-        }
-
+    /**
+     * Cached descriptor resolution.
+     *
+     * This used to be an uncached `DexRuntime.query`, so all five AICR processes rescanned the same
+     * APK on the main thread - 530-951 ms each, 3.1 s per boot (measured 2026-10-24).
+     */
+    private fun resolveTargets(apkPath: String): ResolvedTargets? = DexRuntime.resolve(
+        feature = AicrDefaultBrowserFeature,
+        apkPath = apkPath,
+        cacheDir = dexCacheDirectory,
+        cacheEmpty = true,
+        appInfo = hookParam.appInfo,
+        compute = { session -> AicrDefaultBrowserCache.descriptors(session, classLoader) },
+        decode = { stored, _ -> AicrDefaultBrowserCache.decode(stored, classLoader) },
+    )
     private fun materialize(data: MethodData): Method? =
         runCatching { data.getMethodInstance(classLoader) }
             .onFailure { DebugLog.w(TAG, "could not materialize DexKit target ${data.className}#${data.methodName}", it) }
             .getOrNull()
 
-    private fun isLegacyJumpShape(method: Method): Boolean =
+    internal fun isLegacyJumpShape(method: Method): Boolean =
         method.parameterCount == 2 &&
             Context::class.java.isAssignableFrom(method.parameterTypes[0]) &&
             method.parameterTypes[1] == String::class.java &&
             method.returnType == Void.TYPE
 
-    private fun isActionProviderShape(method: Method): Boolean =
+    internal fun isActionProviderShape(method: Method): Boolean =
         ContentProvider::class.java.isAssignableFrom(method.declaringClass) &&
             method.parameterTypes.contentEquals(
                 arrayOf(String::class.java, String::class.java, Bundle::class.java)
             ) && method.returnType == Bundle::class.java
 
-    private fun isBubbleRenderShape(method: Method): Boolean =
+    internal fun isBubbleRenderShape(method: Method): Boolean =
         android.view.View::class.java.isAssignableFrom(method.declaringClass) &&
             method.parameterCount == 1 &&
             method.parameterTypes[0].name == CUE_DATA &&
@@ -521,4 +510,66 @@ object AicrDefaultBrowserHooker : StaticHooker() {
 
     private fun isEnabled(): Boolean =
         Preferences.getBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false)
+}
+
+/** Persistent feature cache identity. */
+internal object AicrDefaultBrowserFeature : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+    override val id = "aicr.copy_direct"
+    override val schema = 2
+}
+
+/** Descriptor compute/decode for persistent target caching. */
+internal object AicrDefaultBrowserCache {
+    private const val LEGACY = "target.legacy"
+    private const val ACTION = "target.action"
+    private const val BUBBLE = "target.bubble"
+
+    const val LEGACY_URL_MARKER = "clipboard_open"
+    const val ACTION_PROVIDER_MARKER = "ActionCoreProvider.call"
+    const val BUBBLE_RENDER_MARKER = "Display 或 BriefCard 为空"
+    const val CUE_DATA = "com.xiaomi.ai.bubble.core.model.CueData"
+
+    fun descriptors(session: com.takekazex.hypertweak.hook.base.dex.DexSession, loader: ClassLoader): Map<String, String> =
+        session.dexKit { bridge ->
+            fun single(query: org.luckypray.dexkit.query.FindMethod, valid: (java.lang.reflect.Method) -> Boolean): String? =
+                bridge.findMethod(query).mapNotNull { data ->
+                    runCatching { data.getMethodInstance(loader) }.getOrNull()
+                }.filter(valid).singleOrNull()?.let {
+                    com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(it)
+                }
+            buildMap {
+                single(org.luckypray.dexkit.query.FindMethod().apply { matcher {
+                    paramTypes(null, String::class.java)
+                    returnType(Void.TYPE)
+                    addUsingString(LEGACY_URL_MARKER, StringMatchType.Equals)
+                } }, AicrDefaultBrowserHooker::isLegacyJumpShape)?.let { put(LEGACY, it) }
+                single(org.luckypray.dexkit.query.FindMethod().apply { matcher {
+                    paramTypes(String::class.java, String::class.java, Bundle::class.java)
+                    returnType(Bundle::class.java)
+                    addUsingString(ACTION_PROVIDER_MARKER, StringMatchType.Equals)
+                } }, AicrDefaultBrowserHooker::isActionProviderShape)?.let { put(ACTION, it) }
+                single(org.luckypray.dexkit.query.FindMethod().apply { matcher {
+                    paramTypes(CUE_DATA)
+                    returnType(Void.TYPE)
+                    addUsingString(BUBBLE_RENDER_MARKER, StringMatchType.Equals)
+                } }, AicrDefaultBrowserHooker::isBubbleRenderShape)?.let { put(BUBBLE, it) }
+            }
+        } ?: emptyMap()
+
+    fun decode(
+        stored: Map<String, String>,
+        loader: ClassLoader,
+    ): AicrDefaultBrowserHooker.ResolvedTargets? {
+        fun method(key: String): java.lang.reflect.Method? =
+            stored[key]?.let { com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, loader) }
+        val legacy = method(LEGACY)
+        val action = method(ACTION)
+        val bubble = method(BUBBLE)
+        if (LEGACY in stored && (legacy == null || !AicrDefaultBrowserHooker.isLegacyJumpShape(legacy))) return null
+        if (ACTION in stored && (action == null || !AicrDefaultBrowserHooker.isActionProviderShape(action))) return null
+        if (BUBBLE in stored && (bubble == null || !AicrDefaultBrowserHooker.isBubbleRenderShape(bubble))) return null
+        // An entry that stored nothing usable must be a miss so the next run rescans.
+        if (legacy == null && action == null && bubble == null) return null
+        return AicrDefaultBrowserHooker.ResolvedTargets(legacy, action, bubble)
+    }
 }

@@ -18,18 +18,45 @@ import java.util.concurrent.ConcurrentHashMap
  * from hundreds of identical boolean signatures. Results are descriptors, never live DEX
  * objects or reflected classes from another loader.
  */
-internal class CameraDexIndex private constructor(apk: File) {
-    private val container = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
+internal class CameraDexIndex private constructor(
+    private val apk: File,
+    private val stringLookup: ((String) -> List<String>?)? = null,
+) {
     private val definitions by lazy {
-        container.dexEntryNames.flatMap { entry ->
-            container.getEntry(entry)!!.dexFile.classes.toList()
+        if (apk.extension.lowercase() in setOf("apk", "zip", "jar")) {
+            // ZipDexContainer.getDexEntryNames probes EVERY resource's header. Camera has
+            // thousands of assets; probing them created thousands of exceptions during boot.
+            // ART loads root multidex entries. Validate only those streams as real DEX files.
+            java.util.zip.ZipFile(apk).use { zip ->
+                val entries = zip.entries().asSequence().filter {
+                    !it.isDirectory && ROOT_DEX.matches(it.name)
+                }.toList()
+                require(entries.isNotEmpty()) { "APK has no root DEX entries" }
+                entries.flatMap { entry ->
+                    zip.getInputStream(entry).buffered().use { input ->
+                        org.jf.dexlib2.dexbacked.DexBackedDexFile.fromInputStream(
+                            Opcodes.getDefault(), input,
+                        ).classes.toList()
+                    }
+                }
+            }
+        } else {
+            val container = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
+            container.dexEntryNames.flatMap { entry ->
+                container.getEntry(entry)!!.dexFile.classes.toList()
+            }
         }
     }
     val methods: List<Method> by lazy { definitions.flatMap { it.methods.toList() } }
-    private val byOwner by lazy { methods.groupBy { it.definingClass } }
+    private val byOwner = ConcurrentHashMap<String, List<Method>>()
     private val byType by lazy { definitions.associateBy { it.type } }
     fun classDefinition(owner: String) = byType[owner]
-    private val byDescriptor by lazy { methods.associateBy { descriptor(it) } }
+    private fun methodByDescriptor(value: String): Method? {
+        val arrow = value.indexOf("->")
+        if (arrow <= 0) return null
+        return declared(value.substring(0, arrow)).singleOrNull { descriptor(it) == value }
+    }
+    private val targetedStrings = ConcurrentHashMap<String, List<Method>>()
     private val codeCache = ConcurrentHashMap<String, Code>()
     private val stringIndex by lazy {
         buildMap<String, MutableList<Method>> {
@@ -86,24 +113,35 @@ internal class CameraDexIndex private constructor(apk: File) {
         }
     }
 
-    fun definition(reference: MethodReference): Method? = byDescriptor[descriptor(reference)]
+    fun definition(reference: MethodReference): Method? = methodByDescriptor(descriptor(reference))
     fun code(descriptor: String): Code = codeCache.getOrPut(descriptor) {
-        decode(byDescriptor[descriptor])
+        decode(methodByDescriptor(descriptor))
     }
     fun hasNumber(reference: MethodReference, value: Long): Boolean =
         definition(reference)?.implementation?.instructions?.any {
             it is WideLiteralInstruction && it.wideLiteral == value
         } == true
-    fun declared(owner: String): List<Method> = byOwner[owner].orEmpty()
+    fun declared(owner: String): List<Method> = byOwner.getOrPut(owner) {
+        byType[owner]?.methods?.toList().orEmpty()
+    }
     fun code(reference: MethodReference): Code = codeCache.getOrPut(descriptor(reference)) {
         decode(definition(reference))
     }
     private fun literals(method: Method): Set<String> = (method.implementation?.instructions ?: emptyList<Instruction>())
         .mapNotNull { ((it as? ReferenceInstruction)?.reference as? StringReference)?.string }.toSet()
-    fun strings(vararg values: String): List<Method> = values.map { stringIndex[it].orEmpty().toSet() }
+    private fun methodsUsing(value: String): List<Method> = if (stringLookup == null) stringIndex[value].orEmpty()
+        else targetedStrings.getOrPut(value) {
+            val descriptors = requireNotNull(stringLookup.invoke(value)) { "targeted string lookup failed: $value" }
+            descriptors.map { descriptor ->
+                requireNotNull(methodByDescriptor(descriptor)) { "missing targeted method: $descriptor" }
+                    .also { require(value in literals(it)) { "targeted method does not use requested string" } }
+            }.distinctBy(::descriptor)
+        }
+
+    fun strings(vararg values: String): List<Method> = values.map { methodsUsing(it).toSet() }
         .reduceOrNull { a, b -> a intersect b }?.toList().orEmpty()
     fun ownerStrings(vararg values: String): List<String> = values.map { value ->
-        stringIndex[value].orEmpty().map { it.definingClass }.toSet()
+        methodsUsing(value).map { it.definingClass }.toSet()
     }.reduceOrNull { a, b -> a intersect b }?.toList().orEmpty()
 
     fun callsFromOwner(owner: String): List<MethodReference> = declared(owner)
@@ -270,9 +308,43 @@ internal class CameraDexIndex private constructor(apk: File) {
     }
 
     companion object {
+        private val ROOT_DEX = Regex("classes(?:[0-9]+)?\\.dex")
         fun open(path: String): CameraDexIndex = DexRuntime.sourceIndex(path, CameraDexIndex::class.java) {
             CameraDexIndex(File(path))
         }
+        /** Camera startup uses narrow native queries plus persistent descriptors, never a whole-code string index. */
+        fun openTargeted(path: String, info: android.content.pm.ApplicationInfo?): CameraDexIndex =
+            DexRuntime.sourceIndex(path, CameraDexIndex::class.java) {
+                lateinit var index: CameraDexIndex
+                index = CameraDexIndex(File(path)) { value ->
+                    val key = java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+                    DexRuntime.resolve(
+                        feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+                            override val id = "camera.string.$key"
+                            override val schema = 1
+                        }, apkPath = path, cacheDir = DexRuntime.cacheDirectory(info), appInfo = info, cacheEmpty = true,
+                        compute = { session -> session.dexKit { bridge ->
+                            bridge.findMethod { matcher {
+                                addUsingString(value, org.luckypray.dexkit.query.enums.StringMatchType.Equals)
+                            } }.map { it.descriptor }.distinct().sorted()
+                                .mapIndexed { position, descriptor -> position.toString() to descriptor }.toMap()
+                        }.orEmpty() },
+                        decode = { values, _ ->
+                            val descriptors = values.toSortedMap().values.toList()
+                            descriptors.takeIf { list -> list.all { descriptor ->
+                                index.methodByDescriptor(descriptor)?.let { value in index.literals(it) } == true
+                            } }
+                        },
+                    )
+                }
+                index
+            }
+
+        /** Injectable narrow index for the same operand resolver in host regression tests. */
+        fun openWithStringLookup(path: String, lookup: (String) -> List<String>?): CameraDexIndex =
+            CameraDexIndex(File(path), lookup)
+
         fun descriptor(method: MethodReference): String = "${method.definingClass}->${method.name}(" +
             method.parameterTypes.joinToString("") + ")${method.returnType}"
         fun descriptor(type: Class<*>): String = when {

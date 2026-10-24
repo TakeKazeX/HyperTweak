@@ -6,7 +6,7 @@ internal class SettingsReloadDispatcher(
     private val remove: (Runnable) -> Unit,
     private val failure: (String, Throwable?) -> Unit
 ) {
-    private class Entry(val apply: (Set<String>) -> Boolean) { var retries = 0 }
+    private class Entry(val apply: (Set<String>) -> Boolean, val retryLimit: Int) { var retries = 0 }
     private val entries = linkedMapOf<String, Entry>()
     // null is a full-domain refresh; keyed changes must never narrow a pending full refresh.
     private val pending = linkedMapOf<String, Set<String>?>()
@@ -14,8 +14,14 @@ internal class SettingsReloadDispatcher(
     private val task = Runnable { drain() }
 
     fun register(id: String, apply: (Set<String>) -> Boolean) {
+        registerWithRetryBudget(id, 4, apply)
+    }
+
+    /** Slow asynchronous owners report success only after publication, within a finite budget. */
+    fun registerWithRetryBudget(id: String, retryLimit: Int, apply: (Set<String>) -> Boolean) {
+        require(retryLimit in 0..120)
         check(id !in entries) { "duplicate settings reload participant: $id" }
-        entries[id] = Entry(apply)
+        entries[id] = Entry(apply, retryLimit)
     }
 
     fun request(ids: Set<String>) = request(ids, emptySet())
@@ -38,7 +44,7 @@ internal class SettingsReloadDispatcher(
             val entry = entries.getValue(id)
             try {
                 if (!entry.apply(keys.orEmpty())) {
-                    if (entry.retries++ < 4) {
+                    if (entry.retries++ < entry.retryLimit) {
                         pending[id] = if (keys == null || id in pending && pending[id] == null) null
                             else pending[id].orEmpty() + keys
                     } else failure(id, null)

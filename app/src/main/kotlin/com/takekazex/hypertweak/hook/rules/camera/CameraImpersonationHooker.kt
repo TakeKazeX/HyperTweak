@@ -388,11 +388,15 @@ object CameraImpersonationHooker : StaticHooker() {
             return
         }
 
-        val apkPath = hookParam.appInfo?.sourceDir?.takeIf { it.isNotBlank() } ?: run {
+        hookParam.appInfo?.sourceDir?.takeIf { it.isNotBlank() } ?: run {
             DebugLog.w(TAG, "camera APK path unavailable; adaptive tint-color gate skipped")
             return
         }
-        val gateMethod = DexRuntime.query(apkPath, "CameraImpersonationHooker.hookLccCustomizationProvider") { bridge ->
+        val gateMethod = CameraResolver.resolveCachedMethod(TAG, "lcc_customization_provider",
+            CameraResolver.Ctx(classLoader, hookParam.appInfo), shape = {
+                it.parameterCount == 0 && it.returnType == java.lang.Boolean.TYPE &&
+                    !Modifier.isStatic(it.modifiers)
+            }) { bridge ->
             resolveTintColorProviderGate(bridge)
         } ?: run {
             DebugLog.w(TAG, "adaptive tint-color gate not resolved; tint-color restore skipped")
@@ -583,9 +587,11 @@ object CameraImpersonationHooker : StaticHooker() {
             },
         ) ?: return
 
-        val apkPath = ctx.appInfo?.sourceDir ?: return
         val styleGate = runCatching {
-            DexRuntime.query(apkPath, "CameraImpersonationHooker.hookShutterSoundPlaybackRoute") { bridge ->
+            CameraResolver.resolveCachedMethod(TAG, "shutter_sound_style_gate", ctx, shape = {
+                it.declaringClass == profile.facade && it.parameterCount == 0 &&
+                    it.returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(it.modifiers)
+            }) { bridge ->
                 bridge.findMethod {
                     matcher { usingStrings("loadSound failed: audioData is null for sound") }
                 }.asSequence()
@@ -1445,12 +1451,17 @@ object CameraImpersonationHooker : StaticHooker() {
     private val masterLiveTypeMethod = AtomicReference<Method?>(null)
     private fun resolveMasterLiveType() {
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val owners = semantics.dex.ownerStrings("ComponentRunningMasterLive", "pref_master_live_key")
-        val reader = semantics.unique("MasterLive selected effect", semantics.dex.methods.filter { ref ->
-            Modifier.isStatic(ref.accessFlags) && ref.returnType == "Ljava/lang/String;" &&
-                ref.parameterTypes.map(CharSequence::toString) == listOf("I") &&
-                semantics.dex.code(ref).calls.any { it.method.definingClass in owners && it.method.name == "getComponentValue" }
-        })
+        val reader = semantics.cachedUnique("MasterLive selected effect", validate = { method ->
+            Modifier.isStatic(method.modifiers) && method.returnType == String::class.java &&
+                method.parameterTypes.contentEquals(arrayOf(Integer.TYPE))
+        }) {
+            val owners = semantics.dex.ownerStrings("ComponentRunningMasterLive", "pref_master_live_key")
+            semantics.dex.methods.filter { ref ->
+                Modifier.isStatic(ref.accessFlags) && ref.returnType == "Ljava/lang/String;" &&
+                    ref.parameterTypes.map(CharSequence::toString) == listOf("I") &&
+                    semantics.dex.code(ref).calls.any { it.method.definingClass in owners && it.method.name == "getComponentValue" }
+            }
+        }
         masterLiveTypeMethod.set(reader)
     }
 

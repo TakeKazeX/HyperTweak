@@ -82,4 +82,28 @@ class SettingsReloadDispatcherTest {
         assertEquals(setOf("bottom_text"), seen["lockscreen"])
     }
 
+    @Test fun asyncPublicationRemainsPendingPastTheNormalRetryWindow() {
+        val loop = Loop()
+        var published = false
+        var attempts = 0
+        loop.reload.registerWithRetryBudget("dock", 12) { attempts++; published }
+        loop.reload.request(setOf("dock"))
+        repeat(8) { loop.tick() }
+        assertEquals(8, attempts)
+        assertTrue(loop.failures.isEmpty())
+        assertTrue(loop.tasks.isNotEmpty())
+        published = true
+        loop.tick()
+        assertTrue(loop.tasks.isEmpty())
+    }
+
+    @Test fun anAsyncOwnerStillHasAFiniteFailureBudget() {
+        val loop = Loop()
+        loop.reload.registerWithRetryBudget("dock", 12) { false }
+        loop.reload.request(setOf("dock"))
+        repeat(15) { loop.tick() }
+        assertEquals(listOf("dock"), loop.failures)
+        assertTrue(loop.tasks.isEmpty())
+    }
+
 }

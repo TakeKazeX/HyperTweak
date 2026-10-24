@@ -67,31 +67,47 @@ object GoogleAppRuntime : StaticHooker() {
         }.onFailure { failure ->
             DebugLog.w(TAG, "Live Translate system-feature hook failed", failure)
         }
+        // The Lens entry hook is the only one whose target the Google App calls *during* its own
+        // cold start: the exported Lens activity asks for the caller package and the eligibility
+        // decision as soon as it resumes. It therefore stays on the synchronous path.
+        //
+        // Live Translate and Ask Screen fire when the user actually invokes those features, which
+        // is always after this process is up. Resolving them here made every Google App start pay
+        // the whole three-feature graph walk on the main thread inside bindApplication (2301 ms and
+        // 2002 ms on 2026-10-24 across two starts); deferring them to the shared preparation moves
+        // that work off the startup path without changing when either feature can first fire.
+        var lensResolved = false
         try {
-            DexRuntime.query(apk, "GoogleAppRuntime.onHook") { bridge ->
-                // The Lens entry hook resolves first on purpose: it is the one whose target the
-                // Google App calls *during* its own cold start (the exported Lens activity asks for
-                // the caller package and the eligibility decision as soon as it resumes), so its
-                // query must not queue behind the two OMNI features' scans.
-                runCatching {
-                    GoogleAppLensEntryHooker.installWithBridge(bridge, existingHookIds)
-                }.onFailure { failure ->
-                    DebugLog.e(TAG, "Lens entry resolution failed", failure)
-                }
-                runCatching {
-                    GoogleAppLiveTranslateHooker.installWithBridge(bridge, existingHookIds)
-                }.onFailure { failure ->
-                    DebugLog.e(TAG, "Live Translate resolution failed", failure)
-                }
-                runCatching {
-                    GoogleAppAskAboutScreenHooker.installWithBridge(bridge, existingHookIds)
-                }.onFailure { failure ->
-                    DebugLog.e(TAG, "Ask Screen resolution failed", failure)
-                }
-            }
+            runCatching {
+                GoogleAppLensEntryHooker.installEntry(apk, existingHookIds)
+                lensResolved = true
+            }.onFailure { DebugLog.e(TAG, "Lens entry resolution failed", it) }
         } finally {
             existingHookIds.forEach(preReplacedIds::remove)
         }
+        // The deferred pass needs the carried ids itself: they are consumed here, so they are
+        // captured before the clear above rather than re-read from the map later.
+        deferFeatureTargets(apk, existingHookIds, lensResolved)
+    }
+
+    /** Resolve both graphs off the main thread, then publish under the managed generation fence. */
+    private fun deferFeatureTargets(apk: String, carried: Set<String>, lensResolved: Boolean) {
+        prepareDexTargets(name = "googleapp.omni",
+            resolve = {
+                DexRuntime.withSession(apk) { session -> session.dexKit { bridge ->
+                    listOfNotNull(
+                        runCatching { GoogleAppLiveTranslateHooker.prepareInstall(bridge, carried) }
+                            .onFailure { DebugLog.e(TAG, "Live Translate resolution failed", it) }.getOrNull(),
+                        runCatching { GoogleAppAskAboutScreenHooker.prepareInstall(bridge, carried) }
+                            .onFailure { DebugLog.e(TAG, "Ask Screen resolution failed", it) }.getOrNull(),
+                    )
+                } }
+            },
+            install = { actions ->
+                actions.forEach { action -> runCatching(action)
+                    .onFailure { DebugLog.e(TAG, "OMNI hook publication failed", it) } }
+                DebugLog.i(TAG, "OMNI hooks published lensResolved=$lensResolved")
+            })
     }
 
     /** Recover the Google App base APK path for a hot-reload callback without a PackageLoaded param. */

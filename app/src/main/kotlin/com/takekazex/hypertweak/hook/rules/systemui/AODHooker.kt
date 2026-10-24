@@ -312,9 +312,8 @@ object AODHooker : StaticHooker() {
                 val callback = runCatching { type.getDeclaredConstructor().newInstance() }
                     .getOrElse { IconTunerFlows.allocateInstance(type) }
                 fields.single().apply { isAccessible = true }.set(callback, host)
-                val method = controller.javaClass.methods.single {
-                    it.name == add && it.parameterCount == 1 && it.parameterTypes[0].isInstance(callback)
-                }
+                val method = NativeCallbackRegistration.select(controller.javaClass.methods, add, type)
+                    ?: error("native typed callback registration missing or ambiguous: $add")
                 method.invoke(controller, callback)
                 dozeCallbacks += Triple(controller, callback, remove)
             }

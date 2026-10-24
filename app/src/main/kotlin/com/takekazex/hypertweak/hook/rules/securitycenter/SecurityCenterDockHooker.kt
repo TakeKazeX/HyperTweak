@@ -310,17 +310,27 @@ object SecurityCenterDockHooker : DynamicHooker() {
         Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false),
         Preferences.getInt(Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
 
+    /**
+     * Outcome of a settings application.
+     *
+     * A plain Boolean could not distinguish "nothing to do yet, retry later" from "targets are not
+     * resolved, this hooker cannot help". The shared dispatcher therefore spent its whole retry
+     * budget and reported a reload failure on every boot even though the rebuild was already
+     * queued (observed 2026-10-24 03:13:22.518).
+     */
+    enum class Refresh { APPLIED, PENDING, UNAVAILABLE }
+
     /** Rebuild even on default/first install: a preceding generation may have no saved feature state. */
-    @Synchronized fun refreshSettings(): Boolean {
-        if (retired) return true
+    @Synchronized fun refreshSettings(): Refresh {
+        if (retired) return Refresh.APPLIED
         Preferences.invalidateRuntimeReadCache()
         val next = readSettings()
         if (next != settings) { appliedSettings = null; pendingSettings = null }
         settings = next
-        val t = targets ?: return false
+        val t = targets ?: return Refresh.UNAVAILABLE
         val snapshot = settings
-        if (appliedSettings == snapshot) return true
-        if (pendingSettings == snapshot) return false
+        if (appliedSettings == snapshot) return Refresh.APPLIED
+        if (pendingSettings == snapshot) return Refresh.PENDING
         pendingSettings = snapshot
         val generation = refreshGeneration.incrementAndGet()
         // Serialize native rebuilds off the UI thread.
@@ -351,7 +361,7 @@ object SecurityCenterDockHooker : DynamicHooker() {
                 DebugLog.w(TAG, "dock rebuild failed", it)
             }
         }
-        return false
+        return Refresh.PENDING
     }
 
     private val refreshWorker = java.util.concurrent.ThreadPoolExecutor(

@@ -12,7 +12,10 @@ import java.util.WeakHashMap
 
 /** Runs config-dependent camera hooks after the host initializes its shared config provider. */
 internal object CameraApplicationInit {
-    private data class Pending(val actions: LinkedHashMap<BaseHooker, () -> Unit> = linkedMapOf())
+    private data class Pending(
+        val actions: LinkedHashMap<BaseHooker, () -> Unit> = linkedMapOf(),
+        var configReady: Boolean = false,
+    )
 
     private val lock = Any()
     private val pendingByLoader = WeakHashMap<ClassLoader, Pending>()
@@ -47,17 +50,41 @@ internal object CameraApplicationInit {
             }
 
             runCatching {
+                val providerBoundary = method.returnType == java.lang.Boolean.TYPE
+                val published = if (providerBoundary) Class.forName("android.app.ActivityThread", false, loader)
+                    .getDeclaredMethod("installContentProviders", android.content.Context::class.java, List::class.java)
+                    .also { require(it.returnType == Void.TYPE && !Modifier.isStatic(it.modifiers)) }
+                    else null
+                fun installQueued() {
+                    val actions = synchronized(lock) {
+                        val queued = pendingByLoader[loader]
+                        if (queued?.configReady != true) return
+                        completedLoaders[loader] = true
+                        pendingByLoader.remove(loader)?.actions?.toList().orEmpty()
+                    }
+                    DebugLog.i("CamAppInit", if (providerBoundary)
+                        "providers published; installing before Application.onCreate hooks=${actions.size}"
+                        else "application fallback completed; installing hooks=${actions.size}")
+                    DexRuntime.withScope(hooker.hookParam.appInfo?.sourceDir) {
+                        actions.forEach { (owner, queued) -> runAction(owner, queued) }
+                    }
+                }
                 with(hooker) {
+                    published?.hook("camera_config_providers_published") {
+                        after { param ->
+                            val context = param.args.firstOrNull() as? android.content.Context
+                            if (context?.packageName == hooker.hookParam.packageName) installQueued()
+                        }
+                    }
                     method.hook("camera_config_provider_initialized") {
                         after {
-                            val actions = synchronized(lock) {
-                                completedLoaders[loader] = true
-                                pendingByLoader.remove(loader)?.actions?.toList().orEmpty()
-                            }
-                            DebugLog.i("CamAppInit", "config-ready boundary returned; running deferred hooks=${actions.size}")
-                            DexRuntime.withScope(hooker.hookParam.appInfo?.sourceDir) {
-                                actions.forEach { (owner, queued) -> runAction(owner, queued) }
-                            }
+                            synchronized(lock) { pendingByLoader[loader]?.configReady = true }
+                            // Current framework publishes providers inside installContentProviders,
+                            // before callApplicationOnCreate. Install at that synchronous boundary:
+                            // outside the provider deadline, before the host builds its camera modes.
+                            // Handler.post would instead run after the whole bindApplication turn.
+                            if (published == null) installQueued()
+                            else DebugLog.i("CamAppInit", "config ready; awaiting provider publication")
                         }
                     }
                 }

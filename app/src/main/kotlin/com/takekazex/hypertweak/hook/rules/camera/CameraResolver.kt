@@ -12,6 +12,31 @@ import java.lang.reflect.Modifier
 
 object CameraResolver {
 
+    /** Cache detached exact signatures; native probes run only after a cache/ABI miss. */
+    fun resolveCachedMethod(
+        scope: String, key: String, ctx: Ctx, shape: (Method) -> Boolean,
+        probe: (DexKitBridge) -> Method?,
+    ): Method? {
+        val path = ctx.appInfo?.sourceDir ?: return null
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$scope:$key".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        return DexRuntime.resolve(
+            feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+                override val id = "camera.method.$digest"
+                override val schema = 1
+            }, apkPath = path,
+            cacheDir = DexRuntime.cacheDirectory(ctx.appInfo), appInfo = ctx.appInfo,
+            compute = { session -> session.dexKit { bridge -> probe(bridge)?.let {
+                mapOf("method" to com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(it))
+            }.orEmpty() }.orEmpty() },
+            // Missing or failed probes never become persistent negative entries.
+            decode = { values, _ -> values["method"]?.let {
+                com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, ctx.classLoader)
+            }?.takeIf { !it.isSynthetic && shape(it) } },
+        )
+    }
+
     class Ctx(
         val classLoader: ClassLoader,
         val appInfo: ApplicationInfo?,
@@ -98,14 +123,13 @@ object CameraResolver {
         anchors: List<String>,
         shape: (Method) -> Boolean,
     ): Method? {
-        val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "CameraResolver.resolveMethodByStrings") { bridge ->
-            val matches = runCatching {
+        return resolveCachedMethod(scope, key + anchors.joinToString("\u0000"), ctx, shape) { bridge ->
+            val matches = run {
                 bridge.findMethod { matcher { usingStrings(*anchors.toTypedArray()) } }
                     .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
                     .filter { method -> !method.isSynthetic && runCatching { shape(method) }.getOrDefault(false) }
                     .distinctBy { it.toGenericString() }
-            }.getOrElse { emptyList() }
+            }
             matches.singleOrNull()?.apply { isAccessible = true }
                 ?: run {
                     DebugLog.w(scope, "$key did not resolve to one method by semantic anchor")
@@ -121,14 +145,13 @@ object CameraResolver {
         numbers: List<Number>,
         shape: (Method) -> Boolean,
     ): Method? {
-        val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "CameraResolver.resolveMethodByNumbers") { bridge ->
-            val matches = runCatching {
+        return resolveCachedMethod(scope, key + numbers.joinToString(","), ctx, shape) { bridge ->
+            val matches = run {
                 bridge.findMethod { matcher { usingNumbers(*numbers.toTypedArray()) } }
                     .mapNotNull { data -> runCatching { data.getMethodInstance(ctx.classLoader) }.getOrNull() }
                     .filter { method -> !method.isSynthetic && runCatching { shape(method) }.getOrDefault(false) }
                     .distinctBy { it.toGenericString() }
-            }.getOrElse { emptyList() }
+            }
             matches.singleOrNull()?.apply { isAccessible = true }
                 ?: run {
                     DebugLog.w(scope, "$key did not resolve to one method by numeric behavior")
@@ -188,41 +211,37 @@ object CameraResolver {
         scope: String,
     ): Method? {
         val apkPath = ctx.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "CameraResolver.resolveConfigFallbackGate") { bridge ->
-            val methods = runCatching {
-                bridge.findMethod {
-                    matcher {
-                        declaredClass(facade.name, StringMatchType.Equals)
-                        paramCount(0)
-                        returnType(java.lang.Boolean.TYPE)
-                    }
-                }.filter { data ->
+        return DexRuntime.resolve(
+            feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+                override val id = "camera.config_fallback_gate"
+                override val schema = 1
+            }, apkPath = apkPath, cacheDir = DexRuntime.cacheDirectory(ctx.appInfo), appInfo = ctx.appInfo,
+            compute = { session -> session.dexKit { bridge ->
+                val methods = bridge.findMethod { matcher {
+                    declaredClass(facade.name, StringMatchType.Equals)
+                    paramCount(0)
+                    returnType(java.lang.Boolean.TYPE)
+                } }.filter { data ->
                     data.className == facade.name && Modifier.isStatic(data.modifiers) &&
                         data.paramCount == 0 && data.returnTypeName == "boolean" &&
-                        data.invokes.any { invoked ->
-                            invoked.isMethod && invoked.paramCount == 0 &&
-                                invoked.returnTypeName == configType.name
-                        }
-                }.mapNotNull { runCatching { it.getMethodInstance(ctx.classLoader) }.getOrNull() }
-                    .filter { method ->
-                        Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
-                            method.returnType == java.lang.Boolean.TYPE && facade == method.declaringClass
-                    }
-                    .distinctBy { it.toGenericString() }
-            }.getOrElse { emptyList() }
-            methods.singleOrNull()?.apply { isAccessible = true }
-                ?: run {
-                    DebugLog.w(scope, "config-fallback gate was not uniquely identified on ${facade.name}")
-                    null
-                }
-        }
+                        data.invokes.any { invoked -> invoked.isMethod && invoked.paramCount == 0 &&
+                            invoked.returnTypeName == configType.name }
+                }.distinctBy { it.descriptor }
+                methods.singleOrNull()?.let { mapOf("method" to it.descriptor) }.orEmpty()
+            }.orEmpty() },
+            decode = { values, _ -> values["method"]?.let {
+                com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, ctx.classLoader)
+            }?.takeIf { Modifier.isStatic(it.modifiers) && it.parameterCount == 0 &&
+                it.returnType == java.lang.Boolean.TYPE && it.declaringClass == facade } },
+        ) ?: run { DebugLog.w(scope, "config-fallback gate was not unique on ${facade.name}"); null }
     }
 
     fun resolveSourceNameResolver(ctx: Ctx, scope: String): Method? {
-        val info = ctx.appInfo ?: return null
-        val apkPath = info.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "CameraResolver.resolveSourceNameResolver") { bridge ->
-            val methods = runCatching {
+        return resolveCachedMethod(scope, "source_name_resolver", ctx, shape = {
+            Modifier.isStatic(it.modifiers) && it.returnType == Class::class.java &&
+                it.parameterTypes.contentEquals(arrayOf(String::class.java))
+        }) { bridge ->
+            val methods = run {
                 bridge.findMethod {
                     matcher {
                         returnType(Class::class.java)
@@ -265,7 +284,7 @@ object CameraResolver {
                         ) && method.returnType == Class::class.java
                     }
                     .distinctBy { it.toGenericString() }
-                }.getOrElse { emptyList() }
+                }
             methods.singleOrNull()?.apply { isAccessible = true }
                 ?: run {
                     DebugLog.w(scope, "source-name resolver was not uniquely identified by its cache/decode call graph (matches=${methods.size})")

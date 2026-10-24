@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -37,16 +38,26 @@ object ModelSpoofHooker : StaticHooker() {
     private const val MODEL_KEY = "phoneModel"
     private const val DEVICE_KEY = "phoneDevice"
 
+    /** Skip DEX preparation while spoofing is disabled; first enable prepares a cold cache in the background. */
+    override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
+
+    override fun isFeatureEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)
+
     override fun onHook() {
+        if (!isFeatureEnabled()) {
+            DebugLog.hookSkippedDebug(TAG, "model spoof", "disabled")
+            return
+        }
         val apkPath = hookParam.appInfo?.sourceDir ?: run {
             DebugLog.hookSkipped(TAG, "model spoof", "source APK unavailable")
             return
         }
-        val method = resolveMethod(apkPath) ?: run {
-            DebugLog.hookSkipped(TAG, "model spoof JSON builder", "unique DexKit target not found")
-            return
-        }
+        prepareDexTargets(name = "personalassistant.model_spoof",
+            resolve = { resolveMethod(apkPath) }, install = ::installMethod)
+    }
 
+    private fun installMethod(method: Method) {
         // The method is small enough that AOT may inline it; deoptimize so the hook actually fires.
         deoptimize(method)
         method.hook {
@@ -68,27 +79,23 @@ object ModelSpoofHooker : StaticHooker() {
         DebugLog.d(TAG, "hooked DexKit model-spoof JSON builder ${method.toGenericString()}")
     }
 
-    private fun resolveMethod(apkPath: String): Method? = DexRuntime.query(apkPath, "ModelSpoofHooker.resolveMethod") { bridge ->
-        val candidates = bridge.findMethod {
-            matcher {
+    private fun resolveMethod(apkPath: String): Method? = DexRuntime.resolve(
+        feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+            override val id = "personalassistant.model_spoof"
+            override val schema = 1
+        }, apkPath = apkPath, cacheDir = dexCacheDirectory, appInfo = hookParam.appInfo,
+        compute = { session -> session.dexKit { bridge ->
+            val candidate = bridge.findMethod { matcher {
                 paramTypes(Context::class.java, String::class.java)
                 returnType(JSONObject::class.java)
                 addUsingString(MODEL_KEY, StringMatchType.Equals)
                 addUsingString(DEVICE_KEY, StringMatchType.Equals)
-            }
-        }.toList()
-
-        candidates.mapNotNull(::materialize)
-            .filter { method ->
-                method.parameterTypes.contentEquals(arrayOf(Context::class.java, String::class.java)) &&
-                    method.returnType == JSONObject::class.java
-            }
-            .singleOrNull()
-    }
-
-    private fun materialize(data: MethodData): Method? = runCatching {
-        data.getMethodInstance(classLoader)
-    }.onFailure {
-        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
-    }.getOrNull()
+            } }.singleOrNull()
+            candidate?.let { mapOf("method" to it.descriptor) }.orEmpty()
+        }.orEmpty() },
+        decode = { values, _ -> values["method"]?.let {
+            com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, classLoader)
+        }?.takeIf { it.parameterTypes.contentEquals(arrayOf(Context::class.java, String::class.java)) &&
+            it.returnType == JSONObject::class.java } },
+    )
 }

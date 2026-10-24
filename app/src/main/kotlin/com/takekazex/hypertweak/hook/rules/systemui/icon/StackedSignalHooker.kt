@@ -364,7 +364,17 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun resolvePanelMotionMethods(): List<Method> {
         val apkPath = hookParam.appInfo?.sourceDir ?: return emptyList()
-        return DexRuntime.query(apkPath, "StackedSignalHooker.resolvePanelMotionMethods") { bridge ->
+        return DexRuntime.resolveMethodMap(
+            "systemui.stacked_panel_motion", apkPath, dexCacheDirectory, classLoader, hookParam.appInfo,
+            validate = { key, method ->
+                val type = when (key) { "expansion" -> Float::class.javaPrimitiveType
+                    "visibility" -> Boolean::class.javaPrimitiveType; else -> null }
+                val name = if (key == "expansion") "onExpansionChanged" else "onVisibleChanged"
+                type != null && method.declaringClass.name.contains(PANEL_CALLBACK_OWNER_MARKER) &&
+                    method.name == name && method.parameterTypes.contentEquals(arrayOf(type)) &&
+                    method.returnType == Void.TYPE && !java.lang.reflect.Modifier.isStatic(method.modifiers)
+            },
+        ) { bridge ->
             val expansion = resolvePanelMotionMethod(
                 bridge,
                 "onExpansionChanged",
@@ -375,8 +385,9 @@ object StackedSignalHooker : StaticHooker() {
                 "onVisibleChanged",
                 Boolean::class.javaPrimitiveType!!
             )
-            listOfNotNull(expansion, visibility)
-        }.orEmpty()
+            mapOf("expansion" to expansion, "visibility" to visibility)
+                .filterValues { it != null }.mapValues { requireNotNull(it.value) }
+        }?.values?.toList().orEmpty()
     }
 
     private fun resolvePanelMotionMethod(

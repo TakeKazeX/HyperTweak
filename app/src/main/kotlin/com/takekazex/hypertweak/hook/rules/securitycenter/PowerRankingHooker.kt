@@ -6,10 +6,9 @@ import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
-import org.luckypray.dexkit.DexKitBridge
-import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -47,6 +46,12 @@ object PowerRankingHooker : StaticHooker() {
         fallbackBuilder = null
     }
 
+    /** Only prepare this optional display feature while enabled. */
+    override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
+
+    override fun isFeatureEnabled(): Boolean =
+        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)) {
@@ -54,10 +59,33 @@ object PowerRankingHooker : StaticHooker() {
             return
         }
 
-        val resolution = resolveCard() ?: run {
-            DebugLog.hookSkipped(TAG, "power ranking", "card method not uniquely resolved")
-            return
-        }
+        prepareDexTargets(
+            name = PowerRankingFeature.id,
+            resolve = ::resolveCardCached,
+            install = ::install,
+        )
+    }
+
+    /**
+     * Cached resolution.
+     *
+     * [CardResolution] is three descriptors - the card method, the methods it invokes and the row
+     * class - so it serialises like every other feature. It used to be re-derived per process, and
+     * the resolution occupied the shared background worker for 7.8 s (4.9 s of that opening the
+     * bridge for an 81 MB APK), which is what delayed the Dock install that had already been
+     * attached.
+     */
+    private fun resolveCardCached(): CardResolution? = DexRuntime.resolve(
+        feature = PowerRankingFeature,
+        apkPath = hookParam.appInfo?.sourceDir ?: return null,
+        cacheDir = dexCacheDirectory,
+        cacheEmpty = true,
+        appInfo = hookParam.appInfo,
+        compute = PowerRankingCache::descriptors,
+        decode = { stored, _ -> PowerRankingCache.decode(stored, classLoader) },
+    )
+
+    private fun install(resolution: CardResolution) {
         fallbackBuilder = runCatching { resolveFallbackBuilder(resolution) }
             .onFailure {
                 DebugLog.w(TAG, "card fallback resolver failed; installing the hook without rows", it)
@@ -92,83 +120,7 @@ object PowerRankingHooker : StaticHooker() {
         }
     }
 
-    /** Resolve only through the structural DexKit query; ambiguity fails closed. */
-    private fun resolveCard(): CardResolution? {
-        val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        val dexResolved = DexRuntime.query(apkPath, "PowerRankingHooker.resolveCard") { bridge -> resolveCardWithBridge(bridge) }
-        if (dexResolved != null) DebugLog.d(TAG, "card method resolved structurally target=${dexResolved.method}")
-        return dexResolved
-    }
-
-    /** Runs with the bridge open: every `MethodData` read in this function is legal here only. */
-    private fun resolveCardWithBridge(bridge: DexKitBridge): CardResolution? {
-        val candidates = runCatching {
-            bridge.findMethod {
-                matcher {
-                    paramTypes(
-                        Context::class.java,
-                        Int::class.javaPrimitiveType!!,
-                        Boolean::class.javaPrimitiveType!!,
-                        Boolean::class.javaPrimitiveType!!
-                    )
-                    paramCount(4)
-                    returnType(List::class.java)
-                }
-            }.toList()
-        }.onFailure {
-            DebugLog.w(TAG, "card method structural lookup failed", it)
-        }.getOrDefault(emptyList())
-
-        val materialized = candidates.mapNotNull { data ->
-            materializeMethod(data)?.takeIf(::isCardMethod)?.let { it to data }
-        }
-        val chosen = when {
-            materialized.size == 1 -> materialized.single()
-            materialized.size > 1 -> materialized
-                .filter { looksLikePowerRanking(it.second) }
-                .singleOrNull()
-                ?.also { DebugLog.d(TAG, "card method disambiguated by power-rank call graph") }
-                ?: run {
-                    DebugLog.w(
-                        TAG,
-                        "card method shape is ambiguous candidates=${materialized.size}"
-                    )
-                    return null
-                }
-            else -> return null
-        }
-
-        // Materialize the call graph now: the row graph cannot be derived from a closed bridge.
-        val invokedMethods = chosen.second.invokes
-            .filterNot { it.isConstructor }
-            .mapNotNull(::materializeMethod)
-        val rowClass = chosen.second.invokes.asSequence()
-            .filter { it.isConstructor && it.paramCount == 0 }
-            .mapNotNull { data ->
-                runCatching { data.getClassInstance(classLoader) }.getOrNull()
-            }
-            .firstOrNull(::looksLikeCardRow)
-        return CardResolution(chosen.first, invokedMethods, rowClass)
-    }
-
-    private fun looksLikePowerRanking(data: MethodData): Boolean {
-        val invokes = data.invokes
-        val rankList = invokes.any {
-            normalizeName(it.className) == POWER_RANK_HELPER &&
-                isType(it.returnTypeName, "java.util.List")
-        }
-        val rankTotal = invokes.any {
-            normalizeName(it.className) == POWER_RANK_HELPER &&
-                isType(it.returnTypeName, "double")
-        }
-        val batteryData = invokes.any {
-            normalizeName(it.className) == BATTERY_DATA &&
-                it.methodName in setOf("getValue", "getPackageName", "getUid")
-        }
-        return rankList && rankTotal && batteryData
-    }
-
-    private fun isCardMethod(method: Method): Boolean =
+    internal fun isCardMethod(method: Method): Boolean =
         Modifier.isStatic(method.modifiers) &&
             method.returnType == List::class.java &&
             method.parameterTypes.contentEquals(
@@ -289,7 +241,7 @@ object PowerRankingHooker : StaticHooker() {
         return resolution.rowClass?.takeIf(::looksLikeCardRow)
     }
 
-    private fun looksLikeCardRow(clazz: Class<*>): Boolean {
+    internal fun looksLikeCardRow(clazz: Class<*>): Boolean {
         val fields = clazz.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }
         return fields.count { it.type == String::class.java } >= 2 &&
             fields.count { it.type == Double::class.javaPrimitiveType } >= 1 &&
@@ -335,18 +287,6 @@ object PowerRankingHooker : StaticHooker() {
         return RowFields(packageField, labelField, percentField, iconField, uidField)
     }
 
-    private fun materializeMethod(data: MethodData): Method? = runCatching {
-        data.getMethodInstance(classLoader)
-    }.onFailure {
-        DebugLog.d(TAG, "failed to inspect ${data.className}#${data.methodName}")
-    }.getOrNull()
-
-    private fun normalizeName(name: String): String =
-        name.removePrefix("L").removeSuffix(";").replace('/', '.')
-
-    private fun isType(name: String, expected: String): Boolean =
-        name == expected || name == "L${expected.replace('.', '/')};"
-
     private fun Class<*>.accessibleField(name: String): Field? =
         runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
 
@@ -357,7 +297,7 @@ object PowerRankingHooker : StaticHooker() {
      * `MethodData` would throw `DexKitBridge is not valid` here, because the bridge that produced
      * it is closed by the time this value is used.
      */
-    private data class CardResolution(
+    internal data class CardResolution(
         val method: Method,
         val invokedMethods: List<Method>,
         val rowClass: Class<*>?
@@ -440,5 +380,108 @@ object PowerRankingHooker : StaticHooker() {
             }
             return rows
         }
+    }
+}
+
+/** Persistent feature cache identity. */
+internal object PowerRankingFeature : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+    override val id = "securitycenter.power_ranking"
+    override val schema = 2
+}
+
+/**
+ * Compute/decode for the power-ranking card fallback.
+ *
+ * The row graph used to be derived from live `MethodData`, which forced a full rescan in every
+ * process because a closed bridge cannot be read. Everything the installed hook actually needs is
+ * three descriptors, so the call graph is flattened here - inside the open bridge - into plain
+ * method descriptors and one class name.
+ */
+internal object PowerRankingCache {
+    private const val CARD = "card"
+    private const val INVOKED_PREFIX = "invoked."
+    private const val ROW_CLASS = "row.class"
+
+    private const val POWER_RANK_HELPER = "com.miui.powercenter.legacypowerrank.f"
+    private const val BATTERY_DATA = "com.miui.powercenter.legacypowerrank.BatteryData"
+
+    fun descriptors(session: com.takekazex.hypertweak.hook.base.dex.DexSession): Map<String, String> =
+        session.dexKit { bridge ->
+            val candidates = runCatching {
+                bridge.findMethod {
+                    matcher {
+                        paramTypes(
+                            android.content.Context::class.java,
+                            Int::class.javaPrimitiveType!!,
+                            Boolean::class.javaPrimitiveType!!,
+                            Boolean::class.javaPrimitiveType!!,
+                        )
+                        paramCount(4)
+                        returnType(List::class.java)
+                    }
+                }.toList()
+            }.getOrDefault(emptyList())
+
+            val shaped = candidates.filter { data ->
+                data.isMethod && Modifier.isStatic(data.modifiers) && data.paramCount == 4 && data.returnTypeName == "java.util.List"
+            }
+            val chosen = when {
+                shaped.size == 1 -> shaped.single()
+                shaped.size > 1 -> shaped.filter(::looksLikePowerRanking).singleOrNull()
+                else -> null
+            } ?: return@dexKit emptyMap()
+
+            val invoked = chosen.invokes
+                .filterNot { it.isConstructor }
+                .map { it.descriptor }
+                .distinct()
+            // The row class is the zero-argument constructor target the card method invokes. Its
+            // name is stored rather than a descriptor because the installed hook only needs the
+            // Class, and a renamed class invalidates the entry on decode.
+            val rowNames = chosen.invokes
+                .filter { it.isConstructor && it.paramCount == 0 }
+                .map { it.className }.distinct()
+
+            buildMap {
+                put(CARD, chosen.descriptor)
+                invoked.forEachIndexed { index, descriptor -> put(INVOKED_PREFIX + index, descriptor) }
+                rowNames.forEachIndexed { index, name -> put("$ROW_CLASS.$index", name) }
+            }
+        } ?: emptyMap()
+
+    private fun looksLikePowerRanking(data: org.luckypray.dexkit.result.MethodData): Boolean {
+        val invokes = data.invokes
+        val rankList = invokes.any {
+            it.className == POWER_RANK_HELPER && it.returnTypeName == "java.util.List"
+        }
+        val rankTotal = invokes.any {
+            it.className == POWER_RANK_HELPER && it.returnTypeName == "double"
+        }
+        val batteryData = invokes.any {
+            it.className == BATTERY_DATA &&
+                it.methodName in setOf("getValue", "getPackageName", "getUid")
+        }
+        return rankList && rankTotal && batteryData
+    }
+
+    fun decode(
+        stored: Map<String, String>,
+        loader: ClassLoader,
+    ): PowerRankingHooker.CardResolution? {
+        val card = stored[CARD]
+            ?.let { com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(it, loader) }
+            ?: return null
+        if (!PowerRankingHooker.isCardMethod(card)) return null
+        val invoked = stored.entries
+            .filter { it.key.startsWith(INVOKED_PREFIX) }
+            .sortedBy { it.key.removePrefix(INVOKED_PREFIX).toIntOrNull() ?: Int.MAX_VALUE }
+            .mapNotNull { (_, descriptor) ->
+                com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.method(descriptor, loader)
+            }
+        val rowClasses = stored.filterKeys { it.startsWith("$ROW_CLASS.") }.values.map { name ->
+            runCatching { Class.forName(name, false, loader) }.getOrNull() ?: return null
+        }.filter(PowerRankingHooker::looksLikeCardRow)
+        val rowClass = rowClasses.singleOrNull()
+        return PowerRankingHooker.CardResolution(card, invoked, rowClass)
     }
 }

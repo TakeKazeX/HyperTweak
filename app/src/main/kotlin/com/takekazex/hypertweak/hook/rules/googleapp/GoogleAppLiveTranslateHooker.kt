@@ -77,13 +77,25 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         bridge: DexKitBridge,
         existingHookIds: Set<String> = emptySet()
     ) {
-        // The host strings identify semantic leaves; each child resolver fails closed on ambiguity.
-        hookMediaProjectionGate(bridge)
-        // Best-effort master flag leaf (may be sunk into its single call site by R8).
-        hookFlagLeaf(bridge, FLAG_LIVE_TRANSLATE)
-        hookActionBeanVisibility(bridge, existingHookIds)
+        prepareInstall(bridge, existingHookIds).invoke()
+    }
 
-        DebugLog.i(TAG, "gate hooks installed")
+    /** Resolve while the bridge is open; publish only detached reflection on the main thread. */
+    internal fun prepareInstall(bridge: DexKitBridge, existingHookIds: Set<String>): () -> Unit {
+        val projection = resolveMediaProjectionGate(bridge)
+        val flag = resolveFlagLeaf(bridge, FLAG_LIVE_TRANSLATE)
+        val action = resolveActionTargets(bridge)
+        return {
+            projection?.let(::installBooleanGate)
+            flag?.let(::installBooleanGate)
+            action?.let { installActionBeanVisibility(it, existingHookIds) }
+            DebugLog.i(TAG, "gate hooks installed")
+        }
+    }
+
+    private fun installBooleanGate(method: Method) {
+        deoptimize(method)
+        method.hook { after { param -> if (featureEnabled()) param.result = true } }
     }
 
     /** Replacement callbacks used before a hot-reload generation resolves DexKit again. */
@@ -133,7 +145,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
 
     // ─── Gate 3: EXTRA_MEDIA_PROJECTION display predicate ─────────────────────────
 
-    private fun hookMediaProjectionGate(bridge: DexKitBridge) {
+    private fun resolveMediaProjectionGate(bridge: DexKitBridge): Method? {
         val candidates = methodsUsingString(bridge, EXTRA_MEDIA_PROJECTION).mapNotNull { md ->
             val method = methodFor(md) ?: return@mapNotNull null
             // The host predicate can have an erased Object return type. Match the Android extra,
@@ -149,23 +161,12 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
             method
         }.distinctBy { it.toGenericString() }
 
-        val method = candidates.singleOrNull()
-        if (method == null) {
-            DebugLog.d(TAG, "media-projection predicate matches=${candidates.size}; skipping")
-            return
-        }
-        deoptimize(method)
-        method.hook {
-            after { param ->
-                if (featureEnabled()) param.result = true
-            }
-        }
-        DebugLog.d(TAG, "media-projection display predicate hooked on $method")
+        return candidates.singleOrNull()
     }
 
     // ─── Gate 1: master flag leaf ─────────────────────────────────────────────────
 
-    private fun hookFlagLeaf(bridge: DexKitBridge, anchor: String) {
+    private fun resolveFlagLeaf(bridge: DexKitBridge, anchor: String): Method? {
         val candidates = methodsUsingString(bridge, anchor).mapNotNull { md ->
             val method = methodFor(md) ?: return@mapNotNull null
             if (method.parameterCount != 0 || method.returnType != java.lang.Boolean.TYPE) {
@@ -174,18 +175,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
             method
         }.distinctBy { it.toGenericString() }
 
-        val method = candidates.singleOrNull()
-        if (method == null) {
-            DebugLog.d(TAG, "master flag leaf matches=${candidates.size}; skipping")
-            return
-        }
-        deoptimize(method)
-        method.hook {
-            after { param ->
-                if (featureEnabled()) param.result = true
-            }
-        }
-        DebugLog.d(TAG, "master flag leaf hooked on $method")
+        return candidates.singleOrNull()
     }
 
     // ─── Primary: semantic action visibility + constructor-linked capability ─────
@@ -195,16 +185,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
      * Both targets are recovered from the current DEX field, writer, constructor-parameter and
      * invoke relationships.
      */
-    private fun hookActionBeanVisibility(
-        bridge: DexKitBridge,
-        existingHookIds: Set<String>
-    ) {
-        val targets = resolveActionTargets(bridge)
-        if (targets == null) {
-            DebugLog.w(TAG, "live-translate action graph unresolved or ambiguous; failing closed")
-            return
-        }
-
+    private fun installActionBeanVisibility(targets: ActionTargets, existingHookIds: Set<String>) {
         if (!existingHookIds.contains(HOOK_ACTION_VISIBILITY)) {
             targets.visibility.isAccessible = true
             deoptimize(targets.visibility)
