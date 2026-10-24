@@ -4,7 +4,7 @@ import android.app.Activity
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.util.WeakHashMap
@@ -108,7 +108,7 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     }
 
     /** Shared dispatcher calls on main; return failures so its bounded retry remains effective. */
-    fun refreshSettings(): Boolean = StatusIconHostAccess.onMain {
+    fun refreshSettings(): Boolean = HostAccess.onMain {
         if (retired || !ready || !isMainProcess) return@onMain true
         Preferences.invalidateRuntimeReadCache()
         refreshHosts()
@@ -118,9 +118,9 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         val discovered = HookFailurePolicy.open(TAG, "recover AI pages", false) {
             val owner = Class.forName("android.app.ActivityThread")
             val thread = owner.getMethod("currentActivityThread").invoke(null)
-            val records = thread?.let { StatusIconHostAccess.read(it, "mActivities") } as? Map<*, *>
+            val records = thread?.let { HostAccess.read(it, "mActivities") } as? Map<*, *>
             records?.values?.filterNotNull()?.forEach { record ->
-                val activity = StatusIconHostAccess.read(record, "activity") as? Activity ?: return@forEach
+                val activity = HostAccess.read(record, "activity") as? Activity ?: return@forEach
                 if (!activity.isDestroyed && fragmentActivity?.isInstance(activity) == true) {
                     visitFragments(call(activity, "getSupportFragmentManager"))
                 }
@@ -147,12 +147,12 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         }
     }
 
-    override fun recoverHotReloadHosts() = StatusIconHostAccess.onMain {
+    override fun recoverHotReloadHosts() = HostAccess.onMain {
         if (ready && !retired && isMainProcess) refreshHosts(recoverLabels = true)
         Unit
     }
 
-    override fun onPrepareHotReload() = StatusIconHostAccess.onMain {
+    override fun onPrepareHotReload() = HostAccess.onMain {
         // Keep the old handles alive during restoration, but make their overrides inert. Native
         // controllers restore visibility before replacement.
         retired = true

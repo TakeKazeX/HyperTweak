@@ -121,7 +121,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         val wasEnabled = enabled
         enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
         if (wasEnabled != enabled) {
-            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess.onMain {
+            com.takekazex.hypertweak.hook.base.HostAccess.onMain {
                 knownIndicationViews.toList().filter { it.isAttachedToWindow }
                     .forEach { runCatching { NativeViewAttachmentReplay.replay(it) } }
             }

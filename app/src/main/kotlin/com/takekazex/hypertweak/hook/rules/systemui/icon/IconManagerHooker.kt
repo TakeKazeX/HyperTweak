@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -44,7 +45,7 @@ object IconManagerHooker : StaticHooker() {
 
     private var setBlockListMethod: java.lang.reflect.Method? = null
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         synchronized(stateLock) {
             states.entries.map { (manager, state) -> listOf(manager, ArrayList(state.pristine)) }
         }
@@ -52,7 +53,7 @@ object IconManagerHooker : StaticHooker() {
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             synchronized(stateLock) {
                 saved.forEach { entry ->
                     val row = entry as? List<*> ?: return@forEach
@@ -86,7 +87,7 @@ object IconManagerHooker : StaticHooker() {
         val pending = synchronized(stateLock) {
             states.entries.map { (manager, state) -> manager to state.pristine.toList() }
         }
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             restoring = true
             try {
                 pending.forEach { (manager, pristine) ->

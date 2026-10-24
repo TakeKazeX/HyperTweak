@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.instruction.OneRegisterInstruction
 import org.jf.dexlib2.iface.instruction.TwoRegisterInstruction
@@ -12,7 +12,7 @@ import org.jf.dexlib2.iface.reference.TypeReference
 import org.jf.dexlib2.iface.reference.StringReference
 
 /** All obfuscated members are recovered from one connected, current-image contract. */
-internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
+internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
     private val list = "Ljava/util/List;"
     private val context = "Landroid/content/Context;"
     private val string = "Ljava/lang/String;"
@@ -24,7 +24,7 @@ internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
     private fun Method.ops() = implementation?.instructions?.toList().orEmpty().map { it.opcode.name }.toSet()
     private fun Method.calls() = refs().filterIsInstance<MethodReference>()
     private fun Method.number(n: Long) = implementation?.instructions?.any { it is WideLiteralInstruction && it.wideLiteral == n } == true
-    private fun MethodReference.key() = CameraDexIndex.descriptor(this)
+    private fun MethodReference.key() = DexOperandIndex.descriptor(this)
     private fun FieldReference.key() = "$definingClass->$name:$type"
 
     fun resolve(): Map<String, String> = buildMap {
@@ -38,7 +38,7 @@ internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
         method("append", append)
         val code = index.code(append)
         val sizeFields = code.calls.filter { it.method.name == "size" && it.method.definingClass == list }
-            .mapNotNull { (it.arguments.singleOrNull() as? CameraDexIndex.Value.Field)?.field }
+            .mapNotNull { (it.arguments.singleOrNull() as? DexOperandIndex.Value.Field)?.field }
         check(sizeFields.size == 2 && sizeFields.distinctBy { it.key() }.size == 2)
         val instructions = append.implementation!!.instructions.toList()
         val quota = instructions.withIndex().single { (_, instruction) ->
@@ -94,7 +94,7 @@ internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
         val itemModel = fill.calls().single { it.returnType == constructor.definingClass && it.params().isEmpty() }
         method("itemModel", itemModel)
         field("modelKind", index.code(constructor).writes.single {
-            it.first.type == "I" && it.second == CameraDexIndex.Value.Argument(3)
+            it.first.type == "I" && it.second == DexOperandIndex.Value.Argument(3)
         }.first)
         method("heightData", members.single { candidate -> candidate.returnType == list && candidate.params().isEmpty() &&
             candidate.key() != data.key() && index.code(candidate).reads.any { it.key() == sizeFields[0].key() } })
@@ -122,7 +122,7 @@ internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
         val adapter = replaceItem.definingClass
         field("dragAdapter", index.code(addItem).reads.filter { it.type == adapter }.distinctBy { it.key() }.single())
         val items = index.code(replaceItem).calls.single { it.method.definingClass == list && it.method.name == "set" }
-            .arguments.first() as CameraDexIndex.Value.Field
+            .arguments.first() as DexOperandIndex.Value.Field
         method("adapterData", index.declared(adapter).single { it.params().isEmpty() && it.returnType == list &&
             it.ops() == setOf("iget-object", "return-object") && index.code(it).reads.any { f -> f.key() == items.field.key() } })
         method("appendSlot", index.declared(adapter).single { candidate -> candidate.params() == listOf(drag.params()[2]) &&
@@ -136,12 +136,12 @@ internal class SecurityCenterDockResolver(private val index: CameraDexIndex) {
             it.calls().any { ref -> ref.name == "post" } }
         method("bind", bind)
         val bindFields = index.code(bind).calls.filter { it.method.definingClass == list && it.method.name == "clear" }
-            .mapNotNull { (it.arguments.firstOrNull() as? CameraDexIndex.Value.Field)?.field }
+            .mapNotNull { (it.arguments.firstOrNull() as? DexOperandIndex.Value.Field)?.field }
         field("layoutData", bindFields.single())
         val update = layoutMethods.single { it.params().isEmpty() && it.returnType == "V" &&
             it.calls().any { ref -> ref.key() == fill.key() } }
         method("update", update)
-        field("layoutEditing", index.code(update).branches.mapNotNull { (it.value as? CameraDexIndex.Value.Field)?.field }
+        field("layoutEditing", index.code(update).branches.mapNotNull { (it.value as? DexOperandIndex.Value.Field)?.field }
             .filter { it.type == "Z" }.distinctBy { it.key() }.single())
         field("layoutAdapter", index.code(update).reads.filter { it.type == adapter }.distinctBy { it.key() }.single())
         field("layoutController", index.classDefinition(layout)!!.fields.single { it.type == count.definingClass })

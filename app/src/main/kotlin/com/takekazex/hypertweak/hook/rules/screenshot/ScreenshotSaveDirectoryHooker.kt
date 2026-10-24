@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -60,7 +60,7 @@ object ScreenshotSaveDirectoryHooker : StaticHooker() {
     }
     private fun resolve(apk: String, cacheOnly: Boolean): ScreenshotDirectoryAccess? = DexRuntime.resolve(
         feature = ScreenshotDirectoryFeature, apkPath = apk, cacheDir = dexCacheDirectory, cacheOnly = cacheOnly,
-        compute = { ScreenshotDirectoryResolver(CameraDexIndex.open(apk)).resolve().encode() },
+        compute = { ScreenshotDirectoryResolver(DexRuntime.operands(apk)).resolve().encode() },
         decode = { values, _ -> ScreenshotDirectoryAccess.decode(values, classLoader) },
     )
     private fun install(access: ScreenshotDirectoryAccess) {

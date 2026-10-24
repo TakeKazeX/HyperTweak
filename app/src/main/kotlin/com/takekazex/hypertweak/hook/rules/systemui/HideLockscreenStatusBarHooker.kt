@@ -2,7 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import java.util.WeakHashMap
 import android.content.Context
 import android.view.View
@@ -46,9 +46,9 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     @Volatile
     private var windowRoot: View? = null
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { knownViews.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain { knownViews.toList() }
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
+        HostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
     }
 
     /** A replacement may or may not have saved views; classify both and re-hide when enabled. */
@@ -67,7 +67,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         val next = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
         val changed = next != enabled
         enabled = next
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             existingKeyguardStatusBars().forEach { knownViews += it }
             if (enabled) {
                 knownViews.filter { it.isAttachedToWindow }.forEach(::hide)
@@ -82,7 +82,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        StatusIconHostAccess.onMain { restoreNative(knownViews.toList()) }
+        HostAccess.onMain { restoreNative(knownViews.toList()) }
         knownViews.clear()
         intents.clear()
         windowRoot = null
@@ -150,12 +150,12 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             DebugLog.hookFailed("HideLockscreenStatusBar", "View#setAlpha(Float)", it)
         }
 
-        if (enabled) StatusIconHostAccess.onMain { knownViews.filter { it.isAttachedToWindow }.forEach(::hide) }
+        if (enabled) HostAccess.onMain { knownViews.filter { it.isAttachedToWindow }.forEach(::hide) }
     }
 
     private fun remember(view: View) {
         knownViews += view
-        if (enabled) StatusIconHostAccess.onMain { hide(view) }
+        if (enabled) HostAccess.onMain { hide(view) }
     }
 
     /** Writes the host's own last request back to every hidden view and forgets it. */

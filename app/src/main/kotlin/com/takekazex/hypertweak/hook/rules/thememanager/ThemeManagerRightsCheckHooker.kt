@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.thememanager
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -95,7 +96,7 @@ object ThemeManagerRightsCheckHooker : StaticHooker() {
     /** Fallback route: upstream Ceiler's markers, which survive a class rename. */
     private fun dexKitMatch(): Method? {
         val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        return DexRuntime.query(apkPath, "ThemeManagerRightsCheckHooker.dexKitMatch") { bridge ->
+        return resolveDexContract("theme.rights_check", apkPath, compute = compute@ { bridge ->
             bridge.findMethod {
                 matcher {
                     addUsingString("theme", StringMatchType.Equals)
@@ -104,6 +105,7 @@ object ThemeManagerRightsCheckHooker : StaticHooker() {
                     addUsingString("check rights isLegal: ", StringMatchType.Equals)
                 }
             }.singleOrNull()?.getMethodInstance(classLoader)
-        }?.takeIf { ThemeDrmSupport.isDrmResult(it.returnType) }
+
+        }, encode = { target -> DexContractMembers.encode("check" to target) }, decode = { members -> members.method("check").also { require(it.parameterCount == 1 && ThemeDrmSupport.isDrmResult(it.returnType)) } })?.takeIf { ThemeDrmSupport.isDrmResult(it.returnType) }
     }
 }

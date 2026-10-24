@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
 import android.view.View
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Replay native standard wrappers only; app-owned custom RemoteViews retain their own styling. */
@@ -14,9 +14,9 @@ internal object NotificationContentHotReloadRecovery {
                 NotificationFontWeightHooker.recoverHybrid(view)
                 NotificationMonetTextColorHooker.recoverHybrid(view)
                 if (view.javaClass.name != "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow") return@runCatching
-                listOf("mPrivateLayout", "mPublicLayout").mapNotNull { StatusIconHostAccess.read(view, it) }
+                listOf("mPrivateLayout", "mPublicLayout").mapNotNull { HostAccess.read(view, it) }
                     .flatMap { content -> listOf("mContractedWrapper", "mExpandedWrapper", "mHeadsUpWrapper")
-                        .mapNotNull { StatusIconHostAccess.read(content, it) } }.distinct().forEach wrapperLoop@ { wrapper ->
+                        .mapNotNull { HostAccess.read(content, it) } }.distinct().forEach wrapperLoop@ { wrapper ->
                         if (!NotificationTextColorPolicy.ownsTemplate(
                             generateSequence(wrapper.javaClass) { it.superclass }.map { it.name }.toList()
                         )) return@wrapperLoop

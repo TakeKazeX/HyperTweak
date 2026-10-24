@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.trustservice
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -36,7 +37,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "source APK unavailable")
             return
         }
-        val method = DexRuntime.query(apkPath, "MiTrustRiskMonitoringHooker.onHook") { bridge ->
+        val method = resolveDexContract("mitrust.mrm_gate", apkPath, compute = compute@ { bridge ->
             val methodData = bridge.findMethod {
                 matcher {
                     paramCount(0)
@@ -44,11 +45,12 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
                     addUsingString(STATUS_EVENT_TAG, StringMatchType.Equals)
                     addUsingString(MRM_SERVICE, StringMatchType.Equals)
                 }
-            }.singleOrNull() ?: return@query null
+            }.singleOrNull() ?: return@compute null
             runCatching { methodData.getMethodInstance(classLoader) }
                 .onFailure { DebugLog.hookFailed(TAG, "${methodData.className}#${methodData.methodName}", it) }
                 .getOrNull()
-        } ?: run {
+
+        }, encode = { target -> DexContractMembers.encode("gate" to target) }, decode = { members -> members.method("gate").also { require(it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) } }) ?: run {
             DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "DexKit match missing or ambiguous")
             return
         }

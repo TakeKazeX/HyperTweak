@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.guardprovider
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -42,7 +43,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "source APK unavailable")
             return
         }
-        val resolved = DexRuntime.query(apkPath, "GuardProviderUploadAppListHooker.onHook") { bridge ->
+        val resolved = resolveDexContract("guardprovider.upload_boundaries", apkPath, compute = { bridge ->
             val referenceCandidates = bridge.findMethod {
                 matcher {
                     returnType("java.lang.String")
@@ -79,7 +80,13 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
                     method.parameterTypes[1].name == JSON_OBJECT
             }
             ResolvedTargets(collector, endpoint)
-        } ?: run {
+
+        }, encode = { target -> DexContractMembers.encode("collector" to target.collector, "endpoint" to target.endpoint) }, decode = { members ->
+            val collector = members.optionalMethod("collector")?.also { require(it.returnType == String::class.java && it.parameterTypes.contentEquals(arrayOf(ArrayList::class.java))) }
+            val endpoint = members.optionalMethod("endpoint")?.also { require(it.returnType == String::class.java && it.parameterTypes.map { type -> type.name } == listOf(GUARD_APPLICATION, JSON_OBJECT)) }
+            require(collector != null || endpoint != null)
+            ResolvedTargets(collector, endpoint)
+        }) ?: run {
             DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "DexKit unavailable")
             return
         }

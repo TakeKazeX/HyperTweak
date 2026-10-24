@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.reference.FieldReference
 import org.jf.dexlib2.iface.reference.MethodReference
 import org.junit.Assert.*
@@ -10,10 +10,10 @@ import java.io.File
 
 /** Verify the actual boot DEX rather than framework.jar's resource-only wrapper after an OTA. */
 class ForceScreenshotHostContractTest {
-    private fun dex(env: String): CameraDexIndex {
+    private fun dex(env: String): DexOperandIndex {
         val path = System.getenv(env)
         assumeTrue("Set $env for target-bytecode checks", path != null && File(path).isFile)
-        return CameraDexIndex.open(path!!)
+        return DexOperandIndex.fixture(path!!)
     }
     private fun FieldReference.key() = "$definingClass->$name:$type"
     private fun MethodReference.params() = parameterTypes.map { it.toString() }
@@ -28,7 +28,7 @@ class ForceScreenshotHostContractTest {
         assertEquals("I", source.type)
         val constructor = dex.declared(base).single { it.name == "<init>" && it.params() == listOf(builder) }
         val destination = dex.code(constructor).writes.single { (_, value) ->
-            val call = value as? CameraDexIndex.Value.Call
+            val call = value as? DexOperandIndex.Value.Call
             call != null && dex.code(call.method).reads.any { it.key() == source.key() }
         }.first
         assertEquals(base, destination.definingClass)
@@ -36,10 +36,10 @@ class ForceScreenshotHostContractTest {
             it.name == "<init>" && it.params() == listOf("Landroid/view/SurfaceControl;", base)
         }
         assertTrue(dex.code(copy).calls.any { call -> call.method.name == setter.name &&
-            call.arguments.any { it is CameraDexIndex.Value.Field && it.field.key() == destination.key() } })
+            call.arguments.any { it is DexOperandIndex.Value.Field && it.field.key() == destination.key() } })
         val parcel = dex.declared(base).single { it.name == "writeToParcel" }
         assertTrue(dex.code(parcel).calls.any { call -> call.method.name == "writeInt" &&
-            call.arguments.any { it is CameraDexIndex.Value.Field && it.field.key() == destination.key() } })
+            call.arguments.any { it is DexOperandIndex.Value.Field && it.field.key() == destination.key() } })
         val natives = dex.declared("$prefix;").filter { it.name in setOf("nativeCaptureDisplay", "nativeCaptureLayers") }
         assertEquals(2, natives.size)
         assertTrue(natives.all { it.accessFlags and 0x108 == 0x108 })
@@ -98,7 +98,7 @@ class ForceScreenshotHostContractTest {
         val args = services.declared("Lcom/android/server/wm/WindowManagerService;").single { it.name == "getCaptureArgs" && it.params() ==
             listOf("I", "Landroid/window/ScreenCaptureInternal\$CaptureArgs;", "I") }
         assertTrue(services.code(args).calls.any { call -> call.method.name == "setMiCaptureErrorCode" &&
-            call.arguments.contains(CameraDexIndex.Value.Argument(2)) })
+            call.arguments.contains(DexOperandIndex.Value.Argument(2)) })
     }
 
     @Test fun relayoutPersistsSecureVerdictsAndNativeRefreshRepairsThem() {
@@ -109,7 +109,7 @@ class ForceScreenshotHostContractTest {
         val relayout = dex.declared(wm).single { it.name == "relayoutWindow" }
         assertTrue("A global false verdict can persist into Surface state", dex.code(relayout).calls.any { call ->
             call.method.name == "setSecureLocked" && call.arguments.any {
-                it is CameraDexIndex.Value.Call && it.method.definingClass == window && it.method.name == "isSecureLocked"
+                it is DexOperandIndex.Value.Call && it.method.definingClass == window && it.method.name == "isSecureLocked"
             }
         })
         val refresh = dex.declared(root).single { it.name == "refreshSecureSurfaceState" }

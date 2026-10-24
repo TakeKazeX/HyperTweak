@@ -8,7 +8,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.WeakHashMap
 
@@ -48,11 +48,11 @@ object NotificationFontWeightHooker : StaticHooker() {
     private val owners: MutableSet<Any> =
         java.util.Collections.newSetFromMap(WeakHashMap<Any, Boolean>())
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         applied.entries.map { (view, weight) -> listOf(view, weight) }
     }
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!isEnabled()) return@onMain
             (state as? List<*>)?.filterIsInstance<List<*>>()?.forEach { item ->
                 val view = item.getOrNull(0) as? TextView ?: return@forEach
@@ -63,7 +63,7 @@ object NotificationFontWeightHooker : StaticHooker() {
     }
     override fun onPrepareHotReload() {
         retiring = true
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             originals.forEach { (view, typeface) -> view.typeface = typeface }
             originals.clear()
             applied.clear()
@@ -80,7 +80,7 @@ object NotificationFontWeightHooker : StaticHooker() {
      * each original typeface. Neither waits for the next bind or a SystemUI restart.
      */
     fun refreshSettings() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             val live = owners.toList().filter { it is View && it.isAttachedToWindow }
             if (isEnabled()) live.forEach(::restyle)
             else {

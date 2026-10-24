@@ -1,18 +1,18 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.reference.MethodReference
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 
 /** Semantic anchors plus connected signatures; resource operands come from the current DEX. */
-internal class SecurityCenterPopupResolver(private val index: CameraDexIndex) {
+internal class SecurityCenterPopupResolver(private val index: DexOperandIndex) {
     private fun <T> Iterable<T>.unique(predicate: (T) -> Boolean): T = filter(predicate).single()
     private val string = "Ljava/lang/String;"
     private val list = "Ljava/util/List;"
     private val view = "Landroid/view/View;"
     private fun MethodReference.params() = parameterTypes.map(CharSequence::toString)
-    private fun MethodReference.key() = CameraDexIndex.descriptor(this)
+    private fun MethodReference.key() = DexOperandIndex.descriptor(this)
     private fun Method.calls() = index.code(this).calls.map { it.method }
     private fun Method.addsWindow() = calls().any { it.definingClass in setOf("Landroid/view/WindowManager;", "Landroid/view/ViewManager;") && it.name == "addView" }
     private fun anchor(text: String, params: List<String>) = index.strings(text).unique { it.params() == params && it.returnType == "V" }
@@ -28,16 +28,16 @@ internal class SecurityCenterPopupResolver(private val index: CameraDexIndex) {
                 candidate.calls().any { it.key() == timing.key() }
         }
         val forward = index.code(wrapper).calls.unique { it.method.key() == timing.key() }.arguments
-        check(forward.drop(1) == listOf(CameraDexIndex.Value.Number(-1), CameraDexIndex.Value.Argument(0),
-            CameraDexIndex.Value.Argument(1), CameraDexIndex.Value.Argument(2), CameraDexIndex.Value.Argument(3), CameraDexIndex.Value.Number(0)))
+        check(forward.drop(1) == listOf(DexOperandIndex.Value.Number(-1), DexOperandIndex.Value.Argument(0),
+            DexOperandIndex.Value.Argument(1), DexOperandIndex.Value.Argument(2), DexOperandIndex.Value.Argument(3), DexOperandIndex.Value.Number(0)))
         val producer = index.declared("Lcom/miui/gamebooster/service/DockWindowManagerService;").unique { candidate ->
             candidate.params().isEmpty() && candidate.returnType == "V" && index.code(candidate).calls.any {
-                it.method.key() == wrapper.key() && it.arguments.contains(CameraDexIndex.Value.Text("dolby"))
+                it.method.key() == wrapper.key() && it.arguments.contains(DexOperandIndex.Value.Text("dolby"))
             }
         }
         val operands = index.code(producer).calls.unique { it.method.key() == wrapper.key() }.arguments
-        val text = (operands[1] as CameraDexIndex.Value.Number).number.toInt()
-        val layout = (operands[2] as CameraDexIndex.Value.Number).number.toInt()
+        val text = (operands[1] as DexOperandIndex.Value.Number).number.toInt()
+        val layout = (operands[2] as DexOperandIndex.Value.Number).number.toInt()
         check(text ushr 24 == 0x7f && layout ushr 24 == 0x7f && text != layout)
         put("dolbyText", text.toString()); put("dolbyLayout", layout.toString())
         putMethod("dolbyProducer", producer)

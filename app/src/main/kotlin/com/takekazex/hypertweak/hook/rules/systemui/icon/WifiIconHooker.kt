@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.annotation.SuppressLint
@@ -66,7 +67,7 @@ object WifiIconHooker : StaticHooker() {
     private var retired = false
 
     override fun onPrepareHotReload() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             retired = true
             standardGravity.forEach { (view, original) ->
                 (view.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
@@ -361,7 +362,7 @@ object WifiIconHooker : StaticHooker() {
     }
 
     internal fun recoverViewModel(component: Any) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             recoveryTask?.let(recoveryHandler::removeCallbacks)
             recoveryTask = null
             recoverDirection(component, 0)
@@ -384,11 +385,11 @@ object WifiIconHooker : StaticHooker() {
 
     private fun recoverDirection(component: Any, attempt: Int) {
         if (retired) return
-        val vm = StatusIconHostAccess.provider(component, "wifiViewModelProvider")
-        val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider")
-        val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider")
-        val network = interactor?.let { StatusIconHostAccess.read(it, "wifiNetwork") }
-        val standard = vm?.let { StatusIconHostAccess.read(it, "wifiStandard") }
+        val vm = HostAccess.provider(component, "wifiViewModelProvider")
+        val interactor = HostAccess.provider(component, "wifiInteractorImplProvider")
+        val scope = HostAccess.provider(component, "bgApplicationScopeProvider")
+        val network = interactor?.let { HostAccess.read(it, "wifiNetwork") }
+        val standard = vm?.let { HostAccess.read(it, "wifiStandard") }
         if (vm == null || network == null || standard == null) {
             retryDirection(component, attempt)
             return

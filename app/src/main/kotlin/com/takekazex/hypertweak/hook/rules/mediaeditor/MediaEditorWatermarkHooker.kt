@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.mediaeditor
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -203,6 +205,57 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     // ─── Class resolution ──────────────────────────────────────────────────────
 
     private fun resolveClasses(): ResolvedClasses? {
+        val apk = hookParam.appInfo?.sourceDir ?: return null
+        return resolveDexContract("mediaeditor.watermark_graph", apk, compute = ::scanClasses,
+            encode = { target ->
+                val modern = target.modernCloud
+                DexContractMembers.encode(
+                    "filter" to target.vyI0Filter, "data" to target.cloudWmData, "debug" to target.tb0VBInvoke,
+                    "load" to target.vyILoad, "dispatch" to target.yyMDispatcher, "fetcher" to target.yyM,
+                    "listener" to target.listenerIface, "item" to target.cloudWmItem,
+                    "modern.model" to modern?.modelClass, "modern.constructor" to modern?.modelConstructor,
+                    "modern.filter" to modern?.filterMethod, "modern.menu" to modern?.menuBuilder,
+                    "modern.fetcher" to modern?.fetcherClass, "modern.fetchConstructor" to modern?.fetcherConstructor,
+                    "modern.fetch" to modern?.fetcherMethod, "modern.listener" to modern?.listenerIface,
+                ) + target.deviceGateMethods.mapKeys { "gate." + it.key }.mapValues { MethodDescriptorCodec.descriptor(it.value) }
+            },
+            decode = { members ->
+                val keys = listOf(Preferences.KEY_WM_LEICA, Preferences.KEY_WM_XIAOMI, Preferences.KEY_WM_REDMI,
+                    Preferences.KEY_WM_POCO, Preferences.KEY_WM_VICTORIA, Preferences.KEY_WM_DISNEY3,
+                    Preferences.KEY_WM_LCC, Preferences.KEY_WM_DISNEY1, Preferences.KEY_WM_DISNEY2)
+                val gates = keys.associateWith { members.method("gate.$it").also { method ->
+                    require(Modifier.isStatic(method.modifiers) && method.parameterCount == 0 && method.returnType == Boolean::class.javaPrimitiveType)
+                } }
+                val data = members.optionalType("data")
+                val filter = members.optionalMethod("filter")?.also {
+                    val config = requireNotNull(CLOUD_WM_CONFIG.toClassOrNull()); require(isCloudFilterMethod(it, config))
+                }
+                val debug = members.optionalMethod("debug")?.also { require(isDebugGateMethod(it)) }
+                val load = members.optionalMethod("load")?.also { require(isCloudLoaderMethod(it)) }
+                val dispatch = members.optionalMethod("dispatch")?.also {
+                    require(isResourceDispatcher(it, requireNotNull(WM_ITEM.toClassOrNull()), requireNotNull(WM_CATEGORY.toClassOrNull())))
+                }
+                val model = members.optionalType("modern.model")
+                val modern = model?.let {
+                    val constructor = members.constructor("modern.constructor"); require(constructor.declaringClass == model && isModernCloudConstructor(constructor))
+                    val menu = members.method("modern.menu"); require(menu.parameterCount == 1 && menu.returnType == LinkedHashMap::class.java)
+                    val modernFilter = members.method("modern.filter")
+                    require(Modifier.isStatic(modernFilter.modifiers) && modernFilter.parameterTypes.contentEquals(arrayOf(menu.parameterTypes[0], List::class.java)) && modernFilter.returnType == menu.parameterTypes[0])
+                    val fetcher = members.optionalType("modern.fetcher")
+                    val fetchConstructor = members.optionalConstructor("modern.fetchConstructor")
+                    val fetch = members.optionalMethod("modern.fetch")
+                    val listener = members.optionalType("modern.listener")
+                    require((fetcher == null && fetchConstructor == null && fetch == null && listener == null) ||
+                        (fetcher != null && fetchConstructor?.declaringClass == fetcher && fetch?.declaringClass == fetcher && listener?.isInterface == true))
+                    ModernCloud(model, constructor, modernFilter, menu, fetcher, fetchConstructor, fetch, listener)
+                }
+                ResolvedClasses(gates, filter, data, debug, load, dispatch, members.optionalType("fetcher"),
+                    members.optionalType("listener"), members.optionalType("item"), modern)
+            },
+        )
+    }
+
+    private fun scanClasses(bridge: DexKitBridge): ResolvedClasses? {
         val appInfo = hookParam.appInfo ?: return null
         val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
         val apkPath = appInfo.sourceDir ?: return null
@@ -245,8 +298,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             return null
         }
 
-        val gateAndModern = DexRuntime.query(apkPath, "MediaEditorWatermarkHooker.resolveClasses") { bridge ->
-            val gates = resolveDeviceGateMethods(bridge, wnA, znA) ?: return@query null
+        val gateAndModern = run graph@ {
+            val gates = resolveDeviceGateMethods(bridge, wnA, znA) ?: return@graph null
             val modern = if (!cloudPipelineAvailable) {
                 runCatching { resolveModernCloud(bridge) }
                     .onFailure { DebugLog.w(TAG, "modern cloud model resolution failed", it) }

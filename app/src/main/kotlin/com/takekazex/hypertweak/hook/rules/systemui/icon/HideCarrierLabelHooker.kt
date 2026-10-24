@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
@@ -54,7 +55,7 @@ object HideCarrierLabelHooker : StaticHooker() {
     private var callbackOwnerField: Field? = null
 
     override fun onPrepareHotReload() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             hiddenViews.forEach { (view, visibility) -> if (view.isGone) view.visibility = visibility }
             hiddenViews.clear()
         }
@@ -151,8 +152,8 @@ object HideCarrierLabelHooker : StaticHooker() {
 
     internal fun recoverExistingViews(views: List<View>) {
         views.filter { it.javaClass.name == CC_TEXT_CLASS }.forEach { row ->
-            val controller = StatusIconHostAccess.read(row, "carrierTextController")
-            val callback = StatusIconHostAccess.read(row, "mCarrierTextCallback")
+            val controller = HostAccess.read(row, "carrierTextController")
+            val callback = HostAccess.read(row, "mCarrierTextCallback")
             if (controller != null && callback != null) {
                 controller.javaClass.methods.singleOrNull {
                     it.name == "addCallback" && it.parameterCount == 1 && it.parameterTypes[0].isInstance(callback)

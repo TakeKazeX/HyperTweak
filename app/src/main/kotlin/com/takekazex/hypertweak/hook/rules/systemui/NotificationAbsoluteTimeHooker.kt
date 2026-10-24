@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -168,7 +168,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
      * notifications return to the stock label without waiting for a new notification.
      */
     fun refreshSettings() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             views.keys.toList().filter { it.isAttachedToWindow }.forEach { view -> boundary("settings") {
                 if (isEnabled()) render(view) else updateMethod?.invoke(view)
             } }
@@ -179,10 +179,10 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
     private fun isEnabled(): Boolean = !retiring &&
         Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { views.keys.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain { views.keys.toList() }
 
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             (state as? List<*>)?.filterIsInstance<TextView>()?.forEach { view -> boundary("recover") {
                 if (timeField?.declaringClass?.isInstance(view) != true) return@boundary
                 enroll(view)
@@ -193,7 +193,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             views.keys.toList().forEach { view -> boundary("restore") {
                 cancel(view)
                 view.removeOnAttachStateChangeListener(attachListener)

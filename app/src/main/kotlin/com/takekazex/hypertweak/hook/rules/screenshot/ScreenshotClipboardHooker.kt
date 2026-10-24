@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 
 private object ScreenshotClipboardFeature : DexFeature {
@@ -43,7 +43,7 @@ object ScreenshotClipboardHooker : StaticHooker() {
 
     private fun resolve(apk: String, cacheOnly: Boolean): NativeScreenshotClipboardAccess? = DexRuntime.resolve(
         feature = ScreenshotClipboardFeature, apkPath = apk, cacheDir = dexCacheDirectory, cacheOnly = cacheOnly,
-        compute = { ScreenshotClipboardResolver(CameraDexIndex.open(apk)).resolve().encode() },
+        compute = { ScreenshotClipboardResolver(DexRuntime.operands(apk)).resolve().encode() },
         decode = { values, _ -> NativeScreenshotClipboardAccess.decode(values, classLoader) },
     )
 

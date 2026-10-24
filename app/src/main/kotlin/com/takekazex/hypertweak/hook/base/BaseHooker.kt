@@ -173,6 +173,35 @@ sealed class BaseHooker {
     protected val dexCacheDirectory: java.io.File?
         get() = DexRuntime.cacheDirectory(hookParam.appInfo)
 
+    /** Final feature contracts: compute must be pure resolution; encode materializes all lazy data. */
+    internal fun <T : Any> resolveDexContract(
+        id: String,
+        apk: String,
+        schema: Int = 1,
+        compute: (org.luckypray.dexkit.DexKitBridge) -> T?,
+        encode: (T) -> Map<String, String>,
+        decode: (com.takekazex.hypertweak.hook.base.dex.DexContractMembers) -> T?,
+    ): T? = DexRuntime.resolve(
+        feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+            override val id = id
+            override val schema = schema
+        }, apkPath = apk, cacheDir = dexCacheDirectory,
+        compute = { session -> session.dexKit(compute)?.let(encode).orEmpty() },
+        decode = { values, _ -> if (values.isEmpty()) null else decode(
+            com.takekazex.hypertweak.hook.base.dex.DexContractMembers(values, classLoader))?.takeIf { encode(it) == values } },
+    )
+
+    /** Roll back only handles installed by this publication, including synchronous cache replay. */
+    internal fun <T> installDexContract(install: () -> T): T {
+        val before = collectManagedHookHandles().toSet()
+        return try { install() } catch (error: Throwable) {
+            collectManagedHookHandles().filterNot { it in before }.forEach { handle ->
+                runCatching { handle.unhook() }.onFailure(error::addSuppressed)
+            }
+            throw error
+        }
+    }
+
     /** Features provide a query and hook publication; startup, queueing and retirement are shared. */
     protected fun <T : Any> prepareDexTargets(
         name: String = hookerName,
@@ -195,19 +224,10 @@ sealed class BaseHooker {
             failure = { DebugLog.hookFailed(hookerName, "prepare targets: $name", it) },
             resolve = resolve,
         ) { target ->
-            val before = collectManagedHookHandles().toSet()
             val started = android.os.SystemClock.uptimeMillis()
-            try {
-                install(target)
-                DebugLog.i("DexRuntime", "published hooker=$hookerName name=$name " +
-                    "installMs=${android.os.SystemClock.uptimeMillis() - started}")
-            } catch (error: Throwable) {
-                // Retain earlier independent hooks; roll back only this failed publication.
-                collectManagedHookHandles().filterNot { it in before }.forEach { handle ->
-                    runCatching { handle.unhook() }.onFailure(error::addSuppressed)
-                }
-                throw error
-            }
+            installDexContract { install(target) }
+            DebugLog.i("DexRuntime", "published hooker=$hookerName name=$name " +
+                "installMs=${android.os.SystemClock.uptimeMillis() - started}")
         }
     }
 

@@ -72,4 +72,14 @@ class MethodDescriptorCodecTest {
             MethodDescriptorCodec.method("Ljava/lang/String;->substring(I)Ljava/lang/String;", loader)
         )
     }
+    @Test fun `constructor replay rejects wrong return and malformed parameter types`() {
+        val constructor = StringBuilder::class.java.getDeclaredConstructor(Int::class.javaPrimitiveType)
+        val descriptor = MethodDescriptorCodec.descriptor(constructor)
+        assertEquals(constructor, MethodDescriptorCodec.constructor(descriptor, loader))
+        assertNull(MethodDescriptorCodec.constructor(descriptor.dropLast(1) + "I", loader))
+        assertNull(MethodDescriptorCodec.constructor(descriptor.replace("(I)", "(V)"), loader))
+        assertNull(MethodDescriptorCodec.constructor(descriptor + "junk", loader))
+        assertNull(MethodDescriptorCodec.method(descriptor, loader))
+    }
+
 }

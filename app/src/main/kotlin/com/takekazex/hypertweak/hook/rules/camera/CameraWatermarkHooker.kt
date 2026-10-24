@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import android.content.Context
 import android.content.res.AssetManager
 import com.takekazex.hypertweak.hook.Preferences
@@ -157,7 +158,7 @@ object CameraWatermarkHooker : StaticHooker() {
         } ?: return
         val clazz = scan.declaringClass
         val workingPath = semantics.anchored("watermark working directory", "workingPath") {
-            it.definingClass == CameraDexIndex.descriptor(clazz) && it.parameterTypes.isEmpty() &&
+            it.definingClass == DexOperandIndex.descriptor(clazz) && it.parameterTypes.isEmpty() &&
                 it.returnType == "Ljava/nio/file/Path;"
         } ?: return
         deoptimize(scan)

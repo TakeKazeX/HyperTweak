@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
@@ -12,9 +12,9 @@ internal data class ScreenshotClipboardContract(val gate: String, val copy: Stri
 }
 
 /** Resolve the actual clipboard gate and prove a path from the AsyncTask writer to it. */
-internal class ScreenshotClipboardResolver(private val dex: CameraDexIndex) {
+internal class ScreenshotClipboardResolver(private val dex: DexOperandIndex) {
     companion object { const val SETTING = "mi_screen_shots_write_clipboard_enable" }
-    private fun key(method: MethodReference) = CameraDexIndex.descriptor(method)
+    private fun key(method: MethodReference) = DexOperandIndex.descriptor(method)
     private fun params(method: MethodReference) = method.parameterTypes.map(CharSequence::toString)
 
     fun resolve(): ScreenshotClipboardContract {
@@ -33,7 +33,7 @@ internal class ScreenshotClipboardResolver(private val dex: CameraDexIndex) {
         val publication = dex.code(copy).calls.single { it.method.definingClass == "Landroid/content/ClipboardManager;" &&
             it.method.name == "setPrimaryClip" }
         check(dex.code(copy).branches.any { branch ->
-            val producer = branch.value as? CameraDexIndex.Value.Call
+            val producer = branch.value as? DexOperandIndex.Value.Call
             producer != null && key(producer.method) == key(gate) && branch.skipsWhenFalse && branch.end <= publication.address
         }) { "Screenshot clipboard gate polarity changed" }
         // Read references without decoding every method's operand graph. Only the small
@@ -84,7 +84,7 @@ internal class ScreenshotClipboardResolver(private val dex: CameraDexIndex) {
         check(callers.size <= 128) { "Screenshot clipboard caller family unexpectedly large" }
         val saveWriter = paths.map { it.last() }.distinctBy(::key).single()
         val success = dex.code(saveWriter).writes.filter { (field, value) ->
-            field.type == "Ljava/lang/Boolean;" && (value as? CameraDexIndex.Value.Field)?.field?.let {
+            field.type == "Ljava/lang/Boolean;" && (value as? DexOperandIndex.Value.Field)?.field?.let {
                 it.definingClass == "Ljava/lang/Boolean;" && it.name == "TRUE"
             } == true
         }.map { it.first }.distinct().single()

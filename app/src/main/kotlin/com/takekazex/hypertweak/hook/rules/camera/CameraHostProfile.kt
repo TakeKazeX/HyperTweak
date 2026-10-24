@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
@@ -108,20 +109,20 @@ internal object CameraHostProfile {
         val semantics = CameraSemantics.create(ctx, scope) ?: return null
         val dex = semantics.dex
         val facade = dex.ownerStrings("LCC").mapNotNull {
-            runCatching { CameraDexIndex.type(it, ctx.classLoader) }.getOrNull()
+            runCatching { DexOperandIndex.type(it, ctx.classLoader) }.getOrNull()
         }.filter { type -> configFields(type).size == 1 && singleton(type) != null
         }.singleOrNull() ?: run { DebugLog.w(scope, "camera config object graph is not unique"); return null }
         val field = configFields(facade).single().apply { isAccessible = true }
         val config = field.type
-        val owner = CameraDexIndex.descriptor(facade)
+        val owner = DexOperandIndex.descriptor(facade)
         val model = facade.declaredMethods.singleOrNull { it.returnType == Array<String>::class.java &&
             it.parameterCount == 0 && !Modifier.isStatic(it.modifiers) }
         val modelReference = model?.let(semantics::reference)
         val brand = if (modelReference == null) null else semantics.unique("watermark brand slot", dex.declared(owner).filter { method ->
             method.returnType == "Ljava/lang/String;" && method.parameterTypes.isEmpty() &&
                 dex.code(method).arrays.any { read ->
-                    (read.producer as? CameraDexIndex.Value.Call)?.method?.let(CameraDexIndex::descriptor) ==
-                        CameraDexIndex.descriptor(modelReference) && read.index == CameraDexIndex.Value.Number(0)
+                    (read.producer as? DexOperandIndex.Value.Call)?.method?.let(DexOperandIndex::descriptor) ==
+                        DexOperandIndex.descriptor(modelReference) && read.index == DexOperandIndex.Value.Number(0)
                 }
         })
         val lcc = semantics.unique("LCC", dex.strings("LCC").filter {
@@ -131,20 +132,20 @@ internal object CameraHostProfile {
         val orders = (
             dex.strings("pref_camera_sort_modes_key").filter { it.returnType == "[I" }
                 .flatMap { dex.localCalls(it) }.filter {
-                    CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "[I")
-                }).distinctBy(CameraDexIndex::descriptor).mapNotNull(semantics::reflect)
+                    DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(config), "[I")
+                }).distinctBy(DexOperandIndex::descriptor).mapNotNull(semantics::reflect)
         val effects = semantics.unique("MasterLive immutable effect definitions",
             dex.ownerStrings("ComponentRunningMasterLive", "pref_master_live_key").flatMap(dex::declared)
                 .flatMap { dex.code(it).calls }.filter {
                     it.method.definingClass == "Ljava/util/Collections;" && it.method.name == "unmodifiableMap"
-                }.flatMap { it.arguments }.filterIsInstance<CameraDexIndex.Value.Call>()
-                .map { it.method }.filter { CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "Ljava/util/Map;") })
+                }.flatMap { it.arguments }.filterIsInstance<DexOperandIndex.Value.Call>()
+                .map { it.method }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(config), "Ljava/util/Map;") })
         val zoomOwners = dex.ownerStrings("ZoomUtil")
         val zoom = semantics.unique("per-mode zoom stops", zoomOwners.flatMap(dex::declared)
             .filter { it.returnType == "[Ljava/lang/Float;" &&
                 it.parameterTypes.map(CharSequence::toString) == listOf("I", "Z", "Z", "[Ljava/lang/Float;") }
             .flatMap { dex.code(it).calls }.map { it.method }.filter {
-                CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "Landroid/util/SparseArray;") &&
+                DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(config), "Landroid/util/SparseArray;") &&
                     semantics.reflect(it)?.genericReturnType?.typeName == "android.util.SparseArray<java.lang.Float[]>"
             })
         Binding(facade, field, config, model?.name, brand?.name, lcc?.name, master?.name,
@@ -158,7 +159,7 @@ internal object CameraHostProfile {
      * Resolves only what the device-config gate needs: the config facade and its config type.
      *
      * [resolve] builds the full binding, which requires the dexlib2 operand index
-     * (`CameraSemantics` -> `CameraDexIndex`). That index enumerates every method in the camera APK
+     * (`CameraSemantics` -> `DexOperandIndex`). That index enumerates every method in the camera APK
      * (188k on this build) and measured 577-773 ms on an idle device, but seconds during boot when
      * the 205 MB APK is read cold under IO contention - which is what pushed the process past
      * ActivityManager's provider deadline.

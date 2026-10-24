@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -105,7 +106,7 @@ object IconPositionHooker : StaticHooker() {
     private var slotConstructor: Constructor<*>? = null
     private val slotGetters = HashMap<Class<*>, Method?>()
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
             containerStates.entries.map { (container, state) -> listOf(container, ArrayList(state.hostIgnored)) }
         })
@@ -114,7 +115,7 @@ object IconPositionHooker : StaticHooker() {
     override fun restoreHotReloadState(state: Any?) {
         // Accept snapshots from the previous build as well as the versioned map.
         val saved = (state as? Map<*, *>)?.get("containers") as? List<*> ?: state as? List<*> ?: return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             originalSlotOrder = ((state as? Map<*, *>)?.get("order") as? List<*>)?.filterIsInstance<String>().orEmpty()
             saved.forEach { entry ->
                 val row = entry as? List<*> ?: return@forEach
@@ -126,7 +127,7 @@ object IconPositionHooker : StaticHooker() {
     }
 
     internal fun recoverSlotOrder(controller: Any, context: Context) {
-        val list = StatusIconHostAccess.read(controller, "mStatusBarIconList") ?: error("Missing host icon list")
+        val list = HostAccess.read(controller, "mStatusBarIconList") ?: error("Missing host icon list")
         if (originalSlotOrder.isEmpty()) {
             val id = context.resources.getIdentifier("config_statusBarIcons", "array", "com.android.systemui")
             check(id != 0) { "Missing native status icon order" }
@@ -154,7 +155,7 @@ object IconPositionHooker : StaticHooker() {
         // The replacement callback runs off the UI thread. Restore only the mutable container
         // lists on the main thread. The replacement rebuilds groups before changing slot indices.
         val pending = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             restoring = true
             maskOwners.clear()
             try {

@@ -16,7 +16,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
 import java.lang.ref.WeakReference
@@ -170,12 +170,12 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         if (detailEnabled()) attachDetail(controller)
     }
 
-    override fun saveHotReloadState(): Any? = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any? = HostAccess.onMain {
         arrayOf(indicationHost.get(), recentController.get())
     }
     override fun restoreHotReloadState(state: Any?) {
         if (state !is Array<*> || state.size != 2) return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             indicationHost = WeakReference(state[0])
             state[1]?.let(::attachDetail)
             scheduleHostSync()
@@ -184,7 +184,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         refreshGeneration++
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             stopRefresh()
             refreshHandler.removeCallbacks(hostSync)
             hostSyncPending = false

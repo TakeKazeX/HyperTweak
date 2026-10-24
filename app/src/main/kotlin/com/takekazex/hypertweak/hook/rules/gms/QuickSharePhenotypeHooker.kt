@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.gms
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -200,7 +201,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     )
 
     private fun resolveGateTargets(apkPath: String): GateTargets? =
-        DexRuntime.query(apkPath, "QuickSharePhenotypeHooker.resolveGateTargets") { bridge ->
+        resolveDexContract("quickshare.gates", apkPath, compute = compute@ { bridge ->
             val initializerData = bridge.findMethod {
                 matcher {
                     declaredClass(MODULE_INITIALIZER_CLASS)
@@ -211,9 +212,9 @@ object QuickSharePhenotypeHooker : StaticHooker() {
                 }
             }.toList().singleOrNull() ?: run {
                 DebugLog.w(TAG, "ModuleInitializer Bluetooth capability gate is ambiguous or missing")
-                return@query null
+                return@compute null
             }
-            val initializer = materialize(initializerData) ?: return@query null
+            val initializer = materialize(initializerData) ?: return@compute null
             val callers = initializerData.callers.toList()
                 .filter { data ->
                     data.className == MODULE_INITIALIZER_CLASS &&
@@ -235,7 +236,13 @@ object QuickSharePhenotypeHooker : StaticHooker() {
                 initializerCallers = callers,
                 cnDeviceCheck = cnCandidates.singleOrNull()
             )
-        }
+
+        }, encode = { target -> DexContractMembers.encode("initializer" to target.initializer, "callers" to target.initializerCallers, "cn" to target.cnDeviceCheck) }, decode = { members ->
+            val initializer = members.method("initializer").also { require(isBooleanContextGate(it) && it.declaringClass.name == MODULE_INITIALIZER_CLASS) }
+            val callers = members.methods("callers").onEach { require(it.declaringClass == initializer.declaringClass && it.parameterTypes.contentEquals(arrayOf(Intent::class.java)) && it.returnType == Void.TYPE) }
+            val cn = members.optionalMethod("cn")?.also { require(isBooleanContextGate(it)) }
+            GateTargets(initializer, callers, cn)
+        })
 
     private fun isBooleanContextGate(method: Method): Boolean =
         method.parameterTypes.contentEquals(arrayOf(Context::class.java)) &&

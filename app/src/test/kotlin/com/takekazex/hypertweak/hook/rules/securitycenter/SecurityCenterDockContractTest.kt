@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -35,14 +35,14 @@ class SecurityCenterDockContractTest {
     @Test fun structuralResolutionAlsoAcceptsThePreviousArtifactWithoutUsingItsIdentityAsATarget() {
         val apk = System.getenv("SECURITY_CENTER_PREVIOUS_APK")?.let(::File)
         assumeTrue(apk?.isFile == true)
-        val targets = SecurityCenterDockResolver(CameraDexIndex.open(apk!!.path)).resolve()
+        val targets = SecurityCenterDockResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         assertTrue(targets.containsKey("m.holderUpdate"))
         assertTrue(targets.containsKey("m.editState0"))
     }
     @Test fun installedApkResolvesCompleteConnectedContract() {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue("Set SECURITY_CENTER_APK to run current-image verification", apk?.isFile == true)
-        val result = SecurityCenterDockResolver(CameraDexIndex.open(apk!!.path)).resolve()
+        val result = SecurityCenterDockResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         assertTrue(result.getValue("m.append").endsWith("(Landroid/content/Context;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;I)V"))
         assertNotEquals(result.getValue("f.apps"), result.getValue("f.pinned"))
         assertTrue(result.getValue("callers").lines().size >= 3)
@@ -101,7 +101,7 @@ class SecurityCenterDockContractTest {
     @Test fun editorContractIncludesBothModelsAndTheRendererThatConsumesTheirState() {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue(apk?.isFile == true)
-        val targets = SecurityCenterDockResolver(CameraDexIndex.open(apk!!.path)).resolve()
+        val targets = SecurityCenterDockResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         assertNotEquals(targets.getValue("m.editState0"), targets.getValue("m.editState1"))
         assertEquals(targets.getValue("f.pinnable").substringBefore("->"), targets.getValue("f.unpinnable").substringBefore("->"))
         assertEquals(targets.getValue("m.holderUpdate").substringBefore("->"), targets.getValue("f.holderModel").substringBefore("->"))
@@ -147,7 +147,7 @@ class SecurityCenterDockContractTest {
     @Test fun capacityContractFindsTheNativeSetAndNotifyingAppendOnTheSameAdapter() {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue(apk?.isFile == true)
-        val index = CameraDexIndex.open(apk!!.path)
+        val index = DexOperandIndex.fixture(apk!!.path)
         val targets = SecurityCenterDockResolver(index).resolve()
         val replace = index.code(targets.getValue("m.replaceSlot"))
         assertTrue(replace.calls.any { it.method.definingClass == "Ljava/util/List;" && it.method.name == "set" })
@@ -159,7 +159,7 @@ class SecurityCenterDockContractTest {
     private fun fixture(duplicate: Boolean = false, missing: Boolean = false, missingEditor: Boolean = false, check: (Map<String, String>) -> Unit) {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue("Set SECURITY_CENTER_APK for mutation checks", apk?.isFile == true)
-        val contract = SecurityCenterDockResolver(CameraDexIndex.open(apk!!.path)).resolve()
+        val contract = SecurityCenterDockResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         val members = contract.filterKeys { it.startsWith("m.") || it.startsWith("f.") }.values + contract.getValue("callers").lines()
         val owners = (members.map { it.substringBefore("->") } + contract.getValue("model") + contract.getValue("divider") + contract.getValue("placeholder") + contract.getValue("editorOwners").lines()).distinct()
         val types = owners.mapIndexed { index, type -> type to "Lfixture/dock/Owner$index;" }.toMap()
@@ -168,7 +168,7 @@ class SecurityCenterDockContractTest {
         val rewriter = DexRewriter(object : RewriterModule() {
             override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
             override fun getMethodReferenceRewriter(rewriters: Rewriters) = Rewriter<MethodReference> { ref ->
-                ImmutableMethodReference(type(ref.definingClass), names[CameraDexIndex.descriptor(ref)] ?: ref.name,
+                ImmutableMethodReference(type(ref.definingClass), names[DexOperandIndex.descriptor(ref)] ?: ref.name,
                     ref.parameterTypes.map { type(it.toString()) }, type(ref.returnType))
             }
             override fun getFieldReferenceRewriter(rewriters: Rewriters) = Rewriter<FieldReference> { ref ->
@@ -217,8 +217,8 @@ class SecurityCenterDockContractTest {
                 }
             }
             if (duplicate || missing || missingEditor) {
-                assertThrows(RuntimeException::class.java) { SecurityCenterDockResolver(CameraDexIndex.open(fixture.path)).resolve() }
-            } else check(SecurityCenterDockResolver(CameraDexIndex.open(fixture.path)).resolve())
+                assertThrows(RuntimeException::class.java) { SecurityCenterDockResolver(DexOperandIndex.fixture(fixture.path)).resolve() }
+            } else check(SecurityCenterDockResolver(DexOperandIndex.fixture(fixture.path)).resolve())
         } finally { folder.deleteRecursively() }
     }
     @Test fun renamedClassesMethodsAndFieldsStillResolve() = fixture { result ->

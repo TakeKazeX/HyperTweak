@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.app.Activity
@@ -74,7 +75,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         prepareDexTargets(
             name = "personalassistant.widget_picker",
             resolve = {
-                runCatching { DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.onHook") { resolveEntry(it) } }
+                runCatching { resolveEntryCached() }
                     .onFailure { DebugLog.hookFailed(TAG, "native picker contract", it) }
                     .getOrNull()
             },
@@ -148,7 +149,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         val context = activity.applicationContext
         worker.launch {
             try {
-                val picker = contract ?: DexRuntime.query(apkPath, "AndroidWidgetPickerHooker.choose") { resolvePicker(it) }
+                val picker = contract ?: resolvePickerCached()
                     ?: error("native provider picker contract unavailable")
                 contract = picker
                 val choices = providers(context, picker)
@@ -254,6 +255,71 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         val id = context.resources.getIdentifier(name, "string", context.packageName)
         if (id != 0) Toast.makeText(context, id, Toast.LENGTH_SHORT).show()
     }
+
+    private fun resolveEntryCached(): EntryContract? = resolveDexContract(
+        "personalassistant.widget_entry", apkPath, compute = ::resolveEntry,
+        encode = { target -> DexContractMembers.encode(
+            "app" to target.appCatalog?.entry, "activity" to target.appCatalog?.activity,
+            "main" to target.mainCatalog?.entry, "mainSource" to target.mainCatalog?.source,
+            "producer" to target.mainCatalog?.producer, "navigator" to target.navigator,
+            "source" to target.source, "created" to target.footerCreated, "started" to target.footerStarted,
+            "footerActivity" to target.footerActivity, "root" to target.footerRoot,
+        ) },
+        decode = { members ->
+            val navigator = members.method("navigator")
+            require(Modifier.isStatic(navigator.modifiers) && navigator.returnType == Void.TYPE &&
+                navigator.parameterCount == 1 && Activity::class.java.isAssignableFrom(navigator.parameterTypes[0]))
+            val source = members.method("source")
+            require(source.parameterCount == 0 && source.returnType == Int::class.javaPrimitiveType && source.declaringClass.isAssignableFrom(navigator.parameterTypes[0]))
+            val app = members.optionalMethod("app")?.let { method ->
+                val activity = members.field("activity")
+                require(method.parameterCount == 0 && method.returnType == Boolean::class.javaPrimitiveType && activity.type == navigator.parameterTypes[0])
+                AppCatalog(method, activity)
+            }
+            val main = members.optionalMethod("main")?.let { method ->
+                val field = members.field("mainSource")
+                require(method.parameterCount == 0 && method.returnType == Boolean::class.javaPrimitiveType && field.type == Int::class.javaPrimitiveType && field.declaringClass == method.declaringClass)
+                MainCatalog(method, field, members.method("producer"))
+            }
+            val created = members.method("created"); val started = members.method("started")
+            val activity = members.field("footerActivity"); val root = members.method("root")
+            require(created.parameterTypes.contentEquals(arrayOf(View::class.java, android.os.Bundle::class.java)) && created.returnType == Void.TYPE)
+            require(started.parameterCount == 0 && started.returnType == Void.TYPE && started.declaringClass == created.declaringClass)
+            require(activity.type == navigator.parameterTypes[0] && View::class.java.isAssignableFrom(root.returnType))
+            EntryContract(app, main, navigator, source, created, started, activity, root)
+        },
+    )
+
+    private fun resolvePickerCached(): Contract? = resolveDexContract(
+        "personalassistant.widget_picker", apkPath, compute = ::resolvePicker,
+        encode = { target -> DexContractMembers.encode(
+            "overlay" to target.overlay, "content" to target.content, "controller" to target.controller,
+            "add" to target.add, "model" to target.model, "builder" to target.builder,
+            "title" to target.title, "items" to target.items, "create" to target.create, "configure" to target.configure,
+            "cells" to target.cells.size.toString(),
+        ) + target.fields.mapKeys { "field." + it.key }.mapValues { (_, field) ->
+            com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(field)
+        } + target.cells.mapIndexed { index, field -> "cell.$index" to com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.descriptor(field) }.toMap() },
+        decode = { members ->
+            val overlay = members.method("overlay"); val content = members.field("content"); val controller = members.method("controller")
+            val add = members.method("add"); val model = members.constructor("model")
+            require(Modifier.isStatic(overlay.modifiers) && overlay.parameterCount == 0 && overlay.returnType == overlay.declaringClass)
+            require(content.declaringClass.isAssignableFrom(overlay.returnType) && controller.declaringClass.isAssignableFrom(content.type) && controller.parameterCount == 0)
+            require(model.parameterTypes.contentEquals(arrayOf(AppWidgetProviderInfo::class.java)))
+            require(NativeWidgetAddContract.select(listOf(add), View::class.java, model.declaringClass) == add)
+            val fields = listOf("spanX", "spanY", "title", "appName", "showAddAnimation", "appWidgetId").associateWith { members.field("field.$it") }
+            require(fields.values.all { it.declaringClass.isAssignableFrom(model.declaringClass) })
+            require(members.text("cells").toInt() == 4)
+            val cells = (0..3).map { members.field("cell.$it").also { field -> require(Modifier.isStatic(field.modifiers) && field.type == Int::class.javaPrimitiveType) } }
+            val builder = members.constructor("builder"); val title = members.method("title"); val items = members.method("items"); val create = members.method("create")
+            require(builder.parameterTypes.contentEquals(arrayOf(Context::class.java, Int::class.javaPrimitiveType)))
+            require(title.parameterTypes.contentEquals(arrayOf(CharSequence::class.java)))
+            require(items.parameterTypes.contentEquals(arrayOf(Array<CharSequence>::class.java, Int::class.javaPrimitiveType, DialogInterface.OnClickListener::class.java)))
+            require(create.parameterCount == 0 && Dialog::class.java.isAssignableFrom(create.returnType))
+            val configure = members.optionalMethod("configure")?.also { require(Modifier.isStatic(it.modifiers) && it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType, Context::class.java)) && it.returnType == Intent::class.java) }
+            Contract(overlay, content, controller, add, model, fields, cells, builder, title, items, create, configure)
+        },
+    )
 
     private fun resolveEntry(bridge: DexKitBridge): EntryContract {
         fun marker(value: String) = bridge.findMethod {

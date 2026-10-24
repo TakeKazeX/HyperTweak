@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.app.Activity
 import android.content.Context
 import android.database.ContentObserver
@@ -12,7 +13,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import java.lang.reflect.Executable
 import org.luckypray.dexkit.query.enums.StringMatchType
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.StaticFieldWriter
@@ -100,7 +101,7 @@ object AODHooker : StaticHooker() {
             type.declaredMethods.single { it.name == "addFullAodStateListener" && it.parameterCount == 1 }
                 .hook { before { param ->
                     @Suppress("UNCHECKED_CAST")
-                    val listeners = StatusIconHostAccess.read(param.thisObject, "mStateListeners") as? MutableList<Any>
+                    val listeners = HostAccess.read(param.thisObject, "mStateListeners") as? MutableList<Any>
                         ?: return@before
                     val listener = param.args[0] ?: return@before
                     // A disabled capability must not discard subscriptions needed by first enable.
@@ -129,7 +130,7 @@ object AODHooker : StaticHooker() {
     }
 
     /** A capability update must update native caches and the already constructed manager too. */
-    fun refreshSettings() = StatusIconHostAccess.onMain {
+    fun refreshSettings() = HostAccess.onMain {
         val next = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
         val changed = next != enabled
         enabled = next
@@ -198,7 +199,7 @@ object AODHooker : StaticHooker() {
         }
         hookParam.appInfo?.sourceDir?.let { path ->
             prepareDexTargets("AOD native interface callers", resolve = {
-                DexRuntime.query(path, "AOD interface callers") { bridge ->
+                resolveDexContract("systemui.aod_callers", path, compute = { bridge ->
                     val callers = bridge.getClassData(api)?.methods.orEmpty().flatMap { it.callers }
                         .distinctBy { it.descriptor }.mapNotNull { data ->
                             runCatching<Executable> {
@@ -221,7 +222,18 @@ object AODHooker : StaticHooker() {
                         candidates.single()
                     }
                     PreparedTargets(callers, callbacks)
-                }
+                }, encode = { target -> DexContractMembers.encode("callers" to target.callers) + target.callbacks.mapValues {
+                    com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec.typeDescriptor(it.value)
+                } }, decode = { members ->
+                    val callbacks = listOf("onOrientationChanged", "onLockTaskModeChanged").associateWith { callback ->
+                        members.type(callback).also { type ->
+                            require(type.getDeclaredMethod(callback, Int::class.javaPrimitiveType).returnType == Void.TYPE)
+                            val fields = type.declaredFields.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
+                            require(fields.size == 1 && fields.single().type.name == "com.android.keyguard.injector.DozeServiceHostInjector")
+                        }
+                    }
+                    PreparedTargets(members.executables("callers"), callbacks)
+                })
             }, install = { prepared ->
                 prepared.callers.forEach(::deoptimize)
                 dozeCallbackTypes = prepared.callbacks
@@ -233,7 +245,7 @@ object AODHooker : StaticHooker() {
     private fun rememberManager(owner: Any) {
         managers[owner] = true
         primaryManager = owner
-        val context = StatusIconHostAccess.read(owner, "mContext") as? Context ?: return
+        val context = HostAccess.read(owner, "mContext") as? Context ?: return
         if (observer == null) {
             // A manager constructed on an unsupported ROM has no native full-AOD observers.
             // Observe the same settings without writing them or replacing its native policy.
@@ -263,7 +275,7 @@ object AODHooker : StaticHooker() {
 
     private fun applyManager(owner: Any, recomputePolicy: Boolean = false) {
         runCatching {
-            val context = StatusIconHostAccess.read(owner, "mContext") as? Context ?: return
+            val context = HostAccess.read(owner, "mContext") as? Context ?: return
             val deviceSupport = owner.javaClass.getDeclaredField("isDeviceSupport").apply { isAccessible = true }
             val previousSupport = deviceSupport.getBoolean(owner)
             deviceSupport.setBoolean(owner, isFullscreenSupported())
@@ -272,10 +284,10 @@ object AODHooker : StaticHooker() {
                 // either callback alone can temporarily persist an unsupported result.
                 refreshingPolicy = true
                 try {
-                    StatusIconHostAccess.invoke(owner, "onWallpaperChanged")
-                    StatusIconHostAccess.invoke(owner, "onLockScreenInfoChanged")
+                    HostAccess.invoke(owner, "onWallpaperChanged")
+                    HostAccess.invoke(owner, "onLockScreenInfoChanged")
                 } finally { refreshingPolicy = false }
-                StatusIconHostAccess.invoke(owner, "updateSettings")
+                HostAccess.invoke(owner, "updateSettings")
             }
             val user = Class.forName("android.app.ActivityManager").getMethod("getCurrentUser").invoke(null) as Int
             val read = Settings.Secure::class.java.getMethod("getIntForUser", android.content.ContentResolver::class.java,
@@ -284,7 +296,7 @@ object AODHooker : StaticHooker() {
                 .forEach { (field, key) -> owner.javaClass.getDeclaredField(field).apply { isAccessible = true }
                     .setBoolean(owner, read.invoke(null, context.contentResolver, key, 1, user) == 1) }
             if (previousSupport || isFullscreenSupported()) {
-                StatusIconHostAccess.invoke(owner, "updateFullAodEnable")
+                HostAccess.invoke(owner, "updateFullAodEnable")
             }
         }.onFailure { DebugLog.w("AOD", "native manager refresh failed", it) }
     }
@@ -296,12 +308,12 @@ object AODHooker : StaticHooker() {
             val registry = "com.miui.systemui.interfacesmanager.InterfacesImplManager".toClassOrNull() ?: return
             val api = "com.miui.sysuiinterfaces.IDozeServiceHost".toClassOrNull() ?: return
             val host = registry.getMethod("getImpl", Class::class.java).invoke(null, api) ?: return
-            val context = StatusIconHostAccess.read(host, "mContext") as? Context ?: return
+            val context = HostAccess.read(host, "mContext") as? Context ?: return
             host.javaClass.getDeclaredField("mOrientation").apply { isAccessible = true }
                 .setInt(host, context.resources.configuration.orientation)
-            val config = StatusIconHostAccess.read(host, "configurationController") ?: return
-            val tasks = StatusIconHostAccess.read(host, "mTaskStackChangeListeners") ?: return
-            val taskImpl = StatusIconHostAccess.read(tasks, "mImpl") ?: return
+            val config = HostAccess.read(host, "configurationController") ?: return
+            val tasks = HostAccess.read(host, "mTaskStackChangeListeners") ?: return
+            val taskImpl = HostAccess.read(tasks, "mImpl") ?: return
             fun register(controller: Any, listeners: Any?, callbackMethod: String, add: String, remove: String) {
                 val list = listeners as? Iterable<*> ?: error("native callback collection unavailable $callbackMethod")
                 val type = dozeCallbackTypes.getValue(callbackMethod)
@@ -317,8 +329,8 @@ object AODHooker : StaticHooker() {
                 method.invoke(controller, callback)
                 dozeCallbacks += Triple(controller, callback, remove)
             }
-            register(config, StatusIconHostAccess.read(config, "listeners"), "onOrientationChanged", "addCallback", "removeCallback")
-            register(tasks, StatusIconHostAccess.read(taskImpl, "mTaskStackListeners"), "onLockTaskModeChanged",
+            register(config, HostAccess.read(config, "listeners"), "onOrientationChanged", "addCallback", "removeCallback")
+            register(tasks, HostAccess.read(taskImpl, "mTaskStackListeners"), "onLockTaskModeChanged",
                 "registerTaskStackListener", "unregisterTaskStackListener")
         }.onFailure { DebugLog.w("AOD", "native doze callback recovery failed", it) }
     }
@@ -328,9 +340,9 @@ object AODHooker : StaticHooker() {
         runCatching {
             val owner = Class.forName("android.app.ActivityThread")
             val thread = owner.getDeclaredMethod("currentActivityThread").invoke(null) ?: return
-            val records = StatusIconHostAccess.read(thread, "mActivities") as? Map<*, *> ?: return
+            val records = HostAccess.read(thread, "mActivities") as? Map<*, *> ?: return
             records.values.filterNotNull().forEach { record ->
-                (StatusIconHostAccess.read(record, "activity") as? Activity)
+                (HostAccess.read(record, "activity") as? Activity)
                     ?.takeIf { it.packageName == "com.miui.aod" }?.let { activities[it] = true }
             }
         }.onFailure { DebugLog.w("AOD", "existing settings activity recovery failed", it) }
@@ -340,22 +352,22 @@ object AODHooker : StaticHooker() {
         if (hookParam.packageName != "com.android.systemui") return
         runCatching {
             val app = hookParam.appContext ?: EzXposed.appContextOrNull ?: return
-            val component = StatusIconHostAccess.read(app, "mSysUIComponent")
-                ?: StatusIconHostAccess.read(app, "mInitializer")?.let { StatusIconHostAccess.invoke(it, "getSysUIComponent") }
+            val component = HostAccess.read(app, "mSysUIComponent")
+                ?: HostAccess.read(app, "mInitializer")?.let { HostAccess.invoke(it, "getSysUIComponent") }
                 ?: return
-            val owner = StatusIconHostAccess.provider(component, "miuiFullAodManagerProvider") ?: return
+            val owner = HostAccess.provider(component, "miuiFullAodManagerProvider") ?: return
             if (owner.javaClass.name == MANAGER && owner !in managers) rememberManager(owner)
         }.onFailure { DebugLog.w("AOD", "native manager recovery unavailable", it) }
     }
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { managers.keys.toList() }
-    override fun restoreHotReloadState(state: Any?) = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain { managers.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) = HostAccess.onMain {
         (state as? List<*>)?.filterNotNull()?.filter { it.javaClass.name == MANAGER }?.forEach(::rememberManager)
         Unit
     }
     override fun recoverHotReloadHosts() { refreshSettings() }
 
-    override fun onPrepareHotReload() = StatusIconHostAccess.onMain {
+    override fun onPrepareHotReload() = HostAccess.onMain {
         generation++
         main.removeCallbacksAndMessages(null)
         enabled = false

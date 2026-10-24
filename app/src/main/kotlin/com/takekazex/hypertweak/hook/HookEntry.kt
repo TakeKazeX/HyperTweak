@@ -1363,9 +1363,11 @@ class HookEntry : XposedModule() {
                 // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect
                 // that URI to the ROM's longer shutter sound when the lockscreen-bar tweak is on.
                 attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
+                // Frame preparation must start before the two full save-family walks, so a cold
+                // first capture has the best chance of reaching a fully protected save contract.
+                attachHooker(ScreenshotAutoFrameHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ScreenshotSaveDirectoryHooker, classLoader, ctx, replacementHandles)
                 attachHooker(ScreenshotClipboardHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ScreenshotAutoFrameHooker, classLoader, ctx, replacementHandles)
             }
             "com.lbe.security.miui" -> {
                 attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)

@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
@@ -104,9 +104,9 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     private val knownViews: MutableSet<View> =
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain { originals.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) (state as? List<*>)?.filterIsInstance<View>()?.forEach(::hideSeamless)
         }
     }
@@ -125,7 +125,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
         val changed = next != enabled
         enabled = next
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) {
                 knownViews.filter { it.isAttachedToWindow }.forEach(::hideSeamless)
             } else if (changed) {
@@ -163,7 +163,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             applyingVisibility = true
             try { originals.forEach { (view, visibility) -> view.visibility = visibility } }
             finally { applyingVisibility = false }

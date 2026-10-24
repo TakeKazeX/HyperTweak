@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.graphics.Rect
@@ -45,22 +46,22 @@ object RegionSamplingHooker : StaticHooker() {
     }
 
     internal fun recover(component: Any) {
-        val host = StatusIconHostAccess.provider(component, "statusBarRegionSamplingInteractorProvider") ?: return
-        val scope = StatusIconHostAccess.read(host, "scope") ?: return
-        val flow = StatusIconHostAccess.read(host, "regionSampling") ?: return
-        val helper = StatusIconHostAccess.read(host, "regionSamplingHelper") ?: return
+        val host = HostAccess.provider(component, "statusBarRegionSamplingInteractorProvider") ?: return
+        val scope = HostAccess.read(host, "scope") ?: return
+        val flow = HostAccess.read(host, "regionSampling") ?: return
+        val helper = HostAccess.read(host, "regionSamplingHelper") ?: return
         var delivered = false
         replay = HostFlowCollector.collect(scope, flow, isCurrent = { !retiring && !delivered }, consumer = { value ->
             val enabled = value as? Boolean ?: return@collect
             delivered = true
             if (enabled) {
-                val bounds = StatusIconHostAccess.read(host, "samplingBounds") as? Rect ?: return@collect
-                StatusIconHostAccess.method(helper, "start", Rect::class.java)?.invoke(helper, bounds)
+                val bounds = HostAccess.read(host, "samplingBounds") as? Rect ?: return@collect
+                HostAccess.method(helper, "start", Rect::class.java)?.invoke(helper, bounds)
             } else {
-                val handler = StatusIconHostAccess.read(host, "resampleHandler") as? Handler
-                val task = StatusIconHostAccess.read(host, "resampleRunnable") as? Runnable
+                val handler = HostAccess.read(host, "resampleHandler") as? Handler
+                val task = HostAccess.read(host, "resampleRunnable") as? Runnable
                 if (task != null) handler?.removeCallbacks(task)
-                StatusIconHostAccess.invoke(helper, "stop")
+                HostAccess.invoke(helper, "stop")
             }
             // Cancellation after assignment also handles an immediately delivered first value.
             Handler(Looper.getMainLooper()).post { replay?.cancel(); replay = null }

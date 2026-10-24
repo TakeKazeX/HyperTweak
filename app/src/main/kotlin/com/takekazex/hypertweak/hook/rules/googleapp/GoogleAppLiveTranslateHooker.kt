@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -72,23 +73,33 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         hookHasSystemFeature(existingHookIds)
     }
 
-    /** Installs the DexKit-backed Google feature hooks from the coordinator's shared bridge. */
-    internal fun installWithBridge(
-        bridge: DexKitBridge,
-        existingHookIds: Set<String> = emptySet()
-    ) {
-        prepareInstall(bridge, existingHookIds).invoke()
-    }
-
-    /** Resolve while the bridge is open; publish only detached reflection on the main thread. */
-    internal fun prepareInstall(bridge: DexKitBridge, existingHookIds: Set<String>): () -> Unit {
-        val projection = resolveMediaProjectionGate(bridge)
-        val flag = resolveFlagLeaf(bridge, FLAG_LIVE_TRANSLATE)
-        val action = resolveActionTargets(bridge)
+    private data class Prepared(val projection: Method?, val flag: Method?, val action: ActionTargets?)
+    internal fun prepareInstall(apk: String, existingHookIds: Set<String>): () -> Unit {
+        val prepared = resolveDexContract("googleapp.live_translate", apk,
+            compute = { bridge -> Prepared(resolveMediaProjectionGate(bridge), resolveFlagLeaf(bridge, FLAG_LIVE_TRANSLATE), resolveActionTargets(bridge)) },
+            encode = { target -> DexContractMembers.encode("projection" to target.projection, "flag" to target.flag,
+                "visibility" to target.action?.visibility, "capability" to target.action?.capability) },
+            decode = { members ->
+                val projection = members.optionalMethod("projection")?.also {
+                    require(it.parameterTypes.contentEquals(arrayOf(Any::class.java)) && it.returnType in listOf(Boolean::class.javaObjectType, Boolean::class.javaPrimitiveType, Any::class.java))
+                }
+                val flag = members.optionalMethod("flag")?.also { require(it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) }
+                val visibility = members.optionalMethod("visibility")
+                val capability = members.optionalMethod("capability")
+                require((visibility == null) == (capability == null))
+                val action = visibility?.let {
+                    require(it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType)
+                    require(capability!!.parameterCount == 0 && capability.returnType == Boolean::class.javaPrimitiveType)
+                    ActionTargets(it, capability)
+                }
+                require(projection != null || flag != null || action != null)
+                Prepared(projection, flag, action)
+            },
+        ) ?: return {}
         return {
-            projection?.let(::installBooleanGate)
-            flag?.let(::installBooleanGate)
-            action?.let { installActionBeanVisibility(it, existingHookIds) }
+            prepared.projection?.let(::installBooleanGate)
+            prepared.flag?.let(::installBooleanGate)
+            prepared.action?.let { installActionBeanVisibility(it, existingHookIds) }
             DebugLog.i(TAG, "gate hooks installed")
         }
     }

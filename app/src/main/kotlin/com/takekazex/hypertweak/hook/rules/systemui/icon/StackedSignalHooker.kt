@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
@@ -647,7 +648,7 @@ object StackedSignalHooker : StaticHooker() {
                 bridge?.removeAllOwned()
             }
         }
-        StatusIconHostAccess.onMain { cleanup.run() }
+        HostAccess.onMain { cleanup.run() }
     }
 
     private fun registerSubscription(subId: Int, triple: Any, bindingGeneration: Long) {

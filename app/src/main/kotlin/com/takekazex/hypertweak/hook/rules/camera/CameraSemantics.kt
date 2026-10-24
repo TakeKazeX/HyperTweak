@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import org.jf.dexlib2.iface.reference.MethodReference
@@ -7,10 +8,10 @@ import java.lang.reflect.Method
 
 /** Only semantic entry points and platform API names belong here, never version/name tables. */
 internal class CameraSemantics(val ctx: CameraResolver.Ctx, private val scope: String) {
-    val dex by lazy { CameraDexIndex.openTargeted(requireNotNull(ctx.appInfo?.sourceDir), ctx.appInfo) }
+    val dex by lazy { DexRuntime.operands(requireNotNull(ctx.appInfo?.sourceDir), ctx.appInfo) }
     fun reflect(reference: MethodReference?): Method? = reference?.let { dex.method(it, ctx.classLoader) }
     fun unique(key: String, references: Iterable<MethodReference>): Method? {
-        val candidates = references.distinctBy(CameraDexIndex::descriptor)
+        val candidates = references.distinctBy(DexOperandIndex::descriptor)
         val result = candidates.singleOrNull()?.let(::reflect)
         if (result == null) DebugLog.w(scope, "$key: semantic matches=${candidates.size}; feature skipped")
         else DebugLog.d(scope, "$key -> ${result.declaringClass.name}#${result.name}")
@@ -21,9 +22,9 @@ internal class CameraSemantics(val ctx: CameraResolver.Ctx, private val scope: S
     fun entryMethod(name: String, api: String): Method? = entry(name)?.methods?.singleOrNull {
         it.name == api && it.parameterCount == 0 && !it.isSynthetic
     }
-    fun reference(method: Method): MethodReference? = dex.declared(CameraDexIndex.descriptor(method.declaringClass))
-        .singleOrNull { it.name == method.name && it.returnType == CameraDexIndex.descriptor(method.returnType) &&
-            it.parameterTypes.map(CharSequence::toString) == method.parameterTypes.map(CameraDexIndex::descriptor) }
+    fun reference(method: Method): MethodReference? = dex.declared(DexOperandIndex.descriptor(method.declaringClass))
+        .singleOrNull { it.name == method.name && it.returnType == DexOperandIndex.descriptor(method.returnType) &&
+            it.parameterTypes.map(CharSequence::toString) == method.parameterTypes.map(DexOperandIndex::descriptor) }
     fun calls(method: Method): List<MethodReference> = reference(method)?.let { dex.code(it).calls.map { it.method } }.orEmpty()
     /** Replay a fully hashed, exact method descriptor before constructing any operand index. */
     fun cachedUnique(key: String, validate: (Method) -> Boolean, references: () -> Iterable<MethodReference>): Method? {
@@ -44,17 +45,17 @@ internal class CameraSemantics(val ctx: CameraResolver.Ctx, private val scope: S
     fun anchored(key: String, vararg anchors: String, shape: (MethodReference) -> Boolean): Method? =
         cachedUnique(key + anchors.joinToString("\u0000"), validate = { method ->
             shape(org.jf.dexlib2.immutable.reference.ImmutableMethodReference(
-                CameraDexIndex.descriptor(method.declaringClass), method.name,
-                method.parameterTypes.map(CameraDexIndex::descriptor), CameraDexIndex.descriptor(method.returnType),
+                DexOperandIndex.descriptor(method.declaringClass), method.name,
+                method.parameterTypes.map(DexOperandIndex::descriptor), DexOperandIndex.descriptor(method.returnType),
             ))
         }) { dex.strings(*anchors).filter(shape) }
     fun preferenceGate(key: String, owner: Class<*>? = null): Method? = unique(key,
         dex.preferenceGates(key).filter { it.parameterTypes.isEmpty() &&
-            (owner == null || it.definingClass == CameraDexIndex.descriptor(owner)) })
+            (owner == null || it.definingClass == DexOperandIndex.descriptor(owner)) })
     fun entryConfigGetter(entryName: String, config: Class<*>, api: String = "support"): Method? {
         val entry = entryMethod(entryName, api) ?: return null
         return unique(entryName, calls(entry).filter {
-            CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(config), "Z")
+            DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(config), "Z")
         })
     }
     fun methodByShape(type: Class<*>, key: String, shape: (Method) -> Boolean): Method? =

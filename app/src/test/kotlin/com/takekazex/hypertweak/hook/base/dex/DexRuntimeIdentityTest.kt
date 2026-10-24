@@ -36,4 +36,23 @@ class DexRuntimeIdentityTest {
             assertEquals(DexKitCacheIdentity.withFullDigest(DexKitCacheIdentity.capture(plugin)!!), actual)
         } finally { dir.deleteRecursively() }
     }
+    @Test fun `source update epoch rejects equal-stat replacement and missing splits`() {
+        val dir = Files.createTempDirectory("source-epoch").toFile()
+        try {
+            val base = File(dir, "base.apk").apply { writeText("AAAA") }
+            val split = File(dir, "split.apk").apply { writeText("1111") }
+            val info = ApplicationInfo().apply { sourceDir = base.path; splitSourceDirs = arrayOf(split.path) }
+            DexRuntime.registerSource(info)
+            val before = DexRuntime.identityFor(null, base.path)!!
+            val modified = split.lastModified()
+            split.writeText("2222"); check(split.setLastModified(modified))
+            DexRuntime.registerSource(info)
+            val after = DexRuntime.identityFor(null, base.path)!!
+            assertNotEquals(before.fullDigest, after.fullDigest)
+            assertEquals(before.splits, after.splits)
+            split.delete()
+            assertNull(DexRuntime.identityFor(null, base.path))
+        } finally { dir.deleteRecursively() }
+    }
+
 }

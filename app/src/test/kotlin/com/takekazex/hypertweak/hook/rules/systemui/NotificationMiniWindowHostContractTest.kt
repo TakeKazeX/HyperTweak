@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -9,7 +9,7 @@ class NotificationMiniWindowHostContractTest {
     @Test fun nativeBarAndTouchShareTheWhitelistGateAndKeepLaunchGuards() {
         val path = System.getenv("SYSTEMUI_APK")
         assumeTrue("Set SYSTEMUI_APK to check the actual native notification chain", path != null)
-        val dex = CameraDexIndex.open(path!!)
+        val dex = DexOperandIndex.fixture(path!!)
         val manager = "Lcom/android/systemui/statusbar/notification/policy/AppMiniWindowManagerImpl;"
         val row = "Lcom/android/systemui/statusbar/notification/row/ExpandableNotificationRowInjector;"
         val settings = "Lcom/miui/systemui/notification/NotificationSettingsManager;"
@@ -24,7 +24,7 @@ class NotificationMiniWindowHostContractTest {
         assertEquals(settings, dex.classDefinition(manager)!!.fields.single { it.name == "notificationSettingsManager" }.type)
         listOf("updateMiniWindowBar", "updateFreeformTipView").forEach { name ->
             val consumer = dex.code("$row->$name()V")
-            assertTrue(consumer.calls.any { CameraDexIndex.descriptor(it.method) == gate })
+            assertTrue(consumer.calls.any { DexOperandIndex.descriptor(it.method) == gate })
             assertTrue(consumer.writes.any { it.first.definingClass == row && it.first.name == "canSlide" })
         }
         val touch = dex.code("Lcom/android/systemui/statusbar/notification/policy/AppMiniWindowRowTouchHelper;->onInterceptTouchEvent(Landroid/view/MotionEvent;)Z")

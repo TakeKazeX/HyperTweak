@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -14,7 +15,7 @@ import com.takekazex.hypertweak.util.DebugLog
  * faster.
  *
  * The cost was in the wrong place. The full [CameraHostProfile.resolve] builds the dexlib2 operand
- * index (`CameraSemantics` -> `CameraDexIndex`), which enumerates every method in the APK (188k on
+ * index (`CameraSemantics` -> `DexOperandIndex`), which enumerates every method in the APK (188k on
  * this build) and measured 577-773 ms idle but several seconds during boot, when the 205 MB APK is
  * read cold under IO contention. The gate needs none of that: only the config facade and its
  * config type, both of which DexKit answers directly. See [CameraHostProfile.resolveGateFacade].

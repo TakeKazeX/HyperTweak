@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
 import java.lang.reflect.Field
@@ -70,7 +70,7 @@ object DarkModeScheduleHooker : StaticHooker() {
     }
     private fun resolve(cacheOnly: Boolean) = DexRuntime.resolve(
         feature = DarkModeScheduleFeature, apkPath = SERVICES, cacheDir = dexCacheDirectory ?: File("/data/system/hypertweak/cache"), cacheOnly = cacheOnly,
-        compute = { DarkModeScheduleResolver(CameraDexIndex.open(SERVICES)).resolve() },
+        compute = { DarkModeScheduleResolver(DexRuntime.operands(SERVICES)).resolve() },
         decode = { values, _ -> DarkModeScheduleAccess.decode(values, classLoader) },
     )
     private fun install(target: DarkModeScheduleAccess) {

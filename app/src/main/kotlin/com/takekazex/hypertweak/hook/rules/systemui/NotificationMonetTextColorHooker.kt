@@ -12,7 +12,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -48,14 +48,14 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private val resourceIds = WeakHashMap<Resources, List<Int>>()
 
     // Keep host objects, not old theme-derived colors. Replay through the same eligibility path.
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         listOf(hybrids.keys.toList(), wrappers.entries.mapNotNull { (wrapper, row) ->
             row.get()?.let { listOf(wrapper, it) }
         }, synchronized(paletteLock) { palettes.keys.toList() })
     }
 
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             val saved = state as? List<*> ?: return@onMain
             (saved.getOrNull(0) as? List<*>)?.filterIsInstance<View>()?.forEach { view ->
                 HookFailurePolicy.open(TAG, "hybrid restore", Unit) { recoverHybrid(view) }
@@ -79,7 +79,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             texts.forEach { (view, state) ->
                 // Do not overwrite a later native/app write while retiring this generation.
                 HookFailurePolicy.open(TAG, "text retire", Unit) {
@@ -116,7 +116,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
      * for their next bind. A disable restores the colours this module replaced.
      */
     fun refreshSettings() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (isEnabled()) {
                 wrappers.entries.toList().forEach { (wrapper, rowRef) ->
                     val row = rowRef.get() ?: return@forEach
@@ -402,7 +402,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         val binder = binderField?.get(null) ?: return null
         val material = read(binder, "notificationMaterialStateInteractor") ?: return null
         val glass = getterBoolean(material, "isGlassMaterialType") ?: return null
-        val entry = row?.let { StatusIconHostAccess.invoke(it, "getEntry") }
+        val entry = row?.let { HostAccess.invoke(it, "getEntry") }
         val sbn = entry?.let { read(it, "mSbn") }
         val fullAod = sbn?.let { read(it, "showingFullAodStyle") } == true
         val stateFlow = read(material, "materialViewState\$delegate")
@@ -444,7 +444,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     }
 
     private fun notificationFor(row: View): android.app.Notification? {
-        val entry = StatusIconHostAccess.invoke(row, "getEntry") ?: return null
+        val entry = HostAccess.invoke(row, "getEntry") ?: return null
         return (read(entry, "mSbn") as? StatusBarNotification)?.notification
     }
 

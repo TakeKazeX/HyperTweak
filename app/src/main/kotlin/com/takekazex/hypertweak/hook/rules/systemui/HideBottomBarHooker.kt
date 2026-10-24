@@ -19,7 +19,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
@@ -170,7 +170,7 @@ object HideBottomBarHooker : StaticHooker() {
         // The native Overview map survives module replacement, including an already-open Recents.
         if (component != null) runCatching {
             val controller = shellController(component) ?: return@runCatching
-            val query = StatusIconHostAccess.method(
+            val query = HostAccess.method(
                 controller, "isOverviewVisible", Int::class.javaPrimitiveType!!
             ) ?: return@runCatching
             handleViews.snapshot().filterIsInstance<View>()
@@ -197,7 +197,7 @@ object HideBottomBarHooker : StaticHooker() {
         cancelAllDeadlines()
         // Only our handle alpha animation is owned here; the WM surface remains native.
         synchronized(hostAlphas) { hostAlphas.keys.toList() }.forEach { view ->
-            StatusIconHostAccess.onMain { view.animate().cancel() }
+            HostAccess.onMain { view.animate().cancel() }
         }
         AospBackSystemUiHooker.setOverviewVisibilityListener(null)
         hooksApplied.set(false)
@@ -373,10 +373,10 @@ object HideBottomBarHooker : StaticHooker() {
      * reads them, so one of the two shapes is present on every supported build.
      */
     private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int? {
-        (runCatching { StatusIconHostAccess.read(task, "displayId") }.getOrNull() as? Int)
+        (runCatching { HostAccess.read(task, "displayId") }.getOrNull() as? Int)
             ?.let { return it }
         return runCatching {
-            StatusIconHostAccess.method(task, "getDisplayId")?.invoke(task) as? Int
+            HostAccess.method(task, "getDisplayId")?.invoke(task) as? Int
         }.getOrNull()
     }
 
@@ -549,16 +549,16 @@ object HideBottomBarHooker : StaticHooker() {
             DebugLog.d(TAG, "overview query unavailable: no host context"); return@runCatching null
         }
         val app = context.applicationContext ?: context
-        val component = StatusIconHostAccess.read(app, "mSysUIComponent")
-            ?: StatusIconHostAccess.read(app, "mInitializer")?.let {
-                StatusIconHostAccess.invoke(it, "getSysUIComponent")
+        val component = HostAccess.read(app, "mSysUIComponent")
+            ?: HostAccess.read(app, "mInitializer")?.let {
+                HostAccess.invoke(it, "getSysUIComponent")
             } ?: run {
             DebugLog.d(TAG, "overview query unavailable: no SysUIComponent"); return@runCatching null
         }
         val controller = shellController(component) ?: run {
             DebugLog.d(TAG, "overview query unavailable: no ShellController"); return@runCatching null
         }
-        val query = StatusIconHostAccess.method(
+        val query = HostAccess.method(
             controller, "isOverviewVisible", Int::class.javaPrimitiveType!!
         ) ?: run {
             DebugLog.d(TAG, "overview query unavailable: no isOverviewVisible"); return@runCatching null
@@ -603,7 +603,7 @@ object HideBottomBarHooker : StaticHooker() {
      * the gate immediately, so hiding and revealing both apply in the next frame.
      */
     private fun repaintGestureBarViews() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!followGenerationActive) return@onMain
             // The install-time log shows handles=0 because no handle has drawn yet; a toggle in
             // that state would otherwise repaint nothing at all. Discover the live hosts, but only
@@ -648,7 +648,7 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Stops drawing the handles of a display at once, without an animation of our own. */
     private fun fadeImmediately(display: Int) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!followGenerationActive) return@onMain
             fadingDisplays.remove(display)
             handleViews.snapshot().filterIsInstance<View>()
@@ -664,7 +664,7 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Re-applies the stored suppression to live views after recovery or a settings change. */
     private fun applyCurrentState() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!followGenerationActive) return@onMain
             handleViews.snapshot().filterIsInstance<View>().filter(::isHandle).forEach { view ->
                 val displayId = view.display?.displayId ?: PRIMARY_DISPLAY
@@ -738,7 +738,7 @@ object HideBottomBarHooker : StaticHooker() {
      * the host last asked for, so an immersive application is not forced to full opacity.
      */
     private fun animateHandles(display: Int, fadeOut: Boolean) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!followGenerationActive) return@onMain
             handleViews.snapshot().filterIsInstance<View>()
                 .filter { isHandle(it) && (it.display?.displayId ?: PRIMARY_DISPLAY) == display }
@@ -773,7 +773,7 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     private fun restoreHandles(displays: Set<Int>) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             handleViews.snapshot().filterIsInstance<View>().filter(::isHandle).forEach { view ->
                 val displayId = view.display?.displayId ?: PRIMARY_DISPLAY
                 if (displayId in displays) hostAlphas.remove(view)?.let { setHandleAlpha(view, it) }
@@ -784,8 +784,8 @@ object HideBottomBarHooker : StaticHooker() {
     // ── Navigation bar layout ────────────────────────────────────────────────────
 
     private fun shellController(component: Any): Any? {
-        val shell = StatusIconHostAccess.read(component, "setShell") ?: return null
-        return StatusIconHostAccess.read(shell, "this\$0")
+        val shell = HostAccess.read(component, "setShell") ?: return null
+        return HostAccess.read(shell, "this\$0")
     }
 
     // androidx.core's KTX extensions are not resolved from a hook's class loader.
@@ -793,9 +793,9 @@ object HideBottomBarHooker : StaticHooker() {
     private fun recoverNavigationBars(component: Any?) {
         if (component == null) return
         runCatching {
-            val controller = StatusIconHostAccess.provider(component, "navigationBarControllerImplProvider")
+            val controller = HostAccess.provider(component, "navigationBarControllerImplProvider")
                 ?: error("Missing native navigation bar controller")
-            val bars = StatusIconHostAccess.read(controller, "mNavigationBars") as? SparseArray<*>
+            val bars = HostAccess.read(controller, "mNavigationBars") as? SparseArray<*>
                 ?: error("Missing native navigation bar map")
             var index = 0
             while (index < bars.size()) {
@@ -807,20 +807,20 @@ object HideBottomBarHooker : StaticHooker() {
 
     /** Rebuild native insets for all rotations; invalidation alone only changes the drawn pill. */
     private fun refreshNavigationLayout() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             val app = hostContext.get()?.let { it.applicationContext ?: it }
             if (app != null) {
-                val component = StatusIconHostAccess.read(app, "mSysUIComponent")
-                    ?: StatusIconHostAccess.read(app, "mInitializer")?.let {
-                        StatusIconHostAccess.invoke(it, "getSysUIComponent")
+                val component = HostAccess.read(app, "mSysUIComponent")
+                    ?: HostAccess.read(app, "mInitializer")?.let {
+                        HostAccess.invoke(it, "getSysUIComponent")
                     }
                 recoverNavigationBars(component)
             }
             navigationBars.snapshot().forEach { bar ->
                 runCatching {
-                    val view = StatusIconHostAccess.read(bar, "mView") as? View ?: return@runCatching
+                    val view = HostAccess.read(bar, "mView") as? View ?: return@runCatching
                     if (!view.isAttachedToWindow) return@runCatching
-                    val update = StatusIconHostAccess.method(bar, "updateViewLayout", Int::class.javaPrimitiveType!!)
+                    val update = HostAccess.method(bar, "updateViewLayout", Int::class.javaPrimitiveType!!)
                         ?: error("Missing native navigation layout update")
                     update.invoke(bar, view.display?.rotation ?: return@runCatching)
                     view.requestLayout()

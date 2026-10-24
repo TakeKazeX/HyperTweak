@@ -12,7 +12,7 @@ import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -108,7 +108,7 @@ object SecurityCenterDockHooker : DynamicHooker() {
         val apk = hookParam.appInfo?.sourceDir ?: return
         prepareDexTargets(name = SecurityCenterDockFeature.id, resolve = {
             DexRuntime.resolve(feature = SecurityCenterDockFeature, apkPath = apk, cacheDir = dexCacheDirectory,
-                compute = { SecurityCenterDockResolver(CameraDexIndex.open(apk)).resolve() },
+                compute = { SecurityCenterDockResolver(DexRuntime.operands(apk)).resolve() },
                 decode = { values, _ -> decode(values) })
         }, install = ::install)
     }
@@ -127,7 +127,7 @@ object SecurityCenterDockHooker : DynamicHooker() {
         values.getValue("callers").lineSequence().filter(String::isNotBlank).forEach {
             deoptimize(requireNotNull(MethodDescriptorCodec.method(it, classLoader)))
         }
-        Targets(methods, fields, CameraDexIndex.type(values.getValue("model"), classLoader), CameraDexIndex.type(values.getValue("divider"), classLoader), CameraDexIndex.type(values.getValue("placeholder"), classLoader))
+        Targets(methods, fields, DexOperandIndex.type(values.getValue("model"), classLoader), DexOperandIndex.type(values.getValue("divider"), classLoader), DexOperandIndex.type(values.getValue("placeholder"), classLoader))
     }.onFailure { DebugLog.w(TAG, "dock contract unavailable; preserving native behavior", it) }.getOrNull()
 
     private fun install(t: Targets) {

@@ -12,7 +12,7 @@ import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.DexFile
 import org.jf.dexlib2.immutable.reference.ImmutableFieldReference
 import org.jf.dexlib2.immutable.reference.ImmutableMethodReference
@@ -32,7 +32,7 @@ class ScreenshotFrameHostContractTest {
     private fun classes(): Map<String, ClassDef> {
         val apk = System.getenv("SCREENSHOT_APK")?.let(::File)
         assumeTrue("Set SCREENSHOT_APK to run target bytecode checks", apk?.isFile == true)
-        contract = ScreenshotFrameResolver(apk!!.path).resolve()
+        contract = ScreenshotFrameResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         val dex = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
         return dex.dexEntryNames.flatMap { dex.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
     }
@@ -78,8 +78,8 @@ class ScreenshotFrameHostContractTest {
         classes()
         val apk = File(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val source = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
-        val clipboard = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
-        val directoryContract = ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve()
+        val clipboard = ScreenshotClipboardResolver(DexOperandIndex.fixture(apk.path)).resolve()
+        val directoryContract = ScreenshotDirectoryResolver(DexOperandIndex.fixture(apk.path)).resolve()
         val types = (contract.methods.values.map { it.definingClass } + contract.fields.values.flatMap { listOf(it.definingClass) } +
             contract.methods.getValue("taskConstructor").parameterTypes.map(CharSequence::toString) +
             (clipboard.callers + clipboard.gate + directoryContract.predicate + directoryContract.callers + directoryContract.workers).map { it.substringBefore("->") })
@@ -87,14 +87,14 @@ class ScreenshotFrameHostContractTest {
             .distinct().mapIndexed { index, type -> type to "Lfixture/adaptive/Type$index;" }.toMap()
         fun type(value: String): String = if (value.startsWith("[")) "[" + type(value.substring(1)) else types[value] ?: value
         val methodNames = (contract.methods.values.filter { it.name != "<init>" && it.name != "doInBackground" }
-            .map(CameraDexIndex::descriptor) + clipboard.callers + clipboard.gate + directoryContract.predicate + directoryContract.callers + directoryContract.workers)
+            .map(DexOperandIndex::descriptor) + clipboard.callers + clipboard.gate + directoryContract.predicate + directoryContract.callers + directoryContract.workers)
             .distinct().filter { it.substringAfter("->").substringBefore("(") != "doInBackground" }
             .mapIndexed { index, ref -> ref to "operation$index" }.toMap()
         val fieldNames = contract.fields.values.mapIndexed { index, ref -> fieldKey(ref) to "slot$index" }.toMap()
         val rewrite = DexRewriter(object : RewriterModule() {
             override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
             override fun getMethodReferenceRewriter(rewriters: Rewriters) = Rewriter<MethodReference> { ref ->
-                ImmutableMethodReference(type(ref.definingClass), methodNames[CameraDexIndex.descriptor(ref)] ?: ref.name,
+                ImmutableMethodReference(type(ref.definingClass), methodNames[DexOperandIndex.descriptor(ref)] ?: ref.name,
                     ref.parameterTypes.map { type(it.toString()) }, type(ref.returnType))
             }
             override fun getFieldReferenceRewriter(rewriters: Rewriters) = Rewriter<FieldReference> { ref ->
@@ -130,45 +130,45 @@ class ScreenshotFrameHostContractTest {
     }
 
     @Test fun `renaming classes methods fields and changing APK identity preserves resolution`() = fixture { apk ->
-        val resolved = ScreenshotFrameResolver(apk.path).resolve()
+        val resolved = ScreenshotFrameResolver(DexOperandIndex.fixture(apk.path)).resolve()
         assertTrue(resolved.methods.getValue("save").definingClass.startsWith("Lfixture/adaptive/"))
         assertTrue(resolved.methods.getValue("save").name.startsWith("operation"))
         assertTrue(resolved.fields.getValue("bitmap").name.startsWith("slot"))
     }
 
     @Test fun `duplicate save graph is rejected rather than selecting the first candidate`() = fixture(duplicate = true) { apk ->
-        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(apk.path).resolve() }
+        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(DexOperandIndex.fixture(apk.path)).resolve() }
     }
 
     @Test fun `missing worker is rejected before any save can enroll`() = fixture(removeWriter = true) { apk ->
-        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(apk.path).resolve() }
+        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(DexOperandIndex.fixture(apk.path)).resolve() }
     }
 
     @Test fun `clipboard gate is consumed before publication and task flag only controls the later tip`() {
         classes()
-        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val dex = DexOperandIndex.fixture(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val resolved = ScreenshotClipboardResolver(dex).resolve()
         val copy = dex.code(resolved.copy)
-        val gate = copy.calls.single { CameraDexIndex.descriptor(it.method) == resolved.gate }
+        val gate = copy.calls.single { DexOperandIndex.descriptor(it.method) == resolved.gate }
         val publish = copy.calls.single { it.method.definingClass == "Landroid/content/ClipboardManager;" && it.method.name == "setPrimaryClip" }
         assertTrue(gate.address < publish.address)
         assertTrue(copy.branches.any { branch ->
-            (branch.value as? CameraDexIndex.Value.Call)?.method?.let(CameraDexIndex::descriptor) == resolved.gate &&
+            (branch.value as? DexOperandIndex.Value.Call)?.method?.let(DexOperandIndex::descriptor) == resolved.gate &&
                 branch.skipsWhenFalse && branch.end <= publish.address
         })
         // The boolean cannot be the copy gate: its only guarded call is after publication.
         val tip = copy.calls.single { it.method.definingClass == resolved.gate.substringBefore("->") &&
             it.method.parameterTypes.map(CharSequence::toString) == listOf("Landroid/content/Context;", "Z") }
         assertTrue(publish.address < tip.address)
-        val write = CameraDexIndex.descriptor(contract.methods.getValue("write"))
+        val write = DexOperandIndex.descriptor(contract.methods.getValue("write"))
         assertTrue(resolved.callers.contains(write))
         // Prove actual edges, rather than adding a desired target to a set before asserting it.
         var reachable = setOf(write)
-        repeat(8) { reachable = reachable + reachable.flatMap { dex.code(it).calls.map { c -> CameraDexIndex.descriptor(c.method) } } }
+        repeat(8) { reachable = reachable + reachable.flatMap { dex.code(it).calls.map { c -> DexOperandIndex.descriptor(c.method) } } }
         val directPublishers = dex.methods.filter { method ->
             method.implementation != null && method.references().filterIsInstance<MethodReference>()
-                .any { CameraDexIndex.descriptor(it) == resolved.copy }
-        }.map(CameraDexIndex::descriptor)
+                .any { DexOperandIndex.descriptor(it) == resolved.copy }
+        }.map(DexOperandIndex::descriptor)
         assertTrue("Export and long-save callers must not retain inlined publishers", resolved.callers.containsAll(directPublishers))
         assertTrue(resolved.copy in reachable)
         assertTrue(resolved.gate in reachable)
@@ -176,16 +176,16 @@ class ScreenshotFrameHostContractTest {
 
     @Test fun `native pending URI publication precedes commit and commit writer is resolved`() {
         classes()
-        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val dex = DexOperandIndex.fixture(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val resolved = ScreenshotClipboardResolver(dex).resolve()
         val body = dex.code(resolved.commitWriter)
         assertTrue(body.hasString("is_pending"))
-        val publish = body.calls.single { CameraDexIndex.descriptor(it.method) == resolved.copy }
+        val publish = body.calls.single { DexOperandIndex.descriptor(it.method) == resolved.copy }
         assertTrue(body.calls.any { it.address > publish.address && it.method.name == "update" &&
             it.method.definingClass == "Landroid/content/ContentResolver;" })
         assertTrue(resolved.commitWriter in resolved.callers)
         assertEquals(resolved.commitWriter, resolved.encode()["commitWriter"])
-        assertEquals("V", dex.methods.single { CameraDexIndex.descriptor(it) == resolved.saveWriter }.returnType)
+        assertEquals("V", dex.methods.single { DexOperandIndex.descriptor(it) == resolved.saveWriter }.returnType)
         assertTrue(dex.code(resolved.saveWriter).writes.any { (field, _) ->
             "${field.definingClass}->${field.name}:${field.type}" == resolved.success
         })
@@ -193,43 +193,43 @@ class ScreenshotFrameHostContractTest {
     }
 
     @Test fun `renamed clipboard gate and publisher follow the save graph`() = fixture { apk ->
-        val resolved = ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve()
+        val resolved = ScreenshotClipboardResolver(DexOperandIndex.fixture(apk.path)).resolve()
         assertTrue(resolved.gate.startsWith("Lfixture/adaptive/"))
         assertTrue(resolved.copy.contains("->operation"))
     }
 
     @Test fun `disconnected clipboard publisher rejects the contract`() = fixture(removeWriter = true) { apk ->
-        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve() }
+        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(DexOperandIndex.fixture(apk.path)).resolve() }
     }
 
     @Test fun `duplicate clipboard graph rejects the contract`() = fixture(duplicate = true) { apk ->
-        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(CameraDexIndex.open(apk.path)).resolve() }
+        assertThrows(IllegalStateException::class.java) { ScreenshotClipboardResolver(DexOperandIndex.fixture(apk.path)).resolve() }
     }
 
     @Test fun `directory decision is shared by filesystem and MediaStore`() {
         classes()
-        val dex = CameraDexIndex.open(requireNotNull(System.getenv("SCREENSHOT_APK")))
+        val dex = DexOperandIndex.fixture(requireNotNull(System.getenv("SCREENSHOT_APK")))
         val resolved = ScreenshotDirectoryResolver(dex).resolve()
         val callerBodies = resolved.callers.map(dex::code)
         assertTrue(callerBodies.any { it.hasString("relative_path") && it.calls.any { c -> c.method.name == "insert" } })
         assertTrue(callerBodies.any { it.calls.any { c -> c.method.name == "getExternalStoragePublicDirectory" } })
-        assertTrue(resolved.workers.all { worker -> dex.code(worker).calls.any { CameraDexIndex.descriptor(it.method) in resolved.callers } })
+        assertTrue(resolved.workers.all { worker -> dex.code(worker).calls.any { DexOperandIndex.descriptor(it.method) in resolved.callers } })
         assertEquals("Z", dex.definition(dex.code(resolved.callers.first()).calls.first {
-            CameraDexIndex.descriptor(it.method) == resolved.predicate }.method)!!.returnType)
+            DexOperandIndex.descriptor(it.method) == resolved.predicate }.method)!!.returnType)
     }
 
     @Test fun `renamed directory decision still covers both storage paths`() = fixture { apk ->
-        val resolved = ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve()
+        val resolved = ScreenshotDirectoryResolver(DexOperandIndex.fixture(apk.path)).resolve()
         assertTrue(resolved.predicate.startsWith("Lfixture/adaptive/"))
         assertTrue(resolved.workers.any { it.contains("->operation") })
     }
 
     @Test fun `ambiguous or missing native save graph rejects directory redirection`() {
         fixture(duplicate = true) { apk ->
-            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve() }
+            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(DexOperandIndex.fixture(apk.path)).resolve() }
         }
         fixture(removeDirectory = true) { apk ->
-            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(CameraDexIndex.open(apk.path)).resolve() }
+            assertThrows(IllegalStateException::class.java) { ScreenshotDirectoryResolver(DexOperandIndex.fixture(apk.path)).resolve() }
         }
     }
 
@@ -283,6 +283,25 @@ class ScreenshotFrameHostContractTest {
         val imageManager = classes.getValue("Lcom/miui/gallery/editor/photo/scribbles/ScreenImageManager;")
         assertEquals("Landroid/content/Context;", imageManager.field("mContext"))
         assertTrue(imageManager.methods.any { it.name == "setNeedSaveAsPng" && it.parameterTypes == listOf("Z") })
+    }
+
+    @Test fun `narrow request candidates preserve the complete frame graph and fail closed`() {
+        val file = System.getenv("SCREENSHOT_APK")?.let(::File)
+        assumeTrue("Set SCREENSHOT_APK for candidate equivalence", file?.isFile == true)
+        val full = DexOperandIndex.fixture(file!!.path)
+        val expected = ScreenshotFrameResolver(full).resolve().encode()
+        val requests = full.methods.filter { method ->
+            method.returnType == "V" && method.parameterTypes.size == 3 &&
+                method.parameterTypes.take(2).map(CharSequence::toString) == listOf(
+                    "Lcom/miui/screenshot/core/domain/ScreenshotData;", "Ljava/util/function/Consumer;")
+        }.map(DexOperandIndex::descriptor)
+        val narrow = DexOperandIndex.fixture(file.path)
+        assertEquals(expected, ScreenshotFrameResolver(narrow, requests).resolve().encode())
+        assertThrows(IllegalStateException::class.java) { ScreenshotFrameResolver(narrow, emptyList()).resolve() }
+        assertThrows(IllegalArgumentException::class.java) {
+            ScreenshotFrameResolver(narrow, listOf("Lmissing/Request;->capture()V")).resolve()
+        }
+        println("FRAME_REQUEST_CANDIDATES=${requests.size} FULL_METHODS=${full.methods.size}")
     }
 
 }

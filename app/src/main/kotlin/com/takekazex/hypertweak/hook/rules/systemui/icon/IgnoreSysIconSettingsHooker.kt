@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -54,22 +55,22 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
     }
 
     internal fun recoverController(controller: Any) {
-        val observer = StatusIconHostAccess.read(controller, "mStatusBarIconObserver") ?: return
-        val value = StatusIconHostAccess.invoke(observer, "loadStatusBarIcon") ?: return
-        val flow = StatusIconHostAccess.read(observer, "statusBarIconShow") ?: return
+        val observer = HostAccess.read(controller, "mStatusBarIconObserver") ?: return
+        val value = HostAccess.invoke(observer, "loadStatusBarIcon") ?: return
+        val flow = HostAccess.read(observer, "statusBarIconShow") ?: return
         IconTunerFlows.setFlowValue(flow, value)
     }
 
     internal fun recoverNetworkSpeed(component: Any) {
-        val speed = StatusIconHostAccess.provider(component, "networkSpeedControllerProvider") ?: return
+        val speed = HostAccess.provider(component, "networkSpeedControllerProvider") ?: return
         if (ignoreSysHide) {
             speed.javaClass.getDeclaredField("mShowNetworkSpeed").apply { isAccessible = true }.setBoolean(speed, netSpeedShown)
             speed.javaClass.declaredMethods.singleOrNull {
                 it.name.contains("mupdateVisibility") && it.parameterTypes.contentEquals(arrayOf(speed.javaClass, String::class.java))
             }?.apply { isAccessible = true }?.invoke(null, speed, "HyperTweak hot reload")
         } else {
-            val observer = StatusIconHostAccess.read(speed, "mShowNetworkSpeedObserver") ?: return
-            StatusIconHostAccess.method(observer, "onChange", Boolean::class.javaPrimitiveType!!)?.invoke(observer, false)
+            val observer = HostAccess.read(speed, "mShowNetworkSpeedObserver") ?: return
+            HostAccess.method(observer, "onChange", Boolean::class.javaPrimitiveType!!)?.invoke(observer, false)
         }
     }
 

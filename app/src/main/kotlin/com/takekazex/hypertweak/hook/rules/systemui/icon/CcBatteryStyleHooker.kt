@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.provider.Settings
 import android.view.View
 import java.util.WeakHashMap
@@ -100,11 +101,11 @@ object CcBatteryStyleHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             retiring = true
             leadingPercent = false
             hostStyles.entries.toList().forEach { (view, style) ->
-                StatusIconHostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
+                HostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
                 view.requestLayout()
             }
             hostStyles.clear()
@@ -115,7 +116,7 @@ object CcBatteryStyleHooker : StaticHooker() {
         views.filter { it.javaClass.name == BATTERY }.forEach { view ->
             // Recover even when both switches are disabled: a previous generation forced style 3.
             val style = Settings.System.getInt(view.context.contentResolver, "battery_indicator_style", 1)
-            StatusIconHostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
+            HostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
             view.requestLayout()
         }
     }

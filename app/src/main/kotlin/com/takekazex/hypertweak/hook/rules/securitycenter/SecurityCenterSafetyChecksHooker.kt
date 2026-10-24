@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -86,7 +86,7 @@ object SecurityCenterSafetyChecksHooker : DynamicHooker() {
     )
 
     private fun resolveDescriptors(bridge: DexKitBridge, apkPath: String): Map<String, String> = buildMap {
-        val index = CameraDexIndex.open(apkPath)
+        val index = DexRuntime.operands(apkPath)
         val localCandidates = runCatching {
             bridge.findMethod {
                 matcher {
@@ -125,7 +125,7 @@ object SecurityCenterSafetyChecksHooker : DynamicHooker() {
         putTarget("usb_intercept", preferenceGetter(bridge, index, USB_INTERCEPT_KEY)?.takeIf(::hasAdbInstallActivityCaller), USB_INTERCEPT_KEY)
     }
 
-    private fun preferenceGetter(bridge: DexKitBridge, index: CameraDexIndex, key: String): MethodData? = runCatching {
+    private fun preferenceGetter(bridge: DexKitBridge, index: DexOperandIndex, key: String): MethodData? = runCatching {
         bridge.findMethod {
             matcher {
                 paramCount(0)

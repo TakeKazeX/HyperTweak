@@ -1,14 +1,14 @@
 package com.takekazex.hypertweak.hook.rules.system
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.FieldReference
 import org.jf.dexlib2.iface.reference.MethodReference
 
 /** Names are output descriptors only. Every role is derived from the current services.jar. */
-internal class DarkModeScheduleResolver(private val dex: CameraDexIndex) {
-    private fun key(method: MethodReference) = CameraDexIndex.descriptor(method)
+internal class DarkModeScheduleResolver(private val dex: DexOperandIndex) {
+    private fun key(method: MethodReference) = DexOperandIndex.descriptor(method)
     private fun key(field: FieldReference) = "${field.definingClass}->${field.name}:${field.type}"
     private fun Method.calls() = implementation?.instructions?.filterIsInstance<ReferenceInstruction>().orEmpty()
         .mapNotNull { it.reference as? MethodReference }
@@ -61,13 +61,13 @@ internal class DarkModeScheduleResolver(private val dex: CameraDexIndex) {
             dex.code(method).hasString("android.intent.action.DREAMING_STARTED") &&
             calls(method, "Landroid/content/Context;", "registerReceiver") }
         val wait = dex.code(register).writes.filter { (field, value) ->
-            field.definingClass == owner && field.type == "Z" && value == CameraDexIndex.Value.Number(1)
+            field.definingClass == owner && field.type == "Z" && value == DexOperandIndex.Value.Number(1)
         }.map { it.first }.single()
         val unregister = declared.filter { method -> privateMethod(method, "V") &&
             calls(method, "Landroid/content/Context;", "unregisterReceiver") &&
-            dex.code(method).writes.any { (field, value) -> key(field) == key(wait) && value == CameraDexIndex.Value.Number(0) }
+            dex.code(method).writes.any { (field, value) -> key(field) == key(wait) && value == DexOperandIndex.Value.Number(0) }
         }.singleOrNull() ?: error("Inactive receiver cleanup missing or ambiguous")
-        check(dex.code(configuration).branches.any { (it.value as? CameraDexIndex.Value.Field)?.field?.let(::key) == key(wait) })
+        check(dex.code(configuration).branches.any { (it.value as? DexOperandIndex.Value.Field)?.field?.let(::key) == key(wait) })
         check(dex.code(configuration).reads.filter { it.definingClass == owner && it.type == "Z" }.distinctBy(::key).size >= 3)
         val receiverField = dex.code(register).reads.single { it.definingClass == owner && it.type == "Landroid/content/BroadcastReceiver;" }
         check(dex.code(unregister).reads.any { key(it) == key(receiverField) })

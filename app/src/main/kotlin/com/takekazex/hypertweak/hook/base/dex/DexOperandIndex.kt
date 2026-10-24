@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.camera
+package com.takekazex.hypertweak.hook.base.dex
 
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
@@ -11,18 +11,19 @@ import java.io.File
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import java.util.concurrent.ConcurrentHashMap
 
-/** Operand-level evidence for camera feature call sites. No target code is executed here.
+/** Shared operand-level evidence for host contracts. No target code is executed here.
  *
  * DexKit finds broad semantic owners; this reader preserves the actual register/branch
  * relationship between a preference key and its capability, instead of guessing a method
  * from hundreds of identical boolean signatures. Results are descriptors, never live DEX
  * objects or reflected classes from another loader.
  */
-internal class CameraDexIndex private constructor(
-    private val apk: File,
+internal class DexOperandIndex internal constructor(
+    private val containers: List<File>,
     private val stringLookup: ((String) -> List<String>?)? = null,
 ) {
     private val definitions by lazy {
+        val result = containers.flatMap { apk ->
         if (apk.extension.lowercase() in setOf("apk", "zip", "jar")) {
             // ZipDexContainer.getDexEntryNames probes EVERY resource's header. Camera has
             // thousands of assets; probing them created thousands of exceptions during boot.
@@ -46,6 +47,9 @@ internal class CameraDexIndex private constructor(
                 container.getEntry(entry)!!.dexFile.classes.toList()
             }
         }
+        }
+        require(result.map { it.type }.distinct().size == result.size) { "Ambiguous duplicate DEX class definitions" }
+        result
     }
     val methods: List<Method> by lazy { definitions.flatMap { it.methods.toList() } }
     private val byOwner = ConcurrentHashMap<String, List<Method>>()
@@ -99,20 +103,12 @@ internal class CameraDexIndex private constructor(
 
         private fun dominatesFallthrough(branch: Branch, target: Int): Boolean {
             val fallthrough = edges[branch.start]?.firstOrNull() ?: return false
-            val visited = HashSet<Int>()
-            val pending = java.util.ArrayDeque(roots)
-            while (pending.isNotEmpty()) {
-                val node = pending.removeFirst()
-                if (!visited.add(node)) continue
-                if (node == target) return false
-                edges[node].orEmpty().forEach { next ->
-                    if (node != branch.start || next != fallthrough) pending.add(next)
-                }
-            }
-            return true
+            return DexControlFlow.edgeDominates(edges, roots, branch.start, fallthrough, target)
         }
     }
 
+    /** Materialize a backend candidate without enumerating every method in the container. */
+    fun definition(descriptor: String): Method? = methodByDescriptor(descriptor)
     fun definition(reference: MethodReference): Method? = methodByDescriptor(descriptor(reference))
     fun code(descriptor: String): Code = codeCache.getOrPut(descriptor) {
         decode(methodByDescriptor(descriptor))
@@ -129,6 +125,8 @@ internal class CameraDexIndex private constructor(
     }
     private fun literals(method: Method): Set<String> = (method.implementation?.instructions ?: emptyList<Instruction>())
         .mapNotNull { ((it as? ReferenceInstruction)?.reference as? StringReference)?.string }.toSet()
+    internal fun matchesString(descriptor: String, value: String): Boolean =
+        methodByDescriptor(descriptor)?.let { value in literals(it) } == true
     private fun methodsUsing(value: String): List<Method> = if (stringLookup == null) stringIndex[value].orEmpty()
         else targetedStrings.getOrPut(value) {
             val descriptors = requireNotNull(stringLookup.invoke(value)) { "targeted string lookup failed: $value" }
@@ -160,37 +158,10 @@ internal class CameraDexIndex private constructor(
         return result.values.toList()
     }
 
-    fun preferenceGates(key: String): List<MethodReference> = strings(key)
-        .flatMap { code(it).guards(key) }.filterIsInstance<Value.Call>()
-        .map { it.method }.filter { it.returnType == "Z" }
-        .distinctBy(::descriptor)
-
-    fun preferenceFields(key: String): List<FieldReference> = strings(key)
-        .flatMap { code(it).guards(key) }.filterIsInstance<Value.Field>()
-        .map { it.field }.filter { it.type == "Z" }.distinctBy { it.toString() }
-
-    /** Read the real title/summary operands passed alongside the preference key. */
-    fun preferenceResources(key: String): List<Int> = strings(key).flatMap { method ->
-        code(method).calls.filter { call ->
-            (call.method.name.startsWith("add") || call.method.name == "<init>") &&
-                call.arguments.any { it == Value.Text(key) }
-        }.flatMap { call ->
-            val values = call.arguments + call.arguments.filterIsInstance<Value.Call>().flatMap { it.arguments }
-            values.filterIsInstance<Value.Number>().map { it.number.toInt() }
-                .filter { it ushr 24 == 0x7f }
-        }
-    }.distinct()
-
-    fun method(reference: MethodReference, loader: ClassLoader): java.lang.reflect.Method? = runCatching {
-        type(reference.definingClass, loader).getDeclaredMethod(
-            reference.name, *reference.parameterTypes.map { type(it.toString(), loader) }.toTypedArray(),
-        ).takeIf { it.returnType == type(reference.returnType, loader) }?.apply { isAccessible = true }
-    }.getOrNull()
-
-    fun field(reference: FieldReference, loader: ClassLoader): java.lang.reflect.Field? = runCatching {
-        type(reference.definingClass, loader).getDeclaredField(reference.name)
-            .takeIf { it.type == type(reference.type, loader) }?.apply { isAccessible = true }
-    }.getOrNull()
+    fun method(reference: MethodReference, loader: ClassLoader): java.lang.reflect.Method? =
+        MethodDescriptorCodec.method(MethodDescriptorCodec.descriptor(reference), loader)
+    fun field(reference: FieldReference, loader: ClassLoader): java.lang.reflect.Field? =
+        MethodDescriptorCodec.field(MethodDescriptorCodec.descriptor(reference), loader)
 
     private fun decode(method: Method?): Code {
         val calls = ArrayList<CallSite>()
@@ -309,64 +280,15 @@ internal class CameraDexIndex private constructor(
 
     companion object {
         private val ROOT_DEX = Regex("classes(?:[0-9]+)?\\.dex")
-        fun open(path: String): CameraDexIndex = DexRuntime.sourceIndex(path, CameraDexIndex::class.java) {
-            CameraDexIndex(File(path))
-        }
-        /** Camera startup uses narrow native queries plus persistent descriptors, never a whole-code string index. */
-        fun openTargeted(path: String, info: android.content.pm.ApplicationInfo?): CameraDexIndex =
-            DexRuntime.sourceIndex(path, CameraDexIndex::class.java) {
-                lateinit var index: CameraDexIndex
-                index = CameraDexIndex(File(path)) { value ->
-                    val key = java.security.MessageDigest.getInstance("SHA-256")
-                        .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
-                    DexRuntime.resolve(
-                        feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
-                            override val id = "camera.string.$key"
-                            override val schema = 1
-                        }, apkPath = path, cacheDir = DexRuntime.cacheDirectory(info), appInfo = info, cacheEmpty = true,
-                        compute = { session -> session.dexKit { bridge ->
-                            bridge.findMethod { matcher {
-                                addUsingString(value, org.luckypray.dexkit.query.enums.StringMatchType.Equals)
-                            } }.map { it.descriptor }.distinct().sorted()
-                                .mapIndexed { position, descriptor -> position.toString() to descriptor }.toMap()
-                        }.orEmpty() },
-                        decode = { values, _ ->
-                            val descriptors = values.toSortedMap().values.toList()
-                            descriptors.takeIf { list -> list.all { descriptor ->
-                                index.methodByDescriptor(descriptor)?.let { value in index.literals(it) } == true
-                            } }
-                        },
-                    )
-                }
-                index
-            }
+        /** Offline fixture reader. Production indexes are obtained only through DexRuntime. */
+        fun fixture(path: String): DexOperandIndex = DexOperandIndex(listOf(File(path)))
+        fun openWithStringLookup(path: String, lookup: (String) -> List<String>?): DexOperandIndex =
+            DexOperandIndex(listOf(File(path)), lookup)
 
-        /** Injectable narrow index for the same operand resolver in host regression tests. */
-        fun openWithStringLookup(path: String, lookup: (String) -> List<String>?): CameraDexIndex =
-            CameraDexIndex(File(path), lookup)
-
-        fun descriptor(method: MethodReference): String = "${method.definingClass}->${method.name}(" +
-            method.parameterTypes.joinToString("") + ")${method.returnType}"
-        fun descriptor(type: Class<*>): String = when {
-            type.isArray -> type.name.replace('.', '/')
-            type.isPrimitive -> mapOf("void" to "V", "boolean" to "Z", "byte" to "B",
-                "char" to "C", "short" to "S", "int" to "I", "long" to "J", "float" to "F",
-                "double" to "D").getValue(type.name)
-            else -> "L${type.name.replace('.', '/')};"
-        }
-        fun type(descriptor: String, loader: ClassLoader): Class<*> = when (descriptor) {
-            "V" -> Void.TYPE
-            "Z" -> java.lang.Boolean.TYPE
-            "B" -> java.lang.Byte.TYPE
-            "C" -> java.lang.Character.TYPE
-            "S" -> java.lang.Short.TYPE
-            "I" -> Integer.TYPE
-            "J" -> java.lang.Long.TYPE
-            "F" -> java.lang.Float.TYPE
-            "D" -> java.lang.Double.TYPE
-            else -> Class.forName(if (descriptor.startsWith("L")) descriptor.substring(1, descriptor.length - 1)
-                .replace('/', '.') else descriptor.replace('/', '.'), false, loader)
-        }
+        fun descriptor(method: MethodReference): String = MethodDescriptorCodec.descriptor(method)
+        fun descriptor(type: Class<*>): String = MethodDescriptorCodec.typeDescriptor(type)
+        fun type(descriptor: String, loader: ClassLoader): Class<*> =
+            requireNotNull(MethodDescriptorCodec.type(descriptor, loader)) { "Invalid type: $descriptor" }
         fun isInstanceGetter(method: MethodReference, owner: String, returns: String): Boolean =
             method.definingClass == owner && method.parameterTypes.isEmpty() && method.returnType == returns
     }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import android.graphics.Canvas
@@ -655,7 +656,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         retiring = true
         enabled = false
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             bindings.values.toList().forEach { binding ->
                 binding.root.get()?.removeOnLayoutChangeListener(binding.listener)
                 binding.fake?.get()?.removeOnLayoutChangeListener(binding.listener)

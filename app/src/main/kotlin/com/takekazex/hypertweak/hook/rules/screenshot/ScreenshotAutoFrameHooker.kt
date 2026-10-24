@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -36,19 +38,43 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     override fun onHook() {
         retired = false
         if (hookParam.processName !in setOf("com.miui.screenshot", "com.miui.screenshot:photo_editor")) return
-        boundary("resolve native screenshot contract") {
-            val apk = hookParam.appInfo?.sourceDir?.let(::File) ?: return@boundary
-            val contract = ScreenshotFrameResolver(apk.path).resolve()
-            val access = NativeScreenshotFrameAccess(classLoader, contract)
-            frameAccess = access
-            access.saveCallChain.forEach { member ->
-                check(deoptimize(member)) { "Cannot prepare native save call chain: $member" }
-            }
-            // Editing safeguards must be present before enrolling any automatic saves.
-            installEditorHooks(access)
-            if (isMainProcess) installSaveHooks(access)
-            DebugLog.hookRegistered(TAG, "native frame/save/editor contract ${apk.name}")
+        val apk = hookParam.appInfo?.sourceDir ?: return
+        val cached = resolveFrame(apk, cacheOnly = true)
+        if (cached != null) installDexContract { installFrame(cached) }
+        else prepareDexTargets("screenshot.frame", resolve = { resolveFrame(apk, cacheOnly = false) }, install = ::installFrame)
+    }
+
+    private object FrameFeature : DexFeature {
+        override val id = "screenshot.frame"
+        override val schema = 1
+    }
+    private fun resolveFrame(apk: String, cacheOnly: Boolean): NativeScreenshotFrameAccess? = DexRuntime.resolve(
+        feature = FrameFeature, apkPath = apk, cacheDir = dexCacheDirectory, cacheOnly = cacheOnly,
+        compute = { session ->
+            val requests = requireNotNull(session.dexKit { bridge ->
+                bridge.findMethod { matcher {
+                    returnType("void")
+                    paramTypes("com.miui.screenshot.core.domain.ScreenshotData", "java.util.function.Consumer", null)
+                } }.map { it.descriptor }
+            }) { "Screenshot frame candidate backend unavailable" }
+            DebugLog.d(TAG, "cold request candidates=${requests.size}")
+            ScreenshotFrameResolver(DexRuntime.operands(apk), requests).resolve().encode()
+        },
+        decode = { values, _ -> ScreenshotFrameResolver.decode(values, classLoader)?.let {
+            NativeScreenshotFrameAccess(classLoader, it)
+        } },
+    )
+
+    private fun installFrame(access: NativeScreenshotFrameAccess) {
+        access.saveCallChain.forEach { member ->
+            check(deoptimize(member)) { "Cannot prepare native save call chain: $member" }
         }
+        // A preparation publication rolls back its new handles if any safeguard fails.
+        // Saving stays native until every editor safeguard is installed.
+        installEditorHooks(access)
+        if (isMainProcess) installSaveHooks(access)
+        frameAccess = access
+        DebugLog.hookRegistered(TAG, "native frame/save/editor contract")
     }
 
     private fun installSaveHooks(access: NativeScreenshotFrameAccess) {

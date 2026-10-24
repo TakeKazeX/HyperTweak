@@ -13,7 +13,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
 import java.lang.reflect.Field
@@ -103,14 +103,14 @@ object NotificationHeaderHooker : StaticHooker() {
     private var landscapeModeMethod: Method? = null
     private var generatedCallbacks: GeneratedCallbacks? = null
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         listOf(layoutController.roots(), controllerSizes.keys.toList(),
             shadeHeaderHeightAnimators.keys.toList(), notificationTopPaddingControllers.keys.toList())
     }
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!hasHeaderWork()) return@onMain
             (saved.getOrNull(1) as? List<*>)?.filterNotNull()?.forEach(::applyClockSize)
             (saved.getOrNull(2) as? List<*>)?.filterNotNull()?.forEach { shadeHeaderHeightAnimators[it] = true }
@@ -121,19 +121,19 @@ object NotificationHeaderHooker : StaticHooker() {
 
     /** Rebind already-created native hosts; inflation and constructors do not run on replacement. */
     internal fun recoverExistingHosts(component: Any?, views: List<View>): List<ViewGroup> {
-        val combined = component?.let { StatusIconHostAccess.provider(it, "combinedHeaderControllerProvider") }
+        val combined = component?.let { HostAccess.provider(it, "combinedHeaderControllerProvider") }
         val roots = (views.filterIsInstance<ViewGroup>().filter { it.javaClass.name == HEADER_CLASS } +
             listOfNotNull(combined?.let { read(it, "notificationHeaderView") as? ViewGroup }) +
             layoutController.roots()).distinct()
         if (!hasHeaderWork()) return roots
         component?.let { host ->
-            StatusIconHostAccess.provider(host, "shadeHeaderHeightAnimatorProvider")?.let {
+            HostAccess.provider(host, "shadeHeaderHeightAnimatorProvider")?.let {
                 shadeHeaderHeightAnimators[it] = true
             }
-            StatusIconHostAccess.provider(host, "notificationTopPaddingControllerImplProvider")?.let {
+            HostAccess.provider(host, "notificationTopPaddingControllerImplProvider")?.let {
                 notificationTopPaddingControllers[it] = true
             }
-            StatusIconHostAccess.provider(host, "notificationHeaderExpandControllerProvider")?.let(::applyClockSize)
+            HostAccess.provider(host, "notificationHeaderExpandControllerProvider")?.let(::applyClockSize)
         }
         roots.forEach { root ->
             guarded("existing header layout") {
@@ -142,7 +142,7 @@ object NotificationHeaderHooker : StaticHooker() {
                 applyHeader(root)
             }
         }
-        component?.let { StatusIconHostAccess.provider(it, "notificationHeaderExpandControllerProvider") }
+        component?.let { HostAccess.provider(it, "notificationHeaderExpandControllerProvider") }
             ?.let(::replayExpansion)
         syncShadeHeaderClipHeight()
         refreshNotificationTopPadding()
@@ -524,7 +524,7 @@ object NotificationHeaderHooker : StaticHooker() {
     }
 
     private fun applyHeader(root: ViewGroup) {
-        StatusIconHostAccess.noteHeaderRoot(root)
+        com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderRegistry.noteHeaderRoot(root)
         if (!root.isAttachedToWindow || resettingHeaders.containsKey(root)) return
         layoutController.apply(root, root.rootWindowInsets)
         val time = layoutController.views(root)?.time as? TextView ?: return

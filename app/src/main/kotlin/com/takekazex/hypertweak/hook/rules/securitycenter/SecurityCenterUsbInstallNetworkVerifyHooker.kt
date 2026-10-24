@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -104,7 +104,7 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
             onCreate.usingFields.none { it.usingType.isWrite() && it.field.declaredClassName == ACTIVITY && it.field.typeName == "boolean" }
         ) return missing("input flag or account qualification structure changed")
 
-        val index = CameraDexIndex.open(apkPath)
+        val index = DexRuntime.operands(apkPath)
         val onCreateCode = index.code(onCreate.descriptor)
         val accountGetterDescriptor = accountGetterCalls.single().descriptor
 
@@ -162,12 +162,12 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
 
         // Confirm the false-input wrapper reaches the preference/property setter via its actual
         // key operands; the obfuscated bridge method name is deliberately not part of the contract.
-        val falseSetterDescriptor = CameraDexIndex.descriptor(falseCall.method)
+        val falseSetterDescriptor = DexOperandIndex.descriptor(falseCall.method)
         val falseSetterCode = index.code(falseSetterDescriptor)
         val propertySetter = falseSetterCode.calls.filter { site ->
             site.method.parameterTypes.map(Any::toString) == listOf("Z") && site.method.returnType == "V" &&
-                site.arguments.lastOrNull() == CameraDexIndex.Value.Argument(0)
-        }.mapNotNull { site -> bridge.getMethodData(CameraDexIndex.descriptor(site.method)) }
+                site.arguments.lastOrNull() == DexOperandIndex.Value.Argument(0)
+        }.mapNotNull { site -> bridge.getMethodData(DexOperandIndex.descriptor(site.method)) }
             .filter { helper -> hasInterceptSetterOperands(helper, index) }
             .distinctBy { it.descriptor }.singleOrNull()
             ?: return missing("false-input wrapper does not uniquely reach the persisted USB-enable setter")
@@ -189,20 +189,20 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
         }
     }
 
-    private fun hasInterceptSetterOperands(method: MethodData, index: CameraDexIndex): Boolean {
+    private fun hasInterceptSetterOperands(method: MethodData, index: DexOperandIndex): Boolean {
         if (INTERCEPT_PREFERENCE_KEY !in method.usingStrings || INTERCEPT_PROPERTY_KEY !in method.usingStrings) return false
         val code = index.code(method.descriptor)
         val preferenceWrites = code.calls.filter { call ->
             call.method.parameterTypes.map(Any::toString) == listOf("Ljava/lang/String;", "Z") &&
                 call.method.returnType == "V" &&
-                call.arguments == listOf(CameraDexIndex.Value.Text(INTERCEPT_PREFERENCE_KEY), CameraDexIndex.Value.Argument(0)) &&
+                call.arguments == listOf(DexOperandIndex.Value.Text(INTERCEPT_PREFERENCE_KEY), DexOperandIndex.Value.Argument(0)) &&
                 index.definition(call.method)?.accessFlags?.and(0x8) == 0x8
         }
         val propertyWrites = code.calls.filter { call ->
             call.method.definingClass == SYSTEM_PROPERTIES_OWNER && call.method.name == "set" &&
                 call.method.parameterTypes.map(Any::toString) == listOf("Ljava/lang/String;", "Ljava/lang/String;") &&
                 call.method.returnType == "I" &&
-                call.arguments.firstOrNull() == CameraDexIndex.Value.Text(INTERCEPT_PROPERTY_KEY)
+                call.arguments.firstOrNull() == DexOperandIndex.Value.Text(INTERCEPT_PROPERTY_KEY)
         }
         return preferenceWrites.size == 1 && propertyWrites.size == 1
     }

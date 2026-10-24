@@ -11,7 +11,7 @@ import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -45,7 +45,7 @@ object SecurityCenterPopupHooker : DynamicHooker() {
         val apk = hookParam.appInfo?.sourceDir ?: return
         prepareDexTargets(name = SecurityCenterPopupFeature.id, resolve = {
             DexRuntime.resolve(feature = SecurityCenterPopupFeature, apkPath = apk, cacheDir = dexCacheDirectory,
-                compute = { SecurityCenterPopupResolver(CameraDexIndex.open(apk)).resolve() },
+                compute = { SecurityCenterPopupResolver(DexRuntime.operands(apk)).resolve() },
                 decode = { values, _ -> decode(values) })
         }, install = ::install)
     }

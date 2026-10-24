@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -81,16 +81,16 @@ object SharePanelHooker : DynamicHooker() {
     }
 
     /** Rebind both tracked profile grids and hosts created before this feature was installed. */
-    fun refreshSettings() = StatusIconHostAccess.onMain {
+    fun refreshSettings() = HostAccess.onMain {
         if (retired) return@onMain
         val resolved = targets ?: return@onMain
         Preferences.invalidateRuntimeReadCache()
         HookFailurePolicy.open(TAG, "recover living chooser", Unit) {
             val owner = Class.forName("android.app.ActivityThread")
             val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@open
-            val records = StatusIconHostAccess.read(thread, "mActivities") as? Map<*, *> ?: return@open
+            val records = HostAccess.read(thread, "mActivities") as? Map<*, *> ?: return@open
             records.values.filterNotNull().forEach { record ->
-                val host = StatusIconHostAccess.read(record, "activity") as? Activity ?: return@forEach
+                val host = HostAccess.read(record, "activity") as? Activity ?: return@forEach
                 if (!host.isDestroyed && resolved.activityType.isInstance(host)) {
                     collectGrids(host.window.decorView, resolved)
                 }
@@ -121,7 +121,7 @@ object SharePanelHooker : DynamicHooker() {
 
     override fun recoverHotReloadHosts() = refreshSettings()
 
-    override fun onPrepareHotReload() = StatusIconHostAccess.onMain {
+    override fun onPrepareHotReload() = HostAccess.onMain {
         retired = true
         synchronized(grids) { grids.clear() }
     }

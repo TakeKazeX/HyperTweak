@@ -6,27 +6,17 @@ import android.graphics.BitmapFactory
 import android.graphics.Path
 import android.net.Uri
 import java.io.File
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /** Reflected access to a uniquely resolved host save/editor graph. */
 internal class NativeScreenshotFrameAccess(private val loader: ClassLoader, private val contract: ScreenshotFrameResolver.Contract) {
-    private fun resolvedMethod(role: String): Method {
-        val ref = contract.methods.getValue(role)
-        return CameraDexIndex.type(ref.definingClass, loader)
-            .getDeclaredMethod(ref.name, *ref.parameterTypes.map {
-                CameraDexIndex.type(it.toString(), loader)
-            }.toTypedArray()).apply {
-                check(returnType == CameraDexIndex.type(ref.returnType, loader))
-                isAccessible = true
-            }
-    }
-    private fun resolvedField(role: String): Field {
-        val ref = contract.fields.getValue(role)
-        return field(CameraDexIndex.type(ref.definingClass, loader), ref.name,
-            CameraDexIndex.type(ref.type, loader))
-    }
+    private fun resolvedMethod(role: String): Method = requireNotNull(MethodDescriptorCodec.method(
+        MethodDescriptorCodec.descriptor(contract.methods.getValue(role)), loader))
+    private fun resolvedField(role: String): Field = requireNotNull(MethodDescriptorCodec.field(
+        MethodDescriptorCodec.descriptor(contract.fields.getValue(role)), loader))
     private fun load(name: String) = loader.loadClass(name)
     private fun field(type: Class<*>, name: String, valueType: Class<*>): Field =
         type.getDeclaredField(name).apply {
@@ -43,11 +33,8 @@ internal class NativeScreenshotFrameAccess(private val loader: ClassLoader, priv
 
     val request = resolvedMethod("request")
     val save = resolvedMethod("save")
-    private val constructor = contract.methods.getValue("taskConstructor")
-    val taskConstructor = CameraDexIndex.type(constructor.definingClass, loader)
-        .getDeclaredConstructor(*constructor.parameterTypes.map {
-            CameraDexIndex.type(it.toString(), loader)
-        }.toTypedArray()).apply { isAccessible = true }
+    val taskConstructor = requireNotNull(MethodDescriptorCodec.constructor(
+        MethodDescriptorCodec.descriptor(contract.methods.getValue("taskConstructor")), loader))
     val worker = resolvedMethod("worker")
     val saveCaller = resolvedMethod("saveCaller")
     val workerBridge = resolvedMethod("workerBridge")

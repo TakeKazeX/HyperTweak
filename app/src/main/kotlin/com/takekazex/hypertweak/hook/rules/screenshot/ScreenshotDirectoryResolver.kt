@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
 
@@ -9,8 +9,8 @@ internal data class ScreenshotDirectoryContract(val predicate: String, val calle
 }
 
 /** Both the filesystem and MediaStore must consume the same native directory decision. */
-internal class ScreenshotDirectoryResolver(private val dex: CameraDexIndex) {
-    private fun key(method: MethodReference) = CameraDexIndex.descriptor(method)
+internal class ScreenshotDirectoryResolver(private val dex: DexOperandIndex) {
+    private fun key(method: MethodReference) = DexOperandIndex.descriptor(method)
     fun resolve(): ScreenshotDirectoryContract {
         val rows = dex.strings("relative_path", "Screenshots").filter { method ->
             dex.code(method).calls.any { it.method.definingClass == "Landroid/content/ContentResolver;" && it.method.name == "insert" }

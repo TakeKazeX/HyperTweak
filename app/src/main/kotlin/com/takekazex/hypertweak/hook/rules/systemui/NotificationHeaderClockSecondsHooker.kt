@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Method
 import java.util.WeakHashMap
@@ -81,7 +81,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         val next = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
         val changed = next != persistentHeaderEnabled
         persistentHeaderEnabled = next
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (retiring) return@onMain
             val views = (tickCallbacks.keys + longPressInstalled.keys + temporaryOverrides.keys)
                 .filterIsInstance<TextView>().distinct()
@@ -101,7 +101,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             synchronized(callbacksLock) {
                 tickCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
                 expiryCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }

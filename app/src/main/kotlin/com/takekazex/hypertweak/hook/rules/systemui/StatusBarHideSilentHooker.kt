@@ -1,10 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
@@ -90,7 +92,14 @@ object StatusBarHideSilentHooker : StaticHooker() {
         schedule = builderField?.type?.getDeclaredMethod("scheduleRebuild", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)?.apply { isAccessible = true }
         observeInstances("com.android.systemui.statusbar.notification.collection.NotifPipeline", pipelines)
         prepareDexTargets("notification icon threshold", resolve = {
-            com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex.open(hookParam.appInfo!!.sourceDir).let(NotificationIconFilterContract::resolve)
+            val apk = requireNotNull(hookParam.appInfo?.sourceDir)
+            DexRuntime.resolve(
+                feature = object : DexFeature { override val id = "systemui.notification_icon_filter"; override val schema = 1 },
+                apkPath = apk, cacheDir = dexCacheDirectory,
+                compute = { DexRuntime.operands(apk).let(NotificationIconFilterContract::resolve)
+                    ?.let(NotificationIconFilterContract::encode).orEmpty() },
+                decode = { values, _ -> NotificationIconFilterContract.decode(values, classLoader) },
+            )
         }, install = { target ->
             val owner = target.owner.toClass()
             val invoke = owner.getDeclaredMethod(target.method, Any::class.java)
@@ -134,7 +143,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
 
     fun recoverExistingHosts(component: Any?) {
         HookFailurePolicy.open(TAG, "recover notification pipeline", Unit) {
-            val provider = component?.let { com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess.read(it, "notifPipelineProvider") }
+            val provider = component?.let { com.takekazex.hypertweak.hook.base.HostAccess.read(it, "notifPipelineProvider") }
             provider?.javaClass?.getMethod("get")?.apply { isAccessible = true }?.invoke(provider)?.let(pipelines::add)
             requestRebuild()
         }

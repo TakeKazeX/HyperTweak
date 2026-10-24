@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.annotation.SuppressLint
@@ -279,7 +280,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     /** Idempotent host environment binding, shared by package readiness and recovered views. */
     fun onPackageReady(context: Context) {
-        StatusIconHostAccess.onMain { bindEnvironment(context) }
+        HostAccess.onMain { bindEnvironment(context) }
     }
 
     private fun bindEnvironment(context: Context) {
@@ -348,7 +349,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!enabled) return@onMain
             val views = (saved.getOrNull(0) as? List<*>)?.filterIsInstance<View>().orEmpty()
             val context = saved.getOrNull(5) as? Context ?: hostContext ?: views.firstOrNull()?.context
@@ -395,15 +396,15 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         recoveryAttempt++
         bindEnvironment(context)
         val app = context.applicationContext ?: context
-        val component = StatusIconHostAccess.read(app, "mSysUIComponent")
-            ?: StatusIconHostAccess.read(app, "mInitializer")?.let { StatusIconHostAccess.invoke(it, "getSysUIComponent") }
+        val component = HostAccess.read(app, "mSysUIComponent")
+            ?: HostAccess.read(app, "mInitializer")?.let { HostAccess.invoke(it, "getSysUIComponent") }
         if (component != null) {
             runCatching {
-                val header = StatusIconHostAccess.provider(component, "combinedHeaderControllerProvider")
-                val layout = header?.let { StatusIconHostAccess.read(it, "controlCenterCarrierLayout") } as? ViewGroup
+                val header = HostAccess.provider(component, "combinedHeaderControllerProvider")
+                val layout = header?.let { HostAccess.read(it, "controlCenterCarrierLayout") } as? ViewGroup
                 if (layout != null) knownLayouts[layout] = true
-                val scope = StatusIconHostAccess.provider(component, "bgApplicationScopeProvider")
-                val interactor = StatusIconHostAccess.provider(component, "wifiInteractorImplProvider")
+                val scope = HostAccess.provider(component, "bgApplicationScopeProvider")
+                val interactor = HostAccess.provider(component, "wifiInteractorImplProvider")
                 if (scope != null && interactor != null) bindWifi(scope, interactor, context)
             }.onFailure { DebugLog.w(TAG, "carrier host/source discovery failed", it) }
         }
@@ -541,7 +542,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         hookExpansion()
         hookShadeSwitching()
         hookWifi()
-        hostContext?.let { context -> StatusIconHostAccess.onMain { bindEnvironment(context) } }
+        hostContext?.let { context -> HostAccess.onMain { bindEnvironment(context) } }
         DebugLog.hookRegistered(TAG, "control-center two-line carrier block")
     }
 

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.telephony.SubscriptionManager
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -74,7 +75,7 @@ object HideCellularIconHooker : StaticHooker() {
         generation.incrementAndGet()
         enabled = false
         adapterReference = null
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             hideSimOne = false
             hideSimTwo = false
             hideNonDefault = false
@@ -96,7 +97,7 @@ object HideCellularIconHooker : StaticHooker() {
     override fun saveHotReloadState(): Any? = adapterReference?.get()
 
     override fun restoreHotReloadState(state: Any?) {
-        if (state != null) StatusIconHostAccess.onMain { recoverAdapter(state) }
+        if (state != null) HostAccess.onMain { recoverAdapter(state) }
     }
 
     internal fun recoverAdapter(adapter: Any) {

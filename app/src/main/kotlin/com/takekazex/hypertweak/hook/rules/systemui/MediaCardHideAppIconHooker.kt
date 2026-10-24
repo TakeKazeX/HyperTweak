@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
@@ -56,9 +56,9 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
     @Volatile private var enabled = false
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { originals.keys.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain { originals.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) (state as? List<*>)?.filterIsInstance<View>()?.forEach(::hideIcon)
         }
     }
@@ -94,7 +94,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
         val changed = next != enabled
         enabled = next
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) {
                 knownViews.filter { it.isAttachedToWindow }.forEach(::hideIcon)
             } else if (changed) {
@@ -115,7 +115,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             originals.forEach { (view, visibility) -> view.visibility = visibility }
             originals.clear()
             knownViews.clear()

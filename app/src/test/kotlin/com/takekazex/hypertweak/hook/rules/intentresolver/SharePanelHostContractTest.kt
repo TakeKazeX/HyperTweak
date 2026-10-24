@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.intentresolver
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -10,21 +10,21 @@ class SharePanelHostContractTest {
     @Test fun installedHostUsesOneReadOnlyOverflowGateForCountAndBinding() {
         val path = System.getenv("SHARE_PANEL_APK")
         assumeTrue("Set SHARE_PANEL_APK to verify the actual host", path != null)
-        val dex = CameraDexIndex.open(path!!)
+        val dex = DexOperandIndex.fixture(path!!)
         val group = "Lcom/android/intentresolver/adapter/GroupTargetAdapter;"
         val miui = "Lcom/android/intentresolver/adapter/MiuiChooserGridAdapter;"
         val grid = "Lcom/android/intentresolver/grid/ChooserGridAdapter;"
         val stub = "Lcom/android/intentresolver/ChooserActivityStubImpl;"
         val gate = "$group->isCollapsedWithOverflow()Z"
         val gateCode = dex.code(gate)
-        assertEquals(1, dex.declared(group).count { CameraDexIndex.descriptor(it) == gate })
+        assertEquals(1, dex.declared(group).count { DexOperandIndex.descriptor(it) == gate })
         assertTrue(gateCode.writes.isEmpty())
         assertTrue(gateCode.calls.any { it.method.name == "isGroupTargetExpanded" && it.method.returnType == "Z" })
         assertTrue(gateCode.calls.any { it.method.name == "getGroupedCollapsedLimit" && it.method.returnType == "I" })
         assertTrue(gateCode.reads.any { it.name == "mGroupedTargets" && it.type == "Ljava/util/List;" })
         listOf("$miui->getGroupTargetCount()I",
             "$group->onBindGroupTargetItem(Landroidx/recyclerview/widget/RecyclerView\$ViewHolder;I)V").forEach { consumer ->
-            assertTrue(consumer, dex.code(consumer).calls.any { CameraDexIndex.descriptor(it.method) == gate })
+            assertTrue(consumer, dex.code(consumer).calls.any { DexOperandIndex.descriptor(it.method) == gate })
         }
         assertTrue(dex.code("$miui->getGroupTargetCount()I").reads.any { it.name == "mGroupedTargets" })
         val expandedFlag = dex.classDefinition(stub)!!.fields.single { it.name == "mGroupTargetExpanded" }

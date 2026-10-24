@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.immutable.reference.ImmutableFieldReference
 import org.jf.dexlib2.immutable.reference.ImmutableMethodReference
 import org.junit.Assert.*
@@ -16,12 +16,12 @@ class UsbInstallDexContractTest {
         ImmutableMethodReference(owner, name, parameters, result)
 
     private fun code(
-        calls: List<CameraDexIndex.CallSite>,
-        branches: List<CameraDexIndex.Branch>,
+        calls: List<DexOperandIndex.CallSite>,
+        branches: List<DexOperandIndex.Branch>,
         edges: Map<Int, List<Int>>,
-        writes: List<Pair<org.jf.dexlib2.iface.reference.FieldReference, CameraDexIndex.Value?>> = emptyList(),
+        writes: List<Pair<org.jf.dexlib2.iface.reference.FieldReference, DexOperandIndex.Value?>> = emptyList(),
         roots: Set<Int> = setOf(0),
-    ) = CameraDexIndex.Code(calls, emptyList(), branches, emptyList(), writes, emptyList(), edges, roots)
+    ) = DexOperandIndex.Code(calls, emptyList(), branches, emptyList(), writes, emptyList(), edges, roots)
 
     @Test fun `renamed success methods resolve from the input field and setter graph`() {
         val field = ImmutableFieldReference(activity, "renamedInputMode", "Z")
@@ -29,34 +29,34 @@ class UsbInstallDexContractTest {
         val usbSetter = method(activity, "q4", listOf("Z"), "V")
         val dexCode = code(
             calls = listOf(
-                CameraDexIndex.CallSite(1, inputSetter, listOf(CameraDexIndex.Value.Number(1))),
-                CameraDexIndex.CallSite(10, usbSetter, listOf(CameraDexIndex.Value.Argument(-1), CameraDexIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(1, inputSetter, listOf(DexOperandIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(10, usbSetter, listOf(DexOperandIndex.Value.Argument(-1), DexOperandIndex.Value.Number(1))),
             ),
-            branches = listOf(CameraDexIndex.Branch(0, 10, CameraDexIndex.Value.Field(field), skipsWhenFalse = true)),
+            branches = listOf(DexOperandIndex.Branch(0, 10, DexOperandIndex.Value.Field(field), skipsWhenFalse = true)),
             edges = mapOf(0 to listOf(1, 10), 1 to emptyList(), 10 to emptyList()),
         )
         val resolved = UsbInstallDexContract.inputModeCalls(dexCode, inputField, activity, inputActivity)
         assertEquals("q4", resolved?.falseInput?.method?.name)
         assertEquals("z9", resolved?.trueInput?.method?.name)
-        assertEquals(CameraDexIndex.Value.Number(1), resolved?.falseInput?.arguments?.last())
+        assertEquals(DexOperandIndex.Value.Number(1), resolved?.falseInput?.arguments?.last())
     }
 
     @Test fun `missing and ambiguous input branches fail closed`() {
         val field = ImmutableFieldReference(activity, "renamedInputMode", "Z")
         val setter = method(activity, "a1", listOf("Z"), "V")
         val inputSetter = method(inputActivity, "b2", listOf("Z"), "V")
-        val branch = CameraDexIndex.Branch(0, 10, CameraDexIndex.Value.Field(field), skipsWhenFalse = true)
+        val branch = DexOperandIndex.Branch(0, 10, DexOperandIndex.Value.Field(field), skipsWhenFalse = true)
         val missing = code(
-            listOf(CameraDexIndex.CallSite(1, inputSetter, listOf(CameraDexIndex.Value.Number(1)))),
+            listOf(DexOperandIndex.CallSite(1, inputSetter, listOf(DexOperandIndex.Value.Number(1)))),
             listOf(branch), mapOf(0 to listOf(1, 10), 1 to emptyList(), 10 to emptyList()),
         )
         assertNull(UsbInstallDexContract.inputModeCalls(missing, inputField, activity, inputActivity))
 
         val ambiguous = code(
             listOf(
-                CameraDexIndex.CallSite(1, inputSetter, listOf(CameraDexIndex.Value.Number(1))),
-                CameraDexIndex.CallSite(10, setter, listOf(CameraDexIndex.Value.Number(1))),
-                CameraDexIndex.CallSite(11, method(activity, "c3", listOf("Z"), "V"), listOf(CameraDexIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(1, inputSetter, listOf(DexOperandIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(10, setter, listOf(DexOperandIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(11, method(activity, "c3", listOf("Z"), "V"), listOf(DexOperandIndex.Value.Number(1))),
             ),
             listOf(branch), mapOf(0 to listOf(1, 10), 1 to emptyList(), 10 to listOf(11), 11 to emptyList()),
         )
@@ -64,8 +64,8 @@ class UsbInstallDexContractTest {
 
         val crossed = code(
             listOf(
-                CameraDexIndex.CallSite(1, inputSetter, listOf(CameraDexIndex.Value.Number(1))),
-                CameraDexIndex.CallSite(10, setter, listOf(CameraDexIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(1, inputSetter, listOf(DexOperandIndex.Value.Number(1))),
+                DexOperandIndex.CallSite(10, setter, listOf(DexOperandIndex.Value.Number(1))),
             ),
             listOf(branch), mapOf(0 to listOf(1, 10), 1 to listOf(10), 10 to emptyList()),
         )
@@ -75,18 +75,18 @@ class UsbInstallDexContractTest {
     @Test fun `null callback contract uses argument branch instead of obfuscated names`() {
         val success = method(activity, "renamedSuccess", emptyList(), "V")
         val callbackCode = code(
-            listOf(CameraDexIndex.CallSite(1, success, listOf(CameraDexIndex.Value.Argument(-1)))),
-            listOf(CameraDexIndex.Branch(0, 10, CameraDexIndex.Value.Argument(0), skipsWhenFalse = false)),
+            listOf(DexOperandIndex.CallSite(1, success, listOf(DexOperandIndex.Value.Argument(-1)))),
+            listOf(DexOperandIndex.Branch(0, 10, DexOperandIndex.Value.Argument(0), skipsWhenFalse = false)),
             mapOf(0 to listOf(1, 10), 1 to emptyList(), 10 to emptyList()),
         )
-        assertTrue(UsbInstallDexContract.nullResponseCallsSuccess(callbackCode, CameraDexIndex.descriptor(success)))
+        assertTrue(UsbInstallDexContract.nullResponseCallsSuccess(callbackCode, DexOperandIndex.descriptor(success)))
         val ambiguous = callbackCode.copy(branches = callbackCode.branches + callbackCode.branches.single())
-        assertFalse(UsbInstallDexContract.nullResponseCallsSuccess(ambiguous, CameraDexIndex.descriptor(success)))
+        assertFalse(UsbInstallDexContract.nullResponseCallsSuccess(ambiguous, DexOperandIndex.descriptor(success)))
         val bypassed = callbackCode.copy(
             edges = callbackCode.edges + (20 to listOf(1)),
             roots = setOf(0, 20),
         )
-        assertFalse(UsbInstallDexContract.nullResponseCallsSuccess(bypassed, CameraDexIndex.descriptor(success)))
+        assertFalse(UsbInstallDexContract.nullResponseCallsSuccess(bypassed, DexOperandIndex.descriptor(success)))
     }
 
     @Test fun `account entry is reachable only after the nonempty account branch`() {
@@ -95,15 +95,15 @@ class UsbInstallDexContractTest {
         val empty = method("Landroid/text/TextUtils;", "isEmpty", listOf("Ljava/lang/CharSequence;"), "Z")
         val entry = method(activity, "networkDialogRenamed", emptyList(), "V")
         val intentExtra = method("Landroid/content/Intent;", "getBooleanExtra", listOf("Ljava/lang/String;", "Z"), "Z")
-        val intentRead = CameraDexIndex.Value.Call(intentExtra, listOf(CameraDexIndex.Value.Argument(0), CameraDexIndex.Value.Text("is_input"), CameraDexIndex.Value.Number(0)))
-        val getAccountSite = CameraDexIndex.CallSite(2, getter, listOf(CameraDexIndex.Value.Argument(-1), CameraDexIndex.Value.Argument(0)))
-        val emptyArgs = listOf(CameraDexIndex.Value.Call(getter, getAccountSite.arguments))
-        val emptySite = CameraDexIndex.CallSite(4, empty, emptyArgs)
+        val intentRead = DexOperandIndex.Value.Call(intentExtra, listOf(DexOperandIndex.Value.Argument(0), DexOperandIndex.Value.Text("is_input"), DexOperandIndex.Value.Number(0)))
+        val getAccountSite = DexOperandIndex.CallSite(2, getter, listOf(DexOperandIndex.Value.Argument(-1), DexOperandIndex.Value.Argument(0)))
+        val emptyArgs = listOf(DexOperandIndex.Value.Call(getter, getAccountSite.arguments))
+        val emptySite = DexOperandIndex.CallSite(4, empty, emptyArgs)
         val code = code(
-            listOf(getAccountSite, emptySite, CameraDexIndex.CallSite(10, entry, listOf(CameraDexIndex.Value.Argument(-1)))),
+            listOf(getAccountSite, emptySite, DexOperandIndex.CallSite(10, entry, listOf(DexOperandIndex.Value.Argument(-1)))),
             listOf(
-                CameraDexIndex.Branch(0, 10, CameraDexIndex.Value.Field(field), skipsWhenFalse = false),
-                CameraDexIndex.Branch(6, 9, CameraDexIndex.Value.Call(empty, emptyArgs), skipsWhenFalse = true),
+                DexOperandIndex.Branch(0, 10, DexOperandIndex.Value.Field(field), skipsWhenFalse = false),
+                DexOperandIndex.Branch(6, 9, DexOperandIndex.Value.Call(empty, emptyArgs), skipsWhenFalse = true),
             ),
             mapOf(0 to listOf(1, 10), 1 to listOf(2), 2 to listOf(3), 3 to listOf(4), 4 to listOf(5),
                 5 to listOf(6), 6 to listOf(7, 9), 7 to emptyList(), 9 to listOf(10), 10 to emptyList()),
@@ -111,11 +111,11 @@ class UsbInstallDexContractTest {
         )
         assertTrue(UsbInstallDexContract.writesInputFlag(code, inputField))
         assertFalse(UsbInstallDexContract.writesInputFlag(code, "$activity->anotherBoolean:Z"))
-        assertTrue(UsbInstallDexContract.entryOnlyAfterAccount(code, inputField, CameraDexIndex.descriptor(getter), CameraDexIndex.descriptor(entry)))
+        assertTrue(UsbInstallDexContract.entryOnlyAfterAccount(code, inputField, DexOperandIndex.descriptor(getter), DexOperandIndex.descriptor(entry)))
         val unguarded = code.copy(edges = code.edges + (5 to listOf(10)))
-        assertFalse(UsbInstallDexContract.entryOnlyAfterAccount(unguarded, inputField, CameraDexIndex.descriptor(getter), CameraDexIndex.descriptor(entry)))
+        assertFalse(UsbInstallDexContract.entryOnlyAfterAccount(unguarded, inputField, DexOperandIndex.descriptor(getter), DexOperandIndex.descriptor(entry)))
         val bypassed = code.copy(edges = code.edges + (20 to listOf(10)), roots = setOf(0, 20))
-        assertFalse(UsbInstallDexContract.entryOnlyAfterAccount(bypassed, inputField, CameraDexIndex.descriptor(getter), CameraDexIndex.descriptor(entry)))
+        assertFalse(UsbInstallDexContract.entryOnlyAfterAccount(bypassed, inputField, DexOperandIndex.descriptor(getter), DexOperandIndex.descriptor(entry)))
         val shortcutBeforeInputBranch = code.copy(
             calls = code.calls.map { it.copy(address = it.address + 100) },
             branches = code.branches.map { it.copy(start = it.start + 100, end = it.end + 100) },
@@ -123,7 +123,7 @@ class UsbInstallDexContractTest {
                 (0 to listOf(100, 110)),
         )
         assertFalse(UsbInstallDexContract.entryOnlyAfterAccount(shortcutBeforeInputBranch, inputField,
-            CameraDexIndex.descriptor(getter), CameraDexIndex.descriptor(entry)))
+            DexOperandIndex.descriptor(getter), DexOperandIndex.descriptor(entry)))
     }
 
     @Test fun `current Security Center APK satisfies the production DEX contracts`() {
@@ -145,7 +145,7 @@ class UsbInstallDexContractTest {
             digest.digest().joinToString("") { "%02x".format(it) },
         )
 
-        val dex = CameraDexIndex.open(apk.absolutePath)
+        val dex = DexOperandIndex.fixture(apk.absolutePath)
         val successCandidates = dex.declared(activity).flatMap { method ->
             val code = dex.code(method)
             code.reads.filter { it.definingClass == activity && it.type == "Z" }.mapNotNull { field ->
@@ -153,10 +153,10 @@ class UsbInstallDexContractTest {
                     code, "${field.definingClass}->${field.name}:${field.type}", activity, inputActivity,
                 )?.let { method to it }
             }
-        }.distinctBy { CameraDexIndex.descriptor(it.first) }
+        }.distinctBy { DexOperandIndex.descriptor(it.first) }
         assertEquals(1, successCandidates.size)
-        val successDescriptor = CameraDexIndex.descriptor(successCandidates.single().first)
-        assertEquals(CameraDexIndex.Value.Number(1), successCandidates.single().second.falseInput.arguments.last())
+        val successDescriptor = DexOperandIndex.descriptor(successCandidates.single().first)
+        assertEquals(DexOperandIndex.Value.Number(1), successCandidates.single().second.falseInput.arguments.last())
 
         val callbackCandidates = dex.strings("server result: ").filter { callback ->
             callback.definingClass.startsWith("${activity.removeSuffix(";")}\$") &&
@@ -168,25 +168,25 @@ class UsbInstallDexContractTest {
                 it.method.definingClass == activity && it.method.parameterTypes.isEmpty() && it.method.returnType == "V"
             }
             calls.size == 1 && UsbInstallDexContract.nullResponseCallsSuccess(
-                dex.code(callback), CameraDexIndex.descriptor(calls.single().method),
+                dex.code(callback), DexOperandIndex.descriptor(calls.single().method),
             )
-        }.distinctBy(CameraDexIndex::descriptor)
+        }.distinctBy(DexOperandIndex::descriptor)
         assertEquals(1, callbackCandidates.size)
 
         val networkCandidates = dex.declared(activity).filter { method ->
             val code = dex.code(method)
             code.hasString("connectivity") && code.calls.any {
-                CameraDexIndex.descriptor(it.method) == "Landroid/net/ConnectivityManager;->getActiveNetworkInfo()Landroid/net/NetworkInfo;"
+                DexOperandIndex.descriptor(it.method) == "Landroid/net/ConnectivityManager;->getActiveNetworkInfo()Landroid/net/NetworkInfo;"
             } && code.calls.any {
-                CameraDexIndex.descriptor(it.method) == "Landroid/net/NetworkInfo;->isConnected()Z"
+                DexOperandIndex.descriptor(it.method) == "Landroid/net/NetworkInfo;->isConnected()Z"
             } && code.calls.any { it.method.definingClass == "Landroid/os/AsyncTask;" && it.method.name == "executeOnExecutor" }
-        }.distinctBy(CameraDexIndex::descriptor)
+        }.distinctBy(DexOperandIndex::descriptor)
         assertEquals(1, networkCandidates.size)
         val entryCandidates = dex.declared(activity).filter { entry ->
             entry.parameterTypes.isEmpty() && entry.returnType == "V" && dex.code(entry).calls.any {
-                CameraDexIndex.descriptor(it.method) == CameraDexIndex.descriptor(networkCandidates.single())
+                DexOperandIndex.descriptor(it.method) == DexOperandIndex.descriptor(networkCandidates.single())
             }
-        }.distinctBy(CameraDexIndex::descriptor)
+        }.distinctBy(DexOperandIndex::descriptor)
         assertEquals(1, entryCandidates.size)
         val onCreate = dex.declared(activity).single {
             it.name == "onCreate" && it.parameterTypes.map(Any::toString) == listOf("Landroid/os/Bundle;") && it.returnType == "V"
@@ -194,7 +194,7 @@ class UsbInstallDexContractTest {
         val accountGetters = dex.code(onCreate).calls.filter {
             it.method.parameterTypes.map(Any::toString) == listOf("Landroid/content/Context;") &&
                 it.method.returnType == "Ljava/lang/String;"
-        }.distinctBy { CameraDexIndex.descriptor(it.method) }
+        }.distinctBy { DexOperandIndex.descriptor(it.method) }
         assertEquals(1, accountGetters.size)
         val onCreateCode = dex.code(onCreate)
         val inputFieldRead = dex.code(successCandidates.single().first).reads.filter {
@@ -202,8 +202,8 @@ class UsbInstallDexContractTest {
         }.map { "${it.definingClass}->${it.name}:${it.type}" }.distinct().single()
         assertTrue("onCreate does not read is_input into $inputFieldRead", UsbInstallDexContract.writesInputFlag(onCreateCode, inputFieldRead))
         val accountEntryPasses = UsbInstallDexContract.entryOnlyAfterAccount(
-            onCreateCode, inputFieldRead, CameraDexIndex.descriptor(accountGetters.single().method),
-            CameraDexIndex.descriptor(entryCandidates.single()),
+            onCreateCode, inputFieldRead, DexOperandIndex.descriptor(accountGetters.single().method),
+            DexOperandIndex.descriptor(entryCandidates.single()),
         )
         assertTrue("account getter=${accountGetters.single().method} entry=${entryCandidates.single()} " +
             "calls=${onCreateCode.calls} branches=${onCreateCode.branches} edges=${onCreateCode.edges}", accountEntryPasses)

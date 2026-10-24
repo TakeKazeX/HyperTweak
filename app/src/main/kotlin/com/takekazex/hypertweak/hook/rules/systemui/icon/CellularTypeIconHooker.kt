@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -72,7 +73,7 @@ object CellularTypeIconHooker : StaticHooker() {
         useCustom = false
         small5GaEnabled = false
         mobileTypeSingleViewId = 0
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             val drawables = synchronized(modifiedDrawables) {
                 modifiedDrawables.keys.toList().also { modifiedDrawables.clear() }
             }
@@ -293,11 +294,11 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     internal fun recoverOperatorConfig(component: Any) {
-        val policy = StatusIconHostAccess.provider(component, "miuiOperatorCustomizedPolicyProvider") ?: return
-        val method = StatusIconHostAccess.method(policy, "getMiuiOperatorConfig", Int::class.javaPrimitiveType!!) ?: return
-        val flows = StatusIconHostAccess.read(policy, "configFlows") as? Map<*, *> ?: return
+        val policy = HostAccess.provider(component, "miuiOperatorCustomizedPolicyProvider") ?: return
+        val method = HostAccess.method(policy, "getMiuiOperatorConfig", Int::class.javaPrimitiveType!!) ?: return
+        val flows = HostAccess.read(policy, "configFlows") as? Map<*, *> ?: return
         @Suppress("UNCHECKED_CAST")
-        val configs = StatusIconHostAccess.read(policy, "mOperatorConfigs") as? SparseArray<Any>
+        val configs = HostAccess.read(policy, "mOperatorConfigs") as? SparseArray<Any>
         flows.entries.toList().forEach { (slot, flow) ->
             val id = (slot as? Number)?.toInt() ?: return@forEach
             val config = method.invoke(policy, id) ?: return@forEach

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -39,7 +40,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         }
         val gate = semantics.unique("JPEG quality capability", readers.flatMap {
             semantics.dex.code(it).calls.map { call -> call.method }
-        }.filter { CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(profile.configType), "Z") }) ?: return
+        }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }) ?: return
         val methods = listOfNotNull(gate, profile.configInstance()?.javaClass?.let {
             profile.configMethod(it, gate.name, java.lang.Boolean.TYPE)
         }).distinct()
@@ -102,7 +103,7 @@ object CameraUltraQualityHooker : StaticHooker() {
             it.parameterTypes.contentEquals(arrayOf(CharSequence::class.java)) &&
                 it.returnType.name == "androidx.preference.Preference"
         } ?: return
-        val remove = semantics.unique("preference removal", semantics.dex.declared(CameraDexIndex.descriptor(groupClass)).filter { ref ->
+        val remove = semantics.unique("preference removal", semantics.dex.declared(DexOperandIndex.descriptor(groupClass)).filter { ref ->
             ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("Landroidx/preference/Preference;") &&
                 semantics.dex.code(ref).calls.any { it.method.name == "remove" && it.method.definingClass == "Ljava/util/ArrayList;" }
         }) ?: return

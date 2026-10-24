@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.ComponentName
@@ -125,7 +126,7 @@ object CameraImpersonationHooker : StaticHooker() {
             ?: return@runCatching false
         val ddf = semantics.unique("dynamic DDF config", semantics.dex.strings("dynamic_ddfid: ")
             .flatMap { semantics.dex.code(it).calls.map { call -> call.method } }
-            .filter { CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(profile.configType), "I") })
+            .filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "I") })
             ?: return@runCatching false
         fun stops(receiver: Any, mode: Int): FloatArray? {
             val getter = profile.configMethod(receiver.javaClass, profile.focalStops, SparseArray::class.java)
@@ -559,7 +560,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val gate = semantics.unique("native Leica sound/style capability",
             semantics.dex.strings("leica_default", "leica_mechanical").flatMap {
                 semantics.dex.code(it).calls.map { call -> call.method }
-            }.filter { CameraDexIndex.isInstanceGetter(it, CameraDexIndex.descriptor(profile.configType), "Z") }) ?: return
+            }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }) ?: return
         configDispatchClasses().mapNotNull { profile.configMethod(it, gate.name, java.lang.Boolean.TYPE) }
             .distinct().forEach { method ->
                 deoptimize(method)
@@ -1097,10 +1098,10 @@ object CameraImpersonationHooker : StaticHooker() {
         }
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
         val reader = masterLiveTypeMethod.get()?.let(semantics::reference) ?: return
-        val readers = setOf(CameraDexIndex.descriptor(reader))
+        val readers = setOf(DexOperandIndex.descriptor(reader))
         val method = semantics.unique("MasterLive slow-motion type", semantics.dex.strings("1").filter { ref ->
             Modifier.isStatic(ref.accessFlags) && ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("I") &&
-                semantics.dex.code(ref).calls.any { CameraDexIndex.descriptor(it.method) in readers }
+                semantics.dex.code(ref).calls.any { DexOperandIndex.descriptor(it.method) in readers }
         }) ?: return
         val clazz = method.declaringClass
         deoptimize(method)
@@ -1327,7 +1328,7 @@ object CameraImpersonationHooker : StaticHooker() {
         }
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
         val yMethod = semantics.anchored("mode order funnel", "pref_camera_sort_modes_key") {
-            it.definingClass == CameraDexIndex.descriptor(clazz) && it.returnType == "[I" && it.parameterTypes.size == 1
+            it.definingClass == DexOperandIndex.descriptor(clazz) && it.returnType == "[I" && it.parameterTypes.size == 1
         } ?: return
         deoptimize(yMethod)
         yMethod.hook("cam_masterlive_order_funnel") {
@@ -1347,7 +1348,7 @@ object CameraImpersonationHooker : StaticHooker() {
         }
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
         val eMethod = semantics.anchored("persisted mode support", "all_support_mode_list") {
-            it.definingClass == CameraDexIndex.descriptor(clazz) && it.returnType == "Z" &&
+            it.definingClass == DexOperandIndex.descriptor(clazz) && it.returnType == "Z" &&
                 it.parameterTypes.map(CharSequence::toString) == listOf("I")
         } ?: return
         deoptimize(eMethod)
@@ -1563,7 +1564,7 @@ object CameraImpersonationHooker : StaticHooker() {
             Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && List::class.java.isAssignableFrom(it.returnType)
         } ?: return
         val default = semantics.unique("shutter sound default", semantics.calls(selected).filter {
-            it.definingClass == CameraDexIndex.descriptor(selected.declaringClass) &&
+            it.definingClass == DexOperandIndex.descriptor(selected.declaringClass) &&
                 it.parameterTypes.isEmpty() && it.returnType == "I"
         }) ?: return
         deoptimize(selected)

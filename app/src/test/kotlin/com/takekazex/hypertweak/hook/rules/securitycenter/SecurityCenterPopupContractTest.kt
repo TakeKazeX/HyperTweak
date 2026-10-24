@@ -4,7 +4,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -67,7 +67,7 @@ class SecurityCenterPopupContractTest {
     @Test fun currentApkResolvesConnectedDisplayAndCleanupBoundaries() {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue("Set SECURITY_CENTER_APK for target verification", apk?.isFile == true)
-        val result = SecurityCenterPopupResolver(CameraDexIndex.open(apk!!.path)).resolve()
+        val result = SecurityCenterPopupResolver(DexOperandIndex.fixture(apk!!.path)).resolve()
         assertEquals(13, result.keys.count { it.startsWith("m.") })
         assertTrue(result.getValue("m.timing").endsWith("(IIILjava/lang/String;Ljava/lang/String;Ljava/util/Map;)V"))
         assertTrue(result.getValue("m.launch").contains("Ljava/util/List;"))
@@ -80,7 +80,7 @@ class SecurityCenterPopupContractTest {
     private fun fixture(duplicate: Boolean = false, missing: Boolean = false) {
         val apk = System.getenv("SECURITY_CENTER_APK")?.let(::File)
         assumeTrue("Set SECURITY_CENTER_APK for mutation checks", apk?.isFile == true)
-        val index = CameraDexIndex.open(apk!!.path)
+        val index = DexOperandIndex.fixture(apk!!.path)
         val contract = SecurityCenterPopupResolver(index).resolve()
         val members = contract.filterKeys { it.startsWith("m.") || it in setOf("singleton", "launchView") }.values
         val game = contract.getValue("m.wild").substringBefore("->")
@@ -99,7 +99,7 @@ class SecurityCenterPopupContractTest {
         val rewrite = DexRewriter(object : RewriterModule() {
             override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
             override fun getMethodReferenceRewriter(rewriters: Rewriters) = Rewriter<MethodReference> { ref ->
-                ImmutableMethodReference(type(ref.definingClass), names[CameraDexIndex.descriptor(ref)] ?: ref.name,
+                ImmutableMethodReference(type(ref.definingClass), names[DexOperandIndex.descriptor(ref)] ?: ref.name,
                     ref.parameterTypes.map { type(it.toString()) }, type(ref.returnType))
             }
             override fun getFieldReferenceRewriter(rewriters: Rewriters) = Rewriter<FieldReference> { ref ->
@@ -140,9 +140,9 @@ class SecurityCenterPopupContractTest {
                 }
             }
             if (duplicate || missing) {
-                assertThrows(RuntimeException::class.java) { SecurityCenterPopupResolver(CameraDexIndex.open(fixture.path)).resolve() }
+                assertThrows(RuntimeException::class.java) { SecurityCenterPopupResolver(DexOperandIndex.fixture(fixture.path)).resolve() }
             } else {
-                val result = SecurityCenterPopupResolver(CameraDexIndex.open(fixture.path)).resolve()
+                val result = SecurityCenterPopupResolver(DexOperandIndex.fixture(fixture.path)).resolve()
                 assertTrue(result.getValue("m.timing").startsWith("Lfixture/popups/"))
                 assertTrue(result.getValue("m.wild").contains("->member"))
                 assertTrue(result.getValue("singleton").contains("->member"))

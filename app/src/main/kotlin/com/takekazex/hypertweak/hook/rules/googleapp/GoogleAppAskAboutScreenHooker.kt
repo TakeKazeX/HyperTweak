@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.BooleanArgumentOverride
@@ -116,35 +117,50 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
 
     // ─── Installation ───────────────────────────────────────────────────────────
 
-    /**
-     * Installs the Ask Screen hooks from the shared Google App DexKit bridge. This mirrors the
-     * upstream runtime boundary: feature preferences are checked in the callbacks, not here, so
-     * a temporarily unavailable preference backend cannot prevent the native bridge from being
-     * prepared for this process.
-     */
-    internal fun installWithBridge(
-        bridge: DexKitBridge,
-        existingHookIds: Set<String> = emptySet()
-    ) {
-        prepareInstall(bridge, existingHookIds).invoke()
-    }
-
-    internal fun prepareInstall(bridge: DexKitBridge, existingHookIds: Set<String>): () -> Unit {
+    private data class Prepared(val thumbnail: Method, val deoptimizations: List<Executable>, val full: Targets?)
+    internal fun prepareInstall(apk: String, existingHookIds: Set<String>): () -> Unit {
         if (existingHookIds.containsAll(HOOK_IDS)) return {}
-        val thumbnail = resolveThumbnail(bridge) ?: return {
-            DebugLog.w(TAG, "Lensient thumbnail bridge unresolved; failing closed")
-        }
-        val resolved = resolveTargets(bridge, thumbnail)
-        if (resolved == null) {
-            val method = thumbnail.method
-            val deoptimizations = executablesWithCallers(thumbnail.data)
-            return {
-                deoptimizations.forEach(::deoptimize)
-                installThumbnail(method, existingHookIds)
-                DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
-            }
-        }
-        return { targets = resolved; install(resolved, existingHookIds) }
+        val prepared = resolveDexContract("googleapp.ask_screen", apk,
+            compute = compute@ { bridge ->
+                val thumbnail = resolveThumbnail(bridge) ?: return@compute null
+                val full = resolveTargets(bridge, thumbnail)
+                Prepared(thumbnail.method, full?.deoptimizations ?: executablesWithCallers(thumbnail.data), full)
+            },
+            encode = { prepared ->
+                val full = prepared.full
+                DexContractMembers.encode("thumbnail" to prepared.thumbnail, "deoptimizations" to prepared.deoptimizations,
+                    "eligibility" to full?.eligibility, "model" to full?.modelConstructor,
+                    "hint" to full?.hint, "coordinator" to full?.modelCoordinator, "entryOwner" to full?.entryOwner,
+                    "entry" to full?.entry, "capability" to full?.capability,
+                    "indices" to full?.aimBooleanParameterIndices?.joinToString(","))
+            },
+            decode = { members ->
+                val thumbnail = members.method("thumbnail")
+                require(!Modifier.isStatic(thumbnail.modifiers) && thumbnail.returnType == Boolean::class.javaPrimitiveType && thumbnail.parameterCount == 1 && !thumbnail.parameterTypes[0].isPrimitive)
+                val deoptimizations = members.executables("deoptimizations")
+                require(thumbnail in deoptimizations)
+                val full = members.optionalMethod("eligibility")?.let { eligibility ->
+                    val constructor = members.constructor("model")
+                    val hint = members.field("hint"); val coordinator = members.field("coordinator"); val entryOwner = members.field("entryOwner")
+                    val entry = members.method("entry"); val capability = members.optionalMethod("capability")
+                    require(listOf(eligibility, entry).all { !Modifier.isStatic(it.modifiers) && it.returnType == Boolean::class.javaPrimitiveType })
+                    require(listOf(hint, coordinator, entryOwner).all { !Modifier.isStatic(it.modifiers) })
+                    require(coordinator.declaringClass.isAssignableFrom(constructor.declaringClass) && entryOwner.declaringClass.isAssignableFrom(coordinator.type))
+                    require(entry.declaringClass.isAssignableFrom(entryOwner.type) && entry.parameterCount == 0)
+                    capability?.also { require(!Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) }
+                    val indices = findAimBooleanParameterIndices(constructor.parameterTypes)
+                    require(indices.joinToString(",") == members.text("indices"))
+                    Targets(thumbnail, eligibility, constructor, hint, coordinator, entryOwner, entry, capability, indices, deoptimizations)
+                }
+                Prepared(thumbnail, deoptimizations, full)
+            },
+        ) ?: return { DebugLog.w(TAG, "Lensient thumbnail bridge unresolved; failing closed") }
+        val resolved = prepared.full
+        return if (resolved == null) ({
+            prepared.deoptimizations.forEach(::deoptimize)
+            installThumbnail(prepared.thumbnail, existingHookIds)
+            DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
+        }) else ({ targets = resolved; install(resolved, existingHookIds) })
     }
 
     /** Replacement callbacks used before the new generation starts resolving DexKit. */

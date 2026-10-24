@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.Opcode
 import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.immutable.*
@@ -34,7 +34,7 @@ class NotificationIconFilterContractTest {
     private fun resolve(vararg classes: ImmutableClassDef): NotificationIconFilterContract.Target? {
         val file = temporary.newFile("${System.nanoTime()}.dex")
         DexPool.writeTo(file.absolutePath, ImmutableDexFile(Opcodes.getDefault(), classes.toList()))
-        return NotificationIconFilterContract.resolve(CameraDexIndex.open(file.absolutePath))
+        return NotificationIconFilterContract.resolve(DexOperandIndex.fixture(file.absolutePath))
     }
     @Test fun renamedPredicateAndCapturedFieldsResolveThroughTheirBranchOperands() {
         val owner = "Lcom/android/systemui/statusbar/notification/icon/renamed/Other;"
@@ -49,4 +49,21 @@ class NotificationIconFilterContractTest {
         assertNull(resolve(fixture(one, "invoke", "a", "b", false)))
         assertNull(resolve(fixture(one, "invoke", "a", "b"), fixture(two, "other", "c", "d")))
     }
+    private class ReplayPredicate {
+        @Suppress("unused") private var ambient = false
+        @Suppress("unused") private var silent = false
+        @Suppress("unused") fun invoke(value: Any): Any = value
+        @Suppress("unused") fun caller(value: Any): Any = invoke(value)
+    }
+    @org.junit.Test fun `full cache replay validates captured flags and every caller without a reader`() {
+        val type = ReplayPredicate::class.java
+        val target = NotificationIconFilterContract.Target(type.name, "invoke", "ambient", "silent", listOf(type.name to "caller"))
+        val encoded = NotificationIconFilterContract.encode(target)
+        val loader = type.classLoader!!
+        org.junit.Assert.assertEquals(target, NotificationIconFilterContract.decode(encoded, loader))
+        org.junit.Assert.assertNull(NotificationIconFilterContract.decode(encoded + ("silent" to "ambient"), loader))
+        org.junit.Assert.assertNull(NotificationIconFilterContract.decode(encoded + ("callers" to type.name + "#missing"), loader))
+        org.junit.Assert.assertNull(NotificationIconFilterContract.decode(encoded - "callers", loader))
+    }
+
 }

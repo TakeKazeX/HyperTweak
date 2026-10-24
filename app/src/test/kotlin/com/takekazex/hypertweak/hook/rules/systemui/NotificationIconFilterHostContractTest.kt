@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -9,7 +9,7 @@ class NotificationIconFilterHostContractTest {
     @Test fun actualPredicateDecodesCapturedFlagsAndNativeRebuildRatherThanSyntheticNames() {
         val path = System.getenv("SYSTEMUI_APK")
         assumeTrue(path != null)
-        val dex = CameraDexIndex.open(path!!)
+        val dex = DexOperandIndex.fixture(path!!)
         val target = NotificationIconFilterContract.resolve(dex)
         assertNotNull(target)
         assertNotEquals(target!!.ambientFlag, target.silentFlag)

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderWeatherHooker
@@ -67,7 +68,7 @@ internal object StatusIconHotReloadRecovery {
                 recoverFeature("lockscreen indications") {
                     component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->
                         // Rebuild native messages from current battery, biometric and transient state.
-                        val refresh = StatusIconHostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
+                        val refresh = HostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
                             ?: error("Missing native keyguard indication refresh")
                         refresh.invoke(indication, false)
                         read(indication, "mRotateTextViewController")?.let(LockscreenChargingDetailHooker::recoverController)

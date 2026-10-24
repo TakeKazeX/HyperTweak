@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.StaticFieldWriter
 import java.util.WeakHashMap
 import java.lang.reflect.Field
@@ -136,7 +136,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     private val nativeCapabilities = linkedMapOf<Field, Boolean>()
     private val backgrounds = WeakHashMap<View, Int>()
 
-    fun refreshSettings() = StatusIconHostAccess.onMain {
+    fun refreshSettings() = HostAccess.onMain {
         enabled = Preferences.freeformBlurTransition()
         nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original || enabled) }
         if (!enabled) restoreBackgrounds()
@@ -150,7 +150,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             restoreBackgrounds()
             nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original) }
             nativeCapabilities.clear()

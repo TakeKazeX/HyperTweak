@@ -23,6 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.libxposed.api.XposedInterface;
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime;
+import com.takekazex.hypertweak.hook.base.dex.DexFeature;
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec;
+import java.util.Collections;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
@@ -133,8 +136,14 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
         // BackAnimationController lives in a shared Shell jar on Android 17. Resolve the
         // actual loaded container, while the common runtime owns native loading and lifetime.
         String dexContainer = resolveDexContainerForLoadedClass(controllerClass);
-        Method resolved = DexRuntime.INSTANCE.query(
-                dexContainer, "backgesture.preparedTargetArrival", bridge -> {
+        android.content.Context context = resolveCurrentApplicationContext(classLoader);
+        Method resolved = DexRuntime.INSTANCE.resolve(
+                new DexFeature() {
+                    @Override public String getId() { return "backgesture.prepared_target_arrival"; }
+                    @Override public int getSchema() { return 1; }
+                }, dexContainer,
+                DexRuntime.INSTANCE.cacheDirectory(context == null ? null : context.getApplicationInfo()),
+                false, false, null, session -> session.dexKit(bridge -> {
             Method match = null;
             FindMethod query = FindMethod.create().matcher(
                     MethodMatcher.create()
@@ -158,7 +167,20 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
                 }
                 match = method;
             }
-            return match;
+            return match == null ? Collections.<String, String>emptyMap()
+                    : Collections.singletonMap("arrival", MethodDescriptorCodec.INSTANCE.descriptor(match));
+        }), (values, cached) -> {
+            try {
+                String descriptor = values.get("arrival");
+                if (descriptor == null || values.size() != 1) return null;
+                Method method = MethodDescriptorCodec.INSTANCE.method(descriptor, classLoader);
+                if (method == null) return null;
+                validatePreparedBackTargetArrivalSignature(method);
+                validatePreparedBackTargetArrivalAdapter(method.getDeclaringClass(), controllerClass, runnerStub);
+                return method;
+            } catch (Throwable rejected) {
+                return null;
+            }
         });
         if (resolved == null) {
             throw new NoSuchMethodException(

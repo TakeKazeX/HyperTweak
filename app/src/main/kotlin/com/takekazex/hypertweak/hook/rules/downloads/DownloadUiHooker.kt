@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.annotation.SuppressLint
@@ -329,7 +330,7 @@ object DownloadUiHooker : StaticHooker() {
     private data class DetailRenderer(val method: Method, val source: Field, val infoIndex: Int)
 
     private fun resolveDetailRenderer(apkPath: String, detailClass: Class<*>): DetailRenderer? =
-        DexRuntime.query(apkPath, "DownloadUiHooker.resolveDetailRenderer") { bridge ->
+        resolveDexContract("downloads.detail_renderer", apkPath, compute = compute@ { bridge ->
             val evidence = bridge.findMethod {
                 matcher {
                     declaredClass(detailClass.name, StringMatchType.Equals)
@@ -340,7 +341,7 @@ object DownloadUiHooker : StaticHooker() {
             }.mapNotNull { runCatching { it.getMethodInstance(classLoader) }.getOrNull() }
             val render = DownloadDetailContract.renderer(detailClass, evidence) {
                 Parcelable::class.java.isAssignableFrom(it)
-            } ?: return@query null
+            } ?: return@compute null
             val copyCalls = bridge.findMethod {
                 matcher {
                     declaredClass(detailClass.name, StringMatchType.Equals)
@@ -358,11 +359,19 @@ object DownloadUiHooker : StaticHooker() {
                 runCatching { it.field.getFieldInstance(classLoader) }.getOrNull()
             }
             val infoIndex = DownloadDetailContract.infoIndex(render) { Parcelable::class.java.isAssignableFrom(it) }
-                ?: return@query null
-            val source = DownloadDetailContract.source(render.parameterTypes[infoIndex], fields) ?: return@query null
+                ?: return@compute null
+            val source = DownloadDetailContract.source(render.parameterTypes[infoIndex], fields) ?: return@compute null
             DebugLog.d(TAG, "native detail contract renderer=${render.name} source=${source.name}")
             DetailRenderer(render, source, infoIndex)
-        }
+
+        }, encode = { target -> DexContractMembers.encode("render" to target.method, "source" to target.source, "index" to target.infoIndex.toString()) }, decode = { members ->
+            val render = members.method("render")
+            require(render.declaringClass == detailClass && isDetailRenderer(render))
+            val index = requireNotNull(DownloadDetailContract.infoIndex(render) { Parcelable::class.java.isAssignableFrom(it) })
+            require(index == members.text("index").toInt())
+            val source = requireNotNull(DownloadDetailContract.source(render.parameterTypes[index], listOf(members.field("source"))))
+            DetailRenderer(render, source, index)
+        })
 
     // Navigation methods share the browser extra and model; only the native detail binder
     // also renders its text. Keep this evidence independent of obfuscated class names.

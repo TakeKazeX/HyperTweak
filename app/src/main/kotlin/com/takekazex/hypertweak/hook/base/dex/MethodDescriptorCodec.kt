@@ -17,6 +17,23 @@ internal object MethodDescriptorCodec {
         "int" to "I", "long" to "J", "float" to "F", "double" to "D",
     )
 
+    fun descriptor(method: org.jf.dexlib2.iface.reference.MethodReference): String =
+        "${method.definingClass}->${method.name}(" + method.parameterTypes.joinToString("") + ")${method.returnType}"
+    fun descriptor(field: org.jf.dexlib2.iface.reference.FieldReference): String =
+        "${field.definingClass}->${field.name}:${field.type}"
+    fun descriptor(constructor: java.lang.reflect.Constructor<*>): String =
+        typeDescriptor(constructor.declaringClass) + "-><init>(" +
+            constructor.parameterTypes.joinToString("") { typeDescriptor(it) } + ")V"
+    fun type(value: String, loader: ClassLoader): Class<*>? = parseType(value, loader)
+    fun constructor(descriptor: String, loader: ClassLoader): java.lang.reflect.Constructor<*>? = runCatching {
+        val arrow = descriptor.indexOf("-><init>(")
+        require(arrow > 0 && descriptor.endsWith(")V"))
+        val owner = requireNotNull(classOf(descriptor.substring(0, arrow), loader))
+        val parameters = requireNotNull(parseTypes(descriptor.substring(arrow + 9, descriptor.length - 2), loader))
+        require(parameters.none { it == Void.TYPE })
+        owner.getDeclaredConstructor(*parameters.toTypedArray()).apply { isAccessible = true }
+    }.getOrNull()
+
     fun descriptor(method: Method): String = buildString {
         append(typeDescriptor(method.declaringClass))
         append("->")
@@ -57,6 +74,7 @@ internal object MethodDescriptorCodec {
         val name = rest.substring(0, open)
         val parameters = parseTypes(rest.substring(open + 1, close), loader) ?: return null
         val returnType = parseType(rest.substring(close + 1), loader) ?: return null
+        if (parameters.any { it == Void.TYPE }) return null
         val method = owner.getDeclaredMethod(name, *parameters.toTypedArray())
         if (typeDescriptor(method.returnType) != typeDescriptor(returnType)) return null
         method.isAccessible = true

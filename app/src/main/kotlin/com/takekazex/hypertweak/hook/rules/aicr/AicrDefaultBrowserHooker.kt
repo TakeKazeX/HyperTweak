@@ -11,7 +11,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -140,7 +140,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     }
 
     /** Synchronous refresh participates in the existing settings acknowledgment and upgrade recovery. */
-    fun refreshPresentation() = StatusIconHostAccess.onMain {
+    fun refreshPresentation() = HostAccess.onMain {
         val renderer = titleRenderer ?: return@onMain
         if (!isEnabled()) { renderer.clear(); return@onMain }
         val context = currentContext() ?: return@onMain
@@ -158,7 +158,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        StatusIconHostAccess.onMain { titleRenderer?.clear(); titleRenderer = null }
+        HostAccess.onMain { titleRenderer?.clear(); titleRenderer = null }
     }
     override fun recoverHotReloadHosts() { refreshPresentation() }
 

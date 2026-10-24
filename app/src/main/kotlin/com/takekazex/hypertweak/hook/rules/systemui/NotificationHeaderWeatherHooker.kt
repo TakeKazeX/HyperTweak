@@ -11,7 +11,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -67,7 +67,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     @Volatile private var enabled = false
     @Volatile private var retiring = false
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain {
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
         val weather = weatherSnapshot
         listOf(headers.keys.toList(), weather?.let {
             listOf(it.region, it.condition, it.temperature, it.rainProbability)
@@ -76,7 +76,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (!enabled) return@onMain
             (saved.getOrNull(1) as? List<*>)?.let { weather ->
                 weatherSnapshot = NotificationHeaderModel.WeatherSnapshot(
@@ -155,9 +155,9 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
         enabled = nextEnabled
         showRegion = nextRegion
         weatherType = nextType
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) {
-                (headers.keys.toList() + StatusIconHostAccess.headerRoots()).distinct()
+                (headers.keys.toList() + com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderRegistry.headerRoots()).distinct()
                     .filter { it.isAttachedToWindow }.forEach(::registerHeader)
                 headers.values.toList().forEach { state -> render(state.date); requestWeather(state.date) }
             } else if (changed) {
@@ -261,7 +261,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     private fun registerHeader(root: ViewGroup) {
         if (retiring || !enabled || headers.containsKey(root)) return
-        StatusIconHostAccess.noteHeaderRoot(root)
+        com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderRegistry.noteHeaderRoot(root)
         val date = (read(root, "mDateView") as? TextView)
             ?: root.findViewById(id(root, "date_time"))
             ?: return

@@ -7,7 +7,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHostAccess
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -26,9 +26,9 @@ object LockscreenDateHooker : StaticHooker() {
     /** Every living clock root; weak because the host owns the views. */
     private val roots = java.util.WeakHashMap<ViewGroup, Boolean>()
 
-    override fun saveHotReloadState(): Any = StatusIconHostAccess.onMain { bindings.keys.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain { bindings.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
-        StatusIconHostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
+        HostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
     }
     internal fun recoverExistingViews(views: List<View>) {
         // Also runs for an upgrade whose previous generation hid the dates but saved no enabled
@@ -40,7 +40,7 @@ object LockscreenDateHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             bindings.values.toList().forEach { it.dispose() }
             bindings.clear()
             roots.clear()
@@ -58,7 +58,7 @@ object LockscreenDateHooker : StaticHooker() {
         val next = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
         val changed = next != enabled
         enabled = next
-        StatusIconHostAccess.onMain {
+        HostAccess.onMain {
             if (enabled) {
                 roots.keys.toList().filter { it.isAttachedToWindow }.forEach { root -> runCatching { bind?.invoke(root) } }
             } else if (changed) {

@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
-import com.takekazex.hypertweak.hook.rules.camera.CameraDexIndex
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.iface.DexFile
@@ -26,7 +26,7 @@ class DarkModeScheduleContractTest {
         return file!!
     }
     @Test fun currentServicesResolvesBothAutomaticRoutesAndNativePublication() {
-        val contract = DarkModeScheduleResolver(CameraDexIndex.open(source().path)).resolve()
+        val contract = DarkModeScheduleResolver(DexOperandIndex.fixture(source().path)).resolve()
         assertTrue(contract.getValue("predicate").endsWith("()Z"))
         assertTrue(contract.getValue("wait").endsWith(":Z"))
         assertTrue(contract.getValue("update").endsWith("(II)V"))
@@ -35,7 +35,7 @@ class DarkModeScheduleContractTest {
     }
     private fun fixture(duplicate: Boolean = false, missing: Boolean = false) {
         val source = source()
-        val index = CameraDexIndex.open(source.path)
+        val index = DexOperandIndex.fixture(source.path)
         val contract = DarkModeScheduleResolver(index).resolve()
         val owner = contract.getValue("predicate").substringBefore("->")
         // Include connected inner service objects and the abstract property holder; retain external
@@ -44,11 +44,11 @@ class DarkModeScheduleContractTest {
         val names = owners.withIndex().associate { it.value to "Lfixture/dark/Host${it.index};" }
         fun type(value: String) = names[value] ?: value
         val methodNames = index.methods.filter { it.definingClass in owners && it.accessFlags and 2 != 0 && it.name != "<init>" }
-            .withIndex().associate { CameraDexIndex.descriptor(it.value) to "private${it.index}" }
+            .withIndex().associate { DexOperandIndex.descriptor(it.value) to "private${it.index}" }
         val rewriter = DexRewriter(object : RewriterModule() {
             override fun getTypeRewriter(rewriters: Rewriters) = Rewriter<String>(::type)
             override fun getMethodReferenceRewriter(rewriters: Rewriters) = Rewriter<MethodReference> { ref ->
-                ImmutableMethodReference(type(ref.definingClass), methodNames[CameraDexIndex.descriptor(ref)] ?: ref.name,
+                ImmutableMethodReference(type(ref.definingClass), methodNames[DexOperandIndex.descriptor(ref)] ?: ref.name,
                     ref.parameterTypes.map { type(it.toString()) }, type(ref.returnType))
             }
             override fun getFieldReferenceRewriter(rewriters: Rewriters) = Rewriter<FieldReference> { ref ->
@@ -81,9 +81,9 @@ class DarkModeScheduleContractTest {
                 if (duplicate) write("classes2.dex", graph(false))
             }
             if (duplicate || missing) assertThrows(RuntimeException::class.java) {
-                DarkModeScheduleResolver(CameraDexIndex.open(fixture.path)).resolve()
+                DarkModeScheduleResolver(DexOperandIndex.fixture(fixture.path)).resolve()
             } else {
-                val result = DarkModeScheduleResolver(CameraDexIndex.open(fixture.path)).resolve()
+                val result = DarkModeScheduleResolver(DexOperandIndex.fixture(fixture.path)).resolve()
                 assertTrue(result.getValue("predicate").startsWith("Lfixture/dark/"))
                 assertTrue(result.getValue("predicate").contains("->private"))
                 assertTrue(result.getValue("wait").contains("->renamed_"))

@@ -94,14 +94,14 @@ object GoogleAppRuntime : StaticHooker() {
     private fun deferFeatureTargets(apk: String, carried: Set<String>, lensResolved: Boolean) {
         prepareDexTargets(name = "googleapp.omni",
             resolve = {
-                DexRuntime.withSession(apk) { session -> session.dexKit { bridge ->
+                DexRuntime.withScope(apk) {
                     listOfNotNull(
-                        runCatching { GoogleAppLiveTranslateHooker.prepareInstall(bridge, carried) }
+                        runCatching { GoogleAppLiveTranslateHooker.prepareInstall(apk, carried) }
                             .onFailure { DebugLog.e(TAG, "Live Translate resolution failed", it) }.getOrNull(),
-                        runCatching { GoogleAppAskAboutScreenHooker.prepareInstall(bridge, carried) }
+                        runCatching { GoogleAppAskAboutScreenHooker.prepareInstall(apk, carried) }
                             .onFailure { DebugLog.e(TAG, "Ask Screen resolution failed", it) }.getOrNull(),
                     )
-                } }
+                }
             },
             install = { actions ->
                 actions.forEach { action -> runCatching(action)
