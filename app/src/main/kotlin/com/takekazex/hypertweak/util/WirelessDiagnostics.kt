@@ -21,7 +21,7 @@ internal data class WirelessReading(val property: String, val service: String) {
         !supported -> WirelessState.UNSUPPORTED
         enabled == false && service == "running" -> WirelessState.ABNORMAL
         enabled == true && service == "running" -> WirelessState.RUNNING
-        enabled == false || service == "stopped" -> WirelessState.STOPPED
+        service == "stopped" -> WirelessState.STOPPED
         else -> WirelessState.UNKNOWN
     }
 }
@@ -106,7 +106,11 @@ internal class WirelessDiagnosticsEngine(
                     printf '0\t/data/vendor/wlan_logs\n'
                 fi
             """.trimIndent()).trim()
-            val size = output.substringBefore('\t').substringBefore(' ').toLongOrNull()
+            val columns = output.split(Regex("\\s+"))
+            check(columns.size == 2 && columns[1] == WirelessLogPath.DIRECTORY) {
+                "invalid disk usage response"
+            }
+            val size = columns[0].toLongOrNull()
             check(size != null && size >= 0) { "invalid disk usage response" }
             WirelessResult(snapshot.copy(sizeKiB = size))
         } catch (e: Exception) {
@@ -128,7 +132,13 @@ internal class WirelessDiagnosticsEngine(
             var writeFailure: String? = null
             try { run("setprop ${logger.property} $enabled") }
             catch (e: Exception) { writeFailure = reason(e) }
-            last = readings()
+            // A failed verification must not hide a known write error or show pre-write state.
+            last = try { readings() } catch (e: Exception) {
+                return WirelessResult(
+                    failure = if (writeFailure != null) WirelessFailure.SET_PROPERTY else WirelessFailure.QUERY,
+                    detail = listOfNotNull(writeFailure, "readback: ${reason(e)}").joinToString("; ")
+                )
+            }
             if (last[logger].enabled != enabled) {
                 return withSize(last).copy(failure = WirelessFailure.SET_PROPERTY,
                     detail = writeFailure ?: "property readback differs from requested value")
@@ -140,8 +150,8 @@ internal class WirelessDiagnosticsEngine(
                 return withSize(last).copy(failure = WirelessFailure.SET_PROPERTY, detail = writeFailure)
             }
             val expected = if (enabled) "running" else "stopped"
-            val deadline = nanoTime() + 5_000_000_000L
-            while (last[logger].service != expected && nanoTime() < deadline) {
+            val started = nanoTime()
+            while (last[logger].service != expected && nanoTime() - started < 5_000_000_000L) {
                 sleep(200)
                 last = readings()
                 if (last[logger].enabled != enabled) break
@@ -149,8 +159,10 @@ internal class WirelessDiagnosticsEngine(
             val refreshed = withSize(last)
             if (last[logger].enabled == enabled) rememberApplied(logger, enabled)
             when {
-                last[logger].enabled != enabled -> refreshed.copy(failure = WirelessFailure.SET_PROPERTY)
-                last[logger].service != expected -> refreshed.copy(failure = WirelessFailure.SERVICE_TRANSITION)
+                last[logger].enabled != enabled -> refreshed.copy(failure = WirelessFailure.SET_PROPERTY,
+                    detail = "${logger.property} changed during verification: ${last[logger].property}")
+                last[logger].service != expected -> refreshed.copy(failure = WirelessFailure.SERVICE_TRANSITION,
+                    detail = "${logger.property}=$enabled; ${logger.service}=${last[logger].service}; expected $expected")
                 else -> refreshed
             }
         } catch (e: Exception) {
@@ -165,7 +177,13 @@ internal class WirelessDiagnosticsEngine(
             if (!before.cnss.supported) return WirelessResult(before)
             try { run(WirelessLogPath.cleanupScript()) }
             catch (e: Exception) {
-                return withSize(readings()).copy(failure = WirelessFailure.CLEANUP, detail = reason(e))
+                // Refresh is secondary: preserve the cleanup failure even if root/read access is
+                // lost afterward, and never reuse the snapshot from before the deletion attempt.
+                val refreshed = try { withSize(readings()) } catch (readError: Exception) {
+                    WirelessResult(failure = WirelessFailure.QUERY, detail = reason(readError))
+                }
+                return refreshed.copy(failure = WirelessFailure.CLEANUP,
+                    detail = listOf(reason(e), refreshed.detail).filter { it.isNotBlank() }.joinToString("; "))
             }
             withSize(readings())
         } catch (e: Exception) {
@@ -173,7 +191,12 @@ internal class WirelessDiagnosticsEngine(
         }
     }
 
-    private fun reason(e: Exception): String = (e.cause?.message ?: e.message ?: e.javaClass.simpleName).take(300)
+    private fun reason(e: Exception): String {
+        val cause = if (e is java.util.concurrent.ExecutionException) e.cause ?: e else e
+        val output = (cause as? NativeRootCommand.CommandFailure)?.output
+            ?.toString(Charsets.UTF_8)?.trim()?.takeIf { it.isNotEmpty() }
+        return listOfNotNull(cause.message ?: cause.javaClass.simpleName, output).joinToString(": ").take(300)
+    }
 }
 
 internal object WirelessDiagnostics {

@@ -76,6 +76,9 @@ class WirelessDiagnosticsTest {
         assertEquals(WirelessState.STOPPED, WirelessReading("true", "stopped").state)
         assertEquals(WirelessState.STOPPED, WirelessReading("false", "stopped").state)
         assertEquals(WirelessState.UNKNOWN, WirelessReading("true", "restarting").state)
+        listOf("", "restarting", "stopping", "unexpected").forEach {
+            assertEquals(WirelessState.UNKNOWN, WirelessReading("false", it).state)
+        }
         assertEquals(WirelessState.UNKNOWN, WirelessReading("unexpected", "running").state)
         assertEquals(WirelessState.UNSUPPORTED, WirelessReading("", "").state)
     }
@@ -225,6 +228,54 @@ class WirelessDiagnosticsTest {
         val result = d.engine.clearLogs()
         assertEquals(WirelessFailure.CLEANUP, result.failure)
         assertEquals(441344L, result.snapshot!!.sizeKiB)
+    }
+
+    @Test fun `write rejection survives a failed readback without exposing stale state`() {
+        val d = Device().apply { rejectWrite = true; queryFailsAt = 2 }
+        val result = d.engine.setEnabled(WirelessLogger.CNSS, false)
+        assertEquals(WirelessFailure.SET_PROPERTY, result.failure)
+        assertNull(result.snapshot)
+        assertTrue(result.detail.contains("SELinux"))
+        assertTrue(result.detail.contains("getprop denied"))
+    }
+
+    @Test fun `cleanup rejection survives a failed refresh without exposing stale state`() {
+        val d = Device().apply { rejectCleanup = true; queryFailsAt = 2 }
+        val result = d.engine.clearLogs()
+        assertEquals(WirelessFailure.CLEANUP, result.failure)
+        assertNull(result.snapshot)
+        assertTrue(result.detail.contains("cleanup denied"))
+        assertTrue(result.detail.contains("getprop denied"))
+    }
+
+    @Test fun `usage requires a single measurement for the exact directory`() {
+        listOf("12 /other", "12", "12 /data/vendor/wlan_logs\nwarning", "12 /data/vendor/wlan_logs extra").forEach {
+            val result = Device().apply { size = it }.engine.query()
+            assertEquals(WirelessFailure.STORAGE, result.failure)
+            assertNull(result.snapshot!!.sizeKiB)
+        }
+    }
+
+    @Test fun `transition timeout is bounded across monotonic clock overflow`() {
+        val d = Device().apply { followProperty = false; now = Long.MAX_VALUE - 100_000_000L }
+        val started = d.now
+        val result = d.engine.setEnabled(WirelessLogger.CNSS, false)
+        assertEquals(WirelessFailure.SERVICE_TRANSITION, result.failure)
+        assertEquals(5_000_000_000L, d.now - started)
+        assertTrue(result.detail.contains("expected stopped"))
+    }
+
+    @Test fun `root command diagnostics retain bounded stderr through executor wrapping`() {
+        val engine = WirelessDiagnosticsEngine(run = {
+            if (it == "id -u") "0" else throw java.util.concurrent.ExecutionException(
+                NativeRootCommand.CommandFailure(61, ("getprop denied " + "x".repeat(1000)).toByteArray())
+            )
+        })
+        val result = engine.query()
+        assertEquals(WirelessFailure.QUERY, result.failure)
+        assertTrue(result.detail.contains("status 61"))
+        assertTrue(result.detail.contains("getprop denied"))
+        assertTrue(result.detail.length <= 300)
     }
 
     @Test fun `cleanup accepts only the literal log directory and rejects traversal or shell payloads`() {
