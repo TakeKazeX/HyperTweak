@@ -285,7 +285,6 @@ class HookEntry : XposedModule() {
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
         if (skipGoogleProcess) return true
-        preferenceRetryGeneration.incrementAndGet()
         DebugLog.d(
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
@@ -298,46 +297,53 @@ class HookEntry : XposedModule() {
             return false
         }
         iconSettingsLock.lock()
-        val ready = try { runCatching {
-            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
-            AospBackSystemUiHooker.checkHotReloadReady()
-            refreshHotReloadSnapshots()
-            if (!DexKitManager.prepareForHotReload()) {
-                error("DexKit native bridge users are still active")
+        val ready = try { com.takekazex.hypertweak.hook.base.HotReloadRetirement.run(
+            preflight = {
+                if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
+                AospBackSystemUiHooker.checkHotReloadReady()
+                refreshHotReloadSnapshots()
+                check(DexKitManager.prepareForHotReload()) { "DexKit native bridge users are still active" }
+                val roots = rootHookers.toList()
+                val state = HotReloadState.save(
+                    processName = processName,
+                    isSystemServer = isSystemServer,
+                    systemServerClassLoader = systemServerClassLoader,
+                    packages = packageStates.values,
+                    hookerStates = roots.associate { it.hookerName to it.saveHotReloadState() } +
+                        mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot(),
+                            "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save())
+                )
+                // The framework must accept the recovery payload before any host is retired.
+                param.setSavedInstanceState(state)
+                buildList<() -> Unit> {
+                    add { generationRetired = true; remoteSettingsReady = false; preferenceRetryGeneration.incrementAndGet() }
+                    if (processName == "com.android.systemui") add {
+                        com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
+                    }
+                    roots.forEach { root -> add { root.prepareForHotReload() } }
+                    roots.forEach { root -> add { root.resetAfterHotReloadPrepared() } }
+                    add { rootHookers.clear() }
+                    if (processName.substringBefore(':') == "com.android.systemui") add {
+                        com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.retire(this@HookEntry)
+                    }
+                    add { detachRuntimePreferencesListener() }
+                    if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty())
+                        add { runtimeSettingsReceiver.close() }
+                    add { RuntimeSettingsPreferences.clearObservers() }
+                    add { runtimeContextRetry.cancel() }
+                    add { try { nativeRuleStatePublisher?.close() } finally { nativeRuleStatePublisher = null } }
+                    add { DebugLog.prepareForHotReload() }
+                }
+            },
+            rejected = { error ->
+                DexKitManager.cancelHotReloadPreparation()
+                DebugLog.e("HookEntry", "hot reload preflight failed; old hooks untouched", error)
+                if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
+            },
+            cleanupFailed = { error ->
+                DebugLog.e("HookEntry", "hot reload cleanup incomplete; accepting replacement for recovery", error)
             }
-            val hyperTweakState = HotReloadState.save(
-                processName = processName,
-                isSystemServer = isSystemServer,
-                systemServerClassLoader = systemServerClassLoader,
-                packages = packageStates.values,
-                hookerStates = rootHookers.associate { it.hookerName to it.saveHotReloadState() } +
-                    mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot(),
-                        "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save())
-            )
-            if (processName == "com.android.systemui") {
-                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
-            }
-            rootHookers.forEach { it.prepareForHotReload() }
-            rootHookers.forEach { it.resetAfterHotReloadPrepared() }
-            rootHookers.clear()
-            if (processName.substringBefore(':') == "com.android.systemui")
-                com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.retire(this)
-            param.setSavedInstanceState(hyperTweakState)
-            DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
-            detachRuntimePreferencesListener()
-            remoteSettingsReady = false
-            generationRetired = true
-            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.close()
-            RuntimeSettingsPreferences.clearObservers()
-            runtimeContextRetry.cancel()
-            nativeRuleStatePublisher?.close()
-            nativeRuleStatePublisher = null
-            DebugLog.prepareForHotReload()
-        }.onFailure { t ->
-            DexKitManager.cancelHotReloadPreparation()
-            DebugLog.e("HookEntry", "hot reload preparation failed; keeping old generation active", t)
-            if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
-        }.isSuccess } finally { iconSettingsLock.unlock() }
+        ) } finally { iconSettingsLock.unlock() }
         return ready
     }
 

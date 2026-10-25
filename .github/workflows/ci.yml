@@ -45,6 +45,14 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew :app:testDebugUnitTest
 
+      - name: Verify architecture boundaries
+        run: |
+          python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+          python3 .github/scripts/check_architecture.py
+
+      - name: Run native sanitizer regressions
+        run: python3 app/src/test/cpp/run_portable_native_tests.py --include-linux-worker
+
       - name: Run Lint
         run: ./gradlew :app:lintDebug
 

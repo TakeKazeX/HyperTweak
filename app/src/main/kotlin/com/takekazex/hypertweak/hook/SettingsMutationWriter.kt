@@ -141,18 +141,18 @@ internal class SettingsMutationWriter(private val storage: Storage) {
             }
         }
         if (isLocalOnly || localSourcePrefs === remotePrefs) return commit()
-        return runCatching { serializedWriter.submit<Boolean> { commit() }.get(5, TimeUnit.SECONDS) }
+        return runCatching { AcknowledgedSettingsTask.run(serializedWriter) { commit() } }
             .onFailure { SettingsDiagnostics.e("Preferences", "waiting for settings mutation failed", it) }.getOrDefault(false)
     }
 
     /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
-    fun commitDockBackground(value: String): Boolean {
+    fun commitDockBackground(value: String): Boolean = synchronized(settingsMutationLock) {
         if (com.takekazex.hypertweak.settings.contract.DockConfig.decode(value) == null || !isInitialized) return false
         val key = com.takekazex.hypertweak.settings.contract.DockConfig.KEY
-        fun commit(): Boolean = synchronized(settingsMutationLock) {
+        fun commit(): Boolean {
             val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
             val previous = if (previousRuntime != null) previousRuntime.values[key] as? String else remotePrefs.getString(key, null)
-            try {
+            return try {
                 val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepare(key, value)
                 val editor = remotePrefs.edit().putString(key, value)
                 runtime?.let { RuntimeSettingsSignal.write(editor, it) }
@@ -181,7 +181,7 @@ internal class SettingsMutationWriter(private val storage: Storage) {
             }
         }
         return if (isLocalOnly || localSourcePrefs === remotePrefs) commit()
-        else runCatching { serializedWriter.submit<Boolean> { commit() }.get() }
+        else runCatching { AcknowledgedSettingsTask.run(serializedWriter) { commit() } }
             .onFailure { SettingsDiagnostics.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
     }
 

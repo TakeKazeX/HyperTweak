@@ -16,6 +16,22 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+Architecture changes also run `python3 .github/scripts/check_architecture.py` and
+`python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers
+Kotlin/Java imports and fully qualified source references, not reflection or runtime wiring.
+Portable native ownership/IPC/transport checks run through
+`python3 app/src/test/cpp/run_portable_native_tests.py` (ASan/UBSan, no target artifacts).
+Linux CI adds `--include-linux-worker` for eventfd/fork/remap tests. On macOS use
+the dedicated Android compiler/Bionic worker command below when device checks are requested.
+Host APK/ELF and assembly ABI checks remain separately selected; this suite does not replace them.
+
+API-102 retirement has a commit boundary: state capture and framework saved-state publication
+must succeed before destructive cleanup. Preflight failures reject replacement; after cleanup
+starts, run every retirement step and accept the next generation even if one step fails.
+Do not report a partially retired owner as a healthy old generation. Settings queue deadlines
+may cancel unstarted bulk/Dock work; started commits must return their actual receipt before
+the caller updates local mirrors or reports success/failure. These waits belong on IO dispatchers.
+
 Configuration Cache is enabled with `problems=fail`; fix incompatibilities rather than
 switching artifact builds to warn mode. AGP is pinned to `9.5.0-rc01` because it removes
 the internal `Configuration.setVisible` calls deprecated by Gradle 9.8; `9.4.1` still

@@ -43,7 +43,7 @@ object AODHooker : StaticHooker() {
     private var refreshingPolicy = false
     private var generation = 0
     private var cacheChangedAtAttach = false
-    private val dozeCallbacks = mutableListOf<Triple<Any, Any, String>>()
+    private val dozeCallbacks = mutableListOf<Array<Any>>()
     private var dozeCallbackTypes: Map<String, Class<*>> = emptyMap()
     private data class PreparedTargets(val callers: List<Executable>, val callbacks: Map<String, Class<*>>)
 
@@ -328,8 +328,10 @@ object AODHooker : StaticHooker() {
                 fields.single().apply { isAccessible = true }.set(callback, host)
                 val method = NativeCallbackRegistration.select(controller.javaClass.methods, add, type)
                     ?: error("native typed callback registration missing or ambiguous: $add")
+                val release = NativeCallbackRegistration.select(controller.javaClass.methods, remove, type)
+                    ?: error("native typed callback release missing or ambiguous: $remove")
                 method.invoke(controller, callback)
-                dozeCallbacks += Triple(controller, callback, remove)
+                dozeCallbacks += arrayOf(controller, callback, release)
             }
             register(config, HostAccess.read(config, "listeners"), "onOrientationChanged", "addCallback", "removeCallback")
             register(tasks, HostAccess.read(taskImpl, "mTaskStackListeners"), "onLockTaskModeChanged",
@@ -362,10 +364,27 @@ object AODHooker : StaticHooker() {
         }.onFailure { DebugLog.w("AOD", "native manager recovery unavailable", it) }
     }
 
-    override fun saveHotReloadState(): Any = HostAccess.onMain { managers.keys.toList() }
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
+        // Boot/host objects only. Retirement removes successful releases from this shared list;
+        // the replacement inherits exactly the failures, without retaining old module classes.
+        arrayOf(managers.keys.toList(), dozeCallbacks)
+    }
     override fun restoreHotReloadState(state: Any?) = HostAccess.onMain {
-        (state as? List<*>)?.filterNotNull()?.filter { it.javaClass.name == MANAGER }?.forEach(::rememberManager)
+        val saved = state as? Array<*>
+        (saved?.getOrNull(1) as? List<*>)?.forEach { item ->
+            val record = item as? Array<*> ?: return@forEach
+            val controller = record.getOrNull(0) ?: return@forEach
+            val callback = record.getOrNull(1) ?: return@forEach
+            val release = record.getOrNull(2) as? java.lang.reflect.Method ?: return@forEach
+            dozeCallbacks += arrayOf(controller, callback, release)
+        }
+        releaseDozeCallbacks()
+        ((saved?.getOrNull(0) ?: state) as? List<*>)?.filterNotNull()
+            ?.filter { it.javaClass.name == MANAGER }?.forEach(::rememberManager)
         Unit
+    }
+    private fun releaseDozeCallbacks() = NativeCallbackRegistration.release(dozeCallbacks) {
+        DebugLog.w("AOD", "native callback release failed; retaining lease for retry", it)
     }
     override fun recoverHotReloadHosts() { refreshSettings() }
 
@@ -373,12 +392,7 @@ object AODHooker : StaticHooker() {
         generation++
         main.removeCallbacksAndMessages(null)
         enabled = false
-        dozeCallbacks.forEach { (controller, callback, remove) ->
-            runCatching { controller.javaClass.methods.single {
-                it.name == remove && it.parameterCount == 1 && it.parameterTypes[0].isInstance(callback)
-            }.invoke(controller, callback) }.onFailure { DebugLog.w("AOD", "native callback release failed", it) }
-        }
-        dozeCallbacks.clear()
+        releaseDozeCallbacks()
         dozeCallbackTypes = emptyMap()
         observer?.let { observerContext?.contentResolver?.unregisterContentObserver(it) }
         observer = null

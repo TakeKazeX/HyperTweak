@@ -636,8 +636,8 @@ internal fun AppContent(
                         }
                     },
                     onClearAllSettings = { restartAllScopes, restartHyperTweak ->
-                        // clearAllSettings() waits on the daemon-backed commit (up to 5 s via
-                        // commitRemoteMutation), so it must not run on the main thread: invoking it
+                        // clearAllSettings() waits for the actual daemon-backed commit receipt via
+                        // commitRemoteMutation, so it must not run on the main thread: invoking it
                         // inline from the dialog's onClick froze the UI long enough to ANR.
                         coroutineScope.launch {
                             val cleared = withContext(Dispatchers.IO) { settings.storage.backup.clearAllSettings() }

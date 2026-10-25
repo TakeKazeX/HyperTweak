@@ -17,6 +17,18 @@ class ArchitectureRound7HostContractTest {
         return container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
     }
 
+    @Test fun aodCallbackReleaseHasTheExpectedTypedAndBridgeContracts() {
+        val controller = classes("GESTURE_BAR_SYSTEMUI_APK")
+            .getValue("Lcom/android/systemui/statusbar/phone/ConfigurationControllerImpl;")
+        val releases = controller.methods.filter { it.name == "removeCallback" }
+        val typed = releases.single { it.parameterTypes.map { p -> p.toString() } ==
+            listOf("Lcom/android/systemui/statusbar/policy/ConfigurationController\$ConfigurationListener;") }
+        assertEquals("V", typed.returnType)
+        assertEquals(0, typed.accessFlags and (8 or 64 or 4096))
+        val bridge = releases.single { it.parameterTypes.map { p -> p.toString() } == listOf("Ljava/lang/Object;") }
+        assertEquals(64 or 4096, bridge.accessFlags and (64 or 4096))
+    }
+
     @Test fun headerBaselineAndOptionalCallbacksKeepTheirExecutingContracts() {
         val classes = classes("GESTURE_BAR_SYSTEMUI_APK")
         val controller = classes.getValue("Lcom/android/systemui/controlcenter/shade/NotificationHeaderExpandController;")
