@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -28,10 +29,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -48,26 +48,28 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Options for the lockscreen charging detail (Features → System UI → Lockscreen → Charging Detail Options).
- * State is kept locally and written straight into [Preferences]; the hooker re-reads these keys on
+ * State is kept locally and written straight into [AppSettingsStore]; the hooker re-reads these keys on
  * every render, so every option here applies live. The master switch installs the hook, so it
  * needs a SystemUI restart, offered through the in-page Restart SystemUI row.
  */
 @Composable
 fun ChargingDetailPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
     }
     var twoRows by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
     }
     var intervalMs by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
                 LockscreenChargingOptions.DEFAULT_INTERVAL_MS
             )
@@ -75,7 +77,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     }
     var fields by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
                 LockscreenChargingOptions.DEFAULT_FIELDS
             )
@@ -105,7 +107,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
                         },
                         title = stringResource(R.string.charging_enabled_title),
                         summary = stringResource(R.string.charging_enabled_summary)
@@ -115,8 +117,8 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         summary = stringResource(R.string.charging_restart_summary),
                         enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                         onClick = {
-                            Preferences.flush()
-                            RestartUtils.restartScope(
+                            settingsStore.flush()
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = RestartScopeSelection(systemUi = true),
@@ -135,7 +137,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                     checked = twoRows,
                     onCheckedChange = { checked ->
                         twoRows = checked
-                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
+                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
                     },
                     title = stringResource(R.string.charging_two_rows_title),
                     summary = stringResource(R.string.charging_two_rows_summary)
@@ -163,7 +165,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { index ->
                             listOf(1000, 2000, 3000, 5000).getOrNull(index)?.let { ms ->
                                 intervalMs = ms
-                                Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, ms)
+                                settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, ms)
                             }
                         }
                     )
@@ -181,7 +183,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         bit = LockscreenChargingOptions.FIELD_WATTAGE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingOptions.FIELD_VOLTAGE) != 0,
@@ -191,7 +193,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         bit = LockscreenChargingOptions.FIELD_VOLTAGE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingOptions.FIELD_CURRENT) != 0,
@@ -201,7 +203,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         bit = LockscreenChargingOptions.FIELD_CURRENT
                     ) { value ->
                         fields = value
-                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
                         checked = (fields and LockscreenChargingOptions.FIELD_TEMPERATURE) != 0,
@@ -211,7 +213,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         bit = LockscreenChargingOptions.FIELD_TEMPERATURE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                 }
             }

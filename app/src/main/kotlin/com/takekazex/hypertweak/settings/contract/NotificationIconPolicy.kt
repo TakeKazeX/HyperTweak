@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui
+package com.takekazex.hypertweak.settings.contract
 
 /** HyperOS Chinese UI labels: urgent=4, high=3, medium=2, low=1. */
 internal object NotificationIconPolicy {

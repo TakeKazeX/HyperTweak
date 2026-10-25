@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -31,10 +32,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -56,6 +56,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Settings for OS4's new-control-center notification header. */
 @Composable
 fun NotificationHeaderPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -64,23 +66,23 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
 
     var restartPending by rememberSaveable { mutableStateOf(false) }
     var hideCarrier by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false))
     }
     var hideTime by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false))
     }
     var hideDate by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false))
     }
     var dateAboveTime by remember {
         mutableStateOf(
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
+            settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
         )
     }
     var dateAlignment by remember {
         mutableIntStateOf(
             NotificationHeaderModel.normalizeAlignment(
-                Preferences.getInt(
+                settingsStore.getInt(
                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
                     NotificationHeaderModel.ALIGN_START
                 )
@@ -90,7 +92,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
     var timeAlignment by remember {
         mutableIntStateOf(
             NotificationHeaderModel.normalizeAlignment(
-                Preferences.getInt(
+                settingsStore.getInt(
                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
                     NotificationHeaderModel.ALIGN_START
                 )
@@ -100,24 +102,24 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
     var timeScale by remember {
         mutableFloatStateOf(
             NotificationHeaderModel.normalizeTimeScale(
-                Preferences.getNotificationHeaderTimeScale()
+                settingsStore.systemUi.getNotificationHeaderTimeScale()
             )
         )
     }
     var weatherEnabled by remember {
         mutableStateOf(
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+            settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
         )
     }
     var weatherRegion by remember {
         mutableStateOf(
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+            settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
         )
     }
     var weatherType by remember {
         mutableIntStateOf(
             NotificationHeaderModel.normalizeWeatherType(
-                Preferences.getInt(
+                settingsStore.getInt(
                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
                     NotificationHeaderModel.WEATHER_CONDITION
                 )
@@ -169,8 +171,8 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                             summary = stringResource(R.string.notification_header_restart_summary),
                             enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
+                                settingsStore.flush()
+                                services.restarts.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true),
@@ -192,7 +194,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         checked = hideCarrier,
                         onCheckedChange = {
                             hideCarrier = it
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, it)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, it)
                             markRestartPending()
                         },
                         title = stringResource(R.string.notification_header_hide_carrier),
@@ -202,7 +204,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         checked = hideTime,
                         onCheckedChange = {
                             hideTime = it
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, it)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, it)
                             markRestartPending()
                         },
                         title = stringResource(R.string.notification_header_hide_time),
@@ -212,7 +214,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         checked = hideDate,
                         onCheckedChange = {
                             hideDate = it
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, it)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, it)
                             markRestartPending()
                         },
                         title = stringResource(R.string.notification_header_hide_date),
@@ -228,7 +230,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         checked = dateAboveTime,
                         onCheckedChange = {
                             dateAboveTime = it
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME,
                                 it
                             )
@@ -244,7 +246,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         selectedIndex = dateAlignment,
                         onSelectedIndexChange = { index ->
                             dateAlignment = NotificationHeaderModel.normalizeAlignment(index)
-                            Preferences.putInt(
+                            settingsStore.putInt(
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
                                 dateAlignment
                             )
@@ -258,7 +260,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         selectedIndex = timeAlignment,
                         onSelectedIndexChange = { index ->
                             timeAlignment = NotificationHeaderModel.normalizeAlignment(index)
-                            Preferences.putInt(
+                            settingsStore.putInt(
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
                                 timeAlignment
                             )
@@ -276,7 +278,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                             value = timeScale,
                             onValueChange = { value ->
                                 timeScale = (value * 20f).roundToInt() / 20f
-                                Preferences.putFloat(
+                                settingsStore.putFloat(
                                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE,
                                     timeScale
                                 )
@@ -298,7 +300,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         checked = weatherEnabled,
                         onCheckedChange = {
                             weatherEnabled = it
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
                                 it
                             )
@@ -312,7 +314,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                             checked = weatherRegion,
                             onCheckedChange = {
                                 weatherRegion = it
-                                Preferences.putBoolean(
+                                settingsStore.putBoolean(
                                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
                                     it
                                 )
@@ -332,7 +334,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                             selectedIndex = weatherType,
                             onSelectedIndexChange = { index ->
                                 weatherType = NotificationHeaderModel.normalizeWeatherType(index)
-                                Preferences.putInt(
+                                settingsStore.putInt(
                                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
                                     weatherType
                                 )

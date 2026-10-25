@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.SparseArray
 import androidx.core.util.isNotEmpty
-import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex

@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.util
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.SettingsValues
 
 /**
  * The kinds of scope guidance shown on the Home page.
@@ -41,15 +41,15 @@ data class ScopePrompt(
 }
 
 /** Persists scope-prompt dismissals in the module's authoritative preferences. */
-object ScopePromptStore {
+internal class ScopePromptStore(private val settings: SettingsValues) {
     private val lock = Any()
 
-    fun ignoredPrompts(): Set<ScopePrompt> = Preferences
+    fun ignoredPrompts(): Set<ScopePrompt> = settings
         .getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
         .mapNotNull(ScopePrompt::parse)
         .toSet()
 
-    fun ignoredIds(): Set<String> = Preferences.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
+    fun ignoredIds(): Set<String> = settings.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
 
     fun ignore(prompt: ScopePrompt) {
         update { it + prompt.id }
@@ -66,11 +66,11 @@ object ScopePromptStore {
 
     private fun update(transform: (Set<String>) -> Set<String>) {
         synchronized(lock) {
-            val current = Preferences.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
-            Preferences.putStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS, transform(current))
+            val current = settings.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
+            settings.putStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS, transform(current))
             // The Home card refreshes immediately after the click; make the dismissal visible to
             // the next read instead of racing the serialized remote-preference writer.
-            Preferences.flush()
+            settings.flush()
         }
     }
 }

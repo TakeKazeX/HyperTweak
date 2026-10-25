@@ -1,10 +1,10 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.RestartScopeSelection
 
 /**
@@ -22,6 +22,7 @@ val LocalRestartScopeHandled = staticCompositionLocalOf<(RestartScopeSelection) 
 /** Every page observes the shared execution state, including requests started on another page. */
 @Composable
 internal fun restartInProgress(selection: RestartScopeSelection): Boolean {
-    val running by RestartUtils.runningPackages.collectAsState()
+    val services = LocalAppServices.current
+    val running by services.restarts.runningPackages.collectAsState()
     return selection.toPackageSet().any { it in running }
 }

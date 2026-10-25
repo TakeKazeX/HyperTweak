@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getTopTextFromHolder
 
 class CommonSliderHooker(
-    private val parent: SliderPercentageHooker
+    private val parent: SliderSession
 ) : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 

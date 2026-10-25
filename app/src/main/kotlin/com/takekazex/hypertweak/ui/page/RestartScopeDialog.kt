@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -17,7 +18,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.util.RestartHistory
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.ScopeManager
@@ -67,17 +67,18 @@ fun RestartScopeDialog(
     onDismissRequest: () -> Unit,
     onConfirm: (RestartScopeSelection) -> Unit
 ) {
-    val runningPackages by com.takekazex.hypertweak.util.RestartUtils.runningPackages.collectAsState()
+    val services = LocalAppServices.current
+    val runningPackages by services.restarts.runningPackages.collectAsState()
     val context = LocalContext.current
-    val service by XposedServiceManager.serviceFlow.collectAsState()
-    val fallbackScope = remember(context) { ScopeManager.declaredRestartableScope(context) }
+    val service by services.module.connection.collectAsState()
+    val fallbackScope = remember(context) { services.scopes.declaredRestartableScope(context) }
 
     // The service scope is the source of truth. The declared list is only a first-frame fallback
     // while the service binds, so newly added targets (AON, camera, editor, assistant, Google, ...)
     // appear without another app release or a hardcoded dialog update.
     val scopedPackages by produceState(initialValue = fallbackScope, show, service) {
         if (show) {
-            value = ScopeManager.restartableScope(context) ?: fallbackScope
+            value = services.scopes.restartableScope(context) ?: fallbackScope
         }
     }
     val candidatePackages = remember(scopedPackages, initialSelection) {

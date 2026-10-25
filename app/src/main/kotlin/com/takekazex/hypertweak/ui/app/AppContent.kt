@@ -16,7 +16,6 @@ import androidx.core.net.toUri
 import androidx.activity.ComponentActivity
 import com.takekazex.hypertweak.util.update.UpdateManager
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -32,7 +31,6 @@ import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
 import com.takekazex.hypertweak.util.LocaleHelper
-import com.takekazex.hypertweak.util.RestartUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,7 +43,8 @@ internal fun AppContent(
     activity: ComponentActivity,
     updateManager: UpdateManager,
     isModuleActive: () -> Boolean,
-    store: AppSettingsStore
+    store: AppSettingsStore,
+    services: com.takekazex.hypertweak.app.AppServicePorts
 ) {
     val settings = remember { AppSettingsState(store) }
     val restarts = remember { AppRestartTracker(activity, settings) }
@@ -61,10 +60,10 @@ internal fun AppContent(
 
             ReconcileUpdates(activity, updateManager, snackbarHostState, localizedContext)
 
-            val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
-            val staleTargets by XposedServiceManager.staleTargetsFlow.collectAsState()
-            val hotReloading by XposedServiceManager.hotReloadingFlow.collectAsState()
-            val hotReloadReport by XposedServiceManager.hotReloadReportFlow.collectAsState()
+            val serviceConnected by services.module.connection.collectAsState()
+            val staleTargets by services.module.staleProcessNames.collectAsState()
+            val hotReloading by services.module.hotReloadingFlow.collectAsState()
+            val hotReloadReport by services.module.hotReloadReportFlow.collectAsState()
 
             val coroutineScope = rememberCoroutineScope()
 
@@ -157,6 +156,8 @@ internal fun AppContent(
             }
 
             CompositionLocalProvider(
+                LocalAppSettingsStore provides store,
+                LocalAppServices provides services,
                 // A localized ConfigurationContext is not an Activity. Keep Activity-owned
                 // launchers and back dispatch available to navigation entries and windows.
                 LocalActivity provides activity,
@@ -236,7 +237,7 @@ internal fun AppContent(
                         moduleActive = moduleActive,
                         hotReloadAvailable = staleTargets.isNotEmpty(),
                         hotReloading = hotReloading,
-                        hotReloadTargets = staleTargets.map { it.processName },
+                        hotReloadTargets = staleTargets,
                         hotReloadReport = hotReloadReport,
                         pendingRestartScopes = pendingRestartScopes,
                         aodFullscreen = aodFullscreen,
@@ -431,7 +432,7 @@ internal fun AppContent(
                         // off) applies immediately once the hooks are installed. Turning the
                         // feature on from disabled still needs a reboot for the hooks to install.
                         powerButtonAction = action
-                        settings.storage.setPowerButtonAction(action)
+                        settings.storage.powerButton.setPowerButtonAction(action)
                     },
                     sliderShowPercentage = sliderShowPercentage,
                     onSliderShowPercentageChange = { checked ->
@@ -639,7 +640,7 @@ internal fun AppContent(
                         // commitRemoteMutation), so it must not run on the main thread: invoking it
                         // inline from the dialog's onClick froze the UI long enough to ANR.
                         coroutineScope.launch {
-                            val cleared = withContext(Dispatchers.IO) { settings.storage.clearAllSettings() }
+                            val cleared = withContext(Dispatchers.IO) { settings.storage.backup.clearAllSettings() }
                             if (!cleared) {
                                 Toast.makeText(
                                     localizedContext,
@@ -652,8 +653,8 @@ internal fun AppContent(
                             val restartScopesJob = if (restartAllScopes) {
                                 launch {
                                     settings.storage.flush()
-                                    val allScopes = currentRestartableScopes(activity)
-                                    RestartUtils
+                                    val allScopes = currentRestartableScopes(activity, services.scopes)
+                                    services.restarts
                                         .restartScope(activity, coroutineScope, allScopes)
                                         .join()
                                 }
@@ -682,24 +683,24 @@ internal fun AppContent(
                         // Push every queued setting to the daemon before the scoped processes die;
                         // their hookers read the daemon copy at (re)load time.
                         settings.storage.flush()
-                        RestartUtils.restartScope(activity, coroutineScope, selection, ::clearRestartedScopes)
+                        services.restarts.restartScope(activity, coroutineScope, selection, ::clearRestartedScopes)
                     },
                     onHotReload = {
                         // Hot reload re-attaches the module to the already running stale targets;
                         // it must remain independent from the normal force-stop/restart path.
                         settings.storage.flush()
-                        XposedServiceManager.hotReloadStaleTargets()
+                        services.module.hotReloadStaleTargets()
                     },
                     onRestartAllScopes = {
                         coroutineScope.launch {
                             settings.storage.flush()
-                            val allScopes = currentRestartableScopes(activity)
-                            RestartUtils
+                            val allScopes = currentRestartableScopes(activity, services.scopes)
+                            services.restarts
                                 .restartScope(activity, coroutineScope, allScopes, ::clearRestartedScopes)
                                 .join()
                             // Refresh after the restart completes so a previously stale warning
                             // disappears without requiring a second app launch.
-                            XposedServiceManager.refreshHotReloadTargets()
+                            services.module.refreshHotReloadTargets()
                         }
                     },
                     appLanguage = appLanguage,
@@ -709,7 +710,7 @@ internal fun AppContent(
                     },
                     onShortcutsChanged = {
                         coroutineScope.launch(Dispatchers.IO) {
-                            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(activity) }
+                            runCatching { services.shortcuts.updateShortcuts(activity) }
                         }
                     },
                     updateManager = updateManager,

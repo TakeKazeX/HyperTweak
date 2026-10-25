@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.util
 import android.content.Context
 import android.widget.Toast
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,7 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
-object RestartUtils {
+internal class RestartUtils(private val flushSettings: () -> Unit) {
     // A page leaving composition must not cancel a restart that has already reached Root.
     private val operations = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val flights = RestartFlights()
@@ -49,7 +48,7 @@ object RestartUtils {
             flights.getOrStart(pkg) {
                 operations.async {
                     val success = runCatching {
-                        Preferences.flush()
+                        flushSettings()
                         restartViaRoot(pkg)
                     }.onFailure { DebugLog.e("RestartUtils", "restart failed target=$pkg", it) }
                         .getOrDefault(false)

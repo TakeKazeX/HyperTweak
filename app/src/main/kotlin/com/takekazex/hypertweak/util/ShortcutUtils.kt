@@ -12,9 +12,9 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.SettingsValues
 
-object ShortcutUtils {
+internal class ShortcutUtils(private val settings: SettingsValues) {
 
     data class ShortcutDef(
         val id: String,
@@ -43,18 +43,18 @@ object ShortcutUtils {
 
     fun getEnabledShortcutIds(): Set<String> {
         val defaults = setOf("lsposed", "installerx", "dev_settings")
-        return Preferences.getStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, defaults)
+        return settings.getStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, defaults)
     }
 
     fun getOrderedList(): List<String> {
-        val orderStr = Preferences.getString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, "")
+        val orderStr = settings.getString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, "")
         if (orderStr.isNotEmpty()) return orderStr.split(",").filter { it.isNotEmpty() }
         return getEnabledShortcutIds().toList()
     }
 
     fun saveOrder(orderedIds: List<String>) {
-        Preferences.putString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, orderedIds.joinToString(","))
-        Preferences.putStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, orderedIds.toSet())
+        settings.putString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, orderedIds.joinToString(","))
+        settings.putStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, orderedIds.toSet())
     }
 
     private fun loadAppIcon(context: Context, def: ShortcutDef): IconCompat {
@@ -81,7 +81,7 @@ object ShortcutUtils {
         // language preference can differ from the device language.
         val localizedContext = LocaleHelper.getLocalizedContext(
             context,
-            Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)
+            settings.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)
         )
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null

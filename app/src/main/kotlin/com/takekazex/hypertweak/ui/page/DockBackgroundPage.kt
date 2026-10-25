@@ -23,7 +23,7 @@ import androidx.core.net.toUri
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.DockConfig
 import com.takekazex.hypertweak.dock.DockSettingsWriter
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.effect.DockPreviewView
 import com.takekazex.hypertweak.ui.effect.decodeBundledGlassPreviewSample
 import com.takekazex.hypertweak.ui.effect.decodeGlassPreviewImage
@@ -41,9 +41,10 @@ import kotlin.math.roundToInt
 
 @Composable
 fun DockBackgroundPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val scroll = MiuixScrollBehavior()
-    var saved by rememberSaveable { mutableStateOf(Preferences.getString(DockConfig.KEY, DockConfig().encode())) }
+    var saved by rememberSaveable { mutableStateOf(settingsStore.getString(DockConfig.KEY, DockConfig().encode())) }
     var draft by rememberSaveable { mutableStateOf(DockSettingsWriter.state.value.takeIf { it.saving }?.requested ?: saved) }
     val config = DockConfig.decode(draft) ?: DockConfig()
     val writeState by DockSettingsWriter.state.collectAsState()
@@ -55,7 +56,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     val dark = isSystemInDarkTheme()
     LaunchedEffect(Unit) {
-        saved = Preferences.getString(DockConfig.KEY, DockConfig().encode())
+        saved = settingsStore.getString(DockConfig.KEY, DockConfig().encode())
         draft = DockSettingsWriter.state.value.takeIf { it.saving }?.requested ?: saved
     }
     LaunchedEffect(writeState) {

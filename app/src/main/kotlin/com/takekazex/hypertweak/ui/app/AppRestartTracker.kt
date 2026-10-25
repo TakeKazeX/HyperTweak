@@ -138,10 +138,10 @@ private fun restartScopesForDirtyTweaks(keys: Set<String>): RestartScopeSelectio
 }
 
 /** Reads the live LSPosed scope, falling back to the module declaration while the service binds. */
-internal suspend fun currentRestartableScopes(context: Context): RestartScopeSelection {
-    return ScopeManager.restartableScope(context)
+internal suspend fun currentRestartableScopes(context: Context, scopes: ScopeManager): RestartScopeSelection {
+    return scopes.restartableScope(context)
         ?.let(RestartScopeSelection::fromPackageSet)
-        ?: RestartScopeSelection.fromPackageSet(ScopeManager.declaredRestartableScope(context))
+        ?: RestartScopeSelection.fromPackageSet(scopes.declaredRestartableScope(context))
 }
 
 /** Owns persisted restart baselines; setting values are supplied by the current UI state. */
@@ -222,15 +222,15 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
             // two surfaces become independent, so changing only one still requests a
             // restart (including when the value comes from the legacy aggregate key).
             when (key) {
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.hideFingerprintAodEnabled()
-                else -> values.storage.hideFingerprintLockscreenEnabled()
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.fingerprint.hideFingerprintAodEnabled()
+                else -> values.storage.fingerprint.hideFingerprintLockscreenEnabled()
             }
         } else if (localPrefs.contains(baselineKey)) {
             localPrefs.getBoolean(baselineKey, value)
         } else {
             when (key) {
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.hideFingerprintAodEnabled()
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> values.storage.hideFingerprintLockscreenEnabled()
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.fingerprint.hideFingerprintAodEnabled()
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> values.storage.fingerprint.hideFingerprintLockscreenEnabled()
                 else -> values.storage.getBoolean(key, defaultValue)
             }
         }

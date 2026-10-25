@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
@@ -30,9 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -50,6 +50,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Security Center-scoped feature switches, grouped independently from AOSP restoration. */
 @Composable
 fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -57,29 +59,29 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var hideDolbyPopup by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
     }
     var hideGamePopup by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false))
     }
     var dockUnlimited by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false))
     }
     var dockUnlimitedPredictions by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false))
     }
     var dockPredictions by rememberSaveable {
-        mutableIntStateOf(Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
+        mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
     }
     var iconLaunch by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false))
+        mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false))
     }
     var lbeClipboardToast by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false))
     }
     var bubbleNotificationUnlock by remember {
         mutableStateOf(
-            Preferences.getBoolean(
+            settingsStore.getBoolean(
                 PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                 false
             )
@@ -88,15 +90,15 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     var lowBatteryWarningMode by remember {
         mutableIntStateOf(
             when {
-                Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE) ->
-                    Preferences.getInt(
+                settingsStore.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE) ->
+                    settingsStore.getInt(
                         PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
                         PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
                     ).coerceIn(
                         PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
                         PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
                     )
-                Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false) ->
+                settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false) ->
                     PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
                 else -> PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
             }
@@ -104,7 +106,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     }
     var permissionWarningMode by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
                 PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
             ).coerceIn(
@@ -115,32 +117,32 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     }
     var showDetailedPowerData by remember {
         mutableStateOf(
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
+            settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
         )
     }
     var restorePowerRanking by remember {
         mutableStateOf(
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
+            settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
         )
     }
     var showBerserkMode by remember {
         mutableStateOf(
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false)
+            settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false)
         )
     }
     var moreBatteryInfo by remember {
         mutableStateOf(
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
+            settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
         )
     }
     var privacyCallEntry by remember {
         mutableStateOf(
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, false)
+            settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, false)
         )
     }
     var antiPeepingMode by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
                 PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
             ).coerceIn(
@@ -151,7 +153,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     }
     var frontCameraAssistantEntry by remember {
         mutableStateOf(
-            Preferences.getBoolean(
+            settingsStore.getBoolean(
                 PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
                 false
             )
@@ -159,32 +161,32 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     }
     var callPrivacyCameraEntry by remember {
         mutableStateOf(
-            Preferences.getBoolean(
+            settingsStore.getBoolean(
                 PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
                 false
             )
         )
     }
     var skipLocalSuCheck by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, false))
     }
     var disableSafePayAutoScan by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, false))
     }
     var disableRootScanItem by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, false))
     }
     var disableUsbInstallIntercept by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, false))
     }
     var bypassUsbInstallNetworkVerify by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false))
     }
     var networkAssistantIgnoreOffline by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, false))
     }
     var contactsBusinessHallIgnoreOffline by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, false))
     }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
     var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
@@ -226,7 +228,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = iconLaunch,
                     onCheckedChange = { enabled ->
                         iconLaunch = enabled
-                        Preferences.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, enabled)
+                        settingsStore.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, enabled)
                     },
                     title = stringResource(R.string.security_center_icon_launch),
                     summary = stringResource(R.string.security_center_icon_launch_summary)
@@ -239,7 +241,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     onCheckedChange = { enabled ->
                         privacyCallEntry = enabled
                         requestRestart(RestartScopeSelection(securityCenter = true))
-                        Preferences.putBoolean(
+                        settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
                             enabled
                         )
@@ -258,7 +260,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     onSelectedIndexChange = { mode ->
                         antiPeepingMode = mode
                         requestRestart(RestartScopeSelection(securityCenter = true))
-                        Preferences.putInt(
+                        settingsStore.putInt(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
                             mode
                         )
@@ -272,7 +274,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     onCheckedChange = { enabled ->
                         frontCameraAssistantEntry = enabled
                         requestRestart(RestartScopeSelection(securityCenter = true))
-                        Preferences.putBoolean(
+                        settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
                             enabled
                         )
@@ -288,7 +290,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     onCheckedChange = { enabled ->
                         callPrivacyCameraEntry = enabled
                         requestRestart(RestartScopeSelection(securityCenter = true))
-                        Preferences.putBoolean(
+                        settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
                             enabled
                         )
@@ -306,7 +308,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = hideGamePopup,
                     onCheckedChange = {
                         hideGamePopup = it
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, it)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, it)
                     },
                     title = stringResource(R.string.security_center_hide_game_popup),
                     summary = stringResource(R.string.security_center_hide_game_popup_summary)
@@ -315,7 +317,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = hideDolbyPopup,
                     onCheckedChange = {
                         hideDolbyPopup = it
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, it)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, it)
                     },
                     title = stringResource(R.string.security_center_hide_dolby_popup),
                     summary = stringResource(R.string.security_center_hide_dolby_popup_summary)
@@ -324,7 +326,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = dockUnlimited,
                     onCheckedChange = {
                         dockUnlimited = it
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, it)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, it)
                     },
                     title = stringResource(R.string.security_center_dock_unlimited),
                     summary = stringResource(R.string.security_center_dock_unlimited_summary)
@@ -333,7 +335,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = dockUnlimitedPredictions,
                     onCheckedChange = {
                         dockUnlimitedPredictions = it
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, it)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, it)
                     },
                     title = stringResource(R.string.security_center_dock_unlimited_predictions),
                     summary = stringResource(R.string.security_center_dock_unlimited_predictions_summary)
@@ -343,7 +345,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     value = dockPredictions, range = 0..15, defaultValue = 8, unit = "",
                     onChange = {
                         dockPredictions = it
-                        Preferences.putInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, it)
+                        settingsStore.putInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, it)
                     },
                     summary = stringResource(R.string.security_center_dock_predictions_summary)
                 )
@@ -355,7 +357,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = skipLocalSuCheck,
                     onCheckedChange = { enabled ->
                         skipLocalSuCheck = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK, enabled)
                     },
                     title = stringResource(R.string.security_center_skip_local_su_check),
                     summary = stringResource(R.string.security_center_skip_local_su_check_summary)
@@ -364,7 +366,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = disableSafePayAutoScan,
                     onCheckedChange = { enabled ->
                         disableSafePayAutoScan = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN, enabled)
                     },
                     title = stringResource(R.string.security_center_disable_safepay_auto_scan),
                     summary = stringResource(R.string.security_center_disable_safepay_auto_scan_summary)
@@ -373,7 +375,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = disableRootScanItem,
                     onCheckedChange = { enabled ->
                         disableRootScanItem = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM, enabled)
                     },
                     title = stringResource(R.string.security_center_disable_root_scan_item),
                     summary = stringResource(R.string.security_center_disable_root_scan_item_summary)
@@ -382,7 +384,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = disableUsbInstallIntercept,
                     onCheckedChange = { enabled ->
                         disableUsbInstallIntercept = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT, enabled)
                     },
                     title = stringResource(R.string.security_center_disable_usb_install_intercept),
                     summary = stringResource(R.string.security_center_disable_usb_install_intercept_summary)
@@ -391,7 +393,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = bypassUsbInstallNetworkVerify,
                     onCheckedChange = { enabled ->
                         bypassUsbInstallNetworkVerify = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, enabled)
                     },
                     title = stringResource(R.string.security_center_bypass_usb_install_network_verify),
                     summary = stringResource(R.string.security_center_bypass_usb_install_network_verify_summary)
@@ -404,7 +406,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = networkAssistantIgnoreOffline,
                     onCheckedChange = { enabled ->
                         networkAssistantIgnoreOffline = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, enabled)
                     },
                     title = stringResource(R.string.security_center_network_assistant_ignore_offline),
                     summary = stringResource(R.string.security_center_carrier_offline_summary)
@@ -413,7 +415,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = contactsBusinessHallIgnoreOffline,
                     onCheckedChange = { enabled ->
                         contactsBusinessHallIgnoreOffline = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, enabled)
                     },
                     title = stringResource(R.string.security_center_contacts_business_hall_ignore_offline),
                     summary = stringResource(R.string.security_center_carrier_offline_summary)
@@ -431,7 +433,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                                 additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
                             )
                         )
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, enabled)
                     },
                     title = stringResource(R.string.tweaks_lbe_clipboard_toast_title),
                     summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
@@ -447,7 +449,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         requestRestart(
                             RestartScopeSelection(systemUi = true, securityCenter = true)
                         )
-                        Preferences.putBoolean(
+                        settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                             enabled
                         )
@@ -469,7 +471,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     onSelectedIndexChange = { mode ->
                         permissionWarningMode = mode
                         requestRestart(RestartScopeSelection(securityCenter = true))
-                        Preferences.putInt(
+                        settingsStore.putInt(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
                             mode
                         )
@@ -497,7 +499,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         onSelectedIndexChange = { mode ->
                             lowBatteryWarningMode = mode
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putInt(
+                            settingsStore.putInt(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
                                 mode
                             )
@@ -510,7 +512,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         onCheckedChange = { enabled ->
                             showDetailedPowerData = enabled
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
                                 enabled
                             )
@@ -523,7 +525,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         onCheckedChange = { enabled ->
                             restorePowerRanking = enabled
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
                                 enabled
                             )
@@ -536,7 +538,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         onCheckedChange = { enabled ->
                             showBerserkMode = enabled
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
                                 enabled
                             )
@@ -549,7 +551,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         onCheckedChange = { enabled ->
                             moreBatteryInfo = enabled
                             requestRestart(RestartScopeSelection(securityCenter = true))
-                            Preferences.putBoolean(
+                            settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
                                 enabled
                             )
@@ -579,8 +581,8 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         summary = stringResource(R.string.aosp_restart_security_center_summary),
                         enabled = !restartInProgress(restartSelection),
                         onClick = {
-                            Preferences.flush()
-                            RestartUtils.restartScope(
+                            settingsStore.flush()
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = restartSelection,

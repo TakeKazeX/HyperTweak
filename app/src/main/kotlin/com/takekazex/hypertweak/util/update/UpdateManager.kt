@@ -10,7 +10,7 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.SettingsValues
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,10 +24,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Activity-owned coordinator; no hook process ever constructs this class. */
-class UpdateManager(private val activity: ComponentActivity) {
+class UpdateManager internal constructor(private val activity: ComponentActivity, private val settings: SettingsValues) {
     private val appContext = activity.applicationContext
     private val stateStore = UpdateStateStore(appContext)
-    private val repository = GitHubUpdateRepository(stateStore)
+    private val repository = GitHubUpdateRepository(stateStore, settings)
     private val installer = UpdateInstaller(activity, stateStore)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var checkJob: Job? = null
@@ -46,22 +46,22 @@ class UpdateManager(private val activity: ComponentActivity) {
     val proxyTestState: StateFlow<ProxyTestState> = _proxyTestState.asStateFlow()
 
     fun channel(): UpdateChannel = UpdateChannel.fromValue(
-        Preferences.getString(AppSettingsKeys.KEY_UPDATE_CHANNEL, UpdateChannel.STABLE.wireValue)
+        settings.getString(AppSettingsKeys.KEY_UPDATE_CHANNEL, UpdateChannel.STABLE.wireValue)
     )
 
     fun interval(): UpdateCheckInterval = UpdateCheckInterval.fromIndex(
-        Preferences.getInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
+        settings.getInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
     )
 
     fun proxyMode(): UpdateProxyMode = UpdateProxyMode.fromValue(
-        Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
+        settings.getString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
     )
 
-    fun proxyAddress(): String = Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
+    fun proxyAddress(): String = settings.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
 
     fun setChannel(channel: UpdateChannel) {
         val previous = this.channel()
-        Preferences.putString(AppSettingsKeys.KEY_UPDATE_CHANNEL, channel.wireValue)
+        settings.putString(AppSettingsKeys.KEY_UPDATE_CHANNEL, channel.wireValue)
         if (previous == channel) return
 
         // Switching channels must not leave the previous channel's work in place:
@@ -112,16 +112,16 @@ class UpdateManager(private val activity: ComponentActivity) {
     }
 
     fun setInterval(interval: UpdateCheckInterval) {
-        Preferences.putInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, interval.index)
+        settings.putInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, interval.index)
     }
 
     fun setProxyMode(mode: UpdateProxyMode) {
-        Preferences.putString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, mode.wireValue)
+        settings.putString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, mode.wireValue)
         if (mode == UpdateProxyMode.THIRD_PARTY) testProxy()
     }
 
     fun setProxyAddress(address: String) {
-        Preferences.putString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, address.trim())
+        settings.putString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, address.trim())
     }
 
     fun startAutoCheck() {

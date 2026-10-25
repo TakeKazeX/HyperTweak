@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.NotificationIconPolicy
+
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime

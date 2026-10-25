@@ -20,7 +20,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercent
 private const val TAG = "VolumeSlider"
 
 class VolumeSliderHooker(
-    private val parent: SliderPercentageHooker
+    private val parent: SliderSession
 ) : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 

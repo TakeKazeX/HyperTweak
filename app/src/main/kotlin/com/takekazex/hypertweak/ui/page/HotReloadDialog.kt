@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.settings.contract.NativeUpgradeState
 import android.annotation.SuppressLint
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -22,10 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.HotReloadOutcome
-import com.takekazex.hypertweak.hook.HotReloadReport
-import com.takekazex.hypertweak.hook.XposedServiceManager
-import com.takekazex.hypertweak.hook.NativeUpgradeManager
+import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -47,18 +47,19 @@ internal fun HotReloadDialog(
     onHotReload: () -> Unit,
     onRestartScopes: () -> Unit
 ) {
+    val services = LocalAppServices.current
     // runningTargets can change after an app update or a process restart without a service-bind
     // callback. Refresh when this diagnostic surface is opened so its list is not a stale cache.
     LaunchedEffect(show) {
-        if (show) XposedServiceManager.refreshHotReloadTargets()
+        if (show) services.module.refreshHotReloadTargets()
     }
 
     // An unbound service and "genuinely nothing stale" both produce an empty target list, so the
     // empty state has to name which one it is instead of claiming there is nothing to reload.
-    val service by XposedServiceManager.serviceFlow.collectAsState()
-    val nativeBusy by NativeUpgradeManager.busy.collectAsState()
-    val nativeReport by NativeUpgradeManager.report.collectAsState()
-    val runningPackages by com.takekazex.hypertweak.util.RestartUtils.runningPackages.collectAsState()
+    val service by services.module.connection.collectAsState()
+    val nativeBusy by services.nativeUpgrade.busy.collectAsState()
+    val nativeReport by services.nativeUpgrade.report.collectAsState()
+    val runningPackages by services.restarts.runningPackages.collectAsState()
     val context = LocalContext.current
 
     AppWindowDialog(
@@ -122,22 +123,22 @@ internal fun HotReloadDialog(
                 )
                 TextButton(
                     text = stringResource(if (nativeBusy) R.string.native_update_running else R.string.native_update_action),
-                    onClick = { NativeUpgradeManager.activate(context) },
+                    onClick = { services.nativeUpgrade.activate(context) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty() && service != null
                 )
                 nativeReport?.let { report ->
                     Text(text = stringResource(when (report.state) {
-                        NativeUpgradeManager.State.CHECKING -> R.string.native_update_running
-                        NativeUpgradeManager.State.CURRENT -> R.string.native_update_current
-                        NativeUpgradeManager.State.UPDATED -> R.string.native_update_success
-                        NativeUpgradeManager.State.FAILED -> R.string.native_update_failed
-                        NativeUpgradeManager.State.ROLLBACK_REQUESTED -> R.string.native_update_rollback_requested
+                        NativeUpgradeState.CHECKING -> R.string.native_update_running
+                        NativeUpgradeState.CURRENT -> R.string.native_update_current
+                        NativeUpgradeState.UPDATED -> R.string.native_update_success
+                        NativeUpgradeState.FAILED -> R.string.native_update_failed
+                        NativeUpgradeState.ROLLBACK_REQUESTED -> R.string.native_update_rollback_requested
                     }), color = MiuixTheme.colorScheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp)
                 }
-                if (NativeUpgradeManager.canRollback()) {
+                if (services.nativeUpgrade.canRollback()) {
                     TextButton(text = stringResource(R.string.native_update_rollback),
-                        onClick = { NativeUpgradeManager.rollback(context) },
+                        onClick = { services.nativeUpgrade.rollback(context) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         enabled = !hotReloading && !nativeBusy && runningPackages.isEmpty())
                 }

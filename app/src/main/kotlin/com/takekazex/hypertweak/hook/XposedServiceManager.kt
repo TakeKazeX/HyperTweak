@@ -1,6 +1,13 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
+import com.takekazex.hypertweak.settings.contract.HotReloadTargetReport
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
+
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.ModuleServicePort
+import com.takekazex.hypertweak.settings.contract.ModuleServiceInfo
 
 import android.os.Bundle
 import com.takekazex.hypertweak.util.DebugLog
@@ -11,18 +18,21 @@ import io.github.libxposed.service.XposedServiceHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-object XposedServiceManager : XposedServiceHelper.OnServiceListener {
+internal object XposedServiceManager : XposedServiceHelper.OnServiceListener, ModuleServicePort {
+    private val connectionState = MutableStateFlow<ModuleServiceInfo?>(null)
+    override val connection = connectionState.asStateFlow()
+    private var bindingId = 0L
+    private val staleNames = MutableStateFlow<List<String>>(emptyList())
+    override val staleProcessNames = staleNames.asStateFlow()
     private val _serviceFlow = MutableStateFlow<XposedService?>(null)
-    val serviceFlow = _serviceFlow.asStateFlow()
 
     private val _staleTargetsFlow = MutableStateFlow<List<HookedTarget>>(emptyList())
-    val staleTargetsFlow = _staleTargetsFlow.asStateFlow()
 
     private val _hotReloadingFlow = MutableStateFlow(false)
-    val hotReloadingFlow = _hotReloadingFlow.asStateFlow()
+    override val hotReloadingFlow = _hotReloadingFlow.asStateFlow()
 
     private val _hotReloadReportFlow = MutableStateFlow<HotReloadReport?>(null)
-    val hotReloadReportFlow = _hotReloadReportFlow.asStateFlow()
+    override val hotReloadReportFlow = _hotReloadReportFlow.asStateFlow()
 
     val currentService: XposedService?
         get() = _serviceFlow.value
@@ -61,6 +71,10 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         }
         // Emit after Preferences is ready so UI observers reload from the correct source
         _serviceFlow.value = service
+        connectionState.value = ModuleServiceInfo(
+            runCatching { service.frameworkName }.getOrDefault("libxposed"),
+            runCatching { service.frameworkVersion }.getOrDefault(""),
+            runCatching { service.apiVersion }.getOrDefault(0), ++bindingId)
         refreshHotReloadTargets()
     }
 
@@ -72,16 +86,19 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
         activeBatch = null
         Preferences.useLocalBackend()
         _serviceFlow.value = null
+        connectionState.value = null
+        staleNames.value = emptyList()
         _staleTargetsFlow.value = emptyList()
         _hotReloadingFlow.value = false
         _hotReloadReportFlow.value = null
     }
 
-    fun refreshHotReloadTargets() {
+    override fun refreshHotReloadTargets() {
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {
             DebugLog.d("XposedService", "skip hot reload target query; service=${service != null} api=${service?.apiVersion}")
             _staleTargetsFlow.value = emptyList()
+            staleNames.value = emptyList()
             return
         }
 
@@ -95,10 +112,11 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             DebugLog.e("XposedService", "failed to query hot reload targets", t)
             emptyList()
         }
+        staleNames.value = _staleTargetsFlow.value.map { it.processName }
     }
 
     @Synchronized
-    fun hotReloadStaleTargets(onFinished: (HotReloadReport) -> Unit = {}) {
+    override fun hotReloadStaleTargets(onFinished: (HotReloadReport) -> Unit) {
         if (_hotReloadingFlow.value) return
         val service = currentService
         if (service == null || service.apiVersion < XposedService.API_102) {

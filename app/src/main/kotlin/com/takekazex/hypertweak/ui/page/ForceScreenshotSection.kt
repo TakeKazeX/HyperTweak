@@ -12,18 +12,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun ForceScreenshotSection() {
-    var enabled by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)) }
+    val settingsStore = LocalAppSettingsStore.current
+    var enabled by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     LaunchedEffect(lifecycle) {
         if (lifecycle == Lifecycle.State.RESUMED) {
-            enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)
+            enabled = settingsStore.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)
         }
     }
     SmallTitle(stringResource(R.string.force_screenshot_section))
@@ -32,7 +33,7 @@ internal fun ForceScreenshotSection() {
             checked = enabled,
             onCheckedChange = {
                 enabled = it
-                Preferences.putBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, it)
+                settingsStore.putBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, it)
             },
             title = stringResource(R.string.force_screenshot_title),
             summary = stringResource(R.string.force_screenshot_summary)

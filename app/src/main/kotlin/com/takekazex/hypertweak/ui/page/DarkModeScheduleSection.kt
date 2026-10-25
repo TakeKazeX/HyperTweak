@@ -12,18 +12,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun DarkModeScheduleSection() {
-    var enabled by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)) }
+    val settingsStore = LocalAppSettingsStore.current
+    var enabled by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     LaunchedEffect(lifecycle) {
         if (lifecycle == Lifecycle.State.RESUMED) {
-            enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
+            enabled = settingsStore.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
         }
     }
     SmallTitle(stringResource(R.string.dark_mode_schedule_section))
@@ -32,7 +33,7 @@ internal fun DarkModeScheduleSection() {
             checked = enabled,
             onCheckedChange = {
                 enabled = it
-                Preferences.putBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, it)
+                settingsStore.putBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, it)
             },
             title = stringResource(R.string.dark_mode_schedule_immediate),
             summary = stringResource(R.string.dark_mode_schedule_immediate_summary)

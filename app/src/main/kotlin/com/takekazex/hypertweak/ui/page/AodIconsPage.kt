@@ -27,7 +27,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,20 +44,21 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** AOD-only battery, Duo, and percentage controls. */
 @Composable
 fun AodIconsPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
 
     var batteryVisible by remember {
-        mutableStateOf(Preferences.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, true))
+        mutableStateOf(settingsStore.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, true))
     }
     var duoEnabled by remember {
-        mutableStateOf(Preferences.getBoolean(AodSettingsKeys.KEY_AOD_DUO_ENABLED, false))
+        mutableStateOf(settingsStore.getBoolean(AodSettingsKeys.KEY_AOD_DUO_ENABLED, false))
     }
     var percentVisible by remember {
-        mutableStateOf(Preferences.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_PERCENT_VISIBLE, true))
+        mutableStateOf(settingsStore.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_PERCENT_VISIBLE, true))
     }
     var percentPosition by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 AodSettingsKeys.KEY_AOD_PERCENT_POSITION,
                 AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT
             )
@@ -65,7 +66,7 @@ fun AodIconsPage(onBack: () -> Unit) {
     }
     var centerContent by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 AodSettingsKeys.KEY_AOD_DUO_CENTER_CONTENT,
                 AodSettingsKeys.AOD_DUO_CENTER_BATTERY
             )
@@ -73,7 +74,7 @@ fun AodIconsPage(onBack: () -> Unit) {
     }
     fun setPercentPosition(value: Int) {
         percentPosition = value
-        Preferences.putInt(AodSettingsKeys.KEY_AOD_PERCENT_POSITION, value)
+        settingsStore.putInt(AodSettingsKeys.KEY_AOD_PERCENT_POSITION, value)
     }
 
     val canCenterPercent = duoEnabled && centerContent == AodSettingsKeys.AOD_DUO_CENTER_BATTERY
@@ -128,7 +129,7 @@ fun AodIconsPage(onBack: () -> Unit) {
                         checked = batteryVisible,
                         onCheckedChange = { checked ->
                             batteryVisible = checked
-                            Preferences.putBoolean(AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, checked)
+                            settingsStore.putBoolean(AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, checked)
                         },
                         title = stringResource(R.string.aod_icons_battery_title),
                         summary = stringResource(R.string.aod_icons_battery_summary)
@@ -137,7 +138,7 @@ fun AodIconsPage(onBack: () -> Unit) {
                         checked = duoEnabled,
                         onCheckedChange = { checked ->
                             duoEnabled = checked
-                            Preferences.putBoolean(AodSettingsKeys.KEY_AOD_DUO_ENABLED, checked)
+                            settingsStore.putBoolean(AodSettingsKeys.KEY_AOD_DUO_ENABLED, checked)
                             if (!checked && percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER) {
                                 setPercentPosition(AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT)
                             }
@@ -159,7 +160,7 @@ fun AodIconsPage(onBack: () -> Unit) {
                             ),
                             onSelectedIndexChange = { selected ->
                                 centerContent = selected
-                                Preferences.putInt(AodSettingsKeys.KEY_AOD_DUO_CENTER_CONTENT, selected)
+                                settingsStore.putInt(AodSettingsKeys.KEY_AOD_DUO_CENTER_CONTENT, selected)
                                 if (selected == AodSettingsKeys.AOD_DUO_CENTER_SIGNAL &&
                                     percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER
                                 ) {
@@ -178,7 +179,7 @@ fun AodIconsPage(onBack: () -> Unit) {
                         checked = percentVisible,
                         onCheckedChange = { checked ->
                             percentVisible = checked
-                            Preferences.putBoolean(AodSettingsKeys.KEY_AOD_BATTERY_PERCENT_VISIBLE, checked)
+                            settingsStore.putBoolean(AodSettingsKeys.KEY_AOD_BATTERY_PERCENT_VISIBLE, checked)
                         },
                         title = stringResource(R.string.aod_icons_percent_visible_title),
                         summary = stringResource(R.string.aod_icons_percent_visible_summary)

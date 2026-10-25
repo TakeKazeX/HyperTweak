@@ -1,12 +1,9 @@
 package com.takekazex.hypertweak.util
 
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
 import android.content.Context
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.XposedServiceManager
-import io.github.libxposed.service.XposedService
+import com.takekazex.hypertweak.settings.contract.ScopeService
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -19,7 +16,11 @@ import kotlin.coroutines.resume
  * App process only; hook processes have no service binding. Every call can throw an unchecked
  * `XposedService.ServiceException`, and `requestScope`'s callbacks arrive on a Binder thread.
  */
-object ScopeManager {
+internal class ScopeManager(
+    private val boundService: () -> ScopeService?,
+    private val launcherNeeded: () -> Boolean,
+    private val requestDispatcher: CoroutineDispatcher = Dispatchers.Main,
+) {
     sealed interface Result {
         /** The live scope already matched the target. */
         data object NoChange : Result
@@ -34,18 +35,20 @@ object ScopeManager {
         data object ServiceUnavailable : Result
     }
 
-    private const val SYSTEM_SERVER = "system"
+    private companion object {
+        const val SYSTEM_SERVER = "system"
 
-    /** What LSPosed builds before the `system` rename call the system server. */
-    private const val LEGACY_SYSTEM_SERVER = "android"
+        /** What LSPosed builds before the `system` rename call the system server. */
+        const val LEGACY_SYSTEM_SERVER = "android"
 
-    /** The system launcher; listed in the scope only while a native launcher rule needs it. */
-    private const val LAUNCHER_PACKAGE = "com.miui.home"
+        /** The system launcher; listed in the scope only while a native launcher rule needs it. */
+        const val LAUNCHER_PACKAGE = "com.miui.home"
 
-    private val NON_APPLICATION_SCOPE = setOf(SYSTEM_SERVER, LEGACY_SYSTEM_SERVER, "system_server")
+        val NON_APPLICATION_SCOPE = setOf(SYSTEM_SERVER, LEGACY_SYSTEM_SERVER, "system_server")
+    }
 
-    private val service: XposedService?
-        get() = XposedServiceManager.currentService
+    private val service: ScopeService?
+        get() = boundService()
 
     /**
      * Packages the module's own features need. `R.array.xposed_scope` is the single source of
@@ -92,14 +95,7 @@ object ScopeManager {
      */
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
-        val launcherNeeded = Preferences.hideRecentsClearButton() ||
-            Preferences.openedFolderColumns() != PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS ||
-            Preferences.contextualSearchLongPress() ||
-            (PlatformLevel.isOs4 &&
-                Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
-            (PlatformLevel.isOs4 && com.takekazex.hypertweak.settings.contract.DockConfig.decode(Preferences.getString(
-                com.takekazex.hypertweak.settings.contract.DockConfig.KEY, com.takekazex.hypertweak.settings.contract.DockConfig().encode()))?.enabled == true)
-        return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {
+        return if (LAUNCHER_PACKAGE !in live && launcherNeeded()) {
             ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
         } else {
             null
@@ -166,12 +162,12 @@ object ScopeManager {
         }
     }
 
-    private suspend fun requestScope(active: XposedService, packages: Set<String>): Result =
-        withContext(Dispatchers.Main) {
+    private suspend fun requestScope(active: ScopeService, packages: Set<String>): Result =
+        withContext(requestDispatcher) {
             suspendCancellableCoroutine { continuation ->
                 // A partial approval can still be followed by a failure callback.
                 val settled = AtomicBoolean(false)
-                val listener = object : XposedService.OnScopeEventListener {
+                val listener = object : ScopeService.Listener {
                     override fun onScopeRequestApproved(approved: List<String>) {
                         if (!settled.compareAndSet(false, true)) return
                         val granted = approved.mapNotNull(::normalize).toSet()

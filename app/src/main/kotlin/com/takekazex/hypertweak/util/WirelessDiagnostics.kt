@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.util
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
-import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -201,11 +200,11 @@ internal class WirelessDiagnosticsEngine(
     }
 }
 
-internal object WirelessDiagnostics {
+internal class WirelessDiagnostics(rememberApplied: (WirelessLogger, Boolean) -> Unit) {
     private val mutex = Mutex()
     private val engine = WirelessDiagnosticsEngine(
         run = { NativeRootCommand.run(it).toString(Charsets.UTF_8) },
-        rememberApplied = { logger, enabled -> Preferences.putBoolean(logger.preference, enabled) }
+        rememberApplied = rememberApplied
     )
     suspend fun query(): WirelessResult = mutex.withLock { withContext(Dispatchers.IO) { engine.query() } }
     suspend fun setEnabled(logger: WirelessLogger, enabled: Boolean): WirelessResult =

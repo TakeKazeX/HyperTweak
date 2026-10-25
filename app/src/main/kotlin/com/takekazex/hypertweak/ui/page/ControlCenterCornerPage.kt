@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -27,9 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -50,7 +50,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /**
  * Control Center corner-radius overrides (Settings → Experimental → 控制中心圆角).
  *
- * State is kept locally like [ChargingDetailPage] and written straight into [Preferences]; the
+ * State is kept locally like [ChargingDetailPage] and written straight into [AppSettingsStore]; the
  * [com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker] re-reads these Float keys at
  * hook time. The master switch installs the hooks, so it needs a SystemUI restart — every value row
  * marks the restart row pending, exactly like the slider-percentage feature.
@@ -62,6 +62,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  */
 @Composable
 fun ControlCenterCornerPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -69,7 +71,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false))
     }
 
     // Saveable so a pending restart prompt survives navigating away.
@@ -90,7 +92,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     val itemValues = remember {
         mutableMapOf<String, Float>().apply {
             items.forEach { item ->
-                this[item.key] = Preferences.getFloat(item.key, 0f)
+                this[item.key] = settingsStore.getFloat(item.key, 0f)
             }
         }
     }
@@ -124,7 +126,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                             enabled = checked
                             restartPending = true
                             requestRestartScopes(RestartScopeSelection(systemUi = true))
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, checked)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, checked)
                         },
                         title = stringResource(R.string.tweaks_cc_corner_enabled_title),
                         summary = stringResource(R.string.tweaks_cc_corner_enabled_summary)
@@ -137,8 +139,8 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                             onClick = {
                                 // Push the prefs through to the daemon before SystemUI comes
                                 // back — its onHook reads them at plugin load time.
-                                com.takekazex.hypertweak.hook.Preferences.flush()
-                                com.takekazex.hypertweak.util.RestartUtils.restartScope(
+                                settingsStore.flush()
+                                services.restarts.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = com.takekazex.hypertweak.util.RestartScopeSelection(systemUi = true),
@@ -160,7 +162,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                     value = itemValues[item.key] ?: 0f,
                     onValueChange = { newValue ->
                         itemValues[item.key] = newValue
-                        Preferences.putFloat(item.key, newValue)
+                        settingsStore.putFloat(item.key, newValue)
                         restartPending = true
                         requestRestartScopes(RestartScopeSelection(systemUi = true))
                     }

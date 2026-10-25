@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook
+package com.takekazex.hypertweak.settings.contract
 
 /** Selection for the camera's shared Legendary/Leica Moment entry. */
 internal object CameraLegendaryMomentMode {

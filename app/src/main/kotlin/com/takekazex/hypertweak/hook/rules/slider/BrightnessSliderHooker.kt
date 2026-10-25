@@ -16,7 +16,7 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercentageText
 
 class BrightnessSliderHooker(
-    private val parent: SliderPercentageHooker
+    private val parent: SliderSession
 ) : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 

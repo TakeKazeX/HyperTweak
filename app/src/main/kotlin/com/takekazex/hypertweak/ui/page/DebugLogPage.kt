@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import android.annotation.SuppressLint
@@ -55,8 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.LogRecord
 import com.takekazex.hypertweak.util.LogRepository
 import com.takekazex.hypertweak.util.LsposedLogReader
@@ -119,6 +119,8 @@ private typealias DebugLogEntry = LogRecord
 fun LogsPage(
     onBack: () -> Unit
 ) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     // Reading (up to ~0.5MB of prefs) and parsing (regex per line + sort) are too heavy for
@@ -127,12 +129,12 @@ fun LogsPage(
     var loading by remember { mutableStateOf(true) }
     var selectedFilter by rememberSaveable { mutableStateOf(LogFilter.All) }
     var logLevel by remember {
-        mutableStateOf(logLevelFromPriority(Preferences.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
+        mutableStateOf(logLevelFromPriority(settingsStore.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var refreshGeneration by remember { mutableIntStateOf(0) }
     var lsposedStatus by remember { mutableStateOf<LsposedLogReader.Status?>(null) }
-    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val service by services.module.connection.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(refreshGeneration, service) {
         loading = true
@@ -144,7 +146,7 @@ fun LogsPage(
         }
         entries = snapshot.records
         lsposedStatus = snapshot.lsposedStatus
-        val global = Preferences.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
+        val global = settingsStore.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
         logLevel = logLevelFromPriority(global)
         loading = false
     }
@@ -248,7 +250,7 @@ fun LogsPage(
                     onSelected = { selectedFilter = it },
                     onLogLevelSelected = {
                         logLevel = it
-                        Preferences.putInt(AppSettingsKeys.KEY_LOG_LEVEL, it.priority)
+                        settingsStore.putInt(AppSettingsKeys.KEY_LOG_LEVEL, it.priority)
                     },
                     onExport = onExport
                 )

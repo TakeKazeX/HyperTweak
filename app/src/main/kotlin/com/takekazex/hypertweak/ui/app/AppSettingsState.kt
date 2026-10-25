@@ -32,9 +32,9 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var quickShareEnabled by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false) }
     var fullScreenTranslate by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false) }
     var askAboutScreen by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false) }
-    var hideFingerprintAod by settings.preference { storage.hideFingerprintAodEnabled() }
-    var hideFingerprintLockscreen by settings.preference { storage.hideFingerprintLockscreenEnabled() }
-    var hideFingerprintAppAuth by settings.preference { storage.hideFingerprintAppAuthEnabled() }
+    var hideFingerprintAod by settings.preference { storage.fingerprint.hideFingerprintAodEnabled() }
+    var hideFingerprintLockscreen by settings.preference { storage.fingerprint.hideFingerprintLockscreenEnabled() }
+    var hideFingerprintAppAuth by settings.preference { storage.fingerprint.hideFingerprintAppAuthEnabled() }
     var hideLockscreenStatusBar by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) }
     var notificationHeaderClockSeconds by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false) }
     var notificationMonetTextColor by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, false) }
@@ -52,9 +52,9 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var hideGestureBarRecents by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false) }
     var hideGestureBarLauncher by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, false) }
     var gestureBarAttachTransition by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false) }
-    var powerButtonAction by settings.preference { storage.powerButtonAction() }
+    var powerButtonAction by settings.preference { storage.powerButton.powerButtonAction() }
     var contextualSearchHaptics by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, false) }
-    var contextualSearchLongPress by settings.preference { storage.contextualSearchLongPress() }
+    var contextualSearchLongPress by settings.preference { storage.backGesture.contextualSearchLongPress() }
     var hideLauncherIcon by settings.preference { storage.getBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, false) }
     var sliderShowPercentage by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false) }
     var sliderSamePercentageStyle by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false) }

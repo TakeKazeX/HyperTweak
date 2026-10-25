@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Handler
-import android.os.SystemClock
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
@@ -19,6 +18,8 @@ internal class GestureBarHomeProbe(
     private val active: () -> Boolean,
     private val overviewOnScreen: () -> Boolean,
     private val repaint: () -> Unit,
+    private val scheduler: GestureBarScheduler = HandlerGestureBarScheduler(handler),
+    private val readEvidence: (() -> LauncherHomeProbe)? = null,
 ) {
     private companion object {
         const val TAG = "HideBottomBar"
@@ -61,23 +62,34 @@ internal class GestureBarHomeProbe(
             }
         }
         launcherHomeProbeTask = probe
-        handler().post(probe)
+        if (!scheduler.post(probe)) {
+            launcherHomeProbeTask = null
+            launcherHomeProbePending.set(false)
+        }
     }
 
     private fun probeLauncherHome(reason: String) {
         if (!active()) return
-        val context = context() ?: return
+        val probe = readEvidence?.invoke() ?: platformEvidence() ?: return
+        launcherHomeProbedAt = scheduler.now()
+        acceptEvidence(probe, reason)
+    }
+
+    private fun platformEvidence(): LauncherHomeProbe? {
+        val context = context() ?: return null
         val keyguardLocked = runCatching {
             context.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
         }.getOrDefault(false)
-        val probe = LauncherHomeProbe(
+        return LauncherHomeProbe(
             topTaskIsHome = runCatching { queryTopTaskIsLauncherHome(context) }.getOrElse {
                 DebugLog.d(TAG, "launcher Home probe failed: ${it.javaClass.simpleName}")
                 null
             },
             keyguardLocked = keyguardLocked
         )
-        launcherHomeProbedAt = SystemClock.uptimeMillis()
+    }
+
+    private fun acceptEvidence(probe: LauncherHomeProbe, reason: String) {
         // HYOS runs Recents inside the launcher activity, so the newest task keeps being Home
         // while the recent-task list owns the bottom of the screen. Recents must keep deciding
         // that surface itself; the launcher's authenticated Overview report outranks Shell's map,
@@ -164,7 +176,7 @@ internal class GestureBarHomeProbe(
     fun retire() {
         launcherHomeVisible = false
         launcherHomeProbedAt = 0L
-        launcherHomeProbeTask?.let { handler().removeCallbacks(it) }
+        launcherHomeProbeTask?.let { scheduler.remove(it) }
         launcherHomeProbeTask = null
         launcherHomeProbePending.set(false)
         launcherHomeComponents = emptySet()

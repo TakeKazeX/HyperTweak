@@ -6,7 +6,7 @@ import androidx.compose.runtime.*
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.update.UpdateManager
 import com.takekazex.hypertweak.util.update.UpdateRecoveryManager
-import io.github.libxposed.service.XposedService
+import com.takekazex.hypertweak.settings.contract.ModuleServiceInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -52,7 +52,7 @@ internal fun ReconcileUpdates(
 @Composable
 internal fun rememberModuleActivation(
     settings: AppSettingsState, restarts: AppRestartTracker,
-    serviceConnected: XposedService?, isModuleActive: () -> Boolean
+    serviceConnected: ModuleServiceInfo?, isModuleActive: () -> Boolean
 ): Boolean {
     val activation = remember { AppActivationCoordinator(restarts.localPrefs, isModuleActive, settings::reload) }
     var moduleActive by remember { mutableStateOf(activation.initialActive) }

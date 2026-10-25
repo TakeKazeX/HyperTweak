@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak
 
 import com.takekazex.hypertweak.app.PreferencesAppSettings
+import com.takekazex.hypertweak.app.DefaultAppServices
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
             ) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         }.getOrDefault(true)
         if (launcherAliasEnabled) {
-            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this) }
+            runCatching { DefaultAppServices.shortcuts.updateShortcuts(this) }
         }
 
         window.isNavigationBarContrastEnforced = false
@@ -57,9 +58,9 @@ class MainActivity : ComponentActivity() {
         // The update flow is owned by this Activity and runs only in the module's own process; no
         // hook process constructs it. Reconciliation runs off the main thread below because it
         // queries the package manager and touches the filesystem.
-        updateManager = UpdateManager(this)
+        updateManager = UpdateManager(this, PreferencesAppSettings)
 
-        setContent { AppContent(this, updateManager, ::isModuleActive, PreferencesAppSettings) }
+        setContent { AppContent(this, updateManager, ::isModuleActive, PreferencesAppSettings, DefaultAppServices) }
     }
 
     override fun onResume() {

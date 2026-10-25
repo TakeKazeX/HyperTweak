@@ -12,7 +12,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -24,18 +24,19 @@ import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 
 @Composable
 fun ScreenshotPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val behavior = MiuixScrollBehavior()
     var enabled by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false))
+        mutableStateOf(settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false))
     }
     var editorMode by rememberSaveable {
-        mutableIntStateOf(Preferences.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 })
+        mutableIntStateOf(settingsStore.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 })
     }
     var copyToClipboard by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
+        mutableStateOf(settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
     }
     var picturesDirectory by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false))
+        mutableStateOf(settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false))
     }
     Scaffold(topBar = {
         TopAppBar(
@@ -57,7 +58,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = {
                             enabled = it
-                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, it)
+                            settingsStore.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, it)
                         },
                         title = stringResource(R.string.screenshot_auto_frame_title),
                         summary = stringResource(R.string.screenshot_auto_frame_summary)
@@ -72,14 +73,14 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         selectedIndex = editorMode,
                         onSelectedIndexChange = { mode ->
                             editorMode = mode
-                            Preferences.putInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, mode)
+                            settingsStore.putInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, mode)
                         }
                     )
                     SwitchPreference(
                         checked = copyToClipboard,
                         onCheckedChange = {
                             copyToClipboard = it
-                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, it)
+                            settingsStore.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, it)
                         },
                         title = stringResource(R.string.screenshot_copy_to_clipboard_title),
                         summary = stringResource(R.string.screenshot_copy_to_clipboard_summary)
@@ -88,7 +89,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         checked = picturesDirectory,
                         onCheckedChange = {
                             picturesDirectory = it
-                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, it)
+                            settingsStore.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, it)
                         },
                         title = stringResource(R.string.screenshot_pictures_directory_title),
                         summary = stringResource(R.string.screenshot_pictures_directory_summary)

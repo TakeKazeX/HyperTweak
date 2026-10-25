@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.ScopePrompt
 import com.takekazex.hypertweak.util.ScopePromptAction
-import com.takekazex.hypertweak.util.ScopePromptStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -34,11 +34,12 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
 fun ScopePromptsPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
     val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
     var refreshKey by remember { mutableIntStateOf(0) }
     val ignoredPrompts by produceState<Set<ScopePrompt>>(emptySet(), refreshKey) {
-        value = withContext(Dispatchers.IO) { ScopePromptStore.ignoredPrompts() }
+        value = withContext(Dispatchers.IO) { services.scopePrompts.ignoredPrompts() }
     }
     val prompts = ignoredPrompts.sortedWith(
         compareBy<ScopePrompt>({ it.action.storageKey }, { it.packageName })
@@ -81,7 +82,7 @@ fun ScopePromptsPage(onBack: () -> Unit) {
                             IgnoredScopePromptRow(
                                 prompt = prompt,
                                 onShowAgain = {
-                                    ScopePromptStore.unignore(prompt)
+                                    services.scopePrompts.unignore(prompt)
                                     refreshKey++
                                 }
                             )

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import java.util.Locale
 /** Device properties are authoritative, including after app upgrades or module preference resets. */
 @Composable
 internal fun WirelessDiagnosticsSection() {
+    val services = LocalAppServices.current
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<WirelessResult?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -54,7 +56,7 @@ internal fun WirelessDiagnosticsSection() {
     }
 
     LaunchedEffect(resumed) {
-        if (resumed) perform { WirelessDiagnostics.query() }
+        if (resumed) perform { services.wireless.query() }
     }
     val snapshot = result?.snapshot
     val supported = snapshot?.cnss?.supported == true
@@ -74,7 +76,7 @@ internal fun WirelessDiagnosticsSection() {
                     SwitchPreference(
                         checked = reading.enabled ?: false,
                         enabled = !busy && reading.supported && reading.enabled != null,
-                        onCheckedChange = { enabled -> perform { WirelessDiagnostics.setEnabled(logger, enabled) } },
+                        onCheckedChange = { enabled -> perform { services.wireless.setEnabled(logger, enabled) } },
                         title = stringResource(if (logger == WirelessLogger.CNSS) R.string.wireless_cnss_title else R.string.wireless_tcpdump_title),
                         summary = stringResource(if (logger == WirelessLogger.CNSS) R.string.wireless_cnss_summary else R.string.wireless_tcpdump_summary, state),
                         summaryColor = BasicComponentDefaults.summaryColor(
@@ -111,7 +113,7 @@ internal fun WirelessDiagnosticsSection() {
             BasicComponent(
                 title = stringResource(if (busy) R.string.wireless_loading else R.string.wireless_refresh),
                 enabled = !busy,
-                onClick = { perform { WirelessDiagnostics.query() } },
+                onClick = { perform { services.wireless.query() } },
                 endActions = { if (busy) InfiniteProgressIndicator() }
             )
         }
@@ -148,7 +150,7 @@ internal fun WirelessDiagnosticsSection() {
                 enabled = !busy,
                 onClick = {
                     dismiss?.invoke()
-                    perform { WirelessDiagnostics.clearLogs() }
+                    perform { services.wireless.clearLogs() }
                 }
             )
         }

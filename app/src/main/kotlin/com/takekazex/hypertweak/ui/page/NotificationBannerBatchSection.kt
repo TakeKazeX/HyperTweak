@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.NotificationBannerBatch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -22,6 +22,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun NotificationBannerBatchSection() {
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val state by NotificationBannerBatch.state.collectAsState()
     var confirmation by rememberSaveable { mutableIntStateOf(0) }
@@ -29,7 +30,7 @@ internal fun NotificationBannerBatchSection() {
     var showReport by remember { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var whitelistBypass by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
     }
     val result = state.result
 
@@ -76,8 +77,8 @@ internal fun NotificationBannerBatchSection() {
                 checked = whitelistBypass,
                 onCheckedChange = {
                     whitelistBypass = it
-                    Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
-                    Preferences.flush()
+                    settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
+                    settingsStore.flush()
                 },
             )
         }

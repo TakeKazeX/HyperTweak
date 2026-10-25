@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.annotation.SuppressLint
@@ -62,7 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.effect.GlassPreviewConfig
 import com.takekazex.hypertweak.ui.effect.GlassTunerPreset
 import com.takekazex.hypertweak.ui.effect.GlassTunerPresetStore
@@ -72,7 +73,6 @@ import com.takekazex.hypertweak.ui.effect.decodeBundledGlassPreviewSample
 import com.takekazex.hypertweak.ui.effect.decodeGlassPreviewImage
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -111,6 +111,8 @@ import kotlin.math.abs
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun GlassTunerPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -127,8 +129,8 @@ fun GlassTunerPage(onBack: () -> Unit) {
         val existing = prefs[key]
         if (existing != null) return existing as T
         val stored: T = when (default) {
-            is Boolean -> Preferences.getBoolean(key, default as Boolean) as T
-            is Float -> Preferences.getFloat(key, default as Float) as T
+            is Boolean -> settingsStore.getBoolean(key, default as Boolean) as T
+            is Float -> settingsStore.getFloat(key, default as Float) as T
             else -> default
         }
         prefs[key] = stored as Any
@@ -140,8 +142,8 @@ fun GlassTunerPage(onBack: () -> Unit) {
         requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[key] = value
         when (value) {
-            is Boolean -> Preferences.putBoolean(key, value)
-            is Float -> Preferences.putFloat(key, value)
+            is Boolean -> settingsStore.putBoolean(key, value)
+            is Float -> settingsStore.putFloat(key, value)
         }
         systemUiRestartPending = true
     }
@@ -212,12 +214,12 @@ fun GlassTunerPage(onBack: () -> Unit) {
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE] = values.radiusScale
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY] = values.glassOpacity
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE] = values.glassTone
-        Preferences.putBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, values.enabled)
-        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, values.blendAlpha)
-        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, values.blendLightness)
-        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, values.radiusScale)
-        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, values.glassOpacity)
-        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, values.glassTone)
+        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, values.enabled)
+        settingsStore.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, values.blendAlpha)
+        settingsStore.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, values.blendLightness)
+        settingsStore.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, values.radiusScale)
+        settingsStore.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, values.glassOpacity)
+        settingsStore.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, values.glassTone)
         previewBlendAlpha = values.blendAlpha
         previewBlendLightness = values.blendLightness
         previewRadiusScale = values.radiusScale
@@ -238,7 +240,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
             GlassTunerPreset(normalizedName, currentTunerValues(), System.currentTimeMillis()))
             .takeLast(GlassTunerPresetStore.MAX_PRESETS)
         if (!GlassTunerPresetStore.save(presetPreferences, updated)) {
-            DebugLog.e("GlassTuner", "preset save failed: SharedPreferences.commit returned false")
+            DebugLog.e("GlassTuner", "preset save failed: SharedsettingsStore.commit returned false")
             Toast.makeText(context, R.string.glass_preset_save_failed, Toast.LENGTH_LONG).show()
             return false
         }
@@ -280,7 +282,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
             else it
         }
         if (!GlassTunerPresetStore.save(presetPreferences, updated)) {
-            DebugLog.e("GlassTuner", "preset rename failed: SharedPreferences.commit returned false")
+            DebugLog.e("GlassTuner", "preset rename failed: SharedsettingsStore.commit returned false")
             Toast.makeText(context, R.string.glass_preset_rename_failed, Toast.LENGTH_LONG).show()
             return false
         }
@@ -652,8 +654,8 @@ fun GlassTunerPage(onBack: () -> Unit) {
                         onClick = {
                             // The remote (LSPosed daemon) copy is written asynchronously; make
                             // sure SystemUI starts after the daemon has the latest values.
-                            Preferences.flush()
-                            RestartUtils.restartScope(
+                            settingsStore.flush()
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = RestartScopeSelection(systemUi = true),
@@ -757,7 +759,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                     Toast.makeText(context, R.string.glass_preset_deleted, Toast.LENGTH_SHORT).show()
                                     presetToDelete = null
                                 } else {
-                                    DebugLog.e("GlassTuner", "preset delete failed: SharedPreferences.commit returned false")
+                                    DebugLog.e("GlassTuner", "preset delete failed: SharedsettingsStore.commit returned false")
                                     Toast.makeText(context, R.string.glass_preset_delete_failed, Toast.LENGTH_LONG).show()
                                 }
                             },

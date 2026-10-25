@@ -27,7 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -61,11 +61,12 @@ fun ExperimentalFeaturesPage(
     ccEditEnabled: Boolean,
     onCcEditEnabledChange: (Boolean) -> Unit
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
 
-    var unlockVisual by remember { mutableStateOf(Preferences.unlockMoreVisualPerception()) }
-    var unlockGestures by remember { mutableStateOf(Preferences.unlockMoreAonGestures()) }
-    var unlockAdaptiveRefresh by remember { mutableStateOf(Preferences.unlockAdaptiveRefreshPro()) }
+    var unlockVisual by remember { mutableStateOf(settingsStore.platform.unlockMoreVisualPerception()) }
+    var unlockGestures by remember { mutableStateOf(settingsStore.platform.unlockMoreAonGestures()) }
+    var unlockAdaptiveRefresh by remember { mutableStateOf(settingsStore.platform.unlockAdaptiveRefreshPro()) }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.experimental_features_title),
@@ -146,7 +147,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockVisual,
                         onCheckedChange = {
                             unlockVisual = it
-                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
                         },
                         title = stringResource(R.string.settings_unlock_visual_perception_title),
                         summary = stringResource(R.string.settings_unlock_visual_perception_summary)
@@ -155,7 +156,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockGestures,
                         onCheckedChange = {
                             unlockGestures = it
-                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, it)
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, it)
                         },
                         title = stringResource(R.string.settings_unlock_aon_gestures_title),
                         summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
@@ -168,7 +169,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockAdaptiveRefresh,
                         onCheckedChange = {
                             unlockAdaptiveRefresh = it
-                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
                         },
                         title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
                         summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)

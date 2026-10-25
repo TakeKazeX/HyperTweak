@@ -17,7 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -41,49 +41,50 @@ fun WatermarkUnlockContent(
     topPadding: Dp,
     bottomPadding: Dp
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     val requestRestartScopes = LocalRestartScopeRequest.current
 
     // Local remember-backed state so the switches update instantly; the remote preference write is
     // async and reading Preferences directly in composition made them bounce back.
     var master by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false))
     }
     var camera by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false))
     }
     var leica by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LEICA, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LEICA, false))
     }
     var xiaomi by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_XIAOMI, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_XIAOMI, false))
     }
     var redmi by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_REDMI, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_REDMI, false))
     }
     var poco by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_POCO, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_POCO, false))
     }
     var disney1 by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY1, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY1, false))
     }
     var disney2 by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY2, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY2, false))
     }
     var disney3 by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY3, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY3, false))
     }
     var victoria by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_VICTORIA, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_VICTORIA, false))
     }
     var lcc by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false))
     }
     var downloadAll by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false))
     }
 
     fun set(key: String, value: Boolean) {
-        Preferences.putBoolean(key, value)
+        settingsStore.putBoolean(key, value)
     }
 
     Column(modifier = modifier) {

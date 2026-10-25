@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -59,6 +59,7 @@ fun CameraUnlockContent(
     topPadding: Dp,
     bottomPadding: Dp
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     val requestRestartScopes = LocalRestartScopeRequest.current
 
     fun requestCameraRestart() {
@@ -70,71 +71,71 @@ fun CameraUnlockContent(
     }
 
     var ignoreDeviceMismatch by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
     }
     var leicaStyle by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false))
     }
     var allShutterSounds by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
     }
     var ultraHdQuality by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false))
     }
     var selfieSettings by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false))
     }
     var legendaryMomentMode by remember {
-        mutableStateOf(Preferences.cameraLegendaryMomentMode())
+        mutableStateOf(settingsStore.camera.cameraLegendaryMomentMode())
     }
     var legendaryExtraModes by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
     }
     var smartComposition by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false))
     }
     var contentCredential by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false))
     }
     var adaptiveLens by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false))
     }
     var masterLiveEnable by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false))
     }
     var mlRedCarpet by remember {
         mutableStateOf(
-            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
+            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
         )
     }
     var mlFullFocal by remember {
         mutableStateOf(
-            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
+            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
         )
     }
     var mlVideoSizeProbe by remember {
         mutableStateOf(
-            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
         )
     }
     var themeLcc by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
     }
     var customWm by remember {
-        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false))
+        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false))
     }
     var customBrand by remember {
-        mutableStateOf(Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND))
+        mutableStateOf(settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND))
     }
     var customModel by remember {
-        mutableStateOf(Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL))
+        mutableStateOf(settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL))
     }
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
 
     fun set(key: String, value: Boolean, needsRestart: Boolean = false) {
         if (needsRestart) requestCameraRestart()
-        Preferences.putBoolean(key, value)
+        settingsStore.putBoolean(key, value)
     }
 
     Column(modifier = modifier) {
@@ -201,7 +202,7 @@ fun CameraUnlockContent(
                         val mode = CameraLegendaryMomentMode.fromIndex(index)
                         legendaryMomentMode = mode
                         requestCameraRestart()
-                        Preferences.setCameraLegendaryMomentMode(mode)
+                        settingsStore.camera.setCameraLegendaryMomentMode(mode)
                     },
                 )
                 SwitchPreference(
@@ -354,7 +355,7 @@ fun CameraUnlockContent(
             onDismissRequest = { editingBrand = false },
             onConfirm = { value ->
                 customBrand = value
-                Preferences.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, value)
+                settingsStore.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, value)
                 editingBrand = false
             }
         )
@@ -365,7 +366,7 @@ fun CameraUnlockContent(
             onDismissRequest = { editingModel = false },
             onConfirm = { value ->
                 customModel = value
-                Preferences.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, value)
+                settingsStore.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, value)
                 editingModel = false
             }
         )

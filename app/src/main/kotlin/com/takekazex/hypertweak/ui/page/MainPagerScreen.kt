@@ -24,7 +24,7 @@ import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.NavigationBar
-import com.takekazex.hypertweak.hook.HotReloadReport
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.layout.layout

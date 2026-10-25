@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook
+package com.takekazex.hypertweak.settings.contract
 
 enum class HotReloadOutcome { SUCCEEDED, FAILED, PROCESS_EXITED, IN_PROGRESS }
 

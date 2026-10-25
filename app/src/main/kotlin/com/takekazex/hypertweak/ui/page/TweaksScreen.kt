@@ -4,7 +4,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.annotation.SuppressLint
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -317,17 +317,18 @@ internal fun ApplicationIcon(
 
 /**
  * Editable phoneModel / phoneDevice used by the Smart-Assistant model spoof
- * ([ModelSpoofHooker]). Reads and writes [Preferences] directly, defaulting to the Xiaomi 12S
+ * ([ModelSpoofHooker]). Reads and writes [AppSettingsStore] directly, defaulting to the Xiaomi 12S
  * Ultra (`2203121C` / `thor`). Only shown while the master switch is on.
  */
 @Composable
 private fun ModelSpoofValuesRow() {
+    val settingsStore = LocalAppSettingsStore.current
     var editing by remember { mutableStateOf(false) }
     // Display state that refreshes right after the dialog commits, so the summary reflects the
     // edited model/device without leaving the screen.
     var displayModel by remember {
         mutableStateOf(
-            Preferences.getString(
+            settingsStore.getString(
                 PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL,
                 PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL
             )
@@ -335,7 +336,7 @@ private fun ModelSpoofValuesRow() {
     }
     var displayDevice by remember {
         mutableStateOf(
-            Preferences.getString(
+            settingsStore.getString(
                 PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE,
                 PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE
             )
@@ -383,8 +384,8 @@ private fun ModelSpoofValuesRow() {
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        Preferences.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
-                        Preferences.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
+                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
+                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
                         displayModel = modelInput
                         displayDevice = deviceInput
                         editing = false

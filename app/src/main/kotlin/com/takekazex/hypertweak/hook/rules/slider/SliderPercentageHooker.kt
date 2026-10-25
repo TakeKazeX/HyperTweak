@@ -12,15 +12,15 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 class SliderPercentageHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
-) : DynamicHooker() {
+) : DynamicHooker(), SliderSession {
     override val hotReloadMode = HotReloadMode.RECREATE
 
     @Volatile
-    var showPercentageEnabled: Boolean = false
+    override var showPercentageEnabled: Boolean = false
         private set
 
     @Volatile
-    var sameStyleEnabled: Boolean = false
+    override var sameStyleEnabled: Boolean = false
         private set
 
     private val resolvedPluginClasses by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -32,7 +32,7 @@ class SliderPercentageHooker(
         )
     }
 
-    fun resolveClass(className: String, initialize: Boolean = false): Class<Any>? {
+    override fun resolveClass(className: String, initialize: Boolean): Class<Any>? {
         className.toClassOrNull(initialize = initialize)?.let { return it }
 
         val resolvedClass = resolveViaDexKit(className)

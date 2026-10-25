@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -29,10 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -50,6 +50,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Settings → System UI → Lockscreen Bottom Text. */
 @Composable
 fun LockscreenBottomTextPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
@@ -57,11 +59,11 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false))
     }
     var mode by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
                 LockscreenBottomTextOptions.DEFAULT_MODE
             )
@@ -69,7 +71,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
     }
     var mask by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
                 LockscreenBottomTextOptions.DEFAULT_MASK
             )
@@ -84,7 +86,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
 
     fun setMaskBit(bit: Int, checked: Boolean) {
         mask = if (checked) mask or bit else mask and bit.inv()
-        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, mask)
+        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, mask)
         requestSystemUiRestart()
     }
 
@@ -115,7 +117,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, checked)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, checked)
                             requestSystemUiRestart()
                         },
                         title = stringResource(R.string.bottom_text_enabled_title),
@@ -127,8 +129,8 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             summary = stringResource(R.string.bottom_text_restart_summary),
                             enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
+                                settingsStore.flush()
+                                services.restarts.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true),
@@ -153,7 +155,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         ),
                         onSelectedIndexChange = { selected ->
                             mode = selected
-                            Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, selected)
+                            settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, selected)
                             requestSystemUiRestart()
                         }
                     )

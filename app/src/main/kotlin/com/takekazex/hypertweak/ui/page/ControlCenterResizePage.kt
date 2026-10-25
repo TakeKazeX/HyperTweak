@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.settings.contract.AppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -57,7 +58,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /**
  * Control Center element sizes (Settings → Experimental → 控制中心尺寸).
  *
- * Self-contained state like [ControlCenterCornerPage]: every control reads/writes [Preferences]
+ * Self-contained state like [ControlCenterCornerPage]: every control reads/writes [AppSettingsStore]
  * directly and the hooker re-reads the keys live on each bind. The master switch installs the
  * hooks, so it needs one SystemUI restart (pending-restart row below); individual sizes apply on
  * the next panel refresh without one.
@@ -68,6 +69,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  */
 @Composable
 fun ControlCenterResizePage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -75,7 +78,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false))
     }
     var restartPending by rememberSaveable { mutableStateOf(false) }
 
@@ -112,7 +115,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             enabled = checked
                             markPending()
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
                         },
                         title = stringResource(R.string.cc_resize_title),
                         summary = stringResource(R.string.cc_resize_enabled_summary)
@@ -123,8 +126,8 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                             summary = stringResource(R.string.charging_restart_summary),
                             enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
                             onClick = {
-                                Preferences.flush()
-                                RestartUtils.restartScope(
+                                settingsStore.flush()
+                                services.restarts.restartScope(
                                     context = context,
                                     coroutineScope = coroutineScope,
                                     selection = RestartScopeSelection(systemUi = true),
@@ -146,10 +149,10 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     CardSpecRow.entries.forEach { entry ->
                         CardSizeRow(
                             title = stringResource(entry.titleRes),
-                            current = cardSizeFor(entry.spec),
+                            current = cardSizeFor(settingsStore, entry.spec),
                             options = CARD_SIZE_OPTIONS,
                             onSelect = { value ->
-                                setCardSize(entry.spec, value)
+                                setCardSize(settingsStore, entry.spec, value)
                                 markPending()
                             }
                         )
@@ -214,13 +217,13 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     )
                     KnownTileSpec.entries.forEach { entry ->
                         var checked by remember(entry.spec) {
-                            mutableStateOf(entry.spec in readTileCardSpecs())
+                            mutableStateOf(entry.spec in readTileCardSpecs(settingsStore))
                         }
                         SwitchPreference(
                             checked = checked,
                             onCheckedChange = { newValue ->
                                 checked = newValue
-                                writeTileCardSpecs(entry.spec, newValue)
+                                writeTileCardSpecs(settingsStore, entry.spec, newValue)
                                 markPending()
                             },
                             title = stringResource(entry.titleRes)
@@ -256,13 +259,13 @@ private val MEDIA_SIZE_OPTIONS = listOf(FOLLOW_SYSTEM, SizeOption(2, 2), SizeOpt
 // Device center stocks at full width (4 cols × 1 row).
 private val DEVICE_SIZE_OPTIONS = listOf(FOLLOW_SYSTEM, SizeOption(4, 1), SizeOption(3, 1), SizeOption(2, 1))
 
-/** The per-card size map (`spec=CxR`) kept in memory and mirrored into [Preferences]. */
+/** The per-card size map (`spec=CxR`) kept in memory and mirrored into [AppSettingsStore]. */
 private val cardSizesState = mutableStateMapOf<String, String>()
 
-private fun cardSizeFor(spec: String): String {
+private fun cardSizeFor(settingsStore: AppSettingsStore, spec: String): String {
     if (!cardSizesState.containsKey("__loaded__")) {
         cardSizesState.clear()
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "")
+        settingsStore.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "")
             .split(',')
             .mapNotNull { entry ->
                 val idx = entry.indexOf('=')
@@ -275,13 +278,13 @@ private fun cardSizeFor(spec: String): String {
     return cardSizesState[spec] ?: ""
 }
 
-private fun setCardSize(spec: String, value: String) {
-    cardSizeFor(spec) // ensure loaded
+private fun setCardSize(settingsStore: AppSettingsStore, spec: String, value: String) {
+    cardSizeFor(settingsStore, spec) // ensure loaded
     if (value.isEmpty()) cardSizesState.remove(spec) else cardSizesState[spec] = value
     val raw = cardSizesState.entries
         .filter { it.key != "__loaded__" && it.value.isNotBlank() }
         .joinToString(",") { "${it.key}=${it.value}" }
-    Preferences.putString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, raw)
+    settingsStore.putString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, raw)
 }
 
 private enum class CardSpecRow(val spec: String, val titleRes: Int) {
@@ -331,7 +334,8 @@ private fun TokenSizeRow(
     defaults: SizeOption,
     onSelect: () -> Unit
 ) {
-    var current by remember(key) { mutableStateOf(Preferences.getString(key, "")) }
+    val settingsStore = LocalAppSettingsStore.current
+    var current by remember(key) { mutableStateOf(settingsStore.getString(key, "")) }
     OverlayDropdownPreference(
         title = title,
         summary = summary,
@@ -340,7 +344,7 @@ private fun TokenSizeRow(
         onSelectedIndexChange = { index ->
             val value = options[index].token
             current = value
-            Preferences.putString(key, value)
+            settingsStore.putString(key, value)
             onSelect()
         }
     )
@@ -372,20 +376,21 @@ private enum class KnownTileSpec(val spec: String, val titleRes: Int) {
 
 private val knownSpecTokens = KnownTileSpec.entries.map { it.spec }.toSet()
 
-private fun readTileCardSpecs(): Set<String> =
-    Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
+private fun readTileCardSpecs(settingsStore: AppSettingsStore): Set<String> =
+    settingsStore.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
         .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
 /** Rewrites the spec key keeping unknown (hand-typed) specs intact. */
-private fun writeTileCardSpecs(spec: String, add: Boolean) {
-    val known = readTileCardSpecs().toMutableSet()
+private fun writeTileCardSpecs(settingsStore: AppSettingsStore, spec: String, add: Boolean) {
+    val known = readTileCardSpecs(settingsStore).toMutableSet()
     if (add) known += spec else known -= spec
-    val customs = readTileCardSpecs().filterNot { it in knownSpecTokens }
-    Preferences.putString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(","))
+    val customs = readTileCardSpecs(settingsStore).filterNot { it in knownSpecTokens }
+    settingsStore.putString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(","))
 }
 
 @Composable
 private fun CustomTileSpecRow(onSelect: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     var expanded by remember { mutableStateOf(false) }
     ArrowPreference(
         title = stringResource(R.string.cc_tile_custom_title),
@@ -400,7 +405,7 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
         content = {
             var text by remember(expanded) {
                 mutableStateOf(
-                    readTileCardSpecs().filterNot { it in knownSpecTokens }.joinToString(",")
+                    readTileCardSpecs(settingsStore).filterNot { it in knownSpecTokens }.joinToString(",")
                 )
             }
             TextField(
@@ -419,10 +424,10 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        val known = readTileCardSpecs().filter { it in knownSpecTokens }.toSet()
+                        val known = readTileCardSpecs(settingsStore).filter { it in knownSpecTokens }.toSet()
                         val customs = text.split(',').map { it.trim().lowercase() }
                             .filter { it.isNotEmpty() }
-                        Preferences.putString(
+                        settingsStore.putString(
                             SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(",")
                         )
                         onSelect()

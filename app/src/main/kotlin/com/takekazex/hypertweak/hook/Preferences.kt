@@ -6,6 +6,8 @@
 
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit

@@ -39,7 +39,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
@@ -117,6 +117,7 @@ private fun TunerSwitch(
 
 @Composable
 fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavigateToIconRows: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
 
@@ -127,7 +128,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
     }
 
     // Epoch changes invalidate saved page values after reset/restore, including Activity recreation.
-    IconTunerPreferenceState.reconcileEpoch(prefs, Preferences.settingsEpochForUi())
+    IconTunerPreferenceState.reconcileEpoch(prefs, settingsStore.backup.settingsEpochForUi())
 
     @Suppress("UNCHECKED_CAST")
     fun <T> pref(key: String, default: T): T {
@@ -142,12 +143,12 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         }
         // Load the stored value once; defaults are only for keys never written.
         val stored: T = when (default) {
-            is Boolean -> Preferences.getBoolean(key, default as Boolean) as T
-            is Int -> (if (key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) Preferences.iconStackedSignalStyle()
-                else Preferences.getInt(key, default as Int)) as T
-            is Float -> Preferences.getFloat(key, default as Float) as T
-            is String -> Preferences.getString(key, default as String) as T
-            is Set<*> -> Preferences.getStringSet(
+            is Boolean -> settingsStore.getBoolean(key, default as Boolean) as T
+            is Int -> (if (key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) settingsStore.systemUi.iconStackedSignalStyle()
+                else settingsStore.getInt(key, default as Int)) as T
+            is Float -> settingsStore.getFloat(key, default as Float) as T
+            is String -> settingsStore.getString(key, default as String) as T
+            is Set<*> -> settingsStore.getStringSet(
                 key,
                 default.filterIsInstance<String>().toSet()
             ) as T
@@ -168,11 +169,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             value
         }
         when (value) {
-            is Boolean -> Preferences.putBoolean(key, value)
-            is Int -> Preferences.putInt(key, value)
-            is Float -> Preferences.putFloat(key, value)
-            is String -> Preferences.putString(key, value)
-            is Set<*> -> Preferences.putStringSet(key, value.filterIsInstance<String>().toSet())
+            is Boolean -> settingsStore.putBoolean(key, value)
+            is Int -> settingsStore.putInt(key, value)
+            is Float -> settingsStore.putFloat(key, value)
+            is String -> settingsStore.putString(key, value)
+            is Set<*> -> settingsStore.putStringSet(key, value.filterIsInstance<String>().toSet())
         }
     }
 
@@ -189,8 +190,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
     val legacyLeftEnabled = pref(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, false)
     val leftMode = pref(
         IconTunerContract.KEY_LEFT_MODE,
-        if (Preferences.contains(IconTunerContract.KEY_LEFT_MODE)) {
-            Preferences.getInt(IconTunerContract.KEY_LEFT_MODE, IconTunerContract.LEFT_MODE_DISABLED)
+        if (settingsStore.contains(IconTunerContract.KEY_LEFT_MODE)) {
+            settingsStore.getInt(IconTunerContract.KEY_LEFT_MODE, IconTunerContract.LEFT_MODE_DISABLED)
         } else if (legacyLeftEnabled) {
             IconTunerContract.LEFT_MODE_HOME
         } else {
@@ -216,7 +217,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             position = pref(IconTunerContract.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
             customOrder = pref(IconTunerContract.KEY_POSITION_VALUES, emptySet<String>()),
             reorderHidden = pref(IconTunerContract.KEY_POSITION_REORDER, false),
-            slotModes = IconSlotCatalog.slots.associateWith { pref(Preferences.slotKey(it), 0) },
+            slotModes = IconSlotCatalog.slots.associateWith { pref(settingsStore.systemUi.slotKey(it), 0) },
             extraHidden = IconSlotPolicy.parseSlotList(
                 pref(IconSettingsKeys.KEY_ICON_EXT_BLOCKED, "")
             ).toSet(),
@@ -418,7 +419,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         SlotsSection(
                 slotModes = slotModes,
-                slotModeOf = { slot -> pref(Preferences.slotKey(slot), 0) },
+                slotModeOf = { slot -> pref(settingsStore.systemUi.slotKey(slot), 0) },
                 ignoreSysHide = pref(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, false),
                 hidePrivacy = pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
                 regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0),
@@ -754,12 +755,13 @@ private fun WifiSection(
  */
 @Composable
 private fun PositionSection(onNavigateToIconOrder: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val positions = listOf(
         stringResource(R.string.icon_position_system),
         stringResource(R.string.icon_position_wifi_before_mobile),
         stringResource(R.string.icon_position_custom)
     )
-    val position = Preferences.getInt(
+    val position = settingsStore.getInt(
         IconTunerContract.KEY_POSITION,
         IconSlotPolicyConfig.POSITION_SYSTEM
     )
@@ -1059,6 +1061,7 @@ private fun SlotsSection(
     regionSampling: Int,
     onChange: (String, Any) -> Unit
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     SmallTitle(stringResource(R.string.icon_slots_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -1074,7 +1077,7 @@ private fun SlotsSection(
                     items = slotModes,
                     selectedIndex = mode.coerceIn(0, slotModes.lastIndex),
                     onSelectedIndexChange = { index ->
-                        onChange(Preferences.slotKey(slot), index)
+                        onChange(settingsStore.systemUi.slotKey(slot), index)
                     },
                     startAction = {
                         SlotRowGlyph(

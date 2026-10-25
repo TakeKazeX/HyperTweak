@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.camera
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.view.View
-import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.compose.foundation.layout.*
@@ -43,12 +44,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.BuildConfig
-import com.takekazex.hypertweak.hook.HotReloadReport
-import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.ScopePrompt
 import com.takekazex.hypertweak.util.ScopePromptAction
-import com.takekazex.hypertweak.util.ScopePromptStore
 import com.takekazex.hypertweak.util.ScopeManager
 import com.takekazex.hypertweak.util.deviceModel
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +72,8 @@ fun HomeScreenContent(
     onRestartAllScopes: () -> Unit,
     onRestartScope: (RestartScopeSelection) -> Unit
 ) {
+    val services = LocalAppServices.current
+    val service = services.module.connection.collectAsState().value
     val isDark = isSystemInDarkTheme()
     val containerColor = when {
         hotReloadAvailable -> if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
@@ -183,7 +184,6 @@ fun HomeScreenContent(
                         )
                         if (moduleActive) {
                             Spacer(modifier = Modifier.height(36.dp))
-                            val service = com.takekazex.hypertweak.hook.XposedServiceManager.currentService
                             val frameworkDetail = if (service != null) {
                                 stringResource(R.string.home_framework_detail, service.frameworkName, service.frameworkVersion, service.apiVersion)
                             } else {
@@ -321,14 +321,15 @@ fun HomeScreenContent(
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 private fun ScopeWarningCard() {
+    val services = LocalAppServices.current
     val context = LocalContext.current
-    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val service by services.module.connection.collectAsState()
     var refreshKey by remember { mutableIntStateOf(0) }
     val missing by produceState<Set<String>?>(initialValue = null, service, refreshKey) {
-        value = if (service == null) null else ScopeManager.missingRequiredScope(context)
+        value = if (service == null) null else services.scopes.missingRequiredScope(context)
     }
     val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
-        value = withContext(Dispatchers.IO) { ScopePromptStore.ignoredIds() }
+        value = withContext(Dispatchers.IO) { services.scopePrompts.ignoredIds() }
     }
     val prompts = (missing ?: return)
         .sorted()
@@ -364,7 +365,7 @@ private fun ScopeWarningCard() {
                 summary = stringResource(R.string.home_scope_restore_summary),
                 onClick = {
                     scope.launch {
-                        when (val result = ScopeManager.request(prompts.map { it.packageName }.toSet())) {
+                        when (val result = services.scopes.request(prompts.map { it.packageName }.toSet())) {
                             is ScopeManager.Result.Failed ->
                                 Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             ScopeManager.Result.ServiceUnavailable ->
@@ -382,7 +383,7 @@ private fun ScopeWarningCard() {
             TextButton(
                 text = stringResource(R.string.home_scope_ignore),
                 onClick = {
-                    ScopePromptStore.ignoreAll(prompts)
+                    services.scopePrompts.ignoreAll(prompts)
                     refreshKey++
                 },
                 modifier = Modifier
@@ -402,14 +403,15 @@ private fun ScopeWarningCard() {
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 private fun LauncherScopeSuggestionCard() {
+    val services = LocalAppServices.current
     val context = LocalContext.current
-    val service by XposedServiceManager.serviceFlow.collectAsState()
+    val service by services.module.connection.collectAsState()
     var refreshKey by remember { mutableIntStateOf(0) }
     val recommendation by produceState<ScopePrompt?>(initialValue = null, service, refreshKey) {
-        value = if (service == null) null else ScopeManager.launcherScopeRecommendation()
+        value = if (service == null) null else services.scopes.launcherScopeRecommendation()
     }
     val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
-        value = withContext(Dispatchers.IO) { ScopePromptStore.ignoredIds() }
+        value = withContext(Dispatchers.IO) { services.scopePrompts.ignoredIds() }
     }
     val prompt = recommendation ?: return
     if (prompt.id in ignoredIds) return
@@ -438,7 +440,7 @@ private fun LauncherScopeSuggestionCard() {
                 summary = stringResource(R.string.home_scope_restore_summary),
                 onClick = {
                     scope.launch {
-                        when (val result = ScopeManager.request(setOf(prompt.packageName))) {
+                        when (val result = services.scopes.request(setOf(prompt.packageName))) {
                             is ScopeManager.Result.Failed ->
                                 Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             ScopeManager.Result.ServiceUnavailable ->
@@ -456,7 +458,7 @@ private fun LauncherScopeSuggestionCard() {
             TextButton(
                 text = stringResource(R.string.home_scope_ignore),
                 onClick = {
-                    ScopePromptStore.ignore(prompt)
+                    services.scopePrompts.ignore(prompt)
                     refreshKey++
                 },
                 modifier = Modifier

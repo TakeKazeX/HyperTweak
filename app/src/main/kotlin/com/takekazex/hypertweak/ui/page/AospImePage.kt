@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -28,9 +29,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.ImeLayout
-import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,24 +89,26 @@ private fun navBarKeyIndex(value: String): Int =
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AospImePage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false))
     }
     var miuiImeList by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false))
     }
     var forceAospAll by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false))
     }
-    var startKey by remember { mutableStateOf(ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)) }
-    var endKey by remember { mutableStateOf(ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)) }
-    var raiseStyle by remember { mutableIntStateOf(Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)) }
+    var startKey by remember { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)) }
+    var endKey by remember { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)) }
+    var raiseStyle by remember { mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)) }
 
-    var applied by remember { mutableStateOf(Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)) }
+    var applied by remember { mutableStateOf(settingsStore.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)) }
     var selected by remember { mutableStateOf(applied) }
     var applying by remember { mutableStateOf(false) }
 
@@ -132,14 +134,14 @@ fun AospImePage(onBack: () -> Unit) {
     fun apply() {
         applying = true
         coroutineScope.launch {
-            val result = ScopeManager.applyManagedDiff(
+            val result = services.scopes.applyManagedDiff(
                 context = context,
                 target = selected,
                 managed = imes.map { it.packageName }.toSet()
             )
             when (result) {
                 is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> {
-                    Preferences.putStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, selected)
+                    settingsStore.putStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, selected)
                     applied = selected
                     Toast.makeText(context, context.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
                 }
@@ -185,7 +187,7 @@ fun AospImePage(onBack: () -> Unit) {
                             checked = enabled,
                             onCheckedChange = {
                                 enabled = it
-                                Preferences.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, it)
+                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, it)
                             },
                             title = stringResource(R.string.ime_nav_bar_title),
                             summary = stringResource(R.string.ime_nav_bar_summary)
@@ -196,7 +198,7 @@ fun AospImePage(onBack: () -> Unit) {
                             selectedIndex = navBarKeyIndex(startKey),
                             onSelectedIndexChange = { index ->
                                 startKey = NAV_BAR_KEY_VALUES[index]
-                                Preferences.putString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, startKey)
+                                settingsStore.putString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, startKey)
                             },
                             enabled = enabled
                         )
@@ -206,7 +208,7 @@ fun AospImePage(onBack: () -> Unit) {
                             selectedIndex = navBarKeyIndex(endKey),
                             onSelectedIndexChange = { index ->
                                 endKey = NAV_BAR_KEY_VALUES[index]
-                                Preferences.putString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, endKey)
+                                settingsStore.putString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, endKey)
                             },
                             enabled = enabled
                         )
@@ -218,7 +220,7 @@ fun AospImePage(onBack: () -> Unit) {
                             onSelectedIndexChange = { index ->
                                 RAISE_STYLE_VALUES.getOrNull(index)?.let {
                                     raiseStyle = it
-                                    Preferences.putInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, it)
+                                    settingsStore.putInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, it)
                                 }
                             },
                             enabled = enabled
@@ -235,7 +237,7 @@ fun AospImePage(onBack: () -> Unit) {
                             checked = miuiImeList,
                             onCheckedChange = {
                                 miuiImeList = it
-                                Preferences.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, it)
+                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, it)
                             },
                             title = stringResource(R.string.ime_list_all_keyboards),
                             summary = stringResource(R.string.ime_list_all_keyboards_summary)
@@ -244,7 +246,7 @@ fun AospImePage(onBack: () -> Unit) {
                             checked = forceAospAll,
                             onCheckedChange = {
                                 forceAospAll = it
-                                Preferences.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, it)
+                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, it)
                             },
                             title = stringResource(R.string.ime_force_aosp_title),
                             summary = stringResource(R.string.ime_force_aosp_summary),
@@ -321,10 +323,10 @@ fun AospImePage(onBack: () -> Unit) {
                         title = stringResource(R.string.ime_restart_keyboards),
                         summary = stringResource(R.string.ime_restart_keyboards_summary),
                         onClick = {
-                            RestartUtils.forceStopPackages(
+                            services.restarts.forceStopPackages(
                                 context = context,
                                 coroutineScope = coroutineScope,
-                                packages = Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)
+                                packages = settingsStore.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)
                             )
                         }
                     )

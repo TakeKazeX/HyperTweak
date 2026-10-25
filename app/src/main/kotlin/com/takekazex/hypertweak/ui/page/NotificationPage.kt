@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -28,10 +29,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -59,17 +59,19 @@ fun NotificationPage(
     onNotificationAbsoluteTimeChange: (Boolean) -> Unit,
     onNavigateToNotificationHeader: () -> Unit,
 ) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
-    var notifMoreSettings by remember { mutableStateOf(Preferences.notificationMoreSettings()) }
-    var notifBadge by remember { mutableStateOf(Preferences.notificationBadge()) }
-    var notifMiniWindow by rememberSaveable { mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)) }
-    var notifBlockFold by remember { mutableStateOf(Preferences.notificationBlockFold()) }
+    var notifMoreSettings by remember { mutableStateOf(settingsStore.systemUi.notificationMoreSettings()) }
+    var notifBadge by remember { mutableStateOf(settingsStore.systemUi.notificationBadge()) }
+    var notifMiniWindow by rememberSaveable { mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)) }
+    var notifBlockFold by remember { mutableStateOf(settingsStore.systemUi.notificationBlockFold()) }
     var notifSettingsRestartPending by rememberSaveable { mutableStateOf(false) }
     var notifSystemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    var iconFilterMode by rememberSaveable { mutableIntStateOf(com.takekazex.hypertweak.hook.rules.systemui.NotificationIconPolicy.normalize(Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))) }
+    var iconFilterMode by rememberSaveable { mutableIntStateOf(com.takekazex.hypertweak.settings.contract.NotificationIconPolicy.normalize(settingsStore.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))) }
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_notifications), onBack) {
         SmallTitle(stringResource(R.string.settings_system_ui_section_notifications))
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -78,8 +80,8 @@ fun NotificationPage(
                     checked = notifMoreSettings,
                     onCheckedChange = { value ->
                         notifMoreSettings = value
-                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, value)
-                        Preferences.flush()
+                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, value)
+                        settingsStore.flush()
                         notifSettingsRestartPending = true
                         notifSystemUiRestartPending = true
                         requestRestartScopes(
@@ -93,8 +95,8 @@ fun NotificationPage(
                     checked = notifBadge,
                     onCheckedChange = { value ->
                         notifBadge = value
-                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE, value)
-                        Preferences.flush()
+                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE, value)
+                        settingsStore.flush()
                         notifSettingsRestartPending = true
                         requestRestartScopes(RestartScopeSelection(settings = true))
                     },
@@ -105,8 +107,8 @@ fun NotificationPage(
                     checked = notifMiniWindow,
                     onCheckedChange = { value ->
                         notifMiniWindow = value
-                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, value)
-                        Preferences.flush()
+                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, value)
+                        settingsStore.flush()
                     },
                     title = stringResource(R.string.settings_notification_mini_window_title),
                     summary = stringResource(R.string.settings_notification_mini_window_summary)
@@ -115,8 +117,8 @@ fun NotificationPage(
                     checked = notifBlockFold,
                     onCheckedChange = { value ->
                         notifBlockFold = value
-                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, value)
-                        Preferences.flush()
+                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, value)
+                        settingsStore.flush()
                         notifSystemUiRestartPending = true
                         requestRestartScopes(RestartScopeSelection(systemUi = true))
                     },
@@ -131,8 +133,8 @@ fun NotificationPage(
                     selectedIndex = iconFilterMode,
                     onSelectedIndexChange = { index ->
                         iconFilterMode = index
-                        Preferences.putInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, iconFilterMode)
-                        Preferences.flush()
+                        settingsStore.putInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, iconFilterMode)
+                        settingsStore.flush()
                     }
                 )
                 if (notifSettingsRestartPending) {
@@ -142,8 +144,8 @@ fun NotificationPage(
                         summary = stringResource(R.string.settings_notification_restart_settings_summary),
                         enabled = !restartInProgress(restartSelection),
                         onClick = {
-                            Preferences.flush()
-                            RestartUtils.restartScope(
+                            settingsStore.flush()
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = restartSelection,
@@ -162,8 +164,8 @@ fun NotificationPage(
                         summary = stringResource(R.string.aosp_restart_system_ui_summary),
                         enabled = !restartInProgress(restartSelection),
                         onClick = {
-                            Preferences.flush()
-                            RestartUtils.restartScope(
+                            settingsStore.flush()
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = restartSelection,

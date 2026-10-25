@@ -16,7 +16,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,8 +44,9 @@ fun PurificationPage(
     blockMiLinkHpplayFiles: Boolean,
     onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     var aicrCopyDirectDefaultBrowser by remember {
-        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
     }
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
@@ -76,7 +77,7 @@ fun PurificationPage(
                     checked = aicrCopyDirectDefaultBrowser,
                     onCheckedChange = { enabled ->
                         aicrCopyDirectDefaultBrowser = enabled
-                        Preferences.putBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
                     },
                     title = stringResource(R.string.tweaks_aicr_default_browser_title),
                     summary = stringResource(R.string.tweaks_aicr_default_browser_summary)

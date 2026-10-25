@@ -36,8 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.HotReloadReport
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.util.TestNotifier
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -66,9 +66,10 @@ fun DebugPage(
     onHotReload: () -> Unit,
     onRestartAllScopes: () -> Unit
 ) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
-    var recordLogs by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) }
+    var recordLogs by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var showHotReloadDialog by remember { mutableStateOf(false) }
     // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
@@ -96,7 +97,7 @@ fun DebugPage(
                         checked = recordLogs,
                         onCheckedChange = { enabled ->
                             recordLogs = enabled
-                            Preferences.putBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, enabled)
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, enabled)
                         },
                         title = stringResource(R.string.debug_record_logs_title),
                         summary = stringResource(R.string.debug_record_logs_summary)

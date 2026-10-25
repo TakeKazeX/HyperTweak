@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -36,8 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.NativeRuleConfig
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
 import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.PlatformLevel
@@ -116,6 +116,8 @@ fun SystemUIPage(
     onNavigateToPrivacyIndicator: () -> Unit,
     onNavigateToAodIcons: () -> Unit
 ) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     val scrollBehavior = MiuixScrollBehavior()
@@ -123,12 +125,12 @@ fun SystemUIPage(
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideLockscreenDate by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
     }
 
     var volumeKeyStepCount by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT,
                 PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT
             ).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
@@ -136,7 +138,7 @@ fun SystemUIPage(
     }
     var volumeKeyStepScope by remember {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE,
                 PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY
             ).coerceIn(
@@ -156,8 +158,8 @@ fun SystemUIPage(
     fun setVolumeKeyStepCount(value: Int) {
         val resolved = value.coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
         volumeKeyStepCount = resolved
-        Preferences.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, resolved)
-        Preferences.flush()
+        settingsStore.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, resolved)
+        settingsStore.flush()
     }
     fun setVolumeKeyStepScope(value: Int) {
         val resolved = value.coerceIn(
@@ -165,13 +167,13 @@ fun SystemUIPage(
             PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
         )
         volumeKeyStepScope = resolved
-        Preferences.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
-        Preferences.flush()
+        settingsStore.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
+        settingsStore.flush()
     }
 
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
     var tileMessageSeconds by rememberSaveable {
-        mutableFloatStateOf(TileStateMessageDuration.normalize(Preferences.getInt(
+        mutableFloatStateOf(TileStateMessageDuration.normalize(settingsStore.getInt(
             SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS
         )) / 1000f)
     }
@@ -179,11 +181,11 @@ fun SystemUIPage(
     fun setTileMessageSeconds(value: Float) {
         val milliseconds = TileStateMessageDuration.normalize((value * 1000).roundToInt())
         tileMessageSeconds = milliseconds / 1000f
-        Preferences.putInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, milliseconds)
-        Preferences.flush()
+        settingsStore.putInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, milliseconds)
+        settingsStore.flush()
     }
 
-    var freeformBlur by remember { mutableStateOf(Preferences.freeformBlurTransition()) }
+    var freeformBlur by remember { mutableStateOf(settingsStore.platform.freeformBlurTransition()) }
 
     val powerButtonActionOptions = remember {
         listOf(
@@ -317,7 +319,7 @@ fun SystemUIPage(
                         checked = freeformBlur,
                         onCheckedChange = { value ->
                             freeformBlur = value
-                            Preferences.putBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, value)
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, value)
                         },
                         title = stringResource(R.string.settings_freeform_blur_title),
                         summary = stringResource(R.string.settings_freeform_blur_summary)
@@ -383,8 +385,8 @@ fun SystemUIPage(
                         checked = hideLockscreenDate,
                         onCheckedChange = { value ->
                             hideLockscreenDate = value
-                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, value)
-                            Preferences.flush()
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, value)
+                            settingsStore.flush()
                             requestRestartScopes(RestartScopeSelection(systemUi = true))
                         },
                         title = stringResource(R.string.tweaks_hide_lockscreen_date_title),
@@ -532,10 +534,10 @@ fun SystemUIPage(
                             // Preferences delivers the acknowledged switch through the common
                             // live-settings channel. Keep this legacy file as a diagnostic record;
                             // it is not the runtime transport.
-                            NativeRuleConfig.publish(
+                            services.nativeRules.publish(
                                 context,
-                                Preferences.hideRecentsClearButton(),
-                                Preferences.openedFolderColumns(),
+                                settingsStore.launcher.hideRecentsClearButton(),
+                                settingsStore.launcher.openedFolderColumns(),
                                 checked
                             )
                         },

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -29,9 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.RestartUtils
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,6 +53,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Power-save overrides and battery automation, with restart scopes tracked independently. */
 @Composable
 fun PowerSavePage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
@@ -61,15 +63,15 @@ fun PowerSavePage(onBack: () -> Unit) {
     val securityCenterScope = remember { RestartScopeSelection(securityCenter = true) }
     val systemUiScope = remember { RestartScopeSelection(systemUi = true) }
 
-    var refreshRate by remember { mutableStateOf(Preferences.keepRefreshRateInPowerSave()) }
-    var hapticFeedback by remember { mutableStateOf(Preferences.keepHapticFeedbackInPowerSave()) }
-    var systemSounds by remember { mutableStateOf(Preferences.keepSystemSoundsInPowerSave()) }
-    var wakeupGestures by remember { mutableStateOf(Preferences.keepWakeupGesturesInPowerSave()) }
-    var autoPowerSave by remember { mutableStateOf(Preferences.batteryAutoPowerSaveEnabled()) }
+    var refreshRate by remember { mutableStateOf(settingsStore.powerSave.keepRefreshRateInPowerSave()) }
+    var hapticFeedback by remember { mutableStateOf(settingsStore.powerSave.keepHapticFeedbackInPowerSave()) }
+    var systemSounds by remember { mutableStateOf(settingsStore.powerSave.keepSystemSoundsInPowerSave()) }
+    var wakeupGestures by remember { mutableStateOf(settingsStore.powerSave.keepWakeupGesturesInPowerSave()) }
+    var autoPowerSave by remember { mutableStateOf(settingsStore.powerSave.batteryAutoPowerSaveEnabled()) }
     var autoThreshold by remember {
-        mutableFloatStateOf(Preferences.batteryAutoPowerSaveThreshold().toFloat())
+        mutableFloatStateOf(settingsStore.powerSave.batteryAutoPowerSaveThreshold().toFloat())
     }
-    var exitWhenCharging by remember { mutableStateOf(Preferences.exitPowerSaveWhenCharging()) }
+    var exitWhenCharging by remember { mutableStateOf(settingsStore.powerSave.exitPowerSaveWhenCharging()) }
 
     var securityRestartPending by rememberSaveable { mutableStateOf(false) }
     var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
@@ -85,8 +87,8 @@ fun PowerSavePage(onBack: () -> Unit) {
     }
 
     fun setOverride(key: String, value: Boolean, scope: RestartScopeSelection) {
-        if (scope.securityCenter) Preferences.setPowerSaveFeature(key, value)
-        else Preferences.putBoolean(key, value)
+        if (scope.securityCenter) settingsStore.powerSave.setPowerSaveFeature(key, value)
+        else settingsStore.putBoolean(key, value)
         requestRestart(scope)
     }
 
@@ -195,7 +197,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             autoThreshold = value
                         },
                         onValueSettled = {
-                            Preferences.putInt(
+                            settingsStore.putInt(
                                 PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
                                 autoThreshold.roundToInt(),
                             )
@@ -229,9 +231,9 @@ fun PowerSavePage(onBack: () -> Unit) {
                         ).joinToString(", "),
                         enabled = !restartInProgress(restartScopes),
                         onClick = {
-                            Preferences.flush()
+                            settingsStore.flush()
                             val selection = restartScopes
-                            RestartUtils.restartScope(
+                            services.restarts.restartScope(
                                 context = context,
                                 coroutineScope = coroutineScope,
                                 selection = selection,

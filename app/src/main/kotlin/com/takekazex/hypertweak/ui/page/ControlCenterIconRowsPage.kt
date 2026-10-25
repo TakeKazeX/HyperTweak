@@ -25,7 +25,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -43,10 +43,11 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Per-slot row selection shares the runtime policy; unknown stored slots survive every edit. */
 @Composable
 fun ControlCenterIconRowsPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val listState = rememberLazyListState()
     var entries by rememberSaveable {
-        mutableStateOf(Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet()).toList())
+        mutableStateOf(settingsStore.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet()).toList())
     }
     val choices = listOf(stringResource(R.string.icon_cc_row_first), stringResource(R.string.icon_cc_row_second))
     Scaffold(topBar = {
@@ -78,7 +79,7 @@ fun ControlCenterIconRowsPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { index ->
                             val updated = IconSlotPolicy.withControlCenterRow(entries.toSet(), slot, index + 1)
                             entries = updated.toList()
-                            Preferences.putStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, updated)
+                            settingsStore.putStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, updated)
                         }
                     )
                 }

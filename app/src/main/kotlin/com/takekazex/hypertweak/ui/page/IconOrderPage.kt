@@ -47,7 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import kotlinx.coroutines.delay
@@ -99,6 +99,7 @@ private const val AUTO_SCROLL_EDGE_FRACTION = 0.2f
  */
 @Composable
 fun IconOrderPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val pageScroll = rememberScrollState()
 
@@ -107,7 +108,7 @@ fun IconOrderPage(onBack: () -> Unit) {
     val viewport = remember { OrderViewport() }
 
     val storedEntries = remember {
-        Preferences.getStringSet(IconTunerContract.KEY_POSITION_VALUES, emptySet())
+        settingsStore.getStringSet(IconTunerContract.KEY_POSITION_VALUES, emptySet())
     }
     // Entries the catalog cannot draw are carried over verbatim: the user never sees them here,
     // and dropping them would silently undo an older hand-written configuration.
@@ -120,14 +121,14 @@ fun IconOrderPage(onBack: () -> Unit) {
 
     var position by rememberSaveable {
         mutableIntStateOf(
-            Preferences.getInt(
+            settingsStore.getInt(
                 IconTunerContract.KEY_POSITION,
                 IconSlotPolicyConfig.POSITION_SYSTEM
             )
         )
     }
     var reorderHidden by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(IconTunerContract.KEY_POSITION_REORDER, false))
+        mutableStateOf(settingsStore.getBoolean(IconTunerContract.KEY_POSITION_REORDER, false))
     }
     var order by rememberSaveable {
         mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots))
@@ -135,7 +136,7 @@ fun IconOrderPage(onBack: () -> Unit) {
 
     /** Stores the displayed order plus the carry-over entries the list cannot show. */
     fun persistOrder(slots: List<String>) {
-        Preferences.putStringSet(
+        settingsStore.putStringSet(
             IconTunerContract.KEY_POSITION_VALUES,
             IconSlotPolicy.orderEntries(slots + offCatalogSlots)
         )
@@ -193,14 +194,14 @@ fun IconOrderPage(onBack: () -> Unit) {
                             selectedIndex = position.coerceIn(0, positions.lastIndex),
                             onSelectedIndexChange = { index ->
                                 position = index
-                                Preferences.putInt(IconTunerContract.KEY_POSITION, index)
+                                settingsStore.putInt(IconTunerContract.KEY_POSITION, index)
                             }
                         )
                         SwitchPreference(
                             checked = reorderHidden,
                             onCheckedChange = { checked ->
                                 reorderHidden = checked
-                                Preferences.putBoolean(
+                                settingsStore.putBoolean(
                                     IconTunerContract.KEY_POSITION_REORDER,
                                     checked
                                 )
@@ -231,7 +232,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                                     // Reset re-writes the stored set from the carry-over entries
                                     // only: an empty set is the stored form of "system order".
                                     order = IconSlotCatalog.orderSlots
-                                    Preferences.putStringSet(
+                                    settingsStore.putStringSet(
                                         IconTunerContract.KEY_POSITION_VALUES,
                                         IconSlotPolicy.orderEntries(offCatalogSlots)
                                     )

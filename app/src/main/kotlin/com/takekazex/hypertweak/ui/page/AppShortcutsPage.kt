@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -31,7 +32,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.util.ShortcutUtils
 import kotlin.math.roundToInt
 
 private val DEFAULT_ORDER = listOf("lsposed", "installerx", "dev_settings")
@@ -91,22 +91,23 @@ fun AppShortcutsPage(
     onBack: () -> Unit,
     onShortcutsChanged: () -> Unit
 ) {
+    val services = LocalAppServices.current
     val topAppBarScrollBehavior = MiuixScrollBehavior()
-    val allShortcuts = remember { ShortcutUtils.getAvailableShortcuts() }
+    val allShortcuts = remember { services.shortcuts.getAvailableShortcuts() }
     val itemHeightPx = with(LocalDensity.current) { 56.dp.toPx() }
 
     var orderedIds by remember {
-        val ordered = ShortcutUtils.getOrderedList()
+        val ordered = services.shortcuts.getOrderedList()
         val full = ordered + (allShortcuts.map { it.id } - ordered.toSet())
         mutableStateOf(full)
     }
-    var enabledIds by remember { mutableStateOf(ShortcutUtils.getEnabledShortcutIds()) }
+    var enabledIds by remember { mutableStateOf(services.shortcuts.getEnabledShortcutIds()) }
     var dragIndex by remember { mutableIntStateOf(-1) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
 
     fun save() {
         val enabledOrdered = orderedIds.filter { it in enabledIds }
-        ShortcutUtils.saveOrder(enabledOrdered)
+        services.shortcuts.saveOrder(enabledOrdered)
         onShortcutsChanged()
     }
 

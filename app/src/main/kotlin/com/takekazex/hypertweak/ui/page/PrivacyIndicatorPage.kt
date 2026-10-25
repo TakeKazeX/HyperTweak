@@ -31,7 +31,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
@@ -71,6 +71,7 @@ private val privacyPrefsSaver = Saver<SnapshotStateMap<String, Any>, ArrayList<A
 
 @Composable
 fun PrivacyIndicatorPage(onBack: () -> Unit) {
+    val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberScrollState()
     val requestRestartScopes = LocalRestartScopeRequest.current
@@ -79,8 +80,8 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
         @Suppress("UNCHECKED_CAST")
         return prefs.getOrPut(key) {
             when (default) {
-                is Boolean -> Preferences.getBoolean(key, default)
-                is Int -> Preferences.getInt(key, default)
+                is Boolean -> settingsStore.getBoolean(key, default)
+                is Int -> settingsStore.getInt(key, default)
                 else -> default
             }
         } as T
@@ -88,8 +89,8 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
     fun changed(key: String, value: Any) {
         prefs[key] = value
         when (value) {
-            is Boolean -> Preferences.putBoolean(key, value)
-            is Int -> Preferences.putInt(key, value)
+            is Boolean -> settingsStore.putBoolean(key, value)
+            is Int -> settingsStore.putInt(key, value)
         }
         requestRestartScopes(RestartScopeSelection(systemUi = true))
     }

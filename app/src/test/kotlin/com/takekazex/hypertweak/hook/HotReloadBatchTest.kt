@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
+import com.takekazex.hypertweak.settings.contract.HotReloadTargetReport
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
+
 import org.junit.Assert.*
 import org.junit.Test
 

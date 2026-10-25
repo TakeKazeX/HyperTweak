@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.NativeUpgradePort
+import com.takekazex.hypertweak.settings.contract.NativeUpgradeState as State
+import com.takekazex.hypertweak.settings.contract.NativeUpgradeReport as Report
+
 import android.content.Context
 import android.content.pm.PackageManager
 import com.takekazex.hypertweak.util.DebugLog
@@ -12,14 +16,12 @@ import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 /** User-triggered native activation follows upstream's exact-spawner replacement, not dlclose. */
-object NativeUpgradeManager {
-    enum class State { CHECKING, CURRENT, UPDATED, FAILED, ROLLBACK_REQUESTED }
-    data class Report(val state: State, val detail: String? = null)
+internal object NativeUpgradeManager : NativeUpgradePort {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _busy = MutableStateFlow(false)
-    val busy = _busy.asStateFlow()
+    override val busy = _busy.asStateFlow()
     private val _report = MutableStateFlow<Report?>(null)
-    val report = _report.asStateFlow()
+    override val report = _report.asStateFlow()
     private const val LIBRARY = "lib/arm64-v8a/libhypertweak_native.so"
     @Volatile private var rollbackFile: File? = null
     private data class Owner(val pid: Int, val start: Long)
@@ -95,7 +97,7 @@ object NativeUpgradeManager {
             kill -TERM ${owner.pid}
         """.trimIndent())
     }
-    @Synchronized fun activate(context: Context) {
+    @Synchronized override fun activate(context: Context) {
         if (_busy.value) return
         _busy.value = true; _report.value = Report(State.CHECKING)
         val app = context.applicationContext ?: context
@@ -196,7 +198,7 @@ object NativeUpgradeManager {
             else -> null
         }
     }
-    @Synchronized fun rollback(context: Context) {
+    @Synchronized override fun rollback(context: Context) {
         if (_busy.value) return
         val backup = rollbackFile ?: return
         val app = context.applicationContext ?: context
@@ -234,5 +236,5 @@ object NativeUpgradeManager {
             }
         }
     }
-    fun canRollback(): Boolean = rollbackFile?.isFile == true
+    override fun canRollback(): Boolean = rollbackFile?.isFile == true
 }
