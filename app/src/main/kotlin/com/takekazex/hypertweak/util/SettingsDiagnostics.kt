@@ -8,6 +8,7 @@ internal object SettingsDiagnostics {
     private val reporting = ThreadLocal<Boolean>()
 
     fun bind(writer: (Int, String, String, Throwable?) -> Unit) { sink = writer }
+    fun d(scope: String, message: String) = report(Log.DEBUG, scope, message, null)
     fun i(scope: String, message: String) = report(Log.INFO, scope, message, null)
     fun w(scope: String, message: String, error: Throwable? = null) = report(Log.WARN, scope, message, error)
     fun e(scope: String, message: String, error: Throwable? = null) = report(Log.ERROR, scope, message, error)

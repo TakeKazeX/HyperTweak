@@ -333,7 +333,8 @@ object Preferences {
     /** User-supplied `https://` proxy base; blank means "use the built-in preset". */
 
     private lateinit var remotePrefs: SharedPreferences
-    private var localSourcePrefs: SharedPreferences? = null
+    // Only the module Application may supply this store via useLocalOnly; never a host cache.
+    @Volatile private var localSourcePrefs: SharedPreferences? = null
     @Volatile
     private var localCachePrefs: SharedPreferences? = null
     @Volatile
@@ -367,7 +368,7 @@ object Preferences {
 
     /** Module-page saveable state identity; unavailable storage must not invalidate pending edits. */
     fun settingsEpochForUi(): Long? {
-        if (isInitialized) runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }
+        if (isInitialized && !remoteBackendUnavailable) runCatching { remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }
             .getOrNull()?.let { return it }
         runCatching { localSourcePrefs?.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH) }
             .getOrNull()?.let { return it }
@@ -464,7 +465,8 @@ object Preferences {
     }
 
     /** Serializes debug-log writes so log I/O never shares the object monitor with preference reads. */
-    private val appLogs = AppLogStore({ localSourcePrefs }) { getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
+    private fun appLocalStore(): SharedPreferences? = localSourcePrefs
+    private val appLogs = AppLogStore(::appLocalStore) { getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
     private val logLock get() = appLogs.lock
 
     /**
@@ -505,6 +507,19 @@ object Preferences {
             remotePrefs = prefs
             isLocalOnly = false
         }
+        // Also run when local storage arrives after an early service binding. No marker is
+        // needed: an empty key set is a no-op, and rejected cleanups retry on the next bind.
+        cleanRemoteAppLogs()
+    }
+
+    private fun cleanRemoteAppLogs() {
+        val local = appLocalStore() ?: return
+        if (!isInitialized || isLocalOnly || local === remotePrefs) return
+        val remote = remotePrefs
+        serializedWriter.execute {
+            runCatching { AppLogStore.purgeRemoteRecords(remote) }
+                .onFailure { SettingsDiagnostics.w("Preferences", "remote app-log cleanup failed; retrying on next bind", it) }
+        }
     }
 
     fun useLocalBackend() {
@@ -514,8 +529,14 @@ object Preferences {
 
     private val nativeMirrorLock = Any()
 
-    private fun write(nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, runtimeChanges: Map<String, Any> = emptyMap(), block: SharedPreferences.Editor.() -> Unit) {
+    private fun write(localKey: String? = null, nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, runtimeChanges: Map<String, Any> = emptyMap(), block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
+            if (localKey != null && AppLogStore.isRuntimeKey(localKey)) {
+                val local = appLocalStore() ?: return
+                runCatching { check(local.edit().apply(block).commit()) { "Local runtime-state commit rejected" } }
+                    .onFailure { SettingsDiagnostics.e("Preferences", "local runtime-state write failed", it) }
+                return
+            }
             val nativeChange = nativeMutation != null
             if (!isInitialized) return
             val local = localSourcePrefs
@@ -547,20 +568,10 @@ object Preferences {
                     val editor = remotePrefs.edit()
                     block(editor)
                     if (runtime != null) RuntimeSettingsSignal.write(editor, runtime)
-                    // Commit the entire native subset atomically, so a prior rejected editor's
-                    // shadow values cannot hitchhike into this acknowledged transaction.
-                    if (snapshot != null) {
-                        editor.putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
-                        editor.putInt(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
-                        editor.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
-                        editor.putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, snapshot.revision)
-                        editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
-                    }
+                    // The native subset travels inside the acknowledged snapshot above
+                    // (NativeRuleStateSnapshot.settingsValues is merged into `changes`), so the
+                    // delta plan already repairs a rejected editor's shadow values. Rewriting the
+                    // subset here as well only inflated every callback by the full native payload.
                     val committed = editor.commit()
                     if (committed && changes.isNotEmpty() && runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     if (!committed) {
@@ -600,19 +611,20 @@ object Preferences {
         replacement: Map<String, *>, block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
         fun commit(): Boolean {
-            val previous = HashMap(remotePrefs.all)
+            val previous = HashMap(remotePrefs.all.filterKeys { isLocalOnly || !AppLogStore.isRuntimeKey(it) })
             val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
             fun rollback() = runCatching {
                 val editor = remotePrefs.edit().clear()
                 previous.forEach { (key, value) -> if (value != null) editor.putPreferenceValue(key, value) }
-                previousRuntime?.let { RuntimeSettingsSignal.write(editor, it) }
+                previousRuntime?.let { RuntimeSettingsSignal.write(editor, it, complete = true) }
                 check(editor.commit()) { "settings mutation rollback rejected" }
             }.onFailure { SettingsDiagnostics.w("Preferences", "settings mutation rollback failed", it) }
             return try {
                 val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepareReplacement(replacement + nativeSnapshot.settingsValues())
                 val editor = remotePrefs.edit()
                 block(editor)
-                runtime?.let { RuntimeSettingsSignal.write(editor, it) }
+                if (!isLocalOnly) remotePrefs.all.keys.filter(AppLogStore::isRuntimeKey).forEach(editor::remove)
+                runtime?.let { RuntimeSettingsSignal.write(editor, it, complete = true) }
                 editor.commit().also { committed ->
                     if (!committed) { SettingsDiagnostics.w("Preferences", "settings mutation commit rejected"); rollback() }
                     else if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
@@ -667,7 +679,7 @@ object Preferences {
     /** Logging must never initialize storage, mirror settings, or log a backend failure. */
     internal fun logLevel(default: Int): Int {
         (memoGet(AppSettingsKeys.KEY_LOG_LEVEL) as? Int)?.let { return it }
-        if (isInitialized) runCatching { remotePrefs.getInt(AppSettingsKeys.KEY_LOG_LEVEL, default) }
+        if (isInitialized && !remoteBackendUnavailable) runCatching { remotePrefs.getInt(AppSettingsKeys.KEY_LOG_LEVEL, default) }
             .getOrNull()?.let { memoPut(AppSettingsKeys.KEY_LOG_LEVEL, it); return it }
         return runCatching { (localSourcePrefs ?: localCachePrefs)?.getInt(AppSettingsKeys.KEY_LOG_LEVEL, default) }
             .getOrNull() ?: default
@@ -698,7 +710,7 @@ object Preferences {
         if (remoteBackendUnavailable) return
         remoteBackendUnavailable = true
         memoClear()
-        SettingsDiagnostics.w("Preferences", "remote preferences backend unavailable; falling back to local cache")
+        SettingsDiagnostics.d("Preferences", "remote preferences backend unavailable; falling back to local cache")
     }
 
     val isInitialized: Boolean
@@ -710,8 +722,9 @@ object Preferences {
      * older key, rather than being indistinguishable from the default value.
      */
     fun contains(key: String): Boolean {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.contains(key) == true
         if (RuntimeSettingsStore.owns(key)) return RuntimeSettingsStore.value(key) != null
-        if (!isInitialized) return getLocalCache()?.contains(key) == true
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.contains(key) == true
         return runCatching {
             if (remotePrefs.contains(key)) {
                 true
@@ -726,8 +739,9 @@ object Preferences {
     }
 
     fun getBoolean(key: String, default: Boolean = false): Boolean {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getBoolean(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Boolean) ?: default
-        if (!isInitialized) return getLocalCache()?.getBoolean(key, default) ?: default
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.getBoolean(key, default) ?: default
         // Safe cast: the memo map is keyed by key alone, so a key read through two different typed
         // getters would otherwise throw ClassCastException at a hook boundary with no fallback.
         (memoGet(key) as? Boolean)?.let { return it }
@@ -783,8 +797,9 @@ object Preferences {
         getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH)
 
     fun getInt(key: String, default: Int = 0): Int {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getInt(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Int) ?: default
-        if (!isInitialized) return getLocalCache()?.getInt(key, default) ?: default
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.getInt(key, default) ?: default
         (memoGet(key) as? Int)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -807,8 +822,9 @@ object Preferences {
     }
 
     fun getFloat(key: String, default: Float = 1f): Float {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getFloat(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Float) ?: default
-        if (!isInitialized) return getLocalCache()?.getFloat(key, default) ?: default
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.getFloat(key, default) ?: default
         (memoGet(key) as? Float)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -834,7 +850,7 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS) key to value else null,
+        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
@@ -852,21 +868,22 @@ object Preferences {
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS) key to value else null,
+        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
     fun putFloat(key: String, value: Float) {
         memoInvalidate(key)
-        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putFloat(key, value) }
+        write(localKey = key, runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putFloat(key, value) }
     }
 
     fun getStringSet(key: String, default: Set<String> = emptySet()): Set<String> {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getStringSet(key, default)?.toSet() ?: default.toSet()
         if (RuntimeSettingsStore.owns(key)) {
             @Suppress("UNCHECKED_CAST")
             return (RuntimeSettingsStore.value(key) as? Set<String>) ?: default
         }
-        if (!isInitialized) return getLocalCache()?.getStringSet(key, default) ?: default
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.getStringSet(key, default) ?: default
         memoGet(key)?.let { return ((it as? Set<*>) ?: default).map { element -> element as String }.toSet() }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -893,12 +910,13 @@ object Preferences {
 
     fun putStringSet(key: String, value: Set<String>) {
         memoInvalidate(key)
-        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putStringSet(key, value) }
+        write(localKey = key, runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putStringSet(key, value) }
     }
 
     fun getString(key: String, default: String = ""): String {
+        if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getString(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? String) ?: default
-        if (!isInitialized) return getLocalCache()?.getString(key, default) ?: default
+        if (!isInitialized || remoteBackendUnavailable) return (appLocalStore() ?: getLocalCache())?.getString(key, default) ?: default
         (memoGet(key) as? String)?.let { return it }
         val value = try {
             if (remotePrefs.contains(key)) {
@@ -922,7 +940,7 @@ object Preferences {
 
     fun putString(key: String, value: String) {
         memoInvalidate(key)
-        write(runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
+        write(localKey = key, runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
     }
 
     /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
@@ -972,6 +990,10 @@ object Preferences {
      */
     fun putStringSynchronous(key: String, value: String) {
         memoInvalidate(key)
+        if (AppLogStore.isRuntimeKey(key)) {
+            write(localKey = key) { putString(key, value) }
+            return
+        }
         if (!isInitialized) return
         val local = localSourcePrefs
         runCatching { local?.edit(commit = true) { putString(key, value) } }
@@ -991,8 +1013,20 @@ object Preferences {
         runCatching { task.get(3, TimeUnit.SECONDS) }
     }
 
-    fun appendDebugLog(processTag: String, line: String) = appLogs.appendDebugLog(processTag, line)
-    fun appendDebugLogs(processTag: String, lines: List<String>) = appLogs.appendDebugLogs(processTag, lines)
+    @Volatile private var reportedHookLogWrite = false
+    fun appendDebugLog(processTag: String, line: String) = appendDebugLogs(processTag, listOf(line))
+    fun appendDebugLogs(processTag: String, lines: List<String>) {
+        // A remote backend is also used by the module app. App-local initialization, rather
+        // than remote/local backend selection, is the authority to persist app diagnostics.
+        if (appLocalStore() == null) {
+            if (!reportedHookLogWrite) {
+                reportedHookLogWrite = true
+                SettingsDiagnostics.d("Preferences", "ignoring injected-process app-log write; use framework logger")
+            }
+            return
+        }
+        appLogs.appendDebugLogs(processTag, lines)
+    }
     fun getDebugLog(): String = appLogs.getDebugLog()
     fun clearDebugLog() = appLogs.clearDebugLog()
     fun rotateLogSessionIfNeeded(token: String) = appLogs.rotateLogSessionIfNeeded(token)

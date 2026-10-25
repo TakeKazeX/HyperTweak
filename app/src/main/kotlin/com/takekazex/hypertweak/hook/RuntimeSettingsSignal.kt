@@ -78,20 +78,15 @@ internal object RuntimeSettingsSignal {
         acknowledged = snapshot
         publishCommitted()
     }
-    /** Rewrite the full subset so a daemon editor's rejected shadow cannot leak into a commit. */
-    @Synchronized fun write(editor: SharedPreferences.Editor, snapshot: RuntimeSettingsSnapshot) {
-        val keys = source?.all?.keys.orEmpty().filter(RuntimeSettingsSnapshot::owns).toSet() +
-            acknowledged?.values?.keys.orEmpty() + snapshot.values.keys
-        keys.forEach(editor::remove)
+    /** Ordinary commits send a delta while repairing rejected editor shadows. A clear/replacement
+     * must explicitly repopulate the entire desired subset, even values equal to the baseline. */
+    @Synchronized fun write(editor: SharedPreferences.Editor, snapshot: RuntimeSettingsSnapshot,
+        complete: Boolean = false) {
+        val plan = RuntimeSettingsWritePlan.create(source?.all.orEmpty(),
+            acknowledged?.values.orEmpty(), snapshot.values, complete)
+        plan.remove.forEach(editor::remove)
         editor.putLong(RuntimeSettingsGroups.REVISION, snapshot.revision)
-        snapshot.values.forEach { (key, value) -> when (value) {
-            is Boolean -> editor.putBoolean(key, value)
-            is Int -> editor.putInt(key, value)
-            is Long -> editor.putLong(key, value)
-            is Float -> editor.putFloat(key, value)
-            is String -> editor.putString(key, value)
-            is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
-        } }
+        plan.put.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
     }
     @Synchronized fun prepareReplacement(values: Map<String, *>): RuntimeSettingsSnapshot =
         requireNotNull(RuntimeSettingsSnapshot.read(maxOf((acknowledged?.revision ?: 0) + 1,

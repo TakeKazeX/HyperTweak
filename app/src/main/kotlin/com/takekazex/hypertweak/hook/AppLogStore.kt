@@ -16,6 +16,20 @@ internal class AppLogStore(private val source: () -> SharedPreferences?, private
         fun isRuntimeKey(key: String): Boolean = key == LEGACY_KEY_DEBUG_LOG ||
             key.startsWith(KEY_DEBUG_LOG_PREFIX) || key == KEY_LOG_SESSION ||
             key == "debug_log_processes" || key.startsWith("debug_log_level_")
+        // libxposed mutates its local shadow before IPC, even when commit returns false.
+        // Retain deletion identities until acknowledged, since all may hide them on retry.
+        private val pendingRemoteCleanupKeys = linkedSetOf<String>()
+        /** Purge historical app diagnostics without touching shared controls or revisions.
+         * A fresh process rediscovers daemon keys; a cached backend retries retained identities. */
+        @Synchronized fun purgeRemoteRecords(remote: SharedPreferences) {
+            pendingRemoteCleanupKeys.addAll(remote.all.keys.filter(::isRuntimeKey))
+            if (pendingRemoteCleanupKeys.isEmpty()) return
+            val keys = pendingRemoteCleanupKeys.toSet()
+            check(remote.edit().apply { keys.forEach(::remove) }.commit()) {
+                "Remote legacy log cleanup rejected"
+            }
+            pendingRemoteCleanupKeys.removeAll(keys)
+        }
         private const val MAX_DEBUG_LOG_LENGTH = 256_000
     }
     fun appendDebugLog(processTag: String, line: String) = appendDebugLogs(processTag, listOf(line))

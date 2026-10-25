@@ -236,6 +236,18 @@ class RuntimeSettingsRoutingTest {
         assertNull(ledger.value(key))
     }
 
+    @Test fun allRegisteredPackagesNormalizeColonSubprocessesWithoutInventingUnknownRoutes() {
+        Groups.targets.forEach { target ->
+            assertEquals(target, Groups.target("$target:worker"))
+            assertEquals(Groups.forTarget(target), Groups.forProcess("$target:worker"))
+        }
+        listOf("com.miui.securitycenter.remote", "com.miui.securitycenter.cache", "com.miui.securitycenter.power")
+            .forEach { assertEquals(Groups.forTarget("com.miui.securitycenter"), Groups.forProcess("$it:worker")) }
+        assertTrue(Groups.forProcess("com.google.android.gms.unstable").isEmpty())
+        assertTrue(Groups.forProcess("android.process.media").isEmpty())
+        assertTrue(Groups.forProcess("com.milink.unregistered:worker").isEmpty())
+    }
+
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))

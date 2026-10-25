@@ -800,7 +800,7 @@ class HookEntry : XposedModule() {
             Preferences.init(remotePrefs)
             bindRuntimePreferencesListener(remotePrefs)
             requestSettingsReload(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
-            DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs keys=${remotePrefs.all.keys}")
+            DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs groups=${RuntimeSettingsGroups.forProcess(processName, isSystemServer)}")
             remoteSettingsReady = true
             true
         } catch (t: Throwable) {
