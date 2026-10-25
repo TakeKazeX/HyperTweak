@@ -16,6 +16,12 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+Configuration Cache is enabled with `problems=fail`; fix incompatibilities rather than
+switching artifact builds to warn mode. AGP is pinned to `9.5.0-rc01` because it removes
+the internal `Configuration.setVisible` calls deprecated by Gradle 9.8; `9.4.1` still
+emits them. When changing the build toolchain, run the applicable checks with
+`--warning-mode all`, then repeat the same task set to verify Configuration Cache reuse.
+
 For stacked cellular signal artwork, run the `SignalSvgStyle`, `PreferencesSignalSvgStyle`,
 `SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileTypePolicy` and
 `IconTunerPreferenceState` JVM regressions plus the shared settings/hot-reload tests.
