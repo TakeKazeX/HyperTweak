@@ -1,24 +1,10 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-
-import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
-
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import android.animation.ValueAnimator
-import android.view.animation.LinearInterpolator
 import android.content.Context
-import androidx.core.view.isVisible
-import android.graphics.Matrix
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Typeface
 import android.graphics.Picture
-import android.telephony.SubscriptionManager
 import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.Network
@@ -26,33 +12,35 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
+import android.telephony.SubscriptionManager
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import android.view.ViewTreeObserver
+import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
-import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -61,6 +49,34 @@ import kotlin.math.roundToInt
  * module View (its children must implement the host StatusIconDisplayable interface).
  */
 object DuoSignalHooker : StaticHooker() {
+    private val panelHandover = DuoPanelHandover(object : DuoPanelHandover.Host {
+        override val panelStretchHeight get() = DuoSignalHooker.panelStretchHeight
+        override val panelProgress get() = DuoSignalHooker.panelProgress
+        override val panelVisible get() = DuoSignalHooker.panelVisible
+        override val expandedStyle get() = DuoSignalHooker.expandedStyle
+        override val shadeSwitchSettledToControlCenter get() = DuoSignalHooker.shadeSwitchSettledToControlCenter
+        override val small5GaEnabled get() = DuoSignalHooker.small5GaEnabled
+        override val componentSizes get() = DuoSignalHooker.componentSizes
+        override val enabled get() = DuoSignalHooker.enabled
+        override val mobile get() = DuoSignalHooker.mobile
+        override fun bindings(): Collection<DuoBinding> = bindings.values
+        override fun owns(binding: DuoBinding) = bindings[binding.battery] === binding
+        override fun slotIndex(subId: Int) = slotIndices[subId]
+        override fun destinationSignal(context: Context, level: Int): Picture? =
+            loadCellularSignalAssets(context)?.let { IconSvgRenderer.signalPicture(it.single, listOf(level)) }
+    })
+    private val aodController = DuoAodController(this, object : DuoAodController.Host {
+        override val enabled get() = DuoSignalHooker.enabled
+        override val standardEnabled get() = DuoSignalHooker.standardEnabled
+        override val epoch get() = DuoSignalHooker.epoch
+        override val batteryLayoutField get() = DuoSignalHooker.batteryLayoutField
+        override val visibilityMethod get() = DuoSignalHooker.visibilityMethod
+        override fun refresh() = DuoSignalHooker.refresh()
+        override fun restore(binding: DuoBinding) = DuoSignalHooker.restore(binding)
+        override fun setPrivacyInset(binding: DuoBinding, inset: Int) = DuoSignalHooker.setPrivacyInset(binding, inset)
+        override fun setNativeAirplaneMasked(binding: DuoBinding, masked: Boolean) = DuoSignalHooker.setNativeAirplaneMasked(binding, masked)
+    })
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
     private const val TAG = "DuoSignal"
     private const val AIRPLANE_SLOT = "airplane"
@@ -68,9 +84,8 @@ object DuoSignalHooker : StaticHooker() {
     private const val CONTAINER = "com.android.systemui.statusbar.views.MiuiStatusBatteryContainer"
     private const val WIFI_VM = "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
     private val main = Handler(Looper.getMainLooper())
-    private val bindings = IdentityHashMap<View, Binding>()
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
-    private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
+    private val bindings = IdentityHashMap<View, DuoBinding>()
+    private val wifiSubscriptions = HostFlowSubscriptions()
     @Volatile private var enabled = false
     @Volatile private var standardEnabled = false
     @Volatile private var epoch = 0
@@ -91,7 +106,6 @@ object DuoSignalHooker : StaticHooker() {
     private var currentNetwork: Network? = null
     private var networkPending: Runnable? = null
     /** Live dozing read: `MiuiFullAodManager.isDozing`, resolved once from the running host. */
-    private var dozingRead: (() -> Boolean?)? = null
     private var batteryLayoutField: Field? = null
     private var statusIconsField: Field? = null
     private var wifiTintResourceMethod: Method? = null
@@ -109,347 +123,6 @@ object DuoSignalHooker : StaticHooker() {
     // Only applicationContext is retained, for restoring the host flow after a reload.
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var wifiContext: Context? = null
-
-    private class Binding(val battery: View, val parent: ViewGroup, val icons: View,
-                          val surface: DuoSurface, val keyguardRoot: View?,
-                          panelInitiallySettled: Boolean) {
-        val view = DuoView(battery.context)
-        var observer: ViewTreeObserver? = null
-        var preDraw: ViewTreeObserver.OnPreDrawListener? = null
-        var hostHideBattery = false
-        val privacyId = battery.resources.getIdentifier("mini_state_container", "id", battery.context.packageName)
-        var privacyView: View? = null
-        val privacyRect = RectF()
-        var privacyInset = 0
-        val panelMotion = DuoPanelMotion(battery.context)
-        val airplaneMotion = DuoPanelMotion(battery.context, airplaneOnly = true)
-        val signalMotions = HashMap<Int, SignalRowMotion>()
-        val signalTargets = HashMap<Int, View>()
-        val signalSourceBounds = RectF()
-        val signalPictureCrop = RectF()
-        var carrierTarget: View? = null
-        var proxyRoot: View? = null
-        val proxyX = DuoOwnedTranslation()
-        val proxyY = DuoOwnedTranslation()
-        var networkMotionProgress = 0f
-        val panelArrival = DuoPanelArrival(panelInitiallySettled)
-        var networkMotionSettle: Runnable? = null
-        val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
-            battery.resources.getIdentifier(it, "id", battery.context.packageName)
-        }
-        var missingSince = -1L
-        var expiry: Runnable? = null
-        var active = false
-        var failed = false
-        var batteryGlyph: HostBatteryDrawable? = null
-        var aodPercent: TextView? = null
-        var aodNativeSuppressed = false
-        var fullAodNativeState: FullAodNativeState? = null
-        /**
-         * Last keyguard phase proven for this row. The host's dozing flag decides it; while the
-         * host cannot answer, the recorded phase is kept so a transient read cannot flip the row.
-         */
-        var rowPhase: AodHostPhase = AodHostPhase.UNKNOWN
-        var dotsInMotion = false
-        var reconciling = false
-        // Preserve whether the host/user already ignored the native airplane slot before Duo.
-        // Duo may add that slot while active, but must never unhide something the host chose to hide.
-        var hostIgnoredAirplane: Boolean? = null
-        var airplaneMasked = false
-        var wifiGlyph: NativeWifiDrawable? = null
-        var wifiArtworkRevision = -1
-    }
-
-    private data class FullAodNativeState(
-        val iconContainer: View,
-        val percentContainer: View,
-        val chargingView: View?,
-        val iconVisibility: Int,
-        val percentVisibility: Int,
-        val chargingVisibility: Int?
-    )
-
-    private class DuoView(context: Context) : View(context) {
-        val icon = DuoDrawable(context).also {
-            it.callback = this
-            it.mirrorAirplane = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
-        }
-        var drawFailed: ((Throwable) -> Unit)? = null
-        private var reportedDrawFailure = false
-        /** User glyph height in dp; both measurement and explicit layout derive their box from it. */
-        var iconSizeDp = DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat()
-        private val transition = DuoNetworkTransition()
-        private val contentLayers = LinkedHashMap<DuoRepresentation, DuoDrawable>()
-        private val ring = DuoDrawable(context, DuoRenderLayer.POWER_TRACK)
-        private val percentPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val percentMarkPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private var percentText = ""
-        private var percentMark = ""
-        private var percentLetterSpacing = 0f
-        private var percentMarkLetterSpacing = 0f
-        private var percentMarkVerticalOffset = 0f
-        private var percentGapPx = 0f
-        private var percentBelow = false
-        private var animator: ValueAnimator? = null
-
-        /** Mirrors the native percent TextViews beside the glyph or below an expanded battery ring. */
-        fun setPercent(
-            enabled: Boolean,
-            below: Boolean,
-            container: View?,
-            value: TextView?,
-            mark: TextView?,
-            fallbackText: String? = null
-        ) {
-            val rawText = value?.text?.toString().orEmpty()
-            val nextText = rawText.ifBlank { fallbackText.orEmpty() }
-            val sourceReady = nextText.isNotEmpty()
-            val activeValue = value?.takeIf {
-                enabled && sourceReady && (below ||
-                    (container?.isVisible == true && it.isVisible))
-            }
-            val drawValue = enabled && sourceReady && (below || activeValue != null)
-            val activeMark = mark?.takeIf {
-                drawValue && (below || it.isVisible)
-            }
-            val nextMark = if (drawValue) activeMark?.text?.toString().orEmpty().ifBlank {
-                if (below) "%" else ""
-            } else ""
-            val nextLetterSpacing = activeValue?.letterSpacing ?: 0f
-            val nextMarkLetterSpacing = activeMark?.letterSpacing ?: 0f
-            val density = resources.displayMetrics.density
-            val oldSlot = leadingPercentSlotWidthPx()
-            val changed = percentBelow != (below && drawValue) ||
-                percentText != (if (drawValue) nextText else "") ||
-                percentMark != nextMark ||
-                percentLetterSpacing != nextLetterSpacing ||
-                percentMarkLetterSpacing != nextMarkLetterSpacing ||
-                (activeValue != null && (percentPaint.textSize != activeValue.textSize ||
-                    percentPaint.typeface != activeValue.typeface ||
-                    percentPaint.color != activeValue.currentTextColor)) ||
-                (below && drawValue && activeValue == null && percentPaint.color != icon.foreground) ||
-                (activeMark != null && (percentMarkPaint.textSize != activeMark.textSize ||
-                    percentMarkPaint.typeface != activeMark.typeface ||
-                    percentMarkPaint.color != activeMark.currentTextColor))
-            if (activeValue != null) {
-                percentPaint.set(activeValue.paint)
-                percentPaint.color = activeValue.currentTextColor
-                percentText = nextText
-                percentLetterSpacing = nextLetterSpacing
-            } else if (below && drawValue) {
-                percentPaint.textSize = 12f * resources.displayMetrics.density *
-                    resources.configuration.fontScale
-                percentPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                percentPaint.color = icon.foreground
-                percentText = nextText
-                percentLetterSpacing = 0f
-            } else {
-                percentText = ""
-                percentLetterSpacing = 0f
-            }
-            if (activeMark != null) {
-                percentMarkPaint.set(activeMark.paint)
-                percentMarkPaint.color = activeMark.currentTextColor
-                percentMark = nextMark
-                percentMarkLetterSpacing = nextMarkLetterSpacing
-                percentMarkVerticalOffset = (activeMark.paddingTop - activeMark.paddingBottom) / 2f
-            } else {
-                percentMark = ""
-                percentMarkLetterSpacing = 0f
-                percentMarkVerticalOffset = 0f
-                if (below && drawValue) {
-                    percentMarkPaint.set(percentPaint)
-                    percentMarkPaint.textSize = percentPaint.textSize * 0.72f
-                    percentMarkLetterSpacing = 0f
-                }
-            }
-            percentBelow = below && drawValue
-            percentGapPx = if (percentText.isNotEmpty() && !percentBelow) 2f * density else 0f
-            if (oldSlot != leadingPercentSlotWidthPx()) requestLayout()
-            if (changed || oldSlot != leadingPercentSlotWidthPx()) invalidate()
-        }
-
-        /** Width added before the icon, excluding the view's own start/end padding. */
-        fun leadingPercentSlotWidthPx(): Int {
-            if (percentText.isEmpty() || percentBelow) return 0
-            val width = spacedTextWidth(percentText, percentPaint, percentLetterSpacing) +
-                spacedTextWidth(percentMark, percentMarkPaint, percentMarkLetterSpacing) + percentGapPx
-            return ceil(width.toDouble()).toInt().coerceAtLeast(0)
-        }
-
-        private fun spacedTextWidth(text: String, paint: Paint, letterSpacing: Float): Float =
-            if (text.isEmpty()) 0f else paint.measureText(text) +
-                letterSpacing * paint.textSize * (text.length - 1).coerceAtLeast(0)
-
-        private fun drawSpacedText(canvas: Canvas, text: String, startX: Float, baseline: Float,
-                                   paint: Paint, letterSpacing: Float) {
-            if (text.isEmpty()) return
-            if (letterSpacing == 0f || text.length == 1) {
-                canvas.drawText(text, startX, baseline, paint)
-                return
-            }
-            var x = startX
-            text.forEachIndexed { index, character ->
-                val value = character.toString()
-                canvas.drawText(value, x, baseline, paint)
-                x += paint.measureText(value)
-                if (index < text.lastIndex) x += letterSpacing * paint.textSize
-            }
-        }
-
-        private fun centeredBaseline(paint: Paint, offset: Float = 0f): Float {
-            val metrics = paint.fontMetrics
-            return height / 2f - (metrics.ascent + metrics.descent) / 2f + offset
-        }
-
-        fun setBatteryOnly(enabled: Boolean, drawable: Drawable?) {
-            val nextDrawable = drawable.takeIf { enabled }
-            val changed = icon.batteryOnly != enabled || icon.innerBatteryDrawable !== nextDrawable
-            icon.batteryOnly = enabled
-            icon.innerBatteryDrawable = nextDrawable
-            if (changed) invalidate()
-        }
-
-        fun submit(content: DuoContent, small5GaEnabled: Boolean, cellularSignal: Picture?) {
-            if (icon.content == content && icon.cellularSignalPicture === cellularSignal &&
-                icon.small5GaEnabled == small5GaEnabled) return
-            icon.small5GaEnabled = small5GaEnabled
-            icon.content = content
-            icon.cellularSignalPicture = cellularSignal
-            val key = DuoRepresentation.of(content)
-            contentLayers.getOrPut(key) { DuoDrawable(context) }.apply {
-                this.content = content
-                cellularSignalPicture = cellularSignal
-            }
-            if (transition.submit(key, ValueAnimator.areAnimatorsEnabled())) {
-                animator?.cancel()
-                animator = ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 200L
-                    interpolator = LinearInterpolator()
-                    addUpdateListener {
-                        transition.advance(it.animatedValue as Float)
-                        pruneLayers()
-                        invalidate()
-                    }
-                    start()
-                }
-            }
-            pruneLayers()
-            invalidate()
-        }
-
-        private fun pruneLayers() {
-            val target = icon.content?.let(DuoRepresentation::of)
-            contentLayers.keys.removeAll { it != target && it !in transition.weights }
-        }
-
-        fun finishTransition() {
-            animator?.cancel()
-            animator = null
-            transition.finish()
-            pruneLayers()
-        }
-
-        override fun onDetachedFromWindow() {
-            finishTransition()
-            super.onDetachedFromWindow()
-        }
-        override fun verifyDrawable(who: android.graphics.drawable.Drawable): Boolean = who === icon || super.verifyDrawable(who)
-        /** The carrier takes the retained battery's box in full; the drawable fits its glyph. */
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val desired = DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp)
-            // WRAP_CONTENT must report an intrinsic desired size. Feeding MeasureSpec.getSize()
-            // back into resolveSize() makes an AT_MOST spec consume the parent's whole allowance.
-            // position() aligns the box with the current parent's end edge once active.
-            setMeasuredDimension(
-                resolveSize(maxOf(desired + paddingStart + paddingEnd + leadingPercentSlotWidthPx(),
-                    suggestedMinimumWidth), widthMeasureSpec),
-                resolveSize(maxOf(desired, suggestedMinimumHeight), heightMeasureSpec)
-            )
-        }
-        override fun onDraw(canvas: Canvas) {
-            val iconSide = minOf(height, DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp))
-            val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
-            val iconLeft = if (rtl) paddingLeft else width - paddingRight - iconSide
-            icon.setBounds(iconLeft, 0, iconLeft + iconSide, iconSide)
-            runCatching {
-                // The ring is stable; only network representations crossfade.
-                ring.sizes = icon.sizes
-                ring.content = icon.content
-                ring.foreground = icon.foreground
-                ring.bounds = icon.bounds
-                ring.draw(canvas)
-                transition.weights.forEach { (key, weight) ->
-                    contentLayers[key]?.apply {
-                        sizes = icon.sizes
-                        hidePowerTrack = true
-                        hiddenSignalRows = icon.hiddenSignalRows
-                        hideNetwork = icon.hideNetwork
-                        hideAirplane = icon.hideAirplane
-                        hideSignalDots = icon.hideSignalDots
-                        batteryOnly = icon.batteryOnly
-                        innerBatteryDrawable = icon.innerBatteryDrawable
-                        bounds = icon.bounds
-                        foreground = icon.foreground
-                        nativeWifi = icon.nativeWifi
-                        small5GaEnabled = icon.small5GaEnabled
-                        mirrorAirplane = icon.mirrorAirplane
-                        alpha = (weight * 255).roundToInt()
-                        draw(canvas)
-                    }
-                }
-                if (percentBelow && percentText.isNotEmpty()) {
-                    drawPercentBelow(canvas, iconLeft, iconSide)
-                } else if (percentText.isNotEmpty()) {
-                    val startX = if (rtl) iconLeft + iconSide + percentGapPx else paddingLeft.toFloat()
-                    drawSpacedText(canvas, percentText, startX, centeredBaseline(percentPaint),
-                        percentPaint, percentLetterSpacing)
-                    val markX = startX + spacedTextWidth(percentText, percentPaint, percentLetterSpacing)
-                    drawSpacedText(canvas, percentMark, markX,
-                        centeredBaseline(percentMarkPaint, percentMarkVerticalOffset),
-                        percentMarkPaint, percentMarkLetterSpacing)
-                }
-            }.onFailure { error ->
-                if (!reportedDrawFailure) {
-                    reportedDrawFailure = true
-                    DebugLog.w(TAG, "Duo view draw failed", error)
-                }
-                drawFailed?.invoke(error)
-            }
-        }
-
-        private fun drawPercentBelow(canvas: Canvas, iconLeft: Int, iconSide: Int) {
-            val valueWidth = spacedTextWidth(percentText, percentPaint, percentLetterSpacing)
-            val markWidth = spacedTextWidth(percentMark, percentMarkPaint, percentMarkLetterSpacing)
-            val width = valueWidth + markWidth
-            val valueMetrics = percentPaint.fontMetrics
-            val markMetrics = percentMarkPaint.fontMetrics
-            val textHeight = maxOf(valueMetrics.descent - valueMetrics.ascent,
-                markMetrics.descent - markMetrics.ascent)
-            if (width <= 0f || textHeight <= 0f) return
-            val scale = minOf(1f, iconSide * PERCENT_BELOW_MAX_WIDTH_FRACTION / width,
-                iconSide * PERCENT_BELOW_MAX_HEIGHT_FRACTION / textHeight)
-            val save = canvas.save()
-            try {
-                canvas.translate(iconLeft + iconSide / 2f, iconSide * PERCENT_BELOW_CENTER_Y)
-                canvas.scale(scale * icon.sizes.percent, scale * icon.sizes.percent)
-                val startX = -width / 2f
-                val baseline = -(valueMetrics.ascent + valueMetrics.descent) / 2f
-                drawSpacedText(canvas, percentText, startX, baseline, percentPaint, percentLetterSpacing)
-                val markX = startX + valueWidth
-                drawSpacedText(canvas, percentMark, markX,
-                    baseline + percentMarkVerticalOffset, percentMarkPaint, percentMarkLetterSpacing)
-            } finally {
-                canvas.restoreToCount(save)
-            }
-        }
-
-        private companion object {
-            const val PERCENT_BELOW_MAX_WIDTH_FRACTION = 0.72f
-            const val PERCENT_BELOW_MAX_HEIGHT_FRACTION = 0.42f
-            const val PERCENT_BELOW_CENTER_Y = 0.84f
-        }
-    }
 
     private var dataFirst = false
 
@@ -487,7 +160,7 @@ object DuoSignalHooker : StaticHooker() {
             battery = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100)),
             percent = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
-        resolveDozingSource()
+        aodController.resolveDozingSource()
         IconTunerFlows.init(classLoader)
         val batteryClass = BATTERY.toClassOrNull() ?: run { enabled = false; return }
         val parentClass = CONTAINER.toClassOrNull() ?: run { enabled = false; return }
@@ -542,7 +215,7 @@ object DuoSignalHooker : StaticHooker() {
             deoptimize(method)
             method.hook { before { param ->
                 (param.thisObject as? View)?.let { battery -> guarded {
-                    bindings[battery]?.let(::applyFullAodNativeChildren)
+                    bindings[battery]?.let(aodController::applyFullAodNativeChildren)
                 } }
             } }
         }
@@ -552,7 +225,7 @@ object DuoSignalHooker : StaticHooker() {
             deoptimize(method)
             method.hook { after { param ->
                 (param.thisObject as? View)?.let { battery -> guarded {
-                    bindings[battery]?.let(::applyFullAodNativeChildren)
+                    bindings[battery]?.let(aodController::applyFullAodNativeChildren)
                 } }
             } }
         }
@@ -562,7 +235,7 @@ object DuoSignalHooker : StaticHooker() {
             deoptimize(method)
             method.hook { after { param ->
                 (param.thisObject as? View)?.let { battery -> guarded {
-                    bindings[battery]?.let(::positionNativeFullAod)
+                    bindings[battery]?.let(aodController::positionNativeFullAod)
                 } }
             } }
         }
@@ -604,7 +277,7 @@ object DuoSignalHooker : StaticHooker() {
                     val toLockScreen = param.args.getOrNull(0) as? Boolean ?: true
                     guarded {
                         bindings.values.toList().filter { it.surface == DuoSurface.KEYGUARD }.forEach {
-                            observeHandshake(it, toLockScreen)
+                            aodController.observeHandshake(it, toLockScreen)
                             reconcile(it)
                         }
                     }
@@ -619,7 +292,7 @@ object DuoSignalHooker : StaticHooker() {
         AodIconSettings.current().let { it.duo && it.centerSignal })
 
     /** Reuses the SystemUI Duo renderer inside MIUI AOD's own process and battery container. */
-    internal fun createAodDuoView(context: Context): View = DuoView(context).apply {
+    internal fun createAodDuoView(context: Context): View = DuoIconView(context).apply {
         iconSizeDp = DuoLayout.safeSizeDp(
             Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
         )
@@ -650,7 +323,7 @@ object DuoSignalHooker : StaticHooker() {
         percentFallback: String?,
         foreground: Int
     ) {
-        val duoView = target as? DuoView ?: return
+        val duoView = target as? DuoIconView ?: return
         duoView.icon.foreground = foreground
         duoView.icon.sizes = DuoSizes(
             ring = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)),
@@ -736,7 +409,7 @@ object DuoSignalHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
-    private fun originalBatteryDrawable(binding: Binding): Drawable? {
+    private fun originalBatteryDrawable(binding: DuoBinding): Drawable? {
         val battery = binding.battery
         val name = if (read(battery, "mBatteryStyle") == 1) "mHollowBatteryIconView" else "mBatteryIconView"
         val source = read(battery, name) as? View ?: return null
@@ -786,12 +459,12 @@ object DuoSignalHooker : StaticHooker() {
         if (!standardEnabled && surface != DuoSurface.KEYGUARD) return
         val icons = statusIconsField?.get(parent) as? View ?: return
         ensureConnectivity(battery.context)
-        val binding = Binding(battery, parent, icons, surface,
+        val binding = DuoBinding(battery, parent, icons, surface,
             if (surface == DuoSurface.KEYGUARD)
                 ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null,
             panelVisible && panelProgress >= 0.999f)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
-        binding.rowPhase = phaseFor(binding.keyguardRoot)
+        binding.rowPhase = aodController.phaseFor(binding.keyguardRoot)
         binding.view.iconSizeDp = iconSizeDp
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
@@ -817,7 +490,7 @@ object DuoSignalHooker : StaticHooker() {
         }
         binding.observer = parent.viewTreeObserver
         binding.preDraw = ViewTreeObserver.OnPreDrawListener {
-            guarded { reconcile(binding); updatePanelBinding(binding) }
+            guarded { reconcile(binding); panelHandover.updatePanelBinding(binding) }
             // This listener observes one icon. It must never veto the whole shade/window frame,
             // including while the host expansion animation keeps requesting layout.
             true
@@ -842,7 +515,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     /** Use current parent geometry, never the GONE battery's stale portrait coordinates. */
-    private fun position(binding: Binding) {
+    private fun position(binding: DuoBinding) {
         val parent = binding.parent
         val view = binding.view
         if (parent.width <= 0 || parent.height <= 0) return
@@ -857,7 +530,7 @@ object DuoSignalHooker : StaticHooker() {
             view.layout(box.left, box.top, box.left + box.width, box.top + box.height)
     }
 
-    private fun reconcile(binding: Binding) {
+    private fun reconcile(binding: DuoBinding) {
         if (binding.reconciling) return
         binding.reconciling = true
         try {
@@ -866,14 +539,14 @@ object DuoSignalHooker : StaticHooker() {
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
             if (!enabled && binding.keyguardRoot != null) {
-                releaseKeyguardRow(binding, AodHostPhase.UNKNOWN)
+                aodController.releaseKeyguardRow(binding, AodHostPhase.UNKNOWN)
                 return
             }
-            val decision = keyguardDecision(binding)
+            val decision = aodController.keyguardDecision(binding)
             // Nothing owns this keyguard row: release every borrowed reference, mask and native
             // child so a lit lock screen keeps exactly the host's result.
             if (decision.owner == KeyguardRowOwner.NONE) {
-                releaseKeyguardRow(binding, decision.phase)
+                aodController.releaseKeyguardRow(binding, decision.phase)
                 return
             }
             val aod = if (decision.phase == AodHostPhase.DOZING ||
@@ -881,19 +554,19 @@ object DuoSignalHooker : StaticHooker() {
             if (decision.aodMarksNativeRow && aod != null && !aod.duo) {
                 // The opt-in only forces support on unsupported ROMs. Native full-screen AOD
                 // devices also need the SystemUI battery row, even when that opt-in is off.
-                showNativeFullAod(binding, aod)
+                aodController.showNativeFullAod(binding, aod)
                 binding.rowPhase = decision.phase
                 return
             }
             if (decision.owner == KeyguardRowOwner.AOD_HOLD) {
                 // Legacy AOD draws its own battery row while the keyguard header fades.
-                holdHiddenAod(binding)
+                aodController.holdHiddenAod(binding)
                 binding.rowPhase = decision.phase
                 return
             }
             // Leaving the AOD row: restore native children, row visibility and layout before this
             // pass either renders Duo for a lit lock screen or hides as the host asks.
-            restoreNativeFullAod(binding)
+            aodController.restoreNativeFullAod(binding)
             val percent = (read(battery, "mLevel") as? Int)?.takeIf { read(battery, "mFirstLevel") == false }
             val charging = read(battery, "mCharging") as? Boolean
             val powerSave = read(battery, "mPowerSave") as? Boolean
@@ -920,14 +593,14 @@ object DuoSignalHooker : StaticHooker() {
                 (binding.surface == DuoSurface.KEYGUARD || read(battery, "mIsAodAnimate") != true) &&
                 (aod != null || standardEnabled)
             if (aod != null && binding.failed) {
-                hideForAod(binding)
+                aodController.hideForAod(binding)
                 binding.rowPhase = decision.phase
                 return
             }
             if (aod != null && content == null) {
                 // The AOD target has already been selected. Never expose the stock row while
                 // battery and network callbacks are still being delivered.
-                hideForAod(binding)
+                aodController.hideForAod(binding)
                 binding.rowPhase = decision.phase
                 return
             }
@@ -950,7 +623,7 @@ object DuoSignalHooker : StaticHooker() {
                 Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false))
             val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
             if (batteryOnly && batteryGlyph == null) {
-                if (aod != null) hideForAod(binding) else restore(binding)
+                if (aod != null) aodController.hideForAod(binding) else restore(binding)
                 return
             }
             if (aod != null) {
@@ -967,7 +640,7 @@ object DuoSignalHooker : StaticHooker() {
                     fallbackText = percent?.toString()
                 )
             }
-            binding.view.icon.hideSignalDots = binding.dotsInMotion || hideExpandedDots(binding)
+            binding.view.icon.hideSignalDots = binding.dotsInMotion || panelHandover.hideExpandedDots(binding)
             if (aod == null) binding.view.submit(content, small5GaEnabled,
                 renderCellularSignal(battery.context, content))
             binding.view.contentDescription = buildString {
@@ -1027,7 +700,7 @@ object DuoSignalHooker : StaticHooker() {
             // A failure is not an AOD state: only an AOD-owned row may stay suppressed, a lit
             // lock screen keeps the host result instead of hiding both representations.
             if (binding.surface == DuoSurface.KEYGUARD && binding.rowPhase != AodHostPhase.LIT) {
-                hideForAod(binding)
+                aodController.hideForAod(binding)
             }
             DebugLog.w(TAG, "container failed", error)
         } finally { binding.reconciling = false }
@@ -1038,185 +711,8 @@ object DuoSignalHooker : StaticHooker() {
      * written by `StatusBarStateController.StateListener.onDozingChanged`, so it describes the
      * surface that is actually showing. `mToLockScreen` is not used for this decision.
      */
-    private fun resolveDozingSource() {
-        if (dozingRead != null) return
-        val managerClass = FullAodDozingSource.MANAGER.toClassOrNull() ?: run {
-            DebugLog.w(TAG, "full-AOD manager missing; AOD options stay off the lock-screen row")
-            return
-        }
-        runCatching {
-            val source = FullAodDozingSource(managerClass,
-                requireNotNull(FullAodDozingSource.REGISTRY.toClassOrNull()),
-                requireNotNull(FullAodDozingSource.API.toClassOrNull()))
-            // Also cover cold startup before the registry has published its lazy manager.
-            val token = epoch
-            managerClass.hookAllConstructors {
-                after { param ->
-                    source.bind(param.thisObject)
-                    main.post { if (enabled && token == epoch) guarded { refresh() } }
-                }
-            }
-            dozingRead = { runCatching(source::read).getOrNull() }
-            DebugLog.d(TAG, if (source.read() == null) "dozing source waiting for native manager" else "dozing source resolved")
-        }.onFailure {
-            DebugLog.w(TAG, "full-AOD dozing contract unavailable; preserving native row", it)
-        }
-    }
-
-    /** Current keyguard phase, from the dozing flag and the attached keyguard host. */
-    private fun phaseFor(keyguardRoot: View?): AodHostPhase {
-        val root = keyguardRoot ?: return AodHostPhase.UNKNOWN
-        if (!root.isAttachedToWindow) return AodHostPhase.UNKNOWN
-        return AodKeyguardPolicy.phaseFromDozing(dozingRead?.invoke(), true)
-    }
-
-    /** Keyguard-row decision for one pass; every non-keyguard surface is unconditionally Duo. */
-    private fun keyguardDecision(binding: Binding): KeyguardRowDecision {
-        val root = binding.keyguardRoot
-            ?: return KeyguardRowDecision.of(AodHostPhase.UNKNOWN, KeyguardRowOwner.DUO)
-        val phase = when {
-            !enabled -> AodHostPhase.UNKNOWN
-            // A recorded transition is confirmed by the dozing flag; without one the host can
-            // prove neither state, so the transition keeps the row for this pass.
-            binding.rowPhase == AodHostPhase.TRANSITIONING && dozingRead?.invoke() == null ->
-                AodKeyguardPolicy.phaseAfterTransitionFrame(null, root.isAttachedToWindow)
-            else -> phaseFor(root)
-        }
-        val settings = if (phase == AodHostPhase.LIT || phase == AodHostPhase.UNKNOWN)
-            AodIconSettings.defaults() else AodIconSettings.current()
-        return AodKeyguardPolicy.decide(
-            phase = phase,
-            standardDuo = standardEnabled,
-            aodCustomized = settings.customized,
-            aodDuo = settings.duo,
-            // Capability, never the current mode: it selects the AOD renderer only inside an
-            // AOD phase, where the dozing flag has already proven the AOD surface is showing.
-            fullAodRendering = AODHooker.isFullscreenSupported()
-        )
-    }
-
-    /** A full-AOD handshake may change the keyguard state outside a reconciliation. */
-    private fun observeHandshake(binding: Binding, toLockScreen: Boolean) {
-        if (binding.surface != DuoSurface.KEYGUARD) return
-        val root = binding.keyguardRoot ?: return
-        val phase = AodKeyguardPolicy.phaseAfterHandshake(
-            toLockScreen, root.isAttachedToWindow, dozingRead?.invoke())
-        if (binding.rowPhase == phase) return
-        val previous = binding.rowPhase
-        binding.rowPhase = phase
-        DebugLog.d(TAG, "keyguard handshake toLockScreen=" + toLockScreen +
-            " phase=" + previous.name + "->" + phase.name)
-    }
-
-    /**
-     * Hides the native row for an AOD frame that cannot render. Only an AOD phase owns that: a
-     * lit lock screen keeps whatever the host and the regular Duo columns decided.
-     */
-    private fun hideForAod(binding: Binding) {
-        if (keyguardDecision(binding).keepsNativeRow) {
-            restore(binding)
-            return
-        }
-        binding.view.visibility = View.INVISIBLE
-        binding.battery.visibility = View.GONE
-        binding.aodNativeSuppressed = true
-    }
-
-    /** Releases every keyguard-row change this binding owns and returns the native row. */
-    private fun releaseKeyguardRow(binding: Binding, phase: AodHostPhase) {
-        restoreNativeFullAod(binding)
-        restore(binding)
-        binding.rowPhase = phase
-    }
-    /** Keep the keyguard icon lease through AOD so the host's fade never exposes stock icons. */
-    private fun holdHiddenAod(binding: Binding) {
-        binding.view.visibility = View.INVISIBLE
-        binding.battery.visibility = View.GONE
-        binding.aodNativeSuppressed = true
-        // Restoring the lease here exposes the original stacked/mobile row while the host's
-        // mStatusIconContainer alpha is still above zero.
-        IconPositionHooker.setDuoMask(binding.icons, true)
-        setNativeAirplaneMasked(binding, true)
-    }
-
-    private fun showNativeFullAod(binding: Binding, settings: AodIconSettings) {
-        val battery = binding.battery as? ViewGroup ?: return
-        val icon = read(battery, "mBatteryDigitalView") as? View ?: return
-        val percent = read(battery, "mBatteryPercentContainer") as? View ?: return
-        if (binding.fullAodNativeState == null) {
-            val charging = read(battery, "mBatteryChargingView") as? View
-            binding.fullAodNativeState = FullAodNativeState(icon, percent,
-                charging, icon.visibility, percent.visibility, charging?.visibility)
-        }
-        if (binding.active) {
-            if (batteryLayoutField?.get(binding.parent) === binding.view) {
-                batteryLayoutField?.set(binding.parent, battery)
-            }
-            binding.active = false
-            binding.parent.requestLayout()
-        }
-        binding.view.visibility = View.INVISIBLE
-        setPrivacyInset(binding, 0)
-        field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
-        IconPositionHooker.setDuoMask(binding.icons, true)
-        setNativeAirplaneMasked(binding, true)
-        applyFullAodNativeChildren(binding)
-        val rowVisibility = if (settings.showRow) View.VISIBLE else View.GONE
-        if (battery.visibility != rowVisibility) battery.visibility = rowVisibility
-        positionNativeFullAod(binding)
-        binding.aodNativeSuppressed = true
-    }
-
-    private fun applyFullAodNativeChildren(binding: Binding) {
-        val state = binding.fullAodNativeState ?: return
-        if (binding.surface != DuoSurface.KEYGUARD || binding.rowPhase == AodHostPhase.LIT) return
-        if (binding.keyguardRoot?.let { read(it, "mToLockScreen") } != false) return
-        val settings = AodIconSettings.current()
-        if (settings.duo) return
-        val iconVisibility = if (settings.batteryIcon) View.VISIBLE else View.GONE
-        val percentVisibility = if (settings.percent) View.VISIBLE else View.GONE
-        if (state.iconContainer.visibility != iconVisibility)
-            state.iconContainer.visibility = iconVisibility
-        if (state.percentContainer.visibility != percentVisibility)
-            state.percentContainer.visibility = percentVisibility
-        if (!settings.batteryIcon) {
-            state.chargingView?.visibility = View.GONE
-        }
-    }
-
-    private fun positionNativeFullAod(binding: Binding) {
-        val state = binding.fullAodNativeState ?: return
-        val battery = binding.battery
-        val icon = state.iconContainer.takeIf { it.isVisible }
-        val percent = state.percentContainer.takeIf { it.isVisible }
-        if (icon == null || percent == null || battery.width <= 0) return
-        val charging = (read(battery, "mBatteryChargingView") as? View)
-            ?.takeIf { it.isVisible }
-        val left = battery.paddingLeft
-        val percentLeft = if (AodIconSettings.current().percentPosition ==
-            AodSettingsKeys.AOD_PERCENT_POSITION_LEFT) left else
-            left + icon.measuredWidth + (charging?.measuredWidth ?: 0)
-        val iconLeft = if (percentLeft == left) left + percent.measuredWidth else left
-        icon.layout(iconLeft, icon.top, iconLeft + icon.measuredWidth, icon.bottom)
-        charging?.layout(iconLeft + icon.measuredWidth, charging.top,
-            iconLeft + icon.measuredWidth + charging.measuredWidth, charging.bottom)
-        percent.layout(percentLeft, percent.top,
-            percentLeft + percent.measuredWidth, percent.bottom)
-    }
-
-    private fun restoreNativeFullAod(binding: Binding) {
-        val state = binding.fullAodNativeState ?: return
-        binding.fullAodNativeState = null
-        val battery = binding.battery as? ViewGroup ?: return
-        state.iconContainer.visibility = state.iconVisibility
-        state.percentContainer.visibility = state.percentVisibility
-        state.chargingVisibility?.let { state.chargingView?.visibility = it }
-        visibilityMethod?.invoke(battery)
-        binding.aodNativeSuppressed = false
-    }
-
     private fun renderAodKeyguard(
-        binding: Binding,
+        binding: DuoBinding,
         content: DuoContent,
         settings: AodIconSettings,
         batteryGlyph: Drawable?,
@@ -1253,7 +749,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     /** Keep a valid picture briefly while independent host flows finish a handover. */
-    private fun presentationContent(binding: Binding, fresh: DuoContent?): DuoContent? {
+    private fun presentationContent(binding: DuoBinding, fresh: DuoContent?): DuoContent? {
         if (fresh != null) {
             binding.missingSince = -1L
             binding.expiry?.let(main::removeCallbacks)
@@ -1284,7 +780,7 @@ object DuoSignalHooker : StaticHooker() {
                 if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
                     clearShadeSwitchMotion()
                 } else {
-                    bindings.values.toList().forEach(::restoreProxyPosition)
+                    bindings.values.toList().forEach(panelHandover::restoreProxyPosition)
                 }
             } }
             after { param -> guarded {
@@ -1294,7 +790,7 @@ object DuoSignalHooker : StaticHooker() {
                 if (progress < 0.999f) shadeSwitchSettledToControlCenter = false
                 panelProgress = progress
                 if (progress > 0f) panelVisible = true
-                bindings.values.toList().forEach(::updatePanelBinding)
+                bindings.values.toList().forEach(panelHandover::updatePanelBinding)
             } }
         }
         type.findMethodOrNull { name("onStretchHeightChanged"); paramCount(1) }?.hook {
@@ -1314,7 +810,7 @@ object DuoSignalHooker : StaticHooker() {
                     panelStretchHeight = 0f
                     shadeSwitchSettledToControlCenter = false
                 }
-                bindings.values.toList().forEach(::updatePanelBinding)
+                bindings.values.toList().forEach(panelHandover::updatePanelBinding)
             } }
         }
         type.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.hook {
@@ -1325,7 +821,7 @@ object DuoSignalHooker : StaticHooker() {
                 }
                 if (param.args.getOrNull(0) == true) panelVisible = true
                 // Appearance can swap rows before the finger is released. Keep the actual fraction.
-                bindings.values.toList().forEach(::updatePanelBinding)
+                bindings.values.toList().forEach(panelHandover::updatePanelBinding)
             } }
         }
     }
@@ -1339,9 +835,9 @@ object DuoSignalHooker : StaticHooker() {
         panelVisible = false
         panelStretchHeight = 0f
         bindings.values.toList().forEach { binding ->
-            clearPanelMotion(binding)
-            clearSignalMotions(binding)
-            restoreProxyPosition(binding)
+            panelHandover.clearPanelMotion(binding)
+            panelHandover.clearSignalMotions(binding)
+            panelHandover.restoreProxyPosition(binding)
         }
     }
 
@@ -1359,271 +855,18 @@ object DuoSignalHooker : StaticHooker() {
             panelStretchHeight = 0f
             bindings.values.toList().forEach { binding ->
                 binding.panelArrival.shadeFinished(controlCenterVisible)
-                clearPanelMotion(binding)
-                clearSignalMotions(binding)
-                restoreProxyPosition(binding)
+                panelHandover.clearPanelMotion(binding)
+                panelHandover.clearSignalMotions(binding)
+                panelHandover.restoreProxyPosition(binding)
             }
         }
     }
 
-    private fun ancestor(view: View, name: String): View? {
-        var node: View? = view
-        while (node != null) {
-            if (node.javaClass.name == name) return node
-            node = node.parent as? View
-        }
-        return null
-    }
+    private fun ancestor(view: View, name: String): View? = HostAccess.ancestor(view, name)
 
-    private val panelMatrix = Matrix()
-    private val inversePanelMatrix = Matrix()
-    private val panelPoint = FloatArray(2)
+    fun hasActiveProxy(root: View): Boolean = panelHandover.hasActiveProxy(root)
 
-    private fun screenAnchor(view: View): DuoPanelPoint {
-        panelMatrix.reset()
-        view.transformMatrixToGlobal(panelMatrix)
-        panelPoint[0] = if (view.layoutDirection == View.LAYOUT_DIRECTION_RTL) 0f else view.width.toFloat()
-        panelPoint[1] = view.height / 2f
-        panelMatrix.mapPoints(panelPoint)
-        return DuoPanelPoint(panelPoint[0], panelPoint[1])
-    }
-
-    private fun screenVector(view: View, x: Float, y: Float): DuoPanelPoint {
-        panelMatrix.reset()
-        (view.parent as? View)?.transformMatrixToGlobal(panelMatrix)
-        panelPoint[0] = x; panelPoint[1] = y
-        panelMatrix.mapVectors(panelPoint)
-        return DuoPanelPoint(panelPoint[0], panelPoint[1])
-    }
-
-    private fun restoreProxyPosition(binding: Binding) {
-        binding.proxyRoot?.let { root ->
-            root.translationX = binding.proxyX.restore(root.translationX)
-            root.translationY = binding.proxyY.restore(root.translationY)
-        }
-        binding.proxyRoot = null
-    }
-
-    private fun positionProxy(binding: Binding, root: View, home: View, target: View,
-                              expandedRoot: View, progress: Float) {
-        if (binding.proxyRoot !== root) restoreProxyPosition(binding)
-        val translated = screenAnchor(target)
-        val translation = screenVector(expandedRoot, expandedRoot.translationX, expandedRoot.translationY)
-        val endpoint = DuoPanelPoint(translated.x - translation.x, translated.y - translation.y)
-        val stretch = screenVector(expandedRoot, 0f, -panelStretchHeight * (1f - progress))
-        val desired = DuoPanelGeometry.position(screenAnchor(home), endpoint, progress, stretch)
-        val actual = screenAnchor(binding.view)
-        panelMatrix.reset()
-        (root.parent as? View)?.transformMatrixToGlobal(panelMatrix)
-        if (!panelMatrix.invert(inversePanelMatrix)) { restoreProxyPosition(binding); return }
-        panelPoint[0] = desired.x - actual.x; panelPoint[1] = desired.y - actual.y
-        inversePanelMatrix.mapVectors(panelPoint)
-        binding.proxyRoot = root
-        root.translationX = binding.proxyX.apply(root.translationX, panelPoint[0])
-        root.translationY = binding.proxyY.apply(root.translationY, panelPoint[1])
-    }
-
-    private fun hideExpandedDots(binding: Binding): Boolean =
-        binding.surface != DuoSurface.HOME && binding.surface != DuoSurface.KEYGUARD &&
-        expandedStyle == DuoExpandedStyle.KEEP_DUO &&
-        ControlCenterHeaderHooker.supportsCompactLayout(binding.battery) &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
-
-    private fun clearSignalMotions(binding: Binding) {
-        if (binding.dotsInMotion) {
-            binding.dotsInMotion = false
-            binding.view.icon.hideSignalDots = hideExpandedDots(binding)
-            binding.view.invalidate()
-        }
-        binding.signalMotions.values.forEach { it.clear() }
-        binding.signalMotions.clear()
-        binding.signalTargets.values.forEach { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
-        binding.signalTargets.clear()
-        if (binding.view.icon.hiddenSignalRows.isNotEmpty()) {
-            binding.view.icon.hiddenSignalRows = emptySet()
-            binding.view.invalidate()
-        }
-    }
-
-    private fun updateSignalMotions(binding: Binding, home: Binding, expanded: Binding, root: ViewGroup?) {
-        val content = home.view.icon.content
-        val wifi = content?.wifiLevel != null
-        val picture = if (wifi) home.view.icon.signalDotsPicture() else home.view.icon.cellularSignalPicture
-        if (root == null || content == null || picture == null || content.airplaneMode) {
-            clearSignalMotions(binding); return
-        }
-        val used = HashSet<Int>()
-        val hidden = HashSet<Int>()
-        val rows = if (wifi) content.activeDataSubId?.let { id ->
-            listOf(DuoSignalRow(id, slotIndices[id] ?: -1, if (content.noService) -1 else content.mobileLevel))
-        }.orEmpty() else content.cellularSignalRows
-        var dotsReady = false
-        rows.forEachIndexed { index, row ->
-            val carrier = ControlCenterCarrierBlockHooker.signalHandoverTarget(expanded.icons, row.subId)
-            val target = carrier ?: nativeSignalView(expanded, row.subId) ?: return@forEachIndexed
-            val hasBounds = if (wifi) home.view.icon.signalDotsBounds(binding.signalPictureCrop, binding.signalSourceBounds)
-                else home.view.icon.signalRowBounds(index, binding.signalPictureCrop, binding.signalSourceBounds)
-            if (!hasBounds) return@forEachIndexed
-            if (binding.signalTargets[row.subId] !== target) {
-                binding.signalMotions.remove(row.subId)?.clear()
-                binding.signalTargets.remove(row.subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
-                if (carrier != null && !ControlCenterCarrierBlockHooker.acquireDuoTarget(carrier, binding)) return@forEachIndexed
-                binding.signalTargets[row.subId] = target
-            }
-            val motion = binding.signalMotions.getOrPut(row.subId) { SignalRowMotion() }
-            val destinationPicture = if (wifi) loadCellularSignalAssets(binding.battery.context)?.let {
-                IconSvgRenderer.signalPicture(it.single, listOf(row.level))
-            } else null
-            if (motion.update(root, home.view, binding.signalSourceBounds, target, picture,
-                    binding.signalPictureCrop, binding.view.icon.foreground, panelProgress, destinationPicture)) {
-                if (wifi) dotsReady = true else hidden += index
-            }
-            used += row.subId
-        }
-        binding.signalMotions.keys.toList().filter { it !in used }.forEach { subId ->
-            binding.signalMotions.remove(subId)?.clear()
-            binding.signalTargets.remove(subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
-        }
-        if (binding.dotsInMotion != dotsReady) {
-            binding.dotsInMotion = dotsReady
-            binding.view.icon.hideSignalDots = dotsReady || hideExpandedDots(binding)
-            binding.view.invalidate()
-        }
-        if (binding.view.icon.hiddenSignalRows != hidden) {
-            binding.view.icon.hiddenSignalRows = hidden
-            binding.view.invalidate()
-        }
-    }
-
-    private fun nativeSignalView(binding: Binding, subId: Int): View? {
-        val root = binding.icons as? ViewGroup ?: return null
-        val id = binding.networkIds["mobile_signal"]?.takeIf { it != 0 } ?: return null
-        fun find(group: ViewGroup): View? {
-            for (i in 0 until group.childCount) {
-                val child = group.getChildAt(i)
-                if (read(child, "subId") == subId) {
-                    return child.findViewById<View>(id)?.takeIf { it.isVisible && it.width > 0 }
-                }
-                if (child is ViewGroup) find(child)?.let { return it }
-            }
-            return null
-        }
-        return find(root)
-    }
-
-    private fun clearAirplaneMotion(binding: Binding) {
-        binding.airplaneMotion.clear()
-        if (binding.view.icon.hideAirplane) {
-            binding.view.icon.hideAirplane = false
-            binding.view.invalidate()
-        }
-    }
-
-    private fun clearNetworkMotion(binding: Binding) {
-        binding.networkMotionSettle?.let(main::removeCallbacks)
-        binding.networkMotionSettle = null
-        binding.networkMotionProgress = 0f
-        binding.panelMotion.clear()
-        binding.carrierTarget?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
-        binding.carrierTarget = null
-        if (binding.view.icon.hideNetwork) {
-            binding.view.icon.hideNetwork = false
-            binding.view.invalidate()
-        }
-    }
-
-    private fun clearPanelMotion(binding: Binding) {
-        clearNetworkMotion(binding)
-        clearAirplaneMotion(binding)
-    }
-
-    fun hasActiveProxy(root: View): Boolean = enabled && bindings.values.any {
-        it.active && it.surface == DuoSurface.COLLAPSED_PROXY &&
-            ancestor(it.view, "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons") === root
-    }
-
-    private fun updatePanelBinding(binding: Binding) {
-        if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
-        binding.panelArrival.observe(panelProgress, panelVisible)
-        fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
-        if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
-            clearPosition()
-            return
-        }
-        // The host just switched between full shade pages. A later expansion=1 callback must not
-        // start the six-frame home-to-carrier settle from the cleared proxy's progress=0.
-        if (shadeSwitchSettledToControlCenter && panelProgress >= 0.999f) return
-        if (!binding.active || !panelVisible) { clearPosition(); return }
-        val proxyRoot = ancestor(binding.view,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
-            ?: run { clearPosition(); return }
-        val home = bindings.values.firstOrNull { it.active && it.surface == DuoSurface.HOME &&
-            it.view.isLaidOut && it.view.display?.displayId == binding.view.display?.displayId }
-        val expanded = bindings.values.firstOrNull { it.surface == DuoSurface.EXPANDED &&
-            it.parent.rootView === binding.parent.rootView && ancestor(it.battery,
-                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") != null }
-        if (home == null || expanded == null || binding.view.width <= 0) { clearPosition(); return }
-        val target = if (expanded.active) expanded.view else expanded.battery
-        if (!target.isLaidOut || target.width <= 0) { clearPosition(); return }
-        val expandedRoot = ancestor(target,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
-            ?: run { clearPosition(); return }
-        if (binding.panelArrival.settled) {
-            // A temporary header endpoint (for example while brightness hides the backdrop)
-            // must neither move the proxy home nor replay its Wi-Fi/signal overlays.
-            positionProxy(binding, proxyRoot, home.view, target, expandedRoot, 1f)
-            clearSignalMotions(binding)
-            clearPanelMotion(binding)
-            return
-        }
-        positionProxy(binding, proxyRoot, home.view, target, expandedRoot, panelProgress)
-        updateSignalMotions(binding, home, expanded, proxyRoot.rootView as? ViewGroup)
-        val content = binding.view.icon.content
-        binding.view.icon.nativeWifi = home.view.icon.nativeWifi
-        if (content == null) { clearPanelMotion(binding); return }
-        val root = proxyRoot.rootView as? ViewGroup
-        if (root != null) updateAirplaneMotion(binding, home.view, expanded, root, content, panelProgress)
-        if (content.airplaneMode && content.wifiLevel == null) return
-        val wifi = content.wifiLevel != null
-        val destination = DuoPolicy.networkDestination(
-            expandedStyle,
-            ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi)
-        )
-        val networkTarget = when (destination) {
-            DuoNetworkDestination.NONE -> null
-            DuoNetworkDestination.CARRIER -> ControlCenterCarrierBlockHooker.duoHandoverTarget(
-                expanded.icons, wifi, mobile.activeDataSubId)
-            DuoNetworkDestination.NATIVE -> nativeNetworkView(expanded, wifi)
-        }
-        if (networkTarget == null || root == null) { clearNetworkMotion(binding); return }
-        if (panelProgress >= 1f && binding.networkMotionProgress >= 1f) return
-        val carrierTarget = networkTarget.takeIf { destination == DuoNetworkDestination.CARRIER }
-        if (binding.carrierTarget !== carrierTarget) clearNetworkMotion(binding)
-        if (carrierTarget != null) {
-            if (!ControlCenterCarrierBlockHooker.acquireDuoTarget(carrierTarget, binding)) {
-                clearNetworkMotion(binding); return
-            }
-            binding.carrierTarget = carrierTarget
-        }
-        if (panelProgress >= 1f) {
-            settlePanelMotion(binding, root, home.view, networkTarget, content,
-                home.view.icon.foreground, home.view.icon.nativeWifi as? NativeWifiDrawable)
-            return
-        }
-        binding.networkMotionSettle?.let(main::removeCallbacks)
-        binding.networkMotionSettle = null
-        binding.networkMotionProgress = panelProgress
-        val hidden = binding.panelMotion.update(root, home.view, networkTarget, content,
-            home.view.icon.foreground, panelProgress, small5GaEnabled, componentSizes,
-            home.view.icon.nativeWifi as? NativeWifiDrawable)
-        if (binding.view.icon.hideNetwork != hidden) {
-            binding.view.icon.hideNetwork = hidden
-            binding.view.invalidate()
-        }
-    }
-
-    private fun nativeWifiGlyph(binding: Binding): NativeWifiDrawable? {
+    private fun nativeWifiGlyph(binding: DuoBinding): NativeWifiDrawable? {
         val id = binding.networkIds["wifi_signal"]?.takeIf { it != 0 } ?: return null
         val source = binding.icons.findViewById<View>(id) as? android.widget.ImageView ?: return null
         val drawable = binding.wifiGlyph?.takeIf { it.source === source }
@@ -1641,101 +884,8 @@ object DuoSignalHooker : StaticHooker() {
         return drawable.takeIf { ready }
     }
 
-    private fun updateAirplaneMotion(binding: Binding, source: View, expanded: Binding,
-                                     root: ViewGroup, content: DuoContent, progress: Float) {
-        val icons = expanded.icons as? ViewGroup
-        val target = icons?.let { group ->
-            (0 until group.childCount).asSequence().map { group.getChildAt(it) }
-                .firstOrNull { read(it, "mSlot") == AIRPLANE_SLOT && it.isLaidOut && it.width > 0 }
-        }
-        val hidden = if (content.airplaneMode && target != null) {
-            val home = bindings.values.firstOrNull { it.view === source }
-            val sourceColor = home?.view?.icon?.foreground ?: binding.view.icon.foreground
-            binding.airplaneMotion.update(root, source, target, content,
-                sourceColor, progress, small5GaEnabled, componentSizes)
-        } else { binding.airplaneMotion.clear(); false }
-        if (binding.view.icon.hideAirplane != hidden) {
-            binding.view.icon.hideAirplane = hidden
-            binding.view.invalidate()
-        }
-    }
-
-    /** Finish one-step panel opens with the same short travel used while the user drags. */
-    private fun settlePanelMotion(
-        binding: Binding,
-        root: ViewGroup,
-        source: View,
-        target: View,
-        content: DuoContent,
-        color: Int,
-        nativeWifi: NativeWifiDrawable?
-    ) {
-        if (binding.networkMotionSettle != null) return
-        val from = binding.networkMotionProgress.coerceIn(0f, 1f)
-        if (from >= 0.95f) {
-            clearPanelMotion(binding)
-            binding.networkMotionProgress = 1f
-            binding.panelArrival.arrive()
-            return
-        }
-        val steps = (1..6).map { step -> from + (1f - from) * step / 6f }
-        var index = 0
-        val runnable = object : Runnable {
-            override fun run() {
-                if (binding.networkMotionSettle !== this) return
-                if (!enabled || !panelVisible || bindings[binding.battery] !== binding) {
-                    clearPanelMotion(binding)
-                    return
-                }
-                val next = steps[index++]
-                binding.networkMotionProgress = next
-                val updated = runCatching {
-                    val expanded = bindings.values.firstOrNull { it.surface == DuoSurface.EXPANDED &&
-                        it.parent.rootView === binding.parent.rootView }
-                    if (expanded != null) updateAirplaneMotion(binding, source, expanded, root, content, next)
-                    val hidden = binding.panelMotion.update(root, source, target, content, color,
-                        next, small5GaEnabled, componentSizes, nativeWifi)
-                    if (binding.view.icon.hideNetwork != hidden) {
-                        binding.view.icon.hideNetwork = hidden
-                        binding.view.invalidate()
-                    }
-                }
-                if (updated.isFailure) {
-                    val error = updated.exceptionOrNull()
-                    DebugLog.w(TAG, "Duo panel hand-over settle failed", error)
-                    clearPanelMotion(binding)
-                    binding.networkMotionProgress = 1f
-                    binding.panelArrival.arrive()
-                    return
-                }
-                if (index >= steps.size) {
-                    clearPanelMotion(binding)
-                    binding.networkMotionProgress = 1f
-                    binding.panelArrival.arrive()
-                } else {
-                    main.postDelayed(this, 24L)
-                }
-            }
-        }
-        binding.networkMotionSettle = runnable
-        main.postDelayed(runnable, 24L)
-    }
-
-    private fun nativeNetworkView(binding: Binding, wifi: Boolean): View? {
-        fun byId(root: View, name: String): View? = binding.networkIds[name]?.takeIf { it != 0 }
-            ?.let { root.findViewById<View>(it) }?.takeIf { it.isVisible && it.width > 0 }
-        if (wifi) return byId(binding.icons, "wifi_signal")
-        val group = binding.icons as? ViewGroup ?: return null
-        for (i in 0 until group.childCount) {
-            val child = group.getChildAt(i)
-            if (child.isVisible && read(child, "subId") == mobile.activeDataSubId)
-                return byId(child, "mobile_type")
-        }
-        return null
-    }
-
     /** Follow host Folme transforms without creating another animator or cancelling frames. */
-    private fun privacyOffset(binding: Binding, state: String?): Float {
+    private fun privacyOffset(binding: DuoBinding, state: String?): Float {
         if (binding.surface != DuoSurface.HOME || !DuoPrivacyGeometry.isTransition(state)) return 0f
         var chip = binding.privacyView
         if (chip == null || !chip.isAttachedToWindow) {
@@ -1763,7 +913,7 @@ object DuoSignalHooker : StaticHooker() {
         return 0f
     }
 
-    private fun setPrivacyInset(binding: Binding, inset: Int) {
+    private fun setPrivacyInset(binding: DuoBinding, inset: Int) {
         if (binding.privacyInset == inset) return
         val icons = binding.icons
         val base = (icons.paddingEnd - binding.privacyInset).coerceAtLeast(0)
@@ -1772,7 +922,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     /** Snapshot the host's own airplane-slot policy before Duo changes anything. */
-    private fun captureAirplaneMaskBaseline(binding: Binding) {
+    private fun captureAirplaneMaskBaseline(binding: DuoBinding) {
         if (binding.hostIgnoredAirplane != null) return
         val ignored = ignoredSlots(binding.icons) ?: return
         binding.hostIgnoredAirplane = ignored.any { it == AIRPLANE_SLOT }
@@ -1784,7 +934,7 @@ object DuoSignalHooker : StaticHooker() {
      */
     internal fun ownsAirplane(container: View): Boolean = IconPositionHooker.duoOwnsAirplane(container)
 
-    private fun setNativeAirplaneMasked(binding: Binding, masked: Boolean) {
+    private fun setNativeAirplaneMasked(binding: DuoBinding, masked: Boolean) {
         // IconPosition owns the merged airplane mask. Never mutate ignoredSlots independently:
         // its next pass would restore that list and trigger another layout every frame.
         if (binding.airplaneMasked == masked) return
@@ -1796,7 +946,7 @@ object DuoSignalHooker : StaticHooker() {
     private fun ignoredSlots(view: View): MutableList<Any?>? =
         runCatching { field(view.javaClass, "ignoredSlots")?.get(view) as? MutableList<Any?> }.getOrNull()
 
-    private fun foreground(binding: Binding): Int {
+    private fun foreground(binding: DuoBinding): Int {
         val battery = binding.battery
         val areas = read(battery, "mTintAreas")
         if (read(battery, "mUseTint") == true) {
@@ -1808,11 +958,11 @@ object DuoSignalHooker : StaticHooker() {
         return (read(battery, if (intensity > 0f) "mDarkColor" else "mLightColor") as? Int) ?: Color.WHITE
     }
 
-    private fun restore(binding: Binding) {
-        restoreNativeFullAod(binding)
-        clearSignalMotions(binding)
-        clearPanelMotion(binding)
-        restoreProxyPosition(binding)
+    private fun restore(binding: DuoBinding) {
+        aodController.restoreNativeFullAod(binding)
+        panelHandover.clearSignalMotions(binding)
+        panelHandover.clearPanelMotion(binding)
+        panelHandover.restoreProxyPosition(binding)
         binding.expiry?.let(main::removeCallbacks)
         binding.expiry = null
         binding.missingSince = -1L
@@ -1869,25 +1019,25 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun bindWifi(scope: Any, interactor: Any, context: Context) {
-        if (wifiInteractor === interactor && wifiHandles.isNotEmpty()) return
-        wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
+        if (wifiInteractor === interactor && wifiSubscriptions.isBound) return
+        wifiSubscriptions.clear()
         wifiScope = scope; wifiInteractor = interactor; wifiContext = context.applicationContext
         network = network.copy(wifiLevel = null, wifiDefault = null)
         ensureConnectivity(context)
         val token = epoch
-        HostFlowCollector.collect(scope, read(interactor, "isDefault"), { value ->
+        wifiSubscriptions.collect(scope, read(interactor, "isDefault"), { enabled && token == epoch }) { value ->
             network = network.copy(wifiDefault = value as? Boolean)
             refresh()
-        }, { enabled && token == epoch })?.let(wifiHandles::add)
+        }
         val wifiMax = (context.getSystemService(WifiManager::class.java)?.maxSignalLevel ?: 4).coerceAtLeast(1)
-        HostFlowCollector.collect(scope, read(interactor, "wifiNetwork"), { value ->
+        wifiSubscriptions.collect(scope, read(interactor, "wifiNetwork"), { enabled && token == epoch }) { value ->
             val level = if (value?.javaClass?.name?.endsWith("WifiNetworkModel\$Active") == true)
                 (read(value, "level") as? Int)?.takeIf { it in 0..wifiMax }?.let {
                     (it * 4f / wifiMax).roundToInt().coerceIn(0, 4)
                 } else null
             network = network.copy(wifiLevel = level)
             refresh()
-        }, { enabled && token == epoch })?.let(wifiHandles::add)
+        }
     }
 
     private fun ensureConnectivity(context: Context) {
@@ -1975,24 +1125,11 @@ object DuoSignalHooker : StaticHooker() {
                 " standardDuo=" + standardEnabled)
         } }
     }
-    private fun field(type: Class<*>, name: String): Field? {
-        val key = type to name
-        if (fields.containsKey(key)) return fields[key]
-        return generateSequence(type) { it.superclass }.mapNotNull { clazz ->
-            runCatching { clazz.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-        }.firstOrNull().also { fields[key] = it }
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
     private inline fun guarded(action: () -> Unit) { runCatching(action).onFailure { DebugLog.w(TAG, "host callback failed", it) } }
 
-    private fun <T> onMainBlocking(action: () -> T): T {
-        if (Looper.myLooper() == Looper.getMainLooper()) return action()
-        val latch = java.util.concurrent.CountDownLatch(1)
-        var result: Result<T>? = null
-        main.post { try { result = runCatching(action) } finally { latch.countDown() } }
-        check(latch.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Duo main-thread cleanup timed out" }
-        return checkNotNull(result).getOrThrow()
-    }
+    private fun <T> onMainBlocking(action: () -> T): T = HostAccess.onMain(action)
     override fun saveHotReloadState(): Any? = onMainBlocking {
         listOf(wifiScope, wifiInteractor, wifiContext, bindings.keys.toList(),
             panelProgress, panelVisible, panelStretchHeight, shadeSwitchSettledToControlCenter)
@@ -2036,10 +1173,10 @@ object DuoSignalHooker : StaticHooker() {
             callback?.let { listener -> runCatching { connectivity?.unregisterNetworkCallback(listener) } }
             networkPending?.let(main::removeCallbacks)
             networkPending = null
-            dozingRead = null
+            aodController.retire()
             wifiTintResourceMethod = null
             callback = null; connectivity = null; currentNetwork = null
-            wifiHandles.forEach { it.cancel() }; wifiHandles.clear()
+            wifiSubscriptions.clear()
             wifiScope = null; wifiInteractor = null; wifiContext = null
             small5GaEnabled = false
             cellularSignalAssets = null

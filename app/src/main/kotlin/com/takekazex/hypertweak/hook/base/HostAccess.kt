@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.hook.base
 
 import android.os.Handler
 import android.os.Looper
-import java.lang.reflect.Method
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -28,27 +27,19 @@ internal object HostAccess {
         return checkNotNull(result).getOrThrow()
     }
 
-    private data class MethodKey(val name: String, val parameters: List<Class<*>>)
-    private class Members {
-        val fields = java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<java.lang.reflect.Field>>()
-        val methods = java.util.concurrent.ConcurrentHashMap<MethodKey, java.util.Optional<Method>>()
-    }
-    // ClassValue follows the actual defining loader and cannot pin it through a global Class map.
-    private val members = object : ClassValue<Members>() {
-        override fun computeValue(type: Class<*>): Members = Members()
-    }
-    fun read(owner: Any, name: String): Any? = members.get(owner.javaClass).fields.computeIfAbsent(name) {
-        java.util.Optional.ofNullable(generateSequence(owner.javaClass) { it.superclass }
-            .mapNotNull { type -> runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull() }
-            .firstOrNull())
-    }.orElse(null)?.get(owner)
+    fun field(type: Class<*>, name: String) = HostMembers.field(type, name)
+    fun read(owner: Any, name: String) = HostMembers.read(owner, name)
+    fun method(type: Class<*>, name: String, vararg parameters: Class<*>) = HostMembers.method(type, name, *parameters)
+    fun method(owner: Any, name: String, vararg parameters: Class<*>) = HostMembers.method(owner, name, *parameters)
 
-    fun method(owner: Any, name: String, vararg parameters: Class<*>): Method? =
-        members.get(owner.javaClass).methods.computeIfAbsent(MethodKey(name, parameters.toList())) {
-            java.util.Optional.ofNullable(generateSequence(owner.javaClass) { it.superclass }
-                .mapNotNull { type -> runCatching { type.getDeclaredMethod(name, *parameters).apply { isAccessible = true } }.getOrNull() }
-                .firstOrNull())
-        }.orElse(null)
+    fun ancestor(view: android.view.View, className: String, includeSelf: Boolean = true): android.view.View? {
+        var current: android.view.View? = if (includeSelf) view else view.parent as? android.view.View
+        while (current != null) {
+            if (current.javaClass.name == className) return current
+            current = current.parent as? android.view.View
+        }
+        return null
+    }
 
     fun invoke(owner: Any, name: String): Any? = method(owner, name)?.invoke(owner)
     fun provider(component: Any, name: String): Any? = read(component, name)?.let { invoke(it, "get") }

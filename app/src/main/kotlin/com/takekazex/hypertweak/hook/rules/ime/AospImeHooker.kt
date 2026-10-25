@@ -8,10 +8,8 @@ import android.util.TypedValue
 import android.view.RoundedCorner
 import android.view.View
 import android.view.View.OnClickListener
-import android.view.ViewGroup
 import android.view.ViewParent
 import android.view.WindowInsets
-import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -37,6 +35,7 @@ import kotlin.math.roundToInt
  * Ported from Howard20181's Mi_AOSP_IME (GPL-3.0).
  */
 object AospImeHooker : StaticHooker() {
+    private val raise = ImeRaiseController(this, ::aospRaiseActive, ::captionBarHeightPx)
     private const val TAG = "AospIme"
 
     private const val INPUT_METHOD_SERVICE = "android.inputmethodservice.InputMethodService"
@@ -55,13 +54,6 @@ object AospImeHooker : StaticHooker() {
 
     private const val CAPTION_BAR_HEIGHT_DP = 48
     private const val NAV_BAR_SHADOW_DP = 4
-
-    /** Re-check budget for the keyboard raise decision while insets-driven relayout settles. */
-    private const val RAISE_RECHECK_ATTEMPTS = 4
-    private const val RAISE_RECHECK_DELAY_MS = 250L
-
-    /** Content within this distance of the bar top counts as already clear of it. */
-    private const val RAISE_CLEAR_TOLERANCE_DP = 2
 
     /** Padding a view had before the rounded-corner listener started adjusting it. */
     private val basePaddings = WeakHashMap<View, IntArray>()
@@ -83,9 +75,6 @@ object AospImeHooker : StaticHooker() {
     private var deadZoneSizeMinField: Field? = null
     private var navBarFrameClass: Class<*>? = null
 
-    /** `InputMethodService.mRootView` (private, declared on the base class, not on keyboard subclasses). */
-    private var imeRootField: Field? = null
-
     /** Resolved controller class (`NavigationBarController` or the .15 `$Impl` shape). */
     private var navBarControllerClass: Class<*>? = null
 
@@ -100,47 +89,13 @@ object AospImeHooker : StaticHooker() {
     private var backButtonCodeMethod: Method? = null
     private var navBackIdCached: Int = -1
 
-    /** `InputMethodService.mInputView`; the view whose background must cover the raised strip. */
-    private var inputViewField: Field? = null
-
-    /** Views (input view / legacy parentPanel root) whose bottom padding was added by us. */
-    private val paddedViews = WeakHashMap<View, Boolean>()
-
-    /** Guards against stacking duplicate deferred raise re-checks for one root. */
-    private val pendingRaiseChecks = WeakHashMap<View, Boolean>()
-
     /** Back buttons already rewired for dismiss-only semantics (dedupes repeat inflations). */
     private val wiredBackViews = WeakHashMap<View, Boolean>()
-
-    /** Roots with the raise layout watcher installed (one per root, survives across shows). */
-    private val raiseWatchers = WeakHashMap<View, Boolean>()
-
-    /** Last raise-evaluation snapshot per root; suppresses duplicate log lines. */
-    private val lastRaiseEval = WeakHashMap<View, String>()
-
-    /** Per-root caption-injection state we last pushed (null = nothing pushed yet). */
-    private val captionInjectionState = WeakHashMap<View, Boolean>()
-
-    /** Roots whose legacy full-height padding was already swept once (bounded migration). */
-    private val legacySweptRoots = WeakHashMap<View, Boolean>()
-
-    /**
-     * One-shot cleanup of padding written by pre-input-view builds onto the `parentPanel` root.
-     * Bounded: each root is considered only once, so a keyboard that legitimately pads the root to
-     * exactly the bar height is not fought on every layout pass.
-     */
-    private fun sweepLegacyRootPadding(root: View, target: Int): Boolean {
-        if (legacySweptRoots.put(root, true) == true) return false
-        if (root.paddingBottom != target) return false
-        runCatching { root.setPadding(root.paddingLeft, root.paddingTop, root.paddingRight, 0) }
-        paddedViews.remove(root)
-        DebugLog.i(TAG, "legacy root raise withdrawn")
-        return true
-    }
 
     override val hotReloadMode = HotReloadMode.RECREATE
 
     override fun onPrepareHotReload() {
+        raise.prepareReload()
         insetsView?.get()?.let { view ->
             runCatching { view.setOnApplyWindowInsetsListener(null) }
             basePaddings.remove(view)
@@ -155,19 +110,12 @@ object AospImeHooker : StaticHooker() {
         navBarHorizontalField = null
         deadZoneSizeMinField = null
         navBarFrameClass = null
-        imeRootField = null
         navBarControllerClass = null
         navBarControllerInstance = null
         captionBarHeightPxCache = null
         backButtonCodeMethod = null
         navBackIdCached = -1
-        inputViewField = null
-        pendingRaiseChecks.clear()
         wiredBackViews.clear()
-        raiseWatchers.clear()
-        lastRaiseEval.clear()
-        captionInjectionState.clear()
-        legacySweptRoots.clear()
     }
 
     /**
@@ -175,7 +123,7 @@ object AospImeHooker : StaticHooker() {
      * padding is not lost across the reload (otherwise stale padding would look foreign).
      */
     override fun saveHotReloadState(): Any? = ArrayList<Any?>(
-        listOf(insetsView?.get(), ArrayList<View>().also { out -> paddedViews.keys.forEach { v -> if (paddedViews[v] == true) out.add(v) } })
+        listOf(insetsView?.get(), raise.saveOwnedViews())
     )
 
     override fun restoreHotReloadState(state: Any?) {
@@ -184,7 +132,7 @@ object AospImeHooker : StaticHooker() {
             installRoundedCornerInsetsListener(view)
             runCatching { view.requestApplyInsets() }
         }
-        (parts.getOrNull(1) as? List<*>)?.forEach { v -> (v as? View)?.let { paddedViews[it] = true } }
+        raise.restoreOwnedViews(parts.getOrNull(1))
     }
 
     override fun onHook() {
@@ -528,7 +476,7 @@ object AospImeHooker : StaticHooker() {
                         // and zeroes a stale caption-bar source; gating on aospBarActive here
                         // would leave that source alive until the keyboard process restarts.
                         if (!AospImeConfig.isEnabled()) return@open
-                        onWindowShownForRaise(service)
+                        raise.onWindowShownForRaise(service)
                     }
                 }
             }
@@ -536,212 +484,6 @@ object AospImeHooker : StaticHooker() {
             DebugLog.hookFailed(TAG, "$NAV_BAR_CONTROLLER_IMPL#onWindowShown()", it)
         }
     }
-
-    private fun onWindowShownForRaise(service: Context) {
-        val root = findInputMethodRoot(service) ?: return
-        installRaiseLayoutWatcher(service, root)
-        evaluateKeyboardRaise(service, root)
-        // Settle checks: the keyboard may apply or reset its own clearance well after the show.
-        for (attempt in 1..RAISE_RECHECK_ATTEMPTS) {
-            root.postDelayed({ evaluateKeyboardRaise(service, root) }, RAISE_RECHECK_DELAY_MS * attempt)
-        }
-    }
-
-    /**
-     * Re-runs the raise decision whenever the keyboard hierarchy relayouts while shown. This is
-     * what actually catches a keyboard that pads itself late (or resets its padding on re-show);
-     * timed checks alone miss any change that lands after the schedule ends. The evaluation is
-     * idempotent, so repeated invocations are cheap no-ops once settled. Coalesced through
-     * [pendingRaiseChecks] so a layout burst triggers at most one posted evaluation.
-     */
-    private fun installRaiseLayoutWatcher(service: Context, root: View) {
-        if (raiseWatchers.put(root, true) == true) return
-        root.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            if (pendingRaiseChecks.put(view, true) == true) return@addOnLayoutChangeListener
-            view.post {
-                pendingRaiseChecks.remove(view)
-                evaluateKeyboardRaise(service, view)
-            }
-        }
-    }
-
-    private fun findInputMethodRoot(service: Context): View? {
-        val rootField = imeRootField ?: runCatching {
-            INPUT_METHOD_SERVICE.toClassOrNull()
-                ?.getDeclaredField("mRootView")
-                ?.apply { isAccessible = true }
-        }.getOrNull()?.also { imeRootField = it }
-        // The service owns the current inflated input_method layout. Resource integers are
-        // build-specific (the previous root ID is overlay_display_window_title on OS4 stable).
-        val root = runCatching { rootField?.get(service) as? View }.getOrNull()
-        if (root == null) DebugLog.d(TAG, "raise: InputMethodService root not ready")
-        return root
-    }
-
-    /**
-     * The view whose bottom padding raises the keyboard: `InputMethodService.mInputView`. Padding
-     * must live THERE and not on the `input_method` root — the root has no background (Theme.Panel
-     * window background is transparent, the ROM layout paints nothing, and the bar frame is
-     * background-less in gesture mode), so a root-padded strip rendered as a transparent band with
-     * the app showing through. The input view's own keyboard background spans its padding, which
-     * keeps the raised strip opaque. Falls back to the first child of the `inputArea` frame
-     * (`mInputFrame`, id 16908318) and finally to the root.
-     */
-    private fun raiseTargetView(service: Context, root: View): View? {
-        val ims = service as? InputMethodService
-        if (ims != null) {
-            val field = inputViewField ?: runCatching {
-                INPUT_METHOD_SERVICE.toClassOrNull()
-                    ?.getDeclaredField("mInputView")
-                    ?.apply { isAccessible = true }
-            }.getOrNull()?.also { inputViewField = it }
-            val view = field?.let { runCatching { it.get(ims) as? View }.getOrNull() }
-            if (view != null && view !== root) return view
-        }
-        @Suppress("ResourceType")
-        val frame = root.findViewById(16908318) as? ViewGroup
-        return frame?.getChildAt(0)?.takeIf { it.isVisible } ?: root
-    }
-
-    /**
-     * Decides how far the keyboard content must be raised so it ends exactly at the caption-bar
-     * top, and applies that as the target view's bottom padding. Idempotent: our own current
-     * padding is counted back into the measured content bottom, so evaluating any number of times
-     * — from the show hook, the settle schedule, or the layout watcher — always lands on the same
-     * stable value. Style-aware: under 小米样式 (or when the AOSP branch is not active) nothing is
-     * raised and our padding is withdrawn instead.
-     */
-    private fun evaluateKeyboardRaise(service: Context, root: View) {
-        if (!root.isAttachedToWindow || !root.isLaidOut || root.height <= 0) return
-        val target = captionBarHeightPx(service.resources)
-
-        // 小米样式 / inactive branch: restore native behavior. Also push a matching caption-inset
-        // height so self-carving keyboards flatten immediately instead of waiting for the
-        // framework to re-call the setter on its own.
-        if (!aospRaiseActive(service)) {
-            withdrawRaise(service, root, target, "native style")
-            syncCaptionInjection(root, false, service)
-            return
-        }
-        syncCaptionInjection(root, true, service)
-
-        // Fullscreen/extract mode lays out its own themed area; a raise fights it. And once the
-        // input view hides (including teardown after hide), stale padding would linger into the
-        // next show — withdraw instead of measuring garbage.
-        val ims = service as? InputMethodService
-        if (ims != null && (ims.isFullscreenMode || ims.isExtractViewShown || !ims.isInputViewShown)) {
-            withdrawRaise(service, root, target, "not raisable now")
-            return
-        }
-
-        val view = raiseTargetView(service, root)
-        if (view == null || !view.isLaidOut || view.height <= 0) return
-
-        // One-time migration: builds before the input-view change padded parentPanel itself.
-        if (root !== view) sweepLegacyRootPadding(root, target)
-
-        val currentPb = view.paddingBottom
-        if (currentPb != 0 && paddedViews[view] != true) {
-            DebugLog.d(TAG, "raise: foreign paddingBottom=$currentPb, left alone")
-            return
-        }
-
-        // Count our own current padding back in: the measured content bottom already reflects it.
-        val baseContentBottom = deepestVisibleBottom(view) + currentPb
-        val barTop = view.height - target
-        val tolerancePx = dpToPx(RAISE_CLEAR_TOLERANCE_DP, service.resources)
-        val shortfall = baseContentBottom - barTop
-        val desiredPb = when {
-            shortfall <= tolerancePx -> 0
-            else -> minOf(shortfall, target)
-        }
-        // Log only evaluations whose numbers actually changed; the layout watcher re-runs this on
-        // every relayout, so unconditional logging would flood the log while typing.
-        val snapshot = "h=${view.height} content=$baseContentBottom barTop=$barTop pb=$currentPb"
-        if (lastRaiseEval[view] != snapshot) {
-            lastRaiseEval[view] = snapshot
-            DebugLog.i(TAG, "raise eval: $snapshot desired=$desiredPb")
-        }
-        if (desiredPb == currentPb) {
-            if (desiredPb > 0) paddedViews[view] = true else paddedViews.remove(view)
-            return
-        }
-        runCatching {
-            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, desiredPb)
-            if (desiredPb > 0) paddedViews[view] = true else paddedViews.remove(view)
-            DebugLog.i(TAG, "keyboard raise $currentPb -> $desiredPb")
-        }.onFailure { DebugLog.e(TAG, "evaluateKeyboardRaise failed: $it") }
-    }
-
-    private fun withdrawRaise(service: Context, root: View, target: Int, reason: String) {
-        var withdrew = false
-        for (entry in paddedViews.entries.toList()) {
-            val view = entry.key
-            if (entry.value && view.paddingBottom != 0) {
-                runCatching { view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, 0) }
-                withdrew = true
-            }
-            paddedViews.remove(view)
-        }
-        // Migration sweep for padding written by pre-input-view builds onto the root.
-        if (root !== raiseTargetView(service, root)) {
-            withdrew = sweepLegacyRootPadding(root, target) || withdrew
-        }
-        if (withdrew) DebugLog.i(TAG, "keyboard raise withdrawn ($reason)")
-    }
-
-    /**
-     * Pushes the caption-insets height directly onto the window's InsetsController so style
-     * switches take effect on the next layout instead of waiting for the framework to call the
-     * setter again. Under 小米样式 this is what actually kills a source injected during an earlier
-     * AOSP-style session: `InsetsController` re-applies its stored non-zero height on every frame
-     * change, so without an explicit 0 the phantom carve survives indefinitely.
-     */
-    private fun syncCaptionInjection(root: View, active: Boolean, service: Context) {
-        if (captionInjectionState[root] == active) return
-        val controller = root.windowInsetsController ?: return
-        val height = if (active) captionBarHeightPx(service.resources) else 0
-        // Record intent BEFORE invoking: the setter notifies insets synchronously, which can
-        // relayout into the watcher and re-enter this function mid-invocation.
-        captionInjectionState[root] = active
-        runCatching {
-            controller.javaClass
-                .getMethod("setImeCaptionBarInsetsHeight", Int::class.javaPrimitiveType)
-                .apply { isAccessible = true }
-                .invoke(controller, height)
-            DebugLog.i(TAG, "caption injection synced: $height")
-        }.onFailure {
-            captionInjectionState.remove(root)
-            DebugLog.w(TAG, "caption injection sync failed", it)
-        }
-    }
-
-    /** Deepest visible descendant bottom edge inside [root], in root coordinates. */
-    private fun deepestVisibleBottom(root: View): Int {
-        var best = 0
-        val stack = ArrayDeque<Pair<View, Int>>()
-        for (index in 0 until childCount(root)) {
-            stack.addLast(childAt(root, index) to 0)
-        }
-        while (true) {
-            val (view, offset) = stack.removeLastOrNull() ?: break
-            if (view.visibility != View.VISIBLE || view.width <= 0 || view.height <= 0) continue
-            val top = offset + view.top
-            val bottom = top + view.height
-            if (bottom > best) best = bottom
-            if (view is ViewGroup) {
-                for (index in 0 until view.childCount) {
-                    stack.addLast(view.getChildAt(index) to top)
-                }
-            }
-        }
-        return best
-    }
-
-    private fun childCount(view: View): Int = (view as? ViewGroup)?.childCount ?: 0
-
-    private fun childAt(view: View, index: Int): View =
-        (view as? ViewGroup)?.getChildAt(index) ?: view
 
     /**
      * The caption-bar insets height and the visible bar's frame height must agree, or the bar

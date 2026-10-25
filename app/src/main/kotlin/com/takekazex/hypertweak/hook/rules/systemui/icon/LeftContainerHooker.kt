@@ -1,25 +1,22 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.settings.contract.IconTunerContract
-
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
-
-import android.content.Context
 import android.app.KeyguardManager
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
 import com.takekazex.hypertweak.util.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
-import kotlin.math.abs
 
 /**
  * 图标左置 — shows selected status-bar slots (勿扰 zen, 静音/振动 volume+mute, 热点 hotspot,
@@ -66,6 +63,23 @@ import kotlin.math.abs
  * generation retires; framework view references and panel progress rebind the replacement.
  */
 object LeftContainerHooker : StaticHooker() {
+    private val handover = LeftHandoverController(object : LeftHandoverController.Host {
+        override val retiring get() = LeftContainerHooker.retiring
+        override val active get() = LeftContainerHooker.active
+        override val shadeSwitchSettledToControlCenter get() = LeftContainerHooker.shadeSwitchSettledToControlCenter
+        override val panelVisible get() = LeftContainerHooker.panelVisible
+        override val panelProgress get() = LeftContainerHooker.panelProgress
+        override fun sourceClones() = synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.clones }
+        override fun restoreSources() = synchronized(states) {
+            states.values.forEach { state ->
+                state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
+                state.leftContainer?.let { container -> if (container.alpha != 1f) container.alpha = 1f }
+            }
+        }
+        override fun rows() = liveControlCenterRows()
+        override fun slotOf(view: View) = LeftContainerHooker.slotOf(view)
+    })
+    private val cloner = LeftIconCloner(this)
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     @Volatile private var retiring = false
@@ -86,8 +100,6 @@ object LeftContainerHooker : StaticHooker() {
         "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView"
     private const val ISLAND_HANDLER_CLASS =
         "com.android.systemui.statusbar.StatusBarIslandControllerImpl\$IslandStateHandler"
-    private const val STATUS_BAR_ICON_VIEW_CLASS =
-        "com.android.systemui.statusbar.StatusBarIconView"
 
     /**
      * Per-frame panel expansion of the control center, in resolution order. Both carry the same
@@ -169,14 +181,6 @@ object LeftContainerHooker : StaticHooker() {
         states.values.firstOrNull { it.isKeyguard }?.migratedSlots ?: emptySet()
     }
 
-    private var iconViewConstructor: java.lang.reflect.Constructor<*>? = null
-    private var iconViewMIconField: Field? = null
-    private var iconPayloadCloneMethod: Method? = null
-    private var isIconVisibleMethod: Method? = null
-    private var iconPayloadVisibleField: Field? = null
-    private var iconViewSetMethod: Method? = null
-    private var iconViewSetResolved = false
-    private var darkDispatcherField: Field? = null
     private var islandShowingField: Field? = null
     private var slotGetter: Method? = null
     @Volatile private var appContext: Context? = null
@@ -252,20 +256,6 @@ object LeftContainerHooker : StaticHooker() {
     private val ccRowsScratch = ArrayList<ViewGroup>(CC_ROW_CLASSES.size)
 
     /** A secondary host copy temporarily hidden while the overlay carries the icon. */
-    private class EndpointState(
-        var savedAlpha: Float,
-        var appliedAlpha: Float,
-        var holdUntilReady: Boolean = false
-    )
-
-    /** One Duo-style overlay per moved slot; all operations are main-thread-only. */
-    private val panelMotions = HashMap<String, LeftPanelMotion>()
-
-    /** Duplicate fake/QS copies are alpha-owned only while the overlay is ready. */
-    private val endpointStates = WeakHashMap<View, EndpointState>()
-
-    private var statusIconsId = 0
-
     private fun reloadSnapshot() {
         val snapshot = IconTunerOptions.snapshot()
         leftMode = snapshot.leftMode
@@ -288,14 +278,7 @@ object LeftContainerHooker : StaticHooker() {
         return leftMode >= IconTunerContract.LEFT_MODE_HOME && !keyguardShowing()
     }
 
-    private fun <T> onMainBlocking(action: () -> T): T {
-        if (Looper.myLooper() == Looper.getMainLooper()) return action()
-        val latch = java.util.concurrent.CountDownLatch(1)
-        var result: Result<T>? = null
-        mainHandler.post { try { result = runCatching(action) } finally { latch.countDown() } }
-        check(latch.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Left icon cleanup timed out" }
-        return checkNotNull(result).getOrThrow()
-    }
+    private fun <T> onMainBlocking(action: () -> T): T = HostAccess.onMain(action)
 
     // Only framework objects and collections cross the module class-loader boundary.
     override fun saveHotReloadState(): Any = onMainBlocking {
@@ -411,7 +394,7 @@ object LeftContainerHooker : StaticHooker() {
         mainHandler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(reconcileRunnable)
         onMainBlocking {
-            restoreHandover()
+            handover.restoreHandover()
             shadeSwitchSettledToControlCenter = false
             states.values.forEach(::teardownState)
             states.clear()
@@ -436,31 +419,7 @@ object LeftContainerHooker : StaticHooker() {
             return
         }
 
-        // Clone class + members, resolved once.
-        val iconViewClass = STATUS_BAR_ICON_VIEW_CLASS.toClassOrNull()
-        if (iconViewClass == null) {
-            DebugLog.hookSkipped(TAG, STATUS_BAR_ICON_VIEW_CLASS, "class not found")
-            return
-        }
-        iconViewConstructor = runCatching {
-            iconViewClass.getConstructor(
-                android.content.Context::class.java,
-                String::class.java,
-                Class.forName("android.service.notification.StatusBarNotification"),
-                Boolean::class.javaPrimitiveType
-            )
-        }.getOrNull()
-        if (iconViewConstructor == null) {
-            DebugLog.hookSkipped(TAG, "$STATUS_BAR_ICON_VIEW_CLASS#<init>", "constructor not found")
-            return
-        }
-        resolveIconViewSetter()
-        iconViewMIconField = runCatching {
-            iconViewClass.getDeclaredField("mIcon").apply { isAccessible = true }
-        }.getOrNull()
-        isIconVisibleMethod = runCatching {
-            iconViewClass.getMethod("isIconVisible")
-        }.getOrNull()
+        if (!cloner.prepare()) return
 
         // 1. Capture the home manager when the status bar view receives it.
         val statusBarViewClass = STATUS_BAR_VIEW_CLASS.toClassOrNull()
@@ -704,7 +663,7 @@ object LeftContainerHooker : StaticHooker() {
                         panelProgress = 0f
                         shadeSwitchSettledToControlCenter = false
                     }
-                    applyHandoverGuarded(if (visible) panelProgress else 0f)
+                    handover.applyHandoverGuarded(if (visible) panelProgress else 0f)
                 }
             }
         }
@@ -715,7 +674,7 @@ object LeftContainerHooker : StaticHooker() {
                     // that the panel window has been dismissed. Keep the current hand-over fraction
                     // and let onVisibleChanged(false) perform the final restore.
                     if (param.args.getOrNull(0) == true) panelVisible = true
-                    applyHandoverGuarded(if (panelVisible) panelProgress else 0f)
+                    handover.applyHandoverGuarded(if (panelVisible) panelProgress else 0f)
                 }
             }
         }
@@ -727,7 +686,7 @@ object LeftContainerHooker : StaticHooker() {
         ccRows[row.javaClass.name] = WeakReference(row)
         // Install the parked copies immediately: a row that turns visible before the first expansion
         // callback (or attaches mid-gesture) must not draw the icon on the right.
-        mainHandler.post { if (!retiring) applyHandoverGuarded(panelProgress) }
+        mainHandler.post { if (!retiring) handover.applyHandoverGuarded(panelProgress) }
     }
 
     /** The live rows that draw a copy of the home cluster, in hand-over preference order. */
@@ -748,14 +707,14 @@ object LeftContainerHooker : StaticHooker() {
             // visible. Park its copies before creating the overlay so that frame cannot flash the
             // original icon on the right.
             panelVisible = true
-            parkHandover()
+            handover.parkHandover()
         } else if (panelProgress > 0f) {
             panelVisible = true
         }
         // The host drives this callback per frame while the shade moves, which is exactly when a
         // dropped frame can leave a clone behind. Arm the repair tick for the duration.
         if (panelVisible || panelProgress > 0f) scheduleReconcile()
-        applyHandoverGuarded(panelProgress)
+        handover.applyHandoverGuarded(panelProgress)
     }
 
     /**
@@ -766,97 +725,11 @@ object LeftContainerHooker : StaticHooker() {
      * copies are alpha-suppressed only after the overlay has produced a frame. The last quarter fades
      * the overlay out while the endpoint fades in, exactly like `DuoPanelMotion`.
      */
-    private fun applyHandover(progress: Float) {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { if (!retiring) applyHandoverGuarded(progress) }
-            return
-        }
-        if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
-            suspendHandoverForShadeSwitch()
-            return
-        }
-        val clamped = progress.coerceIn(0f, 1f)
-        if (shadeSwitchSettledToControlCenter && clamped >= 0.999f) {
-            settleNativeControlCenterEndpoint()
-            return
-        }
-        if (clamped <= 0f) {
-            if (panelVisible) parkHandover() else restoreHandover()
-            return
-        }
-
-        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } }
-        val rows = liveControlCenterRows()
-        if (!active || state == null || state.clones.isEmpty() || rows.isEmpty()) {
-            restoreHandover()
-            return
-        }
-
-        val usedSlots = HashSet<String>()
-        val liveSecondaryEndpoints = HashSet<View>()
-        state.clones.forEach { (slot, clone) ->
-            val targets = rows.mapNotNull { statusRowIcon(it, slot) }
-                .filter(::isUsableDestination)
-                .distinct()
-            // Prefer the real expanded control-center row. The fake/QS rows are only fallbacks for
-            // layouts where that endpoint is not inflated yet.
-            val target = targets.firstOrNull { it.parentRowClass() == CC_STATUS_ROW_CLASS }
-                ?: targets.firstOrNull { it.parentRowClass() == CC_QS_HEADER_CLASS }
-                ?: targets.firstOrNull()
-            if (!clone.isAttachedToWindow || !clone.isShown || clone.width <= 0 || clone.height <= 0 ||
-                target == null
-            ) {
-                if (clone.alpha != 1f) clone.alpha = 1f
-                panelMotions.remove(slot)?.clear()
-                return@forEach
-            }
-
-            // A view can have been parked while the panel was visible at progress=0. Carry its saved
-            // host alpha into the motion, but keep its currently hidden value until the overlay draws.
-            val parkedTargetAlpha = takeEndpointForMotion(target)
-            val root = target.rootView as? ViewGroup
-            if (root == null || !root.isAttachedToWindow) {
-                if (clone.alpha != 1f) clone.alpha = 1f
-                panelMotions.remove(slot)?.clear()
-                return@forEach
-            }
-
-            val motion = panelMotions[slot] ?: LeftPanelMotion {
-                if (!retiring) applyHandoverGuarded(panelProgress)
-            }.also { panelMotions[slot] = it }
-            val ready = motion.update(root, clone, target, clamped, parkedTargetAlpha)
-            usedSlots += slot
-
-            // Do not translate host children. Only duplicate copies are hidden after the overlay's
-            // first successful draw; the selected target is owned by LeftPanelMotion.
-            if (clamped < 1f) {
-                targets.filterNot { it === target }.forEach { duplicate ->
-                    liveSecondaryEndpoints += duplicate
-                    suppressEndpoint(duplicate, ready)
-                }
-            }
-            clone.alpha = LeftHandover.sourceAlpha(clamped, ready)
-        }
-
-        panelMotions.entries.removeIf { (slot, motion) ->
-            if (slot in usedSlots) false else { motion.clear(); true }
-        }
-        releaseEndpointStates(liveSecondaryEndpoints)
-        if (clamped >= 1f) releaseEndpointStates(emptySet())
-    }
-
-    /** The host callback runs inside a frame; never let a failure in here reach SystemUI. */
-    private fun applyHandoverGuarded(progress: Float) {
-        runCatching { applyHandover(progress) }
-            .onFailure { DebugLog.w(TAG, "LeftContainer hand-over failed", it) }
-    }
-
-    /** Keep native QS/QS_FAKE copies as the only moving glyphs during a shade switch. */
     internal fun onShadeSwitchStarted(controlCenterVisible: Boolean) {
         if (!active) return
         runCatching {
             shadeSwitchSettledToControlCenter = false
-            suspendHandoverForShadeSwitch()
+            handover.suspendHandoverForShadeSwitch()
             val sourceAlpha = if (controlCenterVisible) 0f else 1f
             synchronized(states) {
                 states.values.forEach { state ->
@@ -874,131 +747,7 @@ object LeftContainerHooker : StaticHooker() {
         panelProgress = if (controlCenterVisible) 1f else 0f
         shadeSwitchSettledToControlCenter = controlCenterVisible
         if (controlCenterVisible) scheduleReconcile() else requestReconcile()
-        applyHandoverGuarded(panelProgress)
-    }
-
-    private fun suspendHandoverForShadeSwitch() {
-        if (panelMotions.isNotEmpty()) {
-            panelMotions.values.forEach(LeftPanelMotion::clear)
-            panelMotions.clear()
-        }
-        releaseEndpointStates(emptySet())
-    }
-
-    private fun settleNativeControlCenterEndpoint() {
-        suspendHandoverForShadeSwitch()
-        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } } ?: return
-        if (!active) return
-        val rows = liveControlCenterRows()
-        state.clones.forEach { (slot, clone) ->
-            val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true }
-            val alpha = if (ready) 0f else 1f
-            if (clone.alpha != alpha) clone.alpha = alpha
-        }
-    }
-
-    /** Candidate endpoint must be attached, visible, and measured. */
-    private fun isUsableDestination(view: View): Boolean =
-        view.isAttachedToWindow && view.isVisible && view.width > 0 && view.height > 0
-
-    /** The row class is resolved from the captured ancestor rather than from an icon name. */
-    private fun View.parentRowClass(): String? =
-        CC_ROW_CLASSES.firstOrNull { name -> ancestorOf(name) != null }
-
-    private fun View.ancestorOf(name: String): View? {
-        var node: View? = parent as? View
-        while (node != null) {
-            if (node.javaClass.name == name) return node
-            node = node.parent as? View
-        }
-        return null
-    }
-
-    private fun suppressEndpoint(view: View, ready: Boolean, holdUntilReady: Boolean = false) {
-        val entry = endpointStates[view] ?: EndpointState(view.alpha, view.alpha)
-            .also { endpointStates[view] = it }
-        if (holdUntilReady) entry.holdUntilReady = true
-        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
-        val alpha = if (ready || entry.holdUntilReady) 0f else entry.savedAlpha
-        if (view.alpha != alpha) view.alpha = alpha
-        entry.appliedAlpha = alpha
-    }
-
-    /** Removes a parked duplicate without revealing it; [LeftPanelMotion] owns it next. */
-    private fun takeEndpointForMotion(view: View): Float? {
-        val entry = endpointStates.remove(view) ?: return null
-        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
-        if (view.alpha != entry.appliedAlpha) view.alpha = entry.appliedAlpha
-        return entry.savedAlpha
-    }
-
-    /** Restore only values still owned by us, matching DuoPanelMotion's fail-open cleanup. */
-    private fun releaseEndpointStates(live: Set<View>) {
-        if (endpointStates.isEmpty()) return
-        val iterator = endpointStates.entries.iterator()
-        while (iterator.hasNext()) {
-            val (view, entry) = iterator.next()
-            if (view in live) continue
-            if (abs(view.alpha - entry.appliedAlpha) < .001f) view.alpha = entry.savedAlpha
-            iterator.remove()
-        }
-    }
-
-    /** Gives every moved slot back to the left container (closed shade, feature off, teardown). */
-    private fun restoreHandover() {
-        panelMotions.values.forEach(LeftPanelMotion::clear)
-        panelMotions.clear()
-        releaseEndpointStates(emptySet())
-        synchronized(states) {
-            states.values.forEach { state ->
-                state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
-                state.leftContainer?.let { container -> if (container.alpha != 1f) container.alpha = 1f }
-            }
-        }
-    }
-
-    /**
-     * Progress can reach zero before the user lifts the finger. Keep the left clone as the visible
-     * owner and park every currently inflated control-center copy until the host reports dismissal.
-     */
-    private fun parkHandover() {
-        panelMotions.values.forEach(LeftPanelMotion::clear)
-        panelMotions.clear()
-        releaseEndpointStates(emptySet())
-        synchronized(states) {
-            states.values.forEach { state ->
-                state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
-                state.leftContainer?.let { container -> if (container.alpha != 1f) container.alpha = 1f }
-            }
-        }
-        val state = synchronized(states) { states.values.firstOrNull { !it.isKeyguard } } ?: return
-        if (!active || state.clones.isEmpty()) return
-        liveControlCenterRows().forEach { row ->
-            state.clones.keys.forEach { slot ->
-                statusRowIcon(row, slot)?.takeIf(::isUsableDestination)?.let { duplicate ->
-                    suppressEndpoint(duplicate, ready = false, holdUntilReady = true)
-                }
-            }
-        }
-    }
-
-    private fun statusRowIcon(row: ViewGroup?, slot: String): View? {
-        val icons = row?.let(::statusIconsContainer) ?: return null
-        for (index in 0 until icons.childCount) {
-            val child = icons.getChildAt(index)
-            if (child != null && slotOf(child) == slot) return child
-        }
-        return null
-    }
-
-    /** `R.id.statusIcons` of a control-center row; resolved through the row's own resources. */
-    private fun statusIconsContainer(row: ViewGroup): ViewGroup? {
-        if (statusIconsId == 0) {
-            statusIconsId = row.resources.getIdentifier("statusIcons", "id", "com.android.systemui")
-        }
-        val id = statusIconsId
-        if (id == 0) return null
-        return row.findViewById<View>(id) as? ViewGroup
+        handover.applyHandoverGuarded(panelProgress)
     }
 
     private fun hookManagerEvents(managerClass: Class<*>) {
@@ -1083,7 +832,7 @@ object LeftContainerHooker : StaticHooker() {
             teardownState(state)
             publishOwnedChange()
             // No clones left: hand the control-center copies back instead of leaving them parked.
-            applyHandoverGuarded(panelProgress)
+            handover.applyHandoverGuarded(panelProgress)
         }
     }
 
@@ -1094,7 +843,7 @@ object LeftContainerHooker : StaticHooker() {
         runOnMain {
             teardownState(state)
             publishOwnedChange()
-            applyHandoverGuarded(panelProgress)
+            handover.applyHandoverGuarded(panelProgress)
         }
     }
 
@@ -1147,15 +896,7 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     private fun resetReflectionCaches() {
-        synchronized(this) { hierarchyFields.clear() }
-        iconViewConstructor = null
-        iconViewMIconField = null
-        iconPayloadCloneMethod = null
-        isIconVisibleMethod = null
-        iconPayloadVisibleField = null
-        iconViewSetMethod = null
-        iconViewSetResolved = false
-        darkDispatcherField = null
+        cloner.reset()
         islandShowingField = null
         slotGetter = null
     }
@@ -1226,8 +967,8 @@ object LeftContainerHooker : StaticHooker() {
                     if (active && !state.isKeyguard && keyguardShowing()) {
                         state.leftContainer?.visibility = View.GONE
                     } else if (!active && state.leftHost.isShown) {
-                        state.clones.values.forEach { animateCloneVisibility(it, false) }
-                        if (state.clones.values.none { cloneFades[it]?.animator != null }) teardownState(state)
+                        state.clones.values.forEach { cloner.animateCloneVisibility(it, false) }
+                        if (state.clones.values.none { cloner.isAnimating(it) }) teardownState(state)
                     } else {
                         teardownState(state)
                     }
@@ -1251,7 +992,7 @@ object LeftContainerHooker : StaticHooker() {
         shadeFullyOpen = readShadeFullyOpen(
             synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.barRoot }
         )
-        applyHandoverGuarded(if (shadeFullyOpen) 1f else panelProgress)
+        handover.applyHandoverGuarded(if (shadeFullyOpen) 1f else panelProgress)
     }
 
     // ─── Capture / container ─────────────────────────────────────────────────────
@@ -1431,7 +1172,7 @@ object LeftContainerHooker : StaticHooker() {
                 syncClones(state)
             }
             // A new clone needs its control-center copy parked before the next drag frame.
-            applyHandoverGuarded(panelProgress)
+            handover.applyHandoverGuarded(panelProgress)
         }
             .onFailure { t -> DebugLog.w(TAG, "LeftContainer sync failed", t) }
     }
@@ -1448,16 +1189,16 @@ object LeftContainerHooker : StaticHooker() {
             val child = rightChildForSlot(state, slot)
             if (slot !in slots || child == null) {
                 if (slot == "airplane" && duoOwnsAirplane) {
-                    cloneFades[clone]?.animator?.cancel()
-                    panelMotions.remove(slot)?.clear()
+                    cloner.cancel(clone)
+                    handover.cancelSlot(slot)
                 } else {
-                    animateCloneVisibility(clone, false)
-                    if (cloneFades[clone]?.animator != null) continue
+                    cloner.animateCloneVisibility(clone, false)
+                    if (cloner.isAnimating(clone)) continue
                 }
                 it.remove()
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-                cloneFades.remove(clone)?.animator?.cancel()
-                unregisterDarkReceiver(state, clone)
+                cloner.forget(clone)
+                cloner.unregisterDarkReceiver(state.manager, clone)
             }
         }
 
@@ -1470,16 +1211,16 @@ object LeftContainerHooker : StaticHooker() {
             if (slot !in slots) continue
             val existing = state.clones[slot]
             val clone = existing ?: createClone(state, child, slot) ?: continue
-            if (!updateClone(state, clone, child)) {
+            if (!cloner.updateClone(clone, child)) {
                 state.clones.remove(slot)
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-                cloneFades.remove(clone)?.animator?.cancel()
-                unregisterDarkReceiver(state, clone)
+                cloner.forget(clone)
+                cloner.unregisterDarkReceiver(state.manager, clone)
                 continue
             }
             if (existing == null) {
                 state.clones[slot] = clone
-                registerDarkReceiver(state, clone)
+                cloner.registerDarkReceiver(state.manager, clone)
             }
             val container = state.leftContainer ?: continue
             if (container.indexOfChild(clone) != targetIndex) {
@@ -1504,118 +1245,10 @@ object LeftContainerHooker : StaticHooker() {
     }
 
     private fun createClone(state: LeftState, child: View, slot: String): View? {
-        val ctor = iconViewConstructor ?: return null
-        if (iconViewSetMethod == null) return null
-        val clone = runCatching {
-            ctor.newInstance(state.leftHost.context, slot, null, false)
-        }.getOrNull() as? View ?: return null
-        // IconManager enables this on every native StatusBarIconView. Without it, the special
-        // 58x56dp airplane drawable measures at its intrinsic width instead of fitting the
-        // 20dp status-bar slot, producing an abnormally wide clone.
-        (clone as? android.widget.ImageView)?.apply {
-            setAdjustViewBounds(true)
-            // Native CENTER draws the 58dp airplane outside its measured status-bar box.
-            if (slot == "airplane") scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-        }
+        val clone = cloner.createClone(state.leftHost.context, slot) ?: return null
         val container = ensureContainer(state) ?: return null
-        // Add before payload/tint registration; DarkIconDispatcher immediately sends a callback.
         container.addView(clone)
         return clone
-    }
-
-    private fun updateClone(state: LeftState, clone: View, child: View): Boolean {
-        // Size: copy the system view's own layout params so the box matches the right cluster
-        // exactly (this is what fixes the misplaced height of the earlier view-move version).
-        runCatching {
-                    val src = child.layoutParams
-                    if (src != null) {
-                        val cur = clone.layoutParams
-                        val marginsDiffer = when {
-                            cur is ViewGroup.MarginLayoutParams && src is ViewGroup.MarginLayoutParams ->
-                                cur.leftMargin != src.leftMargin || cur.topMargin != src.topMargin ||
-                                    cur.rightMargin != src.rightMargin || cur.bottomMargin != src.bottomMargin
-                            else -> (cur is ViewGroup.MarginLayoutParams) !=
-                                (src is ViewGroup.MarginLayoutParams)
-                        }
-                        if (cur == null || cur.width != src.width || cur.height != src.height || marginsDiffer) {
-                    val copy = when (src) {
-                        is ViewGroup.MarginLayoutParams -> LinearLayout.LayoutParams(src)
-                        else -> LinearLayout.LayoutParams(src)
-                    }
-                    // Per-child gravity overrides the container's, so the clone is always
-                    // vertically centered even if some slot's source params carry a stray
-                    // gravity (the right cluster centers ~20dp boxes inside the full-height
-                    // bar; TOP alignment made the clones render raised).
-                    copy.gravity = android.view.Gravity.CENTER_VERTICAL
-                    clone.layoutParams = copy
-                }
-            }
-        }
-        // Icon payload: mirror the child's StatusBarIcon so scale/desc/colors are identical.
-        val payloadSet = runCatching {
-            val icon = iconViewMIconField?.get(child)
-            val clonedIcon = icon?.let { cloneIconPayload(it) } ?: return@runCatching false
-            val setter = iconViewSetMethod ?: return@runCatching false
-            val visibleField = iconPayloadVisibleField ?: hierarchyField(clonedIcon.javaClass, "visible")
-                ?.also { iconPayloadVisibleField = it } ?: return@runCatching false
-            visibleField.setBoolean(clonedIcon, true)
-            setter.invoke(clone, clonedIcon)
-            true
-        }.getOrDefault(false)
-        if (!payloadSet) return false
-        // Visibility mirrors the system (icon logically active).
-        val visible = isIconVisibleMethod?.let { m ->
-            runCatching { m.invoke(child) as? Boolean }.getOrNull()
-        } ?: false
-        animateCloneVisibility(clone, visible)
-        return true
-    }
-
-    private class CloneFade(var visible: Boolean? = null, var animator: android.animation.ValueAnimator? = null)
-    private val cloneFades = WeakHashMap<View, CloneFade>()
-
-    private fun animateCloneVisibility(clone: View, visible: Boolean) {
-        val image = clone as? android.widget.ImageView ?: run {
-            clone.visibility = if (visible) View.VISIBLE else View.GONE
-            return
-        }
-        val fade = cloneFades.getOrPut(clone) { CloneFade() }
-        if (fade.visible == visible) {
-            if (!visible && fade.animator == null) clone.visibility = View.GONE
-            return
-        }
-        val initial = fade.visible == null
-        fade.animator?.cancel()
-        fade.animator = null
-        fade.visible = visible
-        if (initial) image.imageAlpha = 0
-        clone.visibility = View.VISIBLE
-        val target = if (visible) 255 else 0
-        if (!android.animation.ValueAnimator.areAnimatorsEnabled() || (!visible && initial)) {
-            image.imageAlpha = target
-            clone.visibility = if (visible) View.VISIBLE else View.GONE
-            return
-        }
-        fade.animator = android.animation.ValueAnimator.ofInt(image.imageAlpha, target).apply {
-            duration = 200L
-            addUpdateListener { image.imageAlpha = it.animatedValue as Int }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (fade.animator !== animation) return
-                    fade.animator = null
-                    if (fade.visible == false) clone.visibility = View.GONE
-                }
-            })
-            start()
-        }
-    }
-
-    /** StatusBarIcon is mutable; use its host clone implementation before StatusBarIconView.set(). */
-    private fun cloneIconPayload(icon: Any): Any? {
-        val method = iconPayloadCloneMethod ?: findReflectiveMethod(icon.javaClass) { candidate ->
-            candidate.name == "clone" && candidate.parameterTypes.isEmpty()
-        }?.also { iconPayloadCloneMethod = it } ?: return null
-        return runCatching { method.invoke(icon) }.getOrNull()
     }
 
     private fun rightChildForSlot(state: LeftState, slot: String): View? {
@@ -1630,54 +1263,13 @@ object LeftContainerHooker : StaticHooker() {
     private fun removeClones(state: LeftState) {
         state.clones.values.forEach { clone ->
             runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-            cloneFades.remove(clone)?.animator?.cancel()
-            unregisterDarkReceiver(state, clone)
+            cloner.forget(clone)
+            cloner.unregisterDarkReceiver(state.manager, clone)
         }
         state.clones.clear()
     }
 
     // ─── Dark tint ───────────────────────────────────────────────────────────────
-
-    private fun managerDarkDispatcher(manager: Any): Any? {
-        if (darkDispatcherField == null) {
-            var c: Class<*>? = manager.javaClass
-            while (c != null) {
-                val f = runCatching {
-                    c.getDeclaredField("mDarkIconDispatcher").apply { isAccessible = true }
-                }.getOrNull()
-                if (f != null) {
-                    darkDispatcherField = f
-                    break
-                }
-                c = c.superclass
-            }
-        }
-        val f = darkDispatcherField ?: return null
-        return runCatching { f.get(manager) }.getOrNull()
-    }
-
-    private fun registerDarkReceiver(state: LeftState, clone: View) {
-        val dispatcher = managerDarkDispatcher(state.manager) ?: return
-        runCatching {
-            val method = dispatcher.javaClass.methods.firstOrNull {
-                it.name == "addDarkReceiver" && it.parameterTypes.size == 1 &&
-                    it.parameterTypes[0].isAssignableFrom(clone.javaClass)
-            } ?: dispatcher.javaClass.methods.firstOrNull {
-                it.name == "addDarkReceiver" && it.parameterTypes.size == 1
-            } ?: return
-            method.invoke(dispatcher, clone)
-        }
-    }
-
-    private fun unregisterDarkReceiver(state: LeftState, clone: View) {
-        val dispatcher = managerDarkDispatcher(state.manager) ?: return
-        runCatching {
-            val method = dispatcher.javaClass.methods.firstOrNull {
-                it.name == "removeDarkReceiver" && it.parameterTypes.size == 1
-            } ?: return
-            method.invoke(dispatcher, clone)
-        }
-    }
 
     // ─── Island ──────────────────────────────────────────────────────────────────
 
@@ -1713,51 +1305,7 @@ object LeftContainerHooker : StaticHooker() {
         return runCatching { getter.invoke(view) as? String }.getOrNull()
     }
 
-    private val hierarchyFields = HashMap<Pair<Class<*>, String>, Field?>()
-
-    @Synchronized
-    private fun hierarchyField(clazz: Class<*>, name: String): Field? {
-        val key = clazz to name
-        if (hierarchyFields.containsKey(key)) return hierarchyFields[key]
-        var c: Class<*>? = clazz
-        var resolved: Field? = null
-        while (c != null && resolved == null) {
-            resolved = runCatching { c.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-            c = c.superclass
-        }
-        hierarchyFields[key] = resolved
-        return resolved
-    }
-
-    private fun findReflectiveMethod(clazz: Class<*>, predicate: (Method) -> Boolean): Method? {
-        var c: Class<*>? = clazz
-        while (c != null) {
-            c.declaredMethods.firstOrNull(predicate)?.let { return it.apply { isAccessible = true } }
-            c = c.superclass
-        }
-        return clazz.methods.firstOrNull(predicate)?.apply { isAccessible = true }
-    }
-
-    private fun resolveIconViewSetter(): Method? {
-        iconViewSetMethod?.let { return it }
-        if (iconViewSetResolved) return null
-        iconViewSetResolved = true
-        val cls = STATUS_BAR_ICON_VIEW_CLASS.toClassOrNull() ?: return null
-        val iconCls = runCatching {
-            Class.forName("com.android.internal.statusbar.StatusBarIcon")
-        }.getOrNull() ?: return null
-        var c: Class<*>? = cls
-        while (c != null) {
-            runCatching {
-                c.getDeclaredMethod("set", iconCls).apply { isAccessible = true }
-            }.getOrNull()?.let { method ->
-                iconViewSetMethod = method
-                return method
-            }
-            c = c.superclass
-        }
-        return null
-    }
+    private fun hierarchyField(clazz: Class<*>, name: String): Field? = HostAccess.field(clazz, name)
 
     /** Marker on our own left container so teardown never touches system views. */
     private const val CONTAINER_TAG = "hypertweak_left_container"

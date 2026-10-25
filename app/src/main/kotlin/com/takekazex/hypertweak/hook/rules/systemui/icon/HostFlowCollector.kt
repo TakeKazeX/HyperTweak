@@ -20,6 +20,7 @@ object HostFlowCollector {
     private const val TAG = "IconTuner"
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    internal fun post(action: () -> Unit) { mainHandler.post(action) }
     private val cacheLock = Any()
 
     @Volatile
